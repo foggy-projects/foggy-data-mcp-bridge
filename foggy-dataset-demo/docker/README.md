@@ -63,6 +63,24 @@ init-db.cmd mysql         # 初始化 MySQL
 init-db.cmd all           # 初始化所有数据库
 ```
 
+### 初始化 Smoke 检查
+
+`smoke-demo-init.sh` 用于检查 MySQL / PostgreSQL / SQL Server demo init 是否已经具备 `FactOrderModel.salesTeam` 所需的 `dim_sales_team` 和 `fact_order.sales_team_key` 数据。
+
+```bash
+# 仅检查 SQL 文件，不需要 Docker
+./smoke-demo-init.sh --static
+
+# 检查已经运行的数据库容器；未运行的容器会跳过
+./smoke-demo-init.sh all
+
+# 启动数据库容器后执行 live SQL smoke
+./smoke-demo-init.sh all --start
+
+# 重新初始化后执行 live SQL smoke（会清空并重建 demo 数据）
+./smoke-demo-init.sh all --start --init
+```
+
 ## 测试数据说明
 
 | 表名 | 记录数 | 说明 |
@@ -71,6 +89,7 @@ init-db.cmd all           # 初始化所有数据库
 | dim_product | 500 | 商品维度 |
 | dim_customer | 1000 | 客户维度 |
 | dim_store | 50 | 门店维度 |
+| dim_sales_team | 5 | 销售团队维度 |
 | dim_channel | 10 | 渠道维度 |
 | dim_promotion | 30 | 促销活动维度 |
 | fact_order | 20000 | 订单事实表 |

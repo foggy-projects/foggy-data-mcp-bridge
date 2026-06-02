@@ -86,6 +86,12 @@ cd docker
 
 # Initialize all databases
 ./init-db.sh all
+
+# Static sales-team init smoke, no Docker required
+./smoke-demo-init.sh --static
+
+# Live sales-team init smoke for running database containers
+./smoke-demo-init.sh all
 ```
 
 ### 3. Connection Information
@@ -105,6 +111,7 @@ docker exec -it foggy-demo-mysql mysql -ufoggy -pfoggy_test_123 foggy_test
 # Check record counts
 SELECT 'fact_sales' AS tbl, COUNT(*) AS cnt FROM fact_sales
 UNION ALL SELECT 'fact_order', COUNT(*) FROM fact_order
+UNION ALL SELECT 'dim_sales_team', COUNT(*) FROM dim_sales_team
 UNION ALL SELECT 'dim_product', COUNT(*) FROM dim_product
 UNION ALL SELECT 'dim_customer', COUNT(*) FROM dim_customer;
 ```

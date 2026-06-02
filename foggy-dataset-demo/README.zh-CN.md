@@ -84,6 +84,12 @@ cd docker
 
 # 初始化所有数据库
 ./init-db.sh all
+
+# 静态检查 sales-team 初始化脚本，不需要 Docker
+./smoke-demo-init.sh --static
+
+# 对正在运行的数据库容器执行 live sales-team smoke
+./smoke-demo-init.sh all
 ```
 
 ### 3. 连接信息
@@ -103,6 +109,7 @@ docker exec -it foggy-demo-mysql mysql -ufoggy -pfoggy_test_123 foggy_test
 # 查看数据量
 SELECT 'fact_sales' AS tbl, COUNT(*) AS cnt FROM fact_sales
 UNION ALL SELECT 'fact_order', COUNT(*) FROM fact_order
+UNION ALL SELECT 'dim_sales_team', COUNT(*) FROM dim_sales_team
 UNION ALL SELECT 'dim_product', COUNT(*) FROM dim_product
 UNION ALL SELECT 'dim_customer', COUNT(*) FROM dim_customer;
 ```

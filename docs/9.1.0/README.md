@@ -86,7 +86,7 @@ The remaining unsupported or unproven items are not 9.1.0 blockers. They are eit
 3. Tree + cascade / advanced tree subtotal semantics move to 9.2.0.
 4. Outer Pivot cache feasibility moves to 9.2.0.
 5. Production telemetry dashboard/log-query examples move to 9.2.0 operational hardening.
-6. MySQL / PostgreSQL / SQL Server docker demo init scripts have been statically aligned for `FactOrderModel.salesTeam` parity after the SQLite fixture fix; live docker DB init smoke remains pending until those containers are available.
+6. MySQL / PostgreSQL / SQL Server docker demo init scripts have been statically aligned for `FactOrderModel.salesTeam` parity after the SQLite fixture fix. `foggy-dataset-demo/docker/smoke-demo-init.sh` now provides static and optional live DB smoke entrypoints; full live DB evidence remains pending until those containers are available.
 
 ## Acceptance Status
 

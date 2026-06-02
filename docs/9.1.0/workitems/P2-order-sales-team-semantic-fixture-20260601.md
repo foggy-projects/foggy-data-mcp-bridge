@@ -45,6 +45,7 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 | `foggy-dataset-model/src/test/resources/sqlite/03-test-data.sql` | Follow-up reactor fix on 2026-06-02: seeded sales-team rows, mapped order fixture rows to sales teams, and filled shipped/completed `ship_date` values. |
 | `foggy-dataset-demo/docker/{mysql,postgres,sqlserver}/init/01-schema.sql` | Follow-up docker parity fix on 2026-06-02: aligned demo schemas with `dim_sales_team` and `fact_order.sales_team_key`. |
 | `foggy-dataset-demo/docker/{mysql,postgres,sqlserver}/init/03-test-data.sql` | Follow-up docker parity fix on 2026-06-02: seeded sales teams and mapped generated plus fixed CRM order rows to sales teams. |
+| `foggy-dataset-demo/docker/smoke-demo-init.sh` | Added reusable static/live sales-team init smoke for docker demo fixture verification. |
 
 ## Testing
 
@@ -61,6 +62,7 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 | Static docker init parity probe for MySQL / PostgreSQL / SQL Server | passed: `dim_sales_team`, `sales_team_key`, seed rows, generated order mapping, and fixed CRM order mapping are present in all three init families. |
 | Fixed CRM `fact_order` insert arity probe for docker init scripts | passed: each of MySQL / PostgreSQL / SQL Server has `16` columns and four fixed CRM rows with `16` values. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' '-Dtest=ModelLoadingTest#testLoadFactOrderModel+testFactOrderModelDimensions,SemanticServiceV3Test,SemanticQueryValidationTest' -Dsurefire.failIfNoSpecifiedTests=false test` | passed after docker parity patch: `Tests run: 30, Failures: 0, Errors: 0, Skipped: 0`. |
+| `cd foggy-dataset-demo/docker && ./smoke-demo-init.sh --static` | passed: reusable static smoke entry validates sales-team fixture markers without requiring Docker. |
 
 ## Progress Tracking
 
@@ -84,4 +86,4 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 
 ## Follow-up
 
-Continue order-domain expansion beyond `biz-002` / `biz-018`. The current gate proves governed `salesTeam` aggregation and backlog-by-team/stage semantics; it is not yet a full order-domain acceptance package. Live docker DB init smoke for MySQL / PostgreSQL / SQL Server remains a follow-up when those containers are available.
+Continue order-domain expansion beyond `biz-002` / `biz-018`. The current gate proves governed `salesTeam` aggregation and backlog-by-team/stage semantics; it is not yet a full order-domain acceptance package. Live docker DB init smoke for MySQL / PostgreSQL / SQL Server remains a follow-up when those containers are available, and can now use `foggy-dataset-demo/docker/smoke-demo-init.sh`.

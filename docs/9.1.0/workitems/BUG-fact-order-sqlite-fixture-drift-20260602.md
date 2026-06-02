@@ -49,6 +49,7 @@ Observed result before fix: `Tests run: 3019, Failures: 15, Errors: 105, Skipped
 | `foggy-dataset-demo/docker/postgres/init/03-test-data.sql` | Seeded five sales teams and mapped generated plus fixed CRM fixture orders to `sales_team_key`. |
 | `foggy-dataset-demo/docker/sqlserver/init/01-schema.sql` | Added `dim_sales_team`, `fact_order.sales_team_key`, and the sales-team key index. |
 | `foggy-dataset-demo/docker/sqlserver/init/03-test-data.sql` | Seeded five sales teams and mapped generated plus fixed CRM fixture orders to `sales_team_key`. |
+| `foggy-dataset-demo/docker/smoke-demo-init.sh` | Added optional static/live sales-team init smoke for MySQL, PostgreSQL, and SQL Server docker demo fixtures. |
 
 This keeps the SQLite integration fixture aligned with `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactOrderModel.tm` and `FactOrderQueryModel.qm`.
 
@@ -94,6 +95,17 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-datas
 
 Result: passed, `Tests run: 30, Failures: 0, Errors: 0, Skipped: 0`.
 
+Reusable smoke entry:
+
+```bash
+cd foggy-dataset-demo/docker
+./smoke-demo-init.sh --static
+./smoke-demo-init.sh all
+./smoke-demo-init.sh all --start --init
+```
+
+Result in the current local environment: static smoke passed. Default live smoke skipped MySQL, PostgreSQL, and SQL Server because Docker is not installed or not on `PATH`; full live DB evidence still depends on Docker database containers being available.
+
 ## Follow-up
 
-Live docker DB init smoke for MySQL, PostgreSQL, and SQL Server remains environment-dependent and should be run when those containers are available. The current patch closes the SQLite reactor gate and the docker script parity gap.
+Live docker DB init smoke for MySQL, PostgreSQL, and SQL Server remains environment-dependent, but the reusable smoke entry is now present. The current patch closes the SQLite reactor gate, docker script parity gap, and missing smoke-command gap.
