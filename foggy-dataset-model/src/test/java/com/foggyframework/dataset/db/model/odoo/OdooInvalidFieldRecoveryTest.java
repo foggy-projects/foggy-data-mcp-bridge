@@ -146,6 +146,36 @@ class OdooInvalidFieldRecoveryTest extends EcommerceTestSupport {
                 "column dateOrder$quarter does not exist");
     }
 
+    @Test
+    @DisplayName("groupBy 直接使用 YEAR(dateOrder) 函数字段应在 SQL 前失败")
+    void testSqlFunctionGroupByFieldIsRejectedBeforeSql() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("YEAR(dateOrder)", "amountTotal"));
+        request.setGroupBy(List.of(new SemanticQueryRequest.GroupByItem("YEAR(dateOrder)", null)));
+        request.setLimit(10);
+
+        assertInvalidFieldError(
+                "OdooSaleOrderQueryModel", request, "YEAR(dateOrder)", null,
+                "YEAR(date_order)");
+    }
+
+    @Test
+    @DisplayName("orderBy 直接使用 YEAR(dateOrder) 函数字段应在 SQL 前失败")
+    void testSqlFunctionOrderByFieldIsRejectedBeforeSql() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("dateOrder$year", "amountTotal"));
+        request.setGroupBy(List.of(new SemanticQueryRequest.GroupByItem("dateOrder$year", null)));
+        SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
+        orderItem.setField("YEAR(dateOrder)");
+        orderItem.setDir("ASC");
+        request.setOrderBy(List.of(orderItem));
+        request.setLimit(10);
+
+        assertInvalidFieldError(
+                "OdooSaleOrderQueryModel", request, "YEAR(dateOrder)", null,
+                "YEAR(date_order)");
+    }
+
     @SuppressWarnings("unchecked")
     private void assertInvalidFieldError(SemanticQueryRequest request, String invalidField, String expectedSuggestion) {
         assertInvalidFieldError(

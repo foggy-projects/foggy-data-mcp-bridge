@@ -222,11 +222,7 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
                 validateExpressionDeps(calcFieldMap.get(field), field, queryModel, schemaFields, calcFieldMap);
                 continue;
             }
-            InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(field);
-            if (parsed != null) {
-                validateExpressionDeps(parsed.getExpression(), parsed.getAlias(), queryModel, schemaFields, calcFieldMap);
-                continue;
-            }
+            // orderBy is a field or selected-alias reference; direct expressions must be selected first.
             validateField(field, queryModel, schemaFields);
         }
     }

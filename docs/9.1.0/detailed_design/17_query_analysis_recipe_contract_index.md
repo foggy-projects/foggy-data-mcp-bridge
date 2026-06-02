@@ -37,7 +37,7 @@ This document makes the existing `query_model`, `timeWindow`, Pivot, DSL_CTE bri
 
 | Variant | Required behavior |
 |---|---|
-| SQL function fields such as `DATE_TRUNC(...)`, `YEAR(...)`, or `MONTH(...)` in `columns`, `groupBy`, or `orderBy` | Reject or rewrite to described date-grain fields; do not treat SQL functions as semantic field names. |
+| SQL function field names such as `DATE_TRUNC(...)`, `YEAR(...)`, or `MONTH(...)` in `groupBy` or `orderBy` | Reject or rewrite to described date-grain fields; do not treat SQL functions as semantic field names. Legacy inline expressions in `columns` are not the signed date-grain route. |
 | Synthesized date-grain fields not returned by describe, such as appending `$month` to a plain date field | Reject or clarify; the field namespace is closed. |
 | `pivot + timeWindow` | Reject or split into separate requests. |
 | `columns + pivot` | Reject; use projection mode or Pivot mode. |
@@ -60,6 +60,8 @@ This document makes the existing `query_model`, `timeWindow`, Pivot, DSL_CTE bri
 | `OdooModelLoadingTest#testDslCteCumulativeAndRankExecuteModeMatchesFixtureBaseline` | Production `queryModel(..., "execute", ...)` uses assembled structured CTE SQL and assembled params for the same signed DSL_CTE request, returning rows that match the Odoo fixture baseline. |
 | `OdooModelLoadingTest#testSaleOrderGroupedTopNOrderLimitMatchesFixtureBaseline` | Production `queryModel(..., "execute", ...)` runs a grouped `sale_order` + `crm_team` aggregate table, orders by the selected aggregate alias, applies top-level `limit`, and matches the hand-built Odoo fixture TopN baseline. |
 | `OdooInvalidFieldRecoveryTest#testSynthesizedDateOrderQuarterIsRejectedBeforeSql` | Public `queryModel(..., "execute", ...)` rejects a synthesized `dateOrder$quarter` field with `INVALID_QUERY_FIELD` before SQL generation, proving the date-grain namespace is closed to fields not returned by describe. |
+| `OdooInvalidFieldRecoveryTest#testSqlFunctionGroupByFieldIsRejectedBeforeSql` | Public `queryModel(..., "execute", ...)` rejects direct `YEAR(dateOrder)` usage in `groupBy` with `INVALID_QUERY_FIELD` before SQL generation; callers must use described date-grain fields or selected aliases. |
+| `OdooInvalidFieldRecoveryTest#testSqlFunctionOrderByFieldIsRejectedBeforeSql` | Public `queryModel(..., "execute", ...)` rejects direct `YEAR(dateOrder)` usage in `orderBy` with `INVALID_QUERY_FIELD` before SQL generation; selected aliases and governed calculated fields remain the supported ordering route. |
 | `OdooModelLoadingTest#testCalculatedFieldsCumulativeAndRankNormalizeToPostAggregate` | Governed calculatedFields sugar normalizes to the same post-aggregate contract and removes the sugar fields from ordinary calculated field processing. |
 | `DslCteAcceptanceSampleTest#generateSqlOptInUsesDslBridgeForCumulativeRankDerivedStage` | Signed DSL_CTE ordinary derive formulas for rank, cumulative sum, and cumulative ratio bridge to `postAggregateCalculations` instead of remaining prompt-only formula text. |
 | `DslCteAcceptanceSampleTest#dslValidationRejectsUnsignedDenseRankDerivedFormula` | DSL_CTE validation rejects unsigned `dense_rank()` result-stage derived formulas before compilation. |
