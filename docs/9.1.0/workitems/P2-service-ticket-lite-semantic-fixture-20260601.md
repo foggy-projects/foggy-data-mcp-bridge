@@ -47,7 +47,7 @@ source_type: optimization
 | `DslCteAcceptanceSampleTest`, `DslCteSlaFixtureIntegrationTest`, `LocalDatasetAccessorGovernanceTest` | Added regression coverage for validation, direct fixture execution, compile hint propagation, NULL-safe rates, and guarded unsupported shapes. |
 | `experiments/spider-routing-eval/scripts/score_biz024_semantic_gate.py` | Added replay-side semantic gate scoring for required model, DSL_CTE evidence, row count, structured output fields, failed tool calls, and forbidden ambiguous unresponded-count mappings. The scorer regression now also fails rows whose structured fields are present but whose explanation exposes `overdueUnrespondedCount = ticketCount - slaHitCount`. |
 | `experiments/spider-routing-eval/Makefile` and `README.md` | Added reusable `score-v39-biz024-semantic-gate` and strict `gate-v39-biz024-semantic-stable` targets, plus runbook notes for promotion gating. |
-| `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/service/QueryExpertService.java` | Added ServiceTicket SLA preflight guard before LLM/tool dispatch for missing first-response SLA threshold, threshold unit ambiguity, unsupported resolution/contract-calendar SLA, direct physical table SQL, prediction/causality/personnel-advice requests, unresponded-count formula ambiguity, conflicting time scopes, and first-response/resolution field mismatch. |
+| `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/service/QueryExpertService.java` | Added ServiceTicket SLA preflight guard before LLM/tool dispatch for missing first-response SLA threshold, threshold unit ambiguity, missing priority-aware threshold policy, unsupported resolution/contract-calendar SLA, direct physical table SQL, prediction/causality/personnel-advice requests, unresponded-count formula ambiguity, conflicting time scopes, and first-response/resolution field mismatch. |
 | `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/service/QueryExpertServiceRoutingCalibrationTest.java` | Added fail-closed regression coverage proving negative ServiceTicket SLA cases return `clarify` or `reject` before `ChatClient` and MCP tool dispatch. |
 | `docs/9.1.0/detailed_design/15_service_ticket_sla_dsl_cte_contract_visibility.md` | Added planner-facing contract visibility for the signed first-response SLA DSL_CTE recipe and unsigned variants. |
 | `experiments/spider-routing-eval/evals/v39_service_ticket_sla_negative_gate_cases.jsonl` | Added negative runtime gate cases extracted from the existing experience recall expansion set and near-miss SLA residual analysis. |
@@ -91,7 +91,8 @@ source_type: optimization
 | `python3 -m py_compile experiments/spider-routing-eval/scripts/build_service_ticket_sla_gate_suite_summary.py experiments/spider-routing-eval/scripts/test_build_service_ticket_sla_gate_suite_summary.py` | passed: suite summary scripts compile. |
 | `make gate-v39-service-ticket-sla-stable-suite` | passed: `biz-024=3/3`, holdout `6/6`, negative `4/4`; combined suite `stable_gate_ok=13/13`, residuals `0`, summary `output/v39_service_ticket_sla_stable_suite_20260601.md`. |
 | `make -C experiments/spider-routing-eval gate-v39-semantic-promoted-offline-ci` | passed on 2026-06-02 after unresponded-count canonicalization hardening: order `6/6`, ServiceTicket suite `13/13`, residuals `0`. |
-| Expanded ServiceTicket SLA negative boundary regression | passed on 2026-06-02: `QueryExpertServiceRoutingCalibrationTest` now runs `26/26`; Python negative scorer profiles reach `8/8`; offline promoted CI reaches ServiceTicket suite `17/17`, residuals `0`. |
+| Expanded ServiceTicket SLA negative boundary regression | passed on 2026-06-02: `QueryExpertServiceRoutingCalibrationTest` ran `26/26`; Python negative scorer profiles reached `8/8`; offline promoted CI reached ServiceTicket suite `17/17`, residuals `0`. |
+| Priority-aware ServiceTicket SLA promotion | passed on 2026-06-02: positive `holdout-007` requires explicit `priority_threshold(priority, P1=4, P2=24, P3=48)` evidence; negative `er0r-015` covers missing priority threshold policy; offline ServiceTicket suite reached `21/21`, residuals `0`. |
 
 ## Replay Findings
 
@@ -108,14 +109,15 @@ source_type: optimization
 | Existing experience negative samples showed the runtime still answered out-of-scope requests with data. | Negative cases are now promoted to a strict runtime gate so unsupported or under-specified ServiceTicket SLA requests fail closed before tools. |
 | Before preflight guard, `er0r-005/006/007/010` all called and succeeded through `dataset.query_model`. | This confirmed the issue was runtime guard placement, not only prompt wording or evaluator scoring. |
 | After preflight guard, the same four cases return only `clarify` or `reject` and do not capture query results. | The negative runtime boundary is now enforceable without relying on model-specific refusal behavior. |
-| 2026-06-02 negative expansion adds `er0r-011/012/013/014`. | The next gate baseline should be `8/8` negative rows and ServiceTicket combined suite `17/17`. |
+| 2026-06-02 negative expansion adds `er0r-011/012/013/014`. | The expanded gate baseline reached `8/8` negative rows and ServiceTicket combined suite `17/17`. |
+| Priority-aware SLA already exists as a signed DSL_CTE fixture shape. | It is now promoted into a semantic holdout and runtime negative gate instead of adding a new free-form formula path. |
 
 ## Progress Tracking
 
 | Dimension | Status | Notes |
 |---|---|---|
 | Development | complete | Catalog visibility, runnable lite fixture, and scoped DSL_CTE SLA runtime bridge are implemented. |
-| Testing | complete | Focused launcher regression, package build, model/MCP regression, direct MCP DSL_CTE probe, targeted NL replay, negative runtime gate, and combined stable gate suite completed. |
+| Testing | complete | Focused launcher regression, package build, model/MCP regression, direct MCP DSL_CTE probe, targeted NL replay, priority-aware holdout, negative runtime gate, and combined stable gate suite completed. |
 | Experience | N/A | Pure backend/model fixture change; no UI surface. |
 | Semantic promotion | ready | Latest `biz-024`, SLA holdout, and negative ServiceTicket runtime gates are failure-free across the tracked runtime baselines; combined stable suite is `13/13` with residuals `0`. |
 
@@ -151,5 +153,5 @@ Continue sample-driven calibration of the governed DSL_CTE / recipe contract:
 | Unresponded count canonicalization | Enforced for current signed shape: prefer explicit `firstResponseAt is null and createdAt < '<cutoff>'` or `firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`; Java bridge and replay scorer reject ambiguous `ticketCount - slaHitCount` aliases when the requested metric is “未响应数”. Continue collecting variants for additional canonical spellings. |
 | Stable gate promotion | Promote `biz-024` using `output/v39_biz024_service_ticket_invocation_20260601_after_docs_base_no_v1.jsonl`; promote holdouts using `output/v39_service_ticket_sla_holdout_invocation_20260601_after_docs_base_no_v1.jsonl`; keep the earlier `0/3` replay as a residual regression sample. |
 | Semantic scoring | Done for `biz-024` and ServiceTicket SLA holdouts; both strict semantic gates now pass on the corrected replay baselines. |
-| Negative runtime scoring | Expanded to missing-threshold, threshold unit ambiguity, resolution/calendar out-of-scope, physical SQL, prediction/personnel-advice, unresponded-count formula ambiguity, conflicting time scopes, and first-response/resolution field mismatch. |
-| Stable suite | Use `make gate-v39-service-ticket-sla-stable-suite` for promotion evidence across positive, holdout, and negative ServiceTicket SLA gates; after the negative expansion the expected combined offline suite is `17/17`. |
+| Negative runtime scoring | Expanded to missing-threshold, threshold unit ambiguity, missing priority SLA threshold policy, resolution/calendar out-of-scope, physical SQL, prediction/personnel-advice, unresponded-count formula ambiguity, conflicting time scopes, and first-response/resolution field mismatch. |
+| Stable suite | Use `make gate-v39-service-ticket-sla-stable-suite` for promotion evidence across positive, holdout, and negative ServiceTicket SLA gates; after priority-aware promotion the expected combined offline suite is `21/21`. |

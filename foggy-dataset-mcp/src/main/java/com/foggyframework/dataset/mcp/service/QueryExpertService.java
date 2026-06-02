@@ -569,6 +569,16 @@ public class QueryExpertService {
         }
         if (containsAny(query, "首响", "首次响应")
                 && containsAny(query, "达成率", "SLA")
+                && requestsPrioritySpecificSlaPolicy(query, normalized)
+                && !containsPrioritySlaThresholdPolicy(query)) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "missing_priority_sla_threshold_policy",
+                    "按优先级统计首次响应 SLA 时必须声明 P1/P2/P3 等优先级对应的 SLA 阈值，不能自动套用默认策略。",
+                    List.of("请补充优先级阈值策略，例如 P1=4 小时、P2=24 小时、P3=48 小时。")
+            );
+        }
+        if (containsAny(query, "首响", "首次响应")
+                && containsAny(query, "达成率", "SLA")
                 && hasNumericSlaThreshold(query)
                 && !containsSlaThreshold(query)) {
             return ServiceTicketSlaBoundary.clarify(
@@ -587,6 +597,27 @@ public class QueryExpertService {
             );
         }
         return null;
+    }
+
+    private static boolean requestsPrioritySpecificSlaPolicy(String query, String normalized) {
+        return containsAny(query, "按优先级使用不同", "按优先级不同", "优先级使用不同", "不同 SLA 阈值", "不同SLA阈值", "各优先级")
+                || containsAny(normalized, "priority-specific", "priority aware", "priority-aware", "priority_threshold");
+    }
+
+    private static boolean containsPrioritySlaThresholdPolicy(String query) {
+        if (Pattern.compile("priority_threshold\\s*\\(", Pattern.CASE_INSENSITIVE).matcher(query).find()) {
+            return true;
+        }
+        return containsPriorityThresholdFor(query, "P1")
+                && containsPriorityThresholdFor(query, "P2")
+                && containsPriorityThresholdFor(query, "P3");
+    }
+
+    private static boolean containsPriorityThresholdFor(String query, String priority) {
+        return Pattern.compile(priority + "\\s*(?:=|:|为)?\\s*\\d+(?:\\.\\d+)?\\s*(?:小时|h|hour|hours)",
+                        Pattern.CASE_INSENSITIVE)
+                .matcher(query)
+                .find();
     }
 
     private static boolean containsSlaThreshold(String query) {

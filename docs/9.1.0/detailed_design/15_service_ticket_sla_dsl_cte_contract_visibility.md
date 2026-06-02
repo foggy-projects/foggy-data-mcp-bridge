@@ -26,6 +26,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | Achievement rate | NULL-safe ratio of SLA-hit count to denominator. |
 | Unresponded overdue count | Explicit predicate: `firstResponseAt is null` and created time is earlier than the SLA cutoff/reference-time expression. |
 | SLA miss count | Signed only as a miss-count alias; it is not the same as unresponded overdue count. |
+| Priority-aware first-response threshold | Signed only when the threshold policy is explicit, for example `priority_threshold(priority, P1=4, P2=24, P3=48)` or equivalent P1/P2/P3 hour declarations. |
 
 ## Unsigned Variants
 
@@ -39,6 +40,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | Unresponded count as `ticketCount - slaHitCount` | Clarify or fail validation; that expression also includes responded-late tickets. |
 | First-response SLA calculated from `resolvedAt` / resolution duration | Clarify; this is a field mismatch. |
 | Conflicting time scopes | Clarify; do not auto-select one window. |
+| Priority-aware SLA without P1/P2/P3 threshold policy | Clarify before LLM/tool dispatch; do not assume a default priority policy. |
 
 ## Runtime Evidence
 

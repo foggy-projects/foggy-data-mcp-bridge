@@ -223,6 +223,24 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 按优先级不同 SLA 阈值但缺策略应在 LLM/工具链前澄清")
+    void serviceTicketPriorityThresholdPolicy_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按团队统计本月创建工单的首次响应 SLA 达成率，要求按优先级使用不同 SLA 阈值，分母为工单数，未响应不达标。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-priority-policy", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("missing_priority_sla_threshold_policy", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("ServiceTicket 预测因果请求应在 LLM/工具链前拒绝")
     void serviceTicketPrediction_shouldRejectBeforeTools() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
