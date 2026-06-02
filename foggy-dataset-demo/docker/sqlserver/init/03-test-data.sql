@@ -121,7 +121,18 @@ INSERT INTO dim_promotion (promotion_id, promotion_name, promotion_type, discoun
 GO
 
 -- ==========================================
--- 4. 生成门店维度数据 (50条)
+-- 4. 生成销售团队维度数据
+-- ==========================================
+INSERT INTO dim_sales_team (team_id, team_name, team_region, manager_name, [status]) VALUES
+('SAL001', N'华东销售一组', N'华东', N'钱经理', 'ACTIVE'),
+('SAL002', N'华北销售一组', N'华北', N'孙经理', 'ACTIVE'),
+('SAL003', N'华南销售一组', N'华南', N'李经理', 'ACTIVE'),
+('SAL004', N'线上直营组', N'线上', N'周经理', 'ACTIVE'),
+('SAL005', N'重点客户组', N'全国', N'吴经理', 'ACTIVE');
+GO
+
+-- ==========================================
+-- 5. 生成门店维度数据 (50条)
 -- ==========================================
 DECLARE @i INT = 1;
 DECLARE @provinces TABLE (idx INT, name NVARCHAR(50));
@@ -297,6 +308,7 @@ DECLARE @date_key INT;
 DECLARE @order_id VARCHAR(32);
 DECLARE @customer_key INT;
 DECLARE @store_key INT;
+DECLARE @sales_team_key INT;
 DECLARE @channel_key INT;
 DECLARE @promotion_key INT;
 DECLARE @order_status VARCHAR(20);
@@ -325,6 +337,7 @@ BEGIN
     SET @order_id = 'ORD' + FORMAT(@rand_date, 'yyyyMMdd') + RIGHT('000000' + CAST(@o AS VARCHAR), 6);
     SET @customer_key = 1 + ABS(CHECKSUM(NEWID())) % 1000;
     SET @store_key = 1 + ABS(CHECKSUM(NEWID())) % 50;
+    SET @sales_team_key = 1 + ABS(CHECKSUM(NEWID())) % 5;
     SET @channel_key = 1 + ABS(CHECKSUM(NEWID())) % 10;
     SET @promotion_key = CASE WHEN RAND(CHECKSUM(NEWID())) < 0.3 THEN 1 + ABS(CHECKSUM(NEWID())) % 45 ELSE 1 END;
 
@@ -369,8 +382,8 @@ BEGIN
     SET @discount_amount = CASE WHEN @promotion_key > 1 THEN @total_amount * (RAND(CHECKSUM(NEWID())) * 0.2) ELSE 0 END;
     SET @freight_amount = CASE WHEN @total_amount > 99 THEN 0 ELSE 10 END;
 
-    INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time)
-    VALUES (@order_id, @date_key, @customer_key, @store_key, @channel_key, @promotion_key, @total_quantity, @total_amount, @discount_amount, @freight_amount, @total_amount - @discount_amount + @freight_amount, @order_status, @payment_status, @order_time);
+    INSERT INTO fact_order (order_id, date_key, customer_key, store_key, sales_team_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time)
+    VALUES (@order_id, @date_key, @customer_key, @store_key, @sales_team_key, @channel_key, @promotion_key, @total_quantity, @total_amount, @discount_amount, @freight_amount, @total_amount - @discount_amount + @freight_amount, @order_status, @payment_status, @order_time);
 
     IF @o % 500 = 0
         PRINT 'Generated ' + CAST(@o AS VARCHAR) + ' orders...';
@@ -545,11 +558,11 @@ WHERE order_id IN ('ORD20240101000001', 'ORD20240101000002', 'ORD20240104000007'
 DELETE FROM fact_order
 WHERE order_id IN ('ORD20240101000001', 'ORD20240101000002', 'ORD20240104000007', 'ORD20240105000010');
 
-INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time, ship_date) VALUES
-('ORD20240101000001', 20240101, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00', '2024-01-02'),
-('ORD20240101000002', 20240101, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00', '2024-01-03'),
-('ORD20240104000007', 20240104, 7, 4, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00', '2024-01-03'),
-('ORD20240105000010', 20240105, 10, 2, 1, 2, 3, 7697.00, 769.70, 0, 6927.30, 'COMPLETED', 'PAID', '2024-01-05 16:00:00', '2024-01-06');
+INSERT INTO fact_order (order_id, date_key, customer_key, store_key, sales_team_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time, ship_date) VALUES
+('ORD20240101000001', 20240101, 1, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00', '2024-01-02'),
+('ORD20240101000002', 20240101, 2, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00', '2024-01-03'),
+('ORD20240104000007', 20240104, 7, 4, 3, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00', '2024-01-03'),
+('ORD20240105000010', 20240105, 10, 2, 5, 1, 2, 3, 7697.00, 769.70, 0, 6927.30, 'COMPLETED', 'PAID', '2024-01-05 16:00:00', '2024-01-06');
 GO
 
 INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id) VALUES

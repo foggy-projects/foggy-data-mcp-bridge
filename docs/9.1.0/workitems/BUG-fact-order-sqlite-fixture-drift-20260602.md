@@ -13,11 +13,11 @@ created_at: 2026-06-02
 updated_at: 2026-06-02
 ---
 
-# FactOrder SQLite Fixture Drift
+# FactOrder Fixture Drift
 
 ## Summary
 
-The Java local reactor failed after the order sales-team semantic fixture was added because the `foggy-dataset-model` SQLite integration fixture lagged behind the demo model contract.
+The Java local reactor failed after the order sales-team semantic fixture was added because the `foggy-dataset-model` SQLite integration fixture lagged behind the demo model contract. The same contract was then checked against docker demo init scripts to keep MySQL, PostgreSQL, and SQL Server demo fixtures aligned.
 
 `foggy-dataset-demo` exposes `FactOrderModel.salesTeam` and `FactOrderModel.shipDate`, but the SQLite test schema/data used by `foggy-dataset-model` did not include the backing sales-team dimension table, order foreign key, or ship-date column.
 
@@ -43,6 +43,12 @@ Observed result before fix: `Tests run: 3019, Failures: 15, Errors: 105, Skipped
 |---|---|
 | `foggy-dataset-model/src/test/resources/sqlite/01-schema.sql` | Added `dim_sales_team`, `sales_team_key`, `ship_date`, and sales-team indexes. |
 | `foggy-dataset-model/src/test/resources/sqlite/03-test-data.sql` | Added five sales-team rows, assigned orders to teams, and filled `ship_date` where the order lifecycle has shipment evidence. |
+| `foggy-dataset-demo/docker/mysql/init/01-schema.sql` | Added `dim_sales_team`, `fact_order.sales_team_key`, and the sales-team key index. |
+| `foggy-dataset-demo/docker/mysql/init/03-test-data.sql` | Seeded five sales teams and mapped generated plus fixed CRM fixture orders to `sales_team_key`. |
+| `foggy-dataset-demo/docker/postgres/init/01-schema.sql` | Added `dim_sales_team`, `fact_order.sales_team_key`, and the sales-team key index. |
+| `foggy-dataset-demo/docker/postgres/init/03-test-data.sql` | Seeded five sales teams and mapped generated plus fixed CRM fixture orders to `sales_team_key`. |
+| `foggy-dataset-demo/docker/sqlserver/init/01-schema.sql` | Added `dim_sales_team`, `fact_order.sales_team_key`, and the sales-team key index. |
+| `foggy-dataset-demo/docker/sqlserver/init/03-test-data.sql` | Seeded five sales teams and mapped generated plus fixed CRM fixture orders to `sales_team_key`. |
 
 This keeps the SQLite integration fixture aligned with `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactOrderModel.tm` and `FactOrderQueryModel.qm`.
 
@@ -64,6 +70,30 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-datas
 
 Result: passed, `Tests run: 3019, Failures: 0, Errors: 0, Skipped: 1`.
 
+Docker demo parity follow-up:
+
+```bash
+rg -n "dim_sales_team|sales_team_key|INSERT INTO .*fact_order" foggy-dataset-demo/docker/{mysql,postgres,sqlserver}/init/{01-schema.sql,03-test-data.sql}
+```
+
+Result: passed statically; all three docker demo init families now contain the sales-team dimension, order FK, seed rows, generated order mapping, and fixed CRM order mapping.
+
+Fixed CRM insert arity probe:
+
+```bash
+python3 <read-only fact_order insert arity probe>
+```
+
+Result: passed; MySQL, PostgreSQL, and SQL Server fixed CRM `fact_order` inserts each have `16` columns and four rows with `16` values.
+
+Focused model regression after docker parity patch:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' '-Dtest=ModelLoadingTest#testLoadFactOrderModel+testFactOrderModelDimensions,SemanticServiceV3Test,SemanticQueryValidationTest' -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Result: passed, `Tests run: 30, Failures: 0, Errors: 0, Skipped: 0`.
+
 ## Follow-up
 
-Check and align `foggy-dataset-demo/docker/{mysql,postgres,sqlserver}/init` for the same `salesTeam` model contract. The current patch closes the SQLite reactor gate; docker demo parity remains the next narrow hardening slice.
+Live docker DB init smoke for MySQL, PostgreSQL, and SQL Server remains environment-dependent and should be run when those containers are available. The current patch closes the SQLite reactor gate and the docker script parity gap.

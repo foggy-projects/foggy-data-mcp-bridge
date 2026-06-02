@@ -166,7 +166,26 @@ CREATE INDEX idx_dim_promotion_date_range ON dim_promotion (start_date, end_date
 GO
 
 -- ==========================================
--- 7. 订单事实表（订单头）
+-- 7. 销售团队维度表
+-- ==========================================
+CREATE TABLE dim_sales_team (
+    sales_team_key INT IDENTITY(1,1),
+    team_id        VARCHAR(32) NOT NULL,
+    team_name      NVARCHAR(100) NOT NULL,
+    team_region    NVARCHAR(50),
+    manager_name   NVARCHAR(100),
+    [status]       VARCHAR(20) DEFAULT 'ACTIVE',
+    created_at     DATETIME DEFAULT GETDATE(),
+    CONSTRAINT pk_dim_sales_team PRIMARY KEY (sales_team_key),
+    CONSTRAINT uk_sales_team_id UNIQUE (team_id)
+);
+GO
+CREATE INDEX idx_dim_sales_team_region ON dim_sales_team (team_region);
+CREATE INDEX idx_dim_sales_team_status ON dim_sales_team ([status]);
+GO
+
+-- ==========================================
+-- 8. 订单事实表（订单头）
 -- ==========================================
 CREATE TABLE fact_order (
     order_key       BIGINT IDENTITY(1,1),
@@ -174,6 +193,7 @@ CREATE TABLE fact_order (
     date_key        INT NOT NULL,
     customer_key    INT,
     store_key       INT,
+    sales_team_key  INT,
     channel_key     INT,
     promotion_key   INT,
     total_quantity  INT NOT NULL,
@@ -193,6 +213,7 @@ GO
 CREATE INDEX idx_fact_order_date_key ON fact_order (date_key);
 CREATE INDEX idx_fact_order_customer_key ON fact_order (customer_key);
 CREATE INDEX idx_fact_order_store_key ON fact_order (store_key);
+CREATE INDEX idx_fact_order_sales_team_key ON fact_order (sales_team_key);
 CREATE INDEX idx_fact_order_channel_key ON fact_order (channel_key);
 CREATE INDEX idx_fact_order_order_status ON fact_order (order_status);
 CREATE INDEX idx_fact_order_order_time ON fact_order (order_time);

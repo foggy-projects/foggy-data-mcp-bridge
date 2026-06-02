@@ -144,7 +144,25 @@ CREATE TABLE `dim_promotion` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='促销活动维度表';
 
 -- ==========================================
--- 7. 订单事实表（订单头）
+-- 7. 销售团队维度表
+-- ==========================================
+DROP TABLE IF EXISTS `dim_sales_team`;
+CREATE TABLE `dim_sales_team` (
+    `sales_team_key` INT AUTO_INCREMENT COMMENT '销售团队代理键',
+    `team_id`        VARCHAR(32) NOT NULL COMMENT '销售团队业务ID',
+    `team_name`      VARCHAR(100) NOT NULL COMMENT '销售团队名称',
+    `team_region`    VARCHAR(50) COMMENT '销售区域',
+    `manager_name`   VARCHAR(100) COMMENT '团队负责人',
+    `status`         VARCHAR(20) DEFAULT 'ACTIVE' COMMENT '状态',
+    `created_at`     DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`sales_team_key`),
+    UNIQUE KEY `uk_sales_team_id` (`team_id`),
+    INDEX `idx_sales_team_region` (`team_region`),
+    INDEX `idx_sales_team_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='销售团队维度表';
+
+-- ==========================================
+-- 8. 订单事实表（订单头）
 -- ==========================================
 DROP TABLE IF EXISTS `fact_order`;
 CREATE TABLE `fact_order` (
@@ -153,6 +171,7 @@ CREATE TABLE `fact_order` (
     `date_key`        INT NOT NULL COMMENT '下单日期维度',
     `customer_key`    INT COMMENT '客户维度',
     `store_key`       INT COMMENT '门店维度',
+    `sales_team_key`  INT COMMENT '销售团队维度',
     `channel_key`     INT COMMENT '渠道维度',
     `promotion_key`   INT COMMENT '促销维度',
     `total_quantity`  INT NOT NULL COMMENT '订单总数量',
@@ -170,6 +189,7 @@ CREATE TABLE `fact_order` (
     INDEX `idx_date_key` (`date_key`),
     INDEX `idx_customer_key` (`customer_key`),
     INDEX `idx_store_key` (`store_key`),
+    INDEX `idx_sales_team_key` (`sales_team_key`),
     INDEX `idx_channel_key` (`channel_key`),
     INDEX `idx_order_status` (`order_status`),
     INDEX `idx_order_time` (`order_time`),
