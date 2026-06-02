@@ -558,6 +558,42 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertPostAggregateRowsMatchFixtureBaseline(response.getItems(), BigDecimal.valueOf(0.8), "DSL_CTE execute");
     }
 
+    @Test
+    @Order(206)
+    @DisplayName("SaleOrder 分组聚合 TopN 排序截断应匹配样本基准")
+    void testSaleOrderGroupedTopNOrderLimitMatchesFixtureBaseline() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales"
+        ));
+        request.setGroupBy(List.of(
+                new SemanticQueryRequest.GroupByItem("salesTeam$id", null),
+                new SemanticQueryRequest.GroupByItem("salesTeam$caption", null)
+        ));
+        SemanticQueryRequest.OrderItem order = new SemanticQueryRequest.OrderItem();
+        order.setField("teamSales");
+        order.setDir("DESC");
+        request.setOrderBy(List.of(order));
+        request.setLimit(2);
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                "OdooSaleOrderQueryModel", request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response);
+        assertNotNull(response.getItems());
+        List<Map<String, Object>> expectedRows = postAggregateBaselineRows().subList(0, 2);
+        assertEquals(expectedRows.size(), response.getItems().size(), "TopN 行数应匹配手工基准");
+        for (int index = 0; index < expectedRows.size(); index++) {
+            Map<String, Object> expected = expectedRows.get(index);
+            Map<String, Object> actual = response.getItems().get(index);
+            assertEquals(salesTeamKey(expected), salesTeamKey(actual), "TopN 团队顺序应匹配: index=" + index);
+            assertDecimalEquals(decimal(expected.get("teamSales")), actual.get("teamSales"),
+                    "teamSales: " + salesTeamKey(actual));
+        }
+    }
+
     private void assertPostAggregateRowsMatchFixtureBaseline(
             List<Map<String, Object>> actualRows, BigDecimal cumulativeShareLimit, String scenario) {
         Map<String, ExpectedPostAggregateRow> expectedRows = expectedPostAggregateRows(postAggregateBaselineRows());
