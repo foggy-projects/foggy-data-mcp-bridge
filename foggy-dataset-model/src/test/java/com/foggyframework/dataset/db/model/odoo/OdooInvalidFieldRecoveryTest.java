@@ -133,11 +133,36 @@ class OdooInvalidFieldRecoveryTest extends EcommerceTestSupport {
         assertInvalidFieldError(request, "move$moveType", "moveType");
     }
 
+    @Test
+    @DisplayName("未暴露的 dateOrder$quarter 粒度字段应在 SQL 前失败")
+    void testSynthesizedDateOrderQuarterIsRejectedBeforeSql() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("dateOrder$quarter", "amountTotal"));
+        request.setGroupBy(List.of(new SemanticQueryRequest.GroupByItem("dateOrder$quarter", null)));
+        request.setLimit(10);
+
+        assertInvalidFieldError(
+                "OdooSaleOrderQueryModel", request, "dateOrder$quarter", null,
+                "column dateOrder$quarter does not exist");
+    }
+
     @SuppressWarnings("unchecked")
     private void assertInvalidFieldError(SemanticQueryRequest request, String invalidField, String expectedSuggestion) {
+        assertInvalidFieldError(
+                "OdooAccountMoveQueryModel", request, invalidField, expectedSuggestion,
+                "column t." + invalidField.toLowerCase() + " does not exist");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertInvalidFieldError(
+            String queryModel,
+            SemanticQueryRequest request,
+            String invalidField,
+            String expectedSuggestion,
+            String forbiddenDbMessage) {
         RuntimeException exception = assertThrows(RuntimeException.class, () ->
             semanticQueryService.queryModel(
-                "OdooAccountMoveQueryModel",
+                queryModel,
                 request,
                 "execute",
                 SemanticRequestContext.empty()
@@ -146,11 +171,14 @@ class OdooInvalidFieldRecoveryTest extends EcommerceTestSupport {
 
         String errorMsg = exception.getMessage();
         assertNotNull(errorMsg);
-        assertTrue(errorMsg.contains("Field '" + invalidField + "' not found in model 'OdooAccountMoveQueryModel'"));
-        assertTrue(errorMsg.contains("Did you mean '" + expectedSuggestion + "'?"));
+        assertTrue(errorMsg.contains("Field '" + invalidField + "' not found in model '" + queryModel + "'"));
+        if (expectedSuggestion != null) {
+            assertTrue(errorMsg.contains("Did you mean '" + expectedSuggestion + "'?"));
+        }
         assertFalse(errorMsg.toLowerCase().contains("column t.move$movetype does not exist"));
         assertFalse(errorMsg.toLowerCase().contains("column t.move$state does not exist"));
         assertFalse(errorMsg.toLowerCase().contains("column t.parent$state does not exist"));
+        assertFalse(errorMsg.toLowerCase().contains(forbiddenDbMessage.toLowerCase()));
 
         assertInstanceOf(ExRuntimeExceptionImpl.class, exception);
         Object item = ((ExRuntimeExceptionImpl) exception).getItem();
@@ -158,12 +186,14 @@ class OdooInvalidFieldRecoveryTest extends EcommerceTestSupport {
 
         Map<String, Object> errorDetail = (Map<String, Object>) item;
         assertEquals("INVALID_QUERY_FIELD", errorDetail.get("errorCode"));
-        assertEquals("OdooAccountMoveQueryModel", errorDetail.get("model"));
+        assertEquals(queryModel, errorDetail.get("model"));
         assertEquals(invalidField, errorDetail.get("invalidField"));
         assertInstanceOf(List.class, errorDetail.get("suggestions"));
         List<?> suggestions = (List<?>) errorDetail.get("suggestions");
-        assertFalse(suggestions.isEmpty());
-        assertEquals(expectedSuggestion, suggestions.get(0));
-        assertTrue(suggestions.contains(expectedSuggestion));
+        if (expectedSuggestion != null) {
+            assertFalse(suggestions.isEmpty());
+            assertEquals(expectedSuggestion, suggestions.get(0));
+            assertTrue(suggestions.contains(expectedSuggestion));
+        }
     }
 }
