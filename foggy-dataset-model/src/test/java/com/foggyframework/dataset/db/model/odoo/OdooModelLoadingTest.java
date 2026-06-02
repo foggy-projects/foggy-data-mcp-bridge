@@ -25,8 +25,11 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -461,6 +464,63 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(206)
+    @DisplayName("postAggregateCalculations 显式累计贡献与排名应匹配样本基准")
+    void testExplicitCumulativeAndRankPostAggregateMatchesFixtureBaseline() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setSlice(null);
+        queryRequest.setPostSlice(null);
+        queryRequest.setColumns(Arrays.asList(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "salesRank",
+                "cumulativeSales",
+                "cumulativeShare"
+        ));
+        queryRequest.setPostAggregateCalculations(new ArrayList<>(List.of(
+                new PostAggregateCalculationDef("salesRank", "rankByMeasure", "teamSales", "grandTotal", "value"),
+                new PostAggregateCalculationDef("cumulativeSales", "cumulativeSum", "teamSales", "grandTotal", "value"),
+                new PostAggregateCalculationDef("cumulativeShare", "cumulativeRatioToTotal", "teamSales", "grandTotal", "ratio")
+        )));
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("salesRank");
+        order.setDir("asc");
+        queryRequest.setOrderBy(List.of(order));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        List<Map<String, Object>> actualRows = jdbcTemplate.queryForList(
+                queryEngine.getSql(), queryEngine.getValues().toArray());
+
+        List<Map<String, Object>> baselineRows = jdbcTemplate.queryForList("""
+                SELECT
+                    so.team_id AS "salesTeam$id",
+                    ct.name AS "salesTeam$caption",
+                    SUM(so.amount_total) AS "teamSales"
+                FROM sale_order so
+                LEFT JOIN crm_team ct ON so.team_id = ct.id
+                GROUP BY so.team_id, ct.name
+                ORDER BY "teamSales" DESC
+                """);
+
+        Map<String, ExpectedPostAggregateRow> expectedRows = expectedPostAggregateRows(baselineRows);
+
+        assertEquals(expectedRows.size(), actualRows.size(), "结果阶段行数应匹配手工基准");
+        for (Map<String, Object> actualRow : actualRows) {
+            String key = salesTeamKey(actualRow);
+            ExpectedPostAggregateRow expected = expectedRows.get(key);
+            assertNotNull(expected, "结果阶段返回了基准之外的团队: " + actualRow);
+            assertDecimalEquals(expected.teamSales(), actualRow.get("teamSales"), "teamSales: " + key);
+            assertEquals(expected.salesRank(), decimal(actualRow.get("salesRank")).intValue(), "salesRank: " + key);
+            assertDecimalEquals(expected.cumulativeSales(), actualRow.get("cumulativeSales"), "cumulativeSales: " + key);
+            assertDecimalEquals(expected.cumulativeShare(), actualRow.get("cumulativeShare"), "cumulativeShare: " + key);
+        }
+    }
+
+    @Test
+    @Order(206)
     @DisplayName("calculatedFields 聚合别名总额占比公式归一为 postAggregateCalculations")
     void testCalculatedFieldsAliasRatioToTotalFormulaNormalizesToPostAggregate() {
         JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
@@ -576,6 +636,56 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertFalse(sql.contains("t.amount_total - t.amount_residual"), sql);
         assertFalse(sql.toUpperCase().contains("GROUP BY"), sql);
         assertFalse(sql.toUpperCase().contains("ORDER BY"), sql);
+    }
+
+    private Map<String, ExpectedPostAggregateRow> expectedPostAggregateRows(List<Map<String, Object>> baselineRows) {
+        BigDecimal grandTotal = baselineRows.stream()
+                .map(row -> decimal(row.get("teamSales")))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal cumulativeSales = BigDecimal.ZERO;
+        BigDecimal previousSales = null;
+        int rank = 0;
+        Map<String, ExpectedPostAggregateRow> expectedRows = new HashMap<>();
+
+        for (int index = 0; index < baselineRows.size(); index++) {
+            Map<String, Object> row = baselineRows.get(index);
+            BigDecimal teamSales = decimal(row.get("teamSales"));
+            if (previousSales == null || teamSales.compareTo(previousSales) != 0) {
+                rank = index + 1;
+            }
+            cumulativeSales = cumulativeSales.add(teamSales);
+            BigDecimal cumulativeShare = grandTotal.compareTo(BigDecimal.ZERO) == 0
+                    ? BigDecimal.ZERO
+                    : cumulativeSales.divide(grandTotal, 10, RoundingMode.HALF_UP);
+            String key = salesTeamKey(row);
+            expectedRows.put(key, new ExpectedPostAggregateRow(
+                    key, teamSales, cumulativeSales, cumulativeShare, rank));
+            previousSales = teamSales;
+        }
+        return expectedRows;
+    }
+
+    private static String salesTeamKey(Map<String, Object> row) {
+        return String.valueOf(row.get("salesTeam$id")) + "|" + String.valueOf(row.get("salesTeam$caption"));
+    }
+
+    private static BigDecimal decimal(Object value) {
+        assertNotNull(value, "数值不应为空");
+        return new BigDecimal(value.toString());
+    }
+
+    private static void assertDecimalEquals(BigDecimal expected, Object actual, String message) {
+        BigDecimal actualDecimal = decimal(actual);
+        assertTrue(expected.subtract(actualDecimal).abs().compareTo(new BigDecimal("0.000001")) <= 0,
+                () -> message + " expected=" + expected + ", actual=" + actualDecimal);
+    }
+
+    private record ExpectedPostAggregateRow(
+            String key,
+            BigDecimal teamSales,
+            BigDecimal cumulativeSales,
+            BigDecimal cumulativeShare,
+            int salesRank) {
     }
 
     private DbQueryRequestDef postAggregateSalesShareRequest() {
