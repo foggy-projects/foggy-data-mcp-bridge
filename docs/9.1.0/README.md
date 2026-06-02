@@ -54,6 +54,7 @@ These remain rejected or research-only unless a separate product requirement reo
 - `workitems/P2-field-comparison-predicate-fixture-20260531.md`
 - `workitems/P2-query-trace-orderby-limit-observability-20260601.md`
 - `workitems/P2-order-sales-team-semantic-fixture-20260601.md`
+- `workitems/BUG-fact-order-sqlite-fixture-drift-20260602.md`
 - `workitems/P2-service-ticket-lite-semantic-fixture-20260601.md`
 - `quality/service-ticket-sla-semantic-fixture-implementation-quality.md`
 - `acceptance/service-ticket-sla-semantic-fixture-acceptance.md`
@@ -70,6 +71,14 @@ Upstream 9.0.0.beta references:
 
 The current release-candidate tag for the C2-inclusive closeout is `v9.1.0-rc.2`.
 
+The local SQLite reactor gate has been rechecked after the FactOrder sales-team fixture drift fix. The canonical command is:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Latest result: `Tests run: 3019, Failures: 0, Errors: 0, Skipped: 1`.
+
 The remaining unsupported or unproven items are not 9.1.0 blockers. They are either explicit fail-closed runtime boundaries or 9.2.0 follow-up tracks:
 
 1. SQL Server cascade and conservative MySQL / MySQL 5.7 cascade remain refused until accepted dialect oracle coverage exists.
@@ -77,6 +86,7 @@ The remaining unsupported or unproven items are not 9.1.0 blockers. They are eit
 3. Tree + cascade / advanced tree subtotal semantics move to 9.2.0.
 4. Outer Pivot cache feasibility moves to 9.2.0.
 5. Production telemetry dashboard/log-query examples move to 9.2.0 operational hardening.
+6. MySQL / PostgreSQL / SQL Server docker demo init scripts should be checked for `FactOrderModel.salesTeam` parity after the SQLite fixture fix.
 
 ## Acceptance Status
 

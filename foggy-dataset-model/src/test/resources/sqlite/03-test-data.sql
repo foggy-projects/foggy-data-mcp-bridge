@@ -20,7 +20,15 @@ INSERT INTO dim_promotion (promotion_id, promotion_name, promotion_type, discoun
 ('PRM004', '双11狂欢节', '满减', NULL, '2024-11-01', '2024-11-11', 'ACTIVE'),
 ('PRM005', '会员专享日', '折扣', 0.88, '2024-01-01', '2024-12-31', 'ACTIVE');
 
--- 3. 门店维度数据 (10条)
+-- 3. 销售团队维度数据
+INSERT INTO dim_sales_team (team_id, team_name, team_region, manager_name, status) VALUES
+('SAL001', '华东销售一组', '华东', '钱经理', 'ACTIVE'),
+('SAL002', '华北销售一组', '华北', '孙经理', 'ACTIVE'),
+('SAL003', '华南销售一组', '华南', '李经理', 'ACTIVE'),
+('SAL004', '线上直营组', '线上', '周经理', 'ACTIVE'),
+('SAL005', '重点客户组', '全国', '吴经理', 'ACTIVE');
+
+-- 4. 门店维度数据 (10条)
 INSERT INTO dim_store (store_id, store_name, store_type, province, city, district, address, manager_name, open_date, area_sqm, status) VALUES
 ('STR00001', '杭州西湖店1', '直营', '浙江省', '杭州市', '西湖区', '西湖区某路1号', '店长1', '2020-01-15', 350.00, 'ACTIVE'),
 ('STR00002', '南京玄武店2', '直营', '江苏省', '南京市', '玄武区', '玄武区某路2号', '店长2', '2020-03-20', 420.00, 'ACTIVE'),
@@ -68,17 +76,17 @@ INSERT INTO dim_date (date_key, full_date, year, quarter, month, month_name, wee
 (20240110, '2024-01-10', 2024, 1, 1, '一月', 2, 10, 3, '星期三', 0, 0, 2024, 1);
 
 -- 7. 订单事实数据 (20条)
-INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time) VALUES
-('ORD20240101000001', 20240101, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00'),
-('ORD20240101000002', 20240101, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00'),
-('ORD20240102000003', 20240102, 3, 3, 1, 1, 3, 1298.00, 0, 0, 1298.00, 'COMPLETED', 'PAID', '2024-01-02 09:15:00'),
-('ORD20240102000004', 20240102, 4, 1, 3, 1, 1, 599.00, 0, 10, 609.00, 'SHIPPED', 'PAID', '2024-01-02 16:45:00'),
-('ORD20240103000005', 20240103, 5, 2, 2, 2, 2, 6998.00, 699.80, 0, 6298.20, 'PAID', 'PAID', '2024-01-03 11:00:00'),
-('ORD20240103000006', 20240103, 6, 3, 4, 1, 1, 2999.00, 0, 0, 2999.00, 'PENDING', 'UNPAID', '2024-01-03 15:30:00'),
-('ORD20240104000007', 20240104, 7, 4, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00'),
-('ORD20240104000008', 20240104, 8, 5, 5, 5, 1, 1299.00, 155.88, 0, 1143.12, 'COMPLETED', 'PAID', '2024-01-04 14:30:00'),
-('ORD20240105000009', 20240105, 9, 1, 2, 1, 1, 19.90, 0, 10, 29.90, 'CANCELLED', 'UNPAID', '2024-01-05 09:00:00'),
-('ORD20240105000010', 20240105, 10, 2, 1, 2, 3, 7697.00, 769.70, 0, 6927.30, 'COMPLETED', 'PAID', '2024-01-05 16:00:00');
+INSERT INTO fact_order (order_id, date_key, customer_key, store_key, sales_team_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time, ship_date) VALUES
+('ORD20240101000001', 20240101, 1, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00', '2024-01-02'),
+('ORD20240101000002', 20240101, 2, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00', '2024-01-03'),
+('ORD20240102000003', 20240102, 3, 3, 3, 1, 1, 3, 1298.00, 0, 0, 1298.00, 'COMPLETED', 'PAID', '2024-01-02 09:15:00', '2024-01-03'),
+('ORD20240102000004', 20240102, 4, 1, 4, 3, 1, 1, 599.00, 0, 10, 609.00, 'SHIPPED', 'PAID', '2024-01-02 16:45:00', '2024-01-04'),
+('ORD20240103000005', 20240103, 5, 2, 5, 2, 2, 2, 6998.00, 699.80, 0, 6298.20, 'PAID', 'PAID', '2024-01-03 11:00:00', NULL),
+('ORD20240103000006', 20240103, 6, 3, 1, 4, 1, 1, 2999.00, 0, 0, 2999.00, 'PENDING', 'UNPAID', '2024-01-03 15:30:00', NULL),
+('ORD20240104000007', 20240104, 7, 4, 2, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00', '2024-01-05'),
+('ORD20240104000008', 20240104, 8, 5, 3, 5, 5, 1, 1299.00, 155.88, 0, 1143.12, 'COMPLETED', 'PAID', '2024-01-04 14:30:00', '2024-01-06'),
+('ORD20240105000009', 20240105, 9, 1, 4, 2, 1, 1, 19.90, 0, 10, 29.90, 'CANCELLED', 'UNPAID', '2024-01-05 09:00:00', NULL),
+('ORD20240105000010', 20240105, 10, 2, 5, 1, 2, 3, 7697.00, 769.70, 0, 6927.30, 'COMPLETED', 'PAID', '2024-01-05 16:00:00', '2024-01-07');
 
 -- 8. 销售明细数据 (30条)
 INSERT INTO fact_sales (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key, quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount, order_status, payment_method) VALUES

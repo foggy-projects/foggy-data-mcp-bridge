@@ -120,6 +120,21 @@ CREATE TABLE dim_promotion
 );
 CREATE INDEX idx_dim_promotion_date_range ON dim_promotion (start_date, end_date);
 
+-- 7. 销售团队维度表
+DROP TABLE IF EXISTS dim_sales_team;
+CREATE TABLE dim_sales_team
+(
+    sales_team_key INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id        TEXT NOT NULL UNIQUE,
+    team_name      TEXT NOT NULL,
+    team_region    TEXT,
+    manager_name   TEXT,
+    status         TEXT DEFAULT 'ACTIVE',
+    created_at     TEXT DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX idx_dim_sales_team_region ON dim_sales_team (team_region);
+CREATE INDEX idx_dim_sales_team_status ON dim_sales_team (status);
+
 -- 7. 订单事实表
 DROP TABLE IF EXISTS fact_order;
 CREATE TABLE fact_order
@@ -129,6 +144,7 @@ CREATE TABLE fact_order
     date_key        INTEGER NOT NULL,
     customer_key    INTEGER,
     store_key       INTEGER,
+    sales_team_key  INTEGER,
     channel_key     INTEGER,
     promotion_key   INTEGER,
     total_quantity  INTEGER NOT NULL,
@@ -139,10 +155,12 @@ CREATE TABLE fact_order
     order_status    TEXT    NOT NULL,
     payment_status  TEXT,
     order_time      TEXT    NOT NULL,
+    ship_date       TEXT,
     created_at      TEXT DEFAULT (datetime('now', 'localtime'))
 );
 CREATE INDEX idx_fact_order_date_key ON fact_order (date_key);
 CREATE INDEX idx_fact_order_customer_key ON fact_order (customer_key);
+CREATE INDEX idx_fact_order_sales_team_key ON fact_order (sales_team_key);
 CREATE INDEX idx_fact_order_order_status ON fact_order (order_status);
 
 -- 8. 销售事实表

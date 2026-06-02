@@ -41,6 +41,8 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 | `foggy-mcp-launcher/src/main/resources/db/lite-demo-schema.sql` | Added `dim_sales_team`, `fact_order.sales_team_key`, and an index for the FK. |
 | `foggy-mcp-launcher/src/main/resources/db/lite-demo-data.sql` | Seeded three sales teams and mapped all lite order rows to teams. |
 | `foggy-mcp-launcher/src/test/java/com/foggyframework/mcp/launcher/McpLauncherLiteProfileConfigurationTest.java` | Added fixture regression coverage for schema/data/model/query-model sales-team exposure and made the existing anomaly assertion stable after column-list expansion. |
+| `foggy-dataset-model/src/test/resources/sqlite/01-schema.sql` | Follow-up reactor fix on 2026-06-02: aligned the local SQLite integration schema with `FactOrderModel.salesTeam` and `shipDate`. |
+| `foggy-dataset-model/src/test/resources/sqlite/03-test-data.sql` | Follow-up reactor fix on 2026-06-02: seeded sales-team rows, mapped order fixture rows to sales teams, and filled shipped/completed `ship_date` values. |
 
 ## Testing
 
@@ -53,6 +55,7 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 | Direct MCP backlog by sales team and stage | passed: generated SQL joined `dim_sales_team`, filtered `orderStatus in PENDING/CONFIRMED/PROCESSING`, and grouped by `salesTeam` plus `orderStatus`. |
 | `python3 experiments/spider-routing-eval/scripts/test_score_order_sales_team_semantic_gate.py` | passed: scorer accepts stable semantic rows, rejects missing semantic contracts, and reports missing expected model rows. |
 | `make gate-v39-order-sales-team-semantic-stable` | passed: `biz-002/biz-018` scored `stable_gate_ok=6/6` with residuals `0` from the promoted v3.9 evidence matrix. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dsurefire.failIfNoSpecifiedTests=false test` | passed after SQLite fixture alignment: `Tests run: 3019, Failures: 0, Errors: 0, Skipped: 1`. |
 
 ## Progress Tracking
 
@@ -76,4 +79,4 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 
 ## Follow-up
 
-Continue order-domain expansion beyond `biz-002` / `biz-018`. The current gate proves governed `salesTeam` aggregation and backlog-by-team/stage semantics; it is not yet a full order-domain acceptance package.
+Continue order-domain expansion beyond `biz-002` / `biz-018`. The current gate proves governed `salesTeam` aggregation and backlog-by-team/stage semantics; it is not yet a full order-domain acceptance package. Also check docker demo init scripts for MySQL / PostgreSQL / SQL Server parity with the same `salesTeam` contract.
