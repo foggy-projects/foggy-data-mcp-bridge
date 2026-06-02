@@ -241,6 +241,24 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 首响 SLA 暂停挂起扣除越界应在 LLM/工具链前澄清")
+    void serviceTicketPauseHoldExclusion_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按团队统计本月创建工单的首次响应 SLA 达成率，SLA 阈值 48 小时，要求扣除客户等待、暂停和挂起时长，分母为工单数，未响应不达标。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-pause-hold", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("pause_hold_exclusion_sla_out_of_scope", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("ServiceTicket 预测因果请求应在 LLM/工具链前拒绝")
     void serviceTicketPrediction_shouldRejectBeforeTools() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

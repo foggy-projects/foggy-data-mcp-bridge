@@ -579,6 +579,15 @@ public class QueryExpertService {
         }
         if (containsAny(query, "首响", "首次响应")
                 && containsAny(query, "达成率", "SLA")
+                && requestsPauseHoldExclusion(query, normalized)) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "pause_hold_exclusion_sla_out_of_scope",
+                    "当前 ServiceTicket 首次响应 SLA recipe 未建模客户等待、暂停或挂起时长扣除，不能按普通首响 SLA 自动执行。",
+                    List.of("请先补充暂停/挂起区间字段、扣除规则和适用状态，或改为不扣除暂停/挂起时长的首次响应 SLA。")
+            );
+        }
+        if (containsAny(query, "首响", "首次响应")
+                && containsAny(query, "达成率", "SLA")
                 && hasNumericSlaThreshold(query)
                 && !containsSlaThreshold(query)) {
             return ServiceTicketSlaBoundary.clarify(
@@ -602,6 +611,14 @@ public class QueryExpertService {
     private static boolean requestsPrioritySpecificSlaPolicy(String query, String normalized) {
         return containsAny(query, "按优先级使用不同", "按优先级不同", "优先级使用不同", "不同 SLA 阈值", "不同SLA阈值", "各优先级")
                 || containsAny(normalized, "priority-specific", "priority aware", "priority-aware", "priority_threshold");
+    }
+
+    private static boolean requestsPauseHoldExclusion(String query, String normalized) {
+        boolean exclusionIntent = containsAny(query, "扣除", "排除", "剔除", "不计入", "净耗时", "有效耗时")
+                || containsAny(normalized, "exclude", "excluding", "net duration", "net hours");
+        boolean pauseHoldSignal = containsAny(query, "暂停", "挂起", "客户等待", "等待客户", "客户侧等待", "冻结")
+                || containsAny(normalized, "pause", "paused", "hold", "suspend", "suspended", "customer wait");
+        return exclusionIntent && pauseHoldSignal;
     }
 
     private static boolean containsPrioritySlaThresholdPolicy(String query) {
