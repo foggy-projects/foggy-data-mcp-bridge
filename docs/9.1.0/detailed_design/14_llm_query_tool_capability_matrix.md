@@ -13,6 +13,8 @@ created_at: 2026-05-03
 
 This document is guidance for LLM routing only. It does not change MCP tool descriptions, public Pivot DSL, queryModel lifecycle, or SQL planner behavior.
 
+For the signed/unsigned non-SLA query analysis recipe registry, use `17_query_analysis_recipe_contract_index.md` as the source of truth. For ServiceTicket SLA recipes, use `16_service_ticket_sla_recipe_contract_index.md`.
+
 The primary rule is: choose the most structured accepted tool that exactly matches the user's intent. If the request falls outside an accepted semantic subset, fail closed with an explicit error or rewrite prompt. Do not produce a best-effort query with guessed semantics.
 
 - `query_model` is the public DSL tool for model-backed business queries.
