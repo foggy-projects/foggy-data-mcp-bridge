@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.semantic;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
@@ -254,6 +255,44 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         assertExceptionContains(ex, "CALCULATE_TIMEWINDOW_POST_CALC_UNSUPPORTED");
     }
 
+    @Test
+    @DisplayName("timeWindow rejects top-level result-stage controls")
+    void timeWindowTopLevelResultStageRejectedBySemanticPipeline() {
+        SemanticQueryRequest postAggregateRequest = request(
+                List.of("salesDate$month", "salesAmount", "salesShare"),
+                List.of("salesDate$month"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "targetMetrics", List.of("salesAmount")
+                ));
+        postAggregateRequest.setPostAggregateCalculations(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "salesAmount", "grandTotal", "ratio"
+        )));
+
+        RuntimeException postAggregateException = assertThrows(RuntimeException.class, () ->
+                semanticQueryServiceV3.queryModel(TEST_MODEL, postAggregateRequest, "execute", SemanticRequestContext.empty()));
+        assertExceptionContains(postAggregateException, "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED");
+        assertExceptionContains(postAggregateException, "postAggregateCalculations");
+
+        SemanticQueryRequest postSliceRequest = request(
+                List.of("salesDate$month", "salesAmount", "salesAmount__prior"),
+                List.of("salesDate$month"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "targetMetrics", List.of("salesAmount")
+                ));
+        postSliceRequest.setPostSlice(List.of(slice("salesAmount__prior", ">", 0)));
+
+        RuntimeException postSliceException = assertThrows(RuntimeException.class, () ->
+                semanticQueryServiceV3.generateSql(TEST_MODEL, postSliceRequest, SemanticRequestContext.empty()));
+        assertExceptionContains(postSliceException, "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED");
+        assertExceptionContains(postSliceException, "postSlice");
+    }
+
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
         request.setLimit(100);
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
@@ -310,6 +349,14 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 .toList());
         request.setTimeWindow(timeWindow);
         return request;
+    }
+
+    private static SemanticQueryRequest.SliceItem slice(String field, String op, Object value) {
+        SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+        item.setField(field);
+        item.setOp(op);
+        item.setValue(value);
+        return item;
     }
 
     private static void assertRowsEqual(List<Map<String, Object>> expected, List<Map<String, Object>> actual) {

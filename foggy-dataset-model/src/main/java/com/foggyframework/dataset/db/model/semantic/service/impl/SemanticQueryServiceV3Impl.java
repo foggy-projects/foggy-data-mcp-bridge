@@ -161,6 +161,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
         }
+        validateTimeWindowResultStageBoundary(request);
 
         long startTime = System.currentTimeMillis();
 
@@ -420,6 +421,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
         }
+        validateTimeWindowResultStageBoundary(request);
 
         String namespace = context.getNamespace();
         ModelResultContext.SecurityContext securityContext = context.getSecurityContext();
@@ -1151,6 +1153,22 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         response.setWarnings(warnings.isEmpty() ? null : warnings);
         return response;
+    }
+
+    private void validateTimeWindowResultStageBoundary(SemanticQueryRequest request) {
+        if (request == null || request.getTimeWindow() == null || request.getTimeWindow().isEmpty()) {
+            return;
+        }
+        if (request.getPostAggregateCalculations() != null && !request.getPostAggregateCalculations().isEmpty()) {
+            throw RX.throwB(
+                    "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED: timeWindow 模式不支持顶层 postAggregateCalculations。"
+                            + "timeWindow 已生成独立时间分析结果阶段；请使用 timeWindow 支持的 calculatedFields 后置投影，或拆分为普通 query_model result-stage 请求");
+        }
+        if (request.getPostSlice() != null && !request.getPostSlice().isEmpty()) {
+            throw RX.throwB(
+                    "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED: timeWindow 模式不支持顶层 postSlice。"
+                            + "请先返回 timeWindow 结果，再使用受治理的二阶段分析过滤，或拆分为普通 query_model result-stage 请求");
+        }
     }
 
     /**
