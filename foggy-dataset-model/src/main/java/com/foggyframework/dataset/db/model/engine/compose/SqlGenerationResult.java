@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.compose;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import lombok.Getter;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -131,5 +132,27 @@ public class SqlGenerationResult {
         }
         sb.append("\n").append(sql);
         return sb.toString();
+    }
+
+    /**
+     * Assemble bind parameters in the same order as {@link #getAssembledSql()} placeholders.
+     *
+     * @return stage params followed by outer SELECT params
+     * @since 9.2.0
+     */
+    public List<Object> getAssembledParams() {
+        if (!hasCteStages()) {
+            return params != null ? params : List.of();
+        }
+        List<Object> assembled = new ArrayList<>();
+        for (CteStage stage : cteStages) {
+            if (stage.params() != null) {
+                assembled.addAll(stage.params());
+            }
+        }
+        if (params != null) {
+            assembled.addAll(params);
+        }
+        return assembled;
     }
 }

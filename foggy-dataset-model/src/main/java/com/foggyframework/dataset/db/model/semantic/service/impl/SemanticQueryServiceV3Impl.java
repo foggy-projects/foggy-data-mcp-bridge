@@ -905,7 +905,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                        SemanticRequestContext context) {
         Map<String, Object> validation = dslCteValidation(request);
         SqlGenerationResult compiled = generateSql(model, request, context);
-        List<Map<String, Object>> rows = executeSql(compiled.getSql(), compiled.getParams(), model);
+        String executableSql = compiled.getAssembledSql();
+        List<Object> executableParams = compiled.getAssembledParams();
+        List<Map<String, Object>> rows = executeSql(executableSql, executableParams, model);
 
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(rows);
@@ -936,8 +938,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryResponse.DebugInfo debug = new SemanticQueryResponse.DebugInfo();
         debug.setDurationMs(null);
         Map<String, Object> extra = new LinkedHashMap<>();
-        extra.put("sql", normalizeDebugSql(compiled.getSql()));
-        extra.put("params", compiled.getParams() == null ? List.of() : compiled.getParams());
+        extra.put("sql", normalizeDebugSql(executableSql));
+        extra.put("params", executableParams);
         extra.put("dsl_cte_compile_to_dsl", true);
         debug.setExtra(extra);
         response.setDebug(debug);

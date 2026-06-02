@@ -501,29 +501,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         List<Map<String, Object>> actualRows = jdbcTemplate.queryForList(
                 queryEngine.getSql(), queryEngine.getValues().toArray());
 
-        List<Map<String, Object>> baselineRows = jdbcTemplate.queryForList("""
-                SELECT
-                    so.team_id AS "salesTeam$id",
-                    ct.name AS "salesTeam$caption",
-                    SUM(so.amount_total) AS "teamSales"
-                FROM sale_order so
-                LEFT JOIN crm_team ct ON so.team_id = ct.id
-                GROUP BY so.team_id, ct.name
-                ORDER BY "teamSales" DESC
-                """);
-
-        Map<String, ExpectedPostAggregateRow> expectedRows = expectedPostAggregateRows(baselineRows);
-
-        assertEquals(expectedRows.size(), actualRows.size(), "结果阶段行数应匹配手工基准");
-        for (Map<String, Object> actualRow : actualRows) {
-            String key = salesTeamKey(actualRow);
-            ExpectedPostAggregateRow expected = expectedRows.get(key);
-            assertNotNull(expected, "结果阶段返回了基准之外的团队: " + actualRow);
-            assertDecimalEquals(expected.teamSales(), actualRow.get("teamSales"), "teamSales: " + key);
-            assertEquals(expected.salesRank(), decimal(actualRow.get("salesRank")).intValue(), "salesRank: " + key);
-            assertDecimalEquals(expected.cumulativeSales(), actualRow.get("cumulativeSales"), "cumulativeSales: " + key);
-            assertDecimalEquals(expected.cumulativeShare(), actualRow.get("cumulativeShare"), "cumulativeShare: " + key);
-        }
+        assertPostAggregateRowsMatchFixtureBaseline(actualRows, null, "结果阶段");
     }
 
     @Test
@@ -545,7 +523,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertNotNull(generated);
         assertNotNull(generated.getSql());
         String executableSql = generated.getAssembledSql();
-        List<Object> executableParams = assembledParams(generated);
+        List<Object> executableParams = generated.getAssembledParams();
         String normalizedSql = executableSql.replace('`', '"');
         assertTrue(normalizedSql.contains("post_stage AS"), executableSql);
         assertTrue(normalizedSql.contains("RANK() OVER (ORDER BY stage1.\"teamSales\" DESC) AS \"salesRank\""),
@@ -556,26 +534,43 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         List<Map<String, Object>> actualRows = jdbcTemplate.queryForList(
                 executableSql, executableParams.toArray(new Object[0]));
 
-        List<Map<String, Object>> baselineRows = jdbcTemplate.queryForList("""
-                SELECT
-                    so.team_id AS "salesTeam$id",
-                    ct.name AS "salesTeam$caption",
-                    SUM(so.amount_total) AS "teamSales"
-                FROM sale_order so
-                LEFT JOIN crm_team ct ON so.team_id = ct.id
-                GROUP BY so.team_id, ct.name
-                ORDER BY "teamSales" DESC
-                """);
+        assertPostAggregateRowsMatchFixtureBaseline(actualRows, BigDecimal.valueOf(0.8), "DSL_CTE");
+    }
 
-        Map<String, ExpectedPostAggregateRow> expectedRows = expectedPostAggregateRows(baselineRows);
-        expectedRows.entrySet().removeIf(entry ->
-                entry.getValue().cumulativeShare().compareTo(BigDecimal.valueOf(0.8)) > 0);
+    @Test
+    @Order(206)
+    @DisplayName("DSL_CTE 累计贡献与排名生产执行入口应匹配样本基准")
+    void testDslCteCumulativeAndRankExecuteModeMatchesFixtureBaseline() {
+        assumeCommonTableExpressionsSupported();
+        if (!supportsWindowFunctions()) {
+            log.info("DSL_CTE cumulative/rank execute parity not executed on {}", getDialectKey());
+            return;
+        }
 
-        assertEquals(expectedRows.size(), actualRows.size(), "DSL_CTE 结果阶段行数应匹配手工基准");
+        SemanticQueryRequest request = dslCtePlan(cumulativeRankSalesTeamPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                "OdooSaleOrderQueryModel", request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response);
+        assertNotNull(response.getItems());
+        assertPostAggregateRowsMatchFixtureBaseline(response.getItems(), BigDecimal.valueOf(0.8), "DSL_CTE execute");
+    }
+
+    private void assertPostAggregateRowsMatchFixtureBaseline(
+            List<Map<String, Object>> actualRows, BigDecimal cumulativeShareLimit, String scenario) {
+        Map<String, ExpectedPostAggregateRow> expectedRows = expectedPostAggregateRows(postAggregateBaselineRows());
+        if (cumulativeShareLimit != null) {
+            expectedRows.entrySet().removeIf(entry ->
+                    entry.getValue().cumulativeShare().compareTo(cumulativeShareLimit) > 0);
+        }
+
+        assertEquals(expectedRows.size(), actualRows.size(), scenario + " 行数应匹配手工基准");
         for (Map<String, Object> actualRow : actualRows) {
             String key = salesTeamKey(actualRow);
             ExpectedPostAggregateRow expected = expectedRows.get(key);
-            assertNotNull(expected, "DSL_CTE 返回了基准之外的团队: " + actualRow);
+            assertNotNull(expected, scenario + " 返回了基准之外的团队: " + actualRow);
             assertDecimalEquals(expected.teamSales(), actualRow.get("teamSales"), "teamSales: " + key);
             assertEquals(expected.salesRank(), decimal(actualRow.get("salesRank")).intValue(), "salesRank: " + key);
             assertDecimalEquals(expected.cumulativeSales(), actualRow.get("cumulativeSales"), "cumulativeSales: " + key);
@@ -702,6 +697,19 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertFalse(sql.toUpperCase().contains("ORDER BY"), sql);
     }
 
+    private List<Map<String, Object>> postAggregateBaselineRows() {
+        return jdbcTemplate.queryForList("""
+                SELECT
+                    so.team_id AS "salesTeam$id",
+                    ct.name AS "salesTeam$caption",
+                    SUM(so.amount_total) AS "teamSales"
+                FROM sale_order so
+                LEFT JOIN crm_team ct ON so.team_id = ct.id
+                GROUP BY so.team_id, ct.name
+                ORDER BY "teamSales" DESC
+                """);
+    }
+
     private Map<String, ExpectedPostAggregateRow> expectedPostAggregateRows(List<Map<String, Object>> baselineRows) {
         BigDecimal grandTotal = baselineRows.stream()
                 .map(row -> decimal(row.get("teamSales")))
@@ -800,17 +808,6 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
             result.put(String.valueOf(kv[i]), kv[i + 1]);
         }
         return result;
-    }
-
-    private static List<Object> assembledParams(SqlGenerationResult generated) {
-        List<Object> params = new ArrayList<>();
-        if (generated.hasCteStages()) {
-            for (SqlGenerationResult.CteStage stage : generated.getCteStages()) {
-                params.addAll(stage.params());
-            }
-        }
-        params.addAll(generated.getParams());
-        return params;
     }
 
     private DbQueryRequestDef postAggregateSalesShareRequest() {
