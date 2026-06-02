@@ -14,6 +14,8 @@ updated_at: 2026-06-02
 
 ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-response SLA shape. This note records the executable shape and the fail-closed variants so planner, prompt, evaluator, and runtime owners use the same boundary.
 
+For the full signed/unsigned recipe registry, use `16_service_ticket_sla_recipe_contract_index.md` as the source of truth.
+
 ## Signed Recipe
 
 | Element | Contract |

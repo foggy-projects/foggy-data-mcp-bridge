@@ -48,7 +48,13 @@ class QueryModelDescriptionConsistencyTest {
             "DATEDIFF(...)",
             "dateMaturity",
             "2026-04-06",
-            "overdueDays"
+            "overdueDays",
+            "DSL_CTE 受控 recipe",
+            "`hours_between(createdAt, firstResponseAt|resolvedAt)`",
+            "`priority_threshold(priority, P1=..., P2=..., P3=...)`",
+            "`business_hours_between(...)` / `working_hours_between(...)`",
+            "`contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)`",
+            "`net_hours_between(...)` / `pause_excluded_hours_between(...)` / `hold_excluded_hours_between(...)` / `customer_wait_excluded_hours_between(...)`"
     );
 
     @Test
