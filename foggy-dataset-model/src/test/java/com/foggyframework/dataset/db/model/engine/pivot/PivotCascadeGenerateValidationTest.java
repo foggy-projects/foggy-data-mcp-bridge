@@ -113,6 +113,50 @@ class PivotCascadeGenerateValidationTest {
     }
 
     @Test
+    @DisplayName("unsupported cascade shapes fail closed at pipeline pre-validation")
+    void testUnsupportedCascadeShapesRejectedAtPipelineBoundary() {
+        PivotRequest missingOrderBy = rowsCascade();
+        missingOrderBy.getRows().get(0).setOrderBy(null);
+        assertPipelineRejectsBeforeExecution(missingOrderBy,
+                PivotCascadeErrorCode.PIVOT_CASCADE_ORDER_BY_REQUIRED);
+
+        PivotRequest columnAxisCascade = new PivotRequest();
+        columnAxisCascade.setRows(List.of(axis("product$categoryName")));
+        columnAxisCascade.setColumns(List.of(
+                limitedAxis("salesDate$year", "-salesAmount", 2),
+                limitedAxis("salesDate$month", "-salesAmount", 2)));
+        columnAxisCascade.setMetrics(List.of("salesAmount"));
+        assertPipelineRejectsBeforeExecution(columnAxisCascade,
+                PivotCascadeErrorCode.PIVOT_CASCADE_CROSS_AXIS_REJECTED);
+
+        PivotRequest crossAxisCascade = rowsCascade();
+        crossAxisCascade.setColumns(List.of(limitedAxis("salesDate$month", "-salesAmount", 3)));
+        assertPipelineRejectsBeforeExecution(crossAxisCascade,
+                PivotCascadeErrorCode.PIVOT_CASCADE_CROSS_AXIS_REJECTED);
+
+        PivotRequest threeLevelCascade = new PivotRequest();
+        threeLevelCascade.setRows(List.of(
+                limitedAxis("region", "-salesAmount", 2),
+                limitedAxis("city", "-salesAmount", 2),
+                axis("store")));
+        threeLevelCascade.setColumns(Collections.emptyList());
+        threeLevelCascade.setMetrics(List.of("salesAmount"));
+        assertPipelineRejectsBeforeExecution(threeLevelCascade,
+                PivotCascadeErrorCode.PIVOT_CASCADE_SCOPE_UNSUPPORTED);
+
+        PivotRequest havingOnlyCascade = new PivotRequest();
+        AxisField category = axis("product$categoryName");
+        category.setHaving(List.of(filter("salesAmount", ">", 1000)));
+        AxisField subCategory = axis("product$subCategoryName");
+        subCategory.setHaving(List.of(filter("salesAmount", ">", 100)));
+        havingOnlyCascade.setRows(List.of(category, subCategory));
+        havingOnlyCascade.setColumns(Collections.emptyList());
+        havingOnlyCascade.setMetrics(List.of("salesAmount"));
+        assertPipelineRejectsBeforeExecution(havingOnlyCascade,
+                PivotCascadeErrorCode.PIVOT_CASCADE_SCOPE_UNSUPPORTED);
+    }
+
+    @Test
     @DisplayName("non-additive metric in cascade request is rejected")
     void testNonAdditiveCascadeRejected() {
         PivotRequest pivot = rowsCascade("avgPrice");
@@ -251,6 +295,27 @@ class PivotCascadeGenerateValidationTest {
         filter.setOp(op);
         filter.setValue(value);
         return filter;
+    }
+
+    private static void assertPipelineRejectsBeforeExecution(PivotRequest pivot, PivotCascadeErrorCode expectedCode) {
+        QueryFacade queryFacade = (QueryFacade) Proxy.newProxyInstance(
+                QueryFacade.class.getClassLoader(),
+                new Class[]{QueryFacade.class},
+                (proxy, method, args) -> fail("unsupported cascade shape must fail before QueryFacade." + method.getName()));
+
+        QueryModelLoader queryModelLoader = (QueryModelLoader) Proxy.newProxyInstance(
+                QueryModelLoader.class.getClassLoader(),
+                new Class[]{QueryModelLoader.class},
+                (proxy, method, args) -> fail("unsupported cascade shape must fail before QueryModelLoader." + method.getName()));
+
+        PivotPipeline pipeline = new PivotPipeline(null, new CardinalityBreaker(), queryModelLoader, queryFacade);
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        PivotCascadeException ex = assertThrows(
+                PivotCascadeException.class,
+                () -> pipeline.execute("FactSalesQueryModel", request, SemanticRequestContext.empty()));
+        assertEquals(expectedCode, ex.getCode());
     }
 
     private static QueryModel queryModelWithAggregation(String metric, DbAggregation aggregation) {
