@@ -1460,6 +1460,14 @@ public class PivotPipeline {
             throw new IllegalArgumentException(
                     "pivot 模式不支持顶层 limit。请使用 pivot.rows[*].limit 或 pivot.columns[*].limit 作为透视轴 TopN 控制");
         }
+        if (request.getPostAggregateCalculations() != null && !request.getPostAggregateCalculations().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "pivot 模式不支持顶层 postAggregateCalculations。请使用 pivot.metrics 的结构化派生指标，或拆分为普通 query_model result-stage 请求");
+        }
+        if (request.getPostSlice() != null && !request.getPostSlice().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "pivot 模式不支持顶层 postSlice。Pivot 轴过滤请使用 pivot.rows[*].having / pivot.columns[*].having；结果阶段过滤请拆分请求");
+        }
 
         // 基本完整性校验
         if (pivot.getRows() == null || pivot.getRows().isEmpty()) {

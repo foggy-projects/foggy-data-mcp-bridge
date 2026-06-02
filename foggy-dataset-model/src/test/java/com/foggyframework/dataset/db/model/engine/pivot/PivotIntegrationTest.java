@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
+import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -431,6 +432,29 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                 assertThrows(IllegalArgumentException.class, () -> execute(limitRequest));
         assertTrue(limitException.getMessage().contains("pivot 模式不支持顶层 limit"));
         assertTrue(limitException.getMessage().contains("pivot.rows[*].limit"));
+    }
+
+    @Test
+    @DisplayName("Pivot 顶层 result-stage 字段不作为透视后处理")
+    void testTopLevelResultStageRejectedInPivotMode() {
+        SemanticQueryRequest postAggregateRequest = new SemanticQueryRequest();
+        postAggregateRequest.setPivot(basicSalesPivot());
+        postAggregateRequest.setPostAggregateCalculations(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "salesAmount", "grandTotal", "ratio")));
+
+        IllegalArgumentException postAggregateException =
+                assertThrows(IllegalArgumentException.class, () -> execute(postAggregateRequest));
+        assertTrue(postAggregateException.getMessage().contains("pivot 模式不支持顶层 postAggregateCalculations"));
+        assertTrue(postAggregateException.getMessage().contains("pivot.metrics"));
+
+        SemanticQueryRequest postSliceRequest = new SemanticQueryRequest();
+        postSliceRequest.setPivot(basicSalesPivot());
+        postSliceRequest.setPostSlice(List.of(slice("salesShare", ">", 0.2)));
+
+        IllegalArgumentException postSliceException =
+                assertThrows(IllegalArgumentException.class, () -> execute(postSliceRequest));
+        assertTrue(postSliceException.getMessage().contains("pivot 模式不支持顶层 postSlice"));
+        assertTrue(postSliceException.getMessage().contains("pivot.rows[*].having"));
     }
 
     @Test
