@@ -895,6 +895,25 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation remaps period-over-period prior alias for output and final orderBy")
+    void validationRemapsPeriodOverPeriodPriorAliasForOutputAndOrderBy() {
+        SemanticQueryResponse response = service.validateQuery(
+                "AccountBalance", dslCtePlan(periodOverPeriodWithPriorOutputAndOrderByPlan()),
+                SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) response.getExecution()
+                .getDslCteValidation().get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(List.of("branch.name", "balanceDate.month", "sum(balanceAmount) AS balanceAmount",
+                        "balanceAmount__prior", "balanceAmount__ratio"),
+                dslRequest.getColumns());
+        assertEquals("balanceAmount__prior", dslRequest.getOrderBy().get(0).getField());
+        assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
+        assertEquals(10, dslRequest.getLimit());
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation marks lag difference period-over-period plan as bridge-ready")
     void validationShowsBridgeReadyForLagDifferencePeriodOverPeriod() {
         SemanticQueryResponse response = service.validateQuery(
@@ -924,6 +943,23 @@ class DslCteAcceptanceSampleTest {
         assertEquals("yoy", dslRequest.getTimeWindow().get("comparison"));
         assertEquals(List.of("salesAmount"), dslRequest.getTimeWindow().get("targetMetrics"));
         assertTrue(dslRequest.getColumns().contains("salesAmount__ratio"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation remaps rolling alias for final orderBy")
+    void validationRemapsRollingAliasForFinalOrderBy() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(rollingWindowWithFinalOrderByPlan()), SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) response.getExecution()
+                .getDslCteValidation().get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(List.of("orderDate.day", "sum(amount) AS salesAmount", "salesAmount__rolling_7d"),
+                dslRequest.getColumns());
+        assertEquals("salesAmount__rolling_7d", dslRequest.getOrderBy().get(0).getField());
+        assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
+        assertEquals(5, dslRequest.getLimit());
     }
 
     @Test
@@ -3754,6 +3790,28 @@ class DslCteAcceptanceSampleTest {
         );
     }
 
+    private Map<String, Object> rollingWindowWithFinalOrderByPlan() {
+        return plan(
+                List.of(
+                        stage("daily_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "filters", List.of(filter("orderDate", "last_n_days", 30)),
+                                "groupBy", List.of("orderDate.day"),
+                                "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("rolling_sales", "window_derive",
+                                "inputs", List.of("daily_sales"),
+                                "window", window(List.of(), List.of(order("orderDate.day", "ASC")),
+                                        m("type", "rows", "start", -6, "end", 0)),
+                                "derived", List.of(derived("rolling7dSalesAmount", "sum(salesAmount) over last 7 rows"))),
+                        stage("top_rolling_sales", "orderBy",
+                                "inputs", List.of("rolling_sales"),
+                                "orderBy", List.of(order("rolling7dSalesAmount", "DESC")),
+                                "limit", 5)
+                ),
+                List.of("orderDate.day", "salesAmount", "rolling7dSalesAmount")
+        );
+    }
+
     private Map<String, Object> rollingWindowWithPostSlicePlan() {
         return plan(
                 List.of(
@@ -4599,6 +4657,31 @@ class DslCteAcceptanceSampleTest {
                                         derived("monthOverMonthDifference", "balanceAmount - previousMonthBalance")))
                 ),
                 List.of("branch.name", "balanceDate.month", "balanceAmount", "monthOverMonthDifference")
+        );
+    }
+
+    private Map<String, Object> periodOverPeriodWithPriorOutputAndOrderByPlan() {
+        return plan(
+                List.of(
+                        stage("monthly_branch_balance", "aggregate",
+                                "input", model("AccountBalance"),
+                                "filters", List.of(filter("balanceDate", "year", "2026")),
+                                "groupBy", List.of("branch.name", "balanceDate.month"),
+                                "metrics", List.of(metric("balanceAmount", "sum(balanceAmount)"))),
+                        stage("monthly_growth", "window_derive",
+                                "inputs", List.of("monthly_branch_balance"),
+                                "window", window(List.of("branch.name"), List.of(order("balanceDate.month", "ASC")), null),
+                                "derived", List.of(
+                                        derived("previousMonthBalance", "lag(balanceAmount)"),
+                                        derived("monthOverMonthGrowthRate",
+                                                "(balanceAmount - previousMonthBalance) / previousMonthBalance"))),
+                        stage("top_prior_balance", "orderBy",
+                                "inputs", List.of("monthly_growth"),
+                                "orderBy", List.of(order("previousMonthBalance", "DESC")),
+                                "limit", 10)
+                ),
+                List.of("branch.name", "balanceDate.month", "balanceAmount",
+                        "previousMonthBalance", "monthOverMonthGrowthRate")
         );
     }
 

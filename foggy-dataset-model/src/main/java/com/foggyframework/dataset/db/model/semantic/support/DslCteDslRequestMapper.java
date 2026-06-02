@@ -198,7 +198,7 @@ public final class DslCteDslRequestMapper {
         request.setCalculatedFields(metrics.calculatedFields().isEmpty() ? null : metrics.calculatedFields());
         request.setPostAggregateCalculations(postAgg.isEmpty() ? null : postAgg);
         request.setPostSlice(postSlice);
-        request.setOrderBy(resultOrderBy);
+        request.setOrderBy(remapOrderByAliases(resultOrderBy, outputAliasOverride));
         request.setLimit(resultLimit);
         request.setReturnTotal(false);
 
@@ -4082,6 +4082,22 @@ public final class DslCteDslRequestMapper {
             orderBy.add(item);
         }
         return orderBy.isEmpty() ? null : orderBy;
+    }
+
+    private static List<SemanticQueryRequest.OrderItem> remapOrderByAliases(
+            List<SemanticQueryRequest.OrderItem> orderBy,
+            Map<String, String> aliasOverride) {
+        if (orderBy == null || orderBy.isEmpty() || aliasOverride == null || aliasOverride.isEmpty()) {
+            return orderBy;
+        }
+        for (SemanticQueryRequest.OrderItem item : orderBy) {
+            String field = item.getField();
+            String override = aliasOverride.get(field);
+            if (override != null) {
+                item.setField(override);
+            }
+        }
+        return orderBy;
     }
 
     private static Integer limit(Object raw, List<String> unsupported) {
