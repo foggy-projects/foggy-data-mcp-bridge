@@ -30,6 +30,7 @@ public final class TimeWindowValidator {
     public static final String POST_CALC_FIELD_NOT_FOUND = "TIMEWINDOW_POST_CALCULATED_FIELD_NOT_FOUND";
     public static final String POST_CALC_FIELD_AGG_UNSUPPORTED = "TIMEWINDOW_POST_CALCULATED_FIELD_AGG_UNSUPPORTED";
     public static final String POST_CALC_FIELD_WINDOW_UNSUPPORTED = "TIMEWINDOW_POST_CALCULATED_FIELD_WINDOW_UNSUPPORTED";
+    public static final String POST_CALC_FIELD_DEPENDENCY_UNSUPPORTED = "TIMEWINDOW_POST_CALCULATED_FIELD_DEPENDENCY_UNSUPPORTED";
     public static final String POST_CALC_CALCULATE_UNSUPPORTED = "CALCULATE_TIMEWINDOW_POST_CALC_UNSUPPORTED";
 
     private static final Set<String> VALID_GRAINS = Set.of("day", "week", "month", "quarter", "year");
@@ -242,8 +243,10 @@ public final class TimeWindowValidator {
                     Set<String> refs = new LinkedHashSet<>();
                     CalculatedFieldService.extractColumnReferences(compiledExp, refs);
                     for (String ref : refs) {
-                        // Allow references to other calc field names (inter-calc-field dependency)
-                        if (!timeWindowOutputColumns.contains(ref) && !calculatedFieldNames.contains(ref)) {
+                        if (calculatedFieldNames.contains(ref) && !ref.equals(cf.getName())) {
+                            return POST_CALC_FIELD_DEPENDENCY_UNSUPPORTED;
+                        }
+                        if (!timeWindowOutputColumns.contains(ref)) {
                             return POST_CALC_FIELD_NOT_FOUND;
                         }
                     }

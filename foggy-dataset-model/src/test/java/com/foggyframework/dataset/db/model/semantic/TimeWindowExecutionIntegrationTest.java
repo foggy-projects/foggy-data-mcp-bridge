@@ -257,6 +257,31 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("timeWindow post-calc sibling alias dependency is rejected by full semantic pipeline")
+    void timeWindowPostCalcDependencyRejectedBySemanticPipeline() {
+        SemanticQueryRequest request = request(
+                List.of("salesDate$year", "salesDate$month", "salesAmount", "salesAmount__ratio",
+                        "growthPercent", "growthPercentTwice"),
+                List.of("salesDate$year", "salesDate$month"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "range", "[)",
+                        "value", List.of("2024-01-01", "2025-01-01"),
+                        "targetMetrics", List.of("salesAmount")
+                ));
+        request.setCalculatedFields(List.of(
+                new CalculatedFieldDef("growthPercent", "salesAmount__ratio * 100"),
+                new CalculatedFieldDef("growthPercentTwice", "growthPercent * 2")
+        ));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                semanticQueryServiceV3.generateSql(TEST_MODEL, request, SemanticRequestContext.empty()));
+        assertExceptionContains(ex, "TIMEWINDOW_POST_CALCULATED_FIELD_DEPENDENCY_UNSUPPORTED");
+    }
+
+    @Test
     @DisplayName("timeWindow rejects top-level result-stage controls")
     void timeWindowTopLevelResultStageRejectedBySemanticPipeline() {
         SemanticQueryRequest postAggregateRequest = request(

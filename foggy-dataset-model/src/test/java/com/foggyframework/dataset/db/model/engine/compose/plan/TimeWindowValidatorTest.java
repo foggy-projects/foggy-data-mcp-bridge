@@ -282,6 +282,28 @@ class TimeWindowValidatorTest {
         }
 
         @Test
+        @DisplayName("POST_CALC_FIELD_DEPENDENCY_UNSUPPORTED — post calc field references sibling calc field")
+        void postCalcFieldDependencyRejected() {
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "month", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+
+            var growthPercent = new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef(
+                    "growthPercent", "salesAmount__ratio * 100");
+            var growthPercentTwice = new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef(
+                    "growthPercentTwice", "growthPercent * 2");
+
+            Set<String> calcFieldNames = Set.of("growthPercent", "growthPercentTwice");
+            Set<String> twOutputCols = Set.of("salesDate$year", "salesDate$month", "salesAmount",
+                    "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio");
+
+            assertEquals(TimeWindowValidator.POST_CALC_FIELD_DEPENDENCY_UNSUPPORTED,
+                    TimeWindowValidator.validateCalculatedFieldInteraction(
+                            tw, calcFieldNames, List.of(growthPercent, growthPercentTwice), twOutputCols));
+        }
+
+        @Test
         @DisplayName("Scalar post calc field passes validation")
         void postCalcFieldScalarAccepted() {
             TimeWindowDef tw = new TimeWindowDef(
