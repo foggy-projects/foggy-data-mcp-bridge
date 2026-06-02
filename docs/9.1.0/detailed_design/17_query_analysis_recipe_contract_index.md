@@ -14,7 +14,7 @@ updated_at: 2026-06-02
 
 This index records the stable non-SLA query and analysis recipes that planner, prompt, evaluator, and runtime owners can treat as signed engine contracts.
 
-This document does not add runtime behavior. It makes the existing `query_model`, `timeWindow`, Pivot, and result-stage formula boundaries explicit so future prompt/schema edits do not imply unsupported capabilities.
+This document makes the existing `query_model`, `timeWindow`, Pivot, DSL_CTE bridge, and result-stage formula boundaries explicit so future prompt/schema edits do not imply unsupported capabilities.
 
 ## Contract Matrix
 
@@ -29,7 +29,7 @@ This document does not add runtime behavior. It makes the existing `query_model`
 | `query_model.pivot_c2_cascade_topn` | signed-constrained | Top N parents then Top N children under each surviving parent | Rows-axis exactly two levels, explicit `orderBy`, additive metrics, supported SQL dialect; unsupported shapes fail closed. | Pivot C2 implementation docs and tests |
 | `query_model.pivot_parent_share` | signed-constrained | Contribution to parent within a Pivot rows hierarchy | Uses structured `pivot.metrics.parentShare`; public `ROLLUP_TO` strings remain hidden/unsupported. | QueryModel schema descriptions |
 | `query_model.pivot_baseline_ratio` | signed-constrained | Compare column cells to first/last baseline column | Uses structured `pivot.metrics.baselineRatio`; public `CELL_AT`, `AXIS_MEMBER`, and `AXIS_REF` strings remain hidden/unsupported. | QueryModel schema descriptions |
-| `query_model.result_stage_cumulative_rank` | signed-constrained | Cumulative or rank formulas over selected aggregate aliases | Uses explicit `postAggregateCalculations` or governed calculatedFields sugar such as `cumulative_sum(alias)`, `cumulative_ratio_to_total(alias)`, and `rank_by(alias)`. The runtime emits a `post_stage` CTE with `RANK()`, running sum, cumulative ratio, optional result-stage filter, and final alias order. | `QueryRequestValidationStepTest#testPostAggregateUnsupportedRankingKindRejected`, `OdooModelLoadingTest#testExplicitCumulativeAndRankPostAggregateUsesOuterStage`, `OdooModelLoadingTest#testExplicitCumulativeAndRankPostAggregateMatchesFixtureBaseline`, `BUG-post-aggregate-alias-calculate-20260531.md`, promoted semantic gate |
+| `query_model.result_stage_cumulative_rank` | signed-constrained | Cumulative or rank formulas over selected aggregate aliases | Uses explicit `postAggregateCalculations`, governed calculatedFields sugar, or signed DSL_CTE derive formulas such as `cumulative_sum(alias)`, `cumulative_ratio_to_total(alias)`, and `rank_by(alias)`. The runtime emits a `post_stage` CTE with `RANK()`, running sum, cumulative ratio, optional result-stage filter, and final alias order. | `QueryRequestValidationStepTest#testPostAggregateUnsupportedRankingKindRejected`, `QueryRequestValidationStepTest#testPostAggregateUnsupportedDenseRankFormulaRejected`, `DslCteAcceptanceSampleTest#generateSqlOptInUsesDslBridgeForCumulativeRankDerivedStage`, `DslCteAcceptanceSampleTest#dslValidationRejectsUnsignedDenseRankDerivedFormula`, `OdooModelLoadingTest#testExplicitCumulativeAndRankPostAggregateUsesOuterStage`, `OdooModelLoadingTest#testExplicitCumulativeAndRankPostAggregateMatchesFixtureBaseline`, `BUG-post-aggregate-alias-calculate-20260531.md`, promoted semantic gate |
 | `query_model.cross_model_or_relation_composition` | routed | Multi-step relation composition that cannot be expressed as one query model request | Route to governed Memory Grid / CTE / compose-script flows without bypassing query model lifecycle, permissions, or physical column checks. | v3.8/v3.9 Memory Grid and runner docs |
 
 ## Unsigned or Deferred Variants
@@ -45,7 +45,7 @@ This document does not add runtime behavior. It makes the existing `query_model`
 | Pivot cascade across both axes, column-axis cascade, three-level cascade, tree cascade, having-only cascade, or non-additive cascade totals | Fail closed; do not emulate with prompt-generated SQL. |
 | `parentShare` or `baselineRatio` participating in axis `having`, `orderBy`, `limit`, tree mode, or cascade | Fail closed or simplify to ordinary Pivot metrics. |
 | Public use of `ROLLUP_TO`, `CELL_AT`, `AXIS_MEMBER`, `AXIS_REF`, arbitrary MDX set algebra, or coordinate functions | Reject; only structured metric objects are signed. |
-| Free-form window, cumulative, ratio, or rank expressions outside governed result-stage formula shapes | Defer until a typed recipe and negative gates exist. In particular, dense-rank/row-number/percent-rank style post-aggregate kinds are not signed by the public query_model postAggregate contract. |
+| Free-form window, cumulative, ratio, or rank expressions outside governed result-stage formula shapes | Defer until a typed recipe and negative gates exist. In particular, dense-rank/row-number/percent-rank style calculatedFields, DSL_CTE derive formulas, and post-aggregate kinds are not signed by the public query_model postAggregate contract. |
 | Raw CTE or compose-script intended to bypass model permissions or lifecycle | Reject; model-backed access must enter through `query_model` first. |
 
 ## Runtime Evidence
@@ -55,7 +55,10 @@ This document does not add runtime behavior. It makes the existing `query_model`
 | `OdooModelLoadingTest#testExplicitCumulativeAndRankPostAggregateUsesOuterStage` | Explicit `postAggregateCalculations` for `rankByMeasure`, `cumulativeSum`, and `cumulativeRatioToTotal` generate a `post_stage` CTE with result-stage filter and final alias ordering. |
 | `OdooModelLoadingTest#testExplicitCumulativeAndRankPostAggregateMatchesFixtureBaseline` | Executed `postAggregateCalculations` rows match a hand-built `sale_order` + `crm_team` fixture baseline for team sales, SQL `RANK()`, cumulative sum, and cumulative ratio. |
 | `OdooModelLoadingTest#testCalculatedFieldsCumulativeAndRankNormalizeToPostAggregate` | Governed calculatedFields sugar normalizes to the same post-aggregate contract and removes the sugar fields from ordinary calculated field processing. |
+| `DslCteAcceptanceSampleTest#generateSqlOptInUsesDslBridgeForCumulativeRankDerivedStage` | Signed DSL_CTE ordinary derive formulas for rank, cumulative sum, and cumulative ratio bridge to `postAggregateCalculations` instead of remaining prompt-only formula text. |
+| `DslCteAcceptanceSampleTest#dslValidationRejectsUnsignedDenseRankDerivedFormula` | DSL_CTE validation rejects unsigned `dense_rank()` result-stage derived formulas before compilation. |
 | `QueryRequestValidationStepTest#testPostAggregateUnsupportedRankingKindRejected` | Unsigned ranking kinds such as dense-rank style post-aggregate calculations are rejected before SQL generation. |
+| `QueryRequestValidationStepTest#testPostAggregateUnsupportedDenseRankFormulaRejected` | Unsigned `dense_rank()` calculatedFields formulas are rejected before SQL generation. |
 | `BUG-post-aggregate-alias-calculate-20260531.md` | v3.9 root record for alias ratio, cumulative contribution, and rank-by-measure fixes and regression evidence. |
 
 ## Required Touchpoints For New Query Recipes

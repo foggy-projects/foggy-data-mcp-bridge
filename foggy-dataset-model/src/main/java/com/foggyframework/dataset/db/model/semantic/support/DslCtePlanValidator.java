@@ -49,10 +49,14 @@ public final class DslCtePlanValidator {
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
             "and", "or", "is", "not", "null", "true", "false",
             "case", "when", "then", "else", "end", "as", "over", "rows",
-            "current", "row", "preceding", "following", "order", "all", "last",
+            "current", "row", "preceding", "following", "order", "all", "last", "asc", "desc",
             "count", "sum", "avg", "min", "max", "iif", "if", "coalesce", "nullif", "round", "abs",
             "hours_between",
-            "priority_threshold", "lag", "lead", "rank");
+            "priority_threshold", "lag", "lead", "rank",
+            "ratio_to_total", "ratiototal",
+            "cumulative_sum", "cumulativesum",
+            "cumulative_ratio_to_total", "cumulativeratiototal",
+            "rank_by", "rankby", "rank_desc", "rankdesc");
 
     private DslCtePlanValidator() {
     }

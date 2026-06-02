@@ -107,9 +107,7 @@ public final class PostAggregateRatioToTotalSupport {
     }
 
     private static boolean matchesRankByMeasure(String normalized, String alias) {
-        return ("rank()over(orderby" + alias + "desc)").equals(normalized)
-                || ("dense_rank()over(orderby" + alias + "desc)").equals(normalized)
-                || ("row_number()over(orderby" + alias + "desc)").equals(normalized);
+        return ("rank()over(orderby" + alias + "desc)").equals(normalized);
     }
 
     private static String cumulativeSumExpression(String alias) {

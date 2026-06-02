@@ -4,6 +4,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.postagg.PostAggregateRatioToTotalSupport;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 
 import java.time.LocalDate;
@@ -13,9 +14,11 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -3507,31 +3510,19 @@ public final class DslCteDslRequestMapper {
                                                                                List<String> metricAliases,
                                                                                List<String> unsupported) {
         List<PostAggregateCalculationDef> result = new ArrayList<>();
+        Set<String> selectedAggregateAliases = new LinkedHashSet<>(metricAliases);
         for (Map<String, Object> derived : mapList(rawDerived)) {
             String name = stringValue(derived.get("name"));
             String expr = stringValue(derived.get("expr"));
-            String measure = ratioToTotalMeasure(expr, metricAliases);
-            if (name == null || measure == null) {
+            PostAggregateCalculationDef calculation = PostAggregateRatioToTotalSupport.toCalculation(
+                    name, expr, selectedAggregateAliases);
+            if (name == null || calculation == null || !metricAliases.contains(calculation.getMeasure())) {
                 unsupported.add("derive formula is not executable through DSL_CTE bridge v1: " + derived);
                 continue;
             }
-            result.add(new PostAggregateCalculationDef(name, "ratioToTotal", measure, "grandTotal", "ratio"));
+            result.add(calculation);
         }
         return result;
-    }
-
-    private static String ratioToTotalMeasure(String expr, List<String> metricAliases) {
-        if (expr == null) {
-            return null;
-        }
-        String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
-        for (String alias : metricAliases) {
-            String lowerAlias = alias.toLowerCase(Locale.ROOT);
-            if ((lowerAlias + "/sum(" + lowerAlias + ")over()").equals(normalized)) {
-                return alias;
-            }
-        }
-        return null;
     }
 
     private static CumulativeDerived cumulativeDerived(Object rawDerived, String metricAlias,

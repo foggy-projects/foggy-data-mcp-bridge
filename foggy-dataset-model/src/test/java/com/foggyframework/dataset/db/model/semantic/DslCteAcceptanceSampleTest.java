@@ -2921,6 +2921,51 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql can opt in to result-stage cumulative/rank derived bridge")
+    void generateSqlOptInUsesDslBridgeForCumulativeRankDerivedStage() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH post_stage AS (...) SELECT * FROM post_stage WHERE \"cumulativeShare\" <= ?",
+                        List.of(0.8),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(cumulativeRankDerivedPostAggregatePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("post_stage"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        var param = captor.getValue().getRequest().getParam();
+        assertEquals(List.of(
+                        "product.categoryName",
+                        "sum(amount) AS salesAmount",
+                        "salesRank",
+                        "cumulativeSales",
+                        "cumulativeShare"),
+                param.getColumns());
+        var postAgg = param.getPostAggregateCalculations();
+        assertEquals(3, postAgg.size());
+        assertEquals("rankByMeasure", postAgg.get(0).getKind());
+        assertEquals("cumulativeSum", postAgg.get(1).getKind());
+        assertEquals("cumulativeRatioToTotal", postAgg.get(2).getKind());
+        assertEquals("cumulativeShare", param.getPostSlice().get(0).getField());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation rejects unsigned dense_rank result-stage derived formula")
+    void dslValidationRejectsUnsignedDenseRankDerivedFormula() {
+        RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", dslCtePlan(denseRankDerivedPostAggregatePlan()),
+                        SemanticRequestContext.empty()));
+
+        assertTrue(exception.getMessage().contains("dense_rank"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to final relation orderBy stage")
     void generateSqlOptInUsesDslBridgeForRelationOrderByStage() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -3708,6 +3753,44 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(filter("cumulativeShare", "<=", 0.8)))
                 ),
                 List.of("customer.name", "salesAmount", "salesRank", "cumulativeShare")
+        );
+    }
+
+    private Map<String, Object> cumulativeRankDerivedPostAggregatePlan() {
+        return planWithSliceLowering(
+                List.of(
+                        stage("category_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("category_contribution", "derive",
+                                "inputs", List.of("category_sales"),
+                                "derived", List.of(
+                                        derived("salesRank", "rank_by(salesAmount, desc)"),
+                                        derived("cumulativeSales", "cumulative_sum(salesAmount, desc)"),
+                                        derived("cumulativeShare", "cumulative_ratio_to_total(salesAmount, desc)"))),
+                        stage("top_contribution_categories", "postSlice",
+                                "inputs", List.of("category_contribution"),
+                                "filters", List.of(filter("cumulativeShare", "<=", 0.8)))
+                ),
+                List.of("product.categoryName", "salesAmount", "salesRank", "cumulativeSales", "cumulativeShare"),
+                List.of(m("field", "cumulativeShare", "from", "slice", "to", "postSlice", "reason", "derived_alias"))
+        );
+    }
+
+    private Map<String, Object> denseRankDerivedPostAggregatePlan() {
+        return plan(
+                List.of(
+                        stage("category_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("category_contribution", "derive",
+                                "inputs", List.of("category_sales"),
+                                "derived", List.of(
+                                        derived("denseRank", "dense_rank() over (order by salesAmount desc)")))
+                ),
+                List.of("product.categoryName", "salesAmount", "denseRank")
         );
     }
 
