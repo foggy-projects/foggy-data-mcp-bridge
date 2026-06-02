@@ -44,6 +44,9 @@ class DslCteAcceptanceSampleTest {
         QueryModel saleOrder = queryModel(
                 "SaleOrder", "product.categoryName", "amount"
         );
+        QueryModel accountBalance = queryModel(
+                "AccountBalance", "branch.name", "balanceDate.month", "balanceAmount"
+        );
         QueryModel serviceTicket = queryModel(
                 "ServiceTicketQueryModel", "team$caption", "ticketId", "createdAt", "firstResponseAt",
                 "resolvedAt", "priority"
@@ -63,6 +66,7 @@ class DslCteAcceptanceSampleTest {
                 "LeadLikeModel", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
         );
         when(loader.getJdbcQueryModel("SaleOrder", null)).thenReturn(saleOrder);
+        when(loader.getJdbcQueryModel("AccountBalance", null)).thenReturn(accountBalance);
         when(loader.getJdbcQueryModel("ServiceTicketQueryModel", null)).thenReturn(serviceTicket);
         when(loader.getJdbcQueryModel("CrmLead", null)).thenReturn(crmLead);
         when(loader.getJdbcQueryModel("FactOrderQueryModel", null)).thenReturn(factOrder);
@@ -106,6 +110,57 @@ class DslCteAcceptanceSampleTest {
                 service.generateSql("SaleOrder", dslCtePlan(biz005()), SemanticRequestContext.empty()));
 
         assertTrue(ex.getMessage().contains("DSL_CTE_EXECUTION_NOT_IMPLEMENTED"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE top-level limit appends to generated SQL when base SQL has no limit")
+    void dslCteTopLevelLimitAppendsWhenBaseSqlHasNoLimit() {
+        Map<String, Object> plan = biz004();
+        plan.put("limit", 3);
+        SqlGenerationResult base = new SqlGenerationResult(
+                "SELECT * FROM dsl_cte_base",
+                List.of("tenant_a"),
+                null);
+
+        SqlGenerationResult result = DslCteDslRequestMapper.applyTopLevelLimitIfDeclared(
+                base, dslCtePlan(plan).getExecutablePlan());
+
+        assertEquals("SELECT * FROM dsl_cte_base\nLIMIT ?", result.getSql());
+        assertEquals(List.of("tenant_a", 3), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE top-level limit does not append when base SQL already ends with limit")
+    void dslCteTopLevelLimitDoesNotAppendWhenBaseSqlAlreadyLimited() {
+        Map<String, Object> plan = biz004();
+        plan.put("limit", 3);
+        SqlGenerationResult base = new SqlGenerationResult(
+                "SELECT * FROM dsl_cte_base\nLIMIT ?",
+                List.of(5),
+                null);
+
+        SqlGenerationResult result = DslCteDslRequestMapper.applyTopLevelLimitIfDeclared(
+                base, dslCtePlan(plan).getExecutablePlan());
+
+        assertEquals("SELECT * FROM dsl_cte_base\nLIMIT ?", result.getSql());
+        assertEquals(List.of(5), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE top-level limit rejects invalid values")
+    void dslCteTopLevelLimitRejectsInvalidValue() {
+        Map<String, Object> plan = biz004();
+        plan.put("limit", 0);
+        SqlGenerationResult base = new SqlGenerationResult(
+                "SELECT * FROM dsl_cte_base",
+                List.of(),
+                null);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> DslCteDslRequestMapper.applyTopLevelLimitIfDeclared(
+                        base, dslCtePlan(plan).getExecutablePlan()));
+
+        assertTrue(exception.getMessage().contains("positive integer <= 1000"));
     }
 
     @Test
@@ -3221,6 +3276,34 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql remaps rolling alias before final orderBy reaches QueryFacade")
+    void generateSqlOptInRemapsRollingFinalOrderByAlias() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH daily AS (...) SELECT salesAmount__rolling_7d FROM daily "
+                                + "ORDER BY salesAmount__rolling_7d DESC LIMIT ?",
+                        List.of(5),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(rollingWindowWithFinalOrderByPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("salesAmount__rolling_7d"));
+        assertEquals(List.of(5), result.getParams());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        var dslRequest = captor.getValue().getRequest().getParam();
+        assertEquals(List.of("orderDate.day", "sum(amount) AS salesAmount", "salesAmount__rolling_7d"),
+                dslRequest.getColumns());
+        assertEquals("salesAmount__rolling_7d", dslRequest.getOrderBy().get(0).getField());
+        assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to MoM period-over-period timeWindow bridge")
     void generateSqlOptInUsesDslBridgeForLagPeriodOverPeriod() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -3248,6 +3331,35 @@ class DslCteAcceptanceSampleTest {
                         "comparison", "mom",
                         "targetMetrics", List.of("balanceAmount")),
                 captor.getValue().getExtData().get("timeWindow"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql remaps period-over-period prior alias before final orderBy reaches QueryFacade")
+    void generateSqlOptInRemapsPeriodOverPeriodPriorOrderByAlias() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH monthly AS (...) SELECT balanceAmount__prior FROM monthly "
+                                + "ORDER BY balanceAmount__prior DESC LIMIT ?",
+                        List.of(10),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(periodOverPeriodWithPriorOutputAndOrderByPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("AccountBalance", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("balanceAmount__prior"));
+        assertEquals(List.of(10), result.getParams());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        var dslRequest = captor.getValue().getRequest().getParam();
+        assertEquals(List.of("branch.name", "balanceDate.month", "sum(balanceAmount) AS balanceAmount",
+                        "balanceAmount__prior", "balanceAmount__ratio"),
+                dslRequest.getColumns());
+        assertEquals("balanceAmount__prior", dslRequest.getOrderBy().get(0).getField());
+        assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
     }
 
     @Test
