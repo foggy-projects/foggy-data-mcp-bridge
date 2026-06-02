@@ -763,6 +763,24 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE SLA bridge defers unsigned contract-calendar duration")
+    void validationDefersUnsignedContractCalendarSlaDuration() {
+        Map<String, Object> plan = priorityAwareResolutionSlaRatePostSlicePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("derived", List.of(
+                derived("contractResolutionHours",
+                        "contract_calendar_hours_between(createdAt, resolvedAt, contractCalendar=customerSla, "
+                                + "serviceWindow=9x5, timezone=Asia/Shanghai)"),
+                derived("slaThresholdHours", "priority_threshold(priority, P1=8, P2=48, P3=72)"),
+                derived("slaHit", "resolvedAt is not null and contractResolutionHours <= slaThresholdHours")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("contract-calendar SLA duration is not signed")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE SLA rate bridge defers postSlice with non-linear input")
     void validationDefersMinimalSlaRatePostSliceInputMismatch() {
         Map<String, Object> plan = minimalSlaRatePostSlicePlan();

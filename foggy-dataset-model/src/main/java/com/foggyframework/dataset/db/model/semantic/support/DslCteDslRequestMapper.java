@@ -55,6 +55,8 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*hours_between\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
     private static final Pattern BUSINESS_HOURS_BETWEEN_PATTERN = Pattern.compile(
             "(?i)^\\s*(?:business_hours_between|working_hours_between)\\s*\\(.*\\)\\s*$");
+    private static final Pattern CONTRACT_CALENDAR_DURATION_PATTERN = Pattern.compile(
+            "(?i)^\\s*(?:contract_calendar_hours_between|service_calendar_hours_between|calendar_hours_between)\\s*\\(.*\\)\\s*$");
     private static final Pattern SLA_HIT_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*(\\d+(?:\\.\\d+)?)\\s*$");
     private static final Pattern SLA_HIT_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
@@ -2669,6 +2671,14 @@ public final class DslCteDslRequestMapper {
                 unsupported.add("business-hours SLA duration is not signed; requires calendar source, "
                         + "workday/holiday policy, working-hour window, and timezone before using "
                         + "business_hours_between(...) or working_hours_between(...)");
+                continue;
+            }
+
+            Matcher contractCalendarDuration = CONTRACT_CALENDAR_DURATION_PATTERN.matcher(expr);
+            if (contractCalendarDuration.matches()) {
+                unsupported.add("contract-calendar SLA duration is not signed; requires customer contract calendar, "
+                        + "service window, holiday policy, and timezone before using contract/service calendar "
+                        + "duration formulas");
                 continue;
             }
 

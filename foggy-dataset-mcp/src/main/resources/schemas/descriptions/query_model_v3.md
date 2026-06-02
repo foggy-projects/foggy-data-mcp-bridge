@@ -128,12 +128,13 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 
 单模型服务工单 SLA 这类“先做行级日期差/命中标记，再按团队聚合，再计算达成率”的问题，使用 `route: "DSL_CTE"` 和 `executable_plan.cte_plan`，不要用自由 `calculatedFields` 拼 `DATEDIFF`、`CASE WHEN` 或 `alias / NULLIF(...)`。当前签名模板只开放这些受控形状：
 
-- 行级 SLA 时长：`hours_between(createdAt, firstResponseAt|resolvedAt)`。
+- 行级 SLA 时长：`hours_between(createdAt, firstResponseAt|resolvedAt)`；`resolvedAt` 只表示自然小时 resolution SLA，不表示客户合约日历口径。
 - 行级 SLA 命中：`firstResponseAt is not null and firstResponseHours <= 48`，或 priority-aware `priority_threshold(priority, P1=..., P2=..., P3=...)`。
 - 未响应超时标记：`firstResponseAt is null and createdAt < '<cutoff>'`，或 `firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`。
 - 条件计数：`sum(slaHit)`、`sum(case when overdueUnresponded then 1 else 0 end)`、`sum(overdueUnresponded)`。
 - 结果阶段派生：`slaHitCount / ticketCount` 会按 NULL-safe rate 执行；`ticketCount - slaHitCount` 只可用于 `notHitCount` / `slaMissCount` 等 SLA 未达成数，不要冒充“未响应数”。
 - 工作小时/业务日历 SLA 未签名：不要生成 `business_hours_between(...)` / `working_hours_between(...)`；必须先澄清业务日历、工作日/节假日、工作时段和时区。
+- 合约日历 SLA 未签名：不要生成 `contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)`；必须先澄清客户合约日历、服务窗口、节假日和时区。
 
 如果用户同时要求“超 48 小时未响应工单数”，输出字段必须包含明确的 `overdueUnrespondedCount`，并由 `firstResponseAt is null` 与 cutoff/referenceTime 阈值标记聚合得到；不要只在最终文字里用 `ticketCount - slaHitCount` 解释或补算未响应数。
 

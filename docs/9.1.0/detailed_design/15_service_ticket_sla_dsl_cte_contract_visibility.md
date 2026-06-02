@@ -22,6 +22,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | Time scope | One explicit created-time window, such as current month or last 30 days, not both. |
 | Threshold | Explicit first-response SLA threshold with time unit, currently represented as hours. |
 | Hit predicate | `firstResponseAt - createdAt <= threshold` through the signed elapsed-hours recipe. |
+| Natural-hour resolution SLA | Signed only as `hours_between(createdAt, resolvedAt)` with explicit threshold policy; it does not imply contract-calendar or service-calendar semantics. |
 | Denominator | Count of tickets created inside the time scope. |
 | Achievement rate | NULL-safe ratio of SLA-hit count to denominator. |
 | Unresponded overdue count | Explicit predicate: `firstResponseAt is null` and created time is earlier than the SLA cutoff/reference-time expression. |
@@ -34,7 +35,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 |---|---|
 | Missing threshold | Clarify before LLM/tool dispatch. |
 | Threshold number without unit | Clarify before LLM/tool dispatch. |
-| Resolution SLA, contract calendar, work calendar, holidays, business hours | Clarify as out of current recipe scope. |
+| Contract calendar, work calendar, holidays, business hours | Clarify as out of current recipe scope. |
 | Physical `service_ticket` SQL | Reject before LLM/tool dispatch. |
 | Prediction, causality, staffing advice | Reject before LLM/tool dispatch. |
 | Unresponded count as `ticketCount - slaHitCount` | Clarify or fail validation; that expression also includes responded-late tickets. |
@@ -44,6 +45,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | Pause, hold, or customer-wait time exclusion | Clarify before LLM/tool dispatch; the current recipe has no pause interval fields or exclusion policy. |
 | First-response SLA with business hours, workdays, holidays, or 9:00-18:00 windows | Clarify before LLM/tool dispatch; the current recipe only signs natural elapsed hours. |
 | Direct DSL_CTE `business_hours_between(...)` / `working_hours_between(...)` payloads | Fail validation with an explicit unsigned business-hours duration reason; do not compile through the natural-hour bridge. |
+| Direct DSL_CTE `contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)` payloads | Fail validation with an explicit unsigned contract-calendar duration reason; do not compile through the natural-hour bridge. |
 
 ## Runtime Evidence
 
@@ -51,6 +53,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 |---|---|
 | `DslCteAcceptanceSampleTest` and `DslCteSlaFixtureIntegrationTest` | Signed DSL_CTE recipe shapes compile and execute. |
 | `DslCteAcceptanceSampleTest#validationDefersUnsignedBusinessHoursSlaDuration` | Direct DSL_CTE business-hours duration formulas defer before compilation. |
+| `DslCteAcceptanceSampleTest#validationDefersUnsignedContractCalendarSlaDuration` | Direct DSL_CTE contract-calendar duration formulas defer before compilation. |
 | `QueryExpertServiceRoutingCalibrationTest` | Negative ServiceTicket SLA variants fail closed before ChatClient and MCP tool dispatch. |
 | `score_biz024_semantic_gate.py` | Positive replay scorer rejects ambiguous unresponded-count explanations even when output fields exist. |
 | `score_service_ticket_negative_gate.py` | Negative runtime scorer fails rows that call or succeed through `dataset.query_model`. |

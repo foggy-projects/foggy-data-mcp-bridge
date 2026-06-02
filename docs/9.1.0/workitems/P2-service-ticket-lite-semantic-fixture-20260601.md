@@ -96,6 +96,7 @@ source_type: optimization
 | Pause/hold exclusion negative boundary | passed on 2026-06-02: `er0r-016` clarifies before LLM/tool dispatch for customer-wait, pause, and hold time exclusion requests; `QueryExpertServiceRoutingCalibrationTest` reached `28/28`; offline ServiceTicket suite reached `22/22`, residuals `0`. |
 | Business-hours SLA negative boundary | passed on 2026-06-02: `er0r-017` clarifies before LLM/tool dispatch for working-hour, workday, and holiday first-response SLA requests; `QueryExpertServiceRoutingCalibrationTest` reached `29/29`; offline ServiceTicket suite reached `23/23`, residuals `0`. |
 | DSL_CTE business-hours duration compile guard | passed on 2026-06-02: direct `business_hours_between(...)` / `working_hours_between(...)` formulas defer with explicit unsigned business-hours duration reason instead of compiling through the natural-hour SLA bridge; `DslCteAcceptanceSampleTest` reached `163/163`. |
+| DSL_CTE contract-calendar duration compile guard | passed on 2026-06-02: direct `contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)` formulas defer with explicit unsigned contract-calendar duration reason instead of compiling through the natural-hour SLA bridge; `DslCteAcceptanceSampleTest` reached `164/164`. |
 
 ## Replay Findings
 
@@ -158,4 +159,5 @@ Continue sample-driven calibration of the governed DSL_CTE / recipe contract:
 | Semantic scoring | Done for `biz-024` and ServiceTicket SLA holdouts; both strict semantic gates now pass on the corrected replay baselines. |
 | Negative runtime scoring | Expanded to missing-threshold, threshold unit ambiguity, missing priority SLA threshold policy, pause/hold exclusion out-of-scope, business-hours/workday/holiday out-of-scope, resolution/calendar out-of-scope, physical SQL, prediction/personnel-advice, unresponded-count formula ambiguity, conflicting time scopes, and first-response/resolution field mismatch. |
 | Direct DSL_CTE compile guard | Business-hours / work-calendar duration formulas are also guarded at validation time; keep this unsigned until calendar fixture, working-hour window, holiday policy, and timezone semantics are implemented. |
+| Contract-calendar compile guard | Customer contract / service calendar duration formulas are guarded at validation time; keep this unsigned until contract calendar fixture, service window, holiday policy, and timezone semantics are implemented. |
 | Stable suite | Use `make gate-v39-service-ticket-sla-stable-suite` for promotion evidence across positive, holdout, and negative ServiceTicket SLA gates; after business-hours negative expansion the verified combined offline suite is `23/23`, residuals `0`. |
