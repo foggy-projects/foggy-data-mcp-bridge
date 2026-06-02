@@ -57,6 +57,8 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*(?:business_hours_between|working_hours_between)\\s*\\(.*\\)\\s*$");
     private static final Pattern CONTRACT_CALENDAR_DURATION_PATTERN = Pattern.compile(
             "(?i)^\\s*(?:contract_calendar_hours_between|service_calendar_hours_between|calendar_hours_between)\\s*\\(.*\\)\\s*$");
+    private static final Pattern PAUSE_HOLD_EXCLUSION_DURATION_PATTERN = Pattern.compile(
+            "(?i)^\\s*(?:net_hours_between|pause_excluded_hours_between|hold_excluded_hours_between|customer_wait_excluded_hours_between)\\s*\\(.*\\)\\s*$");
     private static final Pattern SLA_HIT_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*(\\d+(?:\\.\\d+)?)\\s*$");
     private static final Pattern SLA_HIT_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
@@ -2679,6 +2681,14 @@ public final class DslCteDslRequestMapper {
                 unsupported.add("contract-calendar SLA duration is not signed; requires customer contract calendar, "
                         + "service window, holiday policy, and timezone before using contract/service calendar "
                         + "duration formulas");
+                continue;
+            }
+
+            Matcher pauseHoldDuration = PAUSE_HOLD_EXCLUSION_DURATION_PATTERN.matcher(expr);
+            if (pauseHoldDuration.matches()) {
+                unsupported.add("pause/hold SLA exclusion duration is not signed; requires pause/hold interval fields, "
+                        + "customer-wait policy, overlap handling, and net-duration semantics before using "
+                        + "pause/hold/customer-wait exclusion duration formulas");
                 continue;
             }
 

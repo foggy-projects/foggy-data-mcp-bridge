@@ -135,6 +135,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 - 结果阶段派生：`slaHitCount / ticketCount` 会按 NULL-safe rate 执行；`ticketCount - slaHitCount` 只可用于 `notHitCount` / `slaMissCount` 等 SLA 未达成数，不要冒充“未响应数”。
 - 工作小时/业务日历 SLA 未签名：不要生成 `business_hours_between(...)` / `working_hours_between(...)`；必须先澄清业务日历、工作日/节假日、工作时段和时区。
 - 合约日历 SLA 未签名：不要生成 `contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)`；必须先澄清客户合约日历、服务窗口、节假日和时区。
+- 暂停/挂起/客户等待扣除 SLA 未签名：不要生成 `net_hours_between(...)` / `pause_excluded_hours_between(...)` / `hold_excluded_hours_between(...)` / `customer_wait_excluded_hours_between(...)`；必须先澄清暂停区间字段、客户等待政策、重叠处理和净时长语义。
 
 如果用户同时要求“超 48 小时未响应工单数”，输出字段必须包含明确的 `overdueUnrespondedCount`，并由 `firstResponseAt is null` 与 cutoff/referenceTime 阈值标记聚合得到；不要只在最终文字里用 `ticketCount - slaHitCount` 解释或补算未响应数。
 

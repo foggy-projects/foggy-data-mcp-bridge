@@ -46,6 +46,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | First-response SLA with business hours, workdays, holidays, or 9:00-18:00 windows | Clarify before LLM/tool dispatch; the current recipe only signs natural elapsed hours. |
 | Direct DSL_CTE `business_hours_between(...)` / `working_hours_between(...)` payloads | Fail validation with an explicit unsigned business-hours duration reason; do not compile through the natural-hour bridge. |
 | Direct DSL_CTE `contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)` payloads | Fail validation with an explicit unsigned contract-calendar duration reason; do not compile through the natural-hour bridge. |
+| Direct DSL_CTE `net_hours_between(...)` / `pause_excluded_hours_between(...)` / `hold_excluded_hours_between(...)` / `customer_wait_excluded_hours_between(...)` payloads | Fail validation with an explicit unsigned pause/hold exclusion duration reason; do not compile through the natural-hour bridge. |
 
 ## Runtime Evidence
 
@@ -54,6 +55,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | `DslCteAcceptanceSampleTest` and `DslCteSlaFixtureIntegrationTest` | Signed DSL_CTE recipe shapes compile and execute. |
 | `DslCteAcceptanceSampleTest#validationDefersUnsignedBusinessHoursSlaDuration` | Direct DSL_CTE business-hours duration formulas defer before compilation. |
 | `DslCteAcceptanceSampleTest#validationDefersUnsignedContractCalendarSlaDuration` | Direct DSL_CTE contract-calendar duration formulas defer before compilation. |
+| `DslCteAcceptanceSampleTest#validationDefersUnsignedPauseHoldExclusionSlaDuration` | Direct DSL_CTE pause/hold/customer-wait net-duration formulas defer before compilation. |
 | `QueryExpertServiceRoutingCalibrationTest` | Negative ServiceTicket SLA variants fail closed before ChatClient and MCP tool dispatch. |
 | `score_biz024_semantic_gate.py` | Positive replay scorer rejects ambiguous unresponded-count explanations even when output fields exist. |
 | `score_service_ticket_negative_gate.py` | Negative runtime scorer fails rows that call or succeed through `dataset.query_model`. |

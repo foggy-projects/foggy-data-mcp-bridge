@@ -781,6 +781,23 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE SLA bridge defers unsigned pause/hold exclusion duration")
+    void validationDefersUnsignedPauseHoldExclusionSlaDuration() {
+        Map<String, Object> plan = minimalSlaRatePostSlicePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("derived", List.of(
+                derived("netFirstResponseHours",
+                        "pause_excluded_hours_between(createdAt, firstResponseAt, pauseStartedAt, pauseEndedAt, "
+                                + "customerWait=true)"),
+                derived("slaHit", "firstResponseAt is not null and netFirstResponseHours <= 48")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("pause/hold SLA exclusion duration is not signed")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE SLA rate bridge defers postSlice with non-linear input")
     void validationDefersMinimalSlaRatePostSliceInputMismatch() {
         Map<String, Object> plan = minimalSlaRatePostSlicePlan();

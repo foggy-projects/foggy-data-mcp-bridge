@@ -137,7 +137,7 @@
 
 当前签名模板只开放这些受控形状：`hours_between(createdAt, firstResponseAt|resolvedAt)`、`firstResponseAt is not null and firstResponseHours <= 48`、`firstResponseAt is null and createdAt < '<cutoff>'`、`firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`、`sum(slaHit)`、`sum(case when overdueUnresponded then 1 else 0 end)` / `sum(overdueUnresponded)`、`slaHitCount / ticketCount`。`ticketCount - slaHitCount` 只表示 `notHitCount` / `slaMissCount` 这类 SLA 未达成数，不要作为“超时未响应数”。
 
-`resolvedAt` 只表示自然小时 resolution SLA，不表示客户合约日历口径。工作小时、业务日历、节假日或 9:00-18:00 口径未签名；不要生成 `business_hours_between(...)` / `working_hours_between(...)`，应先澄清。合约日历 SLA 未签名；不要生成 `contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)`。
+`resolvedAt` 只表示自然小时 resolution SLA，不表示客户合约日历口径。工作小时、业务日历、节假日或 9:00-18:00 口径未签名；不要生成 `business_hours_between(...)` / `working_hours_between(...)`，应先澄清。合约日历 SLA 未签名；不要生成 `contract_calendar_hours_between(...)` / `service_calendar_hours_between(...)` / `calendar_hours_between(...)`。暂停/挂起/客户等待扣除 SLA 未签名；不要生成 `net_hours_between(...)` / `pause_excluded_hours_between(...)` / `hold_excluded_hours_between(...)` / `customer_wait_excluded_hours_between(...)`。
 
 用户要求“超 48 小时未响应工单数”时，输出必须包含 `overdueUnrespondedCount`，不要只在最终文字中用 `ticketCount - slaHitCount` 补算。
 
