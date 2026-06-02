@@ -409,6 +409,31 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("Pivot 顶层 orderBy / limit 不作为轴 TopN 控制")
+    void testTopLevelOrderByAndLimitRejectedInPivotMode() {
+        SemanticQueryRequest orderByRequest = new SemanticQueryRequest();
+        orderByRequest.setPivot(basicSalesPivot());
+        SemanticQueryRequest.OrderItem order = new SemanticQueryRequest.OrderItem();
+        order.setField("salesAmount");
+        order.setDir("DESC");
+        orderByRequest.setOrderBy(List.of(order));
+
+        IllegalArgumentException orderByException =
+                assertThrows(IllegalArgumentException.class, () -> execute(orderByRequest));
+        assertTrue(orderByException.getMessage().contains("pivot 模式不支持顶层 orderBy"));
+        assertTrue(orderByException.getMessage().contains("pivot.rows[*].orderBy"));
+
+        SemanticQueryRequest limitRequest = new SemanticQueryRequest();
+        limitRequest.setPivot(basicSalesPivot());
+        limitRequest.setLimit(3);
+
+        IllegalArgumentException limitException =
+                assertThrows(IllegalArgumentException.class, () -> execute(limitRequest));
+        assertTrue(limitException.getMessage().contains("pivot 模式不支持顶层 limit"));
+        assertTrue(limitException.getMessage().contains("pivot.rows[*].limit"));
+    }
+
+    @Test
     @DisplayName("基数超限熔断 (TooManyPivotCellsException) - 利用反射注入低阈值")
     void testCardinalityCircuitBreaker() {
         // 原始 pipeline 保存
@@ -1619,6 +1644,14 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         item.setOp(op);
         item.setValue(value);
         return item;
+    }
+
+    private PivotRequest basicSalesPivot() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+        return pivot;
     }
 
     private List<Map<String, Object>> rowsForOrder(List<Map<String, Object>> rows, String orderId) {

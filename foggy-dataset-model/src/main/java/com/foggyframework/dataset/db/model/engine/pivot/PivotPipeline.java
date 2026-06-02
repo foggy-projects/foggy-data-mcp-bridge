@@ -1451,6 +1451,16 @@ public class PivotPipeline {
                     "timeWindow 与 pivot 模式互斥。时间智能需求请使用 timeWindow 普通聚合；行列透视请使用 pivot；同时需要时请拆成两个查询");
         }
 
+        // pivot 轴 TopN / 排序只能写在轴字段上，避免顶层分页排序被误解释为轴控件
+        if (request.getOrderBy() != null && !request.getOrderBy().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "pivot 模式不支持顶层 orderBy。请使用 pivot.rows[*].orderBy 或 pivot.columns[*].orderBy 作为透视轴排序控制");
+        }
+        if (request.getLimit() != null) {
+            throw new IllegalArgumentException(
+                    "pivot 模式不支持顶层 limit。请使用 pivot.rows[*].limit 或 pivot.columns[*].limit 作为透视轴 TopN 控制");
+        }
+
         // 基本完整性校验
         if (pivot.getRows() == null || pivot.getRows().isEmpty()) {
             throw new IllegalArgumentException("pivot.rows 不能为空");
