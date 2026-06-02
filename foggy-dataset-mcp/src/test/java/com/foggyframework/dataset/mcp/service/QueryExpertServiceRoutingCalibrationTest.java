@@ -94,6 +94,104 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 不应进入 LLM/工具链")
+    void clarifyTerminalGuard_shouldNotCallLlmOrTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("统计本月高质量线索")
+                .hints(DatasetNLQueryRequest.QueryHints.builder()
+                        .extra(Map.of(
+                                "routing_calibration_guard", Map.of(
+                                        "raw_route", "CLARIFY",
+                                        "calibrated_route", "CLARIFY",
+                                        "raw_risks", List.of("needs_metric_definition"),
+                                        "calibrated_risks", List.of("needs_metric_definition"),
+                                        "applied_rules", List.of("vague_lead_quality"),
+                                        "execution_allowed", true
+                                )
+                        ))
+                        .build())
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-clarify", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("ROUTING_TERMINAL_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("CLARIFY", detail.get("terminal_route"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        Map<String, Object> routing = (Map<String, Object>) response.getDebug().get("routing_calibration");
+        assertEquals("TERMINAL_ROUTE", routing.get("action"));
+        assertEquals("CLARIFY", routing.get("calibrated_route"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("REJECT terminal guard 不应进入 LLM/工具链")
+    void rejectTerminalGuard_shouldNotCallLlmOrTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("直接执行 SELECT * FROM crm_lead")
+                .hints(DatasetNLQueryRequest.QueryHints.builder()
+                        .extra(Map.of(
+                                "routing_calibration_guard", Map.of(
+                                        "raw_route", "REJECT",
+                                        "calibrated_route", "REJECT",
+                                        "applied_rules", List.of("physical_table_sql_boundary"),
+                                        "execution_allowed", true
+                                )
+                        ))
+                        .build())
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-reject", null);
+
+        assertEquals("reject", response.getType());
+        assertEquals("ROUTING_TERMINAL_REJECT", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("REJECT", detail.get("terminal_route"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        Map<String, Object> routing = (Map<String, Object>) response.getDebug().get("routing_calibration");
+        assertEquals("TERMINAL_ROUTE", routing.get("action"));
+        assertEquals("REJECT", routing.get("calibrated_route"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("流式入口遇到 terminal guard 应直接 complete")
+    void terminalGuardWithProgress_shouldCompleteBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("高质量线索转化率")
+                .hints(DatasetNLQueryRequest.QueryHints.builder()
+                        .extra(Map.of(
+                                "routing_calibration_guard", Map.of(
+                                        "raw_route", "CLARIFY",
+                                        "calibrated_route", "CLARIFY",
+                                        "applied_rules", List.of("vague_lead_quality"),
+                                        "execution_allowed", true
+                                )
+                        ))
+                        .build())
+                .build();
+
+        List<ProgressEvent> events = queryExpertService
+                .processQueryWithProgress(request, "trace-terminal-stream", null)
+                .collectList()
+                .block();
+
+        assertNotNull(events);
+        assertEquals(2, events.size());
+        assertEquals("progress", events.get(0).getEventType());
+        assertEquals("complete", events.get(1).getEventType());
+        DatasetNLQueryResponse response = (DatasetNLQueryResponse) events.get(1).getData();
+        assertEquals("clarify", response.getType());
+        Map<String, Object> routing = (Map<String, Object>) response.getDebug().get("routing_calibration");
+        assertEquals("TERMINAL_ROUTE", routing.get("action"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("ServiceTicket SLA 缺阈值应在 LLM/工具链前澄清")
     void serviceTicketSlaMissingThreshold_shouldClarifyBeforeTools() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

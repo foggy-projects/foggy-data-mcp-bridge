@@ -59,6 +59,8 @@ public class QueryExpertService {
     static final ThreadLocal<Map<String, Object>> LAST_QUERY_RESULT = new ThreadLocal<>();
 
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
+    private static final String ROUTING_TERMINAL_CLARIFY_CODE = "ROUTING_TERMINAL_CLARIFY";
+    private static final String ROUTING_TERMINAL_REJECT_CODE = "ROUTING_TERMINAL_REJECT";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
     private static final String FIELD_NOT_FOUND_IN_QUERY_MODEL_CODE = "FIELD_NOT_FOUND_IN_QUERY_MODEL";
     private static final String INVALID_QUERY_MODEL_FILTER_CODE = "INVALID_QUERY_MODEL_FILTER";
@@ -231,6 +233,9 @@ public class QueryExpertService {
             if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
                 return routingCalibrationReplanRequiredResponse(calibrationAction, traceId);
             }
+            if (calibrationAction.type() == RoutingCalibrationActionType.TERMINAL_ROUTE) {
+                return routingCalibrationTerminalResponse(calibrationAction, traceId);
+            }
             DatasetNLQueryResponse preflightResponse = serviceTicketSlaPreflightResponse(request, traceId);
             if (preflightResponse != null) {
                 return attachRoutingCalibrationDebug(preflightResponse, calibrationAction, traceId);
@@ -312,6 +317,11 @@ public class QueryExpertService {
                 RoutingCalibrationAction calibrationAction = routingCalibrationActionResolver.resolve(request);
                 if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
                     sink.next(routingCalibrationReplanRequiredEvent(calibrationAction, traceId));
+                    sink.complete();
+                    return;
+                }
+                if (calibrationAction.type() == RoutingCalibrationActionType.TERMINAL_ROUTE) {
+                    sink.next(ProgressEvent.complete(routingCalibrationTerminalResponse(calibrationAction, traceId)));
                     sink.complete();
                     return;
                 }
@@ -1260,6 +1270,31 @@ public class QueryExpertService {
         ), calibrationAction, traceId);
     }
 
+    private static DatasetNLQueryResponse routingCalibrationTerminalResponse(
+            RoutingCalibrationAction calibrationAction,
+            String traceId
+    ) {
+        String route = safeString(calibrationAction.calibratedRoute()).toUpperCase(Locale.ROOT);
+        Map<String, Object> detail = routingCalibrationTerminalDetail(calibrationAction, route);
+        DatasetNLQueryResponse response;
+        if ("REJECT".equals(route)) {
+            response = DatasetNLQueryResponse.reject(
+                    ROUTING_TERMINAL_REJECT_CODE,
+                    "路由校准结果为 REJECT，已在进入查询工具前拒绝执行。",
+                    detail
+            );
+        } else {
+            response = DatasetNLQueryResponse.builder()
+                    .type("clarify")
+                    .code(ROUTING_TERMINAL_CLARIFY_CODE)
+                    .msg("路由校准结果为 CLARIFY，已在进入查询工具前返回澄清。")
+                    .questions(List.of("当前问题需要补充必要条件后才能执行查询。请补充时间范围、指标口径、维度或可用模型字段。"))
+                    .detail(detail)
+                    .build();
+        }
+        return attachRoutingCalibrationDebug(response, calibrationAction, traceId);
+    }
+
     private static ProgressEvent routingCalibrationReplanRequiredEvent(RoutingCalibrationAction calibrationAction, String traceId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("code", ROUTING_REPLAN_REQUIRED_CODE);
@@ -1307,6 +1342,24 @@ public class QueryExpertService {
         detail.put("calibrated_route", safeString(calibrationAction.calibratedRoute()));
         detail.put("execution_allowed", false);
         detail.put("replan_dispatch", routingCalibrationReplanDispatch(calibrationAction));
+        return detail;
+    }
+
+    private static Map<String, Object> routingCalibrationTerminalDetail(
+            RoutingCalibrationAction calibrationAction,
+            String route
+    ) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("action", "TERMINAL_ROUTE");
+        detail.put("terminal_route", route);
+        detail.put("terminal_contract", "routing_calibration_terminal_route");
+        detail.put("raw_route", safeString(calibrationAction.rawRoute()));
+        detail.put("calibrated_route", safeString(calibrationAction.calibratedRoute()));
+        detail.put("query_model_execution_allowed", false);
+        detail.put("applied_rules", calibrationAction.appliedRules() != null ? calibrationAction.appliedRules() : List.of());
+        detail.put("raw_risks", calibrationAction.rawRisks() != null ? calibrationAction.rawRisks() : List.of());
+        detail.put("calibrated_risks", calibrationAction.calibratedRisks() != null ? calibrationAction.calibratedRisks() : List.of());
+        detail.put("reason", safeString(calibrationAction.reason()));
         return detail;
     }
 

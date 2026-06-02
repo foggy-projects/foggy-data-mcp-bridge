@@ -54,6 +54,20 @@ public class RoutingCalibrationActionResolver {
             );
         }
 
+        if (isTerminalRoute(calibratedRoute)) {
+            return new RoutingCalibrationAction(
+                    RoutingCalibrationActionType.TERMINAL_ROUTE,
+                    rawRoute,
+                    calibratedRoute,
+                    rawRisks,
+                    calibratedRisks,
+                    appliedRules,
+                    false,
+                    false,
+                    "calibrated terminal route must stop before query tools"
+            );
+        }
+
         if (requiresReplan || routeChanged || !executionAllowed) {
             return new RoutingCalibrationAction(
                     RoutingCalibrationActionType.REPLAN_REQUIRED,
@@ -186,6 +200,10 @@ public class RoutingCalibrationActionResolver {
     private boolean risksDiffer(List<String> rawRisks, List<String> calibratedRisks) {
         return (!rawRisks.isEmpty() || !calibratedRisks.isEmpty())
                 && !List.copyOf(rawRisks).equals(List.copyOf(calibratedRisks));
+    }
+
+    private boolean isTerminalRoute(String route) {
+        return "CLARIFY".equalsIgnoreCase(route) || "REJECT".equalsIgnoreCase(route);
     }
 
     private boolean isBlank(String value) {

@@ -53,8 +53,8 @@ class RoutingCalibrationActionResolverTest {
     @DisplayName("risk-only 校准只做审计")
     void riskOnlyChange_shouldAuditOnly() {
         DatasetNLQueryRequest request = requestWithGuard(Map.of(
-                "raw_route", "CLARIFY",
-                "calibrated_route", "CLARIFY",
+                "raw_route", "MEMORY_GRID",
+                "calibrated_route", "MEMORY_GRID",
                 "raw_risks", List.of("needs_time_range"),
                 "calibrated_risks", List.of("needs_time_range", "needs_metric_definition"),
                 "applied_rules", List.of("vague_lead_quality")
@@ -65,6 +65,44 @@ class RoutingCalibrationActionResolverTest {
         assertEquals(RoutingCalibrationActionType.AUDIT_ONLY, action.type());
         assertFalse(action.requiresReplan());
         assertTrue(action.executionAllowed());
+    }
+
+    @Test
+    @DisplayName("CLARIFY 终止路由应在查询工具前终止")
+    void clarifyTerminalRoute_shouldStopBeforeTools() {
+        DatasetNLQueryRequest request = requestWithGuard(Map.of(
+                "raw_route", "CLARIFY",
+                "calibrated_route", "CLARIFY",
+                "raw_risks", List.of("needs_time_range"),
+                "calibrated_risks", List.of("needs_time_range", "needs_metric_definition"),
+                "applied_rules", List.of("vague_lead_quality"),
+                "execution_allowed", true
+        ));
+
+        RoutingCalibrationAction action = resolver.resolve(request);
+
+        assertEquals(RoutingCalibrationActionType.TERMINAL_ROUTE, action.type());
+        assertEquals("CLARIFY", action.calibratedRoute());
+        assertFalse(action.requiresReplan());
+        assertFalse(action.executionAllowed());
+    }
+
+    @Test
+    @DisplayName("REJECT 终止路由应在查询工具前终止")
+    void rejectTerminalRoute_shouldStopBeforeTools() {
+        DatasetNLQueryRequest request = requestWithGuard(Map.of(
+                "raw_route", "REJECT",
+                "calibrated_route", "REJECT",
+                "applied_rules", List.of("unsupported_free_form_sql"),
+                "execution_allowed", true
+        ));
+
+        RoutingCalibrationAction action = resolver.resolve(request);
+
+        assertEquals(RoutingCalibrationActionType.TERMINAL_ROUTE, action.type());
+        assertEquals("REJECT", action.calibratedRoute());
+        assertFalse(action.requiresReplan());
+        assertFalse(action.executionAllowed());
     }
 
     @Test
