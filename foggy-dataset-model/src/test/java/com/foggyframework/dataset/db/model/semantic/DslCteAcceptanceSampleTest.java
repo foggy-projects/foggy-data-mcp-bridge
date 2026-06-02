@@ -3307,6 +3307,24 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE timeWindow bridge defers postSlice stage mixing")
+    void dslCteTimeWindowBridgeRejectsPostSlice() {
+        List<String> unsupported = bridgeUnsupported(rollingWindowWithPostSlicePlan());
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("timeWindow bridge does not support postSlice")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE timeWindow bridge defers postAggregate derive mixing")
+    void dslCteTimeWindowBridgeRejectsPostAggregateDerive() {
+        List<String> unsupported = bridgeUnsupported(rollingWindowWithPostAggregateDerivePlan());
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("timeWindow bridge does not support postAggregate calculations")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to minimal row-level SLA calculatedFields bridge")
     void generateSqlOptInUsesMinimalRowLevelSlaBridge() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -3726,6 +3744,50 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(filter("orderDate", "last_n_days", 30)),
                                 "groupBy", List.of("orderDate.day"),
                                 "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("rolling_sales", "window_derive",
+                                "inputs", List.of("daily_sales"),
+                                "window", window(List.of(), List.of(order("orderDate.day", "ASC")),
+                                        m("type", "rows", "start", -6, "end", 0)),
+                                "derived", List.of(derived("rolling7dSalesAmount", "sum(salesAmount) over last 7 rows")))
+                ),
+                List.of("orderDate.day", "salesAmount", "rolling7dSalesAmount")
+        );
+    }
+
+    private Map<String, Object> rollingWindowWithPostSlicePlan() {
+        return plan(
+                List.of(
+                        stage("daily_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "filters", List.of(filter("orderDate", "last_n_days", 30)),
+                                "groupBy", List.of("orderDate.day"),
+                                "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("rolling_sales", "window_derive",
+                                "inputs", List.of("daily_sales"),
+                                "window", window(List.of(), List.of(order("orderDate.day", "ASC")),
+                                        m("type", "rows", "start", -6, "end", 0)),
+                                "derived", List.of(derived("rolling7dSalesAmount", "sum(salesAmount) over last 7 rows"))),
+                        stage("filtered_rolling_sales", "postSlice",
+                                "inputs", List.of("rolling_sales"),
+                                "filters", List.of(filter("rolling7dSalesAmount", ">", 100)))
+                ),
+                List.of("orderDate.day", "salesAmount", "rolling7dSalesAmount")
+        );
+    }
+
+    private Map<String, Object> rollingWindowWithPostAggregateDerivePlan() {
+        return plan(
+                List.of(
+                        stage("daily_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "filters", List.of(filter("orderDate", "last_n_days", 30)),
+                                "groupBy", List.of("orderDate.day"),
+                                "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("daily_sales_share", "derive",
+                                "inputs", List.of("daily_sales"),
+                                "derived", List.of(derived(
+                                        "salesShare",
+                                        "salesAmount / sum(salesAmount) over ()"))),
                         stage("rolling_sales", "window_derive",
                                 "inputs", List.of("daily_sales"),
                                 "window", window(List.of(), List.of(order("orderDate.day", "ASC")),

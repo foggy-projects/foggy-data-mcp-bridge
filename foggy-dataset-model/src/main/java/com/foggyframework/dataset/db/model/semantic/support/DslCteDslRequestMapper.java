@@ -187,10 +187,10 @@ public final class DslCteDslRequestMapper {
             }
         }
         if (hasWindowBridge && postSlice != null) {
-            unsupported.add("DSL_CTE rolling window bridge does not support postSlice in this cut");
+            unsupported.add("DSL_CTE timeWindow bridge does not support postSlice in this cut");
         }
         if (hasWindowBridge && !postAgg.isEmpty()) {
-            unsupported.add("DSL_CTE rolling window bridge does not support postAggregate calculations in this cut");
+            unsupported.add("DSL_CTE timeWindow bridge does not support postAggregate calculations in this cut");
         }
 
         request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics, postAgg,
