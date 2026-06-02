@@ -42,6 +42,7 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | Conflicting time scopes | Clarify; do not auto-select one window. |
 | Priority-aware SLA without P1/P2/P3 threshold policy | Clarify before LLM/tool dispatch; do not assume a default priority policy. |
 | Pause, hold, or customer-wait time exclusion | Clarify before LLM/tool dispatch; the current recipe has no pause interval fields or exclusion policy. |
+| First-response SLA with business hours, workdays, holidays, or 9:00-18:00 windows | Clarify before LLM/tool dispatch; the current recipe only signs natural elapsed hours. |
 
 ## Runtime Evidence
 

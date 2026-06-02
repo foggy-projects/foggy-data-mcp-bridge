@@ -534,6 +534,15 @@ public class QueryExpertService {
                     "当前查询引擎只执行已建模事实统计，不支持预测、因果归因或人员调整建议。"
             );
         }
+        if (containsAny(query, "首响", "首次响应")
+                && containsAny(query, "达成率", "SLA")
+                && requestsBusinessHoursSla(query, normalized)) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "business_hours_sla_out_of_scope",
+                    "当前 ServiceTicket 首次响应 SLA recipe 只按自然小时计算，未建模工作日、节假日或工作时段换算。",
+                    List.of("请补充业务日历、工作时段、节假日策略和时区，或改为按自然小时计算首次响应 SLA。")
+            );
+        }
         if (containsAny(query, "解决时效", "解决 SLA", "解决SLA", "合同", "工作日历", "节假日", "工作时间")) {
             return ServiceTicketSlaBoundary.clarify(
                     "resolution_or_contract_calendar_sla_out_of_scope",
@@ -619,6 +628,12 @@ public class QueryExpertService {
         boolean pauseHoldSignal = containsAny(query, "暂停", "挂起", "客户等待", "等待客户", "客户侧等待", "冻结")
                 || containsAny(normalized, "pause", "paused", "hold", "suspend", "suspended", "customer wait");
         return exclusionIntent && pauseHoldSignal;
+    }
+
+    private static boolean requestsBusinessHoursSla(String query, String normalized) {
+        return containsAny(query, "工作小时", "业务小时", "工作日", "工作时段", "办公时间", "营业时间", "节假日", "周末不计", "非工作时间")
+                || containsAny(normalized, "business hour", "business-hour", "working hour", "working-hour", "workday", "holiday")
+                || Pattern.compile("\\d{1,2}:\\d{2}\\s*[-~至到]\\s*\\d{1,2}:\\d{2}").matcher(query).find();
     }
 
     private static boolean containsPrioritySlaThresholdPolicy(String query) {
