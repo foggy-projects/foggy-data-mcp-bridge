@@ -201,6 +201,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
             extData.put("timeWindow", request.getTimeWindow());
+            if (request.getLimit() != null) {
+                extData.put("timeWindowLimit", request.getLimit());
+            }
+            if (request.getStart() != null && request.getStart() > 0) {
+                extData.put("timeWindowStart", request.getStart());
+            }
         }
         if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
             extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
@@ -456,6 +462,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
             extData.put("timeWindow", request.getTimeWindow());
+            if (request.getLimit() != null) {
+                extData.put("timeWindowLimit", request.getLimit());
+            }
+            if (request.getStart() != null && request.getStart() > 0) {
+                extData.put("timeWindowStart", request.getStart());
+            }
         }
         // Stage 5: pass calculatedFields to extData so TimeWindowInterceptor
         // can build the outer post-calc projection wrapper.
@@ -1158,6 +1170,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private void validateTimeWindowResultStageBoundary(SemanticQueryRequest request) {
         if (request == null || request.getTimeWindow() == null || request.getTimeWindow().isEmpty()) {
             return;
+        }
+        if (request.getHaving() != null && !request.getHaving().isEmpty()) {
+            throw RX.throwB(
+                    "TIME_WINDOW_HAVING_UNSUPPORTED: timeWindow 模式不支持顶层 having。"
+                            + "having 在 timeWindow 中存在基础聚合过滤与最终结果过滤的语义歧义；请使用普通 query_model having，或拆分为受治理的二阶段分析请求");
         }
         if (request.getPostAggregateCalculations() != null && !request.getPostAggregateCalculations().isEmpty()) {
             throw RX.throwB(

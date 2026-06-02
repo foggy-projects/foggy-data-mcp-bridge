@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.*;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
@@ -241,6 +243,8 @@ public class TimeWindowInterceptor implements DataSetResultStep {
             }
         }
 
+        applyFinalControls(ctx, extData);
+
         // Resolve dialect for downstream plan execution.
         // ctx.getQueryModel() is JdbcQueryModelImpl at runtime, which implements JdbcQueryModel.
         String resolvedDialect = "mysql";
@@ -257,6 +261,48 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         extData.put("timeWindowDialect", resolvedDialect);
         
         return 0;
+    }
+
+    private static void applyFinalControls(ModelResultContext ctx, Map<String, Object> extData) {
+        QueryPlan timeWindowPlan = (QueryPlan) extData.get("timeWindowPlan");
+        if (timeWindowPlan == null || ctx.getRequest() == null || ctx.getRequest().getParam() == null) {
+            return;
+        }
+
+        DbQueryRequestDef request = ctx.getRequest().getParam();
+        List<String> orderBy = toPlanOrderBy(request.getOrderBy());
+        Integer limit = extData.get("timeWindowLimit") instanceof Number n ? n.intValue() : null;
+        Integer start = extData.get("timeWindowStart") instanceof Number n ? n.intValue() : null;
+        if (orderBy.isEmpty() && limit == null && start == null) {
+            return;
+        }
+
+        QueryPlan finalPlan = DerivedQueryPlan.builder()
+                .source(timeWindowPlan)
+                .columns(List.of())
+                .orderBy(orderBy)
+                .limit(limit)
+                .start(start)
+                .build();
+        extData.put("timeWindowPlan", finalPlan);
+        if (extData.containsKey("comparativePlan")) {
+            extData.put("comparativePlan", finalPlan);
+        }
+    }
+
+    private static List<String> toPlanOrderBy(List<OrderRequestDef> requestOrderBy) {
+        if (requestOrderBy == null || requestOrderBy.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (OrderRequestDef item : requestOrderBy) {
+            if (item == null || item.getField() == null || item.getField().isBlank()) {
+                continue;
+            }
+            String dir = item.getDir() == null ? "asc" : item.getDir().trim().toLowerCase(Locale.ROOT);
+            result.add("desc".equals(dir) ? "-" + item.getField() : item.getField());
+        }
+        return result;
     }
 
     private static boolean isGeneratedTimeWindowColumn(String col) {

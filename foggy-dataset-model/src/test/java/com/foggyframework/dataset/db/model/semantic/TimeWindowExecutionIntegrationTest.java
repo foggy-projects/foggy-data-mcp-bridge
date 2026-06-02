@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -293,6 +294,59 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         assertExceptionContains(postSliceException, "postSlice");
     }
 
+    @Test
+    @DisplayName("timeWindow applies final orderBy and limit")
+    void timeWindowFinalOrderByAndLimitAppliedBySemanticPipeline() {
+        if (skipWhenWindowFunctionsUnsupported("timeWindow final orderBy and limit")) {
+            return;
+        }
+
+        SemanticQueryRequest request = request(
+                List.of("salesDate$id", "salesAmount", "salesAmount__rolling_7d"),
+                List.of("salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "day",
+                        "comparison", "rolling_7d",
+                        "targetMetrics", List.of("salesAmount")
+                ));
+        request.setOrderBy(List.of(order("salesAmount__rolling_7d", "desc")));
+        request.setLimit(2);
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                TEST_MODEL, request, SemanticRequestContext.empty());
+        assertNotNull(generated);
+        assertTrue(generated.getSql().contains("ORDER BY"), generated.getSql());
+        assertTrue(generated.getSql().contains("salesAmount__rolling_7d"), generated.getSql());
+        assertTrue(generated.getSql().contains("LIMIT 2"), generated.getSql());
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+        assertEquals(2, response.getItems().size());
+        assertTrue(numberValue(response.getItems().get(0).get("salesAmount__rolling_7d"))
+                        .compareTo(numberValue(response.getItems().get(1).get("salesAmount__rolling_7d"))) >= 0,
+                response.getItems().toString());
+    }
+
+    @Test
+    @DisplayName("timeWindow rejects ambiguous top-level having")
+    void timeWindowTopLevelHavingRejectedBySemanticPipeline() {
+        SemanticQueryRequest request = request(
+                List.of("salesDate$month", "salesAmount", "salesAmount__prior"),
+                List.of("salesDate$month"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "targetMetrics", List.of("salesAmount")
+                ));
+        request.setHaving(List.of(slice("salesAmount", ">", 0)));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                semanticQueryServiceV3.generateSql(TEST_MODEL, request, SemanticRequestContext.empty()));
+        assertExceptionContains(ex, "TIME_WINDOW_HAVING_UNSUPPORTED");
+    }
+
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
         request.setLimit(100);
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
@@ -357,6 +411,18 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         item.setOp(op);
         item.setValue(value);
         return item;
+    }
+
+    private static SemanticQueryRequest.OrderItem order(String field, String dir) {
+        SemanticQueryRequest.OrderItem item = new SemanticQueryRequest.OrderItem();
+        item.setField(field);
+        item.setDir(dir);
+        return item;
+    }
+
+    private static BigDecimal numberValue(Object value) {
+        assertNotNull(value);
+        return new BigDecimal(value.toString());
     }
 
     private static void assertRowsEqual(List<Map<String, Object>> expected, List<Map<String, Object>> actual) {
