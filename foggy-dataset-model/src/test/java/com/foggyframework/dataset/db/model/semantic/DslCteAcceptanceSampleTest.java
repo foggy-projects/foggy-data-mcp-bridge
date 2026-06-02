@@ -42,7 +42,7 @@ class DslCteAcceptanceSampleTest {
         service = new SemanticQueryServiceV3Impl();
         QueryModelLoader loader = mock(QueryModelLoader.class);
         QueryModel saleOrder = queryModel(
-                "SaleOrder", "product.categoryName", "amount"
+                "SaleOrder", "product.categoryName", "customer.name", "amount"
         );
         QueryModel accountBalance = queryModel(
                 "AccountBalance", "branch.name", "balanceDate.month", "balanceAmount"
@@ -966,6 +966,25 @@ class DslCteAcceptanceSampleTest {
         assertEquals("balanceAmount__prior", dslRequest.getOrderBy().get(0).getField());
         assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
         assertEquals(10, dslRequest.getLimit());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation remaps period-over-period prior diff and ratio aliases together")
+    void validationRemapsPeriodOverPeriodPriorDiffRatioOutputAndOrderBy() {
+        SemanticQueryResponse response = service.validateQuery(
+                "AccountBalance", dslCtePlan(periodOverPeriodWithPriorDiffRatioOutputAndOrderByPlan()),
+                SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) response.getExecution()
+                .getDslCteValidation().get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(List.of("branch.name", "balanceDate.month", "sum(balanceAmount) AS balanceAmount",
+                        "balanceAmount__prior", "balanceAmount__diff", "balanceAmount__ratio"),
+                dslRequest.getColumns());
+        assertEquals("balanceAmount__diff", dslRequest.getOrderBy().get(0).getField());
+        assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
+        assertEquals(8, dslRequest.getLimit());
     }
 
     @Test
@@ -3363,6 +3382,35 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql remaps period-over-period prior diff ratio aliases before QueryFacade")
+    void generateSqlOptInRemapsPeriodOverPeriodPriorDiffRatioAliases() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH monthly AS (...) SELECT balanceAmount__diff FROM monthly "
+                                + "ORDER BY balanceAmount__diff DESC LIMIT ?",
+                        List.of(8),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(periodOverPeriodWithPriorDiffRatioOutputAndOrderByPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("AccountBalance", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("balanceAmount__diff"));
+        assertEquals(List.of(8), result.getParams());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        var dslRequest = captor.getValue().getRequest().getParam();
+        assertEquals(List.of("branch.name", "balanceDate.month", "sum(balanceAmount) AS balanceAmount",
+                        "balanceAmount__prior", "balanceAmount__diff", "balanceAmount__ratio"),
+                dslRequest.getColumns());
+        assertEquals("balanceAmount__diff", dslRequest.getOrderBy().get(0).getField());
+        assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to MoM difference timeWindow bridge")
     void generateSqlOptInUsesDslBridgeForLagDifferencePeriodOverPeriod() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -3806,6 +3854,14 @@ class DslCteAcceptanceSampleTest {
         assertTrue(result.getSql().contains("cumulativeShare"));
         assertTrue(result.getSql().contains("WHERE \"cumulativeShare\" <= ?"));
         assertEquals(List.of(0.8), result.getParams());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertFalse(captor.getValue().getExtData().containsKey("timeWindow"));
+        var param = captor.getValue().getRequest().getParam();
+        assertEquals(List.of("customer.name", "sum(amount) AS salesAmount"),
+                param.getColumns());
+        assertTrue(param.getPostAggregateCalculations() == null || param.getPostAggregateCalculations().isEmpty());
+        assertTrue(param.getPostSlice() == null || param.getPostSlice().isEmpty());
     }
 
     @Test
@@ -4794,6 +4850,33 @@ class DslCteAcceptanceSampleTest {
                 ),
                 List.of("branch.name", "balanceDate.month", "balanceAmount",
                         "previousMonthBalance", "monthOverMonthGrowthRate")
+        );
+    }
+
+    private Map<String, Object> periodOverPeriodWithPriorDiffRatioOutputAndOrderByPlan() {
+        return plan(
+                List.of(
+                        stage("monthly_branch_balance", "aggregate",
+                                "input", model("AccountBalance"),
+                                "filters", List.of(filter("balanceDate", "year", "2026")),
+                                "groupBy", List.of("branch.name", "balanceDate.month"),
+                                "metrics", List.of(metric("balanceAmount", "sum(balanceAmount)"))),
+                        stage("monthly_growth", "window_derive",
+                                "inputs", List.of("monthly_branch_balance"),
+                                "window", window(List.of("branch.name"), List.of(order("balanceDate.month", "ASC")), null),
+                                "derived", List.of(
+                                        derived("previousMonthBalance", "lag(balanceAmount)"),
+                                        derived("monthOverMonthDifference",
+                                                "balanceAmount - previousMonthBalance"),
+                                        derived("monthOverMonthGrowthRate",
+                                                "(balanceAmount - previousMonthBalance) / previousMonthBalance"))),
+                        stage("top_difference", "orderBy",
+                                "inputs", List.of("monthly_growth"),
+                                "orderBy", List.of(order("monthOverMonthDifference", "DESC")),
+                                "limit", 8)
+                ),
+                List.of("branch.name", "balanceDate.month", "balanceAmount",
+                        "previousMonthBalance", "monthOverMonthDifference", "monthOverMonthGrowthRate")
         );
     }
 
