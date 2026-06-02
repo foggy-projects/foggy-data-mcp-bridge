@@ -95,6 +95,7 @@ source_type: optimization
 | Priority-aware ServiceTicket SLA promotion | passed on 2026-06-02: positive `holdout-007` requires explicit `priority_threshold(priority, P1=4, P2=24, P3=48)` evidence; negative `er0r-015` covers missing priority threshold policy; offline ServiceTicket suite reached `21/21`, residuals `0`. |
 | Pause/hold exclusion negative boundary | passed on 2026-06-02: `er0r-016` clarifies before LLM/tool dispatch for customer-wait, pause, and hold time exclusion requests; `QueryExpertServiceRoutingCalibrationTest` reached `28/28`; offline ServiceTicket suite reached `22/22`, residuals `0`. |
 | Business-hours SLA negative boundary | passed on 2026-06-02: `er0r-017` clarifies before LLM/tool dispatch for working-hour, workday, and holiday first-response SLA requests; `QueryExpertServiceRoutingCalibrationTest` reached `29/29`; offline ServiceTicket suite reached `23/23`, residuals `0`. |
+| DSL_CTE business-hours duration compile guard | passed on 2026-06-02: direct `business_hours_between(...)` / `working_hours_between(...)` formulas defer with explicit unsigned business-hours duration reason instead of compiling through the natural-hour SLA bridge; `DslCteAcceptanceSampleTest` reached `163/163`. |
 
 ## Replay Findings
 
@@ -156,4 +157,5 @@ Continue sample-driven calibration of the governed DSL_CTE / recipe contract:
 | Stable gate promotion | Promote `biz-024` using `output/v39_biz024_service_ticket_invocation_20260601_after_docs_base_no_v1.jsonl`; promote holdouts using `output/v39_service_ticket_sla_holdout_invocation_20260601_after_docs_base_no_v1.jsonl`; keep the earlier `0/3` replay as a residual regression sample. |
 | Semantic scoring | Done for `biz-024` and ServiceTicket SLA holdouts; both strict semantic gates now pass on the corrected replay baselines. |
 | Negative runtime scoring | Expanded to missing-threshold, threshold unit ambiguity, missing priority SLA threshold policy, pause/hold exclusion out-of-scope, business-hours/workday/holiday out-of-scope, resolution/calendar out-of-scope, physical SQL, prediction/personnel-advice, unresponded-count formula ambiguity, conflicting time scopes, and first-response/resolution field mismatch. |
+| Direct DSL_CTE compile guard | Business-hours / work-calendar duration formulas are also guarded at validation time; keep this unsigned until calendar fixture, working-hour window, holiday policy, and timezone semantics are implemented. |
 | Stable suite | Use `make gate-v39-service-ticket-sla-stable-suite` for promotion evidence across positive, holdout, and negative ServiceTicket SLA gates; after business-hours negative expansion the verified combined offline suite is `23/23`, residuals `0`. |

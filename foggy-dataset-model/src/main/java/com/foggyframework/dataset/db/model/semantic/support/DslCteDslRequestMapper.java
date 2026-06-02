@@ -53,6 +53,8 @@ public final class DslCteDslRequestMapper {
     private static final Pattern SAFE_ALIAS_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_$.]*");
     private static final Pattern HOURS_BETWEEN_PATTERN = Pattern.compile(
             "(?i)^\\s*hours_between\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
+    private static final Pattern BUSINESS_HOURS_BETWEEN_PATTERN = Pattern.compile(
+            "(?i)^\\s*(?:business_hours_between|working_hours_between)\\s*\\(.*\\)\\s*$");
     private static final Pattern SLA_HIT_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*(\\d+(?:\\.\\d+)?)\\s*$");
     private static final Pattern SLA_HIT_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
@@ -2659,6 +2661,14 @@ public final class DslCteDslRequestMapper {
             String expr = stringValue(derived.get("expr"));
             if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches() || expr == null) {
                 unsupported.add("row-level SLA derived fields must declare governed name and expr: " + derived);
+                continue;
+            }
+
+            Matcher businessHoursDuration = BUSINESS_HOURS_BETWEEN_PATTERN.matcher(expr);
+            if (businessHoursDuration.matches()) {
+                unsupported.add("business-hours SLA duration is not signed; requires calendar source, "
+                        + "workday/holiday policy, working-hour window, and timezone before using "
+                        + "business_hours_between(...) or working_hours_between(...)");
                 continue;
             }
 

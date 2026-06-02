@@ -746,6 +746,23 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE SLA bridge defers unsigned business-hours duration")
+    void validationDefersUnsignedBusinessHoursSlaDuration() {
+        Map<String, Object> plan = minimalSlaRatePostSlicePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("derived", List.of(
+                derived("firstResponseBusinessHours",
+                        "business_hours_between(createdAt, firstResponseAt, workday=Mon-Fri, "
+                                + "hours=09:00-18:00, holidayCalendar=CN)"),
+                derived("slaHit", "firstResponseAt is not null and firstResponseBusinessHours <= 8")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("business-hours SLA duration is not signed")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE SLA rate bridge defers postSlice with non-linear input")
     void validationDefersMinimalSlaRatePostSliceInputMismatch() {
         Map<String, Object> plan = minimalSlaRatePostSlicePlan();

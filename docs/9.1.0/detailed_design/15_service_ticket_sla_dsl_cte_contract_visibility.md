@@ -43,12 +43,14 @@ ServiceTicket SLA is now a signed engine recipe, but only for a narrow first-res
 | Priority-aware SLA without P1/P2/P3 threshold policy | Clarify before LLM/tool dispatch; do not assume a default priority policy. |
 | Pause, hold, or customer-wait time exclusion | Clarify before LLM/tool dispatch; the current recipe has no pause interval fields or exclusion policy. |
 | First-response SLA with business hours, workdays, holidays, or 9:00-18:00 windows | Clarify before LLM/tool dispatch; the current recipe only signs natural elapsed hours. |
+| Direct DSL_CTE `business_hours_between(...)` / `working_hours_between(...)` payloads | Fail validation with an explicit unsigned business-hours duration reason; do not compile through the natural-hour bridge. |
 
 ## Runtime Evidence
 
 | Evidence | Meaning |
 |---|---|
 | `DslCteAcceptanceSampleTest` and `DslCteSlaFixtureIntegrationTest` | Signed DSL_CTE recipe shapes compile and execute. |
+| `DslCteAcceptanceSampleTest#validationDefersUnsignedBusinessHoursSlaDuration` | Direct DSL_CTE business-hours duration formulas defer before compilation. |
 | `QueryExpertServiceRoutingCalibrationTest` | Negative ServiceTicket SLA variants fail closed before ChatClient and MCP tool dispatch. |
 | `score_biz024_semantic_gate.py` | Positive replay scorer rejects ambiguous unresponded-count explanations even when output fields exist. |
 | `score_service_ticket_negative_gate.py` | Negative runtime scorer fails rows that call or succeed through `dataset.query_model`. |
