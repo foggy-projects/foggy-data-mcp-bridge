@@ -419,6 +419,48 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(206)
+    @DisplayName("postAggregateCalculations 显式累计贡献与排名生成外层结果阶段")
+    void testExplicitCumulativeAndRankPostAggregateUsesOuterStage() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setSlice(null);
+        queryRequest.setColumns(Arrays.asList(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "salesRank",
+                "cumulativeSales",
+                "cumulativeShare"
+        ));
+        queryRequest.setPostAggregateCalculations(new ArrayList<>(List.of(
+                new PostAggregateCalculationDef("salesRank", "rankByMeasure", "teamSales", "grandTotal", "value"),
+                new PostAggregateCalculationDef("cumulativeSales", "cumulativeSum", "teamSales", "grandTotal", "value"),
+                new PostAggregateCalculationDef("cumulativeShare", "cumulativeRatioToTotal", "teamSales", "grandTotal", "ratio")
+        )));
+        queryRequest.setPostSlice(List.of(new SliceRequestDef("cumulativeShare", "<=", 0.8)));
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("salesRank");
+        order.setDir("asc");
+        queryRequest.setOrderBy(List.of(order));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("RANK() OVER (ORDER BY stage1.\"teamSales\" DESC) AS \"salesRank\""), sql);
+        assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS \"cumulativeSales\""), sql);
+        assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"cumulativeShare\""), sql);
+        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
+        assertTrue(normalizedSql.contains("WHERE \"cumulativeShare\" <= ?"), sql);
+        assertTrue(normalizedSql.contains("ORDER BY \"salesRank\" ASC"), sql);
+        assertEquals(0.8, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
+    }
+
+    @Test
+    @Order(206)
     @DisplayName("calculatedFields 聚合别名总额占比公式归一为 postAggregateCalculations")
     void testCalculatedFieldsAliasRatioToTotalFormulaNormalizesToPostAggregate() {
         JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");

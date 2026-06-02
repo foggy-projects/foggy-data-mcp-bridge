@@ -210,6 +210,33 @@ class QueryRequestValidationStepTest {
     }
 
     @Test
+    @Order(11)
+    @DisplayName("postAggregateCalculations 未签排名 kind 应提前拒绝")
+    void testPostAggregateUnsupportedRankingKindRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setColumns(List.of(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "denseRank"));
+
+        GroupRequestDef group1 = new GroupRequestDef();
+        group1.setField("salesTeam$id");
+        GroupRequestDef group2 = new GroupRequestDef();
+        group2.setField("salesTeam$caption");
+        queryRequest.setGroupBy(List.of(group1, group2));
+
+        queryRequest.setPostAggregateCalculations(List.of(new PostAggregateCalculationDef(
+                "denseRank", "denseRank", "teamSales", "grandTotal", "value")));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("POST_AGGREGATE_CALCULATION_UNSUPPORTED"));
+        assertTrue(exception.getMessage().contains("denseRank"));
+    }
+
+    @Test
     @Order(2)
     @DisplayName("slice 的 field 为空应该抛出异常")
     void testSliceFieldEmpty() {
