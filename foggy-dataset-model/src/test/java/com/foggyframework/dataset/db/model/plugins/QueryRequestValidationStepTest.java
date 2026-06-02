@@ -265,6 +265,34 @@ class QueryRequestValidationStepTest {
     }
 
     @Test
+    @Order(13)
+    @DisplayName("grouped calculatedFields 未签 result-stage 公式参数应提前拒绝")
+    void testPostAggregateUnsupportedFormulaOptionsRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setColumns(List.of(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "ascendingCumulativeSales"));
+
+        GroupRequestDef group1 = new GroupRequestDef();
+        group1.setField("salesTeam$id");
+        GroupRequestDef group2 = new GroupRequestDef();
+        group2.setField("salesTeam$caption");
+        queryRequest.setGroupBy(List.of(group1, group2));
+
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "ascendingCumulativeSales",
+                "cumulative_sum(teamSales, asc)")));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED"));
+        assertTrue(exception.getMessage().contains("ascendingCumulativeSales"));
+    }
+
+    @Test
     @Order(2)
     @DisplayName("slice 的 field 为空应该抛出异常")
     void testSliceFieldEmpty() {

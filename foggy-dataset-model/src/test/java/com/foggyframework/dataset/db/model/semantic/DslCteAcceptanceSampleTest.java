@@ -2966,6 +2966,26 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation rejects unsigned result-stage formula options")
+    void dslValidationRejectsUnsignedResultStageFormulaOptions() {
+        List<String> formulas = List.of(
+                "rank_by(salesAmount, asc)",
+                "cumulative_sum(salesAmount, desc, partitionBy=product.categoryName)",
+                "cumulative_ratio_to_total(salesAmount, desc, rows between unbounded preceding and current row)"
+        );
+
+        for (String formula : formulas) {
+            RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                    service.validateQuery("SaleOrder",
+                            dslCtePlan(unsupportedResultStageFormulaOptionsPlan(formula)),
+                            SemanticRequestContext.empty()));
+
+            assertTrue(exception.getMessage().contains("unsupported result-stage formula options"),
+                    "formula should be rejected as unsigned options: " + formula);
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to final relation orderBy stage")
     void generateSqlOptInUsesDslBridgeForRelationOrderByStage() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -3791,6 +3811,22 @@ class DslCteAcceptanceSampleTest {
                                         derived("denseRank", "dense_rank() over (order by salesAmount desc)")))
                 ),
                 List.of("product.categoryName", "salesAmount", "denseRank")
+        );
+    }
+
+    private Map<String, Object> unsupportedResultStageFormulaOptionsPlan(String formula) {
+        return plan(
+                List.of(
+                        stage("category_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("category_contribution", "derive",
+                                "inputs", List.of("category_sales"),
+                                "derived", List.of(
+                                        derived("unsupportedResultStageFormula", formula)))
+                ),
+                List.of("product.categoryName", "salesAmount", "unsupportedResultStageFormula")
         );
     }
 

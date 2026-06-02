@@ -46,6 +46,10 @@ public final class DslCtePlanValidator {
     private static final Pattern ORDERED_BUCKET_WHEN_PATTERN = Pattern.compile(
             "(?i)\\G\\s*when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
                     + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s*");
+    private static final Pattern RESULT_STAGE_FORMULA_CALL_PATTERN = Pattern.compile(
+            "(?i)^\\s*(ratio_to_total|ratioToTotal|cumulative_sum|cumulativeSum|"
+                    + "cumulative_ratio_to_total|cumulativeRatioToTotal|rank_by|rankBy|rank_desc|rankDesc)"
+                    + "\\s*\\((.*)\\)\\s*$");
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
             "and", "or", "is", "not", "null", "true", "false",
             "case", "when", "then", "else", "end", "as", "over", "rows",
@@ -263,6 +267,7 @@ public final class DslCtePlanValidator {
 
     private static void validateDerivedExpressionReferences(String name, String expr, StageOutput base,
                                                             Set<String> sameStageAliases) {
+        validateResultStageFormulaOptions(name, expr);
         Set<String> dependencies = new LinkedHashSet<>();
         collectExpressionFields(expr, dependencies);
         for (String dependency : dependencies) {
@@ -273,6 +278,54 @@ public final class DslCtePlanValidator {
                         + "'; use prior output fields or same-stage aliases that can be auto-layered.");
             }
         }
+    }
+
+    private static void validateResultStageFormulaOptions(String name, String expr) {
+        if (expr == null || expr.isBlank()) {
+            return;
+        }
+        Matcher matcher = RESULT_STAGE_FORMULA_CALL_PATTERN.matcher(expr);
+        if (!matcher.matches()) {
+            return;
+        }
+        String function = matcher.group(1).toLowerCase(Locale.ROOT);
+        List<String> args = splitTopLevelArgs(matcher.group(2));
+        boolean allowed = switch (function) {
+            case "ratio_to_total", "ratiototal" -> args.size() == 1;
+            case "cumulative_sum", "cumulativesum", "cumulative_ratio_to_total", "cumulativeratiototal",
+                    "rank_by", "rankby", "rank_desc", "rankdesc" ->
+                    args.size() == 1 || (args.size() == 2 && "desc".equalsIgnoreCase(args.get(1).trim()));
+            default -> false;
+        };
+        if (!allowed) {
+            String alias = name == null || name.isBlank() ? "<unnamed>" : name;
+            throw RX.throwB(STAGE_INVALID + ": derive expression '" + alias
+                    + "' uses unsupported result-stage formula options. Signed result-stage formulas only support "
+                    + "grandTotal scope, DESC order, and implicit frame; partition, ASC order, explicit frame, "
+                    + "and extra arguments are unsigned.");
+        }
+    }
+
+    private static List<String> splitTopLevelArgs(String argsText) {
+        List<String> args = new ArrayList<>();
+        if (argsText == null || argsText.isBlank()) {
+            return args;
+        }
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i < argsText.length(); i++) {
+            char ch = argsText.charAt(i);
+            if (ch == '(') {
+                depth++;
+            } else if (ch == ')') {
+                depth = Math.max(0, depth - 1);
+            } else if (ch == ',' && depth == 0) {
+                args.add(argsText.substring(start, i).trim());
+                start = i + 1;
+            }
+        }
+        args.add(argsText.substring(start).trim());
+        return args;
     }
 
     private static Set<String> derivedAliases(List<Map<String, Object>> derivedItems) {
