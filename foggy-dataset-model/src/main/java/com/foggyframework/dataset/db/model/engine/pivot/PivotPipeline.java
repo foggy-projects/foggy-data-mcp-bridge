@@ -1472,6 +1472,8 @@ public class PivotPipeline {
         // S11: 校验 metric items
         pivot.validateMetrics();
 
+        validateDerivedMetricsNotUsedAsAxisControls(pivot);
+
         validateAxisDomainSelectionRequest(pivot);
 
         // ===== hierarchyMode=tree 守卫规则 =====
@@ -1577,6 +1579,57 @@ public class PivotPipeline {
             throw new IllegalArgumentException(
                     "domainSlice/start/offset 与 baselineRatio 组合时必须显式指定 baselineScope=prePageAxisDomain");
         }
+    }
+
+    private void validateDerivedMetricsNotUsedAsAxisControls(PivotRequest pivot) {
+        Set<String> derivedMetricNames = pivot.getMetricItems().stream()
+                .filter(PivotMetricItem::isDerived)
+                .map(PivotMetricItem::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .collect(Collectors.toSet());
+        if (derivedMetricNames.isEmpty()) {
+            return;
+        }
+        validateDerivedMetricsNotUsedAsAxisControls(pivot.getRows(), "rows", derivedMetricNames);
+        validateDerivedMetricsNotUsedAsAxisControls(pivot.getColumns(), "columns", derivedMetricNames);
+    }
+
+    private void validateDerivedMetricsNotUsedAsAxisControls(
+            List<AxisField> fields, String axisName, Set<String> derivedMetricNames) {
+        if (fields == null) {
+            return;
+        }
+        for (AxisField field : fields) {
+            if (field == null) {
+                continue;
+            }
+            if (field.getOrderBy() != null) {
+                for (String orderBy : field.getOrderBy()) {
+                    String metric = normalizeAxisOrderByMetric(orderBy);
+                    if (derivedMetricNames.contains(metric)) {
+                        throw new IllegalArgumentException(axisName + "." + field.getField()
+                                + ".orderBy 不支持引用派生 Pivot 指标 '" + metric
+                                + "'。parentShare/baselineRatio 是后处理输出，只能展示，不能参与轴级排序或 TopN");
+                    }
+                }
+            }
+            if (field.getHaving() != null) {
+                for (MetricFilter filter : field.getHaving()) {
+                    if (filter != null && derivedMetricNames.contains(filter.getMetric())) {
+                        throw new IllegalArgumentException(axisName + "." + field.getField()
+                                + ".having 不支持引用派生 Pivot 指标 '" + filter.getMetric()
+                                + "'。parentShare/baselineRatio 是后处理输出，只能展示，不能参与轴级过滤");
+                    }
+                }
+            }
+        }
+    }
+
+    private String normalizeAxisOrderByMetric(String orderBy) {
+        if (orderBy == null || orderBy.isBlank()) {
+            return orderBy;
+        }
+        return orderBy.charAt(0) == '-' ? orderBy.substring(1) : orderBy;
     }
 
     private boolean allBaselineRatioMetricsUsePrePageAxisDomain(PivotRequest pivot) {

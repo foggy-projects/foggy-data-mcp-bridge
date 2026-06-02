@@ -434,6 +434,48 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("Pivot 派生指标不能作为轴级 having / orderBy 控制")
+    void testDerivedMetricsRejectedAsAxisControls() {
+        PivotRequest parentSharePivot = basicSalesPivot();
+        parentSharePivot.setRows(List.of(axis("product$categoryName"), axis("payment$method")));
+        PivotMetricItem paymentShare = new PivotMetricItem();
+        paymentShare.setName("paymentShare");
+        paymentShare.setType("parentShare");
+        paymentShare.setOf("salesAmount");
+        parentSharePivot.setMetricItems(List.of(PivotMetricItem.ofNative("salesAmount"), paymentShare));
+        parentSharePivot.getRows().get(1).setOrderBy(List.of("-paymentShare"));
+
+        SemanticQueryRequest parentShareRequest = new SemanticQueryRequest();
+        parentShareRequest.setPivot(parentSharePivot);
+        IllegalArgumentException orderByException =
+                assertThrows(IllegalArgumentException.class, () -> execute(parentShareRequest));
+        assertTrue(orderByException.getMessage().contains("orderBy 不支持引用派生 Pivot 指标 'paymentShare'"));
+        assertTrue(orderByException.getMessage().contains("parentShare/baselineRatio 是后处理输出"));
+
+        PivotRequest baselineRatioPivot = basicSalesPivot();
+        baselineRatioPivot.setColumns(List.of(axis("salesDate$month")));
+        PivotMetricItem monthRatio = new PivotMetricItem();
+        monthRatio.setName("monthRatio");
+        monthRatio.setType("baselineRatio");
+        monthRatio.setOf("salesAmount");
+        monthRatio.setAxis("columns");
+        monthRatio.setBaseline("first");
+        baselineRatioPivot.setMetricItems(List.of(PivotMetricItem.ofNative("salesAmount"), monthRatio));
+        MetricFilter having = new MetricFilter();
+        having.setMetric("monthRatio");
+        having.setOp(">");
+        having.setValue(1);
+        baselineRatioPivot.getColumns().get(0).setHaving(List.of(having));
+
+        SemanticQueryRequest baselineRatioRequest = new SemanticQueryRequest();
+        baselineRatioRequest.setPivot(baselineRatioPivot);
+        IllegalArgumentException havingException =
+                assertThrows(IllegalArgumentException.class, () -> execute(baselineRatioRequest));
+        assertTrue(havingException.getMessage().contains("having 不支持引用派生 Pivot 指标 'monthRatio'"));
+        assertTrue(havingException.getMessage().contains("parentShare/baselineRatio 是后处理输出"));
+    }
+
+    @Test
     @DisplayName("基数超限熔断 (TooManyPivotCellsException) - 利用反射注入低阈值")
     void testCardinalityCircuitBreaker() {
         // 原始 pipeline 保存
