@@ -594,6 +594,42 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         }
     }
 
+    @Test
+    @Order(206)
+    @DisplayName("SaleOrder columns 内联 YEAR 别名支持 groupBy/orderBy 引用执行")
+    void testSaleOrderInlineYearAliasGroupByOrderByExecutes() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of(
+                "YEAR(dateOrder) as orderYear",
+                "sum(amountTotal) as totalSales"
+        ));
+        request.setGroupBy(List.of(new SemanticQueryRequest.GroupByItem("orderYear", null)));
+        SemanticQueryRequest.OrderItem order = new SemanticQueryRequest.OrderItem();
+        order.setField("orderYear");
+        order.setDir("ASC");
+        request.setOrderBy(List.of(order));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                "OdooSaleOrderQueryModel", request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response);
+        assertNotNull(response.getItems());
+        assertFalse(response.getItems().isEmpty(), "内联 YEAR 别名分组应返回数据");
+
+        BigDecimal previous = null;
+        for (Map<String, Object> row : response.getItems()) {
+            assertTrue(row.containsKey("orderYear"), "结果应包含 orderYear: " + row);
+            assertTrue(row.containsKey("totalSales"), "结果应包含 totalSales: " + row);
+            BigDecimal current = decimal(row.get("orderYear"));
+            if (previous != null) {
+                assertTrue(previous.compareTo(current) <= 0,
+                        "orderYear 应按 ASC 排序: previous=" + previous + ", current=" + current);
+            }
+            previous = current;
+        }
+    }
+
     private void assertPostAggregateRowsMatchFixtureBaseline(
             List<Map<String, Object>> actualRows, BigDecimal cumulativeShareLimit, String scenario) {
         Map<String, ExpectedPostAggregateRow> expectedRows = expectedPostAggregateRows(postAggregateBaselineRows());

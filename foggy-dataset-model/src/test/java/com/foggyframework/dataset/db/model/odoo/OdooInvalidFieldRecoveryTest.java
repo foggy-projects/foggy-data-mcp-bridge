@@ -176,6 +176,55 @@ class OdooInvalidFieldRecoveryTest extends EcommerceTestSupport {
                 "YEAR(date_order)");
     }
 
+    @Test
+    @DisplayName("slice 直接使用 YEAR(dateOrder) 函数字段应在 SQL 前失败")
+    void testSqlFunctionSliceFieldIsRejectedBeforeSql() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("name", "amountTotal"));
+        request.setSlice(List.of(slice("YEAR(dateOrder)", ">", 2024)));
+        request.setLimit(10);
+
+        assertInvalidFieldError(
+                "OdooSaleOrderQueryModel", request, "YEAR(dateOrder)", null,
+                "YEAR(date_order)");
+    }
+
+    @Test
+    @DisplayName("having 直接使用 YEAR(dateOrder) 函数字段应在 SQL 前失败")
+    void testSqlFunctionHavingFieldIsRejectedBeforeSql() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("dateOrder$year", "sum(amountTotal) as totalSales"));
+        request.setGroupBy(List.of(new SemanticQueryRequest.GroupByItem("dateOrder$year", null)));
+        request.setHaving(List.of(slice("YEAR(dateOrder)", ">", 2024)));
+        request.setLimit(10);
+
+        assertInvalidFieldError(
+                "OdooSaleOrderQueryModel", request, "YEAR(dateOrder)", null,
+                "YEAR(date_order)");
+    }
+
+    @Test
+    @DisplayName("postSlice 直接使用 YEAR(dateOrder) 函数字段应在 SQL 前失败")
+    void testSqlFunctionPostSliceFieldIsRejectedBeforeSql() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("dateOrder$year", "sum(amountTotal) as totalSales"));
+        request.setGroupBy(List.of(new SemanticQueryRequest.GroupByItem("dateOrder$year", null)));
+        request.setPostSlice(List.of(slice("YEAR(dateOrder)", ">", 2024)));
+        request.setLimit(10);
+
+        assertInvalidFieldError(
+                "OdooSaleOrderQueryModel", request, "YEAR(dateOrder)", null,
+                "YEAR(date_order)");
+    }
+
+    private static SemanticQueryRequest.SliceItem slice(String field, String op, Object value) {
+        SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+        item.setField(field);
+        item.setOp(op);
+        item.setValue(value);
+        return item;
+    }
+
     @SuppressWarnings("unchecked")
     private void assertInvalidFieldError(SemanticQueryRequest request, String invalidField, String expectedSuggestion) {
         assertInvalidFieldError(
