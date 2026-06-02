@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalcul
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
@@ -30,6 +31,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -466,6 +468,11 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
     @Order(206)
     @DisplayName("postAggregateCalculations 显式累计贡献与排名应匹配样本基准")
     void testExplicitCumulativeAndRankPostAggregateMatchesFixtureBaseline() {
+        if (!supportsWindowFunctions()) {
+            log.info("postAggregate cumulative/rank fixture parity not executed on {}", getDialectKey());
+            return;
+        }
+
         JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -512,6 +519,63 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
             String key = salesTeamKey(actualRow);
             ExpectedPostAggregateRow expected = expectedRows.get(key);
             assertNotNull(expected, "结果阶段返回了基准之外的团队: " + actualRow);
+            assertDecimalEquals(expected.teamSales(), actualRow.get("teamSales"), "teamSales: " + key);
+            assertEquals(expected.salesRank(), decimal(actualRow.get("salesRank")).intValue(), "salesRank: " + key);
+            assertDecimalEquals(expected.cumulativeSales(), actualRow.get("cumulativeSales"), "cumulativeSales: " + key);
+            assertDecimalEquals(expected.cumulativeShare(), actualRow.get("cumulativeShare"), "cumulativeShare: " + key);
+        }
+    }
+
+    @Test
+    @Order(206)
+    @DisplayName("DSL_CTE 累计贡献与排名桥接执行应匹配样本基准")
+    void testDslCteCumulativeAndRankBridgeMatchesFixtureBaseline() {
+        assumeCommonTableExpressionsSupported();
+        if (!supportsWindowFunctions()) {
+            log.info("DSL_CTE cumulative/rank fixture parity not executed on {}", getDialectKey());
+            return;
+        }
+
+        SemanticQueryRequest request = dslCtePlan(cumulativeRankSalesTeamPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "OdooSaleOrderQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        String executableSql = generated.getAssembledSql();
+        List<Object> executableParams = assembledParams(generated);
+        String normalizedSql = executableSql.replace('`', '"');
+        assertTrue(normalizedSql.contains("post_stage AS"), executableSql);
+        assertTrue(normalizedSql.contains("RANK() OVER (ORDER BY stage1.\"teamSales\" DESC) AS \"salesRank\""),
+                executableSql);
+        assertTrue(normalizedSql.contains("WHERE \"cumulativeShare\" <= ?"), executableSql);
+        assertEquals(0.8, executableParams.get(executableParams.size() - 1));
+
+        List<Map<String, Object>> actualRows = jdbcTemplate.queryForList(
+                executableSql, executableParams.toArray(new Object[0]));
+
+        List<Map<String, Object>> baselineRows = jdbcTemplate.queryForList("""
+                SELECT
+                    so.team_id AS "salesTeam$id",
+                    ct.name AS "salesTeam$caption",
+                    SUM(so.amount_total) AS "teamSales"
+                FROM sale_order so
+                LEFT JOIN crm_team ct ON so.team_id = ct.id
+                GROUP BY so.team_id, ct.name
+                ORDER BY "teamSales" DESC
+                """);
+
+        Map<String, ExpectedPostAggregateRow> expectedRows = expectedPostAggregateRows(baselineRows);
+        expectedRows.entrySet().removeIf(entry ->
+                entry.getValue().cumulativeShare().compareTo(BigDecimal.valueOf(0.8)) > 0);
+
+        assertEquals(expectedRows.size(), actualRows.size(), "DSL_CTE 结果阶段行数应匹配手工基准");
+        for (Map<String, Object> actualRow : actualRows) {
+            String key = salesTeamKey(actualRow);
+            ExpectedPostAggregateRow expected = expectedRows.get(key);
+            assertNotNull(expected, "DSL_CTE 返回了基准之外的团队: " + actualRow);
             assertDecimalEquals(expected.teamSales(), actualRow.get("teamSales"), "teamSales: " + key);
             assertEquals(expected.salesRank(), decimal(actualRow.get("salesRank")).intValue(), "salesRank: " + key);
             assertDecimalEquals(expected.cumulativeSales(), actualRow.get("cumulativeSales"), "cumulativeSales: " + key);
@@ -686,6 +750,67 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
             BigDecimal cumulativeSales,
             BigDecimal cumulativeShare,
             int salesRank) {
+    }
+
+    private static SemanticQueryRequest dslCtePlan(Map<String, Object> ctePlan) {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setRoute("DSL_CTE");
+        request.setExecutablePlan(m("cte_plan", ctePlan));
+        return request;
+    }
+
+    private static Map<String, Object> cumulativeRankSalesTeamPlan() {
+        return m(
+                "stages", List.of(
+                        stage("sales_team_sales", "aggregate",
+                                "input", m("model", "OdooSaleOrderQueryModel"),
+                                "groupBy", List.of("salesTeam$id", "salesTeam$caption"),
+                                "metrics", List.of(m("name", "teamSales", "expr", "sum(amountTotal)"))),
+                        stage("sales_team_contribution", "derive",
+                                "inputs", List.of("sales_team_sales"),
+                                "derived", List.of(
+                                        m("name", "salesRank", "expr", "rank_by(teamSales, desc)"),
+                                        m("name", "cumulativeSales", "expr", "cumulative_sum(teamSales, desc)"),
+                                        m("name", "cumulativeShare",
+                                                "expr", "cumulative_ratio_to_total(teamSales, desc)"))),
+                        stage("top_sales_team_contribution", "postSlice",
+                                "inputs", List.of("sales_team_contribution"),
+                                "filters", List.of(m("field", "cumulativeShare", "op", "<=", "value", 0.8)))
+                ),
+                "output", List.of(
+                        "salesTeam$id",
+                        "salesTeam$caption",
+                        "teamSales",
+                        "salesRank",
+                        "cumulativeSales",
+                        "cumulativeShare")
+        );
+    }
+
+    private static Map<String, Object> stage(String name, String type, Object... rest) {
+        Map<String, Object> result = m(rest);
+        result.put("name", name);
+        result.put("type", type);
+        return result;
+    }
+
+    private static Map<String, Object> m(Object... kv) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (int i = 0; i < kv.length; i += 2) {
+            result.put(String.valueOf(kv[i]), kv[i + 1]);
+        }
+        return result;
+    }
+
+    private static List<Object> assembledParams(SqlGenerationResult generated) {
+        List<Object> params = new ArrayList<>();
+        if (generated.hasCteStages()) {
+            for (SqlGenerationResult.CteStage stage : generated.getCteStages()) {
+                params.addAll(stage.params());
+            }
+        }
+        params.addAll(generated.getParams());
+        return params;
     }
 
     private DbQueryRequestDef postAggregateSalesShareRequest() {
