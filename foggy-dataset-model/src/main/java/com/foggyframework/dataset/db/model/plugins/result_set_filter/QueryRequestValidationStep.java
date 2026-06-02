@@ -74,6 +74,10 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "ratioToTotal",
             "cumulativeRatioToTotal"
     );
+    private static final Set<String> VALUE_POST_AGGREGATE_KINDS = Set.of(
+            "cumulativeSum",
+            "rankByMeasure"
+    );
 
     /**
      * 支持的父子维 hierarchy 操作符名称白名单。
@@ -428,9 +432,14 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             if (!"grandTotal".equals(scope)) {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only scope='grandTotal' is supported in v1.6; got '" + scope + "' for '" + name + "'.");
             }
-            String format = StringUtils.isEmpty(item.getFormat()) ? "ratio" : item.getFormat();
+            String defaultFormat = RATIO_POST_AGGREGATE_KINDS.contains(kind) ? "ratio" : "value";
+            String format = StringUtils.isEmpty(item.getFormat()) ? defaultFormat : item.getFormat();
             if (RATIO_POST_AGGREGATE_KINDS.contains(kind) && !"ratio".equals(format) && !"percent".equals(format)) {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'ratio' or 'percent'; got '" + format + "' for '" + name + "'.");
+            }
+            if (VALUE_POST_AGGREGATE_KINDS.contains(kind) && !"value".equals(format)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'value' for kind '"
+                        + kind + "'; got '" + format + "' for '" + name + "'.");
             }
             if (StringUtils.isEmpty(item.getMeasure())) {
                 throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_REQUIRED: postAggregateCalculations '" + name + "' requires measure.");

@@ -3989,6 +3989,56 @@ class DslCteAcceptanceSampleTest {
         assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("postSlice only on cumulative share alias")));
     }
 
+    @Test
+    @DisplayName("DSL_CTE result-stage cumulative/rank bridge fails closed for neighboring unsigned shapes")
+    void resultStageWindowDefersUnsignedNeighbors() {
+        Map<String, Object> partitioned = biz006();
+        relationStage(partitioned, "customer_rank_contribution").put("window",
+                window(List.of("customer.name"), List.of(order("salesAmount", "DESC")), null));
+        assertBridgeUnsupported("SaleOrder", partitioned, "does not support partitionBy");
+
+        Map<String, Object> explicitFrame = biz006();
+        relationStage(explicitFrame, "customer_rank_contribution").put("window",
+                window(List.of(), List.of(order("salesAmount", "DESC")),
+                        m("type", "rows", "start", -1, "end", 0)));
+        assertBridgeUnsupported("SaleOrder", explicitFrame, "does not support explicit frames");
+
+        Map<String, Object> ascendingOrder = biz006();
+        relationStage(ascendingOrder, "customer_rank_contribution").put("window",
+                window(List.of(), List.of(order("salesAmount", "ASC")), null));
+        assertBridgeUnsupported("SaleOrder", ascendingOrder,
+                "requires DESC orderBy on the aggregate metric");
+
+        Map<String, Object> multipleMetrics = biz006();
+        relationStage(multipleMetrics, "customer_sales").put("metrics", List.of(
+                metric("salesAmount", "sum(amount)"),
+                metric("orderCount", "count(id)")));
+        assertBridgeUnsupported("SaleOrder", multipleMetrics,
+                "requires exactly one aggregate metric");
+
+        Map<String, Object> missingGroupBy = biz006();
+        relationStage(missingGroupBy, "customer_sales").put("groupBy", List.of());
+        missingGroupBy.put("output", List.of("salesAmount", "salesRank", "cumulativeShare"));
+        assertBridgeUnsupported("SaleOrder", missingGroupBy,
+                "requires at least one grouping field");
+
+        Map<String, Object> unsupportedRankFunction = biz006();
+        List<Map<String, Object>> unsupportedRankDerived =
+                mutableDerived(unsupportedRankFunction, "customer_rank_contribution");
+        unsupportedRankDerived.set(0, derived("rowNumber", "row_number()"));
+        unsupportedRankFunction.put("output", List.of("customer.name", "salesAmount", "rowNumber", "cumulativeShare"));
+        assertBridgeUnsupported("SaleOrder", unsupportedRankFunction,
+                "supports only rank() and cumulative share formulas");
+
+        Map<String, Object> wrongCumulativeMetric = biz006();
+        List<Map<String, Object>> wrongCumulativeDerived =
+                mutableDerived(wrongCumulativeMetric, "customer_rank_contribution");
+        wrongCumulativeDerived.set(1, derived("cumulativeShare",
+                "avg(salesAmount) over order / sum(salesAmount) over all"));
+        assertBridgeUnsupported("SaleOrder", wrongCumulativeMetric,
+                "supports only rank() and cumulative share formulas");
+    }
+
     private void assertDslCteReady(String sampleId, Map<String, Object> ctePlan, Set<String> expectedTypes) {
         SemanticQueryRequest request = dslCtePlan(ctePlan);
 

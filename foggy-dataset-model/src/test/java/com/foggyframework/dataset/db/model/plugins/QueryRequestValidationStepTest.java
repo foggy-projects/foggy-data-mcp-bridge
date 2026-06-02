@@ -68,6 +68,22 @@ class QueryRequestValidationStepTest {
         return new ModelResultContext(pagingRequest, null);
     }
 
+    private DbQueryRequestDef groupedTeamSalesRequest(String extraColumn) {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setColumns(List.of(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                extraColumn));
+
+        GroupRequestDef group1 = new GroupRequestDef();
+        group1.setField("salesTeam$id");
+        GroupRequestDef group2 = new GroupRequestDef();
+        group2.setField("salesTeam$caption");
+        queryRequest.setGroupBy(List.of(group1, group2));
+        return queryRequest;
+    }
+
     // ==============================================
     // Slice 校验测试
     // ==============================================
@@ -290,6 +306,49 @@ class QueryRequestValidationStepTest {
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
         assertTrue(exception.getMessage().contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED"));
         assertTrue(exception.getMessage().contains("ascendingCumulativeSales"));
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("postAggregateCalculations value 型 kind 未签 format 应提前拒绝")
+    void testPostAggregateValueKindUnsupportedFormatRejected() {
+        List<PostAggregateCalculationDef> unsupported = List.of(
+                new PostAggregateCalculationDef("rankPercent", "rankByMeasure", "teamSales", "grandTotal", "percent"),
+                new PostAggregateCalculationDef("cumulativeRatio", "cumulativeSum", "teamSales", "grandTotal", "ratio")
+        );
+
+        for (PostAggregateCalculationDef calculation : unsupported) {
+            DbQueryRequestDef queryRequest = groupedTeamSalesRequest(calculation.getName());
+            queryRequest.setPostAggregateCalculations(List.of(calculation));
+
+            Exception exception = assertThrows(RuntimeException.class,
+                    () -> validationStep.beforeQuery(createContext(queryRequest)));
+            assertTrue(exception.getMessage().contains("POST_AGGREGATE_CALCULATION_UNSUPPORTED"));
+            assertTrue(exception.getMessage().contains("format must be 'value'"));
+            assertTrue(exception.getMessage().contains(calculation.getName()));
+        }
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("grouped calculatedFields 未签 rank/window 邻近公式应提前拒绝")
+    void testPostAggregateUnsignedRankingNeighborFormulasRejected() {
+        Map<String, String> formulas = Map.of(
+                "rowNumber", "row_number() over (order by teamSales desc)",
+                "percentRank", "percent_rank() over (order by teamSales desc)",
+                "rankWithTieBreaker", "rank_by(teamSales, desc, salesTeam$id)",
+                "rankWithFilter", "rank_by(teamSales, desc, filter=salesTeam$id)"
+        );
+
+        for (Map.Entry<String, String> entry : formulas.entrySet()) {
+            DbQueryRequestDef queryRequest = groupedTeamSalesRequest(entry.getKey());
+            queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(entry.getKey(), entry.getValue())));
+
+            Exception exception = assertThrows(RuntimeException.class,
+                    () -> validationStep.beforeQuery(createContext(queryRequest)));
+            assertTrue(exception.getMessage().contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED"));
+            assertTrue(exception.getMessage().contains(entry.getKey()));
+        }
     }
 
     @Test
