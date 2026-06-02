@@ -3521,6 +3521,113 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE period-over-period timeWindow bridge fails closed for neighboring unsigned shapes")
+    void dslCtePeriodOverPeriodBridgeRejectsUnsignedNeighbors() {
+        Map<String, Object> tooManyDerived = periodOverPeriodWithPriorDiffRatioOutputAndOrderByPlan();
+        List<Map<String, Object>> tooManyDerivedFields = mutableDerived(tooManyDerived, "monthly_growth");
+        tooManyDerivedFields.add(derived("extraGrowthRate",
+                "(balanceAmount - previousMonthBalance) / previousMonthBalance"));
+        assertBridgeUnsupported("AccountBalance", tooManyDerived,
+                "requires lag metric and difference or growth derived fields");
+
+        Map<String, Object> duplicateDiff = periodOverPeriodWithPriorDiffRatioOutputAndOrderByPlan();
+        List<Map<String, Object>> duplicateDiffFields = mutableDerived(duplicateDiff, "monthly_growth");
+        duplicateDiffFields.set(2, derived("monthOverMonthGrowthRate", "balanceAmount - previousMonthBalance"));
+        assertBridgeUnsupported("AccountBalance", duplicateDiff,
+                "supports only one difference derived field");
+
+        Map<String, Object> duplicateRatio = periodOverPeriodWithPriorDiffRatioOutputAndOrderByPlan();
+        List<Map<String, Object>> duplicateRatioFields = mutableDerived(duplicateRatio, "monthly_growth");
+        duplicateRatioFields.set(1, derived("monthOverMonthDifference",
+                "(balanceAmount - previousMonthBalance) / previousMonthBalance"));
+        assertBridgeUnsupported("AccountBalance", duplicateRatio,
+                "supports only one growth ratio derived field");
+
+        Map<String, Object> invalidFormula = third031();
+        List<Map<String, Object>> invalidFormulaFields = mutableDerived(invalidFormula, "monthly_growth");
+        invalidFormulaFields.set(1, derived("monthOverMonthGrowthRate",
+                "balanceAmount / previousMonthBalance"));
+        assertBridgeUnsupported("AccountBalance", invalidFormula,
+                "requires difference formula metric - lagAlias");
+
+        Map<String, Object> explicitFrame = third031();
+        relationStage(explicitFrame, "monthly_growth").put("window",
+                window(List.of("branch.name"), List.of(order("balanceDate.month", "ASC")),
+                        m("type", "rows", "start", -1, "end", 0)));
+        assertBridgeUnsupported("AccountBalance", explicitFrame,
+                "does not support explicit frames");
+
+        Map<String, Object> descendingOrder = third031();
+        relationStage(descendingOrder, "monthly_growth").put("window",
+                window(List.of("branch.name"), List.of(order("balanceDate.month", "DESC")), null));
+        assertBridgeUnsupported("AccountBalance", descendingOrder,
+                "requires ASC orderBy field");
+
+        Map<String, Object> partitionNotGrouped = third031();
+        relationStage(partitionNotGrouped, "monthly_growth").put("window",
+                window(List.of("branch.region"), List.of(order("balanceDate.month", "ASC")), null));
+        assertBridgeUnsupported("AccountBalance", partitionNotGrouped,
+                "partitionBy fields must be part of aggregate groupBy");
+    }
+
+    @Test
+    @DisplayName("DSL_CTE rolling timeWindow bridge fails closed for neighboring unsigned shapes")
+    void dslCteRollingBridgeRejectsUnsignedNeighbors() {
+        Map<String, Object> unsupportedWindowSize = biz004();
+        relationStage(unsupportedWindowSize, "rolling_sales").put("window",
+                window(List.of(), List.of(order("orderDate.day", "ASC")),
+                        m("type", "rows", "start", -13, "end", 0)));
+        assertBridgeUnsupported("SaleOrder", unsupportedWindowSize,
+                "supports only 7/30/90 row windows");
+
+        Map<String, Object> mismatchedFormulaFrame = biz004();
+        List<Map<String, Object>> mismatchedFormulaFields = mutableDerived(mismatchedFormulaFrame, "rolling_sales");
+        mismatchedFormulaFields.set(0, derived("rolling7dSalesAmount",
+                "sum(salesAmount) over last 8 rows"));
+        assertBridgeUnsupported("SaleOrder", mismatchedFormulaFrame,
+                "must reference an aggregate metric and matching frame");
+
+        Map<String, Object> unsupportedFormula = biz004();
+        List<Map<String, Object>> unsupportedFormulaFields = mutableDerived(unsupportedFormula, "rolling_sales");
+        unsupportedFormulaFields.set(0, derived("rolling7dSalesAmount",
+                "avg(salesAmount) over last 7 rows"));
+        assertBridgeUnsupported("SaleOrder", unsupportedFormula,
+                "formula is not executable through DSL_CTE rolling bridge");
+
+        Map<String, Object> multipleDerived = biz004();
+        List<Map<String, Object>> multipleDerivedFields = mutableDerived(multipleDerived, "rolling_sales");
+        multipleDerivedFields.add(derived("rolling30dSalesAmount",
+                "sum(salesAmount) over last 30 rows"));
+        assertBridgeUnsupported("SaleOrder", multipleDerived,
+                "requires exactly one derived rolling metric");
+
+        Map<String, Object> partitionedRolling = biz004();
+        relationStage(partitionedRolling, "rolling_sales").put("window",
+                window(List.of("product.categoryName"), List.of(order("orderDate.day", "ASC")),
+                        m("type", "rows", "start", -6, "end", 0)));
+        assertBridgeUnsupported("SaleOrder", partitionedRolling,
+                "does not support partitionBy");
+
+        Map<String, Object> descendingOrder = biz004();
+        relationStage(descendingOrder, "rolling_sales").put("window",
+                window(List.of(), List.of(order("orderDate.day", "DESC")),
+                        m("type", "rows", "start", -6, "end", 0)));
+        assertBridgeUnsupported("SaleOrder", descendingOrder,
+                "requires ASC orderBy field");
+
+        Map<String, Object> nonAggregateInput = biz004();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = new ArrayList<>((List<Map<String, Object>>) nonAggregateInput.get("stages"));
+        stages.add(1, stage("daily_sales_copy", "derive",
+                "inputs", List.of("daily_sales"),
+                "derived", List.of(derived("salesAmountCopy", "salesAmount"))));
+        nonAggregateInput.put("stages", stages);
+        relationStage(nonAggregateInput, "rolling_sales").put("inputs", List.of("daily_sales_copy"));
+        assertBridgeUnsupported("SaleOrder", nonAggregateInput,
+                "must reference the first aggregate stage");
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to minimal row-level SLA calculatedFields bridge")
     void generateSqlOptInUsesMinimalRowLevelSlaBridge() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -3900,12 +4007,31 @@ class DslCteAcceptanceSampleTest {
 
     @SuppressWarnings("unchecked")
     private List<String> bridgeUnsupported(Map<String, Object> ctePlan) {
+        return bridgeUnsupported("SaleOrder", ctePlan);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> bridgeUnsupported(String modelId, Map<String, Object> ctePlan) {
         SemanticQueryResponse response = service.validateQuery(
-                "SaleOrder", dslCtePlan(ctePlan), SemanticRequestContext.empty());
+                modelId, dslCtePlan(ctePlan), SemanticRequestContext.empty());
 
         Map<String, Object> validation = response.getExecution().getDslCteValidation();
         assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
         return (List<String>) validation.get("dsl_bridge_unsupported");
+    }
+
+    private void assertBridgeUnsupported(String modelId, Map<String, Object> ctePlan, String expectedMessagePart) {
+        List<String> unsupported = bridgeUnsupported(modelId, ctePlan);
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains(expectedMessagePart)),
+                "expected unsupported message containing '" + expectedMessagePart + "' but was " + unsupported);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> mutableDerived(Map<String, Object> ctePlan, String stageName) {
+        Map<String, Object> stage = relationStage(ctePlan, stageName);
+        List<Map<String, Object>> mutable = new ArrayList<>((List<Map<String, Object>>) stage.get("derived"));
+        stage.put("derived", mutable);
+        return mutable;
     }
 
     @SuppressWarnings("unchecked")
