@@ -111,6 +111,24 @@ class CalculatedFieldServiceTest {
     }
 
     @Test
+    @DisplayName("IF 条件函数 + IN 列表 — 预处理后仍可提取列引用")
+    void extractRefs_ifFunctionWithInListCondition() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences(
+                "SUM(if(orderStatus in ('COMPLETED', 'PAID'), salesAmount, 0))");
+        assertEquals(Set.of("orderStatus", "salesAmount"), refs);
+    }
+
+    @Test
+    @DisplayName("IF 条件函数 + SQL 风格 and 组合条件 — 预处理后仍可提取列引用")
+    void extractRefs_ifFunctionWithSqlAndConditions() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences(
+                "SUM(if(orderStatus in ('PENDING', 'CONFIRMED', 'PROCESSING') "
+                        + "and paymentStatus in ('UNPAID', 'PARTIAL') "
+                        + "and dateMaturity < '2026-05-04', payAmount, 0))");
+        assertEquals(Set.of("orderStatus", "paymentStatus", "dateMaturity", "payAmount"), refs);
+    }
+
+    @Test
     @DisplayName("表达式仅含字面量和函数（无列引用）— 返回空集合")
     void extractRefs_onlyLiteralsAndFunctions() {
         Set<String> refs = CalculatedFieldService.extractColumnReferences("1 + 2 * 3");

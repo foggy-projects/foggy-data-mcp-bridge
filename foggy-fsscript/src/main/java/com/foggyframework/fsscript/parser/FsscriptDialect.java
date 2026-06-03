@@ -16,8 +16,8 @@ package com.foggyframework.fsscript.parser;
  * 可以作为函数名使用。
  * </p>
  * <p>
- * 由于 CUP 生成的 parser 不能运行时修改产生式，方言机制通过字符串预处理实现
- * （保留字名称替换 + 字符串字面量保护）。
+ * 由于 CUP 生成的 parser 不能运行时修改产生式，方言机制主要通过 scanner 钩子实现，
+ * 必要时也可在 {@link #normalize(String)} 中做 parse 前的轻量词法归一化。
  * </p>
  * <p>
  * 使用方式：
@@ -40,9 +40,8 @@ public abstract class FsscriptDialect {
     /**
      * 对源码做词法预处理。
      * <p>
-     * 从 v1.4 起 Java 侧升级为 Scanner 层 keyword 降级（见 {@link #isKeywordAsIdentifier(int, int)}），
-     * 字符串预处理退化为 noop。保留此方法签名仅用于向后兼容；所有新方言应该走 scanner 钩子，
-     * 而不是在这里做字符串改写。
+     * Java 侧优先使用 Scanner 层 keyword 降级（见 {@link #isKeywordAsIdentifier(int, int)}）；
+     * 对 CUP 语法中难以通过 token 映射覆盖的兼容形态，可在这里做最小化归一化。
      * </p>
      *
      * @param source 原始 FSScript 源码

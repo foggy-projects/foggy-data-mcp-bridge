@@ -20,12 +20,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * {@link SqlExpressionDialect} 单元测试（v1.4 Scanner 方言化之后）。
  * <p>
- * v1.4 起字符状态机下线，{@code normalize} 退化为 noop；方言语义改由
+ * v1.4 起 {@code if( → IIF(} 字符状态机下线；方言语义主要由
  * {@link FsscriptDialect#isKeywordAsIdentifier(int, int)} 钩子在 scanner 层实现。
- * 因此本测试不再断言字符串改写结果，转而：
+ * {@code normalize} 仅保留 SQL 风格逻辑词兼容：
  * </p>
  * <ul>
- *   <li>断言 normalize 对所有输入都返回原串（noop 不变性）</li>
+ *   <li>断言 normalize 只改写字符串字面量外的独立 {@code and}/{@code or}</li>
  *   <li>断言钩子方法只在 {@code IF + '('} 组合下返回 true（其他 keyword / 其他分隔符不降级）</li>
  * </ul>
  * <p>
@@ -46,15 +46,18 @@ class SqlExpressionDialectTest {
         assertSame(FsscriptDialect.SQL_EXPRESSION, FsscriptDialect.SQL_EXPRESSION, "预定义常量应为单例");
     }
 
-    // ---- normalize noop 不变性 ----
+    // ---- normalize 仅做 SQL 逻辑词归一化 ----
 
     @Test
-    @DisplayName("normalize — null / empty / 任意内容 都返回原串")
-    void normalizeIsNoop() {
+    @DisplayName("normalize — null / empty 原样返回")
+    void normalizeNullAndEmpty() {
         assertNull(dialect.normalize(null));
         assertEquals("", dialect.normalize(""));
+    }
 
-        // 历史字符状态机会改写的形态，现在全部保持原串
+    @Test
+    @DisplayName("normalize — 不再改写 if( 函数名")
+    void normalizeDoesNotRewriteIfFunction() {
         String[] samples = {
                 "if(a, 1, 0)",                                // 起始
                 "a + if(b, 1, 0)",                            // 运算符后
@@ -69,8 +72,26 @@ class SqlExpressionDialectTest {
         };
         for (String src : samples) {
             assertEquals(src, dialect.normalize(src),
-                    "normalize 应为 noop，但对输入 '" + src + "' 做了改写");
+                    "normalize 不应再改写 if 函数名，输入: " + src);
         }
+    }
+
+    @Test
+    @DisplayName("normalize — 字符串字面量外的独立 and/or 归一化为 &&/||")
+    void normalizeSqlLogicalKeywordsOutsideStringLiterals() {
+        assertEquals("if(a > 0 && b < 1 || c == 3, 1, 0)",
+                dialect.normalize("if(a > 0 and b < 1 or c == 3, 1, 0)"));
+        assertEquals("if(a > 0 && b < 1 || c == 3, 1, 0)",
+                dialect.normalize("if(a > 0 AND b < 1 OR c == 3, 1, 0)"));
+    }
+
+    @Test
+    @DisplayName("normalize — 不改写字符串字面量和普通标识符中的 and/or")
+    void normalizePreservesStringLiteralsAndIdentifiers() {
+        assertEquals("if(label == 'sales and service' orFlag == 1, brand, 0)",
+                dialect.normalize("if(label == 'sales and service' orFlag == 1, brand, 0)"));
+        assertEquals("if(label == \"sales or service\" and_flag == 1, order_amount, 0)",
+                dialect.normalize("if(label == \"sales or service\" and_flag == 1, order_amount, 0)"));
     }
 
     // ---- isKeywordAsIdentifier 钩子语义 ----
