@@ -1294,6 +1294,7 @@ public class QueryExpertService {
                     .code(ROUTING_TERMINAL_CLARIFY_CODE)
                     .msg("路由校准结果为 CLARIFY，已在进入查询工具前返回澄清。")
                     .questions(routingCalibrationClarifyQuestions(calibrationAction, request))
+                    .missing(routingCalibrationClarifyMissingSlots(calibrationAction, request))
                     .detail(detail)
                     .build();
         }
@@ -1363,6 +1364,69 @@ public class QueryExpertService {
         return List.copyOf(questions);
     }
 
+    private static List<String> routingCalibrationClarifyMissingSlots(
+            RoutingCalibrationAction calibrationAction,
+            DatasetNLQueryRequest request
+    ) {
+        String query = normalizeQuestionText(request != null ? request.getQuery() : "");
+        Set<String> rules = normalizedSignalSet(calibrationAction.appliedRules());
+        Set<String> risks = normalizedSignalSet(calibrationAction.calibratedRisks());
+        if (risks.isEmpty()) {
+            risks = normalizedSignalSet(calibrationAction.rawRisks());
+        }
+        LinkedHashSet<String> missingSlots = new LinkedHashSet<>();
+        boolean funnelIntent = rules.contains("missing_funnel_definition")
+                || questionTextContainsAny(query, "漏斗", "转化率")
+                || (questionTextContainsAny(query, "线索", "商机", "阶段")
+                && questionTextContainsAny(query, "订单", "成交", "转化"));
+
+        if (questionTextContainsAny(query, "sla", "服务级别", "超48", "超 48", "未响应", "首响", "首次响应", "客服", "工单")) {
+            missingSlots.add("sla_definition");
+            missingSlots.add("business_calendar");
+            missingSlots.add("priority_sla_policy");
+            missingSlots.add("hold_time_policy");
+            missingSlots.add("target_response_threshold");
+        }
+        if (questionTextContainsAny(query, "积压", "待处理", "待客户回复", "客服团队", "超期")) {
+            missingSlots.add("backlog_status_policy");
+            missingSlots.add("overdue_definition");
+            missingSlots.add("customer_wait_policy");
+            missingSlots.add("ratio_denominator");
+        }
+        if (funnelIntent) {
+            missingSlots.add("funnel_stage_definition");
+            missingSlots.add("conversion_denominator");
+            missingSlots.add("time_range");
+            missingSlots.add("dedup_grain");
+            missingSlots.add("drop_off_attribution");
+        }
+        appendMatchingClarifyTemplateMissingSlots(query, rules, missingSlots);
+
+        if (risks.contains("needs_time_range")) {
+            missingSlots.add("time_range");
+        }
+        if (risks.contains("needs_metric_definition")) {
+            missingSlots.add("metric_definition");
+        }
+        if (risks.contains("needs_business_rule")) {
+            missingSlots.add("business_rule");
+        }
+        if (risks.contains("grain_mismatch")) {
+            missingSlots.add("result_grain");
+        }
+        if (risks.contains("governance_risk")) {
+            missingSlots.add("governance_policy");
+        }
+        if (risks.contains("result_size_risk")) {
+            missingSlots.add("result_size_limit");
+        }
+
+        if (missingSlots.isEmpty()) {
+            missingSlots.add("query_boundary");
+        }
+        return List.copyOf(missingSlots);
+    }
+
     private static List<ClarifyQuestionTemplate> loadClarifyQuestionTemplates() {
         try (InputStream inputStream = QueryExpertService.class.getClassLoader()
                 .getResourceAsStream(CLARIFY_QUESTION_TEMPLATES_RESOURCE)) {
@@ -1398,15 +1462,29 @@ public class QueryExpertService {
         }
     }
 
+    private static void appendMatchingClarifyTemplateMissingSlots(
+            String query,
+            Set<String> rules,
+            LinkedHashSet<String> missingSlots
+    ) {
+        for (ClarifyQuestionTemplate template : CLARIFY_QUESTION_TEMPLATES) {
+            if (template.matches(query, rules)) {
+                missingSlots.addAll(template.missingSlots());
+            }
+        }
+    }
+
     private record ClarifyQuestionTemplate(
             String domain,
             String riskType,
             String ownerRule,
+            List<String> missingSlots,
             List<String> ruleSignals,
             List<String> keywords,
             List<String> questions
     ) {
         private ClarifyQuestionTemplate {
+            missingSlots = missingSlots == null ? List.of() : List.copyOf(missingSlots);
             ruleSignals = ruleSignals == null ? List.of() : List.copyOf(ruleSignals);
             keywords = keywords == null ? List.of() : List.copyOf(keywords);
             questions = questions == null ? List.of() : List.copyOf(questions);

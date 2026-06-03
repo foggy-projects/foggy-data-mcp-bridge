@@ -19,8 +19,10 @@ import org.springframework.ai.chat.client.ChatClient;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -95,6 +97,7 @@ class ClarifyRoutingFixtureTest {
         assertEquals("TERMINAL_ROUTE", routing.get("action"));
         assertEquals("CLARIFY", routing.get("calibrated_route"));
         assertQuestionTextContains(response, testCase.questionTerms());
+        assertMissingSlotsContain(response, testCase.missingSlots());
         verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
     }
 
@@ -107,6 +110,7 @@ class ClarifyRoutingFixtureTest {
                     testCase.path("id").asText(),
                     testCase.path("question").asText(),
                     textValues(testCase.path("expected_rule_signals")),
+                    textValues(testCase.path("expected_missing_slots")),
                     textValues(testCase.path("expected_question_terms"))
             )));
         }
@@ -140,10 +144,24 @@ class ClarifyRoutingFixtureTest {
         }
     }
 
+    private static void assertMissingSlotsContain(DatasetNLQueryResponse response, List<String> expectedSlots) {
+        assertInstanceOf(List.class, response.getMissing(), "clarify response missing must be a slot list");
+        List<?> missing = (List<?>) response.getMissing();
+        Set<String> actualSlots = new LinkedHashSet<>();
+        for (Object value : missing) {
+            actualSlots.add(String.valueOf(value));
+        }
+        for (String expectedSlot : expectedSlots) {
+            assertTrue(actualSlots.contains(expectedSlot), "expected missing slots to contain: "
+                    + expectedSlot + ", actual: " + actualSlots);
+        }
+    }
+
     private record ClarifyRoutingCase(
             String id,
             String question,
             List<String> ruleSignals,
+            List<String> missingSlots,
             List<String> questionTerms
     ) {
         @Override

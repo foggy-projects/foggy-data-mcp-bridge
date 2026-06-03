@@ -9,6 +9,7 @@
       "question": "统计逾期应收的回款风险，按客户分层给出 30/60/90 天账龄和风险等级。",
       "expected_route": "CLARIFY",
       "expected_template_keywords": ["逾期应收", "账龄", "回款风险"],
+      "expected_missing_slots": ["aging_as_of_date", "aging_bucket_rule", "risk_rating_rule", "receivable_amount_basis"],
       "expected_question_terms": ["账龄基准日", "账龄桶", "风险等级", "应收余额"]
     },
     {
@@ -17,6 +18,7 @@
       "question": "本季度费用预算和实际支出差异在哪里？",
       "expected_route": "CLARIFY",
       "expected_template_keywords": ["预算", "实际"],
+      "expected_missing_slots": ["budget_version", "actual_amount_scope", "organization_grain", "currency_amount_unit", "comparison_period"],
       "expected_question_terms": ["预算版本", "实际金额范围", "组织统计粒度", "币种"]
     },
     {
@@ -25,6 +27,7 @@
       "question": "按仓库和品类看库存周转天数异常的商品，并排除季节性备货。",
       "expected_route": "CLARIFY",
       "expected_template_keywords": ["库存周转", "周转天数"],
+      "expected_missing_slots": ["turnover_formula", "stock_basis", "seasonal_exclusion_policy", "anomaly_threshold"],
       "expected_question_terms": ["周转天数公式", "库存金额口径", "季节性备货", "异常阈值"]
     },
     {
@@ -33,6 +36,7 @@
       "question": "统计最近 90 天各渠道退款率和退款金额占比，排除售后补差价订单。",
       "expected_route": "CLARIFY",
       "expected_template_keywords": ["退款率"],
+      "expected_missing_slots": ["refund_rate_denominator", "refund_amount_basis", "price_adjustment_exclusion_policy", "channel_attribution"],
       "expected_question_terms": ["退款率分母", "退款金额口径", "补差价订单排除规则", "渠道归因"]
     },
     {
@@ -42,6 +46,7 @@
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["subscription_renewal_risk_boundary"],
       "expected_template_keywords": ["续费", "流失"],
+      "expected_missing_slots": ["renewal_window", "risk_score_formula", "contract_expiry_policy", "activity_metric", "renewal_revenue_basis"],
       "expected_question_terms": ["续费收入口径", "风险评分", "合同到期口径", "活跃度定义"]
     },
     {
@@ -51,6 +56,7 @@
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["marketing_attribution_boundary"],
       "expected_template_keywords": ["投放渠道", "收入贡献"],
+      "expected_missing_slots": ["attribution_model", "conversion_window", "new_paid_customer_definition", "revenue_basis", "customer_dedup_grain"],
       "expected_question_terms": ["归因模型", "转化窗口", "新增付费客户定义", "客户去重"]
     },
     {
@@ -60,6 +66,7 @@
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["manufacturing_yield_boundary"],
       "expected_template_keywords": ["良率"],
+      "expected_missing_slots": ["yield_formula", "yield_baseline", "downtime_policy", "rework_policy", "lot_trace_rule"],
       "expected_question_terms": ["良率公式", "下降基准", "设备停机口径", "返工定义"]
     },
     {
@@ -69,6 +76,7 @@
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["unbounded_memory_governance"],
       "expected_template_keywords": ["所有历史", "明细都取出来"],
+      "expected_missing_slots": ["result_scope", "max_rows", "detail_export_or_aggregation"],
       "expected_question_terms": ["结果范围", "最大行数", "导出明细", "聚合汇总"]
     },
     {
@@ -77,6 +85,7 @@
       "question": "导出本月下单客户的手机号、身份证号和订单金额。",
       "expected_route": "CLARIFY",
       "expected_template_keywords": ["导出", "手机号"],
+      "expected_missing_slots": ["masking_policy", "export_recipient", "export_purpose", "data_scope", "row_limit"],
       "expected_question_terms": ["手机号脱敏", "导出接收人", "数据范围", "行数限制"]
     },
     {
@@ -85,6 +94,7 @@
       "question": "把客户购买金额、售后投诉次数、逾期应收金额 join 到客户名称上，找出经营风险最大的客户。",
       "expected_route": "CLARIFY",
       "expected_template_keywords": ["join", "经营风险"],
+      "expected_missing_slots": ["join_key", "risk_score_formula", "customer_grain", "time_range_alignment"],
       "expected_question_terms": ["跨域关联键", "经营风险公式", "客户粒度", "时间范围"]
     },
     {
@@ -93,6 +103,7 @@
       "question": "按注册月份看客户留存率和流失率，并按首次购买渠道分析。",
       "expected_route": "CLARIFY",
       "expected_template_keywords": ["留存", "流失率"],
+      "expected_missing_slots": ["retention_definition", "churn_definition", "cohort_grain", "first_purchase_channel_attribution"],
       "expected_question_terms": ["留存定义", "流失定义", "cohort 队列粒度", "首次购买渠道"]
     },
     {
@@ -102,6 +113,7 @@
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["sales_target_version_guard", "budget_or_target_ambiguity"],
       "expected_template_keywords": ["目标完成率", "中途调整"],
+      "expected_missing_slots": ["target_version_policy", "target_adjustment_effective_rule", "target_completion_formula", "actual_revenue_formula", "target_period", "owner_grain"],
       "expected_question_terms": ["目标版本", "中途调整", "目标完成率计算公式", "实际收入公式"]
     }
   ]

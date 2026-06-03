@@ -35,6 +35,7 @@ class ClarifyQuestionTemplatesResourceTest {
         for (int i = 0; i < templates.size(); i++) {
             JsonNode template = templates.get(i);
             JsonNode ruleSignals = template.path("ruleSignals");
+            JsonNode missingSlots = template.path("missingSlots");
             JsonNode keywords = template.path("keywords");
             JsonNode questions = template.path("questions");
             String domain = requireNonBlankText(template, "domain", i);
@@ -42,14 +43,17 @@ class ClarifyQuestionTemplatesResourceTest {
             String ownerRule = requireNonBlankText(template, "ownerRule", i);
 
             assertTrue(ruleSignals.isMissingNode() || ruleSignals.isArray(), "ruleSignals must be an array at index " + i);
+            assertTrue(missingSlots.isArray(), "missingSlots must be an array at index " + i);
             assertTrue(keywords.isArray(), "keywords must be an array at index " + i);
             assertTrue(questions.isArray(), "questions must be an array at index " + i);
             assertTrue(ruleSignals.size() > 0 || keywords.size() > 0, "template must have a matcher at index " + i);
+            assertTrue(missingSlots.size() > 0, "missingSlots must not be empty at index " + i);
             assertTrue(questions.size() > 0, "questions must not be empty at index " + i);
             assertTrue(ownerRules.add(ownerRule), "duplicate clarify ownerRule: " + ownerRule);
 
             domains.add(domain);
             assertTextArrayHasOnlyNonBlankValues(ruleSignals, "ruleSignals", i);
+            assertTextArrayHasOnlyNonBlankValues(missingSlots, "missingSlots", i);
             assertTextArrayHasOnlyNonBlankValues(keywords, "keywords", i);
             assertTextArrayHasOnlyNonBlankValues(questions, "questions", i);
             assertTrue(templateSignatures.add(template.toString()), "duplicate clarify template at index " + i);
@@ -84,6 +88,7 @@ class ClarifyQuestionTemplatesResourceTest {
         JsonNode fixture = readJson(FIXTURE_PATH);
         Set<String> catalogRuleSignals = collectTextValues(templates, "ruleSignals");
         Set<String> catalogKeywords = collectTextValues(templates, "keywords");
+        Set<String> catalogMissingSlots = collectTextValues(templates, "missingSlots");
         Set<String> catalogQuestions = collectTextValues(templates, "questions");
 
         assertEquals(RESOURCE_PATH, fixture.path("source_catalog").asText());
@@ -102,17 +107,21 @@ class ClarifyQuestionTemplatesResourceTest {
 
             JsonNode expectedRuleSignals = testCase.path("expected_rule_signals");
             JsonNode expectedTemplateKeywords = testCase.path("expected_template_keywords");
+            JsonNode expectedMissingSlots = testCase.path("expected_missing_slots");
             JsonNode expectedQuestionTerms = testCase.path("expected_question_terms");
             assertTrue(expectedRuleSignals.isMissingNode() || expectedRuleSignals.isArray(),
                     "expected_rule_signals must be an array at index " + i);
             assertTrue(expectedTemplateKeywords.isArray(), "expected_template_keywords must be an array at index " + i);
+            assertTrue(expectedMissingSlots.isArray(), "expected_missing_slots must be an array at index " + i);
             assertTrue(expectedQuestionTerms.isArray(), "expected_question_terms must be an array at index " + i);
             assertTrue(expectedRuleSignals.size() > 0 || expectedTemplateKeywords.size() > 0,
                     "fixture must reference rule signals or template keywords at index " + i);
+            assertTrue(expectedMissingSlots.size() > 0, "expected_missing_slots must not be empty at index " + i);
             assertTrue(expectedQuestionTerms.size() > 0, "expected_question_terms must not be empty at index " + i);
 
             assertFixtureValuesExist(expectedRuleSignals, catalogRuleSignals, "rule signal", id, i);
             assertFixtureValuesExist(expectedTemplateKeywords, catalogKeywords, "template keyword", id, i);
+            assertFixtureValuesExist(expectedMissingSlots, catalogMissingSlots, "missing slot", id, i);
             assertTextArrayHasOnlyNonBlankValues(expectedQuestionTerms, "expected_question_terms", i);
             assertFixtureTermsExistInCatalogQuestions(expectedQuestionTerms, catalogQuestions, id);
         }
