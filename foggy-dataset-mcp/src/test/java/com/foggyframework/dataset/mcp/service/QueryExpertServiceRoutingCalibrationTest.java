@@ -672,6 +672,101 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("query_trace 应展开 DSL_CTE executable_plan 语义信号")
+    void queryTrace_shouldSummarizeDslCteExecutablePlanSignals() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按线索创建月份统计转化率")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        callResponseSpec = mock(ChatClient.CallResponseSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(
+                anyList(),
+                eq("trace-dsl-cte-1"),
+                isNull(),
+                any(ToolCallCollector.class)
+        )).thenAnswer(invocation -> {
+            ToolCallCollector collector = invocation.getArgument(3);
+            Map<String, Object> queryResult = Map.of(
+                    "items", List.of(Map.of(
+                            "createdAt$yearMonth", "2024-01",
+                            "leadCount", 6,
+                            "leadToOppRate", 0.67
+                    )),
+                    "total", 1
+            );
+            collector.recordToolCall(
+                    "dataset.query_model",
+                    "dataset_query_model",
+                    Map.of(
+                            "model", "CrmLead",
+                            "payload", Map.of(
+                                    "route", "DSL_CTE",
+                                    "executable_plan", Map.of(
+                                            "cte_plan", List.of(
+                                                    Map.of(
+                                                            "stage", "aggregate",
+                                                            "groupBy", List.of("createdAt$yearMonth"),
+                                                            "metrics", List.of(
+                                                                    Map.of("name", "leadCount", "expr", "count(*)"),
+                                                                    Map.of("name", "oppCount", "expr", "count(convertedOpportunityId)"),
+                                                                    Map.of("name", "orderCount", "expr", "count(convertedOrderId)")
+                                                            )
+                                                    ),
+                                                    Map.of(
+                                                            "stage", "derive",
+                                                            "derived", List.of(
+                                                                    Map.of("name", "leadToOppRate", "expr", "oppCount / leadCount"),
+                                                                    Map.of("name", "leadToOrderRate", "expr", "orderCount / leadCount")
+                                                            )
+                                                    )
+                                            ),
+                                            "outputs", List.of(
+                                                    "createdAt$yearMonth",
+                                                    "leadCount",
+                                                    "oppCount",
+                                                    "orderCount",
+                                                    "leadToOppRate",
+                                                    "leadToOrderRate"
+                                            )
+                                    )
+                            )
+                    ),
+                    queryResult,
+                    null,
+                    5
+            );
+            QueryExpertService.captureQueryResult(queryResult);
+            return new ToolCallback[0];
+        });
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call()).thenReturn(callResponseSpec);
+        when(callResponseSpec.content()).thenReturn("查询完成");
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-dsl-cte-1", null);
+
+        assertEquals("result", response.getType());
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        List<Map<String, Object>> toolCalls = (List<Map<String, Object>>) queryTrace.get("tool_calls");
+        Map<String, Object> arguments = (Map<String, Object>) toolCalls.get(0).get("arguments_summary");
+        assertEquals("CrmLead", arguments.get("model"));
+        assertTrue(((List<String>) arguments.get("payload_group_by")).contains("createdAt$yearMonth"));
+        assertTrue(((List<String>) arguments.get("payload_columns")).contains("leadToOppRate"));
+        assertTrue(((List<String>) arguments.get("payload_calculated_field_names")).contains("leadToOrderRate"));
+        assertTrue(((List<String>) arguments.get("payload_calculated_field_expressions")).contains("count(convertedOpportunityId)"));
+        assertTrue(((List<String>) arguments.get("payload_query_text")).stream()
+                .anyMatch(value -> value.contains("convertedOrderId")));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("query_model 工具失败且无结构化结果时应返回 error 而不是 info")
     void queryModelFailureWithoutStructuredResult_shouldReturnErrorContract() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

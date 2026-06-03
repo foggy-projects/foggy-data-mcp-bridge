@@ -1429,6 +1429,7 @@ public class QueryExpertService {
             addPayloadCalculatedFieldsSummary(summary, payloadMap.get("calculatedFields"));
             summary.put("payload_has_slice", payloadMap.containsKey("slice"));
             addPayloadSliceSummary(summary, payloadMap.get("slice"));
+            addPayloadExecutablePlanSummary(summary, payloadMap);
         }
         if ("dataset.query_model".equals(toolName) || "dataset_query_model".equals(toolName)) {
             summary.putIfAbsent("payload_keys", List.of());
@@ -1505,6 +1506,121 @@ public class QueryExpertService {
                 collectPayloadCalculatedFieldSignals(item, names, expressions);
             }
         }
+    }
+
+    private static void addPayloadExecutablePlanSummary(Map<String, Object> summary, Map<?, ?> payloadMap) {
+        Object executablePlan = firstMapValue(payloadMap, "executable_plan", "executablePlan");
+        if (executablePlan == null) {
+            return;
+        }
+
+        LinkedHashSet<String> columns = new LinkedHashSet<>();
+        LinkedHashSet<String> groupBy = new LinkedHashSet<>();
+        LinkedHashSet<String> calculatedFieldNames = new LinkedHashSet<>();
+        LinkedHashSet<String> calculatedFieldExpressions = new LinkedHashSet<>();
+        LinkedHashSet<String> queryText = new LinkedHashSet<>();
+        collectExecutablePlanSignals(
+                executablePlan,
+                columns,
+                groupBy,
+                calculatedFieldNames,
+                calculatedFieldExpressions,
+                queryText
+        );
+        mergeSignalList(summary, "payload_columns", columns);
+        mergeSignalList(summary, "payload_group_by", groupBy);
+        mergeSignalList(summary, "payload_calculated_field_names", calculatedFieldNames);
+        mergeSignalList(summary, "payload_calculated_field_expressions", calculatedFieldExpressions);
+        mergeSignalList(summary, "payload_query_text", queryText);
+    }
+
+    private static void collectExecutablePlanSignals(
+            Object node,
+            LinkedHashSet<String> columns,
+            LinkedHashSet<String> groupBy,
+            LinkedHashSet<String> calculatedFieldNames,
+            LinkedHashSet<String> calculatedFieldExpressions,
+            LinkedHashSet<String> queryText
+    ) {
+        if (node instanceof Map<?, ?> map) {
+            addStringSignal(columns, firstMapValue(map, "alias", "name", "field", "column", "ref"));
+            addStringSignal(calculatedFieldNames, firstMapValue(map, "alias", "name"));
+            addStringSignal(calculatedFieldExpressions, firstMapValue(map, "expression", "expr", "formula", "predicate"));
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                Object value = entry.getValue();
+                String normalizedKey = key.trim().toLowerCase(Locale.ROOT);
+                if (isExecutablePlanGroupByKey(normalizedKey)) {
+                    collectExecutablePlanFieldSignals(value, groupBy, queryText);
+                }
+                if (isExecutablePlanColumnKey(normalizedKey)) {
+                    collectExecutablePlanFieldSignals(value, columns, queryText);
+                }
+                addStringSignal(queryText, key);
+                collectExecutablePlanSignals(
+                        value,
+                        columns,
+                        groupBy,
+                        calculatedFieldNames,
+                        calculatedFieldExpressions,
+                        queryText
+                );
+            }
+            return;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectExecutablePlanSignals(
+                        item,
+                        columns,
+                        groupBy,
+                        calculatedFieldNames,
+                        calculatedFieldExpressions,
+                        queryText
+                );
+            }
+            return;
+        }
+        addStringSignal(queryText, node);
+    }
+
+    private static boolean isExecutablePlanGroupByKey(String key) {
+        return switch (key) {
+            case "groupby", "group_by", "group", "groups", "dimensions", "dimension_fields" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isExecutablePlanColumnKey(String key) {
+        return switch (key) {
+            case "columns", "select", "outputs", "output", "output_fields", "outputfields",
+                    "metrics", "measures", "derived", "derives", "calculatedfields",
+                    "calculated_fields", "window_derive", "windowderive" -> true;
+            default -> false;
+        };
+    }
+
+    private static void collectExecutablePlanFieldSignals(
+            Object node,
+            LinkedHashSet<String> target,
+            LinkedHashSet<String> queryText
+    ) {
+        if (node instanceof Map<?, ?> map) {
+            addStringSignal(target, firstMapValue(map, "field", "name", "column", "ref", "alias"));
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                addStringSignal(queryText, entry.getKey());
+                collectExecutablePlanFieldSignals(entry.getValue(), target, queryText);
+            }
+            return;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectExecutablePlanFieldSignals(item, target, queryText);
+            }
+            return;
+        }
+        addStringSignal(target, node);
+        addStringSignal(queryText, node);
     }
 
     private static void addPayloadSliceSummary(Map<String, Object> summary, Object slice) {
@@ -1603,6 +1719,25 @@ public class QueryExpertService {
         if (!values.isEmpty()) {
             summary.put(key, new ArrayList<>(values));
         }
+    }
+
+    private static void mergeSignalList(Map<String, Object> summary, String key, LinkedHashSet<String> values) {
+        if (values.isEmpty()) {
+            return;
+        }
+        LinkedHashSet<String> merged = new LinkedHashSet<>();
+        Object existing = summary.get(key);
+        if (existing instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                addStringSignal(merged, item);
+            }
+        } else if (existing != null) {
+            addStringSignal(merged, existing);
+        }
+        for (String value : values) {
+            addStringSignal(merged, value);
+        }
+        summary.put(key, new ArrayList<>(merged));
     }
 
     private static Map<String, Object> resultSummary(Object result) {
