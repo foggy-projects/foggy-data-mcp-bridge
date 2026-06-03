@@ -30,23 +30,31 @@ class ClarifyQuestionTemplatesResourceTest {
         assertTrue(templates.size() >= 20, "clarify templates should keep scenario coverage");
 
         Set<String> templateSignatures = new HashSet<>();
+        Set<String> ownerRules = new HashSet<>();
+        Set<String> domains = new LinkedHashSet<>();
         for (int i = 0; i < templates.size(); i++) {
             JsonNode template = templates.get(i);
             JsonNode ruleSignals = template.path("ruleSignals");
             JsonNode keywords = template.path("keywords");
             JsonNode questions = template.path("questions");
+            String domain = requireNonBlankText(template, "domain", i);
+            requireNonBlankText(template, "riskType", i);
+            String ownerRule = requireNonBlankText(template, "ownerRule", i);
 
             assertTrue(ruleSignals.isMissingNode() || ruleSignals.isArray(), "ruleSignals must be an array at index " + i);
             assertTrue(keywords.isArray(), "keywords must be an array at index " + i);
             assertTrue(questions.isArray(), "questions must be an array at index " + i);
             assertTrue(ruleSignals.size() > 0 || keywords.size() > 0, "template must have a matcher at index " + i);
             assertTrue(questions.size() > 0, "questions must not be empty at index " + i);
+            assertTrue(ownerRules.add(ownerRule), "duplicate clarify ownerRule: " + ownerRule);
 
+            domains.add(domain);
             assertTextArrayHasOnlyNonBlankValues(ruleSignals, "ruleSignals", i);
             assertTextArrayHasOnlyNonBlankValues(keywords, "keywords", i);
             assertTextArrayHasOnlyNonBlankValues(questions, "questions", i);
             assertTrue(templateSignatures.add(template.toString()), "duplicate clarify template at index " + i);
         }
+        assertTrue(domains.size() >= 10, "clarify templates should keep cross-domain metadata coverage");
     }
 
     @Test

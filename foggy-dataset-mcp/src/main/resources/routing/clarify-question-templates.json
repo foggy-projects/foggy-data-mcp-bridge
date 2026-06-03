@@ -1,5 +1,8 @@
 [
   {
+    "domain": "finance_receivables",
+    "riskType": "metric_definition",
+    "ownerRule": "receivable_aging_boundary",
     "keywords": ["逾期应收", "账龄", "回款风险", "30/60/90", "30天", "60天", "90天", "风险等级"],
     "questions": [
       "请确认账龄基准日或截止日期 as of date。",
@@ -9,6 +12,9 @@
     ]
   },
   {
+    "domain": "finance_budget",
+    "riskType": "metric_definition",
+    "ownerRule": "budget_variance_boundary",
     "keywords": ["预算", "实际", "支出", "费用", "差异"],
     "questions": [
       "请确认预算版本或预算口径，例如正式版、调整版或最新生效版本。",
@@ -19,6 +25,9 @@
     ]
   },
   {
+    "domain": "supply_chain_inventory",
+    "riskType": "metric_definition",
+    "ownerRule": "inventory_turnover_boundary",
     "keywords": ["库存周转", "周转天数", "仓库", "品类", "季节性备货", "异常商品"],
     "questions": [
       "请明确周转天数公式或 turnover formula，例如平均库存除以出库量还是销售成本口径。",
@@ -28,6 +37,9 @@
     ]
   },
   {
+    "domain": "commerce_refund",
+    "riskType": "metric_definition",
+    "ownerRule": "refund_rate_boundary",
     "keywords": ["退款率", "退款金额", "补差价", "售后补差价", "渠道退款"],
     "questions": [
       "请明确退款率分母，例如按订单数、销售额或支付金额计算 denominator。",
@@ -37,6 +49,9 @@
     ]
   },
   {
+    "domain": "subscription_revenue",
+    "riskType": "prediction_boundary",
+    "ownerRule": "subscription_renewal_risk_boundary",
     "ruleSignals": ["subscription_renewal_risk_boundary"],
     "keywords": ["续费", "合同到期", "客户成功", "流失", "活跃度", "arr", "mrr"],
     "questions": [
@@ -48,6 +63,9 @@
     ]
   },
   {
+    "domain": "marketing",
+    "riskType": "attribution_boundary",
+    "ownerRule": "marketing_attribution_boundary",
     "ruleSignals": ["marketing_attribution_boundary"],
     "keywords": ["投放渠道", "归因", "最后点击", "首触", "新增付费客户", "新客", "收入贡献"],
     "questions": [
@@ -59,6 +77,9 @@
     ]
   },
   {
+    "domain": "commerce_margin",
+    "riskType": "metric_definition",
+    "ownerRule": "gross_margin_discount_boundary",
     "keywords": ["毛利", "毛利率", "促销折扣", "折扣", "渠道佣金", "渠道费", "退货影响"],
     "questions": [
       "请明确毛利公式或 gross margin formula，例如收入减成本后除以收入还是销售额。",
@@ -69,6 +90,9 @@
     ]
   },
   {
+    "domain": "finance_invoice_tax",
+    "riskType": "governance_policy",
+    "ownerRule": "invoice_tax_boundary",
     "keywords": ["开票", "发票", "专票", "普票", "红冲", "未开票收入", "税额差异", "税率"],
     "questions": [
       "请确认开票延迟定义 invoice delay，例如按订单日期、确认收入日期还是发票日期计算。",
@@ -79,6 +103,9 @@
     ]
   },
   {
+    "domain": "finance_currency",
+    "riskType": "currency_policy",
+    "ownerRule": "multi_currency_fx_boundary",
     "keywords": ["多币种", "原币", "本位币", "汇率", "汇兑", "重估", "海外区域"],
     "questions": [
       "请确认汇率来源和汇率日期 exchange rate policy，例如订单日、回款日还是月末汇率。",
@@ -89,6 +116,9 @@
     ]
   },
   {
+    "domain": "finance_reconciliation",
+    "riskType": "reconciliation_policy",
+    "ownerRule": "payment_reconciliation_boundary",
     "keywords": ["支付流水", "退款流水", "对账", "未入账", "重复扣款", "支付差异"],
     "questions": [
       "请确认对账键 reconciliation key，例如订单号、支付单号、交易流水号或退款单号。",
@@ -99,6 +129,9 @@
     ]
   },
   {
+    "domain": "project_delivery",
+    "riskType": "profitability_risk",
+    "ownerRule": "project_delivery_margin_boundary",
     "keywords": ["交付毛利", "项目毛利", "延期风险", "工时", "外包成本", "里程碑验收"],
     "questions": [
       "请确认项目收入确认规则 revenue recognition，例如按合同额、已验收里程碑还是已开票收入。",
@@ -109,6 +142,9 @@
     ]
   },
   {
+    "domain": "contract_management",
+    "riskType": "legal_policy",
+    "ownerRule": "contract_performance_boundary",
     "keywords": ["合同履约", "违约风险", "违约金", "合同条款", "履约进度", "法务", "续签条款"],
     "questions": [
       "请确认合同履约口径 contract performance，例如按交付节点、服务周期还是付款节点判断。",
@@ -119,6 +155,9 @@
     ]
   },
   {
+    "domain": "procurement",
+    "riskType": "reconciliation_policy",
+    "ownerRule": "procurement_settlement_boundary",
     "keywords": ["采购结算", "采购对账", "对账单", "入库", "付款条件", "采购价差", "三单匹配"],
     "questions": [
       "请确认采购结算口径 procurement settlement basis，例如按订单、入库单、发票还是对账单。",
@@ -129,6 +168,9 @@
     ]
   },
   {
+    "domain": "channel_sales",
+    "riskType": "settlement_policy",
+    "ownerRule": "channel_rebate_boundary",
     "keywords": ["渠道返利", "渠道返点", "返利", "返点", "经销商", "达量", "阶梯返利"],
     "questions": [
       "请确认返利政策 rebate policy，例如固定返点、阶梯返利还是达量奖励。",
@@ -139,6 +181,9 @@
     ]
   },
   {
+    "domain": "after_sales",
+    "riskType": "cost_policy",
+    "ownerRule": "after_sales_compensation_boundary",
     "keywords": ["售后赔付", "客诉赔偿", "质保", "保修", "维修成本", "退换货成本", "质量索赔"],
     "questions": [
       "请确认售后赔付口径 after-sales compensation basis，例如现金赔付、优惠券、维修或换货成本。",
@@ -149,6 +194,9 @@
     ]
   },
   {
+    "domain": "manufacturing_planning",
+    "riskType": "capacity_policy",
+    "ownerRule": "capacity_scheduling_boundary",
     "keywords": ["产能", "排班", "班次", "设备负荷", "瓶颈工序", "稼动率", "人力缺口"],
     "questions": [
       "请确认产能公式 capacity formula，例如标准产能、实际产能还是可用工时产能。",
@@ -159,6 +207,9 @@
     ]
   },
   {
+    "domain": "procurement_supplier",
+    "riskType": "supplier_risk",
+    "ownerRule": "supplier_quality_delivery_boundary",
     "keywords": ["供应商", "交付延迟", "延期", "质检不合格", "采购品类", "采购员", "风险等级"],
     "questions": [
       "请确认交付延迟定义或 delay policy，例如按承诺交期还是实际到货日期计算延期天数。",
@@ -169,6 +220,9 @@
     ]
   },
   {
+    "domain": "manufacturing_quality",
+    "riskType": "metric_definition",
+    "ownerRule": "manufacturing_yield_boundary",
     "ruleSignals": ["manufacturing_yield_boundary"],
     "keywords": ["产线", "良率", "设备停机", "返工", "来料批次", "批次追溯"],
     "questions": [
@@ -180,6 +234,9 @@
     ]
   },
   {
+    "domain": "hr_workforce",
+    "riskType": "cost_policy",
+    "ownerRule": "hr_overtime_cost_boundary",
     "keywords": ["加班", "法定节假日", "节假日", "调休", "外包人员", "员工范围", "部门"],
     "questions": [
       "请明确加班成本公式 overtime formula，例如工时、倍率、津贴和币种口径。",
@@ -190,6 +247,9 @@
     ]
   },
   {
+    "domain": "logistics",
+    "riskType": "sla_policy",
+    "ownerRule": "delivery_promise_boundary",
     "keywords": ["承运商", "承诺达成", "承诺时间", "延误赔付", "客户改约", "不可抗力", "运单"],
     "questions": [
       "请确认承诺达成定义 promise SLA，例如按承诺时间、签收时间还是妥投时间判断。",
@@ -200,6 +260,9 @@
     ]
   },
   {
+    "domain": "customer_retention",
+    "riskType": "metric_definition",
+    "ownerRule": "repeat_purchase_boundary",
     "keywords": ["复购率", "复购", "首购月份", "会员等级", "会员", "下降"],
     "questions": [
       "请明确复购窗口或 repeat window，例如首购后 30 天、90 天或自然月内复购。",
@@ -209,6 +272,9 @@
     ]
   },
   {
+    "domain": "governance",
+    "riskType": "result_size_risk",
+    "ownerRule": "unbounded_memory_governance",
     "ruleSignals": ["unbounded_memory_governance"],
     "keywords": ["所有历史", "全量", "明细都取出来", "导出全部", "自定义金额区间", "分桶"],
     "questions": [
@@ -218,6 +284,9 @@
     ]
   },
   {
+    "domain": "governance",
+    "riskType": "privacy_export",
+    "ownerRule": "sensitive_export_boundary",
     "keywords": ["手机号", "身份证", "证件号", "敏感", "隐私", "导出"],
     "questions": [
       "请确认手机号脱敏、证件号脱敏等敏感字段 masking 规则、权限审批或授权策略。",
@@ -226,6 +295,9 @@
     ]
   },
   {
+    "domain": "cross_domain_analysis",
+    "riskType": "join_grain_risk",
+    "ownerRule": "cross_domain_risk_boundary",
     "keywords": ["join", "关联", "客户名称", "客户id", "客户 id", "购买金额", "投诉次数", "逾期应收", "经营风险", "风险最大"],
     "questions": [
       "请确认跨域关联键或 join key，例如使用客户名称、客户 ID 还是统一客户主键。",
@@ -235,6 +307,9 @@
     ]
   },
   {
+    "domain": "customer_retention",
+    "riskType": "cohort_definition",
+    "ownerRule": "cohort_retention_boundary",
     "keywords": ["留存", "流失率", "注册月份", "首次购买渠道", "队列", "cohort", "retention", "churn"],
     "questions": [
       "请明确留存定义，例如注册后 N 天、N 月内复购或仍活跃。",
@@ -244,6 +319,9 @@
     ]
   },
   {
+    "domain": "sales_target",
+    "riskType": "target_version_policy",
+    "ownerRule": "sales_target_version_guard",
     "ruleSignals": ["sales_target_version_guard", "budget_or_target_ambiguity"],
     "keywords": ["目标完成", "目标达成", "销售目标", "目标完成率", "年度目标", "中途调整", "扣除退款", "区域负责人", "target"],
     "questions": [

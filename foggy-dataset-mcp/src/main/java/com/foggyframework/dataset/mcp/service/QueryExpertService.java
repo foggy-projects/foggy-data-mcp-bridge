@@ -1399,6 +1399,9 @@ public class QueryExpertService {
     }
 
     private record ClarifyQuestionTemplate(
+            String domain,
+            String riskType,
+            String ownerRule,
             List<String> ruleSignals,
             List<String> keywords,
             List<String> questions
