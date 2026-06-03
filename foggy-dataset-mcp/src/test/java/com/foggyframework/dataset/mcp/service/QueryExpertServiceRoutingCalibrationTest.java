@@ -144,6 +144,23 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按客服积压场景生成状态/超期/待客户回复/占比分母澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareBacklogQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "找出本月积压最严重的客服团队，按超期、挂起、待客户回复分别给出数量和占比。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-backlog", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "积压状态", "待处理口径", "backlog status", "超期定义", "SLA 超期", "挂起", "待客户回复", "customer wait", "占比分母");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("CLARIFY terminal guard 应按漏斗场景生成阶段/分母/去重澄清问题")
     void clarifyTerminalGuard_shouldAskScenarioAwareFunnelQuestions() {
         DatasetNLQueryRequest request = terminalClarifyRequest(
@@ -173,6 +190,74 @@ class QueryExpertServiceRoutingCalibrationTest {
 
         assertEquals("clarify", response.getType());
         assertQuestionTextContains(response, "预算版本", "已发生", "已报销未付款", "已预提", "部门口径", "组织", "币种", "对比期间");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按逾期应收场景生成账龄基准日/账龄桶/风险等级/金额口径澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareReceivableAgingQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "统计逾期应收的回款风险，按客户分层给出 30/60/90 天账龄和风险等级。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-receivable-aging", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "账龄基准日", "截止日期", "as of date", "账龄桶", "30/60/90", "aging bucket", "风险等级", "risk rating", "应收余额", "含税未税", "amount basis");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按库存周转场景生成公式/库存口径/季节性排除/异常阈值澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareInventoryTurnoverQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按仓库和品类看库存周转天数异常的商品，并排除季节性备货。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-inventory-turnover", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "周转天数公式", "turnover formula", "库存金额口径", "数量口径", "stock basis", "季节性备货", "排除规则", "seasonal", "异常阈值", "threshold");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按退款率场景生成分母/金额口径/排除/渠道归因澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareRefundRateQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "统计最近 90 天各渠道退款率和退款金额占比，排除售后补差价订单。",
+                List.of("needs_business_rule", "needs_metric_definition"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-refund-rate", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "退款率分母", "订单数", "销售额", "denominator", "退款金额口径", "含税未税", "amount basis", "补差价订单", "排除规则", "exclusion", "渠道归因", "channel attribution");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按复购场景生成复购窗口/cohort/身份粒度/对比期澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareRepeatPurchaseQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "看会员复购率是否下降，按首购月份和会员等级拆分。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-repeat-purchase", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "复购窗口", "repeat window", "首购月份", "cohort", "队列", "会员去重", "客户粒度", "identity grain", "下降对比期", "comparison period");
         assertTerminalRouteWithoutTools(response);
     }
 
@@ -260,6 +345,23 @@ class QueryExpertServiceRoutingCalibrationTest {
 
         assertEquals("clarify", response.getType());
         assertQuestionTextContains(response, "目标版本", "计算公式", "统计期间", "团队", "负责人");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按目标调整场景生成目标版本/扣退款公式/负责人粒度/期间澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareAdjustedTargetQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按区域负责人看年度目标完成率，目标中途调整过，实际收入要扣除退款。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-adjusted-target", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "目标版本", "中途调整", "target version", "实际收入公式", "扣除退款", "revenue formula", "区域负责人", "owner grain", "年度范围", "目标期间");
         assertTerminalRouteWithoutTools(response);
     }
 

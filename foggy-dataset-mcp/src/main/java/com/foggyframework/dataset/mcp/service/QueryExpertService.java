@@ -1319,6 +1319,12 @@ public class QueryExpertService {
             questions.add("请确认挂起时间、暂停时长或 hold time 是否从 SLA 计时中扣除。");
             questions.add("请给出目标响应时限和时间单位，例如 48 小时或 8 个工作小时。");
         }
+        if (questionTextContainsAny(query, "积压", "待处理", "待客户回复", "客服团队", "超期")) {
+            questions.add("请确认积压状态或待处理口径，例如哪些工单状态计入 backlog status。");
+            questions.add("请明确超期定义或 SLA 超期规则，例如按创建时间、首次响应还是解决时限判断。");
+            questions.add("请确认挂起、待客户回复或 customer wait 是否单独归类，以及是否排除或计入积压。");
+            questions.add("请明确占比分母，例如总工单数、积压工单数还是本月创建工单数。");
+        }
         if (funnelIntent) {
             questions.add("请确认漏斗阶段定义和阶段判定规则，例如线索到订单分别使用哪些字段或状态。");
             questions.add("请明确转化率分母口径，例如全部创建线索、有效线索或进入上一阶段的对象。");
@@ -1326,12 +1332,36 @@ public class QueryExpertService {
             questions.add("请确认去重粒度和统计粒度，例如按线索、客户、商机还是订单去重。");
             questions.add("请确认流失阶段或阶段归因规则，例如按最后停留阶段还是首次流失阶段统计。");
         }
+        if (questionTextContainsAny(query, "逾期应收", "账龄", "回款风险", "30/60/90", "30天", "60天", "90天", "风险等级")) {
+            questions.add("请确认账龄基准日或截止日期 as of date。");
+            questions.add("请明确账龄桶规则，例如 30/60/90 天 aging bucket 的边界是否含当天。");
+            questions.add("请确认风险等级或 risk rating 分层规则。");
+            questions.add("请明确应收余额金额口径，例如含税未税、原币或本位币 amount basis。");
+        }
         if (questionTextContainsAny(query, "预算", "实际", "支出", "费用", "差异")) {
             questions.add("请确认预算版本或预算口径，例如正式版、调整版或最新生效版本。");
             questions.add("请确认实际金额范围是否包含已发生、已报销未付款、已预提等会计状态。");
             questions.add("请确认组织统计粒度和部门口径，例如部门、项目、团队或公司。");
             questions.add("请明确币种和金额单位。");
             questions.add("请确认对比期间或本季度的起止日期。");
+        }
+        if (questionTextContainsAny(query, "库存周转", "周转天数", "仓库", "品类", "季节性备货", "异常商品")) {
+            questions.add("请明确周转天数公式或 turnover formula，例如平均库存除以出库量还是销售成本口径。");
+            questions.add("请确认库存金额口径、数量口径或 stock basis。");
+            questions.add("请确认季节性备货排除规则或 seasonal exclusion policy。");
+            questions.add("请明确异常阈值 threshold，例如高于历史均值多少或超过固定天数。");
+        }
+        if (questionTextContainsAny(query, "退款率", "退款金额", "补差价", "售后补差价", "渠道退款")) {
+            questions.add("请明确退款率分母，例如按订单数、销售额或支付金额计算 denominator。");
+            questions.add("请确认退款金额口径或 amount basis，例如含税未税、是否扣除优惠。");
+            questions.add("请确认补差价订单排除规则或 exclusion policy。");
+            questions.add("请确认渠道归因或 channel attribution，例如按下单渠道、支付渠道还是退款渠道。");
+        }
+        if (questionTextContainsAny(query, "复购率", "复购", "首购月份", "会员等级", "会员", "下降")) {
+            questions.add("请明确复购窗口或 repeat window，例如首购后 30 天、90 天或自然月内复购。");
+            questions.add("请确认首购月份 cohort 或队列定义。");
+            questions.add("请确认会员去重、客户粒度或 identity grain。");
+            questions.add("请明确下降对比期或 comparison period，例如同比、环比或与上一周期比较。");
         }
         if (rules.contains("unbounded_memory_governance")
                 || questionTextContainsAny(query, "所有历史", "全量", "明细都取出来", "导出全部", "自定义金额区间", "分桶")) {
@@ -1358,11 +1388,13 @@ public class QueryExpertService {
         }
         if (rules.contains("sales_target_version_guard")
                 || rules.contains("budget_or_target_ambiguity")
-                || questionTextContainsAny(query, "目标完成", "目标达成", "销售目标", "目标完成率", "target")) {
+                || questionTextContainsAny(query, "目标完成", "目标达成", "销售目标", "目标完成率", "年度目标", "中途调整", "扣除退款", "区域负责人", "target")) {
             questions.add("请确认目标版本或目标表版本的选取策略。");
+            questions.add("请确认目标版本、中途调整或 target version 的生效策略。");
             questions.add("请确认目标完成率计算公式，例如实际销售额除以目标金额。");
-            questions.add("请指定统计期间或本月的起止日期。");
-            questions.add("请确认团队、负责人或销售组织的对齐粒度。");
+            questions.add("请确认实际收入公式或 revenue formula，例如是否需要扣除退款。");
+            questions.add("请指定统计期间、年度范围或目标期间的起止日期。");
+            questions.add("请确认团队、区域负责人、销售组织或 owner grain 的对齐粒度。");
         }
 
         if (risks.contains("needs_time_range")) {
