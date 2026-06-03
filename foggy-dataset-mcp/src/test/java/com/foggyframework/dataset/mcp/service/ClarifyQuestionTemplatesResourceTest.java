@@ -92,7 +92,7 @@ class ClarifyQuestionTemplatesResourceTest {
         JsonNode templates = readTemplates();
         JsonNode fixture = readJson(FIXTURE_PATH);
         Set<String> catalogRuleSignals = collectTextValues(templates, "ruleSignals");
-        Set<String> catalogKeywords = collectTextValues(templates, "keywords");
+        Set<String> catalogKeywords = collectTemplateMatcherTerms(templates);
         Set<String> catalogMissingSlots = collectTextValues(templates, "missingSlots");
         Set<String> catalogQuestions = collectTextValues(templates, "questions");
 
@@ -175,6 +175,18 @@ class ClarifyQuestionTemplatesResourceTest {
         for (JsonNode template : templates) {
             for (JsonNode value : template.path(fieldName)) {
                 values.add(value.asText());
+            }
+        }
+        return values;
+    }
+
+    private Set<String> collectTemplateMatcherTerms(JsonNode templates) {
+        Set<String> values = collectTextValues(templates, "keywords");
+        for (JsonNode template : templates) {
+            for (JsonNode keywordGroup : template.path("keywordGroups")) {
+                for (JsonNode value : keywordGroup) {
+                    values.add(value.asText());
+                }
             }
         }
         return values;

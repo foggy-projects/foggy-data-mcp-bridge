@@ -4,6 +4,34 @@
   "source_catalog": "routing/clarify-question-templates.json",
   "testCases": [
     {
+      "id": "CLARIFY-SERVICE-TICKET-SLA-001",
+      "scenario": "service_ticket_sla",
+      "question": "统计各客服团队超 48 小时未响应工单数量和 SLA 达成率。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["客服", "SLA", "超 48", "未响应"],
+      "expected_missing_slots": ["sla_definition", "business_calendar", "priority_sla_policy", "hold_time_policy", "target_response_threshold"],
+      "expected_question_terms": ["SLA 达成率定义", "业务日历", "优先级阈值", "目标响应时限"]
+    },
+    {
+      "id": "CLARIFY-SERVICE-TICKET-BACKLOG-001",
+      "scenario": "service_ticket_backlog",
+      "question": "找出本月积压最严重的客服团队，按超期、挂起、待客户回复分别给出数量和占比。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["积压", "待客户回复"],
+      "expected_missing_slots": ["backlog_status_policy", "overdue_definition", "customer_wait_policy", "ratio_denominator"],
+      "expected_question_terms": ["积压状态", "超期定义", "待客户回复", "占比分母"]
+    },
+    {
+      "id": "CLARIFY-SALES-FUNNEL-001",
+      "scenario": "sales_funnel",
+      "question": "从线索到商机到订单，各阶段转化率是多少？",
+      "expected_route": "CLARIFY",
+      "expected_rule_signals": ["missing_funnel_definition"],
+      "expected_template_keywords": ["线索", "商机", "订单", "转化率"],
+      "expected_missing_slots": ["funnel_stage_definition", "conversion_denominator", "time_range", "dedup_grain", "drop_off_attribution"],
+      "expected_question_terms": ["漏斗阶段定义", "转化率分母", "时间范围", "去重粒度", "流失阶段"]
+    },
+    {
       "id": "CLARIFY-RECEIVABLE-AGING-001",
       "scenario": "receivable_aging",
       "question": "统计逾期应收的回款风险，按客户分层给出 30/60/90 天账龄和风险等级。",
