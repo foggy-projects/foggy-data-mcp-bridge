@@ -234,7 +234,7 @@ public class QueryExpertService {
                 return routingCalibrationReplanRequiredResponse(calibrationAction, traceId);
             }
             if (calibrationAction.type() == RoutingCalibrationActionType.TERMINAL_ROUTE) {
-                return routingCalibrationTerminalResponse(calibrationAction, traceId);
+                return routingCalibrationTerminalResponse(calibrationAction, request, traceId);
             }
             DatasetNLQueryResponse preflightResponse = serviceTicketSlaPreflightResponse(request, traceId);
             if (preflightResponse != null) {
@@ -321,7 +321,7 @@ public class QueryExpertService {
                     return;
                 }
                 if (calibrationAction.type() == RoutingCalibrationActionType.TERMINAL_ROUTE) {
-                    sink.next(ProgressEvent.complete(routingCalibrationTerminalResponse(calibrationAction, traceId)));
+                    sink.next(ProgressEvent.complete(routingCalibrationTerminalResponse(calibrationAction, request, traceId)));
                     sink.complete();
                     return;
                 }
@@ -1272,6 +1272,7 @@ public class QueryExpertService {
 
     private static DatasetNLQueryResponse routingCalibrationTerminalResponse(
             RoutingCalibrationAction calibrationAction,
+            DatasetNLQueryRequest request,
             String traceId
     ) {
         String route = safeString(calibrationAction.calibratedRoute()).toUpperCase(Locale.ROOT);
@@ -1288,11 +1289,119 @@ public class QueryExpertService {
                     .type("clarify")
                     .code(ROUTING_TERMINAL_CLARIFY_CODE)
                     .msg("路由校准结果为 CLARIFY，已在进入查询工具前返回澄清。")
-                    .questions(List.of("当前问题需要补充必要条件后才能执行查询。请补充时间范围、指标口径、维度或可用模型字段。"))
+                    .questions(routingCalibrationClarifyQuestions(calibrationAction, request))
                     .detail(detail)
                     .build();
         }
         return attachRoutingCalibrationDebug(response, calibrationAction, traceId);
+    }
+
+    private static List<String> routingCalibrationClarifyQuestions(
+            RoutingCalibrationAction calibrationAction,
+            DatasetNLQueryRequest request
+    ) {
+        String query = normalizeQuestionText(request != null ? request.getQuery() : "");
+        Set<String> rules = normalizedSignalSet(calibrationAction.appliedRules());
+        Set<String> risks = normalizedSignalSet(calibrationAction.calibratedRisks());
+        if (risks.isEmpty()) {
+            risks = normalizedSignalSet(calibrationAction.rawRisks());
+        }
+        LinkedHashSet<String> questions = new LinkedHashSet<>();
+        boolean funnelIntent = rules.contains("missing_funnel_definition")
+                || questionTextContainsAny(query, "漏斗", "转化率")
+                || (questionTextContainsAny(query, "线索", "商机", "阶段")
+                && questionTextContainsAny(query, "订单", "成交", "转化"));
+
+        if (questionTextContainsAny(query, "sla", "服务级别", "超48", "超 48", "未响应", "首响", "首次响应", "客服", "工单")) {
+            questions.add("请明确 SLA 达成率定义，包括分子、分母、未响应工单如何归类，以及是否按首次响应计算。");
+            questions.add("请确认 SLA 业务日历规则：自然时间、工作日、工作小时和节假日是否需要生效。");
+            questions.add("请确认是否存在按优先级区分的 SLA 阈值策略。");
+            questions.add("请给出目标响应时限和时间单位，例如 48 小时或 8 个工作小时。");
+        }
+        if (funnelIntent) {
+            questions.add("请确认漏斗阶段定义和阶段判定规则，例如线索、商机、订单分别使用哪些字段或状态。");
+            questions.add("请明确转化率分母口径，例如全部创建线索、有效线索或进入上一阶段的对象。");
+            questions.add("请指定统计时间范围或时间窗口。");
+            questions.add("请确认去重口径和统计粒度，例如按线索、客户、商机还是订单去重。");
+        }
+        if (questionTextContainsAny(query, "预算", "实际", "支出", "费用", "差异")) {
+            questions.add("请确认预算版本或预算口径，例如正式版、调整版或最新生效版本。");
+            questions.add("请确认组织统计粒度，例如部门、项目、团队或公司。");
+            questions.add("请明确币种和金额单位。");
+            questions.add("请确认对比期间或本季度的起止日期。");
+        }
+        if (rules.contains("unbounded_memory_governance")
+                || questionTextContainsAny(query, "所有历史", "全量", "明细都取出来", "导出全部", "自定义金额区间", "分桶")) {
+            questions.add("请限定结果范围，例如时间范围、筛选条件或业务对象范围。");
+            questions.add("请给出最大行数或分页限制，避免一次性提取全量明细。");
+            questions.add("请确认意图是导出明细还是先做聚合汇总后再分析。");
+        }
+        if (questionTextContainsAny(query, "手机号", "身份证", "证件号", "敏感", "隐私", "导出")) {
+            questions.add("请确认敏感字段的脱敏规则、权限审批或授权策略。");
+            questions.add("请说明导出接收人、用途和数据范围。");
+        }
+        if (rules.contains("sales_target_version_guard")
+                || rules.contains("budget_or_target_ambiguity")
+                || questionTextContainsAny(query, "目标完成", "目标达成", "销售目标", "目标完成率", "target")) {
+            questions.add("请确认目标版本或目标表版本的选取策略。");
+            questions.add("请确认目标完成率计算公式，例如实际销售额除以目标金额。");
+            questions.add("请指定统计期间或本月的起止日期。");
+            questions.add("请确认团队、负责人或销售组织的对齐粒度。");
+        }
+
+        if (risks.contains("needs_time_range")) {
+            questions.add("请补充明确的时间范围或业务期间。");
+        }
+        if (risks.contains("needs_metric_definition")) {
+            questions.add("请补充指标口径、计算公式或分子分母定义。");
+        }
+        if (risks.contains("needs_business_rule")) {
+            questions.add("请补充影响结果的业务规则和默认策略。");
+        }
+        if (risks.contains("grain_mismatch")) {
+            questions.add("请确认统计维度、关联口径和结果粒度。");
+        }
+        if (risks.contains("governance_risk")) {
+            questions.add("请确认数据权限、脱敏策略和可导出范围。");
+        }
+        if (risks.contains("result_size_risk")) {
+            questions.add("请确认结果范围、最大行数或是否改为聚合查询。");
+        }
+
+        if (questions.isEmpty()) {
+            questions.add("当前问题需要补充必要条件后才能执行查询。请补充时间范围、指标口径、维度或可用模型字段。");
+        }
+        return List.copyOf(questions);
+    }
+
+    private static Set<String> normalizedSignalSet(Collection<String> values) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            String normalized = normalizeQuestionText(value);
+            if (!normalized.isBlank()) {
+                result.add(normalized);
+            }
+        }
+        return result;
+    }
+
+    private static String normalizeQuestionText(String value) {
+        return safeString(value).toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+    }
+
+    private static boolean questionTextContainsAny(String text, String... needles) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        for (String needle : needles) {
+            if (text.contains(normalizeQuestionText(needle))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ProgressEvent routingCalibrationReplanRequiredEvent(RoutingCalibrationAction calibrationAction, String traceId) {

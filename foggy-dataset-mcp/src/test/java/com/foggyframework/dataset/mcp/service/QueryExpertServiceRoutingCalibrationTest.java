@@ -127,6 +127,110 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按 SLA 场景生成具体澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareSlaQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "统计各客服团队超 48 小时未响应工单数量和 SLA 达成率。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-sla", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "SLA", "达成率", "业务日历", "优先级", "时间单位");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按漏斗场景生成阶段/分母/去重澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareFunnelQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "从线索到商机到订单，各阶段转化率是多少？",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of("missing_funnel_definition")
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-funnel", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "阶段定义", "分母", "时间范围", "去重", "统计粒度");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按预算差异场景生成版本/组织/币种澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareBudgetQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "本季度费用预算和实际支出差异在哪里？",
+                List.of("grain_mismatch", "needs_business_rule", "needs_metric_definition"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-budget", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "预算版本", "组织", "币种", "对比期间");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按无界明细场景生成范围/行数/导出聚合澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareUnboundedQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "把所有历史订单明细都取出来后，临时按自定义金额区间重新分桶分析。",
+                List.of("governance_risk", "result_size_risk"),
+                List.of("unbounded_memory_governance")
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-unbounded", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "结果范围", "最大行数", "导出明细", "聚合汇总");
+        assertQuestionTextNotContains(response, "阶段定义", "转化率分母");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按敏感导出场景生成脱敏/权限/接收人澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareSensitiveExportQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "导出本月下单客户的手机号、身份证号和订单金额。",
+                List.of("governance_risk"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-sensitive-export", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "脱敏", "权限", "接收人", "用途", "数据范围");
+        assertQuestionTextNotContains(response, "阶段定义", "转化率分母");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按目标完成场景生成目标版本/公式/团队粒度澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareTargetQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "各销售团队这个月目标完成得怎么样？",
+                List.of("grain_mismatch", "needs_business_rule", "needs_metric_definition"),
+                List.of("budget_or_target_ambiguity", "sales_target_version_guard")
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-target", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "目标版本", "计算公式", "统计期间", "团队", "负责人");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("REJECT terminal guard 不应进入 LLM/工具链")
     void rejectTerminalGuard_shouldNotCallLlmOrTools() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
@@ -1280,6 +1384,55 @@ class QueryExpertServiceRoutingCalibrationTest {
         } finally {
             QueryExpertService.clearCapture();
         }
+    }
+
+    private static DatasetNLQueryRequest terminalClarifyRequest(
+            String query,
+            List<String> risks,
+            List<String> appliedRules
+    ) {
+        return DatasetNLQueryRequest.builder()
+                .query(query)
+                .hints(DatasetNLQueryRequest.QueryHints.builder()
+                        .extra(Map.of(
+                                "routing_calibration_guard", Map.of(
+                                        "raw_route", "CLARIFY",
+                                        "calibrated_route", "CLARIFY",
+                                        "raw_risks", risks,
+                                        "calibrated_risks", risks,
+                                        "applied_rules", appliedRules,
+                                        "execution_allowed", true
+                                )
+                        ))
+                        .build())
+                .build();
+    }
+
+    private static void assertQuestionTextContains(DatasetNLQueryResponse response, String... expected) {
+        assertNotNull(response.getQuestions());
+        String text = String.join("\n", response.getQuestions());
+        for (String value : expected) {
+            assertTrue(text.contains(value), "expected clarify questions to contain: " + value + ", actual: " + text);
+        }
+    }
+
+    private static void assertQuestionTextNotContains(DatasetNLQueryResponse response, String... unexpected) {
+        assertNotNull(response.getQuestions());
+        String text = String.join("\n", response.getQuestions());
+        for (String value : unexpected) {
+            assertFalse(text.contains(value), "expected clarify questions not to contain: " + value + ", actual: " + text);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertTerminalRouteWithoutTools(DatasetNLQueryResponse response) {
+        assertEquals("ROUTING_TERMINAL_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("CLARIFY", detail.get("terminal_route"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        Map<String, Object> routing = (Map<String, Object>) response.getDebug().get("routing_calibration");
+        assertEquals("TERMINAL_ROUTE", routing.get("action"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
     }
 
     private static DatasetNLQueryRequest replanRequestWithCalibratedRoute() {
