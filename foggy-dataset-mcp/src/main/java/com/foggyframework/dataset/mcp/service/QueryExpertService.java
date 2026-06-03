@@ -1289,12 +1289,16 @@ public class QueryExpertService {
                     detail
             );
         } else {
+            List<ClarifyMissingSlot> missingSlotDetails =
+                    routingCalibrationClarifyMissingSlotDetails(calibrationAction, request);
+            detail.put("clarify_missing_slots", clarifyMissingSlotNames(missingSlotDetails));
+            detail.put("clarify_missing_slot_details", clarifyMissingSlotDetailPayload(missingSlotDetails));
             response = DatasetNLQueryResponse.builder()
                     .type("clarify")
                     .code(ROUTING_TERMINAL_CLARIFY_CODE)
                     .msg("路由校准结果为 CLARIFY，已在进入查询工具前返回澄清。")
                     .questions(routingCalibrationClarifyQuestions(calibrationAction, request))
-                    .missing(routingCalibrationClarifyMissingSlots(calibrationAction, request))
+                    .missing(clarifyMissingSlotNames(missingSlotDetails))
                     .detail(detail)
                     .build();
         }
@@ -1364,7 +1368,7 @@ public class QueryExpertService {
         return List.copyOf(questions);
     }
 
-    private static List<String> routingCalibrationClarifyMissingSlots(
+    private static List<ClarifyMissingSlot> routingCalibrationClarifyMissingSlotDetails(
             RoutingCalibrationAction calibrationAction,
             DatasetNLQueryRequest request
     ) {
@@ -1374,57 +1378,94 @@ public class QueryExpertService {
         if (risks.isEmpty()) {
             risks = normalizedSignalSet(calibrationAction.rawRisks());
         }
-        LinkedHashSet<String> missingSlots = new LinkedHashSet<>();
+        Map<String, ClarifyMissingSlot> missingSlots = new LinkedHashMap<>();
         boolean funnelIntent = rules.contains("missing_funnel_definition")
                 || questionTextContainsAny(query, "漏斗", "转化率")
                 || (questionTextContainsAny(query, "线索", "商机", "阶段")
                 && questionTextContainsAny(query, "订单", "成交", "转化"));
 
         if (questionTextContainsAny(query, "sla", "服务级别", "超48", "超 48", "未响应", "首响", "首次响应", "客服", "工单")) {
-            missingSlots.add("sla_definition");
-            missingSlots.add("business_calendar");
-            missingSlots.add("priority_sla_policy");
-            missingSlots.add("hold_time_policy");
-            missingSlots.add("target_response_threshold");
+            addMissingSlot(missingSlots, "sla_definition", "service_ticket_sla", "service_ticket_sla_boundary", true);
+            addMissingSlot(missingSlots, "business_calendar", "service_ticket_sla", "service_ticket_sla_boundary", true);
+            addMissingSlot(missingSlots, "priority_sla_policy", "service_ticket_sla", "service_ticket_sla_boundary", false);
+            addMissingSlot(missingSlots, "hold_time_policy", "service_ticket_sla", "service_ticket_sla_boundary", false);
+            addMissingSlot(missingSlots, "target_response_threshold", "service_ticket_sla", "service_ticket_sla_boundary", true);
         }
         if (questionTextContainsAny(query, "积压", "待处理", "待客户回复", "客服团队", "超期")) {
-            missingSlots.add("backlog_status_policy");
-            missingSlots.add("overdue_definition");
-            missingSlots.add("customer_wait_policy");
-            missingSlots.add("ratio_denominator");
+            addMissingSlot(missingSlots, "backlog_status_policy", "service_ticket_backlog", "service_ticket_backlog_boundary", true);
+            addMissingSlot(missingSlots, "overdue_definition", "service_ticket_backlog", "service_ticket_backlog_boundary", true);
+            addMissingSlot(missingSlots, "customer_wait_policy", "service_ticket_backlog", "service_ticket_backlog_boundary", false);
+            addMissingSlot(missingSlots, "ratio_denominator", "service_ticket_backlog", "service_ticket_backlog_boundary", true);
         }
         if (funnelIntent) {
-            missingSlots.add("funnel_stage_definition");
-            missingSlots.add("conversion_denominator");
-            missingSlots.add("time_range");
-            missingSlots.add("dedup_grain");
-            missingSlots.add("drop_off_attribution");
+            addMissingSlot(missingSlots, "funnel_stage_definition", "funnel_definition", "missing_funnel_definition", true);
+            addMissingSlot(missingSlots, "conversion_denominator", "funnel_definition", "missing_funnel_definition", true);
+            addMissingSlot(missingSlots, "time_range", "funnel_definition", "missing_funnel_definition", true);
+            addMissingSlot(missingSlots, "dedup_grain", "funnel_definition", "missing_funnel_definition", true);
+            addMissingSlot(missingSlots, "drop_off_attribution", "funnel_definition", "missing_funnel_definition", false);
         }
         appendMatchingClarifyTemplateMissingSlots(query, rules, missingSlots);
 
         if (risks.contains("needs_time_range")) {
-            missingSlots.add("time_range");
+            addMissingSlot(missingSlots, "time_range", "routing_risk", "needs_time_range", true);
         }
         if (risks.contains("needs_metric_definition")) {
-            missingSlots.add("metric_definition");
+            addMissingSlot(missingSlots, "metric_definition", "routing_risk", "needs_metric_definition", true);
         }
         if (risks.contains("needs_business_rule")) {
-            missingSlots.add("business_rule");
+            addMissingSlot(missingSlots, "business_rule", "routing_risk", "needs_business_rule", true);
         }
         if (risks.contains("grain_mismatch")) {
-            missingSlots.add("result_grain");
+            addMissingSlot(missingSlots, "result_grain", "routing_risk", "grain_mismatch", true);
         }
         if (risks.contains("governance_risk")) {
-            missingSlots.add("governance_policy");
+            addMissingSlot(missingSlots, "governance_policy", "routing_risk", "governance_risk", true);
         }
         if (risks.contains("result_size_risk")) {
-            missingSlots.add("result_size_limit");
+            addMissingSlot(missingSlots, "result_size_limit", "routing_risk", "result_size_risk", true);
         }
 
         if (missingSlots.isEmpty()) {
-            missingSlots.add("query_boundary");
+            addMissingSlot(missingSlots, "query_boundary", "fallback", "terminal_clarify", true);
         }
-        return List.copyOf(missingSlots);
+        return List.copyOf(missingSlots.values());
+    }
+
+    private static List<String> clarifyMissingSlotNames(List<ClarifyMissingSlot> missingSlotDetails) {
+        if (missingSlotDetails == null || missingSlotDetails.isEmpty()) {
+            return List.of();
+        }
+        List<String> names = new ArrayList<>(missingSlotDetails.size());
+        for (ClarifyMissingSlot missingSlot : missingSlotDetails) {
+            names.add(missingSlot.slot());
+        }
+        return List.copyOf(names);
+    }
+
+    private static List<Map<String, Object>> clarifyMissingSlotDetailPayload(List<ClarifyMissingSlot> missingSlotDetails) {
+        if (missingSlotDetails == null || missingSlotDetails.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> details = new ArrayList<>(missingSlotDetails.size());
+        for (ClarifyMissingSlot missingSlot : missingSlotDetails) {
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("slot", missingSlot.slot());
+            detail.put("type", missingSlot.type());
+            detail.put("source", missingSlot.source());
+            detail.put("required", missingSlot.required());
+            details.add(detail);
+        }
+        return List.copyOf(details);
+    }
+
+    private static void addMissingSlot(
+            Map<String, ClarifyMissingSlot> slots,
+            String slot,
+            String type,
+            String source,
+            boolean required
+    ) {
+        slots.putIfAbsent(slot, new ClarifyMissingSlot(slot, type, source, required));
     }
 
     private static List<ClarifyQuestionTemplate> loadClarifyQuestionTemplates() {
@@ -1465,13 +1506,23 @@ public class QueryExpertService {
     private static void appendMatchingClarifyTemplateMissingSlots(
             String query,
             Set<String> rules,
-            LinkedHashSet<String> missingSlots
+            Map<String, ClarifyMissingSlot> missingSlots
     ) {
         for (ClarifyQuestionTemplate template : CLARIFY_QUESTION_TEMPLATES) {
             if (template.matches(query, rules)) {
-                missingSlots.addAll(template.missingSlots());
+                for (String missingSlot : template.missingSlots()) {
+                    addMissingSlot(missingSlots, missingSlot, template.riskType(), template.ownerRule(), true);
+                }
             }
         }
+    }
+
+    private record ClarifyMissingSlot(
+            String slot,
+            String type,
+            String source,
+            boolean required
+    ) {
     }
 
     private record ClarifyQuestionTemplate(

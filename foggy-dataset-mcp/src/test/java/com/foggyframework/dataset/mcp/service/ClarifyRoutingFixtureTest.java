@@ -98,6 +98,7 @@ class ClarifyRoutingFixtureTest {
         assertEquals("CLARIFY", routing.get("calibrated_route"));
         assertQuestionTextContains(response, testCase.questionTerms());
         assertMissingSlotsContain(response, testCase.missingSlots());
+        assertStructuredMissingSlotDetails(detail, testCase.missingSlots());
         verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
     }
 
@@ -154,6 +155,40 @@ class ClarifyRoutingFixtureTest {
         for (String expectedSlot : expectedSlots) {
             assertTrue(actualSlots.contains(expectedSlot), "expected missing slots to contain: "
                     + expectedSlot + ", actual: " + actualSlots);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertStructuredMissingSlotDetails(Map<String, Object> detail, List<String> expectedSlots) {
+        assertInstanceOf(List.class, detail.get("clarify_missing_slots"),
+                "clarify detail must expose compatible missing slot names");
+        assertInstanceOf(List.class, detail.get("clarify_missing_slot_details"),
+                "clarify detail must expose structured missing slot details");
+
+        Set<String> detailSlots = new LinkedHashSet<>();
+        for (Object value : (List<?>) detail.get("clarify_missing_slots")) {
+            detailSlots.add(String.valueOf(value));
+        }
+
+        Set<String> structuredSlots = new LinkedHashSet<>();
+        for (Object value : (List<?>) detail.get("clarify_missing_slot_details")) {
+            assertInstanceOf(Map.class, value, "structured missing slot detail must be a map");
+            Map<String, Object> slotDetail = (Map<String, Object>) value;
+            assertNotNull(slotDetail.get("slot"), "structured missing slot must have slot");
+            assertNotNull(slotDetail.get("type"), "structured missing slot must have type");
+            assertNotNull(slotDetail.get("source"), "structured missing slot must have source");
+            String slot = String.valueOf(slotDetail.get("slot"));
+            structuredSlots.add(slot);
+            assertFalse(slot.isBlank(), "structured missing slot must have slot");
+            assertFalse(String.valueOf(slotDetail.get("type")).isBlank(), "structured missing slot must have type");
+            assertFalse(String.valueOf(slotDetail.get("source")).isBlank(), "structured missing slot must have source");
+            assertInstanceOf(Boolean.class, slotDetail.get("required"), "structured missing slot must have required flag");
+        }
+
+        assertEquals(detailSlots, structuredSlots, "compatible and structured missing slots should stay aligned");
+        for (String expectedSlot : expectedSlots) {
+            assertTrue(structuredSlots.contains(expectedSlot), "expected structured missing slots to contain: "
+                    + expectedSlot + ", actual: " + structuredSlots);
         }
     }
 
