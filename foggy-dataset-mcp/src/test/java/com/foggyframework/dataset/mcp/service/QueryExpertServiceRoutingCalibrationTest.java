@@ -401,6 +401,91 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按毛利折扣场景生成毛利公式/成本/折扣/退货/佣金澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareGrossMarginDiscountQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按商品和渠道统计本月毛利率异常下降，区分促销折扣、渠道佣金和退货影响。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-gross-margin", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "毛利公式", "gross margin formula", "成本口径", "cost basis", "促销折扣", "discount policy", "退货", "return policy", "渠道佣金", "commission allocation");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按税务开票场景生成延迟/税额/票种/红冲/未开票澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareInvoiceTaxQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按客户统计本月开票延迟和税额差异，区分专票、普票、红冲和未开票收入。",
+                List.of("governance_risk", "needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-invoice-tax", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "开票延迟定义", "invoice delay", "税额口径", "tax basis", "税率", "专票", "普票", "invoice type", "红冲", "red invoice", "未开票收入", "unbilled revenue");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按多币种汇率场景生成汇率来源/币种/重估/结算/汇兑损益澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareMultiCurrencyFxQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "比较海外区域订单收入和回款，按原币、本位币和汇率重估影响拆分。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-multi-currency-fx", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "汇率来源", "汇率日期", "exchange rate policy", "原币", "本位币", "currency basis", "汇率重估", "revaluation policy", "结算日期", "settlement date", "汇兑损益", "FX gain loss");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按支付对账场景生成对账键/时间窗口/状态/重复/容忍度澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwarePaymentReconciliationQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "核对本周订单、支付流水和退款流水差异，找出未入账和重复扣款。",
+                List.of("governance_risk", "needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-payment-reconciliation", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "对账键", "reconciliation key", "订单号", "支付单号", "时间窗口", "timing window", "状态", "status policy", "重复扣款", "duplicate policy", "金额差异容忍度", "tolerance");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按项目交付毛利场景生成收入确认/工时/外包/里程碑/延期澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareProjectDeliveryMarginQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按项目统计交付毛利和延期风险，关联工时、外包成本和里程碑验收。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range", "unsupported_prediction"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-project-delivery-margin", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "项目收入确认规则", "revenue recognition", "工时成本公式", "labor cost formula", "外包成本", "outsourcing cost", "里程碑验收", "milestone acceptance", "延期风险", "delay risk rule");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("CLARIFY terminal guard 应按供应商风险场景生成延迟/质检/风险等级/供应商/采购粒度澄清问题")
     void clarifyTerminalGuard_shouldAskScenarioAwareSupplierRiskQuestions() {
         DatasetNLQueryRequest request = terminalClarifyRequest(

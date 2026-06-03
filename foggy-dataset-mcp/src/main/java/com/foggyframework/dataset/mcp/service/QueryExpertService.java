@@ -1373,6 +1373,41 @@ public class QueryExpertService {
             questions.add("请确认收入口径 revenue basis，例如含税未税、实收或确认收入。");
             questions.add("请明确客户去重、账号去重或 dedup grain。");
         }
+        if (questionTextContainsAny(query, "毛利", "毛利率", "促销折扣", "折扣", "渠道佣金", "渠道费", "退货影响")) {
+            questions.add("请明确毛利公式或 gross margin formula，例如收入减成本后除以收入还是销售额。");
+            questions.add("请确认成本口径 cost basis，例如标准成本、移动平均成本还是实际采购成本。");
+            questions.add("请明确促销折扣、优惠券或 discount policy 是否从收入中扣除。");
+            questions.add("请确认退货、退款或 return policy 对收入和成本的影响。");
+            questions.add("请明确渠道佣金、渠道费或 commission allocation 的分摊规则。");
+        }
+        if (questionTextContainsAny(query, "开票", "发票", "专票", "普票", "红冲", "未开票收入", "税额差异", "税率")) {
+            questions.add("请确认开票延迟定义 invoice delay，例如按订单日期、确认收入日期还是发票日期计算。");
+            questions.add("请明确税额口径 tax basis，例如含税价、未税价、税率和价税分离规则。");
+            questions.add("请确认专票、普票或 invoice type 是否需要分开统计。");
+            questions.add("请明确红冲、作废或 red invoice 的处理规则。");
+            questions.add("请确认未开票收入 unbilled revenue 的识别口径。");
+        }
+        if (questionTextContainsAny(query, "多币种", "原币", "本位币", "汇率", "汇兑", "重估", "海外区域")) {
+            questions.add("请确认汇率来源和汇率日期 exchange rate policy，例如订单日、回款日还是月末汇率。");
+            questions.add("请明确原币、本位币或 currency basis 的展示和汇总口径。");
+            questions.add("请确认汇率重估 revaluation policy 是否需要单独拆分。");
+            questions.add("请明确回款日期、结算日期或 settlement date 的匹配规则。");
+            questions.add("请确认汇兑损益 FX gain loss 的计算和归属口径。");
+        }
+        if (questionTextContainsAny(query, "支付流水", "退款流水", "对账", "未入账", "重复扣款", "支付差异")) {
+            questions.add("请确认对账键 reconciliation key，例如订单号、支付单号、交易流水号或退款单号。");
+            questions.add("请明确时间窗口 timing window，例如下单时间、支付时间、入账时间是否允许跨日。");
+            questions.add("请确认订单、支付和退款状态 status policy，例如成功、关闭、撤销或处理中如何处理。");
+            questions.add("请明确重复扣款 duplicate policy 的判定规则。");
+            questions.add("请确认金额差异容忍度 tolerance，例如四舍五入、手续费或币种换算差异。");
+        }
+        if (questionTextContainsAny(query, "交付毛利", "项目毛利", "延期风险", "工时", "外包成本", "里程碑验收")) {
+            questions.add("请确认项目收入确认规则 revenue recognition，例如按合同额、已验收里程碑还是已开票收入。");
+            questions.add("请明确工时成本公式 labor cost formula，例如标准人天成本还是实际薪酬成本。");
+            questions.add("请确认外包成本 outsourcing cost 的归集和分摊规则。");
+            questions.add("请明确里程碑验收 milestone acceptance 的状态和日期口径。");
+            questions.add("请确认延期风险 delay risk rule，例如逾期天数、未验收里程碑或剩余工时阈值。");
+        }
         if (questionTextContainsAny(query, "供应商", "交付延迟", "延期", "质检不合格", "采购品类", "采购员", "风险等级")) {
             questions.add("请确认交付延迟定义或 delay policy，例如按承诺交期还是实际到货日期计算延期天数。");
             questions.add("请明确质检不合格率、质检口径或 quality failure 的分子分母。");
