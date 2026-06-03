@@ -1,12 +1,12 @@
 package com.foggyframework.dataset.mcp.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryRequest;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryResponse;
+import com.foggyframework.dataset.mcp.service.routing.ClarifyTemplateCatalog;
 import com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationAction;
 import com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationActionResolver;
 import com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationActionType;
@@ -19,7 +19,6 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
-import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -102,8 +101,7 @@ public class QueryExpertService {
             "clarifying_questions",
             "tool_calls"
     );
-    private static final String CLARIFY_QUESTION_TEMPLATES_RESOURCE = "routing/clarify-question-templates.json";
-    private static final List<ClarifyQuestionTemplate> CLARIFY_QUESTION_TEMPLATES = loadClarifyQuestionTemplates();
+    private static final ClarifyTemplateCatalog CLARIFY_TEMPLATE_CATALOG = ClarifyTemplateCatalog.loadDefault();
 
     /**
      * 由 {@link McpToolCallbackFactory} 调用，将 dataset.query_model 的结构化结果写入当前线程捕获槽。
@@ -1316,7 +1314,7 @@ public class QueryExpertService {
             risks = normalizedSignalSet(calibrationAction.rawRisks());
         }
         LinkedHashSet<String> questions = new LinkedHashSet<>();
-        appendMatchingClarifyTemplates(query, rules, questions);
+        questions.addAll(CLARIFY_TEMPLATE_CATALOG.matchingQuestions(query, rules));
 
         if (risks.contains("needs_time_range")) {
             questions.add("请补充明确的时间范围或业务期间。");
@@ -1354,7 +1352,11 @@ public class QueryExpertService {
             risks = normalizedSignalSet(calibrationAction.rawRisks());
         }
         Map<String, ClarifyMissingSlot> missingSlots = new LinkedHashMap<>();
-        appendMatchingClarifyTemplateMissingSlots(query, rules, missingSlots);
+        for (ClarifyTemplateCatalog.MissingSlot missingSlot
+                : CLARIFY_TEMPLATE_CATALOG.matchingMissingSlots(query, rules)) {
+            addMissingSlot(missingSlots, missingSlot.slot(), missingSlot.type(), missingSlot.source(),
+                    missingSlot.required());
+        }
 
         if (risks.contains("needs_time_range")) {
             addMissingSlot(missingSlots, "time_range", "routing_risk", "needs_time_range", true);
@@ -1418,105 +1420,12 @@ public class QueryExpertService {
         slots.putIfAbsent(slot, new ClarifyMissingSlot(slot, type, source, required));
     }
 
-    private static List<ClarifyQuestionTemplate> loadClarifyQuestionTemplates() {
-        try (InputStream inputStream = QueryExpertService.class.getClassLoader()
-                .getResourceAsStream(CLARIFY_QUESTION_TEMPLATES_RESOURCE)) {
-            if (inputStream == null) {
-                throw new IllegalStateException("Clarify question templates resource not found: "
-                        + CLARIFY_QUESTION_TEMPLATES_RESOURCE);
-            }
-            List<ClarifyQuestionTemplate> templates = new ObjectMapper().readValue(
-                    inputStream,
-                    new TypeReference<>() {
-                    }
-            );
-            if (templates.isEmpty()) {
-                throw new IllegalStateException("Clarify question templates resource is empty: "
-                        + CLARIFY_QUESTION_TEMPLATES_RESOURCE);
-            }
-            return List.copyOf(templates);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to load clarify question templates: "
-                    + CLARIFY_QUESTION_TEMPLATES_RESOURCE, e);
-        }
-    }
-
-    private static void appendMatchingClarifyTemplates(
-            String query,
-            Set<String> rules,
-            LinkedHashSet<String> questions
-    ) {
-        for (ClarifyQuestionTemplate template : CLARIFY_QUESTION_TEMPLATES) {
-            if (template.matches(query, rules)) {
-                questions.addAll(template.questions());
-            }
-        }
-    }
-
-    private static void appendMatchingClarifyTemplateMissingSlots(
-            String query,
-            Set<String> rules,
-            Map<String, ClarifyMissingSlot> missingSlots
-    ) {
-        for (ClarifyQuestionTemplate template : CLARIFY_QUESTION_TEMPLATES) {
-            if (template.matches(query, rules)) {
-                for (String missingSlot : template.missingSlots()) {
-                    addMissingSlot(missingSlots, missingSlot, template.riskType(), template.ownerRule(), true);
-                }
-            }
-        }
-    }
-
     private record ClarifyMissingSlot(
             String slot,
             String type,
             String source,
             boolean required
     ) {
-    }
-
-    private record ClarifyQuestionTemplate(
-            String domain,
-            String riskType,
-            String ownerRule,
-            List<String> missingSlots,
-            List<String> ruleSignals,
-            List<List<String>> keywordGroups,
-            List<String> keywords,
-            List<String> questions
-    ) {
-        private ClarifyQuestionTemplate {
-            missingSlots = missingSlots == null ? List.of() : List.copyOf(missingSlots);
-            ruleSignals = ruleSignals == null ? List.of() : List.copyOf(ruleSignals);
-            keywordGroups = copyKeywordGroups(keywordGroups);
-            keywords = keywords == null ? List.of() : List.copyOf(keywords);
-            questions = questions == null ? List.of() : List.copyOf(questions);
-        }
-
-        boolean matches(String query, Set<String> rules) {
-            for (String ruleSignal : ruleSignals) {
-                if (rules.contains(normalizeQuestionText(ruleSignal))) {
-                    return true;
-                }
-            }
-            for (List<String> keywordGroup : keywordGroups) {
-                if (questionTextContainsAll(query, keywordGroup)) {
-                    return true;
-                }
-            }
-            return questionTextContainsAny(query, keywords);
-        }
-    }
-
-    private static List<List<String>> copyKeywordGroups(List<List<String>> keywordGroups) {
-        if (keywordGroups == null) {
-            return List.of();
-        }
-        List<List<String>> copied = new ArrayList<>(keywordGroups.size());
-        for (List<String> keywordGroup : keywordGroups) {
-            copied.add(keywordGroup == null ? List.of() : List.copyOf(keywordGroup));
-        }
-        return List.copyOf(copied);
     }
 
     private static Set<String> normalizedSignalSet(Collection<String> values) {
@@ -1535,42 +1444,6 @@ public class QueryExpertService {
 
     private static String normalizeQuestionText(String value) {
         return safeString(value).toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
-    }
-
-    private static boolean questionTextContainsAny(String text, Collection<String> needles) {
-        if (text == null || text.isBlank()) {
-            return false;
-        }
-        for (String needle : needles) {
-            if (text.contains(normalizeQuestionText(needle))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean questionTextContainsAll(String text, Collection<String> needles) {
-        if (text == null || text.isBlank() || needles == null || needles.isEmpty()) {
-            return false;
-        }
-        for (String needle : needles) {
-            if (!text.contains(normalizeQuestionText(needle))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean questionTextContainsAny(String text, String... needles) {
-        if (text == null || text.isBlank()) {
-            return false;
-        }
-        for (String needle : needles) {
-            if (text.contains(normalizeQuestionText(needle))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static ProgressEvent routingCalibrationReplanRequiredEvent(RoutingCalibrationAction calibrationAction, String traceId) {
