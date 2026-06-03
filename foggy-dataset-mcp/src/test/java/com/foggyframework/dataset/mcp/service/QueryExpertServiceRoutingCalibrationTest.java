@@ -367,6 +367,108 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按续费风险场景生成续费窗口/风险评分/到期/活跃/收入口径澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareSubscriptionRenewalRiskQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按套餐和客户成功负责人评估下季度续费收入风险，结合历史流失、合同到期和本月活跃度。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range", "unsupported_prediction"),
+                List.of("subscription_renewal_risk_boundary")
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-subscription-renewal", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "续费窗口", "下季度范围", "renewal window", "风险评分", "续费风险公式", "risk score", "合同到期", "到期口径", "expiry policy", "活跃度定义", "活跃指标", "activity metric", "续费收入口径", "ARR", "MRR", "revenue basis");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按营销归因场景生成归因模型/窗口/新客/收入/去重澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareMarketingAttributionQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "评估本月各投放渠道带来的新增付费客户和收入贡献，按最后点击和首触分别算。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of("marketing_attribution_boundary")
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-marketing-attribution", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "归因模型", "最后点击", "首触", "attribution model", "转化窗口", "归因窗口", "conversion window", "新增付费客户定义", "新客", "new paid customer", "收入口径", "含税未税", "revenue basis", "客户去重", "账号去重", "dedup grain");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按供应商风险场景生成延迟/质检/风险等级/供应商/采购粒度澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareSupplierRiskQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "找出交付延迟且质检不合格率高的供应商，按采购品类和采购员拆分，并给出风险等级。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-supplier-risk", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "交付延迟定义", "延期天数", "delay policy", "质检不合格率", "质检口径", "quality failure", "风险等级", "risk rating", "分级规则", "供应商粒度", "供应商编码", "supplier grain", "采购品类", "采购员口径", "category buyer grain");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按制造良率场景生成良率/基准/停机/返工/批次澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareManufacturingYieldQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "分析本周各产线良率下降的主要原因，关联设备停机、返工和来料批次。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range", "unsupported_causality"),
+                List.of("manufacturing_yield_boundary")
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-manufacturing-yield", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "良率公式", "yield formula", "下降基准", "对比周期", "baseline", "设备停机口径", "downtime policy", "返工定义", "rework policy", "来料批次关联", "批次追溯", "lot trace");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按 HR 加班成本场景生成公式/节假日/调休/员工范围/部门澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareHrOvertimeQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "统计各部门加班成本异常增长，区分法定节假日、调休抵扣和外包人员。",
+                List.of("governance_risk", "needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-hr-overtime", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "加班成本公式", "overtime formula", "法定节假日", "节假日历", "holiday calendar", "调休抵扣", "调休规则", "comp time", "外包人员", "员工范围", "worker scope", "部门口径", "组织粒度", "department grain");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按物流承诺场景生成承诺/赔付/排除/承运商/分母澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareDeliveryPromiseQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按承运商统计承诺达成率和延误赔付金额，排除客户改约和不可抗力。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-delivery-promise", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "承诺达成定义", "promise SLA", "承诺时间", "赔付金额公式", "赔付规则", "compensation formula", "客户改约", "不可抗力", "排除规则", "exclusion", "承运商粒度", "carrier grain", "达成率分母", "订单数", "运单数", "denominator");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("REJECT terminal guard 不应进入 LLM/工具链")
     void rejectTerminalGuard_shouldNotCallLlmOrTools() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

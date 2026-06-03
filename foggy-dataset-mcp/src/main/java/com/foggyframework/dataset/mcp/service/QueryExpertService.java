@@ -1357,6 +1357,51 @@ public class QueryExpertService {
             questions.add("请确认补差价订单排除规则或 exclusion policy。");
             questions.add("请确认渠道归因或 channel attribution，例如按下单渠道、支付渠道还是退款渠道。");
         }
+        if (rules.contains("subscription_renewal_risk_boundary")
+                || questionTextContainsAny(query, "续费", "合同到期", "客户成功", "流失", "活跃度", "arr", "mrr")) {
+            questions.add("请确认续费窗口或下季度范围 renewal window。");
+            questions.add("请明确风险评分或续费风险公式 risk score，例如历史流失、合同到期和活跃度的权重。");
+            questions.add("请确认合同到期口径或 expiry policy，例如按合同结束日、服务到期日还是续费截止日。");
+            questions.add("请明确活跃度定义或活跃指标 activity metric。");
+            questions.add("请确认续费收入口径 revenue basis，例如 ARR、MRR、含税未税或是否含扩容收入。");
+        }
+        if (rules.contains("marketing_attribution_boundary")
+                || questionTextContainsAny(query, "投放渠道", "归因", "最后点击", "首触", "新增付费客户", "新客", "收入贡献")) {
+            questions.add("请确认归因模型 attribution model，例如最后点击、首触还是多触点分摊。");
+            questions.add("请明确转化窗口或归因窗口 conversion window。");
+            questions.add("请确认新增付费客户定义、新客口径或 new paid customer，例如首次支付、首单还是首个订阅。");
+            questions.add("请确认收入口径 revenue basis，例如含税未税、实收或确认收入。");
+            questions.add("请明确客户去重、账号去重或 dedup grain。");
+        }
+        if (questionTextContainsAny(query, "供应商", "交付延迟", "延期", "质检不合格", "采购品类", "采购员", "风险等级")) {
+            questions.add("请确认交付延迟定义或 delay policy，例如按承诺交期还是实际到货日期计算延期天数。");
+            questions.add("请明确质检不合格率、质检口径或 quality failure 的分子分母。");
+            questions.add("请确认风险等级 risk rating 分级规则。");
+            questions.add("请明确供应商粒度、供应商编码或 supplier grain。");
+            questions.add("请确认采购品类、采购员口径或 category buyer grain。");
+        }
+        if (rules.contains("manufacturing_yield_boundary")
+                || questionTextContainsAny(query, "产线", "良率", "设备停机", "返工", "来料批次", "批次追溯")) {
+            questions.add("请明确良率公式 yield formula，例如合格品数除以投产数还是完工数。");
+            questions.add("请确认下降基准、对比周期或 baseline，例如同比、环比或与目标良率比较。");
+            questions.add("请明确设备停机口径 downtime policy，例如计划停机是否排除。");
+            questions.add("请确认返工定义 rework policy，例如返工数量是否计入不良。");
+            questions.add("请确认来料批次关联、批次追溯或 lot trace 规则。");
+        }
+        if (questionTextContainsAny(query, "加班", "法定节假日", "节假日", "调休", "外包人员", "员工范围", "部门")) {
+            questions.add("请明确加班成本公式 overtime formula，例如工时、倍率、津贴和币种口径。");
+            questions.add("请确认法定节假日、节假日历或 holiday calendar。");
+            questions.add("请明确调休抵扣、调休规则或 comp time。");
+            questions.add("请确认外包人员、员工范围或 worker scope。");
+            questions.add("请明确部门口径、组织粒度或 department grain。");
+        }
+        if (questionTextContainsAny(query, "承运商", "承诺达成", "承诺时间", "延误赔付", "客户改约", "不可抗力", "运单")) {
+            questions.add("请确认承诺达成定义 promise SLA，例如按承诺时间、签收时间还是妥投时间判断。");
+            questions.add("请明确赔付金额公式、赔付规则或 compensation formula。");
+            questions.add("请确认客户改约、不可抗力等排除规则 exclusion policy。");
+            questions.add("请明确承运商粒度 carrier grain。");
+            questions.add("请确认达成率分母 denominator，例如订单数、运单数或包裹数。");
+        }
         if (questionTextContainsAny(query, "复购率", "复购", "首购月份", "会员等级", "会员", "下降")) {
             questions.add("请明确复购窗口或 repeat window，例如首购后 30 天、90 天或自然月内复购。");
             questions.add("请确认首购月份 cohort 或队列定义。");
