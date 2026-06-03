@@ -1316,31 +1316,6 @@ public class QueryExpertService {
             risks = normalizedSignalSet(calibrationAction.rawRisks());
         }
         LinkedHashSet<String> questions = new LinkedHashSet<>();
-        boolean funnelIntent = rules.contains("missing_funnel_definition")
-                || questionTextContainsAny(query, "漏斗", "转化率")
-                || (questionTextContainsAny(query, "线索", "商机", "阶段")
-                && questionTextContainsAny(query, "订单", "成交", "转化"));
-
-        if (questionTextContainsAny(query, "sla", "服务级别", "超48", "超 48", "未响应", "首响", "首次响应", "客服", "工单")) {
-            questions.add("请明确 SLA 达成率定义，包括分子、分母、未响应工单如何归类，以及是否按首次响应计算。");
-            questions.add("请确认 SLA 业务日历规则：自然时间、工作日、工作小时和节假日是否需要生效。");
-            questions.add("请确认是否存在按优先级区分的优先级阈值或 P1/P2 SLA 策略。");
-            questions.add("请确认挂起时间、暂停时长或 hold time 是否从 SLA 计时中扣除。");
-            questions.add("请给出目标响应时限和时间单位，例如 48 小时或 8 个工作小时。");
-        }
-        if (questionTextContainsAny(query, "积压", "待处理", "待客户回复", "客服团队", "超期")) {
-            questions.add("请确认积压状态或待处理口径，例如哪些工单状态计入 backlog status。");
-            questions.add("请明确超期定义或 SLA 超期规则，例如按创建时间、首次响应还是解决时限判断。");
-            questions.add("请确认挂起、待客户回复或 customer wait 是否单独归类，以及是否排除或计入积压。");
-            questions.add("请明确占比分母，例如总工单数、积压工单数还是本月创建工单数。");
-        }
-        if (funnelIntent) {
-            questions.add("请确认漏斗阶段定义和阶段判定规则，例如线索到订单分别使用哪些字段或状态。");
-            questions.add("请明确转化率分母口径，例如全部创建线索、有效线索或进入上一阶段的对象。");
-            questions.add("请指定统计时间范围或时间窗口。");
-            questions.add("请确认去重粒度和统计粒度，例如按线索、客户、商机还是订单去重。");
-            questions.add("请确认流失阶段或阶段归因规则，例如按最后停留阶段还是首次流失阶段统计。");
-        }
         appendMatchingClarifyTemplates(query, rules, questions);
 
         if (risks.contains("needs_time_range")) {
@@ -1379,31 +1354,6 @@ public class QueryExpertService {
             risks = normalizedSignalSet(calibrationAction.rawRisks());
         }
         Map<String, ClarifyMissingSlot> missingSlots = new LinkedHashMap<>();
-        boolean funnelIntent = rules.contains("missing_funnel_definition")
-                || questionTextContainsAny(query, "漏斗", "转化率")
-                || (questionTextContainsAny(query, "线索", "商机", "阶段")
-                && questionTextContainsAny(query, "订单", "成交", "转化"));
-
-        if (questionTextContainsAny(query, "sla", "服务级别", "超48", "超 48", "未响应", "首响", "首次响应", "客服", "工单")) {
-            addMissingSlot(missingSlots, "sla_definition", "service_ticket_sla", "service_ticket_sla_boundary", true);
-            addMissingSlot(missingSlots, "business_calendar", "service_ticket_sla", "service_ticket_sla_boundary", true);
-            addMissingSlot(missingSlots, "priority_sla_policy", "service_ticket_sla", "service_ticket_sla_boundary", false);
-            addMissingSlot(missingSlots, "hold_time_policy", "service_ticket_sla", "service_ticket_sla_boundary", false);
-            addMissingSlot(missingSlots, "target_response_threshold", "service_ticket_sla", "service_ticket_sla_boundary", true);
-        }
-        if (questionTextContainsAny(query, "积压", "待处理", "待客户回复", "客服团队", "超期")) {
-            addMissingSlot(missingSlots, "backlog_status_policy", "service_ticket_backlog", "service_ticket_backlog_boundary", true);
-            addMissingSlot(missingSlots, "overdue_definition", "service_ticket_backlog", "service_ticket_backlog_boundary", true);
-            addMissingSlot(missingSlots, "customer_wait_policy", "service_ticket_backlog", "service_ticket_backlog_boundary", false);
-            addMissingSlot(missingSlots, "ratio_denominator", "service_ticket_backlog", "service_ticket_backlog_boundary", true);
-        }
-        if (funnelIntent) {
-            addMissingSlot(missingSlots, "funnel_stage_definition", "funnel_definition", "missing_funnel_definition", true);
-            addMissingSlot(missingSlots, "conversion_denominator", "funnel_definition", "missing_funnel_definition", true);
-            addMissingSlot(missingSlots, "time_range", "funnel_definition", "missing_funnel_definition", true);
-            addMissingSlot(missingSlots, "dedup_grain", "funnel_definition", "missing_funnel_definition", true);
-            addMissingSlot(missingSlots, "drop_off_attribution", "funnel_definition", "missing_funnel_definition", false);
-        }
         appendMatchingClarifyTemplateMissingSlots(query, rules, missingSlots);
 
         if (risks.contains("needs_time_range")) {
@@ -1531,12 +1481,14 @@ public class QueryExpertService {
             String ownerRule,
             List<String> missingSlots,
             List<String> ruleSignals,
+            List<List<String>> keywordGroups,
             List<String> keywords,
             List<String> questions
     ) {
         private ClarifyQuestionTemplate {
             missingSlots = missingSlots == null ? List.of() : List.copyOf(missingSlots);
             ruleSignals = ruleSignals == null ? List.of() : List.copyOf(ruleSignals);
+            keywordGroups = copyKeywordGroups(keywordGroups);
             keywords = keywords == null ? List.of() : List.copyOf(keywords);
             questions = questions == null ? List.of() : List.copyOf(questions);
         }
@@ -1547,8 +1499,24 @@ public class QueryExpertService {
                     return true;
                 }
             }
+            for (List<String> keywordGroup : keywordGroups) {
+                if (questionTextContainsAll(query, keywordGroup)) {
+                    return true;
+                }
+            }
             return questionTextContainsAny(query, keywords);
         }
+    }
+
+    private static List<List<String>> copyKeywordGroups(List<List<String>> keywordGroups) {
+        if (keywordGroups == null) {
+            return List.of();
+        }
+        List<List<String>> copied = new ArrayList<>(keywordGroups.size());
+        for (List<String> keywordGroup : keywordGroups) {
+            copied.add(keywordGroup == null ? List.of() : List.copyOf(keywordGroup));
+        }
+        return List.copyOf(copied);
     }
 
     private static Set<String> normalizedSignalSet(Collection<String> values) {
@@ -1579,6 +1547,18 @@ public class QueryExpertService {
             }
         }
         return false;
+    }
+
+    private static boolean questionTextContainsAll(String text, Collection<String> needles) {
+        if (text == null || text.isBlank() || needles == null || needles.isEmpty()) {
+            return false;
+        }
+        for (String needle : needles) {
+            if (!text.contains(normalizeQuestionText(needle))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean questionTextContainsAny(String text, String... needles) {

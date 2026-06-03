@@ -1,5 +1,66 @@
 [
   {
+    "domain": "service_ticket",
+    "riskType": "service_ticket_sla",
+    "ownerRule": "service_ticket_sla_boundary",
+    "missingSlots": ["sla_definition", "business_calendar", "priority_sla_policy", "hold_time_policy", "target_response_threshold"],
+    "keywordGroups": [
+      ["工单", "SLA"],
+      ["客服", "SLA"],
+      ["工单", "首次响应"],
+      ["工单", "首响"],
+      ["超48", "未响应"],
+      ["超 48", "未响应"],
+      ["服务级别", "工单"]
+    ],
+    "questions": [
+      "请明确 SLA 达成率定义，包括分子、分母、未响应工单如何归类，以及是否按首次响应计算。",
+      "请确认 SLA 业务日历规则：自然时间、工作日、工作小时和节假日是否需要生效。",
+      "请确认是否存在按优先级区分的优先级阈值或 P1/P2 SLA 策略。",
+      "请确认挂起时间、暂停时长或 hold time 是否从 SLA 计时中扣除。",
+      "请给出目标响应时限和时间单位，例如 48 小时或 8 个工作小时。"
+    ]
+  },
+  {
+    "domain": "service_ticket",
+    "riskType": "service_ticket_backlog",
+    "ownerRule": "service_ticket_backlog_boundary",
+    "missingSlots": ["backlog_status_policy", "overdue_definition", "customer_wait_policy", "ratio_denominator"],
+    "keywordGroups": [
+      ["积压"],
+      ["待处理"],
+      ["待客户回复"],
+      ["客服团队", "超期"],
+      ["工单", "超期", "占比"]
+    ],
+    "questions": [
+      "请确认积压状态或待处理口径，例如哪些工单状态计入 backlog status。",
+      "请明确超期定义或 SLA 超期规则，例如按创建时间、首次响应还是解决时限判断。",
+      "请确认挂起、待客户回复或 customer wait 是否单独归类，以及是否排除或计入积压。",
+      "请明确占比分母，例如总工单数、积压工单数还是本月创建工单数。"
+    ]
+  },
+  {
+    "domain": "sales_funnel",
+    "riskType": "funnel_definition",
+    "ownerRule": "missing_funnel_definition",
+    "missingSlots": ["funnel_stage_definition", "conversion_denominator", "time_range", "dedup_grain", "drop_off_attribution"],
+    "ruleSignals": ["missing_funnel_definition"],
+    "keywordGroups": [
+      ["漏斗"],
+      ["转化率"],
+      ["线索", "商机", "订单"],
+      ["线索", "阶段", "转化"]
+    ],
+    "questions": [
+      "请确认漏斗阶段定义和阶段判定规则，例如线索到订单分别使用哪些字段或状态。",
+      "请明确转化率分母口径，例如全部创建线索、有效线索或进入上一阶段的对象。",
+      "请指定统计时间范围或时间窗口。",
+      "请确认去重粒度和统计粒度，例如按线索、客户、商机还是订单去重。",
+      "请确认流失阶段或阶段归因规则，例如按最后停留阶段还是首次流失阶段统计。"
+    ]
+  },
+  {
     "domain": "finance_receivables",
     "riskType": "metric_definition",
     "ownerRule": "receivable_aging_boundary",

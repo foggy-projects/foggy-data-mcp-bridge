@@ -36,6 +36,7 @@ class ClarifyQuestionTemplatesResourceTest {
             JsonNode template = templates.get(i);
             JsonNode ruleSignals = template.path("ruleSignals");
             JsonNode missingSlots = template.path("missingSlots");
+            JsonNode keywordGroups = template.path("keywordGroups");
             JsonNode keywords = template.path("keywords");
             JsonNode questions = template.path("questions");
             String domain = requireNonBlankText(template, "domain", i);
@@ -44,9 +45,12 @@ class ClarifyQuestionTemplatesResourceTest {
 
             assertTrue(ruleSignals.isMissingNode() || ruleSignals.isArray(), "ruleSignals must be an array at index " + i);
             assertTrue(missingSlots.isArray(), "missingSlots must be an array at index " + i);
-            assertTrue(keywords.isArray(), "keywords must be an array at index " + i);
+            assertTrue(keywordGroups.isMissingNode() || keywordGroups.isArray(),
+                    "keywordGroups must be an array at index " + i);
+            assertTrue(keywords.isMissingNode() || keywords.isArray(), "keywords must be an array at index " + i);
             assertTrue(questions.isArray(), "questions must be an array at index " + i);
-            assertTrue(ruleSignals.size() > 0 || keywords.size() > 0, "template must have a matcher at index " + i);
+            assertTrue(ruleSignals.size() > 0 || keywordGroups.size() > 0 || keywords.size() > 0,
+                    "template must have a matcher at index " + i);
             assertTrue(missingSlots.size() > 0, "missingSlots must not be empty at index " + i);
             assertTrue(questions.size() > 0, "questions must not be empty at index " + i);
             assertTrue(ownerRules.add(ownerRule), "duplicate clarify ownerRule: " + ownerRule);
@@ -54,6 +58,7 @@ class ClarifyQuestionTemplatesResourceTest {
             domains.add(domain);
             assertTextArrayHasOnlyNonBlankValues(ruleSignals, "ruleSignals", i);
             assertTextArrayHasOnlyNonBlankValues(missingSlots, "missingSlots", i);
+            assertKeywordGroupsHaveOnlyNonBlankValues(keywordGroups, i);
             assertTextArrayHasOnlyNonBlankValues(keywords, "keywords", i);
             assertTextArrayHasOnlyNonBlankValues(questions, "questions", i);
             assertTrue(templateSignatures.add(template.toString()), "duplicate clarify template at index " + i);
@@ -148,6 +153,20 @@ class ClarifyQuestionTemplatesResourceTest {
             assertFalse(value.asText().isBlank(), fieldName + " value must not be blank at template " + templateIndex
                     + ", value " + valueIndex);
             valueIndex++;
+        }
+    }
+
+    private void assertKeywordGroupsHaveOnlyNonBlankValues(JsonNode keywordGroups, int templateIndex) {
+        Iterator<JsonNode> groups = keywordGroups.elements();
+        int groupIndex = 0;
+        while (groups.hasNext()) {
+            JsonNode group = groups.next();
+            assertTrue(group.isArray(), "keywordGroups value must be an array at template " + templateIndex
+                    + ", group " + groupIndex);
+            assertTrue(group.size() > 0, "keywordGroups group must not be empty at template " + templateIndex
+                    + ", group " + groupIndex);
+            assertTextArrayHasOnlyNonBlankValues(group, "keywordGroups", templateIndex);
+            groupIndex++;
         }
     }
 
