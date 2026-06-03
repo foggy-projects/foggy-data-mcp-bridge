@@ -1315,18 +1315,21 @@ public class QueryExpertService {
         if (questionTextContainsAny(query, "sla", "服务级别", "超48", "超 48", "未响应", "首响", "首次响应", "客服", "工单")) {
             questions.add("请明确 SLA 达成率定义，包括分子、分母、未响应工单如何归类，以及是否按首次响应计算。");
             questions.add("请确认 SLA 业务日历规则：自然时间、工作日、工作小时和节假日是否需要生效。");
-            questions.add("请确认是否存在按优先级区分的 SLA 阈值策略。");
+            questions.add("请确认是否存在按优先级区分的优先级阈值或 P1/P2 SLA 策略。");
+            questions.add("请确认挂起时间、暂停时长或 hold time 是否从 SLA 计时中扣除。");
             questions.add("请给出目标响应时限和时间单位，例如 48 小时或 8 个工作小时。");
         }
         if (funnelIntent) {
-            questions.add("请确认漏斗阶段定义和阶段判定规则，例如线索、商机、订单分别使用哪些字段或状态。");
+            questions.add("请确认漏斗阶段定义和阶段判定规则，例如线索到订单分别使用哪些字段或状态。");
             questions.add("请明确转化率分母口径，例如全部创建线索、有效线索或进入上一阶段的对象。");
             questions.add("请指定统计时间范围或时间窗口。");
-            questions.add("请确认去重口径和统计粒度，例如按线索、客户、商机还是订单去重。");
+            questions.add("请确认去重粒度和统计粒度，例如按线索、客户、商机还是订单去重。");
+            questions.add("请确认流失阶段或阶段归因规则，例如按最后停留阶段还是首次流失阶段统计。");
         }
         if (questionTextContainsAny(query, "预算", "实际", "支出", "费用", "差异")) {
             questions.add("请确认预算版本或预算口径，例如正式版、调整版或最新生效版本。");
-            questions.add("请确认组织统计粒度，例如部门、项目、团队或公司。");
+            questions.add("请确认实际金额范围是否包含已发生、已报销未付款、已预提等会计状态。");
+            questions.add("请确认组织统计粒度和部门口径，例如部门、项目、团队或公司。");
             questions.add("请明确币种和金额单位。");
             questions.add("请确认对比期间或本季度的起止日期。");
         }
@@ -1337,8 +1340,21 @@ public class QueryExpertService {
             questions.add("请确认意图是导出明细还是先做聚合汇总后再分析。");
         }
         if (questionTextContainsAny(query, "手机号", "身份证", "证件号", "敏感", "隐私", "导出")) {
-            questions.add("请确认敏感字段的脱敏规则、权限审批或授权策略。");
+            questions.add("请确认手机号脱敏、证件号脱敏等敏感字段 masking 规则、权限审批或授权策略。");
             questions.add("请说明导出接收人、用途和数据范围。");
+            questions.add("请确认高价值客户定义和导出范围或行数限制。");
+        }
+        if (questionTextContainsAny(query, "join", "关联", "客户名称", "客户id", "客户 id", "购买金额", "投诉次数", "逾期应收", "经营风险", "风险最大")) {
+            questions.add("请确认跨域关联键或 join key，例如使用客户名称、客户 ID 还是统一客户主键。");
+            questions.add("请明确经营风险公式或风险评分规则，例如购买金额、投诉次数、逾期应收金额的权重。");
+            questions.add("请确认统计粒度和客户粒度，例如按客户、账户、门店还是集团客户汇总。");
+            questions.add("请确认各域数据的时间范围一致或期间对齐规则。");
+        }
+        if (questionTextContainsAny(query, "留存", "流失率", "注册月份", "首次购买渠道", "队列", "cohort", "retention", "churn")) {
+            questions.add("请明确留存定义，例如注册后 N 天、N 月内复购或仍活跃。");
+            questions.add("请明确流失定义，例如连续 N 天未活跃、未购买或合同到期。");
+            questions.add("请确认 cohort 队列粒度，例如按注册月份、注册周还是首次购买月份分组。");
+            questions.add("请确认首次购买渠道和渠道归因规则，例如按首单渠道还是注册来源归因。");
         }
         if (rules.contains("sales_target_version_guard")
                 || rules.contains("budget_or_target_ambiguity")

@@ -138,7 +138,7 @@ class QueryExpertServiceRoutingCalibrationTest {
         DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-sla", null);
 
         assertEquals("clarify", response.getType());
-        assertQuestionTextContains(response, "SLA", "达成率", "业务日历", "优先级", "时间单位");
+        assertQuestionTextContains(response, "SLA", "达成率", "业务日历", "优先级阈值", "P1/P2 SLA", "挂起时间", "时间单位");
         assertTerminalRouteWithoutTools(response);
     }
 
@@ -155,7 +155,7 @@ class QueryExpertServiceRoutingCalibrationTest {
         DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-funnel", null);
 
         assertEquals("clarify", response.getType());
-        assertQuestionTextContains(response, "阶段定义", "分母", "时间范围", "去重", "统计粒度");
+        assertQuestionTextContains(response, "阶段定义", "线索到订单", "转化率分母", "时间范围", "去重粒度", "统计粒度", "流失阶段", "阶段归因");
         assertTerminalRouteWithoutTools(response);
     }
 
@@ -172,7 +172,7 @@ class QueryExpertServiceRoutingCalibrationTest {
         DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-budget", null);
 
         assertEquals("clarify", response.getType());
-        assertQuestionTextContains(response, "预算版本", "组织", "币种", "对比期间");
+        assertQuestionTextContains(response, "预算版本", "已发生", "已报销未付款", "已预提", "部门口径", "组织", "币种", "对比期间");
         assertTerminalRouteWithoutTools(response);
     }
 
@@ -207,8 +207,42 @@ class QueryExpertServiceRoutingCalibrationTest {
         DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-sensitive-export", null);
 
         assertEquals("clarify", response.getType());
-        assertQuestionTextContains(response, "脱敏", "权限", "接收人", "用途", "数据范围");
+        assertQuestionTextContains(response, "手机号脱敏", "脱敏", "权限", "接收人", "用途", "数据范围", "高价值客户定义", "导出范围", "行数限制");
         assertQuestionTextNotContains(response, "阶段定义", "转化率分母");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按跨域关联风险场景生成关联键/风险评分/粒度/期间澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareCrossDomainRiskQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "把客户购买金额、售后投诉次数、逾期应收金额 join 到客户名称上，找出经营风险最大的客户。",
+                List.of("grain_mismatch", "governance_risk", "needs_business_rule"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-cross-domain-risk", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "join key", "客户名称", "客户 ID", "关联键", "经营风险公式", "风险评分", "统计粒度", "客户粒度", "时间范围一致", "期间对齐");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按留存队列场景生成留存/流失/cohort/渠道归因澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareCohortRetentionQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按注册月份看客户留存率和流失率，并按首次购买渠道分析。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-cohort-retention", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "留存定义", "流失定义", "cohort", "队列粒度", "注册月份", "首次购买渠道", "渠道归因");
         assertTerminalRouteWithoutTools(response);
     }
 
