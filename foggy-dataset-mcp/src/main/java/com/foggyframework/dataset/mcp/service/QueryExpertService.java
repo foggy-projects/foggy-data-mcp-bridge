@@ -1408,6 +1408,41 @@ public class QueryExpertService {
             questions.add("请明确里程碑验收 milestone acceptance 的状态和日期口径。");
             questions.add("请确认延期风险 delay risk rule，例如逾期天数、未验收里程碑或剩余工时阈值。");
         }
+        if (questionTextContainsAny(query, "合同履约", "违约风险", "违约金", "合同条款", "履约进度", "法务", "续签条款")) {
+            questions.add("请确认合同履约口径 contract performance，例如按交付节点、服务周期还是付款节点判断。");
+            questions.add("请明确违约风险规则 breach risk rule，例如逾期天数、未达 SLA 或未付款触发。");
+            questions.add("请确认违约金公式 penalty formula，例如固定金额、合同额比例还是按天累加。");
+            questions.add("请明确合同条款 clause scope，例如付款条款、验收条款、续签条款或免责条款。");
+            questions.add("请确认合同版本、补充协议或 contract version 的生效优先级。");
+        }
+        if (questionTextContainsAny(query, "采购结算", "采购对账", "对账单", "入库", "付款条件", "采购价差", "三单匹配")) {
+            questions.add("请确认采购结算口径 procurement settlement basis，例如按订单、入库单、发票还是对账单。");
+            questions.add("请明确三单匹配 matching rule，例如采购订单、入库单和发票如何关联。");
+            questions.add("请确认采购价差 purchase price variance 的计算口径。");
+            questions.add("请明确付款条件 payment terms，例如账期、预付款、尾款和扣款规则。");
+            questions.add("请确认入库数量、退货或 receipt basis 对结算金额的影响。");
+        }
+        if (questionTextContainsAny(query, "渠道返利", "渠道返点", "返利", "返点", "经销商", "达量", "阶梯返利")) {
+            questions.add("请确认返利政策 rebate policy，例如固定返点、阶梯返利还是达量奖励。");
+            questions.add("请明确达量口径 volume threshold，例如按销量、销售额、回款额还是净额计算。");
+            questions.add("请确认经销商层级、渠道层级或 channel hierarchy 的统计口径。");
+            questions.add("请明确返利确认时点 rebate recognition，例如下单、发货、回款还是期末确认。");
+            questions.add("请确认退货、冲销或 clawback rule 对返利金额的影响。");
+        }
+        if (questionTextContainsAny(query, "售后赔付", "客诉赔偿", "质保", "保修", "维修成本", "退换货成本", "质量索赔")) {
+            questions.add("请确认售后赔付口径 after-sales compensation basis，例如现金赔付、优惠券、维修或换货成本。");
+            questions.add("请明确质保期 warranty window，例如按发货日、签收日还是安装验收日计算。");
+            questions.add("请确认责任归因 responsibility attribution，例如产品质量、物流、客户原因或供应商责任。");
+            questions.add("请明确退换货成本 return exchange cost 的归集规则。");
+            questions.add("请确认赔付状态 compensation status，例如申请、审批、已支付或已关闭如何统计。");
+        }
+        if (questionTextContainsAny(query, "产能", "排班", "班次", "设备负荷", "瓶颈工序", "稼动率", "人力缺口")) {
+            questions.add("请确认产能公式 capacity formula，例如标准产能、实际产能还是可用工时产能。");
+            questions.add("请明确排班规则 scheduling rule，例如班次、休息日、加班和换线时间如何计入。");
+            questions.add("请确认设备负荷 machine load 或稼动率 utilization 的分母口径。");
+            questions.add("请明确瓶颈工序 bottleneck process 的识别规则。");
+            questions.add("请确认人力缺口 labor gap 的计算口径，例如按岗位、技能、班次还是产线。");
+        }
         if (questionTextContainsAny(query, "供应商", "交付延迟", "延期", "质检不合格", "采购品类", "采购员", "风险等级")) {
             questions.add("请确认交付延迟定义或 delay policy，例如按承诺交期还是实际到货日期计算延期天数。");
             questions.add("请明确质检不合格率、质检口径或 quality failure 的分子分母。");

@@ -486,6 +486,91 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按合同履约场景生成履约/违约/违约金/条款/版本澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareContractPerformanceQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按客户识别合同履约进度和违约风险，结合合同条款、违约金和续签条款。",
+                List.of("governance_risk", "needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-contract-performance", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "合同履约口径", "contract performance", "违约风险规则", "breach risk rule", "违约金公式", "penalty formula", "合同条款", "clause scope", "续签条款", "合同版本", "contract version");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按采购结算场景生成结算/三单匹配/价差/付款/入库澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareProcurementSettlementQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "按供应商核对采购结算差异，关联采购对账单、入库、付款条件、采购价差和三单匹配。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-procurement-settlement", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "采购结算口径", "procurement settlement basis", "三单匹配", "matching rule", "采购价差", "purchase price variance", "付款条件", "payment terms", "入库数量", "receipt basis");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按渠道返利场景生成返利政策/达量/层级/确认/冲销澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareChannelRebateQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "计算本季度经销商渠道返利和渠道返点，按达量、阶梯返利和退货冲销拆分。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-channel-rebate", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "返利政策", "rebate policy", "达量口径", "volume threshold", "经销商层级", "channel hierarchy", "返利确认时点", "rebate recognition", "退货", "clawback rule");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按售后赔付场景生成赔付/质保/责任/退换货/状态澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareAfterSalesCompensationQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "统计本月售后赔付和客诉赔偿金额，区分质保、维修成本、退换货成本和质量索赔责任。",
+                List.of("governance_risk", "needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-after-sales-compensation", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "售后赔付口径", "after-sales compensation basis", "质保期", "warranty window", "责任归因", "responsibility attribution", "退换货成本", "return exchange cost", "赔付状态", "compensation status");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("CLARIFY terminal guard 应按产能排班场景生成产能/排班/负荷/瓶颈/人力缺口澄清问题")
+    void clarifyTerminalGuard_shouldAskScenarioAwareCapacitySchedulingQuestions() {
+        DatasetNLQueryRequest request = terminalClarifyRequest(
+                "分析下周各产线产能和排班缺口，结合班次、设备负荷、瓶颈工序、稼动率和人力缺口。",
+                List.of("needs_business_rule", "needs_metric_definition", "needs_time_range", "unsupported_prediction"),
+                List.of()
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-terminal-capacity-scheduling", null);
+
+        assertEquals("clarify", response.getType());
+        assertQuestionTextContains(response, "产能公式", "capacity formula", "排班规则", "scheduling rule", "设备负荷", "machine load", "稼动率", "utilization", "瓶颈工序", "bottleneck process", "人力缺口", "labor gap");
+        assertTerminalRouteWithoutTools(response);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("CLARIFY terminal guard 应按供应商风险场景生成延迟/质检/风险等级/供应商/采购粒度澄清问题")
     void clarifyTerminalGuard_shouldAskScenarioAwareSupplierRiskQuestions() {
         DatasetNLQueryRequest request = terminalClarifyRequest(
