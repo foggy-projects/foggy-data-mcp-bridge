@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "description": "Clarify routing evaluation fixtures mapped to routing/clarify-question-templates.json",
+  "source_catalog": "routing/clarify-question-templates.json",
+  "testCases": [
+    {
+      "id": "CLARIFY-RECEIVABLE-AGING-001",
+      "scenario": "receivable_aging",
+      "question": "统计逾期应收的回款风险，按客户分层给出 30/60/90 天账龄和风险等级。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["逾期应收", "账龄", "回款风险"],
+      "expected_question_terms": ["账龄基准日", "账龄桶", "风险等级", "应收余额"]
+    },
+    {
+      "id": "CLARIFY-BUDGET-VARIANCE-001",
+      "scenario": "budget_variance",
+      "question": "本季度费用预算和实际支出差异在哪里？",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["预算", "实际"],
+      "expected_question_terms": ["预算版本", "实际金额范围", "组织统计粒度", "币种"]
+    },
+    {
+      "id": "CLARIFY-INVENTORY-TURNOVER-001",
+      "scenario": "inventory_turnover",
+      "question": "按仓库和品类看库存周转天数异常的商品，并排除季节性备货。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["库存周转", "周转天数"],
+      "expected_question_terms": ["周转天数公式", "库存金额口径", "季节性备货", "异常阈值"]
+    },
+    {
+      "id": "CLARIFY-REFUND-RATE-001",
+      "scenario": "refund_rate",
+      "question": "统计最近 90 天各渠道退款率和退款金额占比，排除售后补差价订单。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["退款率"],
+      "expected_question_terms": ["退款率分母", "退款金额口径", "补差价订单排除规则", "渠道归因"]
+    },
+    {
+      "id": "CLARIFY-SUBSCRIPTION-RENEWAL-001",
+      "scenario": "subscription_renewal_risk",
+      "question": "按套餐和客户成功负责人评估下季度续费收入风险，结合历史流失、合同到期和本月活跃度。",
+      "expected_route": "CLARIFY",
+      "expected_rule_signals": ["subscription_renewal_risk_boundary"],
+      "expected_template_keywords": ["续费", "流失"],
+      "expected_question_terms": ["续费收入口径", "风险评分", "合同到期口径", "活跃度定义"]
+    },
+    {
+      "id": "CLARIFY-MARKETING-ATTRIBUTION-001",
+      "scenario": "marketing_attribution",
+      "question": "评估本月各投放渠道带来的新增付费客户和收入贡献，按最后点击和首触分别算。",
+      "expected_route": "CLARIFY",
+      "expected_rule_signals": ["marketing_attribution_boundary"],
+      "expected_template_keywords": ["投放渠道", "收入贡献"],
+      "expected_question_terms": ["归因模型", "转化窗口", "新增付费客户定义", "客户去重"]
+    },
+    {
+      "id": "CLARIFY-MANUFACTURING-YIELD-001",
+      "scenario": "manufacturing_yield",
+      "question": "分析本周各产线良率下降的主要原因，关联设备停机、返工和来料批次。",
+      "expected_route": "CLARIFY",
+      "expected_rule_signals": ["manufacturing_yield_boundary"],
+      "expected_template_keywords": ["良率"],
+      "expected_question_terms": ["良率公式", "下降基准", "设备停机口径", "返工定义"]
+    },
+    {
+      "id": "CLARIFY-UNBOUNDED-MEMORY-001",
+      "scenario": "unbounded_memory_governance",
+      "question": "把所有历史订单明细都取出来后，临时按自定义金额区间重新分桶分析。",
+      "expected_route": "CLARIFY",
+      "expected_rule_signals": ["unbounded_memory_governance"],
+      "expected_template_keywords": ["所有历史", "明细都取出来"],
+      "expected_question_terms": ["结果范围", "最大行数", "导出明细", "聚合汇总"]
+    },
+    {
+      "id": "CLARIFY-SENSITIVE-EXPORT-001",
+      "scenario": "sensitive_export",
+      "question": "导出本月下单客户的手机号、身份证号和订单金额。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["导出", "手机号"],
+      "expected_question_terms": ["手机号脱敏", "导出接收人", "数据范围", "行数限制"]
+    },
+    {
+      "id": "CLARIFY-CROSS-DOMAIN-RISK-001",
+      "scenario": "cross_domain_risk",
+      "question": "把客户购买金额、售后投诉次数、逾期应收金额 join 到客户名称上，找出经营风险最大的客户。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["join", "经营风险"],
+      "expected_question_terms": ["跨域关联键", "经营风险公式", "客户粒度", "时间范围"]
+    },
+    {
+      "id": "CLARIFY-COHORT-RETENTION-001",
+      "scenario": "cohort_retention",
+      "question": "按注册月份看客户留存率和流失率，并按首次购买渠道分析。",
+      "expected_route": "CLARIFY",
+      "expected_template_keywords": ["留存", "流失率"],
+      "expected_question_terms": ["留存定义", "流失定义", "cohort 队列粒度", "首次购买渠道"]
+    },
+    {
+      "id": "CLARIFY-SALES-TARGET-001",
+      "scenario": "sales_target_version",
+      "question": "按区域负责人看年度目标完成率，目标中途调整过，实际收入要扣除退款。",
+      "expected_route": "CLARIFY",
+      "expected_rule_signals": ["sales_target_version_guard", "budget_or_target_ambiguity"],
+      "expected_template_keywords": ["目标完成率", "中途调整"],
+      "expected_question_terms": ["目标版本", "中途调整", "目标完成率计算公式", "实际收入公式"]
+    }
+  ]
+}
