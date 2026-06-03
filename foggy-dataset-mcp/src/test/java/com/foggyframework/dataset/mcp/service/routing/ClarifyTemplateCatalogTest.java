@@ -21,11 +21,15 @@ class ClarifyTemplateCatalogTest {
                 .stream()
                 .map(ClarifyTemplateCatalog.MissingSlot::slot)
                 .toList();
+        List<ClarifyTemplateCatalog.TemplateMatch> matches =
+                catalog.matchingTemplates("统计客服工单 SLA 超 48 小时未响应的占比", List.of());
 
         assertTrue(questions.stream().anyMatch(question -> question.contains("SLA 达成率定义")));
         assertTrue(questions.stream().anyMatch(question -> question.contains("目标响应时限")));
         assertTrue(missingSlots.contains("sla_definition"));
         assertTrue(missingSlots.contains("target_response_threshold"));
+        assertTrue(matches.contains(new ClarifyTemplateCatalog.TemplateMatch(
+                "service_ticket", "service_ticket_sla", "service_ticket_sla_boundary")));
     }
 
     @Test

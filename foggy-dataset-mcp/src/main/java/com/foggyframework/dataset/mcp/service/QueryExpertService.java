@@ -1291,6 +1291,8 @@ public class QueryExpertService {
                     routingCalibrationClarifyMissingSlotDetails(calibrationAction, request);
             detail.put("clarify_missing_slots", clarifyMissingSlotNames(missingSlotDetails));
             detail.put("clarify_missing_slot_details", clarifyMissingSlotDetailPayload(missingSlotDetails));
+            detail.put("clarify_template_matches", routingCalibrationClarifyTemplateMatchPayload(
+                    calibrationAction, request));
             response = DatasetNLQueryResponse.builder()
                     .type("clarify")
                     .code(ROUTING_TERMINAL_CLARIFY_CODE)
@@ -1381,6 +1383,28 @@ public class QueryExpertService {
             addMissingSlot(missingSlots, "query_boundary", "fallback", "terminal_clarify", true);
         }
         return List.copyOf(missingSlots.values());
+    }
+
+    private static List<Map<String, Object>> routingCalibrationClarifyTemplateMatchPayload(
+            RoutingCalibrationAction calibrationAction,
+            DatasetNLQueryRequest request
+    ) {
+        String query = normalizeQuestionText(request != null ? request.getQuery() : "");
+        Set<String> rules = normalizedSignalSet(calibrationAction.appliedRules());
+        List<ClarifyTemplateCatalog.TemplateMatch> matches =
+                CLARIFY_TEMPLATE_CATALOG.matchingTemplates(query, rules);
+        if (matches.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> payload = new ArrayList<>(matches.size());
+        for (ClarifyTemplateCatalog.TemplateMatch match : matches) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("domain", match.domain());
+            item.put("riskType", match.riskType());
+            item.put("ownerRule", match.ownerRule());
+            payload.add(item);
+        }
+        return List.copyOf(payload);
     }
 
     private static List<String> clarifyMissingSlotNames(List<ClarifyMissingSlot> missingSlotDetails) {

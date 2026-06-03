@@ -93,6 +93,9 @@ class ClarifyQuestionTemplatesResourceTest {
         JsonNode fixture = readJson(FIXTURE_PATH);
         Set<String> catalogRuleSignals = collectTextValues(templates, "ruleSignals");
         Set<String> catalogKeywords = collectTemplateMatcherTerms(templates);
+        Set<String> catalogOwnerRules = collectScalarTextValues(templates, "ownerRule");
+        Set<String> catalogRiskTypes = collectScalarTextValues(templates, "riskType");
+        Set<String> catalogDomains = collectScalarTextValues(templates, "domain");
         Set<String> catalogMissingSlots = collectTextValues(templates, "missingSlots");
         Set<String> catalogQuestions = collectTextValues(templates, "questions");
 
@@ -111,20 +114,32 @@ class ClarifyQuestionTemplatesResourceTest {
             assertTrue(testCaseIds.add(id), "duplicate clarify routing fixture id: " + id);
 
             JsonNode expectedRuleSignals = testCase.path("expected_rule_signals");
+            JsonNode expectedOwnerRules = testCase.path("expected_template_owner_rules");
+            JsonNode expectedRiskTypes = testCase.path("expected_template_risk_types");
+            JsonNode expectedDomains = testCase.path("expected_template_domains");
             JsonNode expectedTemplateKeywords = testCase.path("expected_template_keywords");
             JsonNode expectedMissingSlots = testCase.path("expected_missing_slots");
             JsonNode expectedQuestionTerms = testCase.path("expected_question_terms");
             assertTrue(expectedRuleSignals.isMissingNode() || expectedRuleSignals.isArray(),
                     "expected_rule_signals must be an array at index " + i);
+            assertTrue(expectedOwnerRules.isArray(), "expected_template_owner_rules must be an array at index " + i);
+            assertTrue(expectedRiskTypes.isArray(), "expected_template_risk_types must be an array at index " + i);
+            assertTrue(expectedDomains.isArray(), "expected_template_domains must be an array at index " + i);
             assertTrue(expectedTemplateKeywords.isArray(), "expected_template_keywords must be an array at index " + i);
             assertTrue(expectedMissingSlots.isArray(), "expected_missing_slots must be an array at index " + i);
             assertTrue(expectedQuestionTerms.isArray(), "expected_question_terms must be an array at index " + i);
             assertTrue(expectedRuleSignals.size() > 0 || expectedTemplateKeywords.size() > 0,
                     "fixture must reference rule signals or template keywords at index " + i);
+            assertTrue(expectedOwnerRules.size() > 0, "expected_template_owner_rules must not be empty at index " + i);
+            assertTrue(expectedRiskTypes.size() > 0, "expected_template_risk_types must not be empty at index " + i);
+            assertTrue(expectedDomains.size() > 0, "expected_template_domains must not be empty at index " + i);
             assertTrue(expectedMissingSlots.size() > 0, "expected_missing_slots must not be empty at index " + i);
             assertTrue(expectedQuestionTerms.size() > 0, "expected_question_terms must not be empty at index " + i);
 
             assertFixtureValuesExist(expectedRuleSignals, catalogRuleSignals, "rule signal", id, i);
+            assertFixtureValuesExist(expectedOwnerRules, catalogOwnerRules, "template ownerRule", id, i);
+            assertFixtureValuesExist(expectedRiskTypes, catalogRiskTypes, "template riskType", id, i);
+            assertFixtureValuesExist(expectedDomains, catalogDomains, "template domain", id, i);
             assertFixtureValuesExist(expectedTemplateKeywords, catalogKeywords, "template keyword", id, i);
             assertFixtureValuesExist(expectedMissingSlots, catalogMissingSlots, "missing slot", id, i);
             assertTextArrayHasOnlyNonBlankValues(expectedQuestionTerms, "expected_question_terms", i);
@@ -174,6 +189,17 @@ class ClarifyQuestionTemplatesResourceTest {
         Set<String> values = new LinkedHashSet<>();
         for (JsonNode template : templates) {
             for (JsonNode value : template.path(fieldName)) {
+                values.add(value.asText());
+            }
+        }
+        return values;
+    }
+
+    private Set<String> collectScalarTextValues(JsonNode templates, String fieldName) {
+        Set<String> values = new LinkedHashSet<>();
+        for (JsonNode template : templates) {
+            JsonNode value = template.path(fieldName);
+            if (value.isTextual()) {
                 values.add(value.asText());
             }
         }

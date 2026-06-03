@@ -8,6 +8,9 @@
       "scenario": "service_ticket_sla",
       "question": "统计各客服团队超 48 小时未响应工单数量和 SLA 达成率。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["service_ticket_sla_boundary"],
+      "expected_template_risk_types": ["service_ticket_sla"],
+      "expected_template_domains": ["service_ticket"],
       "expected_template_keywords": ["客服", "SLA", "超 48", "未响应"],
       "expected_missing_slots": ["sla_definition", "business_calendar", "priority_sla_policy", "hold_time_policy", "target_response_threshold"],
       "expected_question_terms": ["SLA 达成率定义", "业务日历", "优先级阈值", "目标响应时限"]
@@ -17,6 +20,9 @@
       "scenario": "service_ticket_backlog",
       "question": "找出本月积压最严重的客服团队，按超期、挂起、待客户回复分别给出数量和占比。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["service_ticket_backlog_boundary"],
+      "expected_template_risk_types": ["service_ticket_backlog"],
+      "expected_template_domains": ["service_ticket"],
       "expected_template_keywords": ["积压", "待客户回复"],
       "expected_missing_slots": ["backlog_status_policy", "overdue_definition", "customer_wait_policy", "ratio_denominator"],
       "expected_question_terms": ["积压状态", "超期定义", "待客户回复", "占比分母"]
@@ -27,6 +33,9 @@
       "question": "从线索到商机到订单，各阶段转化率是多少？",
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["missing_funnel_definition"],
+      "expected_template_owner_rules": ["missing_funnel_definition"],
+      "expected_template_risk_types": ["funnel_definition"],
+      "expected_template_domains": ["sales_funnel"],
       "expected_template_keywords": ["线索", "商机", "订单", "转化率"],
       "expected_missing_slots": ["funnel_stage_definition", "conversion_denominator", "time_range", "dedup_grain", "drop_off_attribution"],
       "expected_question_terms": ["漏斗阶段定义", "转化率分母", "时间范围", "去重粒度", "流失阶段"]
@@ -36,6 +45,9 @@
       "scenario": "receivable_aging",
       "question": "统计逾期应收的回款风险，按客户分层给出 30/60/90 天账龄和风险等级。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["receivable_aging_boundary"],
+      "expected_template_risk_types": ["metric_definition"],
+      "expected_template_domains": ["finance_receivables"],
       "expected_template_keywords": ["逾期应收", "账龄", "回款风险"],
       "expected_missing_slots": ["aging_as_of_date", "aging_bucket_rule", "risk_rating_rule", "receivable_amount_basis"],
       "expected_question_terms": ["账龄基准日", "账龄桶", "风险等级", "应收余额"]
@@ -45,6 +57,9 @@
       "scenario": "budget_variance",
       "question": "本季度费用预算和实际支出差异在哪里？",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["budget_variance_boundary"],
+      "expected_template_risk_types": ["metric_definition"],
+      "expected_template_domains": ["finance_budget"],
       "expected_template_keywords": ["预算", "实际"],
       "expected_missing_slots": ["budget_version", "actual_amount_scope", "organization_grain", "currency_amount_unit", "comparison_period"],
       "expected_question_terms": ["预算版本", "实际金额范围", "组织统计粒度", "币种"]
@@ -54,6 +69,9 @@
       "scenario": "inventory_turnover",
       "question": "按仓库和品类看库存周转天数异常的商品，并排除季节性备货。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["inventory_turnover_boundary"],
+      "expected_template_risk_types": ["metric_definition"],
+      "expected_template_domains": ["supply_chain_inventory"],
       "expected_template_keywords": ["库存周转", "周转天数"],
       "expected_missing_slots": ["turnover_formula", "stock_basis", "seasonal_exclusion_policy", "anomaly_threshold"],
       "expected_question_terms": ["周转天数公式", "库存金额口径", "季节性备货", "异常阈值"]
@@ -63,6 +81,9 @@
       "scenario": "refund_rate",
       "question": "统计最近 90 天各渠道退款率和退款金额占比，排除售后补差价订单。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["refund_rate_boundary"],
+      "expected_template_risk_types": ["metric_definition"],
+      "expected_template_domains": ["commerce_refund"],
       "expected_template_keywords": ["退款率"],
       "expected_missing_slots": ["refund_rate_denominator", "refund_amount_basis", "price_adjustment_exclusion_policy", "channel_attribution"],
       "expected_question_terms": ["退款率分母", "退款金额口径", "补差价订单排除规则", "渠道归因"]
@@ -73,6 +94,9 @@
       "question": "按套餐和客户成功负责人评估下季度续费收入风险，结合历史流失、合同到期和本月活跃度。",
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["subscription_renewal_risk_boundary"],
+      "expected_template_owner_rules": ["subscription_renewal_risk_boundary"],
+      "expected_template_risk_types": ["prediction_boundary"],
+      "expected_template_domains": ["subscription_revenue"],
       "expected_template_keywords": ["续费", "流失"],
       "expected_missing_slots": ["renewal_window", "risk_score_formula", "contract_expiry_policy", "activity_metric", "renewal_revenue_basis"],
       "expected_question_terms": ["续费收入口径", "风险评分", "合同到期口径", "活跃度定义"]
@@ -83,6 +107,9 @@
       "question": "评估本月各投放渠道带来的新增付费客户和收入贡献，按最后点击和首触分别算。",
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["marketing_attribution_boundary"],
+      "expected_template_owner_rules": ["marketing_attribution_boundary"],
+      "expected_template_risk_types": ["attribution_boundary"],
+      "expected_template_domains": ["marketing"],
       "expected_template_keywords": ["投放渠道", "收入贡献"],
       "expected_missing_slots": ["attribution_model", "conversion_window", "new_paid_customer_definition", "revenue_basis", "customer_dedup_grain"],
       "expected_question_terms": ["归因模型", "转化窗口", "新增付费客户定义", "客户去重"]
@@ -93,6 +120,9 @@
       "question": "分析本周各产线良率下降的主要原因，关联设备停机、返工和来料批次。",
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["manufacturing_yield_boundary"],
+      "expected_template_owner_rules": ["manufacturing_yield_boundary"],
+      "expected_template_risk_types": ["metric_definition"],
+      "expected_template_domains": ["manufacturing_quality"],
       "expected_template_keywords": ["良率"],
       "expected_missing_slots": ["yield_formula", "yield_baseline", "downtime_policy", "rework_policy", "lot_trace_rule"],
       "expected_question_terms": ["良率公式", "下降基准", "设备停机口径", "返工定义"]
@@ -103,6 +133,9 @@
       "question": "把所有历史订单明细都取出来后，临时按自定义金额区间重新分桶分析。",
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["unbounded_memory_governance"],
+      "expected_template_owner_rules": ["unbounded_memory_governance"],
+      "expected_template_risk_types": ["result_size_risk"],
+      "expected_template_domains": ["governance"],
       "expected_template_keywords": ["所有历史", "明细都取出来"],
       "expected_missing_slots": ["result_scope", "max_rows", "detail_export_or_aggregation"],
       "expected_question_terms": ["结果范围", "最大行数", "导出明细", "聚合汇总"]
@@ -112,6 +145,9 @@
       "scenario": "sensitive_export",
       "question": "导出本月下单客户的手机号、身份证号和订单金额。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["sensitive_export_boundary"],
+      "expected_template_risk_types": ["privacy_export"],
+      "expected_template_domains": ["governance"],
       "expected_template_keywords": ["导出", "手机号"],
       "expected_missing_slots": ["masking_policy", "export_recipient", "export_purpose", "data_scope", "row_limit"],
       "expected_question_terms": ["手机号脱敏", "导出接收人", "数据范围", "行数限制"]
@@ -121,6 +157,9 @@
       "scenario": "cross_domain_risk",
       "question": "把客户购买金额、售后投诉次数、逾期应收金额 join 到客户名称上，找出经营风险最大的客户。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["cross_domain_risk_boundary"],
+      "expected_template_risk_types": ["join_grain_risk"],
+      "expected_template_domains": ["cross_domain_analysis"],
       "expected_template_keywords": ["join", "经营风险"],
       "expected_missing_slots": ["join_key", "risk_score_formula", "customer_grain", "time_range_alignment"],
       "expected_question_terms": ["跨域关联键", "经营风险公式", "客户粒度", "时间范围"]
@@ -130,6 +169,9 @@
       "scenario": "cohort_retention",
       "question": "按注册月份看客户留存率和流失率，并按首次购买渠道分析。",
       "expected_route": "CLARIFY",
+      "expected_template_owner_rules": ["cohort_retention_boundary"],
+      "expected_template_risk_types": ["cohort_definition"],
+      "expected_template_domains": ["customer_retention"],
       "expected_template_keywords": ["留存", "流失率"],
       "expected_missing_slots": ["retention_definition", "churn_definition", "cohort_grain", "first_purchase_channel_attribution"],
       "expected_question_terms": ["留存定义", "流失定义", "cohort 队列粒度", "首次购买渠道"]
@@ -140,6 +182,9 @@
       "question": "按区域负责人看年度目标完成率，目标中途调整过，实际收入要扣除退款。",
       "expected_route": "CLARIFY",
       "expected_rule_signals": ["sales_target_version_guard", "budget_or_target_ambiguity"],
+      "expected_template_owner_rules": ["sales_target_version_guard"],
+      "expected_template_risk_types": ["target_version_policy"],
+      "expected_template_domains": ["sales_target"],
       "expected_template_keywords": ["目标完成率", "中途调整"],
       "expected_missing_slots": ["target_version_policy", "target_adjustment_effective_rule", "target_completion_formula", "actual_revenue_formula", "target_period", "owner_grain"],
       "expected_question_terms": ["目标版本", "中途调整", "目标完成率计算公式", "实际收入公式"]

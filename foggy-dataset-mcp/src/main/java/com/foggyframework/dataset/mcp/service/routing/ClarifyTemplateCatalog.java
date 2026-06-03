@@ -48,29 +48,41 @@ public final class ClarifyTemplateCatalog {
     }
 
     public List<String> matchingQuestions(String query, Collection<String> rules) {
-        String normalizedQuery = normalizeQuestionText(query);
-        Set<String> normalizedRules = normalizedSignalSet(rules);
         LinkedHashSet<String> questions = new LinkedHashSet<>();
-        for (ClarifyQuestionTemplate template : templates) {
-            if (template.matches(normalizedQuery, normalizedRules)) {
-                questions.addAll(template.questions());
-            }
+        for (ClarifyQuestionTemplate template : matchingQuestionTemplates(query, rules)) {
+            questions.addAll(template.questions());
         }
         return List.copyOf(questions);
     }
 
     public List<MissingSlot> matchingMissingSlots(String query, Collection<String> rules) {
-        String normalizedQuery = normalizeQuestionText(query);
-        Set<String> normalizedRules = normalizedSignalSet(rules);
         LinkedHashSet<MissingSlot> missingSlots = new LinkedHashSet<>();
-        for (ClarifyQuestionTemplate template : templates) {
-            if (template.matches(normalizedQuery, normalizedRules)) {
-                for (String missingSlot : template.missingSlots()) {
-                    missingSlots.add(new MissingSlot(missingSlot, template.riskType(), template.ownerRule(), true));
-                }
+        for (ClarifyQuestionTemplate template : matchingQuestionTemplates(query, rules)) {
+            for (String missingSlot : template.missingSlots()) {
+                missingSlots.add(new MissingSlot(missingSlot, template.riskType(), template.ownerRule(), true));
             }
         }
         return List.copyOf(missingSlots);
+    }
+
+    public List<TemplateMatch> matchingTemplates(String query, Collection<String> rules) {
+        LinkedHashSet<TemplateMatch> matches = new LinkedHashSet<>();
+        for (ClarifyQuestionTemplate template : matchingQuestionTemplates(query, rules)) {
+            matches.add(new TemplateMatch(template.domain(), template.riskType(), template.ownerRule()));
+        }
+        return List.copyOf(matches);
+    }
+
+    private List<ClarifyQuestionTemplate> matchingQuestionTemplates(String query, Collection<String> rules) {
+        String normalizedQuery = normalizeQuestionText(query);
+        Set<String> normalizedRules = normalizedSignalSet(rules);
+        List<ClarifyQuestionTemplate> matches = new ArrayList<>();
+        for (ClarifyQuestionTemplate template : templates) {
+            if (template.matches(normalizedQuery, normalizedRules)) {
+                matches.add(template);
+            }
+        }
+        return List.copyOf(matches);
     }
 
     private static Set<String> normalizedSignalSet(Collection<String> values) {
@@ -124,6 +136,13 @@ public final class ClarifyTemplateCatalog {
             String type,
             String source,
             boolean required
+    ) {
+    }
+
+    public record TemplateMatch(
+            String domain,
+            String riskType,
+            String ownerRule
     ) {
     }
 

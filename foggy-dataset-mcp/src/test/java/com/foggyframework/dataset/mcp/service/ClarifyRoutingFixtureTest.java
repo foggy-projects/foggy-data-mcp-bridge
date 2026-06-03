@@ -99,6 +99,7 @@ class ClarifyRoutingFixtureTest {
         assertQuestionTextContains(response, testCase.questionTerms());
         assertMissingSlotsContain(response, testCase.missingSlots());
         assertStructuredMissingSlotDetails(detail, testCase.missingSlots());
+        assertTemplateMatches(detail, testCase.ownerRules(), testCase.riskTypes(), testCase.domains());
         verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
     }
 
@@ -111,6 +112,9 @@ class ClarifyRoutingFixtureTest {
                     testCase.path("id").asText(),
                     testCase.path("question").asText(),
                     textValues(testCase.path("expected_rule_signals")),
+                    textValues(testCase.path("expected_template_owner_rules")),
+                    textValues(testCase.path("expected_template_risk_types")),
+                    textValues(testCase.path("expected_template_domains")),
                     textValues(testCase.path("expected_missing_slots")),
                     textValues(testCase.path("expected_question_terms"))
             )));
@@ -192,10 +196,44 @@ class ClarifyRoutingFixtureTest {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private static void assertTemplateMatches(Map<String, Object> detail, List<String> expectedOwnerRules,
+                                              List<String> expectedRiskTypes, List<String> expectedDomains) {
+        assertInstanceOf(List.class, detail.get("clarify_template_matches"),
+                "clarify detail must expose matched template metadata");
+        Set<String> ownerRules = new LinkedHashSet<>();
+        Set<String> riskTypes = new LinkedHashSet<>();
+        Set<String> domains = new LinkedHashSet<>();
+        for (Object value : (List<?>) detail.get("clarify_template_matches")) {
+            assertInstanceOf(Map.class, value, "template match detail must be a map");
+            Map<String, Object> match = (Map<String, Object>) value;
+            assertNotNull(match.get("ownerRule"), "template match must expose ownerRule");
+            assertNotNull(match.get("riskType"), "template match must expose riskType");
+            assertNotNull(match.get("domain"), "template match must expose domain");
+            ownerRules.add(String.valueOf(match.get("ownerRule")));
+            riskTypes.add(String.valueOf(match.get("riskType")));
+            domains.add(String.valueOf(match.get("domain")));
+        }
+        assertValuesContain(ownerRules, expectedOwnerRules, "ownerRule");
+        assertValuesContain(riskTypes, expectedRiskTypes, "riskType");
+        assertValuesContain(domains, expectedDomains, "domain");
+    }
+
+    private static void assertValuesContain(Set<String> actualValues, List<String> expectedValues, String valueName) {
+        assertFalse(expectedValues.isEmpty(), "fixture must expect at least one " + valueName);
+        for (String expectedValue : expectedValues) {
+            assertTrue(actualValues.contains(expectedValue), "expected template " + valueName + " to contain: "
+                    + expectedValue + ", actual: " + actualValues);
+        }
+    }
+
     private record ClarifyRoutingCase(
             String id,
             String question,
             List<String> ruleSignals,
+            List<String> ownerRules,
+            List<String> riskTypes,
+            List<String> domains,
             List<String> missingSlots,
             List<String> questionTerms
     ) {
