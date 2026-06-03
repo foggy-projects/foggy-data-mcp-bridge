@@ -102,11 +102,20 @@ class SqlExpressionDialectTest {
     }
 
     @Test
+    @DisplayName("钩子 — SQL_EXPRESSION 把 SQL 风格 and 映射为逻辑 &&")
+    void hookMapsSqlAndToLogicalAnd() {
+        assertEquals(ExpSymbols.AA, dialect.mapIdentifierToken("and", ' '));
+        assertEquals(ExpSymbols.AA, dialect.mapIdentifierToken("AND", ' '));
+        assertEquals(ExpSymbols.ID, dialect.mapIdentifierToken("and_flag", ' '));
+    }
+
+    @Test
     @DisplayName("DEFAULT 方言 — 所有 keyword 都不降级")
     void defaultDialectDoesNotDowngradeAnyKeyword() {
         FsscriptDialect def = FsscriptDialect.DEFAULT;
         assertFalse(def.isKeywordAsIdentifier(ExpSymbols.IF, '('));
         assertFalse(def.isKeywordAsIdentifier(ExpSymbols.FOR, '('));
         assertFalse(def.isKeywordAsIdentifier(ExpSymbols.ELSE, ' '));
+        assertEquals(ExpSymbols.ID, def.mapIdentifierToken("and", ' '));
     }
 }

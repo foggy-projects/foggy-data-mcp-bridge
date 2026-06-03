@@ -1255,8 +1255,10 @@ public class ElExpScanner implements BaseScanner {
                                 Integer i = m_resWordsTable.get(strId.toUpperCase());
 
                                 if (i == null) {
-                                    // identifier
-                                    return makeToken(ExpSymbols.ID, strId);
+                                    int token = dialect == null
+                                            ? ExpSymbols.ID
+                                            : dialect.mapIdentifierToken(strId, nextChar);
+                                    return makeToken(token, strId);
                                 } else {
                                     if (i == ExpSymbols.DEFAULT && nextChar == ':') {
                                         //把[default:]转换成一个特殊符号

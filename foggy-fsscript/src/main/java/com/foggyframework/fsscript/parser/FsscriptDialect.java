@@ -76,6 +76,21 @@ public abstract class FsscriptDialect {
         return false;
     }
 
+    /**
+     * Scanner 层钩子：允许方言把普通 identifier 映射成特定 token。
+     * <p>
+     * 该钩子只在 identifier 未命中全局 keyword 表时触发。默认仍返回
+     * {@link ExpSymbols#ID}，保持 DEFAULT 方言和既有脚本语义不变。
+     * </p>
+     *
+     * @param identifier 当前 identifier 原始文本
+     * @param nextChar   identifier 紧跟的下一个字符（未 advance）
+     * @return 要发给 parser 的 token id，默认 {@link ExpSymbols#ID}
+     */
+    public int mapIdentifierToken(String identifier, int nextChar) {
+        return ExpSymbols.ID;
+    }
+
     // ---- 预定义方言 ----
 
     /**

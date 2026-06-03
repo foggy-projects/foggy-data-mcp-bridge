@@ -114,6 +114,16 @@ class ExpParserDialectTest {
     }
 
     @Test
+    @DisplayName("SQL_EXPRESSION — if 条件内接受 SQL 风格 and")
+    void sqlExpressionAcceptsSqlAndInsideIfCondition() throws CompileException {
+        Parser parser = newParser();
+        Exp exp = parser.compileEl(null,
+                "sum(if(payState == 'OVERDUE' and paymentStatus == 'UNPAID' and dateMaturity < '2026-05-04', payAmount, 0))",
+                FsscriptDialect.SQL_EXPRESSION);
+        assertNotNull(exp);
+    }
+
+    @Test
     @DisplayName("SQL_EXPRESSION — 字符串字面量内的 if( 不被打扰（scanner string 路径天然保护）")
     void sqlExpressionDoesNotTouchStringLiterals() throws CompileException {
         Parser parser = newParser();

@@ -41,5 +41,13 @@ public final class SqlExpressionDialect extends FsscriptDialect {
         return keywordSymbol == ExpSymbols.IF && nextChar == '(';
     }
 
+    @Override
+    public int mapIdentifierToken(String identifier, int nextChar) {
+        if ("AND".equalsIgnoreCase(identifier)) {
+            return ExpSymbols.AA;
+        }
+        return super.mapIdentifierToken(identifier, nextChar);
+    }
+
     // normalize(source) 继承基类默认实现 —— 返回原串。v1.4 起字符串预处理链路已下线。
 }
