@@ -141,7 +141,7 @@ final class AiTestReportSummary {
     private static Map<String, Object> summarizeCase(SpringAiTestExecutor.AiTestResult result) {
         Map<String, Object> summary = new LinkedHashMap<>();
         List<Map<String, Object>> toolBusinessErrors = toolBusinessErrors(result);
-        List<Map<String, Object>> warnings = warningsFromToolBusinessErrors(toolBusinessErrors);
+        List<Map<String, Object>> warnings = warnings(result, toolBusinessErrors);
         summary.put("testCaseId", result.getTestCaseId());
         summary.put("provider", result.getProvider());
         summary.put("modelName", result.getModelName());
@@ -317,7 +317,19 @@ final class AiTestReportSummary {
     }
 
     private static List<Map<String, Object>> warnings(SpringAiTestExecutor.AiTestResult result) {
-        return warningsFromToolBusinessErrors(toolBusinessErrors(result));
+        return warnings(result, toolBusinessErrors(result));
+    }
+
+    private static List<Map<String, Object>> warnings(SpringAiTestExecutor.AiTestResult result,
+                                                      List<Map<String, Object>> toolBusinessErrors) {
+        if (result == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> warnings = new ArrayList<>();
+        warnings.addAll(warningsFromToolBusinessErrors(toolBusinessErrors));
+        warnings.addAll(unknownModelProbeWarnings(toolBusinessErrors));
+        warnings.addAll(modelDescribeRetryWarnings(result));
+        return List.copyOf(warnings);
     }
 
     private static List<Map<String, Object>> warningsFromToolBusinessErrors(
@@ -331,6 +343,72 @@ final class AiTestReportSummary {
             warning.put("warningType", "tool_business_error");
             warning.put("severity", "warning");
             warning.putAll(toolBusinessError);
+            warnings.add(warning);
+        }
+        return List.copyOf(warnings);
+    }
+
+    private static List<Map<String, Object>> unknownModelProbeWarnings(
+            List<Map<String, Object>> toolBusinessErrors) {
+        if (toolBusinessErrors == null || toolBusinessErrors.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> warnings = new ArrayList<>();
+        for (Map<String, Object> toolBusinessError : toolBusinessErrors) {
+            if (!isDescribeModelTool(toolBusinessError)
+                    || firstNonBlank(stringValue(toolBusinessError.get("argumentModel"))) == null) {
+                continue;
+            }
+            Map<String, Object> warning = new LinkedHashMap<>();
+            warning.put("warningType", "unknown_model_probe");
+            warning.put("severity", "warning");
+            warning.putAll(toolBusinessError);
+            warnings.add(warning);
+        }
+        return List.copyOf(warnings);
+    }
+
+    private static List<Map<String, Object>> modelDescribeRetryWarnings(SpringAiTestExecutor.AiTestResult result) {
+        if (result.getToolCallRecords() == null || result.getToolCallRecords().isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<ToolCallCollector.ToolCallRecord>> recordsByModel = new LinkedHashMap<>();
+        for (ToolCallCollector.ToolCallRecord record : result.getToolCallRecords()) {
+            if (!isDescribeModelTool(record.getToolName(), record.getSpringToolName())) {
+                continue;
+            }
+            String argumentModel = argumentValue(record.getArguments(),
+                    "model", "modelName", "queryModel", "queryModelName", "qm", "qmCode");
+            if (argumentModel == null || argumentModel.isBlank()) {
+                continue;
+            }
+            String key = toolName(record.getToolName(), record.getSpringToolName()) + "|" + argumentModel;
+            recordsByModel.computeIfAbsent(key, ignored -> new ArrayList<>()).add(record);
+        }
+        List<Map<String, Object>> warnings = new ArrayList<>();
+        for (List<ToolCallCollector.ToolCallRecord> records : recordsByModel.values()) {
+            if (records.size() <= 1) {
+                continue;
+            }
+            ToolCallCollector.ToolCallRecord first = records.get(0);
+            Map<String, Object> warning = new LinkedHashMap<>();
+            warning.put("testCaseId", result.getTestCaseId());
+            warning.put("provider", result.getProvider());
+            warning.put("modelName", result.getModelName());
+            warning.put("warningType", "model_describe_retry");
+            warning.put("severity", "warning");
+            warning.put("source", "toolCalls");
+            warning.put("toolName", first.getToolName());
+            warning.put("springToolName", first.getSpringToolName());
+            warning.put("argumentModel", argumentValue(first.getArguments(),
+                    "model", "modelName", "queryModel", "queryModelName", "qm", "qmCode"));
+            warning.put("describeCallCount", records.size());
+            warning.put("sequences", records.stream()
+                    .map(ToolCallCollector.ToolCallRecord::getSequence)
+                    .toList());
+            warning.put("sources", records.stream()
+                    .map(record -> "toolCall#" + record.getSequence())
+                    .toList());
             warnings.add(warning);
         }
         return List.copyOf(warnings);
@@ -544,6 +622,22 @@ final class AiTestReportSummary {
             }
         }
         return null;
+    }
+
+    private static boolean isDescribeModelTool(Map<String, Object> item) {
+        return isDescribeModelTool(stringValue(item.get("toolName")), stringValue(item.get("springToolName")));
+    }
+
+    private static boolean isDescribeModelTool(String toolName, String springToolName) {
+        return toolName(toolName, springToolName).contains("describe_model");
+    }
+
+    private static String toolName(String toolName, String springToolName) {
+        String selected = firstNonBlank(toolName);
+        if (selected == null) {
+            selected = firstNonBlank(springToolName);
+        }
+        return selected == null ? "" : selected;
     }
 
     private static Optional<Map<String, Object>> findClarifyPayload(Map<String, Object> payload) {

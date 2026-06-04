@@ -56,6 +56,8 @@ logs/
 .env
 .env.local
 .env.*.local
+.ai-test.env
+.ai-test.env.local
 *.pem
 *.key
 application-local.yml

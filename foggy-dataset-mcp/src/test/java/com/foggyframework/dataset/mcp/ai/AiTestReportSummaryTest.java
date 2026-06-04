@@ -124,16 +124,19 @@ class AiTestReportSummaryTest {
 
         assertEquals(1, summary.get("toolBusinessErrorCount"));
         assertEquals(1, summary.get("toolBusinessErrorCaseCount"));
-        assertEquals(1, summary.get("warningCount"));
+        assertEquals(2, summary.get("warningCount"));
         assertEquals(1, summary.get("warningCaseCount"));
         assertEquals(1, summary.get("toolBusinessErrorWarningCount"));
-        assertEquals(Map.of("tool_business_error", 1L), summary.get("warningCategories"));
+        assertEquals(Map.of("tool_business_error", 1L, "unknown_model_probe", 1L),
+                summary.get("warningCategories"));
         List<Map<String, Object>> warnings =
                 (List<Map<String, Object>>) summary.get("warnings");
-        assertEquals(1, warnings.size());
+        assertEquals(2, warnings.size());
         assertEquals("tool_business_error", warnings.get(0).get("warningType"));
         assertEquals("warning", warnings.get(0).get("severity"));
         assertEquals("ProductInfoModel", warnings.get(0).get("argumentModel"));
+        assertEquals("unknown_model_probe", warnings.get(1).get("warningType"));
+        assertEquals("ProductInfoModel", warnings.get(1).get("argumentModel"));
         List<Map<String, Object>> rootErrors =
                 (List<Map<String, Object>>) summary.get("toolBusinessErrors");
         assertEquals(1, rootErrors.size());
@@ -145,7 +148,7 @@ class AiTestReportSummaryTest {
 
         List<Map<String, Object>> cases = (List<Map<String, Object>>) summary.get("cases");
         assertEquals(1, cases.get(0).get("toolBusinessErrorCount"));
-        assertEquals(1, cases.get(0).get("warningCount"));
+        assertEquals(2, cases.get(0).get("warningCount"));
         List<Map<String, Object>> caseWarnings =
                 (List<Map<String, Object>>) cases.get(0).get("warnings");
         assertEquals("tool_business_error", caseWarnings.get(0).get("warningType"));
@@ -158,7 +161,7 @@ class AiTestReportSummaryTest {
         List<Map<String, Object>> models = (List<Map<String, Object>>) summary.get("models");
         assertEquals(1L, models.get(0).get("toolBusinessErrorCount"));
         assertEquals(1L, models.get(0).get("toolBusinessErrorCaseCount"));
-        assertEquals(1L, models.get(0).get("warningCount"));
+        assertEquals(2L, models.get(0).get("warningCount"));
         assertEquals(1L, models.get(0).get("warningCaseCount"));
         assertEquals(100.0, (Double) models.get(0).get("warningRate"), 0.001);
         assertEquals(1L, models.get(0).get("toolBusinessErrorWarningCount"));
@@ -167,7 +170,55 @@ class AiTestReportSummaryTest {
         List<Map<String, Object>> comparedModels =
                 (List<Map<String, Object>>) comparison.get(0).get("models");
         assertEquals(1, comparedModels.get(0).get("toolBusinessErrorCount"));
-        assertEquals(1, comparedModels.get(0).get("warningCount"));
+        assertEquals(2, comparedModels.get(0).get("warningCount"));
+    }
+
+    @Test
+    @DisplayName("应识别重复 describe 同一模型的 warning")
+    @SuppressWarnings("unchecked")
+    void build_shouldExposeRepeatedDescribeModelWarning() {
+        ToolCallCollector.ToolCallRecord first = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.describe_model_internal")
+                .springToolName("dataset_describe_model_internal")
+                .arguments(Map.of("model", "SalesOrderModel"))
+                .result(Map.of("code", 200, "data", Map.of("name", "SalesOrderModel")))
+                .success(true)
+                .durationMs(4)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+        ToolCallCollector.ToolCallRecord second = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.describe_model_internal")
+                .springToolName("dataset_describe_model_internal")
+                .arguments(Map.of("model", "SalesOrderModel"))
+                .result(Map.of("code", 200, "data", Map.of("name", "SalesOrderModel")))
+                .success(true)
+                .durationMs(6)
+                .timestamp(Instant.now())
+                .sequence(2)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult result = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("QUERY-RETRY")
+                .provider("spring-ai")
+                .modelName("gemini-pro-agent")
+                .success(true)
+                .toolCallRecords(List.of(first, second))
+                .durationMs(100)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(result));
+
+        assertEquals(0, summary.get("toolBusinessErrorCount"));
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(Map.of("model_describe_retry", 1L), summary.get("warningCategories"));
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals("model_describe_retry", warnings.get(0).get("warningType"));
+        assertEquals("SalesOrderModel", warnings.get(0).get("argumentModel"));
+        assertEquals(2, warnings.get(0).get("describeCallCount"));
+        assertEquals(List.of(1, 2), warnings.get(0).get("sequences"));
+        assertEquals(List.of("toolCall#1", "toolCall#2"), warnings.get(0).get("sources"));
     }
 
     @Test

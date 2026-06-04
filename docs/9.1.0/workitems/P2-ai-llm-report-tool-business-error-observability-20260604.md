@@ -44,9 +44,15 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Added warning-layer fields: `warningCount`, `warningCaseCount`, `warningCategories`, `warnings`, and `toolBusinessErrorWarningCount`.
 - Added per-model `warningCount`, `warningCaseCount`, `warningRate`, and `toolBusinessErrorWarningCount`.
 - Updated `scripts/run-ai-llm-matrix.sh` to aggregate warning fields and print warning totals/cases after matrix summary generation.
+- Added warning artifacts beside `matrix-summary.json`: `warnings.json` for structured warning summary and `warnings.jsonl` for line-oriented sample collection.
+- Added safe local env loading for matrix runs through `AI_TEST_ENV_FILE`, `--env-file FILE`, or the first existing ignored file among `.ai-test.env` and `.env.local`.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
+- Current warning types:
+  - `tool_business_error`: numeric tool result code is not `200`.
+  - `unknown_model_probe`: a describe-model tool call probes a model-like argument that returned a business error.
+  - `model_describe_retry`: the same case repeats describe-model calls for the same model argument.
 
 ## Acceptance Criteria
 
@@ -56,6 +62,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Report fields are available at root, per-model, per-case, and case-comparison model levels.
 - Warning fields are available without changing pass/fail semantics.
 - Matrix script terminal output exposes warning totals and warning case IDs.
+- Matrix script emits `warnings.json` and `warnings.jsonl` artifacts.
+- Matrix script can load ignored local env files without printing secret values.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -69,8 +77,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, and matrix script warning output. |
-| testing | complete | Targeted Maven test command passed with 13 tests; shell syntax and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, and warning classification for unknown model probes and repeated describe-model calls. |
+| testing | complete | Targeted Maven test command passed with 14 tests; shell syntax, env-file print-selection, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -80,7 +88,11 @@ Completed work:
 - Implemented numeric business-error detection for AI tool call results.
 - Added root, model, case, and case-comparison summary counters.
 - Added warning-layer JSON fields and matrix terminal summary output.
+- Added `warnings.json` and `warnings.jsonl` artifact generation for downstream sample collection.
+- Added local env file loading for ignored `.ai-test.env`, `.env.local`, explicit `AI_TEST_ENV_FILE`, and `--env-file FILE`.
+- Added warning classification for `unknown_model_probe` and `model_describe_retry`.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
+- Added regression coverage for repeated describe-model calls.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
@@ -111,13 +123,16 @@ mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
 
 Result on 2026-06-04: passed, 13 tests.
 
+Updated targeted result on 2026-06-04 after warning artifact and env-file changes: passed, 14 tests.
+
 Additional checks on 2026-06-04:
 
 - `bash -n scripts/run-ai-llm-matrix.sh`: passed.
+- `scripts/run-ai-llm-matrix.sh --env-file <temp-file> --print-selection`: passed; selection JSON stayed parseable and no secret values were printed.
 - `git diff --check`: passed.
 - Synthetic jq aggregation for `matrix-summary.json` warning fields and terminal warning output: passed.
 
 ## Follow-Up
 
-- Re-run a focused real LLM case such as `QUERY-002` after injecting `AI_TEST_OPENAI_API_KEY` to capture a fresh report with `warningCount` and `toolBusinessErrorCount`.
+- Re-run a focused real LLM case such as `QUERY-002` after injecting `AI_TEST_OPENAI_API_KEY` through an ignored local env file to capture a fresh report with `warningCount`, `toolBusinessErrorCount`, `warnings.json`, and `warnings.jsonl`.
 - Treat non-zero `warningCount` as warning-level evidence, not an immediate case failure, until enough samples show whether recovery behavior correlates with unstable answers.

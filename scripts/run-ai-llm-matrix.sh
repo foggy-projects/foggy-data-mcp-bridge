@@ -4,6 +4,46 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+ENV_FILE="${AI_TEST_ENV_FILE:-}"
+LOADED_ENV_FILE=""
+
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+  if [[ "${args[$i]}" == "--env-file" ]]; then
+    if (( i + 1 >= ${#args[@]} )); then
+      echo "--env-file requires a file path." >&2
+      exit 2
+    fi
+    ENV_FILE="${args[$((i + 1))]}"
+    break
+  fi
+done
+
+load_env_file() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    echo "AI test env file does not exist: $file" >&2
+    exit 2
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  source "$file"
+  set +a
+  LOADED_ENV_FILE="$file"
+}
+
+if [[ -n "$ENV_FILE" ]]; then
+  [[ "$ENV_FILE" = /* ]] || ENV_FILE="$REPO_ROOT/$ENV_FILE"
+  load_env_file "$ENV_FILE"
+else
+  for candidate in "$REPO_ROOT/.ai-test.env" "$REPO_ROOT/.env.local"; do
+    if [[ -f "$candidate" ]]; then
+      load_env_file "$candidate"
+      break
+    fi
+  done
+fi
+
 MODELS="${AI_TEST_OPENAI_MODELS:-gemini-pro-agent,gemini-3-flash}"
 BASE_URL="${AI_TEST_OPENAI_BASE_URL:-https://codex2.qlfloor.com:7443}"
 PROFILE="${AI_TEST_MATRIX_PROFILE:-smoke}"
@@ -33,8 +73,12 @@ Environment:
   AI_TEST_CASE_IDS          Optional comma-separated case IDs.
   AI_TEST_CATEGORIES        Optional comma-separated categories.
   AI_TEST_MAX_CASES         Optional maximum selected cases.
+  AI_TEST_ENV_FILE          Optional local env file. Defaults to first existing
+                            .ai-test.env or .env.local. These files should not
+                            be committed.
 
 Options:
+  --env-file FILE           Load local env vars before resolving defaults.
   --models NAMES            Comma-separated model names.
   --base-url URL            Override AI_TEST_OPENAI_BASE_URL. Do not append /v1.
   --profile NAME            Case selection profile: smoke, broad, all.
@@ -54,6 +98,10 @@ while [[ $# -gt 0 ]]; do
     --models)
       shift
       MODELS="${1:-}"
+      ;;
+    --env-file)
+      shift
+      ENV_FILE="${1:-}"
       ;;
     --base-url)
       shift
@@ -177,6 +225,7 @@ echo "[ai-matrix] caseIds=${CASE_IDS:-<all>}"
 echo "[ai-matrix] categories=${CATEGORIES:-<all>}"
 echo "[ai-matrix] maxCases=$MAX_CASES"
 echo "[ai-matrix] failOnMismatch=$FAIL_ON_MISMATCH"
+echo "[ai-matrix] envFile=${LOADED_ENV_FILE:-<none>}"
 echo "[ai-matrix] reportDir=$REPORT_DIR"
 
 failed_models=()
@@ -223,6 +272,8 @@ report_files=()
 for file in "$REPORT_DIR"/*.json; do
   [[ -e "$file" ]] || continue
   [[ "$(basename "$file")" == "matrix-summary.json" ]] && continue
+  [[ "$(basename "$file")" == "warnings.json" ]] && continue
+  [[ "$(basename "$file")" == "warnings.jsonl" ]] && continue
   report_files+=("$file")
 done
 
@@ -295,7 +346,19 @@ if [[ "${#report_files[@]}" -gt 0 ]]; then
       }])
     }
   ' "${report_files[@]}" > "$REPORT_DIR/matrix-summary.json"
+  jq '{
+    runId,
+    generatedAt,
+    selection,
+    warningCount,
+    warningCaseCount,
+    warningCategories,
+    warnings
+  }' "$REPORT_DIR/matrix-summary.json" > "$REPORT_DIR/warnings.json"
+  jq -c '.warnings[]?' "$REPORT_DIR/matrix-summary.json" > "$REPORT_DIR/warnings.jsonl"
   echo "[ai-matrix] summary=$REPORT_DIR/matrix-summary.json"
+  echo "[ai-matrix] warnings=$REPORT_DIR/warnings.json"
+  echo "[ai-matrix] warningsJsonl=$REPORT_DIR/warnings.jsonl"
   jq -r '
     "[ai-matrix] totals resultCount=\(.resultCount) passed=\(.passedCount) failed=\(.failedCount) warnings=\(.warningCount) toolBusinessErrors=\(.toolBusinessErrorCount)",
     (if (.warningCount // 0) == 0 then
