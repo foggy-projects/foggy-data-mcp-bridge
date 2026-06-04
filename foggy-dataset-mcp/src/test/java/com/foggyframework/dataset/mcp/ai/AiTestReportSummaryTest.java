@@ -92,6 +92,98 @@ class AiTestReportSummaryTest {
     }
 
     @Test
+    @DisplayName("应暴露最终通过用例里的中间工具业务错误")
+    @SuppressWarnings("unchecked")
+    void build_shouldExposeToolBusinessErrorsFromSuccessfulToolCalls() {
+        ToolCallCollector.ToolCallRecord record = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.describe_model_internal")
+                .springToolName("dataset_describe_model_internal")
+                .arguments(Map.of("model", "ProductInfoModel"))
+                .result(Map.of(
+                        "code", 600,
+                        "exCode", "B600",
+                        "msg", "获取模型描述失败: 资源ProductInfoModel.qm不存在"
+                ))
+                .success(true)
+                .durationMs(5)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult result = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("QUERY-002")
+                .provider("spring-ai")
+                .modelName("gpt-oss-120b-medium")
+                .success(true)
+                .question("各商品销售额")
+                .toolCallRecords(List.of(record))
+                .durationMs(100)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(result));
+
+        assertEquals(1, summary.get("toolBusinessErrorCount"));
+        assertEquals(1, summary.get("toolBusinessErrorCaseCount"));
+        List<Map<String, Object>> rootErrors =
+                (List<Map<String, Object>>) summary.get("toolBusinessErrors");
+        assertEquals(1, rootErrors.size());
+        assertEquals("QUERY-002", rootErrors.get(0).get("testCaseId"));
+        assertEquals("dataset.describe_model_internal", rootErrors.get(0).get("toolName"));
+        assertEquals(600, rootErrors.get(0).get("code"));
+        assertEquals("B600", rootErrors.get(0).get("exCode"));
+        assertEquals("ProductInfoModel", rootErrors.get(0).get("argumentModel"));
+
+        List<Map<String, Object>> cases = (List<Map<String, Object>>) summary.get("cases");
+        assertEquals(1, cases.get(0).get("toolBusinessErrorCount"));
+        List<Map<String, Object>> caseErrors =
+                (List<Map<String, Object>>) cases.get(0).get("toolBusinessErrors");
+        assertEquals("toolCall#1", caseErrors.get(0).get("source"));
+        assertEquals(1, caseErrors.get(0).get("sequence"));
+        assertEquals(5L, caseErrors.get(0).get("durationMs"));
+
+        List<Map<String, Object>> models = (List<Map<String, Object>>) summary.get("models");
+        assertEquals(1L, models.get(0).get("toolBusinessErrorCount"));
+        assertEquals(1L, models.get(0).get("toolBusinessErrorCaseCount"));
+
+        List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
+        List<Map<String, Object>> comparedModels =
+                (List<Map<String, Object>>) comparison.get(0).get("models");
+        assertEquals(1, comparedModels.get(0).get("toolBusinessErrorCount"));
+    }
+
+    @Test
+    @DisplayName("不应把 code=200 的 RX 包装结果识别为工具业务错误")
+    void toolBusinessErrors_shouldIgnoreSuccessfulRxWrapper() {
+        Map<String, Object> wrappedResult = new LinkedHashMap<>();
+        wrappedResult.put("code", 200);
+        wrappedResult.put("data", Map.of(
+                "type", "clarify",
+                "code", "ROUTING_TERMINAL_CLARIFY",
+                "detail", clarifyDetail()
+        ));
+
+        ToolCallCollector.ToolCallRecord record = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .result(wrappedResult)
+                .success(true)
+                .durationMs(7)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult result = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("CLARIFY-002")
+                .provider("spring-ai")
+                .modelName("gemini-pro-agent")
+                .success(true)
+                .toolCallRecords(List.of(record))
+                .build();
+
+        assertTrue(AiTestReportSummary.toolBusinessErrors(result).isEmpty());
+    }
+
+    @Test
     @DisplayName("应按 case 输出跨模型对比和失败分类")
     @SuppressWarnings("unchecked")
     void build_shouldExposeCaseComparisonAndFailureCategories() {

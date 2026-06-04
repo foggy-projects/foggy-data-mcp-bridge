@@ -35,6 +35,7 @@ final class AiTestReportSummary {
         Set<String> riskTypes = new LinkedHashSet<>();
         Set<String> ownerRules = new LinkedHashSet<>();
         Set<String> missingSlots = new LinkedHashSet<>();
+        List<Map<String, Object>> toolBusinessErrors = new ArrayList<>();
 
         for (SpringAiTestExecutor.AiTestResult result : safeResults) {
             Map<String, Object> caseSummary = summarizeCase(result);
@@ -50,6 +51,10 @@ final class AiTestReportSummary {
                 addStringValues(ownerRules, observation.get("ownerRules"));
                 addStringValues(missingSlots, observation.get("missingSlots"));
             }
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> caseToolBusinessErrors =
+                    (List<Map<String, Object>>) caseSummary.get("toolBusinessErrors");
+            toolBusinessErrors.addAll(caseToolBusinessErrors);
         }
 
         long passed = safeResults.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
@@ -61,6 +66,13 @@ final class AiTestReportSummary {
         summary.put("failedCount", safeResults.size() - passed);
         summary.put("models", summarizeModels(safeResults));
         summary.put("clarify", summarizeClarify(clarifyObservability, domains, riskTypes, ownerRules, missingSlots));
+        summary.put("toolBusinessErrorCount", toolBusinessErrors.size());
+        summary.put("toolBusinessErrorCaseCount", toolBusinessErrors.stream()
+                .map(error -> stringValue(error.get("testCaseId")))
+                .filter(testCaseId -> testCaseId != null && !testCaseId.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .size());
+        summary.put("toolBusinessErrors", toolBusinessErrors);
         summary.put("failureCategories", summarizeFailureCategories(safeResults));
         summary.put("caseComparison", summarizeCaseComparison(safeResults));
         summary.put("cases", cases);
@@ -91,8 +103,34 @@ final class AiTestReportSummary {
         return List.copyOf(observations);
     }
 
+    static List<Map<String, Object>> toolBusinessErrors(SpringAiTestExecutor.AiTestResult result) {
+        if (result == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> errors = new ArrayList<>();
+        if (result.getToolResult() != null) {
+            extractToolBusinessError(result.getToolResult(), "toolResult", null, null, null, null)
+                    .map(error -> withResultContext(error, result))
+                    .ifPresent(errors::add);
+        }
+        if (result.getToolCallRecords() != null) {
+            for (ToolCallCollector.ToolCallRecord record : result.getToolCallRecords()) {
+                if (record.getResult() == null || record.getResult() == result.getToolResult()) {
+                    continue;
+                }
+                String source = "toolCall#" + record.getSequence();
+                extractToolBusinessError(record.getResult(), source, record.getToolName(), record.getSpringToolName(),
+                                record.getArguments(), record)
+                        .map(error -> withResultContext(error, result))
+                        .ifPresent(errors::add);
+            }
+        }
+        return List.copyOf(errors);
+    }
+
     private static Map<String, Object> summarizeCase(SpringAiTestExecutor.AiTestResult result) {
         Map<String, Object> summary = new LinkedHashMap<>();
+        List<Map<String, Object>> toolBusinessErrors = toolBusinessErrors(result);
         summary.put("testCaseId", result.getTestCaseId());
         summary.put("provider", result.getProvider());
         summary.put("modelName", result.getModelName());
@@ -103,6 +141,8 @@ final class AiTestReportSummary {
         summary.put("errorCategory", errorCategory(result));
         summary.put("calledTools", result.getCalledToolNames());
         summary.put("clarifyObservability", clarifyObservability(result));
+        summary.put("toolBusinessErrorCount", toolBusinessErrors.size());
+        summary.put("toolBusinessErrors", toolBusinessErrors);
         if (result.getValidationResult() != null) {
             Map<String, Object> validation = new LinkedHashMap<>();
             validation.put("passed", result.getValidationResult().isPassed());
@@ -147,6 +187,8 @@ final class AiTestReportSummary {
                     summary.put("avgDurationMs", avgDuration);
                     summary.put("failureCategories", summarizeFailureCategories(modelResults));
                     summary.put("clarifyCaseCount", clarifyCaseCount(modelResults));
+                    summary.put("toolBusinessErrorCaseCount", toolBusinessErrorCaseCount(modelResults));
+                    summary.put("toolBusinessErrorCount", toolBusinessErrorCount(modelResults));
                     return summary;
                 })
                 .toList();
@@ -189,6 +231,7 @@ final class AiTestReportSummary {
         summary.put("errorMessage", result.getErrorMessage());
         summary.put("calledTools", result.getCalledToolNames());
         summary.put("clarifyObservationCount", clarifyObservability(result).size());
+        summary.put("toolBusinessErrorCount", toolBusinessErrors(result).size());
         if (result.getValidationResult() != null) {
             summary.put("failedRules", result.getValidationResult().getFailedRules());
             summary.put("validationErrors", result.getValidationResult().getErrors());
@@ -237,6 +280,20 @@ final class AiTestReportSummary {
                 .map(SpringAiTestExecutor.AiTestResult::getTestCaseId)
                 .distinct()
                 .count();
+    }
+
+    private static long toolBusinessErrorCaseCount(List<SpringAiTestExecutor.AiTestResult> results) {
+        return results.stream()
+                .filter(result -> !toolBusinessErrors(result).isEmpty())
+                .map(SpringAiTestExecutor.AiTestResult::getTestCaseId)
+                .distinct()
+                .count();
+    }
+
+    private static long toolBusinessErrorCount(List<SpringAiTestExecutor.AiTestResult> results) {
+        return results.stream()
+                .mapToLong(result -> toolBusinessErrors(result).size())
+                .sum();
     }
 
     private static String errorCategory(SpringAiTestExecutor.AiTestResult result) {
@@ -341,6 +398,80 @@ final class AiTestReportSummary {
                     observation.put("templateMatches", templateMatches);
                     return observation;
                 });
+    }
+
+    private static Optional<Map<String, Object>> extractToolBusinessError(Object rawResult, String source,
+                                                                          String toolName, String springToolName,
+                                                                          Map<String, Object> arguments,
+                                                                          ToolCallCollector.ToolCallRecord record) {
+        return normalizeResult(rawResult)
+                .flatMap(AiTestReportSummary::findToolBusinessErrorPayload)
+                .map(payload -> {
+                    Map<String, Object> error = new LinkedHashMap<>();
+                    error.put("source", source);
+                    error.put("toolName", toolName);
+                    error.put("springToolName", springToolName);
+                    error.put("sequence", record == null ? null : record.getSequence());
+                    error.put("durationMs", record == null ? null : record.getDurationMs());
+                    error.put("code", payload.get("code"));
+                    error.put("exCode", stringValue(payload.get("exCode")));
+                    error.put("message", stringValue(firstNonNull(
+                            firstNonNull(payload.get("msg"), payload.get("message")), payload.get("error"))));
+                    error.put("argumentModel", argumentValue(arguments,
+                            "model", "modelName", "queryModel", "queryModelName", "qm", "qmCode"));
+                    return error;
+                });
+    }
+
+    private static Optional<Map<String, Object>> findToolBusinessErrorPayload(Map<String, Object> payload) {
+        if (isToolBusinessErrorPayload(payload)) {
+            return Optional.of(payload);
+        }
+        if (numericCode(payload.get("code")).isPresent()) {
+            return Optional.empty();
+        }
+        Object data = payload.get("data");
+        if (data != null) {
+            Optional<Map<String, Object>> nested =
+                    normalizeResult(data).flatMap(AiTestReportSummary::findToolBusinessErrorPayload);
+            if (nested.isPresent()) {
+                return nested;
+            }
+        }
+        Object result = payload.get("result");
+        if (result != null) {
+            return normalizeResult(result).flatMap(AiTestReportSummary::findToolBusinessErrorPayload);
+        }
+        return Optional.empty();
+    }
+
+    private static boolean isToolBusinessErrorPayload(Map<String, Object> payload) {
+        return numericCode(payload.get("code"))
+                .map(code -> code != 200)
+                .orElse(false);
+    }
+
+    private static Optional<Long> numericCode(Object value) {
+        if (value instanceof Number number) {
+            return Optional.of(number.longValue());
+        }
+        if (value instanceof String string && string.matches("-?\\d+")) {
+            return Optional.of(Long.parseLong(string));
+        }
+        return Optional.empty();
+    }
+
+    private static String argumentValue(Map<String, Object> arguments, String... names) {
+        if (arguments == null || arguments.isEmpty()) {
+            return null;
+        }
+        for (String name : names) {
+            Object value = arguments.get(name);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return String.valueOf(value);
+            }
+        }
+        return null;
     }
 
     private static Optional<Map<String, Object>> findClarifyPayload(Map<String, Object> payload) {
