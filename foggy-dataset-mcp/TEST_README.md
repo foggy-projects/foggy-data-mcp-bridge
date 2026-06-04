@@ -225,6 +225,12 @@ AI_TEST_OPENAI_API_KEY=... \
   ./scripts/run-ai-llm-comparison.sh \
   --model gemini-pro-agent \
   --case-ids META-001,QUERY-001
+
+# 多模型矩阵对比，会保留每个模型的独立报告快照。
+AI_TEST_OPENAI_API_KEY=... \
+  ./scripts/run-ai-llm-matrix.sh \
+  --models gemini-pro-agent,gemini-3-flash \
+  --case-ids META-001,QUERY-001
 ```
 
 ## 测试配置

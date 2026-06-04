@@ -123,6 +123,18 @@ AI_TEST_OPENAI_API_KEY=... \
 `AI_TEST_OPENAI_BASE_URL` 使用不带 `/v1` 的地址，例如
 `https://codex2.qlfloor.com:7443`。
 
+需要对比多个模型时使用矩阵脚本：
+
+```bash
+AI_TEST_OPENAI_API_KEY=... \
+  ./scripts/run-ai-llm-matrix.sh \
+  --models gemini-pro-agent,gemini-3-flash \
+  --case-ids META-001,QUERY-001
+```
+
+矩阵脚本会为每个模型保留独立快照，并生成
+`foggy-dataset-mcp/target/ai-test-reports/<run-id>/matrix-summary.json`。
+
 ## 测试覆盖范围
 
 ### 1. 环境验证测试
