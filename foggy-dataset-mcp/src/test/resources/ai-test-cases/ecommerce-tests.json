@@ -88,6 +88,22 @@
       },
       "expected": {
         "required_columns": ["salesAmount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "salesAmount",
+            "operator": ">",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "having",
+            "field": "salesAmount",
+            "operator": ">",
+            "must_exist": false
+          }
+        ],
         "rules": [
           {
             "type": "VALUE_IN_RANGE",
@@ -114,6 +130,15 @@
       },
       "expected": {
         "required_columns": ["customer$caption"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "customer$caption",
+            "operator": "=",
+            "must_exist": true
+          }
+        ],
         "rules": [
           {
             "type": "VALUE_CONTAINS",
@@ -139,6 +164,14 @@
       "expected": {
         "required_columns": ["product$caption", "salesAmount"],
         "min_rows": 1,
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "product$caption",
+            "must_exist": true
+          }
+        ],
         "rules": [
           {
             "type": "NOT_EMPTY"
@@ -163,6 +196,26 @@
       "expected": {
         "required_columns": ["store$caption"],
         "min_rows": 1,
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "store$caption",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "quantity",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "salesAmount",
+            "must_exist": true
+          }
+        ],
         "rules": [
           {
             "type": "NOT_EMPTY"
@@ -186,6 +239,20 @@
       },
       "expected": {
         "min_rows": 1,
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "product$categoryName",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "store$caption",
+            "must_exist": true
+          }
+        ],
         "rules": [
           {
             "type": "NOT_EMPTY"
@@ -209,6 +276,14 @@
       "expected": {
         "required_columns": ["product$caption", "salesAmount"],
         "max_rows": 5,
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "product$caption",
+            "must_exist": true
+          }
+        ],
         "rules": [
           {
             "type": "ROW_COUNT_RANGE",
@@ -277,6 +352,24 @@
             "path": "slice",
             "field": "salesAmount",
             "operator": ">",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "salesDate$year",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "store$caption",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "salesDate$year",
             "must_exist": true
           },
           {

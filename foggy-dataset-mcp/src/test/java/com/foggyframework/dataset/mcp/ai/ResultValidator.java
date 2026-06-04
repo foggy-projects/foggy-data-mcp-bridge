@@ -751,10 +751,12 @@ public class ResultValidator {
                 result.addPassedRule(ruleName + ": " + (rule.isMustExist() ? "found" : "absent as expected"));
             } else if (rule.isMustExist()) {
                 result.addFailedRule(ruleName + ": expected field " + rule.getField()
-                        + operatorLabel(rule.getOperator()) + " in " + rule.getPath());
+                        + operatorLabel(rule.getOperator()) + " in " + rule.getPath()
+                        + ". " + describeToolArgumentPaths(candidateCalls, rule));
             } else {
                 result.addFailedRule(ruleName + ": forbidden field " + rule.getField()
-                        + operatorLabel(rule.getOperator()) + " found in " + rule.getPath());
+                        + operatorLabel(rule.getOperator()) + " found in " + rule.getPath()
+                        + ". " + describeToolArgumentPaths(candidateCalls, rule));
             }
         }
     }
@@ -777,17 +779,29 @@ public class ResultValidator {
         if (call.getArguments() == null || rule.getPath() == null || rule.getPath().isBlank()) {
             return false;
         }
+        Object node = toolCallPayloadPathNode(call, rule.getPath());
+        return conditionTreeContains(node, rule.getField(), rule.getOperator());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object toolCallPayloadPathNode(ToolCallCollector.ToolCallRecord call, String path) {
+        if (call.getArguments() == null || path == null || path.isBlank()) {
+            return null;
+        }
         Object payload = call.getArguments().get("payload");
         if (!(payload instanceof Map<?, ?> payloadMap)) {
-            return false;
+            return null;
         }
-        Object node = ((Map<String, Object>) payloadMap).get(rule.getPath());
-        return conditionTreeContains(node, rule.getField(), rule.getOperator());
+        return ((Map<String, Object>) payloadMap).get(path);
     }
 
     private boolean conditionTreeContains(Object node, String expectedField, String expectedOperator) {
         if (node == null) {
             return false;
+        }
+        if (node instanceof String text) {
+            return (expectedOperator == null || expectedOperator.isBlank())
+                    && stringContainsColumnReference(text, expectedField);
         }
         if (node instanceof Iterable<?> iterable) {
             for (Object item : iterable) {
@@ -801,8 +815,10 @@ public class ResultValidator {
             String field = stringValue(firstNonNull(
                     firstNonNull(map.get("field"), map.get("column")),
                     firstNonNull(map.get("name"), map.get("expr"))));
-            String operator = stringValue(firstNonNull(map.get("op"), map.get("operator")));
-            if (field != null && columnsMatch(expectedField, field)
+            String operator = stringValue(firstNonNull(
+                    firstNonNull(map.get("op"), map.get("operator")),
+                    map.get("direction")));
+            if (field != null && stringContainsColumnReference(field, expectedField)
                     && operatorMatches(expectedOperator, operator)) {
                 return true;
             }
@@ -828,6 +844,82 @@ public class ResultValidator {
 
     private String operatorLabel(String operator) {
         return operator == null || operator.isBlank() ? "" : " " + operator;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String describeToolArgumentPaths(List<ToolCallCollector.ToolCallRecord> candidateCalls,
+                                             EcommerceTestCase.ToolArgumentRule rule) {
+        List<String> callDescriptions = new ArrayList<>();
+        for (int i = 0; i < candidateCalls.size(); i++) {
+            ToolCallCollector.ToolCallRecord call = candidateCalls.get(i);
+            Object payload = call.getArguments() == null ? null : call.getArguments().get("payload");
+            if (!(payload instanceof Map<?, ?> payloadMap)) {
+                callDescriptions.add("#" + i + " payload=<missing>");
+                continue;
+            }
+            Map<String, Object> typedPayload = (Map<String, Object>) payloadMap;
+            List<String> pathDescriptions = new ArrayList<>();
+            for (String path : reviewPayloadPaths(typedPayload, rule.getPath())) {
+                List<String> labels = new ArrayList<>();
+                collectArgumentNodeLabels(typedPayload.get(path), labels, 8);
+                if (!labels.isEmpty()) {
+                    pathDescriptions.add(path + "=[" + String.join(", ", labels) + "]");
+                }
+            }
+            callDescriptions.add("#" + i + " " + String.join("; ", pathDescriptions));
+        }
+        return "observed payload paths: " + String.join(" | ", callDescriptions);
+    }
+
+    private List<String> reviewPayloadPaths(Map<String, Object> payload, String expectedPath) {
+        LinkedHashSet<String> paths = new LinkedHashSet<>();
+        if (expectedPath != null && !expectedPath.isBlank()) {
+            paths.add(expectedPath);
+        }
+        paths.addAll(List.of("slice", "having", "groupBy", "orderBy", "columns"));
+        paths.addAll(payload.keySet());
+        return paths.stream().filter(payload::containsKey).toList();
+    }
+
+    private void collectArgumentNodeLabels(Object node, List<String> labels, int limit) {
+        if (node == null || labels.size() >= limit) {
+            return;
+        }
+        if (node instanceof String text) {
+            labels.add(text);
+            return;
+        }
+        if (node instanceof Number || node instanceof Boolean) {
+            labels.add(String.valueOf(node));
+            return;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectArgumentNodeLabels(item, labels, limit);
+                if (labels.size() >= limit) {
+                    return;
+                }
+            }
+            return;
+        }
+        if (node instanceof Map<?, ?> map) {
+            String field = stringValue(firstNonNull(
+                    firstNonNull(map.get("field"), map.get("column")),
+                    firstNonNull(map.get("name"), map.get("expr"))));
+            String operator = stringValue(firstNonNull(
+                    firstNonNull(map.get("op"), map.get("operator")),
+                    map.get("direction")));
+            if (field != null) {
+                labels.add(field + operatorLabel(operator));
+                return;
+            }
+            for (Object value : map.values()) {
+                collectArgumentNodeLabels(value, labels, limit);
+                if (labels.size() >= limit) {
+                    return;
+                }
+            }
+        }
     }
 
     private boolean toolCallsContainColumnReference(List<ToolCallCollector.ToolCallRecord> toolCalls, String column) {

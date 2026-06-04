@@ -226,6 +226,165 @@ class ResultValidatorTest {
                 .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:having:totalSales")));
     }
 
+    @Test
+    @DisplayName("tool argument validation should accept groupBy string field")
+    void validateFromAiResponse_shouldAcceptGroupByStringFieldRule() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("AGG-001")
+                .expectedTool("dataset.query_model")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .toolArgumentRules(List.of(
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("groupBy")
+                                        .field("product$caption")
+                                        .mustExist(true)
+                                        .build()
+                        ))
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of("product$caption", "sum(salesAmount) as totalSales"),
+                                "groupBy", List.of("product$caption")
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("product$caption", "商品1", "totalSales", 1000)
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "商品1 总销售额 1000。",
+                List.of(call)
+        );
+
+        assertTrue(result.isPassed(), () -> result.getFailedRules().toString());
+        assertTrue(result.getPassedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:groupBy:product$caption")));
+    }
+
+    @Test
+    @DisplayName("tool argument validation should explain observed payload paths on failure")
+    void validateFromAiResponse_shouldExplainToolArgumentFailureWithObservedPaths() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("FILTER-001")
+                .expectedTool("dataset.query_model")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .toolArgumentRules(List.of(
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("slice")
+                                        .field("salesAmount")
+                                        .operator(">")
+                                        .mustExist(true)
+                                        .build()
+                        ))
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "slice", List.of(Map.of("field", "salesDate$year", "op", "=", "value", 2025)),
+                                "having", List.of(Map.of("field", "salesAmount", "op", ">", "value", 1000))
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("salesDate$year", 2025, "salesAmount", 1200)
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "2025 年销售金额超过 1000。",
+                List.of(call)
+        );
+
+        assertFalse(result.isPassed());
+        assertTrue(result.getFailedRules().stream()
+                .anyMatch(rule -> rule.contains("observed payload paths")
+                        && rule.contains("slice=[salesDate$year =]")
+                        && rule.contains("having=[salesAmount >]")));
+    }
+
+    @Test
+    @DisplayName("tool argument validation should accept column expression references")
+    void validateFromAiResponse_shouldAcceptColumnExpressionReferenceRule() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("AGG-002")
+                .expectedTool("dataset.query_model")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .toolArgumentRules(List.of(
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("columns")
+                                        .field("quantity")
+                                        .mustExist(true)
+                                        .build(),
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("columns")
+                                        .field("salesAmount")
+                                        .mustExist(true)
+                                        .build()
+                        ))
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of(
+                                        "store$caption",
+                                        "sum(quantity) as totalQuantity",
+                                        "sum(salesAmount) as totalSales"
+                                ),
+                                "groupBy", List.of("store$caption")
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("store$caption", "门店1", "totalQuantity", 12, "totalSales", 1000)
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "门店1 销售数量 12，总销售额 1000。",
+                List.of(call)
+        );
+
+        assertTrue(result.isPassed(), () -> result.getFailedRules().toString());
+        assertTrue(result.getPassedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:columns:quantity")));
+        assertTrue(result.getPassedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:columns:salesAmount")));
+    }
+
     private EcommerceTestCase.ExpectedResult complexExpectedWithPredicateScopeRules() {
         return EcommerceTestCase.ExpectedResult.builder()
                 .requiredColumns(List.of("store$caption", "salesAmount"))
@@ -235,6 +394,24 @@ class ResultValidatorTest {
                                 .path("slice")
                                 .field("salesAmount")
                                 .operator(">")
+                                .mustExist(true)
+                                .build(),
+                        EcommerceTestCase.ToolArgumentRule.builder()
+                                .tool("dataset.query_model")
+                                .path("slice")
+                                .field("salesDate$year")
+                                .mustExist(true)
+                                .build(),
+                        EcommerceTestCase.ToolArgumentRule.builder()
+                                .tool("dataset.query_model")
+                                .path("groupBy")
+                                .field("store$caption")
+                                .mustExist(true)
+                                .build(),
+                        EcommerceTestCase.ToolArgumentRule.builder()
+                                .tool("dataset.query_model")
+                                .path("groupBy")
+                                .field("salesDate$year")
                                 .mustExist(true)
                                 .build(),
                         EcommerceTestCase.ToolArgumentRule.builder()
