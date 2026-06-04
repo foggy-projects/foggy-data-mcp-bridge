@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class DataViewerApiSmokeTest {
 
     private static final String QUERY_MODEL = "FactSalesSemanticScaleQueryModel";
+    private static final String RUNTIME_FILTER_QUERY_MODEL = "OrderSalesAggregateRelationRuntimeFilterQueryModel";
     private static final String TABLE_MODEL = "FactSalesSemanticScaleModel";
 
     @LocalServerPort
@@ -133,7 +134,57 @@ class DataViewerApiSmokeTest {
         BigDecimal physicalAmount = decimal(physicalRow.path("salesAmountYuan"));
         assertEquals(0, normalize(defaultAmount.multiply(new BigDecimal("100"))).compareTo(normalize(physicalAmount)),
                 "default namespace should return yuan while disabled namespace returns physical cents; default="
-                        + defaultAmount + ", physical=" + physicalAmount);
+                + defaultAmount + ", physical=" + physicalAmount);
+    }
+
+    @Test
+    @DisplayName("query/direct passes extData to aggregate relation runtime filter")
+    void directQueryPassesExtDataToAggregateRelationRuntimeFilter() throws Exception {
+        JsonNode query = postDirectRuntimeFilterQuery("""
+                {
+                  "start": 0,
+                  "limit": 2,
+                  "columns": ["orderId", "amount", "salesAmount", "uniqueCustomers"],
+                  "orderBy": [
+                    { "field": "orderId", "dir": "ASC" }
+                  ],
+                  "extData": {
+                    "orderId": "ORD20240101000001"
+                  }
+                }
+                """);
+
+        assertEquals(200, query.path("code").asInt(), query.toString());
+        assertTrue(query.path("data").path("success").asBoolean(), query.toString());
+
+        JsonNode items = query.path("data").path("items");
+        assertTrue(items.isArray() && items.size() >= 2, query.toString());
+
+        JsonNode matchedOrder = items.get(0);
+        JsonNode unmatchedOrder = items.get(1);
+        assertEquals("ORD20240101000001", matchedOrder.path("orderId").asText(), matchedOrder.toString());
+        assertEquals("ORD20240101000002", unmatchedOrder.path("orderId").asText(), unmatchedOrder.toString());
+        assertEquals(0, new BigDecimal("9898.20").compareTo(decimal(matchedOrder.path("salesAmount"))),
+                matchedOrder.toString());
+        assertEquals(1, matchedOrder.path("uniqueCustomers").asInt(), matchedOrder.toString());
+        assertTrue(isNullLike(unmatchedOrder.path("salesAmount")),
+                "RHS runtime filter should not expose sales for a different order: " + unmatchedOrder);
+    }
+
+    @Test
+    @DisplayName("query/direct aggregate relation runtime filter fails closed when extData is missing")
+    void directQueryRuntimeFilterFailsClosedWhenExtDataMissing() throws Exception {
+        JsonNode query = postDirectRuntimeFilterQuery("""
+                {
+                  "start": 0,
+                  "limit": 1,
+                  "columns": ["orderId", "amount", "salesAmount"]
+                }
+                """);
+
+        assertEquals(600, query.path("code").asInt(), query.toString());
+        assertTrue(query.path("msg").asText().contains("aggregate relation runtime filter 值不能为空"),
+                query.toString());
     }
 
     private JsonNode getFrontendMeta(String namespace) throws Exception {
@@ -184,6 +235,18 @@ class DataViewerApiSmokeTest {
         return json;
     }
 
+    private JsonNode postDirectRuntimeFilterQuery(String body) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                baseUrl() + "/data-viewer/api/query/direct/" + RUNTIME_FILTER_QUERY_MODEL,
+                new HttpEntity<>(body, headers),
+                String.class);
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        return objectMapper.readTree(response.getBody());
+    }
+
     private JsonNode firstRow(JsonNode queryResponse) {
         JsonNode items = queryResponse.path("data").path("items");
         assertTrue(items.isArray() && !items.isEmpty(), queryResponse.toString());
@@ -206,6 +269,10 @@ class DataViewerApiSmokeTest {
     private BigDecimal decimal(JsonNode node) {
         assertFalse(node.isMissingNode(), "amount field missing");
         return new BigDecimal(node.asText());
+    }
+
+    private boolean isNullLike(JsonNode node) {
+        return node.isMissingNode() || node.isNull() || node.asText().isBlank();
     }
 
     private BigDecimal normalize(BigDecimal value) {
