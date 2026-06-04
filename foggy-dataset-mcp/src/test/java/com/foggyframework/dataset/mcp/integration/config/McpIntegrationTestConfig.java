@@ -13,8 +13,15 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -33,16 +40,25 @@ import static org.mockito.Mockito.mock;
 @TestConfiguration
 public class McpIntegrationTestConfig {
 
+    private static final byte[] TEST_PNG = Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=");
+
     /**
-     * 创建 mock 的 chartRenderWebClient
+     * 创建测试用 chartRenderWebClient
      *
-     * 图表服务在集成测试中暂不测试
+     * 图表服务在集成测试中暂不测试，但需要返回稳定的图片字节，避免 AI 选择 export_with_chart
+     * 时因裸 Mockito WebClient 的 post() 返回 null 而污染实测日志。
      */
     @Bean
     @Primary
     public WebClient chartRenderWebClient() {
-        log.info("Creating mock chartRenderWebClient for integration tests");
-        return mock(WebClient.class);
+        log.info("Creating stub chartRenderWebClient for integration tests");
+        return WebClient.builder()
+                .exchangeFunction(request -> Mono.just(ClientResponse.create(HttpStatus.OK)
+                        .header("Content-Type", MediaType.IMAGE_PNG_VALUE)
+                        .body(Flux.just(new DefaultDataBufferFactory().wrap(TEST_PNG)))
+                        .build()))
+                .build();
     }
 
     /**

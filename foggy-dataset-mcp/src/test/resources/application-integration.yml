@@ -101,6 +101,11 @@ foggy:
         auth-token: test-token
         timeout-seconds: 60
 
+  chart:
+    storage:
+      local:
+        directory: target/ai-test-chart-images
+
   dataset:
     # SQL 日志配置
     show-sql: true               # 打印 SQL 语句
