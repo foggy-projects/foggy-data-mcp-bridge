@@ -53,6 +53,9 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Current warning types:
   - `tool_business_error`: numeric tool result code is not `200`.
   - `unknown_model_probe`: a describe-model tool call probes a model-like argument that returned a business error.
+  - `empty_tool_result`: a successful tool call record has no result payload.
+  - `tool_result_parse_error`: a failed tool call record contains `JSON_PARSE_ERROR`.
+  - `tool_call_failure`: a failed tool call record does not match the JSON parse error class.
   - `model_describe_retry`: the same case repeats describe-model calls for the same model argument.
 
 ## Acceptance Criteria
@@ -79,8 +82,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation, and warning classification for unknown model probes and repeated describe-model calls. |
-| testing | complete | Targeted Maven test command passed with 14 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation, local historical report aggregation, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation, and warning classification for unknown model probes, tool call anomalies, and repeated describe-model calls. |
+| testing | complete | Targeted Maven test command passed with 16 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation, local historical report aggregation, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -93,9 +96,10 @@ Completed work:
 - Added `warnings.json` and `warnings.jsonl` artifact generation for downstream sample collection.
 - Added local env file loading for ignored `.ai-test.env`, `.env.local`, explicit `AI_TEST_ENV_FILE`, and `--env-file FILE`.
 - Added cross-run warning sample collector with JSONL and summary artifacts.
-- Added warning classification for `unknown_model_probe` and `model_describe_retry`.
+- Added warning classification for `unknown_model_probe`, `empty_tool_result`, `tool_result_parse_error`, `tool_call_failure`, and `model_describe_retry`.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
 - Added regression coverage for repeated describe-model calls.
+- Added regression coverage for empty tool results, JSON parse failures, and ordinary tool call failures.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
@@ -127,6 +131,8 @@ mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
 Result on 2026-06-04: passed, 13 tests.
 
 Updated targeted result on 2026-06-04 after warning artifact and env-file changes: passed, 14 tests.
+
+Updated targeted result on 2026-06-04 after tool call anomaly warning changes: passed, 16 tests.
 
 Additional checks on 2026-06-04:
 

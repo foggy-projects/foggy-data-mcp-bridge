@@ -222,6 +222,93 @@ class AiTestReportSummaryTest {
     }
 
     @Test
+    @DisplayName("应识别成功工具调用的空结果 warning")
+    @SuppressWarnings("unchecked")
+    void build_shouldExposeEmptyToolResultWarning() {
+        ToolCallCollector.ToolCallRecord record = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of("model", "SalesOrderModel"))
+                .result(null)
+                .success(true)
+                .durationMs(9)
+                .timestamp(Instant.now())
+                .sequence(3)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult result = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("QUERY-EMPTY")
+                .provider("spring-ai")
+                .modelName("gemini-3-flash")
+                .success(true)
+                .toolCallRecords(List.of(record))
+                .durationMs(100)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(result));
+
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(Map.of("empty_tool_result", 1L), summary.get("warningCategories"));
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals("empty_tool_result", warnings.get(0).get("warningType"));
+        assertEquals("toolCall#3", warnings.get(0).get("source"));
+        assertEquals("dataset.query_model", warnings.get(0).get("toolName"));
+        assertEquals("SalesOrderModel", warnings.get(0).get("argumentModel"));
+    }
+
+    @Test
+    @DisplayName("应区分 JSON 解析失败和普通工具调用失败 warning")
+    @SuppressWarnings("unchecked")
+    void build_shouldExposeToolCallFailureWarnings() {
+        ToolCallCollector.ToolCallRecord parseError = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of("model", "SalesOrderModel"))
+                .result(null)
+                .error("JSON_PARSE_ERROR: unexpected token")
+                .success(false)
+                .durationMs(12)
+                .timestamp(Instant.now())
+                .sequence(4)
+                .build();
+        ToolCallCollector.ToolCallRecord executionError = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of("model", "SalesOrderModel"))
+                .result(null)
+                .error("QUERY_MODEL_FAILED: missing field")
+                .success(false)
+                .durationMs(15)
+                .timestamp(Instant.now())
+                .sequence(5)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult result = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("QUERY-FAILURE")
+                .provider("spring-ai")
+                .modelName("gemini-pro-agent")
+                .success(true)
+                .toolCallRecords(List.of(parseError, executionError))
+                .durationMs(100)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(result));
+
+        assertEquals(2, summary.get("warningCount"));
+        assertEquals(Map.of("tool_result_parse_error", 1L, "tool_call_failure", 1L),
+                summary.get("warningCategories"));
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals("tool_result_parse_error", warnings.get(0).get("warningType"));
+        assertEquals("JSON_PARSE_ERROR: unexpected token", warnings.get(0).get("error"));
+        assertEquals(4, warnings.get(0).get("sequence"));
+        assertEquals("tool_call_failure", warnings.get(1).get("warningType"));
+        assertEquals("QUERY_MODEL_FAILED: missing field", warnings.get(1).get("error"));
+        assertEquals(5, warnings.get(1).get("sequence"));
+    }
+
+    @Test
     @DisplayName("不应把 code=200 的 RX 包装结果识别为工具业务错误")
     void toolBusinessErrors_shouldIgnoreSuccessfulRxWrapper() {
         Map<String, Object> wrappedResult = new LinkedHashMap<>();
