@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -60,6 +61,8 @@ final class AiTestReportSummary {
         summary.put("failedCount", safeResults.size() - passed);
         summary.put("models", summarizeModels(safeResults));
         summary.put("clarify", summarizeClarify(clarifyObservability, domains, riskTypes, ownerRules, missingSlots));
+        summary.put("failureCategories", summarizeFailureCategories(safeResults));
+        summary.put("caseComparison", summarizeCaseComparison(safeResults));
         summary.put("cases", cases);
         return summary;
     }
@@ -97,6 +100,7 @@ final class AiTestReportSummary {
         summary.put("durationMs", result.getDurationMs());
         summary.put("question", result.getQuestion());
         summary.put("errorMessage", result.getErrorMessage());
+        summary.put("errorCategory", errorCategory(result));
         summary.put("calledTools", result.getCalledToolNames());
         summary.put("clarifyObservability", clarifyObservability(result));
         if (result.getValidationResult() != null) {
@@ -141,9 +145,150 @@ final class AiTestReportSummary {
                     summary.put("failedCount", modelResults.size() - passed);
                     summary.put("successRate", modelResults.isEmpty() ? 0 : passed * 100.0 / modelResults.size());
                     summary.put("avgDurationMs", avgDuration);
+                    summary.put("failureCategories", summarizeFailureCategories(modelResults));
+                    summary.put("clarifyCaseCount", clarifyCaseCount(modelResults));
                     return summary;
                 })
                 .toList();
+    }
+
+    private static List<Map<String, Object>> summarizeCaseComparison(List<SpringAiTestExecutor.AiTestResult> results) {
+        return results.stream()
+                .collect(Collectors.groupingBy(
+                        AiTestReportSummary::caseKey,
+                        LinkedHashMap::new,
+                        Collectors.toList()))
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    List<SpringAiTestExecutor.AiTestResult> caseResults = entry.getValue();
+                    long passed = caseResults.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
+                    Map<String, Object> summary = new LinkedHashMap<>();
+                    summary.put("testCaseId", entry.getKey());
+                    summary.put("question", firstQuestion(caseResults));
+                    summary.put("resultCount", caseResults.size());
+                    summary.put("passedCount", passed);
+                    summary.put("failedCount", caseResults.size() - passed);
+                    summary.put("consensus", consensus(caseResults.size(), passed));
+                    summary.put("models", caseResults.stream()
+                            .map(AiTestReportSummary::summarizeCaseModelResult)
+                            .toList());
+                    return summary;
+                })
+                .toList();
+    }
+
+    private static Map<String, Object> summarizeCaseModelResult(SpringAiTestExecutor.AiTestResult result) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("model", result.getProvider() + "/" + result.getModelName());
+        summary.put("provider", result.getProvider());
+        summary.put("modelName", result.getModelName());
+        summary.put("success", result.isSuccess());
+        summary.put("durationMs", result.getDurationMs());
+        summary.put("errorCategory", errorCategory(result));
+        summary.put("errorMessage", result.getErrorMessage());
+        summary.put("calledTools", result.getCalledToolNames());
+        summary.put("clarifyObservationCount", clarifyObservability(result).size());
+        if (result.getValidationResult() != null) {
+            summary.put("failedRules", result.getValidationResult().getFailedRules());
+            summary.put("validationErrors", result.getValidationResult().getErrors());
+        }
+        return summary;
+    }
+
+    private static String firstQuestion(List<SpringAiTestExecutor.AiTestResult> results) {
+        return results.stream()
+                .map(SpringAiTestExecutor.AiTestResult::getQuestion)
+                .filter(question -> question != null && !question.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String caseKey(SpringAiTestExecutor.AiTestResult result) {
+        String testCaseId = result.getTestCaseId();
+        return testCaseId == null || testCaseId.isBlank() ? "(unknown)" : testCaseId;
+    }
+
+    private static String consensus(int resultCount, long passed) {
+        if (resultCount == 0) {
+            return "empty";
+        }
+        if (passed == resultCount) {
+            return "all_passed";
+        }
+        if (passed == 0) {
+            return "all_failed";
+        }
+        return "mixed";
+    }
+
+    private static Map<String, Object> summarizeFailureCategories(List<SpringAiTestExecutor.AiTestResult> results) {
+        Map<String, Long> counts = results.stream()
+                .collect(Collectors.groupingBy(
+                        AiTestReportSummary::errorCategory,
+                        LinkedHashMap::new,
+                        Collectors.counting()));
+        return new LinkedHashMap<>(counts);
+    }
+
+    private static long clarifyCaseCount(List<SpringAiTestExecutor.AiTestResult> results) {
+        return results.stream()
+                .filter(result -> !clarifyObservability(result).isEmpty())
+                .map(SpringAiTestExecutor.AiTestResult::getTestCaseId)
+                .distinct()
+                .count();
+    }
+
+    private static String errorCategory(SpringAiTestExecutor.AiTestResult result) {
+        if (result == null) {
+            return "unknown";
+        }
+        if (result.isSuccess()) {
+            return "success";
+        }
+        String message = firstNonBlank(result.getErrorMessage());
+        if (message != null) {
+            String normalized = message.toLowerCase(Locale.ROOT);
+            if (isDatabaseUnavailable(normalized)) {
+                return "exception:database_unavailable";
+            }
+            if (normalized.contains("429") || normalized.contains("quota") || normalized.contains("cooldown")) {
+                return "exception:provider_unavailable";
+            }
+            return "exception";
+        }
+        if (result.getValidationResult() != null && !result.getValidationResult().isPassed()) {
+            String validationMessage = validationMessage(result.getValidationResult());
+            if (validationMessage != null && isDatabaseUnavailable(validationMessage.toLowerCase(Locale.ROOT))) {
+                return "validation_failed:database_unavailable";
+            }
+            return "validation_failed";
+        }
+        if (result.getToolCallRecords() == null || result.getToolCallRecords().isEmpty()) {
+            return "no_tool_calls";
+        }
+        return "failed_without_detail";
+    }
+
+    private static boolean isDatabaseUnavailable(String normalizedMessage) {
+        return normalizedMessage.contains("communications link failure")
+                || normalizedMessage.contains("connection refused")
+                || normalizedMessage.contains("unable to acquire jdbc connection")
+                || normalizedMessage.contains("mysql");
+    }
+
+    private static String validationMessage(ResultValidator.ValidationResult validationResult) {
+        List<String> messages = new ArrayList<>();
+        if (validationResult.getErrors() != null) {
+            messages.addAll(validationResult.getErrors());
+        }
+        if (validationResult.getFailedRules() != null) {
+            messages.addAll(validationResult.getFailedRules());
+        }
+        return messages.stream()
+                .filter(message -> message != null && !message.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private static Map<String, Object> summarizeClarify(List<Map<String, Object>> observations,
@@ -294,5 +439,9 @@ final class AiTestReportSummary {
 
     private static String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private static String firstNonBlank(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

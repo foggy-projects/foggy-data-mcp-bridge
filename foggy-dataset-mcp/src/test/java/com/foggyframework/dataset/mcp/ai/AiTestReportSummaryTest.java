@@ -91,6 +91,75 @@ class AiTestReportSummaryTest {
         assertEquals(List.of("time_range"), observations.get(0).get("missingSlots"));
     }
 
+    @Test
+    @DisplayName("应按 case 输出跨模型对比和失败分类")
+    @SuppressWarnings("unchecked")
+    void build_shouldExposeCaseComparisonAndFailureCategories() {
+        SpringAiTestExecutor.AiTestResult passed = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("QUERY-001")
+                .provider("spring-ai")
+                .modelName("gemini-pro-agent")
+                .success(true)
+                .question("查询销售额")
+                .durationMs(100)
+                .build();
+        SpringAiTestExecutor.AiTestResult failed = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("QUERY-001")
+                .provider("spring-ai")
+                .modelName("claude-sonnet")
+                .success(false)
+                .question("查询销售额")
+                .validationResult(ResultValidator.ValidationResult.failure("QUERY-001", "missing required column"))
+                .durationMs(150)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(passed, failed));
+
+        Map<String, Object> failureCategories = (Map<String, Object>) summary.get("failureCategories");
+        assertEquals(1L, failureCategories.get("success"));
+        assertEquals(1L, failureCategories.get("validation_failed"));
+
+        List<Map<String, Object>> models = (List<Map<String, Object>>) summary.get("models");
+        Map<String, Object> failedModel = models.stream()
+                .filter(model -> "spring-ai/claude-sonnet".equals(model.get("model")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(0L, failedModel.get("clarifyCaseCount"));
+        assertEquals(Map.of("validation_failed", 1L), failedModel.get("failureCategories"));
+
+        List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
+        assertEquals(1, comparison.size());
+        assertEquals("QUERY-001", comparison.get(0).get("testCaseId"));
+        assertEquals("mixed", comparison.get(0).get("consensus"));
+        assertEquals(1L, comparison.get(0).get("passedCount"));
+        assertEquals(1L, comparison.get(0).get("failedCount"));
+
+        List<Map<String, Object>> comparedModels =
+                (List<Map<String, Object>>) comparison.get(0).get("models");
+        assertEquals(List.of("spring-ai/gemini-pro-agent", "spring-ai/claude-sonnet"),
+                comparedModels.stream().map(model -> model.get("model")).toList());
+        assertEquals("validation_failed", comparedModels.get(1).get("errorCategory"));
+    }
+
+    @Test
+    @DisplayName("应从 validation 错误中识别数据库不可用")
+    @SuppressWarnings("unchecked")
+    void build_shouldClassifyDatabaseUnavailableValidationFailure() {
+        SpringAiTestExecutor.AiTestResult failed = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("QUERY-DB")
+                .provider("direct")
+                .modelName("tool-execution")
+                .success(false)
+                .validationResult(ResultValidator.ValidationResult.failure("QUERY-DB",
+                        "Query returned error: Communications link failure"))
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(failed));
+        Map<String, Object> failureCategories = (Map<String, Object>) summary.get("failureCategories");
+
+        assertEquals(1L, failureCategories.get("validation_failed:database_unavailable"));
+    }
+
     private static Map<String, Object> clarifyDetail() {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("terminal_route", "CLARIFY");
