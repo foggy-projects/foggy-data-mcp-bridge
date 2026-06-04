@@ -601,6 +601,106 @@ class AiTestReportSummaryTest {
     }
 
     @Test
+    @DisplayName("应将 OR 等值条件和 IN 条件的等价差异分类为良性 payload shape 分歧")
+    @SuppressWarnings("unchecked")
+    void build_shouldClassifyOrEqualsAndInConditionShapeAsBenign() {
+        ToolCallCollector.ToolCallRecord baseline = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "mode", "execute",
+                        "payload", Map.of(
+                                "columns", List.of("store$caption", "salesAmount", "salesDate$year"),
+                                "slice", List.of(
+                                        Map.of("field", "salesAmount", "op", ">", "value", 500),
+                                        Map.of("$or", List.of(
+                                                Map.of("field", "salesDate$year", "op", "=", "value", 2024),
+                                                Map.of("field", "salesDate$year", "op", "=", "value", 2025)
+                                        ))
+                                ),
+                                "groupBy", List.of("store$caption", "salesDate$year"),
+                                "orderBy", List.of(Map.of("column", "salesAmount", "direction", "DESC")),
+                                "limit", 3
+                        )
+                ))
+                .result(Map.of("code", 200))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+        ToolCallCollector.ToolCallRecord llm = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of("store$id", "store$caption", "salesDate$year",
+                                        "sum(salesAmount) as totalSales"),
+                                "slice", List.of(
+                                        Map.of("field", "salesDate$year", "op", "in", "value", List.of(2024, 2025)),
+                                        Map.of("field", "salesAmount", "op", ">", "value", 500)
+                                ),
+                                "groupBy", List.of(
+                                        Map.of("field", "store$id"),
+                                        Map.of("field", "store$caption"),
+                                        Map.of("field", "salesDate$year")
+                                ),
+                                "orderBy", List.of(Map.of("field", "totalSales", "dir", "desc")),
+                                "limit", 3
+                        )
+                ))
+                .result(Map.of("code", 200))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult direct = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("COMPLEX-001")
+                .provider("direct")
+                .modelName("tool-execution")
+                .success(true)
+                .question("查询2024、2025年销售金额超过500的记录，按门店、年分组统计总销售额")
+                .toolCallRecords(List.of(baseline))
+                .durationMs(10)
+                .build();
+        SpringAiTestExecutor.AiTestResult gemini = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("COMPLEX-001")
+                .provider("spring-ai")
+                .modelName("gemini-3-flash")
+                .success(true)
+                .question("查询2024、2025年销售金额超过500的记录，按门店、年分组统计总销售额")
+                .toolCallRecords(List.of(llm))
+                .durationMs(10)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(direct, gemini));
+
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(Map.of("benign_query_payload_shape_divergence", 1L), summary.get("warningCategories"));
+
+        List<Map<String, Object>> cases = (List<Map<String, Object>>) summary.get("cases");
+        List<Map<String, Object>> directPayloads =
+                (List<Map<String, Object>>) cases.get(0).get("queryPayloads");
+        assertEquals(List.of("salesAmount", "salesDate$year"), directPayloads.get(0).get("sliceFields"));
+        assertEquals(List.of("salesAmount|>|500", "salesDate$year|in|[2024,2025]"),
+                directPayloads.get(0).get("sliceConditions"));
+
+        List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
+        assertEquals("benign", comparison.get(0).get("queryPayloadShapeDivergenceClass"));
+        assertEquals(2, comparison.get(0).get("queryPayloadShapeSignatureCount"));
+        assertEquals(1, comparison.get(0).get("queryPayloadSemanticSignatureCount"));
+
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals("benign_query_payload_shape_divergence", warnings.get(0).get("warningType"));
+        assertEquals("info", warnings.get(0).get("severity"));
+    }
+
+    @Test
     @DisplayName("应从 validation 错误中识别数据库不可用")
     @SuppressWarnings("unchecked")
     void build_shouldClassifyDatabaseUnavailableValidationFailure() {

@@ -6,6 +6,7 @@ import com.foggyframework.dataset.mcp.service.ToolCallCollector;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -530,11 +531,89 @@ final class AiTestReportSummary {
     }
 
     private static List<String> conditionValues(Object value) {
-        return mapItems(value).stream()
-                .map(AiTestReportSummary::conditionValue)
+        List<String> conditions = new ArrayList<>();
+        collectConditionValues(value, conditions);
+        return conditions.stream()
                 .filter(condition -> condition != null && !condition.isBlank())
                 .distinct()
                 .toList();
+    }
+
+    private static void collectConditionValues(Object value, List<String> conditions) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectConditionValues(item, conditions);
+            }
+            return;
+        }
+        if (value instanceof Map<?, ?> rawMap) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            rawMap.forEach((key, mapValue) -> map.put(String.valueOf(key), mapValue));
+            String compactOrCondition = compactOrEqualityCondition(map);
+            if (compactOrCondition != null) {
+                conditions.add(compactOrCondition);
+                return;
+            }
+            if (hasConditionField(map)) {
+                conditions.add(conditionValue(map));
+                return;
+            }
+            for (Object child : map.values()) {
+                collectConditionValues(child, conditions);
+            }
+            return;
+        }
+        conditions.add(stringValue(value));
+    }
+
+    private static String compactOrEqualityCondition(Map<String, Object> map) {
+        Object orNode = firstNonNull(map.get("$or"), map.get("or"));
+        if (orNode == null) {
+            return null;
+        }
+        List<Map<String, Object>> children = mapItems(orNode).stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(rawChild -> {
+                    Map<String, Object> child = new LinkedHashMap<>();
+                    rawChild.forEach((key, value) -> child.put(String.valueOf(key), value));
+                    return child;
+                })
+                .toList();
+        if (children.isEmpty() || children.size() != mapItems(orNode).size()) {
+            return null;
+        }
+
+        List<String> fields = children.stream()
+                .map(AiTestReportSummary::fieldValue)
+                .filter(field -> field != null && !field.isBlank())
+                .distinct()
+                .toList();
+        if (fields.size() != 1) {
+            return null;
+        }
+        boolean allEquals = children.stream()
+                .map(child -> stringValue(firstNonNull(child.get("op"), child.get("operator"))))
+                .allMatch(op -> "=".equals(op) || "==".equals(op));
+        if (!allEquals) {
+            return null;
+        }
+        List<Object> values = children.stream()
+                .map(child -> firstNonNull(child.get("value"), child.get("values")))
+                .filter(item -> item != null && !compactValue(item).isBlank())
+                .sorted(Comparator.comparing(AiTestReportSummary::compactValue))
+                .toList();
+        if (values.size() != children.size()) {
+            return null;
+        }
+        return String.join("|", fields.get(0), "in", compactValue(values));
+    }
+
+    private static boolean hasConditionField(Map<String, Object> map) {
+        return firstNonBlank(fieldValue(map)) != null;
     }
 
     private static String conditionValue(Object value) {
