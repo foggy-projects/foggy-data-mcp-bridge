@@ -46,6 +46,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Updated `scripts/run-ai-llm-matrix.sh` to aggregate warning fields and print warning totals/cases after matrix summary generation.
 - Added warning artifacts beside `matrix-summary.json`: `warnings.json` for structured warning summary and `warnings.jsonl` for line-oriented sample collection.
 - Added safe local env loading for matrix runs through `AI_TEST_ENV_FILE`, `--env-file FILE`, or the first existing ignored file among `.ai-test.env` and `.env.local`.
+- Added `scripts/collect-ai-warning-samples.sh` to aggregate warning samples across matrix runs into `target/ai-warning-samples/`.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
@@ -64,6 +65,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Matrix script terminal output exposes warning totals and warning case IDs.
 - Matrix script emits `warnings.json` and `warnings.jsonl` artifacts.
 - Matrix script can load ignored local env files without printing secret values.
+- Warning samples can be aggregated across historical matrix runs.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -77,8 +79,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, and warning classification for unknown model probes and repeated describe-model calls. |
-| testing | complete | Targeted Maven test command passed with 14 tests; shell syntax, env-file print-selection, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation, and warning classification for unknown model probes and repeated describe-model calls. |
+| testing | complete | Targeted Maven test command passed with 14 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation, local historical report aggregation, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -90,6 +92,7 @@ Completed work:
 - Added warning-layer JSON fields and matrix terminal summary output.
 - Added `warnings.json` and `warnings.jsonl` artifact generation for downstream sample collection.
 - Added local env file loading for ignored `.ai-test.env`, `.env.local`, explicit `AI_TEST_ENV_FILE`, and `--env-file FILE`.
+- Added cross-run warning sample collector with JSONL and summary artifacts.
 - Added warning classification for `unknown_model_probe` and `model_describe_retry`.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
 - Added regression coverage for repeated describe-model calls.
@@ -129,10 +132,13 @@ Additional checks on 2026-06-04:
 
 - `bash -n scripts/run-ai-llm-matrix.sh`: passed.
 - `scripts/run-ai-llm-matrix.sh --env-file <temp-file> --print-selection`: passed; selection JSON stayed parseable and no secret values were printed.
+- `scripts/collect-ai-warning-samples.sh` with synthetic warning inputs: passed.
+- `scripts/collect-ai-warning-samples.sh` against local historical target reports: passed; current old reports contained zero warning samples.
 - `git diff --check`: passed.
 - Synthetic jq aggregation for `matrix-summary.json` warning fields and terminal warning output: passed.
 
 ## Follow-Up
 
 - Re-run a focused real LLM case such as `QUERY-002` after injecting `AI_TEST_OPENAI_API_KEY` through an ignored local env file to capture a fresh report with `warningCount`, `toolBusinessErrorCount`, `warnings.json`, and `warnings.jsonl`.
+- Run `scripts/collect-ai-warning-samples.sh` after real LLM runs to maintain local aggregate samples by warning type, model, case, and run.
 - Treat non-zero `warningCount` as warning-level evidence, not an immediate case failure, until enough samples show whether recovery behavior correlates with unstable answers.

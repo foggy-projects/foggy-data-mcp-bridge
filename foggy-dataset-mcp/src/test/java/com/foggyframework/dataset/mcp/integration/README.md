@@ -147,7 +147,14 @@ AI_TEST_OPENAI_API_KEY=... \
 可使用 `--print-selection` 在不连接数据库、不调用 LLM 的情况下查看最终选样。
 
 矩阵脚本会为每个模型保留独立快照，并生成
-`foggy-dataset-mcp/target/ai-test-reports/<run-id>/matrix-summary.json`。
+`foggy-dataset-mcp/target/ai-test-reports/<run-id>/matrix-summary.json`、
+`warnings.json` 和 `warnings.jsonl`。需要跨 run 汇总 warning 样本时执行：
+
+```bash
+./scripts/collect-ai-warning-samples.sh
+```
+
+汇总结果默认写入 `foggy-dataset-mcp/target/ai-warning-samples/`。
 
 ## 测试覆盖范围
 
