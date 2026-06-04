@@ -50,6 +50,25 @@ public class ModelResultContext {
      */
     Map<String, Object> extData = new HashMap<>();
 
+    public void mergeRequestExtData(Object requestExtData) {
+        if (requestExtData == null) {
+            return;
+        }
+        if (extData == null) {
+            extData = new HashMap<>();
+        }
+        if (!(requestExtData instanceof Map<?, ?> extDataMap)) {
+            extData.put("_requestExtData", requestExtData);
+            return;
+        }
+        for (Map.Entry<?, ?> entry : extDataMap.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            extData.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+    }
+
     /**
      * 安全上下文，用于权限控制
      */

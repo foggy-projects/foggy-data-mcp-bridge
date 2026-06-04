@@ -12,6 +12,7 @@ import com.foggyframework.dataset.db.model.proxy.ColumnRef;
 import com.foggyframework.dataset.db.model.proxy.JoinBuilder;
 import com.foggyframework.dataset.db.model.proxy.JoinCondition;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
@@ -23,6 +24,7 @@ import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.support.SimpleSqlJdbcColumn;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
+import com.foggyframework.fsscript.exp.FsscriptFunction;
 import jakarta.persistence.criteria.JoinType;
 
 import java.sql.Types;
@@ -47,8 +49,11 @@ import java.util.stream.Collectors;
 public class AggregateJoinTableModel extends TableModelSupport {
 
     private static final Pattern SIMPLE_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern SAFE_RUNTIME_FILTER_LITERAL = Pattern.compile("[A-Za-z0-9_-]+");
+    private static final int MAX_RUNTIME_FILTER_LITERAL_LENGTH = 128;
 
     private static final String SOURCE_ALIAS = "agg_src";
+    private static final ThreadLocal<ModelResultContext> RUNTIME_FILTER_CONTEXT = new ThreadLocal<>();
 
     private final TableModel sourceModel;
 
@@ -105,6 +110,18 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 relationProxy.getGroupByColumns(),
                 buildDefaultMeasures(sourceModel),
                 relationProxy.getFilters()));
+    }
+
+    public static void setRuntimeFilterContext(ModelResultContext context) {
+        if (context == null) {
+            RUNTIME_FILTER_CONTEXT.remove();
+            return;
+        }
+        RUNTIME_FILTER_CONTEXT.set(context);
+    }
+
+    public static void clearRuntimeFilterContext() {
+        RUNTIME_FILTER_CONTEXT.remove();
     }
 
     @Override
@@ -249,7 +266,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 selectParts,
                 sourceBody(),
                 sourceSqlContext.joinParts(),
-                renderFilterSql(input.filters(), sourceSqlContext),
+                input.filters(),
+                sourceSqlContext,
                 groupByParts,
                 buildJoinKeyPushdownMappings(input, sourceSqlContext));
     }
@@ -385,8 +403,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
                                 AggregateSourceSqlContext sourceSqlContext) {
         DbColumn sourceColumn = resolveSourceColumn(filter.getColumn());
         String columnSql = sourceColumnSql(sourceColumn, sourceSqlContext);
+        Object filterValue = resolveFilterValue(filter.getValue());
         if (filter.isMultiValue()) {
-            Collection<?> values = filter.getValue() instanceof Collection<?> collection ? collection : List.of(filter.getValue());
+            Collection<?> values = filterValue instanceof Collection<?> collection ? collection : List.of(filterValue);
             if (values.isEmpty()) {
                 return "1 = 0";
             }
@@ -396,14 +415,81 @@ public class AggregateJoinTableModel extends TableModelSupport {
             return columnSql + " in (" + renderedValues + ")";
         }
 
-        if (filter.getValue() == null) {
+        if (filterValue == null) {
             return switch (filter.getOperator()) {
                 case "=" -> columnSql + " is null";
                 case "<>" -> columnSql + " is not null";
                 default -> columnSql + " " + filter.getOperator() + " null";
             };
         }
-        return columnSql + " " + filter.getOperator() + " " + renderLiteral(filter.getValue());
+        return columnSql + " " + filter.getOperator() + " " + renderLiteral(filterValue);
+    }
+
+    private Object resolveFilterValue(Object value) {
+        if (!(value instanceof FsscriptFunction function)) {
+            return value;
+        }
+        ModelResultContext context = RUNTIME_FILTER_CONTEXT.get();
+        if (context == null) {
+            throw RX.throwAUserTip("aggregate relation runtime filter 缺少 ModelResultContext");
+        }
+        Object resolved;
+        try {
+            resolved = function.threadSafeAccept(context);
+        } catch (Exception e) {
+            throw RX.throwAUserTip("aggregate relation runtime filter 执行失败: " + e.getMessage());
+        }
+        return validateRuntimeFilterValue(resolved);
+    }
+
+    private Object validateRuntimeFilterValue(Object value) {
+        if (value == null) {
+            throw RX.throwAUserTip("aggregate relation runtime filter 值不能为空");
+        }
+        if (value instanceof Collection<?> collection) {
+            List<Object> validatedValues = new ArrayList<>();
+            for (Object item : collection) {
+                validatedValues.add(validateRuntimeFilterScalar(item));
+            }
+            return validatedValues;
+        }
+        return validateRuntimeFilterScalar(value);
+    }
+
+    private Object validateRuntimeFilterScalar(Object value) {
+        if (value == null) {
+            throw RX.throwAUserTip("aggregate relation runtime filter 值不能为空");
+        }
+        if (value instanceof Number number) {
+            if (number instanceof Double doubleValue && !Double.isFinite(doubleValue)) {
+                throw RX.throwAUserTip("aggregate relation runtime filter 数字值非法");
+            }
+            if (number instanceof Float floatValue && !Float.isFinite(floatValue)) {
+                throw RX.throwAUserTip("aggregate relation runtime filter 数字值非法");
+            }
+            return value;
+        }
+        if (value instanceof Boolean) {
+            return value;
+        }
+        if (value instanceof Enum<?> enumValue) {
+            return validateRuntimeFilterString(enumValue.name());
+        }
+        if (value instanceof CharSequence charSequence) {
+            return validateRuntimeFilterString(charSequence.toString());
+        }
+        throw RX.throwAUserTip("aggregate relation runtime filter 仅支持字符串、数字、布尔或字符串集合");
+    }
+
+    private String validateRuntimeFilterString(String value) {
+        if (value == null || value.isBlank()) {
+            throw RX.throwAUserTip("aggregate relation runtime filter 字符串值不能为空");
+        }
+        if (value.length() > MAX_RUNTIME_FILTER_LITERAL_LENGTH
+                || !SAFE_RUNTIME_FILTER_LITERAL.matcher(value).matches()) {
+            throw RX.throwAUserTip("aggregate relation runtime filter 字符串仅支持字母、数字、下划线和中划线");
+        }
+        return value;
     }
 
     private List<JoinKeyPushdownMapping> buildJoinKeyPushdownMappings(AggregateRelationInput input,
@@ -619,7 +705,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private final List<String> selectParts;
         private final String sourceBody;
         private final List<String> sourceJoinParts;
-        private final String baseWhereSql;
+        private final List<AggregateJoinBuilder.AggregateFilter> baseFilters;
+        private final AggregateSourceSqlContext sourceSqlContext;
         private final List<String> groupByParts;
         private final List<JoinKeyPushdownMapping> joinKeyPushdownMappings;
         private final ThreadLocal<PushdownState> pushdownState = ThreadLocal.withInitial(PushdownState::new);
@@ -628,14 +715,16 @@ public class AggregateJoinTableModel extends TableModelSupport {
                                               List<String> selectParts,
                                               String sourceBody,
                                               List<String> sourceJoinParts,
-                                              String baseWhereSql,
+                                              List<AggregateJoinBuilder.AggregateFilter> baseFilters,
+                                              AggregateSourceSqlContext sourceSqlContext,
                                               List<String> groupByParts,
                                               List<JoinKeyPushdownMapping> joinKeyPushdownMappings) {
             super("", sqlTable);
             this.selectParts = List.copyOf(selectParts);
             this.sourceBody = sourceBody;
             this.sourceJoinParts = List.copyOf(sourceJoinParts);
-            this.baseWhereSql = baseWhereSql;
+            this.baseFilters = baseFilters == null ? List.of() : List.copyOf(baseFilters);
+            this.sourceSqlContext = sourceSqlContext;
             this.groupByParts = List.copyOf(groupByParts);
             this.joinKeyPushdownMappings = List.copyOf(joinKeyPushdownMappings);
         }
@@ -655,6 +744,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             }
 
             List<String> whereParts = new ArrayList<>();
+            String baseWhereSql = renderFilterSql(baseFilters, sourceSqlContext);
             if (baseWhereSql != null && !baseWhereSql.isBlank()) {
                 whereParts.add(baseWhereSql);
             }

@@ -128,6 +128,7 @@ public class QueryFacadeImpl implements QueryFacade {
 
             PagingRequest<DbQueryRequestDef> form = context.getRequest();
             DbQueryRequestDef queryRequest = form.getParam();
+            context.mergeRequestExtData(queryRequest.getExtData());
 
             // 1. 获取查询模型（带命名空间）
             String queryModelName = queryRequest.getQueryModel();
@@ -189,6 +190,7 @@ public class QueryFacadeImpl implements QueryFacade {
 
             PagingRequest<DbQueryRequestDef> form = context.getRequest();
             DbQueryRequestDef queryRequest = form.getParam();
+            context.mergeRequestExtData(queryRequest.getExtData());
 
             // 1. 获取查询模型
             String queryModelName = queryRequest.getQueryModel();
@@ -229,7 +231,9 @@ public class QueryFacadeImpl implements QueryFacade {
             }
 
             PagingRequest<DbQueryRequestDef> form = context.getRequest();
-            String queryModelName = form.getParam().getQueryModel();
+            DbQueryRequestDef queryRequest = form.getParam();
+            context.mergeRequestExtData(queryRequest.getExtData());
+            String queryModelName = queryRequest.getQueryModel();
             QueryModel queryModel = queryModelLoader.getJdbcQueryModel(queryModelName, context.getNamespace());
             context.setQueryModel(queryModel);
 
@@ -276,4 +280,5 @@ public class QueryFacadeImpl implements QueryFacade {
             NamespaceContext.clear();
         }
     }
+
 }

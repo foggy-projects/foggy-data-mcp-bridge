@@ -97,6 +97,9 @@ public class SemanticQueryRequest {
     @ApiModelProperty(value = "查询提示，可选")
     private Map<String, Object> hints;
 
+    @ApiModelProperty(value = "查询扩展数据。用于向模型运行期脚本传递业务约定参数，不参与普通 slice 过滤")
+    private Map<String, Object> extData;
+
     @ApiModelProperty(value = "是否启用流式返回", example = "false")
     private Boolean stream;
 

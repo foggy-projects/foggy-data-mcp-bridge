@@ -199,6 +199,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (request.getHints() != null && !request.getHints().isEmpty()) {
             extData.putAll(request.getHints());
         }
+        if (request.getExtData() != null && !request.getExtData().isEmpty()) {
+            extData.putAll(request.getExtData());
+        }
         if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
             extData.put("timeWindow", request.getTimeWindow());
             if (request.getLimit() != null) {
@@ -459,6 +462,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         Map<String, Object> extData = new HashMap<>();
         if (request.getHints() != null && !request.getHints().isEmpty()) {
             extData.putAll(request.getHints());
+        }
+        if (request.getExtData() != null && !request.getExtData().isEmpty()) {
+            extData.putAll(request.getExtData());
         }
         if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
             extData.put("timeWindow", request.getTimeWindow());
@@ -1199,6 +1205,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         queryDef.setStrictColumns(true);
         queryDef.setDistinct(Boolean.TRUE.equals(request.getDistinct()));
         queryDef.setWithSubtotals(Boolean.TRUE.equals(request.getWithSubtotals()));
+        queryDef.setExtData(request.getExtData() == null || request.getExtData().isEmpty()
+                ? null
+                : new HashMap<>(request.getExtData()));
 
         // 获取模型定义用于字段校验（带命名空间）
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
