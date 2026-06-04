@@ -93,7 +93,7 @@
     {
       "id": "FILTER-002",
       "category": "FILTER_QUERY",
-      "question": "查询客户'张三'的所有购买记录",
+      "question": "查询客户'客户1'的所有购买记录",
       "expected_tool": "dataset.query_model",
       "target_model": "FactSalesQueryModel",
       "description": "过滤查询 - 文本精确匹配",
@@ -104,7 +104,7 @@
           {
             "type": "VALUE_CONTAINS",
             "column": "customer$caption",
-            "value": "张三"
+            "value": "客户1"
           }
         ]
       }

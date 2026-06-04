@@ -30,6 +30,8 @@ import java.util.*;
 @Slf4j
 public class SpringAiTestExecutor {
 
+    private static final int DEFAULT_DIRECT_QUERY_LIMIT = 20;
+
     private static final String SYSTEM_PROMPT_TEMPLATE = """
         你是一个数据分析助手，能够帮助用户查询和分析电商数据。
 
@@ -282,7 +284,7 @@ public class SpringAiTestExecutor {
                 .replace("{current_date}", java.time.LocalDate.now().toString());
     }
 
-    private Map<String, Object> buildToolArguments(EcommerceTestCase testCase) {
+    Map<String, Object> buildToolArguments(EcommerceTestCase testCase) {
         Map<String, Object> args = new HashMap<>();
 
         switch (testCase.getExpectedTool()) {
@@ -291,27 +293,129 @@ public class SpringAiTestExecutor {
             }
             case "dataset.describe_model_internal" -> {
                 args.put("model", testCase.getTargetModel());
+                args.put("format", "json");
             }
             case "dataset.query_model" -> {
                 args.put("model", testCase.getTargetModel());
                 args.put("mode", "execute");
 
                 Map<String, Object> payload = new HashMap<>();
-                // 从 expected 推断 columns
-                if (testCase.getExpected() != null &&
-                        testCase.getExpected().getRequiredColumns() != null &&
-                        !testCase.getExpected().getRequiredColumns().isEmpty()) {
-                    payload.put("columns", testCase.getExpected().getRequiredColumns());
-                } else {
-                    // 默认列 - 使用实际存在的列名
-                    payload.put("columns", List.of("product$caption", "salesAmount"));
+                List<String> columns = buildDirectColumns(testCase);
+                applyKnownDirectFixturePayload(testCase, payload, columns);
+
+                payload.put("columns", columns);
+                payload.putIfAbsent("limit", directLimit(testCase));
+
+                List<Map<String, Object>> orderBy = orderByFromExpected(testCase);
+                if (!orderBy.isEmpty()) {
+                    payload.putIfAbsent("orderBy", orderBy);
                 }
-                payload.put("limit", 20);
+
                 args.put("payload", payload);
             }
         }
 
         return args;
+    }
+
+    private List<String> buildDirectColumns(EcommerceTestCase testCase) {
+        if (testCase.getExpected() != null &&
+                testCase.getExpected().getRequiredColumns() != null &&
+                !testCase.getExpected().getRequiredColumns().isEmpty()) {
+            return new ArrayList<>(testCase.getExpected().getRequiredColumns());
+        }
+        return new ArrayList<>(List.of("product$caption", "salesAmount"));
+    }
+
+    private void applyKnownDirectFixturePayload(EcommerceTestCase testCase,
+                                                Map<String, Object> payload,
+                                                List<String> columns) {
+        switch (testCase.getId()) {
+            case "FILTER-001" -> payload.put("slice", List.of(condition("salesAmount", ">", 1000)));
+            case "FILTER-002" -> payload.put("slice", List.of(condition("customer$caption", "=", "客户1")));
+            case "AGG-001" -> payload.put("groupBy", List.of("product$caption"));
+            case "AGG-002" -> {
+                addColumn(columns, "quantity");
+                addColumn(columns, "salesAmount");
+                payload.put("groupBy", List.of("store$caption"));
+            }
+            case "DIM-001" -> {
+                addColumn(columns, "product$categoryName");
+                addColumn(columns, "store$caption");
+                addColumn(columns, "salesAmount");
+                payload.put("groupBy", List.of("product$categoryName", "store$caption"));
+            }
+            case "SORT-001" -> payload.put("groupBy", List.of("product$caption"));
+            case "COMPLEX-001" -> {
+                addColumn(columns, "salesDate$year");
+                payload.put("groupBy", List.of("store$caption", "salesDate$year"));
+                payload.put("orderBy", List.of(order("salesAmount", "DESC")));
+                payload.put("slice", List.of(
+                        condition("salesAmount", ">", 500),
+                        Map.of("$or", List.of(
+                                condition("salesDate$year", "=", 2024),
+                                condition("salesDate$year", "=", 2025)
+                        ))
+                ));
+            }
+            default -> {
+                // No fixture-specific arguments.
+            }
+        }
+    }
+
+    private int directLimit(EcommerceTestCase testCase) {
+        EcommerceTestCase.ExpectedResult expected = testCase.getExpected();
+        if (expected == null) {
+            return DEFAULT_DIRECT_QUERY_LIMIT;
+        }
+        if (expected.getExactRows() != null) {
+            return expected.getExactRows();
+        }
+        if (expected.getMaxRows() != null) {
+            return expected.getMaxRows();
+        }
+        return DEFAULT_DIRECT_QUERY_LIMIT;
+    }
+
+    private List<Map<String, Object>> orderByFromExpected(EcommerceTestCase testCase) {
+        EcommerceTestCase.ExpectedResult expected = testCase.getExpected();
+        if (expected == null || expected.getRules() == null) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> orderBy = new ArrayList<>();
+        for (EcommerceTestCase.ValidationRule rule : expected.getRules()) {
+            if (rule.getType() != EcommerceTestCase.RuleType.ORDER_BY ||
+                    rule.getColumn() == null ||
+                    rule.getColumn().isBlank()) {
+                continue;
+            }
+            Object direction = rule.getParams() == null ? null : rule.getParams().get("direction");
+            orderBy.add(order(rule.getColumn(), direction == null ? "ASC" : direction.toString()));
+        }
+        return orderBy;
+    }
+
+    private void addColumn(List<String> columns, String column) {
+        if (!columns.contains(column)) {
+            columns.add(column);
+        }
+    }
+
+    private Map<String, Object> condition(String field, String op, Object value) {
+        Map<String, Object> condition = new LinkedHashMap<>();
+        condition.put("field", field);
+        condition.put("op", op);
+        condition.put("value", value);
+        return condition;
+    }
+
+    private Map<String, Object> order(String column, String direction) {
+        Map<String, Object> order = new LinkedHashMap<>();
+        order.put("column", column);
+        order.put("direction", direction);
+        return order;
     }
 
     private String truncate(String s, int maxLen) {
