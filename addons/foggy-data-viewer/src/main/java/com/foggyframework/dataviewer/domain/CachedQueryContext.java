@@ -67,6 +67,11 @@ public class CachedQueryContext {
     private List<CalculatedFieldDef> calculatedFields;
 
     /**
+     * 运行时扩展参数，仅透传到 DbQueryRequestDef.extData。
+     */
+    private Object extData;
+
+    /**
      * 数据视图标题
      */
     private String title;
@@ -170,6 +175,7 @@ public class CachedQueryContext {
         def.setGroupBy(this.groupBy);
         def.setOrderBy(this.orderBy);
         def.setCalculatedFields(this.calculatedFields);
+        def.setExtData(this.extData);
         def.setReturnTotal(true);
         return def;
     }

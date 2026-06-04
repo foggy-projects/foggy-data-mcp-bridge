@@ -23,6 +23,7 @@ const apiClient = axios.create({
  */
 export interface QueryPayload {
   columns: string[]
+  extData?: Record<string, unknown>
   slice: Array<{ field: string; op: string; value?: unknown }>
   groupBy?: Array<{ field: string; agg?: string }>
   orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>

@@ -37,7 +37,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -383,6 +385,7 @@ public class ViewerApiController {
             DbQueryRequestDef queryDef = new DbQueryRequestDef();
             queryDef.setQueryModel(qmModel);
             queryDef.setReturnTotal(true);
+            queryDef.setExtData(request.getExtData());
 
             // 直接使用前端传入的 slice / orderBy / groupBy
             if (request.getColumns() != null) {
@@ -510,6 +513,7 @@ public class ViewerApiController {
             request.setGroupBy(payload.getGroupBy());
             request.setOrderBy(payload.getOrderBy());
             request.setCalculatedFields(payload.getCalculatedFields());
+            request.setExtData(payload.getExtData());
             request.setNamespace(resolveNamespace(headerNamespace, frontendRequest.getNamespace()));
 
             // 缓存查询
@@ -549,6 +553,7 @@ public class ViewerApiController {
         private List<GroupRequestDef> groupBy;
         private List<OrderRequestDef> orderBy;
         private List<CalculatedFieldDef> calculatedFields;
+        private Object extData;
     }
 
     /**
@@ -584,8 +589,22 @@ public class ViewerApiController {
             def.setGroupBy(request.getGroupBy());
         }
 
+        def.setExtData(mergeExtData(def.getExtData(), request.getExtData()));
         def.setReturnTotal(true);
         return def;
+    }
+
+    private Object mergeExtData(Object cachedExtData, Object requestExtData) {
+        if (requestExtData == null) {
+            return cachedExtData;
+        }
+        if (cachedExtData instanceof Map<?, ?> cachedMap && requestExtData instanceof Map<?, ?> requestMap) {
+            Map<String, Object> merged = new LinkedHashMap<>();
+            cachedMap.forEach((key, value) -> merged.put(String.valueOf(key), value));
+            requestMap.forEach((key, value) -> merged.put(String.valueOf(key), value));
+            return merged;
+        }
+        return requestExtData;
     }
 
     private String resolveNamespace(String headerNamespace, String bodyNamespace) {

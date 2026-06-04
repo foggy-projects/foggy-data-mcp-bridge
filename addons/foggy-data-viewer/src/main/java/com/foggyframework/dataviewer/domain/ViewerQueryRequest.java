@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 前端查询请求
@@ -20,6 +21,14 @@ public class ViewerQueryRequest {
      * 可选命名空间。HTTP X-NS header 优先于此字段。
      */
     private String namespace;
+
+    /**
+     * 运行时扩展参数。
+     * <p>
+     * 仅透传到 DbQueryRequestDef.extData，供 QM 中显式声明的运行时表达式使用，
+     * 不自动转换为 slice / where 条件。
+     */
+    private Map<String, Object> extData;
 
     /**
      * 起始位置

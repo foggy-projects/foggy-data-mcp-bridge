@@ -48,6 +48,7 @@ public class QueryCacheService {
                 .groupBy(request.getGroupBy())
                 .orderBy(request.getOrderBy())
                 .calculatedFields(request.getCalculatedFields())
+                .extData(request.getExtData())
                 .title(request.getTitle())
                 .authorization(authorization)
                 .namespace(request.getNamespace())
@@ -118,6 +119,7 @@ public class QueryCacheService {
         private List<GroupRequestDef> groupBy;
         private List<OrderRequestDef> orderBy;
         private List<CalculatedFieldDef> calculatedFields;
+        private Object extData;
         private String title;
         private String namespace;
 

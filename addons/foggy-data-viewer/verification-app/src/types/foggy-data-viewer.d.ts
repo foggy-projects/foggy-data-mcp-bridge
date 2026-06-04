@@ -73,6 +73,7 @@ declare module 'foggy-data-viewer' {
     title?: string
     payload: {
       columns: string[]
+      extData?: Record<string, unknown>
       slice?: SliceRequestDef[]
       orderBy?: OrderRequestDef[]
     }
@@ -93,6 +94,7 @@ declare module 'foggy-data-viewer' {
   export type ViewerQueryRequest = {
     start?: number
     limit?: number
+    extData?: Record<string, unknown>
     slice?: SliceRequestDef[]
     orderBy?: OrderRequestDef[]
   }

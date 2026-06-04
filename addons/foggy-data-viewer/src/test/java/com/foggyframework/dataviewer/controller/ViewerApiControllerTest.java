@@ -276,6 +276,59 @@ class ViewerApiControllerTest {
             assertEquals(RX.SUCCESS, response.getCode());
             verify(queryFacade).queryModelData(any(PagingRequest.class), eq("Bearer cached-token"), eq("cached-ns"));
         }
+
+        @Test
+        @DisplayName("queryId查询应透传请求extData且不合并到slice")
+        void shouldPassRequestExtDataForQueryData() {
+            when(cacheService.getQuery("test-query-id"))
+                    .thenReturn(Optional.of(validContext));
+
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(1));
+            mockResult.setTotal(1);
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
+                    .thenReturn(mockResult);
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setStart(0);
+            request.setLimit(10);
+            request.setExtData(Map.of("suggestionSheetId", "2490136163"));
+
+            RX response = controller.queryData("orders", "test-query-id", null, null, request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
+            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
+            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
+            assertEquals(Map.of("suggestionSheetId", "2490136163"), queryDef.getExtData());
+            assertEquals(1, queryDef.getSlice().size());
+            assertEquals("status", queryDef.getSlice().get(0).getField());
+        }
+
+        @Test
+        @DisplayName("queryId查询应合并缓存extData与请求extData")
+        void shouldMergeCachedAndRequestExtDataForQueryData() {
+            validContext.setExtData(Map.of("tenantRuntime", "T1", "suggestionSheetId", "old"));
+            when(cacheService.getQuery("test-query-id"))
+                    .thenReturn(Optional.of(validContext));
+
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(1));
+            mockResult.setTotal(1);
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
+                    .thenReturn(mockResult);
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setExtData(Map.of("suggestionSheetId", "2490136163"));
+
+            RX response = controller.queryData("orders", "test-query-id", null, null, request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
+            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
+            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
+            assertEquals(Map.of("tenantRuntime", "T1", "suggestionSheetId", "2490136163"), queryDef.getExtData());
+        }
     }
 
     @Nested
@@ -296,6 +349,7 @@ class ViewerApiControllerTest {
             request.setStart(0);
             request.setLimit(10);
             request.setColumns(List.of("orderId", "salesAmountYuan"));
+            request.setExtData(Map.of("suggestionSheetId", "2490136163"));
 
             RX response = controller.queryDirect("orders", "Bearer token", "header-ns", request);
 
@@ -304,6 +358,30 @@ class ViewerApiControllerTest {
             verify(queryFacade).queryModelData(captor.capture(), eq("Bearer token"), eq("header-ns"));
             DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
             assertEquals(List.of("orderId", "salesAmountYuan"), queryDef.getColumns());
+            assertEquals(Map.of("suggestionSheetId", "2490136163"), queryDef.getExtData());
+            assertNull(queryDef.getSlice());
+        }
+
+        @Test
+        @DisplayName("直连查询不携带extData时保持为空")
+        void shouldKeepExtDataNullWhenDirectRequestMissingIt() {
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(1));
+            mockResult.setTotal(1);
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
+                    .thenReturn(mockResult);
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setStart(0);
+            request.setLimit(10);
+
+            RX response = controller.queryDirect("orders", null, null, request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
+            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
+            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
+            assertNull(queryDef.getExtData());
         }
     }
 

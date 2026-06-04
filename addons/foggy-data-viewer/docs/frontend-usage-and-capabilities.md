@@ -482,12 +482,15 @@ interface OrderRequestDef {
 interface ViewerQueryRequest {
   start?: number
   limit?: number
+  extData?: Record<string, unknown>
   slice?: SliceRequestDef[]
   orderBy?: OrderRequestDef[]
 }
 ```
 
 这意味着组件的分页、排序、过滤都天然偏向服务端查询，而不是本地一次性加载全部数据。
+
+`extData` 只会透传到后端 `DbQueryRequestDef.extData`，供 QM 中显式声明的运行时表达式读取，例如 aggregate join RHS relation filter 中的 `(ctx) => ctx.extData.suggestionSheetId`。它不会被 data-viewer 自动转换为 `slice` 或主查询 `where` 条件。
 
 ---
 

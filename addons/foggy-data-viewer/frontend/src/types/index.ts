@@ -67,6 +67,8 @@ export interface QueryMetaResponse {
 export interface ViewerQueryRequest {
   start?: number
   limit?: number
+  /** 运行时扩展参数，仅透传到后端 DbQueryRequestDef.extData */
+  extData?: Record<string, unknown>
   /** 过滤条件 (DSL slice 格式) */
   slice?: SliceRequestDef[]
   /** 排序条件 (DSL orderBy 格式) */

@@ -5,7 +5,7 @@ version: 9.2.0
 target: QueryModel Aggregate Join
 status: accepted-with-risks
 created_at: 2026-05-27
-updated_at: 2026-05-27
+updated_at: 2026-06-04
 source_type: requirement
 upstream_issue: foggy-projects/foggy-data-mcp-workspace#3
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
@@ -235,6 +235,33 @@ Implemented constraints:
 - `on` must be equality from left model field to right model field.
 - Aggregate output aliases must be simple identifiers.
 - No-match behavior remains normal LEFT JOIN null behavior.
+
+### Runtime RHS Filter From Request Context
+
+2026-06-04 TMS 上游反馈要求 aggregate join RHS relation filter 支持从运行时上下文读取参数，典型形态如下：
+
+```js
+const occupancyByOrder = occ
+    .filterEq(occ.suggestionSheetId, (ctx) => ctx.extData.suggestionSheetId)
+    .groupBy(occ.tenantId, occ.planningStationId, occ.sourceOrderId)
+    .as('occupancyByOrder');
+```
+
+当前 Java engine 已补齐该能力并进入上游测试期：
+
+- `QueryRequest.extData` / `SemanticQueryRequest.extData` 会合并到 `ModelResultContext.extData`。
+- RHS aggregate relation filter 中的 function 右值在 SQL 生成期按当前 `ModelResultContext` 求值。
+- 该 filter 只渲染到 RHS derived aggregate relation 内部，不提升为主查询 `WHERE`，避免 LEFT JOIN 主侧数据被误过滤。
+- 缺少运行时值时 fail closed，当前错误表现为 aggregate relation runtime filter 值不能为空。
+- 当前 RHS 动态值暂未通过 derived relation 参数通道渲染为 `?`，字符串字面量使用严格白名单限制，只允许字母、数字、下划线、中划线并限制长度；数值、布尔、枚举和标量集合按安全标量处理。
+- 当前 aggregate relation 仍要求 RHS `groupBy`，无 `groupBy` 的 RHS relation 是否支持需要单独语义设计或由上游测试确认后再扩展。
+
+Data-viewer 入口要求：
+
+- `/jdbc-model/query-model/v2/{model}` 已可通过 `param.extData` 进入 `ModelResultContext.extData`。
+- `/data-viewer/api/query/direct/{qmModel}` 与 `/data-viewer/api/query/{model}/{queryId}/data` 需要将 `ViewerQueryRequest.extData` 透传到 `DbQueryRequestDef.extData`。
+- 透传边界仅为 request -> `DbQueryRequestDef.extData` -> `ModelResultContext.extData`，不得自动转换为 `slice` / `where`。
+- `query/create` 缓存链路如携带 `payload.extData`，应保留在 cached query context；执行时请求级 `extData` 可覆盖或合并缓存值。
 
 Known limits in this cut:
 

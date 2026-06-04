@@ -132,6 +132,24 @@ class QueryCacheServiceTest {
 
             assertEquals("tms-ai", result.getNamespace());
         }
+
+        @Test
+        @DisplayName("应保存extData到缓存上下文")
+        void shouldSaveExtData() {
+            QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
+            request.setModel("orders");
+            request.setColumns(List.of("orderId"));
+            request.setExtData(Map.of("suggestionSheetId", "2490136163"));
+
+            when(repository.save(any(CachedQueryContext.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            CachedQueryContext result = service.cacheQuery(request, null);
+
+            assertEquals(Map.of("suggestionSheetId", "2490136163"), result.getExtData());
+            assertEquals(Map.of("suggestionSheetId", "2490136163"),
+                    result.toDbQueryRequestDef().getExtData());
+        }
     }
 
     @Nested
