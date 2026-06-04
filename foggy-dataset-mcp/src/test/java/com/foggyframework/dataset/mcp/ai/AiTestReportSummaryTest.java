@@ -395,6 +395,123 @@ class AiTestReportSummaryTest {
     }
 
     @Test
+    @DisplayName("应暴露 query_model payload shape 分歧")
+    @SuppressWarnings("unchecked")
+    void build_shouldExposeQueryPayloadShapeDivergence() {
+        ToolCallCollector.ToolCallRecord aggregateFilter = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "SalesOrderModel",
+                        "mode", "execute",
+                        "payload", Map.of(
+                                "columns", List.of("store$caption", "salesDate$year", "sum(salesAmount) as totalSales"),
+                                "slice", List.of(Map.of(
+                                        "field", "salesDate$year",
+                                        "op", "in",
+                                        "value", List.of(2024, 2025)
+                                )),
+                                "having", List.of(Map.of(
+                                        "field", "totalSales",
+                                        "op", ">",
+                                        "value", 500
+                                )),
+                                "groupBy", List.of(
+                                        Map.of("field", "store$id"),
+                                        Map.of("field", "store$caption"),
+                                        Map.of("field", "salesDate$year")
+                                ),
+                                "orderBy", List.of("-totalSales"),
+                                "limit", 3
+                        )
+                ))
+                .result(Map.of("code", 200))
+                .success(true)
+                .durationMs(12)
+                .timestamp(Instant.now())
+                .sequence(2)
+                .build();
+        ToolCallCollector.ToolCallRecord detailFilter = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "SalesOrderModel",
+                        "mode", "execute",
+                        "payload", Map.of(
+                                "columns", List.of("store$caption", "salesDate$year", "sum(salesAmount) as totalSales"),
+                                "slice", List.of(
+                                        Map.of("field", "salesDate$year", "op", "in", "value", List.of(2024, 2025)),
+                                        Map.of("field", "salesAmount", "op", ">", "value", 500)
+                                ),
+                                "groupBy", List.of(
+                                        Map.of("field", "store$id"),
+                                        Map.of("field", "store$caption"),
+                                        Map.of("field", "salesDate$year")
+                                ),
+                                "orderBy", List.of(Map.of("field", "totalSales", "dir", "desc")),
+                                "limit", 3
+                        )
+                ))
+                .result(Map.of("code", 200))
+                .success(true)
+                .durationMs(11)
+                .timestamp(Instant.now())
+                .sequence(2)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult gpt = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("COMPLEX-001")
+                .provider("spring-ai")
+                .modelName("gpt-oss-120b-medium")
+                .success(true)
+                .question("查询2024、2025年销售金额超过500的记录，按门店、年分组统计总销售额")
+                .toolCallRecords(List.of(aggregateFilter))
+                .durationMs(100)
+                .build();
+        SpringAiTestExecutor.AiTestResult gemini = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("COMPLEX-001")
+                .provider("spring-ai")
+                .modelName("gemini-3-flash")
+                .success(true)
+                .question("查询2024、2025年销售金额超过500的记录，按门店、年分组统计总销售额")
+                .toolCallRecords(List.of(detailFilter))
+                .durationMs(100)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(gpt, gemini));
+
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(Map.of("query_payload_shape_divergence", 1L), summary.get("warningCategories"));
+        List<Map<String, Object>> cases = (List<Map<String, Object>>) summary.get("cases");
+        assertEquals(1, cases.get(0).get("queryPayloadCount"));
+        List<Map<String, Object>> firstPayloads =
+                (List<Map<String, Object>>) cases.get(0).get("queryPayloads");
+        assertEquals(List.of("salesDate$year"), firstPayloads.get(0).get("sliceFields"));
+        assertEquals(List.of("totalSales"), firstPayloads.get(0).get("havingFields"));
+        List<Map<String, Object>> secondPayloads =
+                (List<Map<String, Object>>) cases.get(1).get("queryPayloads");
+        assertEquals(List.of("salesDate$year", "salesAmount"), secondPayloads.get(0).get("sliceFields"));
+        assertEquals(List.of(), secondPayloads.get(0).get("havingFields"));
+
+        List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
+        assertEquals("mixed", comparison.get(0).get("queryPayloadShapeConsensus"));
+        assertEquals(2, comparison.get(0).get("queryPayloadCount"));
+        assertEquals(2, comparison.get(0).get("queryPayloadShapeSignatureCount"));
+        List<Map<String, Object>> signatures =
+                (List<Map<String, Object>>) comparison.get(0).get("queryPayloadShapeSignatures");
+        assertEquals(2, signatures.size());
+
+        List<Map<String, Object>> comparedModels =
+                (List<Map<String, Object>>) comparison.get(0).get("models");
+        assertEquals(1, comparedModels.get(0).get("queryPayloadCount"));
+        assertEquals(1, comparedModels.get(1).get("queryPayloadCount"));
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals("query_payload_shape_divergence", warnings.get(0).get("warningType"));
+        assertEquals("comparison", warnings.get(0).get("provider"));
+    }
+
+    @Test
     @DisplayName("应从 validation 错误中识别数据库不可用")
     @SuppressWarnings("unchecked")
     void build_shouldClassifyDatabaseUnavailableValidationFailure() {

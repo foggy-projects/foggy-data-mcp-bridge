@@ -58,6 +58,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
   - `tool_result_parse_error`: a failed tool call record contains `JSON_PARSE_ERROR`.
   - `tool_call_failure`: a failed tool call record does not match the JSON parse error class.
   - `model_describe_retry`: the same case repeats describe-model calls for the same model argument.
+  - `query_payload_shape_divergence`: the same case produced multiple successful `query_model` argument shape signatures across compared models.
 
 ## Acceptance Criteria
 
@@ -71,6 +72,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Matrix script can load ignored local env files without printing secret values.
 - Warning samples can be aggregated across historical matrix runs.
 - Warning sample review tables are available without custom jq commands.
+- Query payload shape divergence is visible as warning-level evidence without changing pass/fail semantics.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -84,8 +86,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, and warning classification for unknown model probes, tool call anomalies, and repeated describe-model calls. |
-| testing | complete | Targeted Maven test command passed with 16 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, and warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, and query payload shape divergence. |
+| testing | complete | Targeted Maven test command passed with 17 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -100,9 +102,12 @@ Completed work:
 - Added cross-run warning sample collector with JSONL and summary artifacts.
 - Added human-readable `warning-review.md` output for cross-run warning triage.
 - Added warning classification for `unknown_model_probe`, `empty_tool_result`, `tool_result_parse_error`, `tool_call_failure`, and `model_describe_retry`.
+- Added concise `query_model` argument-shape observability: per-case and case-comparison summaries now expose model, mode, columns, slice fields/ops, having fields/ops, groupBy, orderBy, limit, offset, and a deterministic signature without storing full tool results.
+- Added cross-model query payload shape divergence detection. If the same case produces multiple `query_model` shapes, the report marks `queryPayloadShapeConsensus=mixed` and emits a root warning.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
 - Added regression coverage for repeated describe-model calls.
 - Added regression coverage for empty tool results, JSON parse failures, and ordinary tool call failures.
+- Added regression coverage for `slice salesAmount > 500` versus `having totalSales > 500` payload-shape divergence.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
@@ -137,6 +142,8 @@ Updated targeted result on 2026-06-04 after warning artifact and env-file change
 
 Updated targeted result on 2026-06-04 after tool call anomaly warning changes: passed, 16 tests.
 
+Updated targeted result on 2026-06-04 after query payload shape observability changes: passed, 17 tests.
+
 Additional checks on 2026-06-04:
 
 - `bash -n scripts/run-ai-llm-matrix.sh`: passed.
@@ -169,6 +176,25 @@ Result:
 - Warning case: `QUERY-002:spring-ai/gpt-oss-120b-medium`.
 - `spring-ai/gpt-oss-120b-medium` probed nonexistent `ProductInfoModel` through `dataset.describe_model_internal` and recovered.
 - `spring-ai/gemini-3-flash` completed the same case with zero warnings.
+
+Focused query-mix evidence on 2026-06-04:
+
+```bash
+scripts/run-ai-llm-matrix.sh \
+  --models gpt-oss-120b-medium,gemini-3-flash \
+  --case-ids FILTER-001,AGG-001,SORT-001,COMPLEX-001 \
+  --continue-on-error \
+  --run-id focused-warning-query-mix-20260604
+scripts/collect-ai-warning-samples.sh
+```
+
+Result before query payload shape observability:
+
+- Run ID: `focused-warning-query-mix-20260604`.
+- Matrix result count: 16, passed: 16, failed: 0.
+- Warning count: 0.
+- Manual log review found a report blind spot in `COMPLEX-001`: one model placed `salesAmount > 500` in detail-row `slice`, while another placed `totalSales > 500` in aggregate `having`.
+- The validator and report passed both paths, so query payload shape comparison was added as warning-level observability rather than pass/fail semantics.
 
 Artifacts:
 

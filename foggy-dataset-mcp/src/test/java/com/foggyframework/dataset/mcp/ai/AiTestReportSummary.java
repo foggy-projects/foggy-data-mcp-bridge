@@ -61,6 +61,8 @@ final class AiTestReportSummary {
                     (List<Map<String, Object>>) caseSummary.get("warnings");
             warnings.addAll(caseWarnings);
         }
+        List<Map<String, Object>> caseComparison = summarizeCaseComparison(safeResults);
+        warnings.addAll(queryPayloadShapeWarnings(caseComparison));
 
         long passed = safeResults.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
 
@@ -84,7 +86,7 @@ final class AiTestReportSummary {
         summary.put("warningCategories", summarizeWarningCategories(warnings));
         summary.put("warnings", warnings);
         summary.put("failureCategories", summarizeFailureCategories(safeResults));
-        summary.put("caseComparison", summarizeCaseComparison(safeResults));
+        summary.put("caseComparison", caseComparison);
         summary.put("cases", cases);
         return summary;
     }
@@ -142,6 +144,7 @@ final class AiTestReportSummary {
         Map<String, Object> summary = new LinkedHashMap<>();
         List<Map<String, Object>> toolBusinessErrors = toolBusinessErrors(result);
         List<Map<String, Object>> warnings = warnings(result, toolBusinessErrors);
+        List<Map<String, Object>> queryPayloads = queryPayloads(result);
         summary.put("testCaseId", result.getTestCaseId());
         summary.put("provider", result.getProvider());
         summary.put("modelName", result.getModelName());
@@ -154,6 +157,8 @@ final class AiTestReportSummary {
         summary.put("clarifyObservability", clarifyObservability(result));
         summary.put("toolBusinessErrorCount", toolBusinessErrors.size());
         summary.put("toolBusinessErrors", toolBusinessErrors);
+        summary.put("queryPayloadCount", queryPayloads.size());
+        summary.put("queryPayloads", queryPayloads);
         summary.put("warningCount", warnings.size());
         summary.put("warnings", warnings);
         if (result.getValidationResult() != null) {
@@ -224,6 +229,11 @@ final class AiTestReportSummary {
                 .map(entry -> {
                     List<SpringAiTestExecutor.AiTestResult> caseResults = entry.getValue();
                     long passed = caseResults.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
+                    List<Map<String, Object>> queryPayloads = caseResults.stream()
+                            .flatMap(result -> queryPayloads(result).stream())
+                            .toList();
+                    List<Map<String, Object>> queryPayloadShapeSignatures =
+                            summarizeQueryPayloadShapeSignatures(queryPayloads);
                     Map<String, Object> summary = new LinkedHashMap<>();
                     summary.put("testCaseId", entry.getKey());
                     summary.put("question", firstQuestion(caseResults));
@@ -231,6 +241,11 @@ final class AiTestReportSummary {
                     summary.put("passedCount", passed);
                     summary.put("failedCount", caseResults.size() - passed);
                     summary.put("consensus", consensus(caseResults.size(), passed));
+                    summary.put("queryPayloadCount", queryPayloads.size());
+                    summary.put("queryPayloadShapeConsensus",
+                            queryPayloadShapeConsensus(queryPayloads.size(), queryPayloadShapeSignatures.size()));
+                    summary.put("queryPayloadShapeSignatureCount", queryPayloadShapeSignatures.size());
+                    summary.put("queryPayloadShapeSignatures", queryPayloadShapeSignatures);
                     summary.put("models", caseResults.stream()
                             .map(AiTestReportSummary::summarizeCaseModelResult)
                             .toList());
@@ -251,12 +266,268 @@ final class AiTestReportSummary {
         summary.put("calledTools", result.getCalledToolNames());
         summary.put("clarifyObservationCount", clarifyObservability(result).size());
         summary.put("toolBusinessErrorCount", toolBusinessErrors(result).size());
+        List<Map<String, Object>> queryPayloads = queryPayloads(result);
+        summary.put("queryPayloadCount", queryPayloads.size());
+        summary.put("queryPayloads", queryPayloads);
         summary.put("warningCount", warnings(result).size());
         if (result.getValidationResult() != null) {
             summary.put("failedRules", result.getValidationResult().getFailedRules());
             summary.put("validationErrors", result.getValidationResult().getErrors());
         }
         return summary;
+    }
+
+    private static List<Map<String, Object>> queryPayloads(SpringAiTestExecutor.AiTestResult result) {
+        if (result == null || result.getToolCallRecords() == null || result.getToolCallRecords().isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> payloads = new ArrayList<>();
+        for (ToolCallCollector.ToolCallRecord record : result.getToolCallRecords()) {
+            if (!isQueryModelTool(record.getToolName(), record.getSpringToolName())) {
+                continue;
+            }
+            queryPayload(record).map(payload -> withResultContext(payload, result)).ifPresent(payloads::add);
+        }
+        return List.copyOf(payloads);
+    }
+
+    private static Optional<Map<String, Object>> queryPayload(ToolCallCollector.ToolCallRecord record) {
+        Map<String, Object> arguments = record.getArguments();
+        if (arguments == null || arguments.isEmpty()) {
+            return Optional.empty();
+        }
+        Map<String, Object> payload = queryPayloadBody(arguments).orElse(arguments);
+        Map<String, Object> signatureShape = new LinkedHashMap<>();
+        signatureShape.put("argumentModel", argumentValue(arguments,
+                "model", "modelName", "queryModel", "queryModelName", "qm", "qmCode"));
+        signatureShape.put("mode", stringValue(firstNonNull(arguments.get("mode"), payload.get("mode"))));
+        signatureShape.put("columns", fieldValues(payload.get("columns")));
+        signatureShape.put("slice", conditionValues(firstNonNull(
+                firstNonNull(payload.get("slice"), payload.get("where")),
+                firstNonNull(payload.get("filter"), payload.get("filters")))));
+        signatureShape.put("having", conditionValues(payload.get("having")));
+        signatureShape.put("groupBy", fieldValues(payload.get("groupBy")));
+        signatureShape.put("orderBy", orderValues(payload.get("orderBy")));
+        signatureShape.put("limit", compactValue(payload.get("limit")));
+        signatureShape.put("offset", compactValue(payload.get("offset")));
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("source", "toolCall#" + record.getSequence());
+        summary.put("toolName", record.getToolName());
+        summary.put("springToolName", record.getSpringToolName());
+        summary.put("sequence", record.getSequence());
+        summary.put("argumentModel", signatureShape.get("argumentModel"));
+        summary.put("mode", signatureShape.get("mode"));
+        summary.put("columns", signatureShape.get("columns"));
+        summary.put("sliceFields", conditionFields(signatureShape.get("slice")));
+        summary.put("sliceOps", conditionOps(signatureShape.get("slice")));
+        summary.put("sliceConditions", signatureShape.get("slice"));
+        summary.put("havingFields", conditionFields(signatureShape.get("having")));
+        summary.put("havingOps", conditionOps(signatureShape.get("having")));
+        summary.put("havingConditions", signatureShape.get("having"));
+        summary.put("groupBy", signatureShape.get("groupBy"));
+        summary.put("orderBy", signatureShape.get("orderBy"));
+        summary.put("limit", signatureShape.get("limit"));
+        summary.put("offset", signatureShape.get("offset"));
+        summary.put("signature", stableJson(signatureShape));
+        return Optional.of(summary);
+    }
+
+    private static Optional<Map<String, Object>> queryPayloadBody(Map<String, Object> arguments) {
+        Object value = firstNonNull(
+                firstNonNull(arguments.get("payload"), arguments.get("query")),
+                firstNonNull(arguments.get("dsl"), arguments.get("body")));
+        if (value == null) {
+            return Optional.empty();
+        }
+        if (value instanceof String string) {
+            try {
+                return Optional.of(OBJECT_MAPPER.readValue(string, MAP_TYPE));
+            } catch (Exception ignored) {
+                return Optional.empty();
+            }
+        }
+        return normalizeResult(value);
+    }
+
+    private static List<Map<String, Object>> summarizeQueryPayloadShapeSignatures(
+            List<Map<String, Object>> queryPayloads) {
+        Map<String, Map<String, Object>> summariesBySignature = new LinkedHashMap<>();
+        for (Map<String, Object> payload : queryPayloads) {
+            String signature = stringValue(payload.get("signature"));
+            if (signature == null || signature.isBlank()) {
+                continue;
+            }
+            Map<String, Object> summary = summariesBySignature.computeIfAbsent(signature, key -> {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("signature", key);
+                item.put("count", 0);
+                item.put("models", new ArrayList<String>());
+                item.put("sliceFields", payload.get("sliceFields"));
+                item.put("havingFields", payload.get("havingFields"));
+                item.put("groupBy", payload.get("groupBy"));
+                item.put("orderBy", payload.get("orderBy"));
+                item.put("limit", payload.get("limit"));
+                return item;
+            });
+            summary.put("count", ((Integer) summary.get("count")) + 1);
+            @SuppressWarnings("unchecked")
+            List<String> models = (List<String>) summary.get("models");
+            String model = stringValue(payload.get("provider")) + "/" + stringValue(payload.get("modelName"));
+            if (!models.contains(model)) {
+                models.add(model);
+            }
+        }
+        return summariesBySignature.values().stream()
+                .peek(item -> item.put("models", List.copyOf(castStringList(item.get("models")))))
+                .toList();
+    }
+
+    private static List<Map<String, Object>> queryPayloadShapeWarnings(List<Map<String, Object>> caseComparison) {
+        if (caseComparison == null || caseComparison.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> warnings = new ArrayList<>();
+        for (Map<String, Object> comparison : caseComparison) {
+            if (!"mixed".equals(comparison.get("queryPayloadShapeConsensus"))) {
+                continue;
+            }
+            Map<String, Object> warning = new LinkedHashMap<>();
+            warning.put("testCaseId", comparison.get("testCaseId"));
+            warning.put("provider", "comparison");
+            warning.put("modelName", "cross-model");
+            warning.put("warningType", "query_payload_shape_divergence");
+            warning.put("severity", "warning");
+            warning.put("source", "caseComparison");
+            warning.put("queryPayloadCount", comparison.get("queryPayloadCount"));
+            warning.put("queryPayloadShapeSignatureCount", comparison.get("queryPayloadShapeSignatureCount"));
+            warning.put("queryPayloadShapeSignatures", comparison.get("queryPayloadShapeSignatures"));
+            warnings.add(warning);
+        }
+        return List.copyOf(warnings);
+    }
+
+    private static String queryPayloadShapeConsensus(int payloadCount, int signatureCount) {
+        if (payloadCount == 0) {
+            return "none";
+        }
+        if (signatureCount <= 1) {
+            return "same";
+        }
+        return "mixed";
+    }
+
+    private static List<String> fieldValues(Object value) {
+        return mapItems(value).stream()
+                .map(AiTestReportSummary::fieldValue)
+                .filter(field -> field != null && !field.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private static String fieldValue(Object value) {
+        if (value instanceof Map<?, ?> rawMap) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            rawMap.forEach((key, mapValue) -> map.put(String.valueOf(key), mapValue));
+            return stringValue(firstNonNull(
+                    firstNonNull(map.get("field"), map.get("name")),
+                    firstNonNull(map.get("column"), firstNonNull(map.get("expr"), map.get("expression")))));
+        }
+        return stringValue(value);
+    }
+
+    private static List<String> conditionValues(Object value) {
+        return mapItems(value).stream()
+                .map(AiTestReportSummary::conditionValue)
+                .filter(condition -> condition != null && !condition.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private static String conditionValue(Object value) {
+        if (value instanceof Map<?, ?> rawMap) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            rawMap.forEach((key, mapValue) -> map.put(String.valueOf(key), mapValue));
+            String field = fieldValue(map);
+            String op = stringValue(firstNonNull(map.get("op"), map.get("operator")));
+            Object conditionValue = firstNonNull(firstNonNull(map.get("value"), map.get("values")),
+                    firstNonNull(map.get("from"), map.get("to")));
+            return String.join("|",
+                    firstNonBlank(field) == null ? "?" : field,
+                    firstNonBlank(op) == null ? "?" : op,
+                    compactValue(conditionValue));
+        }
+        return stringValue(value);
+    }
+
+    private static List<String> conditionFields(Object conditions) {
+        return castStringList(conditions).stream()
+                .map(condition -> condition.split("\\|", -1)[0])
+                .filter(field -> !field.isBlank() && !"?".equals(field))
+                .distinct()
+                .toList();
+    }
+
+    private static List<String> conditionOps(Object conditions) {
+        return castStringList(conditions).stream()
+                .map(condition -> {
+                    String[] parts = condition.split("\\|", -1);
+                    return parts.length > 1 ? parts[1] : "";
+                })
+                .filter(op -> !op.isBlank() && !"?".equals(op))
+                .distinct()
+                .toList();
+    }
+
+    private static List<String> orderValues(Object value) {
+        return mapItems(value).stream()
+                .map(item -> {
+                    if (item instanceof Map<?, ?> rawMap) {
+                        Map<String, Object> map = new LinkedHashMap<>();
+                        rawMap.forEach((key, mapValue) -> map.put(String.valueOf(key), mapValue));
+                        String field = fieldValue(map);
+                        String dir = stringValue(firstNonNull(map.get("dir"), map.get("direction")));
+                        if (firstNonBlank(dir) == null) {
+                            return field;
+                        }
+                        return "desc".equalsIgnoreCase(dir) ? "-" + field : field;
+                    }
+                    return stringValue(item);
+                })
+                .filter(order -> order != null && !order.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private static List<Object> mapItems(Object value) {
+        if (value instanceof List<?> list) {
+            return new ArrayList<>(list);
+        }
+        if (value == null) {
+            return List.of();
+        }
+        return List.of(value);
+    }
+
+    private static String compactValue(Object value) {
+        if (value == null) {
+            return "";
+        }
+        String rendered;
+        if (value instanceof Map<?, ?> || value instanceof List<?>) {
+            rendered = stableJson(value);
+        } else {
+            rendered = String.valueOf(value);
+        }
+        return rendered.length() <= 120 ? rendered : rendered.substring(0, 117) + "...";
+    }
+
+    private static String stableJson(Object value) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(value);
+        } catch (Exception ignored) {
+            return String.valueOf(value);
+        }
     }
 
     private static String firstQuestion(List<SpringAiTestExecutor.AiTestResult> results) {
@@ -671,6 +942,10 @@ final class AiTestReportSummary {
         return toolName(toolName, springToolName).contains("describe_model");
     }
 
+    private static boolean isQueryModelTool(String toolName, String springToolName) {
+        return toolName(toolName, springToolName).contains("query_model");
+    }
+
     private static boolean isJsonParseError(String error) {
         return error != null && error.contains("JSON_PARSE_ERROR");
     }
@@ -767,6 +1042,16 @@ final class AiTestReportSummary {
             return List.of();
         }
         return List.of(String.valueOf(value));
+    }
+
+    private static List<String> castStringList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(item -> item != null && !String.valueOf(item).isBlank())
+                .map(String::valueOf)
+                .toList();
     }
 
     private static void addStringValues(Set<String> target, Object value) {
