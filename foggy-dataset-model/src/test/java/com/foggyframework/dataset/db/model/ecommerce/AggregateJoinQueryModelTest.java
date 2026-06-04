@@ -316,6 +316,54 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation RHS 运行期 filter 应读取 ModelResultContext.extData")
+    void aggregateRelationRuntimeFilterShouldReadContextExtData() {
+        String orderId = findOrderIdWithCompletedSales();
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationRuntimeFilterQuery(
+                Map.of("orderId", orderId),
+                orderId);
+
+        String sql = queryEngine.getSql();
+        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+                "RHS 运行期 filter 应在聚合前 WHERE 渲染为受控字面量");
+        assertFalse(sql.contains("ctx.extData"), "SQL 不应泄漏运行期函数源码");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "指定订单应只返回一行");
+
+        BigDecimal nativeSalesAmount = jdbcTemplate.queryForObject(
+                "select sum(sales_amount) from fact_sales where order_id = ? and order_status = 'COMPLETED'",
+                BigDecimal.class,
+                orderId);
+        assertEquals(0, money(nativeSalesAmount).compareTo(money(rows.get(0).get("salesAmount"))),
+                "RHS 运行期 filter 后的聚合结果应与原生查询一致");
+    }
+
+    @Test
+    @DisplayName("aggregate relation RHS 运行期 filter 缺值应失败关闭")
+    void aggregateRelationRuntimeFilterShouldFailClosedWhenMissing() {
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> buildOrderSalesAggregateRelationRuntimeFilterQuery(null, null));
+
+        assertTrue(exception.getMessage().contains("runtime filter"),
+                "缺少 extData 值时应拒绝生成 SQL");
+    }
+
+    @Test
+    @DisplayName("aggregate relation RHS 运行期 filter 应拒绝非法字符")
+    void aggregateRelationRuntimeFilterShouldRejectUnsafeCharacters() {
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> buildOrderSalesAggregateRelationRuntimeFilterQuery(
+                        Map.of("orderId", "ORD001' OR '1'='1"),
+                        null));
+
+        assertTrue(exception.getMessage().contains("runtime filter"),
+                "非法字符应被安全校验拦截");
+    }
+
+    @Test
     @DisplayName("aggregate relation accessBuilder 字段引用条件应复制到右侧 WHERE")
     void aggregateRelationAccessBuilderFieldRefShouldPushRightWhere() {
         String orderId = "ORD20240101000001";
@@ -560,6 +608,26 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationAccessQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationRuntimeFilterQuery(
+            Map<String, Object> extData,
+            String outerOrderId) {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationRuntimeFilterQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationRuntimeFilterQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        queryRequest.setExtData(extData);
+        if (outerOrderId != null) {
+            queryRequest.setSlice(List.of(slice("orderId", "=", outerOrderId)));
+        }
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
         return queryEngine;

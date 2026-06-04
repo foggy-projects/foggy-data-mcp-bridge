@@ -39,6 +39,7 @@ import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
+import com.foggyframework.dataset.db.model.impl.model.AggregateJoinTableModel;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
@@ -232,6 +233,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         DbQueryRequestDef queryRequest = context.getRequest().getParam();
         RX.notNull(queryRequest, "查询请求不得为空");
+        context.mergeRequestExtData(queryRequest.getExtData());
         clearAggregateRelationPushdowns(jdbcQueryModel);
 
         JdbcQuery jdbcQuery = new JdbcQuery();
@@ -458,29 +460,33 @@ public class JdbcModelQueryEngine implements QueryEngine {
             throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
         }
 
-        if (hasPostAggregateCalculations) {
-            if (hasWindowCf) {
-                throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
+        AggregateJoinTableModel.setRuntimeFilterContext(context);
+        try {
+            if (hasPostAggregateCalculations) {
+                if (hasWindowCf) {
+                    throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
+                }
+                generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+            } else if (hasWindowCf) {
+                generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+            } else {
+                generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
             }
-            generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
-        } else if (hasWindowCf) {
-            generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
-        } else {
-            generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
-        }
 
-        if (log.isDebugEnabled()) {
-            log.debug("生成查询SQL");
-            log.debug(this.sql);
-            log.debug("聚合SQL");
-            log.debug(this.aggSql);
-            log.debug("参数");
-            log.debug(values == null ? "无" : values.toString());
+            if (log.isDebugEnabled()) {
+                log.debug("生成查询SQL");
+                log.debug(this.sql);
+                log.debug("聚合SQL");
+                log.debug(this.aggSql);
+                log.debug("参数");
+                log.debug(values == null ? "无" : values.toString());
+            }
+        } finally {
+            AggregateJoinTableModel.clearRuntimeFilterContext();
+            clearAggregateRelationPushdowns(jdbcQueryModel);
         }
-        clearAggregateRelationPushdowns(jdbcQueryModel);
 
     }
-
     private boolean hasAggregateSelect(JdbcQuery jdbcQuery) {
         if (jdbcQuery == null || jdbcQuery.getSelect() == null || jdbcQuery.getSelect().getColumns() == null) {
             return false;

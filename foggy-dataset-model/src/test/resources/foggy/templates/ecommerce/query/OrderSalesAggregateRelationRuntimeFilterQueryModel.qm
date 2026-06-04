@@ -1,0 +1,46 @@
+/**
+ * Order-sales aggregate relation runtime filter query model.
+ *
+ * @caption 订单销售聚合关系运行期过滤查询
+ * @description RHS aggregate relation filter reads the current request extData at SQL generation time.
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .filterEq(sales.orderId, (ctx) => ctx.extData.orderId)
+    .groupBy(sales.orderId)
+    .as('fsByRuntimeOrder');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationRuntimeFilterQueryModel',
+    caption: '订单销售聚合关系运行期过滤查询',
+    description: '销售明细先按订单粒度聚合，RHS 聚合前过滤从 ModelResultContext.extData 读取运行期参数',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细聚合',
+            items: [
+                { ref: fs.salesAmount, caption: '运行期过滤销售金额' },
+                { ref: fs.uniqueCustomers, caption: '运行期过滤独立客户数' }
+            ]
+        }
+    ],
+
+    accesses: []
+};

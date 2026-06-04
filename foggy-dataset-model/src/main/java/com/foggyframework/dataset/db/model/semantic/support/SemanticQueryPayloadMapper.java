@@ -54,6 +54,7 @@ public class SemanticQueryPayloadMapper {
         request.setLimit(intValue(payload.get("limit")));
         request.setCursor(stringValue(payload.get("cursor")));
         request.setHints(convertMap(payload.get("hints")));
+        request.setExtData(convertMap(payload.get("extData")));
         request.setStream(boolValue(payload.get("stream")));
         request.setReturnTotal(boolOrDefault(payload.get("returnTotal"), request.getReturnTotal()));
         request.setDistinct(boolOrDefault(payload.get("distinct"), request.getDistinct()));
