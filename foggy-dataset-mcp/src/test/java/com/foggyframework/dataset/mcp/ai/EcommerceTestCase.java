@@ -274,6 +274,11 @@ public class EcommerceTestCase {
         private String operator;
 
         /**
+         * 可选目标值。列表值表示同一字段的条件值集合必须全部覆盖。
+         */
+        private Object value;
+
+        /**
          * true 表示必须存在，false 表示必须不存在。
          */
         @JsonProperty("must_exist")

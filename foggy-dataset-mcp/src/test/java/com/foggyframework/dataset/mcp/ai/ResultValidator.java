@@ -787,11 +787,11 @@ public class ResultValidator {
                 result.addPassedRule(ruleName + ": " + (rule.isMustExist() ? "found" : "absent as expected"));
             } else if (rule.isMustExist()) {
                 result.addFailedRule(ruleName + ": expected field " + rule.getField()
-                        + operatorLabel(rule.getOperator()) + " in " + rule.getPath()
+                        + operatorLabel(rule.getOperator()) + valueLabel(rule.getValue()) + " in " + rule.getPath()
                         + ". " + describeToolArgumentPaths(candidateCalls, rule));
             } else {
                 result.addFailedRule(ruleName + ": forbidden field " + rule.getField()
-                        + operatorLabel(rule.getOperator()) + " found in " + rule.getPath()
+                        + operatorLabel(rule.getOperator()) + valueLabel(rule.getValue()) + " found in " + rule.getPath()
                         + ". " + describeToolArgumentPaths(candidateCalls, rule));
             }
         }
@@ -816,11 +816,11 @@ public class ResultValidator {
             return false;
         }
         Object node = toolCallPayloadPathNode(call, rule.getPath());
-        if (conditionTreeContains(node, rule.getField(), rule.getOperator())) {
+        if (conditionTreeContains(node, rule.getField(), rule.getOperator(), rule.getValue())) {
             return true;
         }
         Object normalizedNode = toolCallNormalizedPayloadPathNode(call, rule.getPath());
-        return conditionTreeContains(normalizedNode, rule.getField(), rule.getOperator());
+        return conditionTreeContains(normalizedNode, rule.getField(), rule.getOperator(), rule.getValue());
     }
 
     @SuppressWarnings("unchecked")
@@ -873,9 +873,18 @@ public class ResultValidator {
         return findNormalizedPathNode(typedMap.get("result"), path);
     }
 
-    private boolean conditionTreeContains(Object node, String expectedField, String expectedOperator) {
+    private boolean conditionTreeContains(Object node,
+                                          String expectedField,
+                                          String expectedOperator,
+                                          Object expectedValue) {
         if (node == null) {
             return false;
+        }
+        Set<String> expectedValues = scalarValues(expectedValue);
+        if (!expectedValues.isEmpty()) {
+            Set<String> observedValues = new LinkedHashSet<>();
+            collectMatchingConditionValues(node, expectedField, expectedOperator, observedValues);
+            return observedValues.containsAll(expectedValues);
         }
         if (node instanceof String text) {
             return (expectedOperator == null || expectedOperator.isBlank())
@@ -883,7 +892,7 @@ public class ResultValidator {
         }
         if (node instanceof Iterable<?> iterable) {
             for (Object item : iterable) {
-                if (conditionTreeContains(item, expectedField, expectedOperator)) {
+                if (conditionTreeContains(item, expectedField, expectedOperator, null)) {
                     return true;
                 }
             }
@@ -901,12 +910,67 @@ public class ResultValidator {
                 return true;
             }
             for (Object value : map.values()) {
-                if (conditionTreeContains(value, expectedField, expectedOperator)) {
+                if (conditionTreeContains(value, expectedField, expectedOperator, null)) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    private void collectMatchingConditionValues(Object node,
+                                                String expectedField,
+                                                String expectedOperator,
+                                                Set<String> values) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectMatchingConditionValues(item, expectedField, expectedOperator, values);
+            }
+            return;
+        }
+        if (node instanceof Map<?, ?> map) {
+            String field = stringValue(firstNonNull(
+                    firstNonNull(map.get("field"), map.get("column")),
+                    firstNonNull(map.get("name"), map.get("expr"))));
+            String operator = stringValue(firstNonNull(
+                    firstNonNull(map.get("op"), map.get("operator")),
+                    map.get("direction")));
+            if (field != null && stringContainsColumnReference(field, expectedField)
+                    && operatorMatches(expectedOperator, operator)) {
+                values.addAll(scalarValues(firstNonNull(map.get("value"), map.get("values"))));
+            }
+            for (Object value : map.values()) {
+                collectMatchingConditionValues(value, expectedField, expectedOperator, values);
+            }
+        }
+    }
+
+    private Set<String> scalarValues(Object value) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        collectScalarValues(value, values);
+        return values;
+    }
+
+    private void collectScalarValues(Object value, Set<String> values) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectScalarValues(item, values);
+            }
+            return;
+        }
+        if (value instanceof Object[] array) {
+            for (Object item : array) {
+                collectScalarValues(item, values);
+            }
+            return;
+        }
+        values.add(String.valueOf(value));
     }
 
     private boolean operatorMatches(String expectedOperator, String actualOperator) {
@@ -922,6 +986,11 @@ public class ResultValidator {
 
     private String operatorLabel(String operator) {
         return operator == null || operator.isBlank() ? "" : " " + operator;
+    }
+
+    private String valueLabel(Object value) {
+        Set<String> values = scalarValues(value);
+        return values.isEmpty() ? "" : " value=" + values;
     }
 
     @SuppressWarnings("unchecked")

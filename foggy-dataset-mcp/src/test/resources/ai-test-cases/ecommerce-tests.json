@@ -152,7 +152,7 @@
     {
       "id": "ROUTE-ORDER-001",
       "category": "FILTER_QUERY",
-      "question": "查询所有待处理订单积压记录，显示订单ID、订单状态、客户名称和订单应付金额",
+      "question": "查询所有打开订单积压记录（订单状态为待处理、已确认或处理中），显示订单ID、订单状态、客户名称和订单应付金额",
       "expected_tool": "dataset.query_model",
       "target_model": "FactOrderQueryModel",
       "description": "路由意图 - 订单积压应使用订单事实模型而不是销售明细模型",
@@ -172,6 +172,7 @@
             "tool": "dataset.query_model",
             "path": "slice",
             "field": "orderStatus",
+            "value": ["PENDING", "CONFIRMED", "PROCESSING"],
             "must_exist": true
           }
         ],

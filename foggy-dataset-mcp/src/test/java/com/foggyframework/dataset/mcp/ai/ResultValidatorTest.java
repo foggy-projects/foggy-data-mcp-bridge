@@ -519,6 +519,114 @@ class ResultValidatorTest {
                         && rule.contains("FactSalesQueryModel")));
     }
 
+    @Test
+    @DisplayName("tool argument validation should accept expected condition values")
+    void validateFromAiResponse_shouldAcceptExpectedConditionValues() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("ROUTE-ORDER-001")
+                .expectedTool("dataset.query_model")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .successOnly(true)
+                        .toolArgumentRules(List.of(
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("slice")
+                                        .field("orderStatus")
+                                        .value(List.of("PENDING", "CONFIRMED", "PROCESSING"))
+                                        .mustExist(true)
+                                        .build()
+                        ))
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactOrderQueryModel",
+                        "payload", Map.of(
+                                "slice", List.of(Map.of(
+                                        "field", "orderStatus",
+                                        "op", "in",
+                                        "value", List.of("PENDING", "CONFIRMED", "PROCESSING")
+                                ))
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("orderStatus", "PENDING")
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "打开订单积压。",
+                List.of(call)
+        );
+
+        assertTrue(result.isPassed(), () -> result.getFailedRules().toString());
+        assertTrue(result.getPassedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:slice:orderStatus")));
+    }
+
+    @Test
+    @DisplayName("tool argument validation should reject partial condition values")
+    void validateFromAiResponse_shouldRejectPartialConditionValues() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("ROUTE-ORDER-001")
+                .expectedTool("dataset.query_model")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .successOnly(true)
+                        .toolArgumentRules(List.of(
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("slice")
+                                        .field("orderStatus")
+                                        .value(List.of("PENDING", "CONFIRMED", "PROCESSING"))
+                                        .mustExist(true)
+                                        .build()
+                        ))
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactOrderQueryModel",
+                        "payload", Map.of(
+                                "slice", List.of(Map.of(
+                                        "field", "orderStatus",
+                                        "op", "=",
+                                        "value", "PENDING"
+                                ))
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("orderStatus", "PENDING")
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "打开订单积压。",
+                List.of(call)
+        );
+
+        assertFalse(result.isPassed());
+        assertTrue(result.getFailedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:slice:orderStatus")
+                        && rule.contains("CONFIRMED")
+                        && rule.contains("PROCESSING")));
+    }
+
     private EcommerceTestCase.ExpectedResult complexExpectedWithPredicateScopeRules() {
         return EcommerceTestCase.ExpectedResult.builder()
                 .requiredColumns(List.of("store$caption", "salesAmount"))

@@ -46,6 +46,8 @@ Route-intent fixtures should fail when the AI calls `dataset.query_model` agains
 - Added `ROUTE-ORDER-001`: order backlog detail must use `FactOrderQueryModel` and filter `orderStatus`.
 - Added `ROUTE-ORDER-002`: order payable amount by sales team must use `FactOrderQueryModel` and group by `salesTeam$caption`.
 - Added validator regression tests for accepting the expected target model and rejecting a wrong sales model route.
+- Added optional `tool_argument_rules.value` validation for condition rules. When a rule declares a scalar or list value, the validator requires matching condition values to cover the full expected set.
+- Tightened `ROUTE-ORDER-001` from generic pending-order wording to open-order backlog wording. The fixture now requires `orderStatus` to cover `PENDING`, `CONFIRMED`, and `PROCESSING`.
 
 ## Acceptance Criteria
 
@@ -53,6 +55,7 @@ Route-intent fixtures should fail when the AI calls `dataset.query_model` agains
 - The same fixture fails when the tool call uses another model.
 - Route-intent failure messages include the expected target and observed model values.
 - Order backlog fixture is present and requires `orderStatus` filtering.
+- Order backlog fixture fails when the model only filters a subset of expected open-order states.
 - Order payable by sales team fixture is present and requires `salesTeam$caption` grouping plus `payAmount` selection.
 - Existing AI validator, report, and executor tests remain green.
 
@@ -67,8 +70,8 @@ Route-intent fixtures should fail when the AI calls `dataset.query_model` agains
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added target-model validation, validator regression tests, and two order-route fixtures. |
-| testing | complete | Targeted Maven test command passed with 29 tests on 2026-06-04. |
+| development | complete | Added target-model validation, condition-value coverage validation, validator regression tests, and two order-route fixtures. |
+| testing | complete | Targeted Maven test command passed with 31 tests on 2026-06-04. Focused Gemini route-intent matrix passed 12/12 after value-rule tightening. |
 | experience | N/A | Test/fixture capability only; no UI or product workflow changes. |
 
 ## Execution Check-In
@@ -76,8 +79,10 @@ Route-intent fixtures should fail when the AI calls `dataset.query_model` agains
 Completed work:
 
 - Implemented `target_model` enforcement for `dataset.query_model` AI validation.
+- Implemented optional condition value coverage enforcement for `tool_argument_rules`.
 - Added route-target pass/fail evidence to validation rules.
 - Added order backlog and order payable-by-team route-intent fixtures.
+- Clarified open-order backlog wording and required the three expected open states.
 - Kept fixture scope aligned with the current AI integration visible model list.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
@@ -107,8 +112,42 @@ mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-Result on 2026-06-04: passed, 29 tests.
+Result on 2026-06-04 after condition-value coverage tightening: passed, 31 tests.
 
 Additional checks on 2026-06-04:
 
 - `jq empty foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json`: passed.
+
+Focused LLM matrix evidence before value-rule tightening:
+
+```bash
+scripts/run-ai-llm-matrix.sh \
+  --models gemini-pro-agent,gemini-3-flash \
+  --case-ids FILTER-002,ROUTE-ORDER-001,ROUTE-ORDER-002 \
+  --continue-on-error \
+  --run-id focused-route-intent-gemini-20260604
+```
+
+Result on 2026-06-04: passed 12/12, failed 0, warnings 6, tool business errors 0.
+
+Follow-up from this matrix:
+
+- `ROUTE-ORDER-001` produced a semantic warning because the previous question wording said pending backlog while the direct baseline used all open-order states.
+- The fixture was tightened so this gap is validated through `tool_argument_rules.value` instead of remaining only a query payload divergence warning.
+
+Focused LLM matrix evidence after value-rule tightening:
+
+```bash
+scripts/run-ai-llm-matrix.sh \
+  --models gemini-pro-agent,gemini-3-flash \
+  --case-ids FILTER-002,ROUTE-ORDER-001,ROUTE-ORDER-002 \
+  --continue-on-error \
+  --run-id focused-route-intent-value-rules-gemini-20260604
+```
+
+Result on 2026-06-04: passed 12/12, failed 0, warnings 6, tool business errors 0.
+
+Observed outcome:
+
+- `gemini-pro-agent` and `gemini-3-flash` both generated `orderStatus in [PENDING, CONFIRMED, PROCESSING]` for `ROUTE-ORDER-001`.
+- Remaining warnings are `benign_query_payload_shape_divergence`; semantic signatures match for the route-intent fields.
