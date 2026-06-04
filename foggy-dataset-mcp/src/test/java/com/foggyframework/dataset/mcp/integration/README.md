@@ -132,6 +132,20 @@ AI_TEST_OPENAI_API_KEY=... \
   --case-ids META-001,QUERY-001
 ```
 
+默认矩阵脚本使用 `smoke` profile，只跑 `META-001,QUERY-001`。
+需要按已启用题库分类做分层抽样时：
+
+```bash
+AI_TEST_OPENAI_API_KEY=... \
+  ./scripts/run-ai-llm-matrix.sh \
+  --models gemini-pro-agent,gemini-3-flash \
+  --profile broad
+```
+
+`all` profile 会跑全部已启用电商题库用例；显式传入 `--case-ids` 或
+`--categories` 时，会覆盖 profile 的自动选样。
+可使用 `--print-selection` 在不连接数据库、不调用 LLM 的情况下查看最终选样。
+
 矩阵脚本会为每个模型保留独立快照，并生成
 `foggy-dataset-mcp/target/ai-test-reports/<run-id>/matrix-summary.json`。
 

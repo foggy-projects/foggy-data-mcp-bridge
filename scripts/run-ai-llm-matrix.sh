@@ -6,12 +6,15 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 MODELS="${AI_TEST_OPENAI_MODELS:-gemini-pro-agent,gemini-3-flash}"
 BASE_URL="${AI_TEST_OPENAI_BASE_URL:-https://codex2.qlfloor.com:7443}"
-CASE_IDS="${AI_TEST_CASE_IDS:-META-001,QUERY-001}"
+PROFILE="${AI_TEST_MATRIX_PROFILE:-smoke}"
+CASE_IDS="${AI_TEST_CASE_IDS:-}"
 CATEGORIES="${AI_TEST_CATEGORIES:-}"
 MAX_CASES="${AI_TEST_MAX_CASES:-0}"
 FAIL_ON_MISMATCH="${AI_TEST_LLM_FAIL_ON_MISMATCH:-false}"
 CONTINUE_ON_ERROR=0
+PRINT_SELECTION=0
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+TEST_CASE_FILE="foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json"
 
 usage() {
   cat <<'USAGE'
@@ -26,18 +29,21 @@ Environment:
   AI_TEST_OPENAI_MODELS     Default: gemini-pro-agent,gemini-3-flash
   AI_TEST_OPENAI_BASE_URL   Default: https://codex2.qlfloor.com:7443
                             For Spring AI, do not append /v1 here.
-  AI_TEST_CASE_IDS          Default: META-001,QUERY-001
+  AI_TEST_MATRIX_PROFILE    Default: smoke. One of: smoke, broad, all.
+  AI_TEST_CASE_IDS          Optional comma-separated case IDs.
   AI_TEST_CATEGORIES        Optional comma-separated categories.
   AI_TEST_MAX_CASES         Optional maximum selected cases.
 
 Options:
   --models NAMES            Comma-separated model names.
   --base-url URL            Override AI_TEST_OPENAI_BASE_URL. Do not append /v1.
+  --profile NAME            Case selection profile: smoke, broad, all.
   --case-ids IDS            Comma-separated case IDs.
   --categories NAMES        Comma-separated category names.
   --max-cases N             Limit selected cases.
   --fail-on-mismatch        Fail when any selected LLM case fails validation.
   --continue-on-error       Continue with the next model after a runner error.
+  --print-selection         Print resolved case selection without running tests.
   --run-id ID               Override report directory name.
   -h, --help                Show this help.
 USAGE
@@ -52,6 +58,10 @@ while [[ $# -gt 0 ]]; do
     --base-url)
       shift
       BASE_URL="${1:-}"
+      ;;
+    --profile)
+      shift
+      PROFILE="${1:-}"
       ;;
     --case-ids)
       shift
@@ -70,6 +80,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --continue-on-error)
       CONTINUE_ON_ERROR=1
+      ;;
+    --print-selection)
+      PRINT_SELECTION=1
       ;;
     --run-id)
       shift
@@ -99,6 +112,56 @@ fi
 
 cd "$REPO_ROOT"
 
+case "$PROFILE" in
+  smoke|broad|all)
+    ;;
+  *)
+    echo "Unknown AI test matrix profile: $PROFILE" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -z "$CASE_IDS" && -z "$CATEGORIES" ]]; then
+  case "$PROFILE" in
+    smoke)
+      CASE_IDS="META-001,QUERY-001"
+      ;;
+    broad)
+      CASE_IDS="$(
+        jq -r '
+          reduce (.testCases[] | select(.enabled != false)) as $case ({seen: {}, ids: []};
+            if .seen[$case.category] then
+              .
+            else
+              .seen[$case.category] = true | .ids += [$case.id]
+            end
+          )
+          | .ids
+          | join(",")
+        ' "$TEST_CASE_FILE"
+      )"
+      ;;
+    all)
+      CASE_IDS=""
+      ;;
+  esac
+fi
+
+if [[ "$PRINT_SELECTION" -eq 1 ]]; then
+  jq -n \
+    --arg profile "$PROFILE" \
+    --arg caseIds "$CASE_IDS" \
+    --arg categories "$CATEGORIES" \
+    --arg maxCases "$MAX_CASES" \
+    '{
+      profile: $profile,
+      caseIds: $caseIds,
+      categories: $categories,
+      maxCases: ($maxCases | tonumber)
+    }'
+  exit 0
+fi
+
 scripts/ensure-ai-test-mysql.sh
 
 REPORT_DIR="foggy-dataset-mcp/target/ai-test-reports/$RUN_ID"
@@ -109,6 +172,7 @@ IFS=',' read -r -a MODEL_ARRAY <<< "$MODELS"
 echo "[ai-matrix] runId=$RUN_ID"
 echo "[ai-matrix] models=$MODELS"
 echo "[ai-matrix] baseUrl=$BASE_URL"
+echo "[ai-matrix] profile=$PROFILE"
 echo "[ai-matrix] caseIds=${CASE_IDS:-<all>}"
 echo "[ai-matrix] categories=${CATEGORIES:-<all>}"
 echo "[ai-matrix] maxCases=$MAX_CASES"
@@ -163,10 +227,23 @@ for file in "$REPORT_DIR"/*.json; do
 done
 
 if [[ "${#report_files[@]}" -gt 0 ]]; then
-  jq -s --arg runId "$RUN_ID" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+  jq -s \
+    --arg runId "$RUN_ID" \
+    --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg profile "$PROFILE" \
+    --arg caseIds "$CASE_IDS" \
+    --arg categories "$CATEGORIES" \
+    --arg maxCases "$MAX_CASES" \
+  '
     {
       runId: $runId,
       generatedAt: $generatedAt,
+      selection: {
+        profile: $profile,
+        caseIds: $caseIds,
+        categories: $categories,
+        maxCases: ($maxCases | tonumber)
+      },
       reportCount: length,
       resultCount: ([.[].resultCount] | add // 0),
       passedCount: ([.[].passedCount] | add // 0),

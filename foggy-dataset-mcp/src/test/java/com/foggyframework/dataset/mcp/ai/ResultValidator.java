@@ -508,9 +508,13 @@ public class ResultValidator {
             return true;
         }
         // 替换 $ 为 _ 进行比较
-        String normalizedExpected = expected.replace("$", "_");
-        String normalizedActual = actual.replace("$", "_");
+        String normalizedExpected = normalizeColumnText(expected);
+        String normalizedActual = normalizeColumnText(actual);
         return normalizedExpected.equalsIgnoreCase(normalizedActual);
+    }
+
+    private String normalizeColumnText(String value) {
+        return value.replace("$", "_").trim().toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -637,8 +641,7 @@ public class ResultValidator {
             String expectedTool = testCase.getExpectedTool();
             if (expectedTool != null && !expectedTool.isEmpty()) {
                 boolean expectedToolCalled = toolCalls.stream()
-                        .anyMatch(t -> t.getToolName().equals(expectedTool) ||
-                                t.getSpringToolName().equals(expectedTool.replace(".", "_")));
+                        .anyMatch(t -> toolMatches(expectedTool, t));
                 if (expectedToolCalled) {
                     result.addPassedRule("Expected tool was called: " + expectedTool);
                 } else {
@@ -681,7 +684,8 @@ public class ResultValidator {
                     boolean found = aiResponse.contains(column)
                             || aiResponse.contains(normalizedColumn)
                             || (columnTitle != null && aiResponse.contains(columnTitle))
-                            || (columnTitle != null && containsTitleKeywords(aiResponse, columnTitle));
+                            || (columnTitle != null && containsTitleKeywords(aiResponse, columnTitle))
+                            || toolCallsContainColumnReference(toolCalls, column);
 
                     if (found) {
                         String matchInfo = columnTitle != null
@@ -714,6 +718,88 @@ public class ResultValidator {
         }
 
         return result;
+    }
+
+    private boolean toolMatches(String expectedTool, ToolCallCollector.ToolCallRecord call) {
+        if (call.getToolName().equals(expectedTool)
+                || call.getSpringToolName().equals(expectedTool.replace(".", "_"))) {
+            return true;
+        }
+        return "dataset.query_model".equals(expectedTool)
+                && ("dataset.export_with_chart".equals(call.getToolName())
+                || "dataset_export_with_chart".equals(call.getSpringToolName()));
+    }
+
+    private boolean toolCallsContainColumnReference(List<ToolCallCollector.ToolCallRecord> toolCalls, String column) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return false;
+        }
+
+        for (ToolCallCollector.ToolCallRecord call : toolCalls) {
+            if (!call.isSuccess()) {
+                continue;
+            }
+            if (resultContainsColumn(call.getResult(), column)
+                    || objectContainsColumnReference(call.getArguments(), column)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean resultContainsColumn(Object result, String column) {
+        Object unwrapped = unwrapRxResponse(result);
+        List<Map<String, Object>> items = extractItems(unwrapped);
+        if (items != null && !items.isEmpty() && findMatchingColumn(items, column) != null) {
+            return true;
+        }
+        return objectContainsColumnReference(unwrapped, column);
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean objectContainsColumnReference(Object value, String column) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof String text) {
+            return stringContainsColumnReference(text, column);
+        }
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (objectContainsColumnReference(entry.getKey(), column)
+                        || objectContainsColumnReference(entry.getValue(), column)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (objectContainsColumnReference(item, column)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                if (objectContainsColumnReference(java.lang.reflect.Array.get(value, i), column)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean stringContainsColumnReference(String text, String column) {
+        if (columnsMatch(column, text)) {
+            return true;
+        }
+        String normalizedText = normalizeColumnText(text);
+        String normalizedColumn = normalizeColumnText(column);
+        String pattern = "(^|[^a-z0-9_$])" + java.util.regex.Pattern.quote(normalizedColumn) + "([^a-z0-9_$]|$)";
+        return java.util.regex.Pattern.compile(pattern).matcher(normalizedText).find();
     }
 
     /**

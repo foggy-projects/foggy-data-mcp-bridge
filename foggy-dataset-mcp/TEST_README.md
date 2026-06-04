@@ -231,7 +231,18 @@ AI_TEST_OPENAI_API_KEY=... \
   ./scripts/run-ai-llm-matrix.sh \
   --models gemini-pro-agent,gemini-3-flash \
   --case-ids META-001,QUERY-001
+
+# 分层抽样对比：从每个已启用分类抽取一个用例。
+AI_TEST_OPENAI_API_KEY=... \
+  ./scripts/run-ai-llm-matrix.sh \
+  --models gemini-pro-agent,gemini-3-flash \
+  --profile broad
 ```
+
+矩阵脚本默认使用 `smoke` profile，只跑 `META-001,QUERY-001`。
+`broad` profile 会按题库分类分层抽样，`all` profile 会跑全部已启用用例。
+显式传入 `--case-ids` 或 `--categories` 时，会覆盖 profile 的自动选样。
+可使用 `--print-selection` 在不连接数据库、不调用 LLM 的情况下查看最终选样。
 
 ## 测试配置
 
