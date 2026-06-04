@@ -124,6 +124,16 @@ class AiTestReportSummaryTest {
 
         assertEquals(1, summary.get("toolBusinessErrorCount"));
         assertEquals(1, summary.get("toolBusinessErrorCaseCount"));
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(1, summary.get("warningCaseCount"));
+        assertEquals(1, summary.get("toolBusinessErrorWarningCount"));
+        assertEquals(Map.of("tool_business_error", 1L), summary.get("warningCategories"));
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals(1, warnings.size());
+        assertEquals("tool_business_error", warnings.get(0).get("warningType"));
+        assertEquals("warning", warnings.get(0).get("severity"));
+        assertEquals("ProductInfoModel", warnings.get(0).get("argumentModel"));
         List<Map<String, Object>> rootErrors =
                 (List<Map<String, Object>>) summary.get("toolBusinessErrors");
         assertEquals(1, rootErrors.size());
@@ -135,6 +145,10 @@ class AiTestReportSummaryTest {
 
         List<Map<String, Object>> cases = (List<Map<String, Object>>) summary.get("cases");
         assertEquals(1, cases.get(0).get("toolBusinessErrorCount"));
+        assertEquals(1, cases.get(0).get("warningCount"));
+        List<Map<String, Object>> caseWarnings =
+                (List<Map<String, Object>>) cases.get(0).get("warnings");
+        assertEquals("tool_business_error", caseWarnings.get(0).get("warningType"));
         List<Map<String, Object>> caseErrors =
                 (List<Map<String, Object>>) cases.get(0).get("toolBusinessErrors");
         assertEquals("toolCall#1", caseErrors.get(0).get("source"));
@@ -144,11 +158,16 @@ class AiTestReportSummaryTest {
         List<Map<String, Object>> models = (List<Map<String, Object>>) summary.get("models");
         assertEquals(1L, models.get(0).get("toolBusinessErrorCount"));
         assertEquals(1L, models.get(0).get("toolBusinessErrorCaseCount"));
+        assertEquals(1L, models.get(0).get("warningCount"));
+        assertEquals(1L, models.get(0).get("warningCaseCount"));
+        assertEquals(100.0, (Double) models.get(0).get("warningRate"), 0.001);
+        assertEquals(1L, models.get(0).get("toolBusinessErrorWarningCount"));
 
         List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
         List<Map<String, Object>> comparedModels =
                 (List<Map<String, Object>>) comparison.get(0).get("models");
         assertEquals(1, comparedModels.get(0).get("toolBusinessErrorCount"));
+        assertEquals(1, comparedModels.get(0).get("warningCount"));
     }
 
     @Test
@@ -181,6 +200,10 @@ class AiTestReportSummaryTest {
                 .build();
 
         assertTrue(AiTestReportSummary.toolBusinessErrors(result).isEmpty());
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(result));
+        assertEquals(0, summary.get("warningCount"));
+        assertEquals(0, summary.get("warningCaseCount"));
+        assertEquals(Map.of(), summary.get("warningCategories"));
     }
 
     @Test

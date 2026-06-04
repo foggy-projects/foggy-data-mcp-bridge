@@ -36,6 +36,7 @@ final class AiTestReportSummary {
         Set<String> ownerRules = new LinkedHashSet<>();
         Set<String> missingSlots = new LinkedHashSet<>();
         List<Map<String, Object>> toolBusinessErrors = new ArrayList<>();
+        List<Map<String, Object>> warnings = new ArrayList<>();
 
         for (SpringAiTestExecutor.AiTestResult result : safeResults) {
             Map<String, Object> caseSummary = summarizeCase(result);
@@ -55,6 +56,10 @@ final class AiTestReportSummary {
             List<Map<String, Object>> caseToolBusinessErrors =
                     (List<Map<String, Object>>) caseSummary.get("toolBusinessErrors");
             toolBusinessErrors.addAll(caseToolBusinessErrors);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> caseWarnings =
+                    (List<Map<String, Object>>) caseSummary.get("warnings");
+            warnings.addAll(caseWarnings);
         }
 
         long passed = safeResults.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
@@ -73,6 +78,11 @@ final class AiTestReportSummary {
                 .collect(Collectors.toCollection(LinkedHashSet::new))
                 .size());
         summary.put("toolBusinessErrors", toolBusinessErrors);
+        summary.put("warningCount", warnings.size());
+        summary.put("warningCaseCount", warningCaseCountFromWarnings(warnings));
+        summary.put("toolBusinessErrorWarningCount", toolBusinessErrors.size());
+        summary.put("warningCategories", summarizeWarningCategories(warnings));
+        summary.put("warnings", warnings);
         summary.put("failureCategories", summarizeFailureCategories(safeResults));
         summary.put("caseComparison", summarizeCaseComparison(safeResults));
         summary.put("cases", cases);
@@ -131,6 +141,7 @@ final class AiTestReportSummary {
     private static Map<String, Object> summarizeCase(SpringAiTestExecutor.AiTestResult result) {
         Map<String, Object> summary = new LinkedHashMap<>();
         List<Map<String, Object>> toolBusinessErrors = toolBusinessErrors(result);
+        List<Map<String, Object>> warnings = warningsFromToolBusinessErrors(toolBusinessErrors);
         summary.put("testCaseId", result.getTestCaseId());
         summary.put("provider", result.getProvider());
         summary.put("modelName", result.getModelName());
@@ -143,6 +154,8 @@ final class AiTestReportSummary {
         summary.put("clarifyObservability", clarifyObservability(result));
         summary.put("toolBusinessErrorCount", toolBusinessErrors.size());
         summary.put("toolBusinessErrors", toolBusinessErrors);
+        summary.put("warningCount", warnings.size());
+        summary.put("warnings", warnings);
         if (result.getValidationResult() != null) {
             Map<String, Object> validation = new LinkedHashMap<>();
             validation.put("passed", result.getValidationResult().isPassed());
@@ -189,6 +202,12 @@ final class AiTestReportSummary {
                     summary.put("clarifyCaseCount", clarifyCaseCount(modelResults));
                     summary.put("toolBusinessErrorCaseCount", toolBusinessErrorCaseCount(modelResults));
                     summary.put("toolBusinessErrorCount", toolBusinessErrorCount(modelResults));
+                    summary.put("warningCaseCount", warningCaseCount(modelResults));
+                    summary.put("warningCount", warningCount(modelResults));
+                    summary.put("warningRate", modelResults.isEmpty()
+                            ? 0
+                            : warningCaseCount(modelResults) * 100.0 / modelResults.size());
+                    summary.put("toolBusinessErrorWarningCount", toolBusinessErrorCount(modelResults));
                     return summary;
                 })
                 .toList();
@@ -232,6 +251,7 @@ final class AiTestReportSummary {
         summary.put("calledTools", result.getCalledToolNames());
         summary.put("clarifyObservationCount", clarifyObservability(result).size());
         summary.put("toolBusinessErrorCount", toolBusinessErrors(result).size());
+        summary.put("warningCount", warnings(result).size());
         if (result.getValidationResult() != null) {
             summary.put("failedRules", result.getValidationResult().getFailedRules());
             summary.put("validationErrors", result.getValidationResult().getErrors());
@@ -294,6 +314,58 @@ final class AiTestReportSummary {
         return results.stream()
                 .mapToLong(result -> toolBusinessErrors(result).size())
                 .sum();
+    }
+
+    private static List<Map<String, Object>> warnings(SpringAiTestExecutor.AiTestResult result) {
+        return warningsFromToolBusinessErrors(toolBusinessErrors(result));
+    }
+
+    private static List<Map<String, Object>> warningsFromToolBusinessErrors(
+            List<Map<String, Object>> toolBusinessErrors) {
+        if (toolBusinessErrors == null || toolBusinessErrors.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> warnings = new ArrayList<>();
+        for (Map<String, Object> toolBusinessError : toolBusinessErrors) {
+            Map<String, Object> warning = new LinkedHashMap<>();
+            warning.put("warningType", "tool_business_error");
+            warning.put("severity", "warning");
+            warning.putAll(toolBusinessError);
+            warnings.add(warning);
+        }
+        return List.copyOf(warnings);
+    }
+
+    private static long warningCaseCount(List<SpringAiTestExecutor.AiTestResult> results) {
+        return results.stream()
+                .filter(result -> !warnings(result).isEmpty())
+                .map(SpringAiTestExecutor.AiTestResult::getTestCaseId)
+                .distinct()
+                .count();
+    }
+
+    private static long warningCount(List<SpringAiTestExecutor.AiTestResult> results) {
+        return results.stream()
+                .mapToLong(result -> warnings(result).size())
+                .sum();
+    }
+
+    private static int warningCaseCountFromWarnings(List<Map<String, Object>> warnings) {
+        return warnings.stream()
+                .map(warning -> stringValue(warning.get("testCaseId")))
+                .filter(testCaseId -> testCaseId != null && !testCaseId.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .size();
+    }
+
+    private static Map<String, Long> summarizeWarningCategories(List<Map<String, Object>> warnings) {
+        return warnings.stream()
+                .collect(Collectors.groupingBy(
+                        warning -> Optional.ofNullable(stringValue(warning.get("warningType")))
+                                .filter(type -> !type.isBlank())
+                                .orElse("unknown"),
+                        LinkedHashMap::new,
+                        Collectors.counting()));
     }
 
     private static String errorCategory(SpringAiTestExecutor.AiTestResult result) {

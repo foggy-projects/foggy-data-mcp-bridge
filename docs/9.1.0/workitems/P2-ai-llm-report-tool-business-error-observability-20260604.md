@@ -41,6 +41,9 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Added `toolBusinessErrorCount` and `toolBusinessErrors` to each case summary.
 - Added per-model `toolBusinessErrorCount` and `toolBusinessErrorCaseCount`.
 - Added per-case-comparison model `toolBusinessErrorCount`.
+- Added warning-layer fields: `warningCount`, `warningCaseCount`, `warningCategories`, `warnings`, and `toolBusinessErrorWarningCount`.
+- Added per-model `warningCount`, `warningCaseCount`, `warningRate`, and `toolBusinessErrorWarningCount`.
+- Updated `scripts/run-ai-llm-matrix.sh` to aggregate warning fields and print warning totals/cases after matrix summary generation.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
@@ -51,6 +54,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - `code=200` RX wrappers are not counted as business errors.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are not counted as business errors.
 - Report fields are available at root, per-model, per-case, and case-comparison model levels.
+- Warning fields are available without changing pass/fail semantics.
+- Matrix script terminal output exposes warning totals and warning case IDs.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -64,8 +69,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation and concise error extraction in `AiTestReportSummary`. |
-| testing | complete | Targeted Maven test command passed with 13 tests. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, and matrix script warning output. |
+| testing | complete | Targeted Maven test command passed with 13 tests; shell syntax and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -74,6 +79,7 @@ Completed work:
 
 - Implemented numeric business-error detection for AI tool call results.
 - Added root, model, case, and case-comparison summary counters.
+- Added warning-layer JSON fields and matrix terminal summary output.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
@@ -81,6 +87,7 @@ Touched code paths:
 
 - `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiTestReportSummary.java`
 - `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiTestReportSummaryTest.java`
+- `scripts/run-ai-llm-matrix.sh`
 - `docs/9.1.0/workitems/P2-ai-llm-report-tool-business-error-observability-20260604.md`
 
 Self-check:
@@ -91,7 +98,7 @@ Self-check:
 - Basic self-review completed: pass.
 - Self-check conclusion: self-check-only.
 - Formal quality gate required before coverage audit: no.
-- Remaining blockers: none for report support; fresh real LLM repro depends on provider quota and model behavior.
+- Remaining blockers: none for report support; focused real LLM rerun was not executed in this environment because `AI_TEST_OPENAI_API_KEY` is not injected.
 
 ## Validation
 
@@ -104,7 +111,13 @@ mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
 
 Result on 2026-06-04: passed, 13 tests.
 
+Additional checks on 2026-06-04:
+
+- `bash -n scripts/run-ai-llm-matrix.sh`: passed.
+- `git diff --check`: passed.
+- Synthetic jq aggregation for `matrix-summary.json` warning fields and terminal warning output: passed.
+
 ## Follow-Up
 
-- Re-run a focused real LLM case such as `QUERY-002` when provider quota is available to capture a fresh report with `toolBusinessErrorCount`.
-- Treat non-zero `toolBusinessErrorCount` as a report warning, not an immediate case failure, until enough samples show whether recovery behavior correlates with unstable answers.
+- Re-run a focused real LLM case such as `QUERY-002` after injecting `AI_TEST_OPENAI_API_KEY` to capture a fresh report with `warningCount` and `toolBusinessErrorCount`.
+- Treat non-zero `warningCount` as warning-level evidence, not an immediate case failure, until enough samples show whether recovery behavior correlates with unstable answers.

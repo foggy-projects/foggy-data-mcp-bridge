@@ -248,6 +248,14 @@ if [[ "${#report_files[@]}" -gt 0 ]]; then
       resultCount: ([.[].resultCount] | add // 0),
       passedCount: ([.[].passedCount] | add // 0),
       failedCount: ([.[].failedCount] | add // 0),
+      warningCount: ([.[].warningCount? // 0] | add // 0),
+      warningCaseCount: (
+        [.[].warnings[]? | "\(.testCaseId // "")|\(.provider // "")|\(.modelName // "")"]
+        | unique
+        | length
+      ),
+      toolBusinessErrorCount: ([.[].toolBusinessErrorCount? // 0] | add // 0),
+      toolBusinessErrorWarningCount: ([.[].toolBusinessErrorWarningCount? // 0] | add // 0),
       directBaseline: ([.[].models[]? | select(.model == "direct/tool-execution")] as $direct | {
         model: "direct/tool-execution",
         reportCount: ($direct | length),
@@ -265,6 +273,14 @@ if [[ "${#report_files[@]}" -gt 0 ]]; then
           )
         )
       ),
+      warningCategories: (
+        reduce .[].warningCategories? as $categories ({};
+          reduce ($categories | to_entries[]) as $entry (.;
+            .[$entry.key] = ((.[$entry.key] // 0) + $entry.value)
+          )
+        )
+      ),
+      warnings: ([.[].warnings[]?]),
       cases: ([.[].cases[]? | {
         testCaseId,
         provider,
@@ -272,11 +288,23 @@ if [[ "${#report_files[@]}" -gt 0 ]]; then
         success,
         durationMs,
         errorCategory,
-        calledTools
+        calledTools,
+        warningCount: (.warningCount // 0),
+        toolBusinessErrorCount: (.toolBusinessErrorCount // 0),
+        warningTypes: ([.warnings[]?.warningType] | unique)
       }])
     }
   ' "${report_files[@]}" > "$REPORT_DIR/matrix-summary.json"
   echo "[ai-matrix] summary=$REPORT_DIR/matrix-summary.json"
+  jq -r '
+    "[ai-matrix] totals resultCount=\(.resultCount) passed=\(.passedCount) failed=\(.failedCount) warnings=\(.warningCount) toolBusinessErrors=\(.toolBusinessErrorCount)",
+    (if (.warningCount // 0) == 0 then
+      "[ai-matrix] warningCases=<none>"
+    else
+      "[ai-matrix] warningCases=" + ([.warnings[]? | "\(.testCaseId // "?"):\(.provider // "?")/\(.modelName // "?")"] | unique | join(","))
+    end),
+    (.warnings[]? | "[ai-matrix] warning type=\(.warningType // "unknown") case=\(.testCaseId // "?") model=\(.provider // "?")/\(.modelName // "?") tool=\(.toolName // "?") code=\(.code // "?") argumentModel=\(.argumentModel // "-")")
+  ' "$REPORT_DIR/matrix-summary.json"
 fi
 
 if [[ "${#failed_models[@]}" -gt 0 ]]; then
