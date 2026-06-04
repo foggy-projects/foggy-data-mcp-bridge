@@ -154,7 +154,8 @@ AI_TEST_OPENAI_API_KEY=... \
 ./scripts/collect-ai-warning-samples.sh
 ```
 
-汇总结果默认写入 `foggy-dataset-mcp/target/ai-warning-samples/`。
+汇总结果默认写入 `foggy-dataset-mcp/target/ai-warning-samples/`，
+其中 `warning-review.md` 提供按 warning 类型、模型、case 和 run 聚合的人工 review 表格。
 
 ## 测试覆盖范围
 

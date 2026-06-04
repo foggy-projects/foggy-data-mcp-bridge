@@ -328,6 +328,7 @@ final class AiTestReportSummary {
         List<Map<String, Object>> warnings = new ArrayList<>();
         warnings.addAll(warningsFromToolBusinessErrors(toolBusinessErrors));
         warnings.addAll(unknownModelProbeWarnings(toolBusinessErrors));
+        warnings.addAll(toolCallAnomalyWarnings(result));
         warnings.addAll(modelDescribeRetryWarnings(result));
         return List.copyOf(warnings);
     }
@@ -366,6 +367,44 @@ final class AiTestReportSummary {
             warnings.add(warning);
         }
         return List.copyOf(warnings);
+    }
+
+    private static List<Map<String, Object>> toolCallAnomalyWarnings(SpringAiTestExecutor.AiTestResult result) {
+        if (result.getToolCallRecords() == null || result.getToolCallRecords().isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> warnings = new ArrayList<>();
+        for (ToolCallCollector.ToolCallRecord record : result.getToolCallRecords()) {
+            if (!record.isSuccess()) {
+                String warningType = isJsonParseError(record.getError())
+                        ? "tool_result_parse_error"
+                        : "tool_call_failure";
+                warnings.add(toolCallWarning(result, record, warningType));
+            } else if (record.getResult() == null) {
+                warnings.add(toolCallWarning(result, record, "empty_tool_result"));
+            }
+        }
+        return List.copyOf(warnings);
+    }
+
+    private static Map<String, Object> toolCallWarning(SpringAiTestExecutor.AiTestResult result,
+                                                       ToolCallCollector.ToolCallRecord record,
+                                                       String warningType) {
+        Map<String, Object> warning = new LinkedHashMap<>();
+        warning.put("testCaseId", result.getTestCaseId());
+        warning.put("provider", result.getProvider());
+        warning.put("modelName", result.getModelName());
+        warning.put("warningType", warningType);
+        warning.put("severity", "warning");
+        warning.put("source", "toolCall#" + record.getSequence());
+        warning.put("toolName", record.getToolName());
+        warning.put("springToolName", record.getSpringToolName());
+        warning.put("sequence", record.getSequence());
+        warning.put("durationMs", record.getDurationMs());
+        warning.put("error", firstNonBlank(record.getError()));
+        warning.put("argumentModel", argumentValue(record.getArguments(),
+                "model", "modelName", "queryModel", "queryModelName", "qm", "qmCode"));
+        return warning;
     }
 
     private static List<Map<String, Object>> modelDescribeRetryWarnings(SpringAiTestExecutor.AiTestResult result) {
@@ -630,6 +669,10 @@ final class AiTestReportSummary {
 
     private static boolean isDescribeModelTool(String toolName, String springToolName) {
         return toolName(toolName, springToolName).contains("describe_model");
+    }
+
+    private static boolean isJsonParseError(String error) {
+        return error != null && error.contains("JSON_PARSE_ERROR");
     }
 
     private static String toolName(String toolName, String springToolName) {

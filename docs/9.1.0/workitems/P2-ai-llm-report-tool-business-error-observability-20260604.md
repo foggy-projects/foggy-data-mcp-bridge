@@ -47,12 +47,16 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Added warning artifacts beside `matrix-summary.json`: `warnings.json` for structured warning summary and `warnings.jsonl` for line-oriented sample collection.
 - Added safe local env loading for matrix runs through `AI_TEST_ENV_FILE`, `--env-file FILE`, or the first existing ignored file among `.ai-test.env` and `.env.local`.
 - Added `scripts/collect-ai-warning-samples.sh` to aggregate warning samples across matrix runs into `target/ai-warning-samples/`.
+- Added `warning-review.md` for human-readable warning review tables grouped by type, model, case, and run.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
 - Current warning types:
   - `tool_business_error`: numeric tool result code is not `200`.
   - `unknown_model_probe`: a describe-model tool call probes a model-like argument that returned a business error.
+  - `empty_tool_result`: a successful tool call record has no result payload.
+  - `tool_result_parse_error`: a failed tool call record contains `JSON_PARSE_ERROR`.
+  - `tool_call_failure`: a failed tool call record does not match the JSON parse error class.
   - `model_describe_retry`: the same case repeats describe-model calls for the same model argument.
 
 ## Acceptance Criteria
@@ -66,6 +70,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Matrix script emits `warnings.json` and `warnings.jsonl` artifacts.
 - Matrix script can load ignored local env files without printing secret values.
 - Warning samples can be aggregated across historical matrix runs.
+- Warning sample review tables are available without custom jq commands.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -79,8 +84,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation, and warning classification for unknown model probes and repeated describe-model calls. |
-| testing | complete | Targeted Maven test command passed with 14 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation, local historical report aggregation, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, and warning classification for unknown model probes, tool call anomalies, and repeated describe-model calls. |
+| testing | complete | Targeted Maven test command passed with 16 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -93,9 +98,11 @@ Completed work:
 - Added `warnings.json` and `warnings.jsonl` artifact generation for downstream sample collection.
 - Added local env file loading for ignored `.ai-test.env`, `.env.local`, explicit `AI_TEST_ENV_FILE`, and `--env-file FILE`.
 - Added cross-run warning sample collector with JSONL and summary artifacts.
-- Added warning classification for `unknown_model_probe` and `model_describe_retry`.
+- Added human-readable `warning-review.md` output for cross-run warning triage.
+- Added warning classification for `unknown_model_probe`, `empty_tool_result`, `tool_result_parse_error`, `tool_call_failure`, and `model_describe_retry`.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
 - Added regression coverage for repeated describe-model calls.
+- Added regression coverage for empty tool results, JSON parse failures, and ordinary tool call failures.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
@@ -113,7 +120,7 @@ Self-check:
 - Basic self-review completed: pass.
 - Self-check conclusion: self-check-only.
 - Formal quality gate required before coverage audit: no.
-- Remaining blockers: none for report support; focused real LLM rerun was not executed in this environment because `AI_TEST_OPENAI_API_KEY` is not injected.
+- Remaining blockers: none for report support; focused real LLM rerun completed with local temporary ignored credential injection.
 
 ## Validation
 
@@ -128,17 +135,51 @@ Result on 2026-06-04: passed, 13 tests.
 
 Updated targeted result on 2026-06-04 after warning artifact and env-file changes: passed, 14 tests.
 
+Updated targeted result on 2026-06-04 after tool call anomaly warning changes: passed, 16 tests.
+
 Additional checks on 2026-06-04:
 
 - `bash -n scripts/run-ai-llm-matrix.sh`: passed.
 - `scripts/run-ai-llm-matrix.sh --env-file <temp-file> --print-selection`: passed; selection JSON stayed parseable and no secret values were printed.
-- `scripts/collect-ai-warning-samples.sh` with synthetic warning inputs: passed.
-- `scripts/collect-ai-warning-samples.sh` against local historical target reports: passed; current old reports contained zero warning samples.
+- `scripts/collect-ai-warning-samples.sh` with synthetic warning inputs and `warning-review.md` generation: passed.
+- `scripts/collect-ai-warning-samples.sh` against local historical target reports: passed; current old reports contained zero warning samples and produced an empty review table.
 - `git diff --check`: passed.
 - Synthetic jq aggregation for `matrix-summary.json` warning fields and terminal warning output: passed.
 
+Focused real LLM evidence on 2026-06-04:
+
+```bash
+scripts/run-ai-llm-matrix.sh \
+  --models gpt-oss-120b-medium,gemini-3-flash \
+  --case-ids QUERY-002 \
+  --continue-on-error \
+  --run-id focused-warning-query002-20260604
+scripts/collect-ai-warning-samples.sh
+```
+
+Result:
+
+- Run ID: `focused-warning-query002-20260604`.
+- Models: `gpt-oss-120b-medium`, `gemini-3-flash`.
+- Case ID: `QUERY-002`.
+- Matrix result count: 4, passed: 4, failed: 0.
+- Warning count: 2, warning cases: 1.
+- Warning categories: `tool_business_error=1`, `unknown_model_probe=1`.
+- Tool business error count: 1.
+- Warning case: `QUERY-002:spring-ai/gpt-oss-120b-medium`.
+- `spring-ai/gpt-oss-120b-medium` probed nonexistent `ProductInfoModel` through `dataset.describe_model_internal` and recovered.
+- `spring-ai/gemini-3-flash` completed the same case with zero warnings.
+
+Artifacts:
+
+- `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/matrix-summary.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/warnings.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/warnings.jsonl`
+- `foggy-dataset-mcp/target/ai-warning-samples/warning-summary.json`
+- `foggy-dataset-mcp/target/ai-warning-samples/warning-review.md`
+
 ## Follow-Up
 
-- Re-run a focused real LLM case such as `QUERY-002` after injecting `AI_TEST_OPENAI_API_KEY` through an ignored local env file to capture a fresh report with `warningCount`, `toolBusinessErrorCount`, `warnings.json`, and `warnings.jsonl`.
+- Continue collecting focused real LLM warning samples, especially cases where final pass masks intermediate model/tool recovery behavior.
 - Run `scripts/collect-ai-warning-samples.sh` after real LLM runs to maintain local aggregate samples by warning type, model, case, and run.
 - Treat non-zero `warningCount` as warning-level evidence, not an immediate case failure, until enough samples show whether recovery behavior correlates with unstable answers.

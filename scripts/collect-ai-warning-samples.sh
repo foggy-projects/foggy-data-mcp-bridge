@@ -25,6 +25,7 @@ Options:
 Outputs:
   warnings.all.jsonl        One compact warning JSON object per line.
   warning-summary.json      Aggregated warning counts by type, model, case, run.
+  warning-review.md         Human-readable warning review table.
   README.md                 Short local artifact note.
 USAGE
 }
@@ -67,6 +68,7 @@ fi
 mkdir -p "$OUTPUT_DIR"
 ALL_WARNINGS="$OUTPUT_DIR/warnings.all.jsonl"
 SUMMARY_JSON="$OUTPUT_DIR/warning-summary.json"
+REVIEW_MD="$OUTPUT_DIR/warning-review.md"
 README_FILE="$OUTPUT_DIR/README.md"
 : > "$ALL_WARNINGS"
 
@@ -151,6 +153,95 @@ jq -s \
     }
   ' "$ALL_WARNINGS" > "$SUMMARY_JSON"
 
+jq -r '
+  def count_rows($object):
+    ($object // {})
+    | to_entries
+    | sort_by(.value, .key)
+    | reverse
+    | .[];
+
+  "# AI Warning Review",
+  "",
+  "Generated at: `\(.generatedAt)`",
+  "",
+  "Source directory: `\(.sourceDir)`",
+  "",
+  "## Totals",
+  "",
+  "| Metric | Count |",
+  "|---|---:|",
+  "| Warnings | \(.warningCount) |",
+  "| Runs | \(.warningRunCount) |",
+  "| Cases | \(.warningCaseCount) |",
+  "",
+  "## Warning Types",
+  "",
+  "| Warning Type | Count |",
+  "|---|---:|",
+  (if ((.warningCategories // {}) | length) == 0 then
+    "| none | 0 |"
+  else
+    count_rows(.warningCategories) | "| \(.key) | \(.value) |"
+  end),
+  "",
+  "## Models",
+  "",
+  "| Model | Count |",
+  "|---|---:|",
+  (if ((.modelWarningCounts // {}) | length) == 0 then
+    "| none | 0 |"
+  else
+    count_rows(.modelWarningCounts) | "| \(.key) | \(.value) |"
+  end),
+  "",
+  "## Cases",
+  "",
+  "| Case | Count |",
+  "|---|---:|",
+  (if ((.caseWarningCounts // {}) | length) == 0 then
+    "| none | 0 |"
+  else
+    count_rows(.caseWarningCounts) | "| \(.key) | \(.value) |"
+  end),
+  "",
+  "## Runs",
+  "",
+  "| Run | Count | Types |",
+  "|---|---:|---|",
+  (if ((.runs // []) | length) == 0 then
+    "| none | 0 |  |"
+  else
+    (.runs | sort_by(.warningCount, .runId) | reverse)[]
+    | "| \(.runId) | \(.warningCount) | \((.warningCategories // {}) | to_entries | sort_by(.key) | map("\(.key)=\(.value)") | join(", ")) |"
+  end),
+  "",
+  "## Samples",
+  "",
+  "| Run | Case | Model | Type | Argument Model |",
+  "|---|---|---|---|---|",
+  ([
+    (.runs // [])[]
+    | . as $run
+    | (.cases // [])[]
+    | {
+        runId: $run.runId,
+        testCaseId: .testCaseId,
+        model: ((.provider // "") + "/" + (.modelName // "")),
+        warningType: .warningType,
+        argumentModel: (.argumentModel // "")
+      }
+    ]
+    | sort_by(.runId, .testCaseId, .model, .warningType, .argumentModel)
+    | .[:50]
+    | if length == 0 then
+        ["| none |  |  |  |  |"]
+      else
+        map("| \(.runId) | \(.testCaseId) | \(.model) | \(.warningType) | \(.argumentModel) |")
+      end
+    | .[])
+' "$SUMMARY_JSON" > "$REVIEW_MD"
+
 {
   printf '# AI Warning Samples\n\n'
   printf 'Generated at: `%s`\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -158,10 +249,12 @@ jq -s \
   printf 'Artifacts:\n\n'
   printf '%s\n' '- `warnings.all.jsonl`: one warning JSON object per line.'
   printf '%s\n' '- `warning-summary.json`: warning counts grouped by type, model, case, and run.'
+  printf '%s\n' '- `warning-review.md`: human-readable warning review tables.'
 } > "$README_FILE"
 
 echo "[ai-warning-samples] warnings=$ALL_WARNINGS"
 echo "[ai-warning-samples] summary=$SUMMARY_JSON"
+echo "[ai-warning-samples] review=$REVIEW_MD"
 jq -r '
   "[ai-warning-samples] totals warnings=\(.warningCount) runs=\(.warningRunCount) cases=\(.warningCaseCount)",
   (if (.warningCount // 0) == 0 then
