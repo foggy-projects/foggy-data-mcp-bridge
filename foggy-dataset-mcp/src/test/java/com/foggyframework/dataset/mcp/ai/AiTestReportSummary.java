@@ -842,11 +842,37 @@ final class AiTestReportSummary {
             return List.of();
         }
         List<Map<String, Object>> warnings = new ArrayList<>();
+        warnings.addAll(providerResponseWarnings(result));
         warnings.addAll(warningsFromToolBusinessErrors(toolBusinessErrors));
         warnings.addAll(unknownModelProbeWarnings(toolBusinessErrors));
         warnings.addAll(toolCallAnomalyWarnings(result));
         warnings.addAll(modelDescribeRetryWarnings(result));
         return List.copyOf(warnings);
+    }
+
+    private static List<Map<String, Object>> providerResponseWarnings(SpringAiTestExecutor.AiTestResult result) {
+        if (result == null || result.isSuccess() || hasToolCalls(result)) {
+            return List.of();
+        }
+        String category = errorCategory(result);
+        if (!category.startsWith("exception:provider_unavailable")
+                && !"validation_failed:empty_ai_response".equals(category)
+                && !"no_tool_calls".equals(category)) {
+            return List.of();
+        }
+        Map<String, Object> warning = new LinkedHashMap<>();
+        warning.put("testCaseId", result.getTestCaseId());
+        warning.put("provider", result.getProvider());
+        warning.put("modelName", result.getModelName());
+        warning.put("warningType", "provider_response_failure");
+        warning.put("severity", "warning");
+        warning.put("source", "aiResponse");
+        warning.put("errorCategory", category);
+        warning.put("errorMessage", firstNonBlank(result.getErrorMessage()));
+        warning.put("validationErrors", result.getValidationResult() == null
+                ? List.of()
+                : emptyIfNull(result.getValidationResult().getErrors()));
+        return List.of(warning);
     }
 
     private static List<Map<String, Object>> warningsFromToolBusinessErrors(
@@ -1014,22 +1040,30 @@ final class AiTestReportSummary {
             if (isDatabaseUnavailable(normalized)) {
                 return "exception:database_unavailable";
             }
-            if (normalized.contains("429") || normalized.contains("quota") || normalized.contains("cooldown")) {
+            if (isProviderUnavailable(normalized)) {
                 return "exception:provider_unavailable";
             }
             return "exception";
         }
         if (result.getValidationResult() != null && !result.getValidationResult().isPassed()) {
             String validationMessage = validationMessage(result.getValidationResult());
+            if (validationMessage != null && isEmptyAiResponse(validationMessage.toLowerCase(Locale.ROOT))
+                    && !hasToolCalls(result)) {
+                return "validation_failed:empty_ai_response";
+            }
             if (validationMessage != null && isDatabaseUnavailable(validationMessage.toLowerCase(Locale.ROOT))) {
                 return "validation_failed:database_unavailable";
             }
             return "validation_failed";
         }
-        if (result.getToolCallRecords() == null || result.getToolCallRecords().isEmpty()) {
+        if (!hasToolCalls(result)) {
             return "no_tool_calls";
         }
         return "failed_without_detail";
+    }
+
+    private static boolean hasToolCalls(SpringAiTestExecutor.AiTestResult result) {
+        return result != null && result.getToolCallRecords() != null && !result.getToolCallRecords().isEmpty();
     }
 
     private static boolean isDatabaseUnavailable(String normalizedMessage) {
@@ -1037,6 +1071,32 @@ final class AiTestReportSummary {
                 || normalizedMessage.contains("connection refused")
                 || normalizedMessage.contains("unable to acquire jdbc connection")
                 || normalizedMessage.contains("mysql");
+    }
+
+    private static boolean isProviderUnavailable(String normalizedMessage) {
+        return normalizedMessage.contains("429")
+                || normalizedMessage.contains("quota")
+                || normalizedMessage.contains("cooldown")
+                || normalizedMessage.contains("rate limit")
+                || normalizedMessage.contains("rate_limit")
+                || normalizedMessage.contains("empty response")
+                || normalizedMessage.contains("no response")
+                || normalizedMessage.contains("read timed out")
+                || normalizedMessage.contains("timeout")
+                || normalizedMessage.contains("timed out")
+                || normalizedMessage.contains("service unavailable")
+                || normalizedMessage.contains("bad gateway")
+                || normalizedMessage.contains("gateway timeout");
+    }
+
+    private static boolean isEmptyAiResponse(String normalizedMessage) {
+        return normalizedMessage.contains("ai returned empty response")
+                || normalizedMessage.contains("empty ai response")
+                || normalizedMessage.contains("empty response");
+    }
+
+    private static List<String> emptyIfNull(List<String> values) {
+        return values == null ? List.of() : values;
     }
 
     private static String validationMessage(ResultValidator.ValidationResult validationResult) {

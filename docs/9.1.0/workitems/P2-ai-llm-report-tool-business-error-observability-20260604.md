@@ -60,6 +60,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Disambiguated `FILTER-002` from generic customer purchase records to sales purchase detail records so the expected route is unambiguously `FactSalesQueryModel`.
 - Updated tool-argument validation to inspect executed `debug.normalized` payload semantics when raw LLM tool arguments omit fields filled by the engine, such as auto groupBy.
 - Updated report semantic payload signatures to prefer executed normalized `slice`, `having`, and non-aggregate `groupBy` semantics, while keeping raw payload shape signatures for observability.
+- Added provider-response failure classification for failed runs that have no tool calls and only an empty AI response or provider availability symptom, so provider instability is separated from engine/tool semantic failures.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
@@ -72,6 +73,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
   - `model_describe_retry`: the same case repeats describe-model calls for the same model argument.
   - `query_payload_shape_divergence`: the same case produced multiple successful `query_model` argument shape signatures across compared models.
   - `benign_query_payload_shape_divergence`: exact payload shapes differ, but semantic signatures match after ignoring alias/orderBy alias/limit/mode differences, redundant dimension `$id` grouping, and equivalent same-field OR equality versus IN condition trees.
+  - `provider_response_failure`: a failed run had no collected tool calls and is classified as an empty AI response or provider availability failure rather than an engine/tool business error.
 
 ## Acceptance Criteria
 
@@ -92,6 +94,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Tool argument shape rules accept expression references to underlying fields where aliases are expected.
 - Tool argument failures include observed payload path details for faster triage.
 - Query payload shape divergence is classified into semantic versus benign divergence.
+- Empty AI/provider response failures are visible as warning-level provider-response samples without changing pass/fail semantics.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -105,8 +108,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, query payload shape divergence, benign shape divergence classification, condition-tree normalization, fixture-level tool argument predicate-scope validation, broader stable fixture rules, observed-path validation diagnostics, sales-intent fixture disambiguation, and executed-normalized payload semantics for validator/report comparison. |
-| testing | complete | Targeted Maven test command passed with 26 tests after normalized execution semantics; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, focused Gemini tool-argument matrix, condition-tree normalization matrix, normalized groupBy matrix, updated 7-case Gemini matrix, fixture JSON parsing, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, query payload shape divergence, benign shape divergence classification, condition-tree normalization, fixture-level tool argument predicate-scope validation, broader stable fixture rules, observed-path validation diagnostics, sales-intent fixture disambiguation, executed-normalized payload semantics for validator/report comparison, and provider empty-response failure classification. |
+| testing | complete | Targeted Maven test command passed with 27 tests after provider-response failure classification; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, focused Gemini tool-argument matrix, condition-tree normalization matrix, normalized groupBy matrix, updated 7-case Gemini matrix, fixture JSON parsing, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -148,6 +151,7 @@ Completed work:
 - Added validator regression coverage for accepting tool argument rules from executed `debug.normalized.groupBy` when the raw LLM payload relies on engine auto groupBy.
 - Added report regression coverage for normalized groupBy semantic signatures while excluding aggregate group metadata from business grouping semantics.
 - Updated `FILTER-002` fixture wording and expected columns to make sales detail intent explicit and avoid routing ambiguity with order records.
+- Added provider-response warning classification for failed runs with no tool calls and empty AI response validation errors, including root/model/case/case-comparison visibility.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
@@ -196,6 +200,10 @@ Updated targeted result on 2026-06-04 after broader stable fixture rules, expres
 Updated targeted result on 2026-06-04 after benign query payload shape divergence classification: passed, 23 tests.
 
 Updated targeted result on 2026-06-04 after condition-tree OR-to-IN payload normalization: passed, 24 tests.
+
+Updated targeted result on 2026-06-04 after normalized execution semantics: passed, 26 tests.
+
+Updated targeted result on 2026-06-04 after provider-response failure classification: passed, 27 tests.
 
 Additional checks on 2026-06-04:
 

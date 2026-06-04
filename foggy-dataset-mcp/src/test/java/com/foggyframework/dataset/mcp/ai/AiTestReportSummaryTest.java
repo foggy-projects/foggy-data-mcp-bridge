@@ -797,6 +797,51 @@ class AiTestReportSummaryTest {
         assertEquals(1L, failureCategories.get("validation_failed:database_unavailable"));
     }
 
+    @Test
+    @DisplayName("应将无工具调用的空 AI 响应归类为 provider 响应失败 warning")
+    @SuppressWarnings("unchecked")
+    void build_shouldClassifyEmptyAiResponseWithoutToolCallsAsProviderWarning() {
+        SpringAiTestExecutor.AiTestResult failed = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("DIM-001")
+                .provider("spring-ai")
+                .modelName("gemini-3-flash")
+                .success(false)
+                .validationResult(ResultValidator.ValidationResult.failure("DIM-001",
+                        "AI returned empty response"))
+                .durationMs(3000)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(failed));
+
+        Map<String, Object> failureCategories = (Map<String, Object>) summary.get("failureCategories");
+        assertEquals(1L, failureCategories.get("validation_failed:empty_ai_response"));
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(1, summary.get("warningCaseCount"));
+        assertEquals(Map.of("provider_response_failure", 1L), summary.get("warningCategories"));
+
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals("provider_response_failure", warnings.get(0).get("warningType"));
+        assertEquals("aiResponse", warnings.get(0).get("source"));
+        assertEquals("validation_failed:empty_ai_response", warnings.get(0).get("errorCategory"));
+        assertEquals(List.of("AI returned empty response"), warnings.get(0).get("validationErrors"));
+
+        List<Map<String, Object>> cases = (List<Map<String, Object>>) summary.get("cases");
+        assertEquals("validation_failed:empty_ai_response", cases.get(0).get("errorCategory"));
+        assertEquals(1, cases.get(0).get("warningCount"));
+
+        List<Map<String, Object>> models = (List<Map<String, Object>>) summary.get("models");
+        assertEquals(Map.of("validation_failed:empty_ai_response", 1L), models.get(0).get("failureCategories"));
+        assertEquals(1L, models.get(0).get("warningCount"));
+        assertEquals(1L, models.get(0).get("warningCaseCount"));
+
+        List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
+        List<Map<String, Object>> comparedModels =
+                (List<Map<String, Object>>) comparison.get(0).get("models");
+        assertEquals("validation_failed:empty_ai_response", comparedModels.get(0).get("errorCategory"));
+        assertEquals(1, comparedModels.get(0).get("warningCount"));
+    }
+
     private static Map<String, Object> clarifyDetail() {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("terminal_route", "CLARIFY");
