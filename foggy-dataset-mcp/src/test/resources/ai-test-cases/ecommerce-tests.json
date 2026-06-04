@@ -271,6 +271,22 @@
       "expected": {
         "required_columns": ["store$caption", "salesAmount"],
         "max_rows": 3,
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "salesAmount",
+            "operator": ">",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "having",
+            "field": "totalSales",
+            "operator": ">",
+            "must_exist": false
+          }
+        ],
         "rules": [
           {
             "type": "ROW_COUNT_RANGE",

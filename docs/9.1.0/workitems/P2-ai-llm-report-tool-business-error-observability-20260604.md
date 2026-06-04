@@ -48,6 +48,10 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Added safe local env loading for matrix runs through `AI_TEST_ENV_FILE`, `--env-file FILE`, or the first existing ignored file among `.ai-test.env` and `.env.local`.
 - Added `scripts/collect-ai-warning-samples.sh` to aggregate warning samples across matrix runs into `target/ai-warning-samples/`.
 - Added `warning-review.md` for human-readable warning review tables grouped by type, model, case, and run.
+- Added warning review details for `query_payload_shape_divergence`, including model groups, slice fields, having fields, groupBy, and orderBy.
+- Allowed `scripts/collect-ai-warning-samples.sh --source-dir` to point either at the matrix report root or at a single run directory.
+- Added fixture-level `tool_argument_rules` so selected AI cases can validate tool argument predicate scope directly, not only observe it as a report warning.
+- Added `COMPLEX-001` predicate-scope validation: `salesAmount > 500` must appear in `slice`, and `totalSales > 500` must not appear in `having`.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
@@ -72,7 +76,9 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Matrix script can load ignored local env files without printing secret values.
 - Warning samples can be aggregated across historical matrix runs.
 - Warning sample review tables are available without custom jq commands.
+- Warning sample review tables show query payload shape details for fast triage.
 - Query payload shape divergence is visible as warning-level evidence without changing pass/fail semantics.
+- Case fixtures can declare expected tool argument shape rules for high-risk semantic predicates.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -86,8 +92,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, and warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, and query payload shape divergence. |
-| testing | complete | Targeted Maven test command passed with 17 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, query payload shape divergence, and fixture-level tool argument predicate-scope validation. |
+| testing | complete | Targeted Maven test command passed with 19 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -104,17 +110,27 @@ Completed work:
 - Added warning classification for `unknown_model_probe`, `empty_tool_result`, `tool_result_parse_error`, `tool_call_failure`, and `model_describe_retry`.
 - Added concise `query_model` argument-shape observability: per-case and case-comparison summaries now expose model, mode, columns, slice fields/ops, having fields/ops, groupBy, orderBy, limit, offset, and a deterministic signature without storing full tool results.
 - Added cross-model query payload shape divergence detection. If the same case produces multiple `query_model` shapes, the report marks `queryPayloadShapeConsensus=mixed` and emits a root warning.
+- Added `tool_argument_rules` to AI case expectations and validator support for successful tool calls.
+- Added `COMPLEX-001` predicate-scope rules so `salesAmount > 500` is required in `slice` and aggregate `having totalSales > 500` is rejected for that intent.
+- Added warning review detail expansion for query payload shape divergence.
+- Added single-run source directory support to the warning sample collector.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
 - Added regression coverage for repeated describe-model calls.
 - Added regression coverage for empty tool results, JSON parse failures, and ordinary tool call failures.
 - Added regression coverage for `slice salesAmount > 500` versus `having totalSales > 500` payload-shape divergence.
+- Added validator regression coverage for accepting the expected detail-row `slice` predicate and rejecting the same intent moved to aggregate `having`.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
 
 - `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiTestReportSummary.java`
 - `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiTestReportSummaryTest.java`
+- `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/EcommerceTestCase.java`
+- `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/ResultValidator.java`
+- `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/ResultValidatorTest.java`
+- `foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json`
 - `scripts/run-ai-llm-matrix.sh`
+- `scripts/collect-ai-warning-samples.sh`
 - `docs/9.1.0/workitems/P2-ai-llm-report-tool-business-error-observability-20260604.md`
 
 Self-check:
@@ -144,14 +160,18 @@ Updated targeted result on 2026-06-04 after tool call anomaly warning changes: p
 
 Updated targeted result on 2026-06-04 after query payload shape observability changes: passed, 17 tests.
 
+Updated targeted result on 2026-06-04 after fixture-level predicate-scope validation: passed, 19 tests.
+
 Additional checks on 2026-06-04:
 
 - `bash -n scripts/run-ai-llm-matrix.sh`: passed.
 - `scripts/run-ai-llm-matrix.sh --env-file <temp-file> --print-selection`: passed; selection JSON stayed parseable and no secret values were printed.
 - `scripts/collect-ai-warning-samples.sh` with synthetic warning inputs and `warning-review.md` generation: passed.
+- `scripts/collect-ai-warning-samples.sh --source-dir <single-run-dir>` with focused real LLM warning inputs: passed; `warning-review.md` showed query payload shape `Details`.
 - `scripts/collect-ai-warning-samples.sh` against local historical target reports: passed; current old reports contained zero warning samples and produced an empty review table.
 - `git diff --check`: passed.
 - Synthetic jq aggregation for `matrix-summary.json` warning fields and terminal warning output: passed.
+- First focused real LLM attempt using the existing shell credential failed model calls with `HTTP 401 Invalid API key`; rerun with the latest temporary credential override passed. No credential was written to repository files.
 
 Focused real LLM evidence on 2026-06-04:
 
@@ -196,6 +216,30 @@ Result before query payload shape observability:
 - Manual log review found a report blind spot in `COMPLEX-001`: one model placed `salesAmount > 500` in detail-row `slice`, while another placed `totalSales > 500` in aggregate `having`.
 - The validator and report passed both paths, so query payload shape comparison was added as warning-level observability rather than pass/fail semantics.
 
+Focused predicate-scope validation evidence on 2026-06-04:
+
+```bash
+scripts/run-ai-llm-matrix.sh \
+  --models gemini-pro-agent,gemini-3-flash \
+  --case-ids COMPLEX-001 \
+  --run-id focused-predicate-scope-complex001-latest-key-20260604
+scripts/collect-ai-warning-samples.sh \
+  --source-dir foggy-dataset-mcp/target/ai-test-reports/focused-predicate-scope-complex001-latest-key-20260604 \
+  --output-dir foggy-dataset-mcp/target/ai-warning-review-focused-predicate-scope-complex001-latest-key-20260604
+```
+
+Result:
+
+- Run ID: `focused-predicate-scope-complex001-latest-key-20260604`.
+- Models: `gemini-pro-agent`, `gemini-3-flash`.
+- Case ID: `COMPLEX-001`.
+- Matrix result count: 4, passed: 4, failed: 0.
+- Warning count: 2, warning cases: 1.
+- Warning categories: `query_payload_shape_divergence=2`.
+- Tool business error count: 0.
+- Both Gemini models placed `salesAmount > 500` in `slice`, satisfying the new fixture-level predicate-scope rules.
+- Warning review details showed direct baseline versus Gemini payload shape differences, including slice, groupBy, and orderBy fields.
+
 Artifacts:
 
 - `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/matrix-summary.json`
@@ -203,6 +247,10 @@ Artifacts:
 - `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/warnings.jsonl`
 - `foggy-dataset-mcp/target/ai-warning-samples/warning-summary.json`
 - `foggy-dataset-mcp/target/ai-warning-samples/warning-review.md`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-predicate-scope-complex001-latest-key-20260604/matrix-summary.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-predicate-scope-complex001-latest-key-20260604/warnings.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-predicate-scope-complex001-latest-key-20260604/warnings.jsonl`
+- `foggy-dataset-mcp/target/ai-warning-review-focused-predicate-scope-complex001-latest-key-20260604/warning-review.md`
 
 ## Follow-Up
 

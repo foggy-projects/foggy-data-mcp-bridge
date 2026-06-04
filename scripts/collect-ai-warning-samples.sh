@@ -18,7 +18,8 @@ Defaults:
   output-dir: foggy-dataset-mcp/target/ai-warning-samples
 
 Options:
-  --source-dir DIR          Matrix report root containing <run-id>/ directories.
+  --source-dir DIR          Matrix report root containing <run-id>/ directories,
+                            or a single matrix run directory.
   --output-dir DIR          Directory for aggregate warning artifacts.
   -h, --help                Show this help.
 
@@ -96,7 +97,12 @@ while IFS= read -r -d '' run_dir; do
            sourceFile: $sourceFile
          }' "$matrix_summary" >> "$ALL_WARNINGS"
   fi
-done < <(find "$SOURCE_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+done < <(
+  {
+    printf '%s\0' "$SOURCE_DIR"
+    find "$SOURCE_DIR" -mindepth 1 -maxdepth 1 -type d -print0
+  } | sort -zu
+)
 
 jq -s \
   --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -108,6 +114,19 @@ jq -s \
         ($item | f) as $key
         | .[$key] = ((.[$key] // 0) + 1)
       );
+    def join_values:
+      if type == "array" then map(tostring) | join("+") else tostring end;
+    def query_payload_shape_detail:
+      if (.warningType // "") != "query_payload_shape_divergence" then ""
+      else
+        [(.queryPayloadShapeSignatures // [])[]
+          | "models=" + ((.models // []) | join_values)
+            + "; slice=" + ((.sliceFields // []) | join_values)
+            + "; having=" + ((.havingFields // []) | join_values)
+            + "; groupBy=" + ((.groupBy // []) | join_values)
+            + "; orderBy=" + ((.orderBy // []) | join_values)]
+        | join("<br>")
+      end;
 
     {
       generatedAt: $generatedAt,
@@ -145,7 +164,8 @@ jq -s \
                   provider: (.provider // ""),
                   modelName: (.modelName // ""),
                   warningType: (.warningType // "unknown"),
-                  argumentModel: (.argumentModel // null)
+                  argumentModel: (.argumentModel // null),
+                  detail: query_payload_shape_detail
                 }]
               | sort_by([.testCaseId, .provider, .modelName, .warningType, (.argumentModel // "")]))
           })
@@ -218,8 +238,8 @@ jq -r '
   "",
   "## Samples",
   "",
-  "| Run | Case | Model | Type | Argument Model |",
-  "|---|---|---|---|---|",
+  "| Run | Case | Model | Type | Argument Model | Details |",
+  "|---|---|---|---|---|---|",
   ([
     (.runs // [])[]
     | . as $run
@@ -229,15 +249,16 @@ jq -r '
         testCaseId: .testCaseId,
         model: ((.provider // "") + "/" + (.modelName // "")),
         warningType: .warningType,
-        argumentModel: (.argumentModel // "")
+        argumentModel: (.argumentModel // ""),
+        detail: (.detail // "")
       }
     ]
-    | sort_by(.runId, .testCaseId, .model, .warningType, .argumentModel)
+    | sort_by(.runId, .testCaseId, .model, .warningType, .argumentModel, .detail)
     | .[:50]
     | if length == 0 then
-        ["| none |  |  |  |  |"]
+        ["| none |  |  |  |  |  |"]
       else
-        map("| \(.runId) | \(.testCaseId) | \(.model) | \(.warningType) | \(.argumentModel) |")
+        map("| \(.runId) | \(.testCaseId) | \(.model) | \(.warningType) | \(.argumentModel) | \(.detail) |")
       end
     | .[])
 ' "$SUMMARY_JSON" > "$REVIEW_MD"

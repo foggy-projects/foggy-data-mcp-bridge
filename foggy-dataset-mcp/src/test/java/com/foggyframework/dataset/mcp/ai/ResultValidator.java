@@ -663,6 +663,8 @@ public class ResultValidator {
             return result;
         }
 
+        validateToolArgumentRules(expected.getToolArgumentRules(), toolCalls, result);
+
         // 如果只需要验证成功
         if (expected.isSuccessOnly()) {
             result.addPassedRule("Success-only validation passed");
@@ -728,6 +730,104 @@ public class ResultValidator {
         return "dataset.query_model".equals(expectedTool)
                 && ("dataset.export_with_chart".equals(call.getToolName())
                 || "dataset_export_with_chart".equals(call.getSpringToolName()));
+    }
+
+    private void validateToolArgumentRules(List<EcommerceTestCase.ToolArgumentRule> rules,
+                                           List<ToolCallCollector.ToolCallRecord> toolCalls,
+                                           ValidationResult result) {
+        if (rules == null || rules.isEmpty()) {
+            return;
+        }
+        for (EcommerceTestCase.ToolArgumentRule rule : rules) {
+            String ruleName = "TOOL_ARGUMENT:" + rule.getPath() + ":" + rule.getField();
+            List<ToolCallCollector.ToolCallRecord> candidateCalls = matchingSuccessfulToolCalls(toolCalls, rule);
+            if (candidateCalls.isEmpty()) {
+                result.addFailedRule(ruleName + ": no successful matching tool call found for " + rule.getTool());
+                continue;
+            }
+            boolean found = candidateCalls.stream()
+                    .anyMatch(call -> toolCallPayloadPathContains(call, rule));
+            if (rule.isMustExist() == found) {
+                result.addPassedRule(ruleName + ": " + (rule.isMustExist() ? "found" : "absent as expected"));
+            } else if (rule.isMustExist()) {
+                result.addFailedRule(ruleName + ": expected field " + rule.getField()
+                        + operatorLabel(rule.getOperator()) + " in " + rule.getPath());
+            } else {
+                result.addFailedRule(ruleName + ": forbidden field " + rule.getField()
+                        + operatorLabel(rule.getOperator()) + " found in " + rule.getPath());
+            }
+        }
+    }
+
+    private List<ToolCallCollector.ToolCallRecord> matchingSuccessfulToolCalls(
+            List<ToolCallCollector.ToolCallRecord> toolCalls,
+            EcommerceTestCase.ToolArgumentRule rule) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return List.of();
+        }
+        return toolCalls.stream()
+                .filter(ToolCallCollector.ToolCallRecord::isSuccess)
+                .filter(call -> rule.getTool() == null || rule.getTool().isBlank() || toolMatches(rule.getTool(), call))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean toolCallPayloadPathContains(ToolCallCollector.ToolCallRecord call,
+                                                EcommerceTestCase.ToolArgumentRule rule) {
+        if (call.getArguments() == null || rule.getPath() == null || rule.getPath().isBlank()) {
+            return false;
+        }
+        Object payload = call.getArguments().get("payload");
+        if (!(payload instanceof Map<?, ?> payloadMap)) {
+            return false;
+        }
+        Object node = ((Map<String, Object>) payloadMap).get(rule.getPath());
+        return conditionTreeContains(node, rule.getField(), rule.getOperator());
+    }
+
+    private boolean conditionTreeContains(Object node, String expectedField, String expectedOperator) {
+        if (node == null) {
+            return false;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (conditionTreeContains(item, expectedField, expectedOperator)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node instanceof Map<?, ?> map) {
+            String field = stringValue(firstNonNull(
+                    firstNonNull(map.get("field"), map.get("column")),
+                    firstNonNull(map.get("name"), map.get("expr"))));
+            String operator = stringValue(firstNonNull(map.get("op"), map.get("operator")));
+            if (field != null && columnsMatch(expectedField, field)
+                    && operatorMatches(expectedOperator, operator)) {
+                return true;
+            }
+            for (Object value : map.values()) {
+                if (conditionTreeContains(value, expectedField, expectedOperator)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean operatorMatches(String expectedOperator, String actualOperator) {
+        if (expectedOperator == null || expectedOperator.isBlank()) {
+            return true;
+        }
+        return normalizeOperator(expectedOperator).equals(normalizeOperator(actualOperator));
+    }
+
+    private String normalizeOperator(String operator) {
+        return operator == null ? "" : operator.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String operatorLabel(String operator) {
+        return operator == null || operator.isBlank() ? "" : " " + operator;
     }
 
     private boolean toolCallsContainColumnReference(List<ToolCallCollector.ToolCallRecord> toolCalls, String column) {
@@ -800,6 +900,14 @@ public class ResultValidator {
         String normalizedColumn = normalizeColumnText(column);
         String pattern = "(^|[^a-z0-9_$])" + java.util.regex.Pattern.quote(normalizedColumn) + "([^a-z0-9_$]|$)";
         return java.util.regex.Pattern.compile(pattern).matcher(normalizedText).find();
+    }
+
+    private Object firstNonNull(Object first, Object second) {
+        return first != null ? first : second;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     /**

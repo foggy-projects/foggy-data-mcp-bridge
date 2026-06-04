@@ -191,6 +191,15 @@ public class EcommerceTestCase {
         private List<ValidationRule> rules;
 
         /**
+         * 工具入参形状验证规则。
+         *
+         * <p>用于校验 AI 生成的工具参数是否把业务谓词放在正确位置，
+         * 例如明细行过滤应出现在 slice，而不是聚合后的 having。
+         */
+        @JsonProperty("tool_argument_rules")
+        private List<ToolArgumentRule> toolArgumentRules;
+
+        /**
          * 是否仅验证不报错（宽松模式）
          */
         @JsonProperty("success_only")
@@ -232,6 +241,44 @@ public class EcommerceTestCase {
          * 附加参数
          */
         private Map<String, Object> params;
+    }
+
+    /**
+     * 工具入参规则。
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ToolArgumentRule {
+
+        /**
+         * 工具名，支持点分工具名和 Spring AI 下划线工具名。
+         */
+        private String tool;
+
+        /**
+         * 查询 payload 中的路径，例如 slice、having、groupBy、orderBy。
+         */
+        private String path;
+
+        /**
+         * 目标字段名。
+         */
+        private String field;
+
+        /**
+         * 可选操作符。
+         */
+        private String operator;
+
+        /**
+         * true 表示必须存在，false 表示必须不存在。
+         */
+        @JsonProperty("must_exist")
+        @Builder.Default
+        private boolean mustExist = true;
     }
 
     /**

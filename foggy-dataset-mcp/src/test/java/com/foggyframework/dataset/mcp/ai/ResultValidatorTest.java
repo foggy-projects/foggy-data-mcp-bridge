@@ -139,4 +139,112 @@ class ResultValidatorTest {
         assertTrue(result.getFailedRules().stream()
                 .anyMatch(rule -> rule.contains("Required content not found: salesAmount")));
     }
+
+    @Test
+    @DisplayName("tool argument validation should accept required detail-row slice predicate")
+    void validateFromAiResponse_shouldAcceptExpectedToolArgumentPredicateScope() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("COMPLEX-001")
+                .expectedTool("dataset.query_model")
+                .expected(complexExpectedWithPredicateScopeRules())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of("store$caption", "salesDate$year", "sum(salesAmount) as totalSales"),
+                                "slice", List.of(
+                                        Map.of("field", "salesDate$year", "op", "in", "value", List.of(2024, 2025)),
+                                        Map.of("field", "salesAmount", "op", ">", "value", 500)
+                                ),
+                                "groupBy", List.of("store$caption", "salesDate$year")
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("store$caption", "门店1", "salesDate$year", 2024, "totalSales", 1000)
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "门店1 在 2024 年总销售额 1000。",
+                List.of(call)
+        );
+
+        assertTrue(result.isPassed(), () -> result.getFailedRules().toString());
+        assertTrue(result.getPassedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:slice:salesAmount")));
+    }
+
+    @Test
+    @DisplayName("tool argument validation should reject detail predicate moved to having")
+    void validateFromAiResponse_shouldRejectPredicateScopeMovedToHaving() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("COMPLEX-001")
+                .expectedTool("dataset.query_model")
+                .expected(complexExpectedWithPredicateScopeRules())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of("store$caption", "salesDate$year", "sum(salesAmount) as totalSales"),
+                                "slice", List.of(Map.of("field", "salesDate$year", "op", "in", "value", List.of(2024, 2025))),
+                                "having", List.of(Map.of("field", "totalSales", "op", ">", "value", 500)),
+                                "groupBy", List.of("store$caption", "salesDate$year")
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("store$caption", "门店1", "salesDate$year", 2024, "totalSales", 1000)
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "门店1 在 2024 年总销售额 1000。",
+                List.of(call)
+        );
+
+        assertFalse(result.isPassed());
+        assertTrue(result.getFailedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:slice:salesAmount")));
+        assertTrue(result.getFailedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:having:totalSales")));
+    }
+
+    private EcommerceTestCase.ExpectedResult complexExpectedWithPredicateScopeRules() {
+        return EcommerceTestCase.ExpectedResult.builder()
+                .requiredColumns(List.of("store$caption", "salesAmount"))
+                .toolArgumentRules(List.of(
+                        EcommerceTestCase.ToolArgumentRule.builder()
+                                .tool("dataset.query_model")
+                                .path("slice")
+                                .field("salesAmount")
+                                .operator(">")
+                                .mustExist(true)
+                                .build(),
+                        EcommerceTestCase.ToolArgumentRule.builder()
+                                .tool("dataset.query_model")
+                                .path("having")
+                                .field("totalSales")
+                                .operator(">")
+                                .mustExist(false)
+                                .build()
+                ))
+                .build();
+    }
 }
