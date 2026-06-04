@@ -187,6 +187,9 @@ void shouldFetchMetadataSuccessfully() throws Exception {
 - 测试 AI 模型调用 MCP 工具的完整流程
 - 测试用例从 JSON 文件加载
 - 支持多分类测试（元数据、简单查询、聚合、复杂查询）
+- 运行前先执行 `./scripts/ensure-ai-test-mysql.sh`，脚本会验证或启动
+  `127.0.0.1:13306/foggy_test` 测试库；没有 Docker 时可回落到本地
+  `mysql`/`mysqld`。
 
 ## 运行测试
 
@@ -210,7 +213,12 @@ mvn test -Dtest=*ControllerTest
 mvn test -Dtest=*ToolTest
 
 # 运行 AI 集成测试
-mvn test -Dtest=AiToolsIntegrationTest
+cd ..
+./scripts/ensure-ai-test-mysql.sh
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
+  mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
+  -Dtest=AiToolsIntegrationTest,AiTestReportSummaryTest,SpringAiTestExecutorTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 ## 测试配置

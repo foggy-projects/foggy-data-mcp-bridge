@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 测试 AI 模型通过 MCP 工具执行数据查询的正确性
  *
  * 运行前提：
- * 1. 数据库已启动并初始化测试数据
+ * 1. 数据库已启动并初始化测试数据，可先运行 scripts/ensure-ai-test-mysql.sh
  * 2. 配置了 Spring AI (application-test.yml)
  *    - 阿里云通义千问（默认）
  */

@@ -36,28 +36,32 @@
 
 ## 前置条件
 
-### 1. 启动 Docker 数据库环境
+### 1. 准备 MySQL 数据库环境
 
 ```bash
-cd foggy-dataset-model/docker
-docker-compose -f docker-compose.test.yml up -d
+./scripts/ensure-ai-test-mysql.sh
 ```
 
-这将启动：
-- MySQL 5.7 (端口 13306)
-- MongoDB 6.0 (端口 17017)
-- Redis 7 (端口 16379)
-- Adminer (端口 18080) - 可选的数据库管理界面
+脚本会先复用已可用的 `127.0.0.1:13306/foggy_test`。如果不可用，会优先通过
+`foggy-dataset-demo/docker/docker-compose.yml` 启动 MySQL 5.7；当当前机器没有
+Docker 但存在本地 `mysql`/`mysqld` 二进制时，会回落到
+`target/foggy-ai-mysql57-data` 下的临时本地 MySQL。
+
+常用选项：
+
+```bash
+# 只检查当前数据库，不启动 Docker 或本地 mysqld
+./scripts/ensure-ai-test-mysql.sh --no-start
+
+# 显式重刷 demo mysql/init/*.sql 测试数据
+./scripts/ensure-ai-test-mysql.sh --init
+```
 
 ### 2. 验证数据库连接
 
 ```bash
 # MySQL
 mysql -h localhost -P 13306 -u foggy -pfoggy_test_123 foggy_test
-
-# 或使用 Adminer
-# 浏览器打开 http://localhost:18080
-# 系统: MySQL, 服务器: mysql, 用户名: foggy, 密码: foggy_test_123, 数据库: foggy_test
 ```
 
 ### 3. 确认测试数据已加载
@@ -76,14 +80,25 @@ SELECT COUNT(*) FROM fact_sales;   -- 应该 > 0
 
 ```bash
 # 运行所有集成测试
-cd foggy-dataset-mcp
-mvn test -Dtest=*IntegrationTest -Dspring.profiles.active=integration
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
+  mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
+  -Dtest=*IntegrationTest \
+  -Dspring.profiles.active=integration \
+  -Dsurefire.failIfNoSpecifiedTests=false test
 
 # 运行特定测试类
-mvn test -Dtest=McpToolsIntegrationTest -Dspring.profiles.active=integration
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
+  mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
+  -Dtest=McpToolsIntegrationTest \
+  -Dspring.profiles.active=integration \
+  -Dsurefire.failIfNoSpecifiedTests=false test
 
 # 运行特定测试方法
-mvn test -Dtest=McpToolsIntegrationTest#verifyDatabaseAndTestData -Dspring.profiles.active=integration
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
+  mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
+  -Dtest=McpToolsIntegrationTest#verifyDatabaseAndTestData \
+  -Dspring.profiles.active=integration \
+  -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 ### 方法 2: 使用 IDE
