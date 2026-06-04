@@ -57,6 +57,9 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Reused column-reference matching for tool argument rules so expression columns such as `sum(quantity) as totalQuantity` satisfy rules for the underlying measure field.
 - Added semantic classification for query payload shape divergence. Alias, orderBy alias, limit/mode, and redundant dimension `$id` grouping differences are now classified as `benign_query_payload_shape_divergence` when slice/having predicates and normalized groupBy semantics match.
 - Added condition-tree normalization for query payload shape comparison, including recursive condition flattening and same-field OR-equality-to-IN compaction.
+- Disambiguated `FILTER-002` from generic customer purchase records to sales purchase detail records so the expected route is unambiguously `FactSalesQueryModel`.
+- Updated tool-argument validation to inspect executed `debug.normalized` payload semantics when raw LLM tool arguments omit fields filled by the engine, such as auto groupBy.
+- Updated report semantic payload signatures to prefer executed normalized `slice`, `having`, and non-aggregate `groupBy` semantics, while keeping raw payload shape signatures for observability.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
@@ -102,8 +105,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, query payload shape divergence, benign shape divergence classification, condition-tree normalization, fixture-level tool argument predicate-scope validation, broader stable fixture rules, and observed-path validation diagnostics. |
-| testing | complete | Targeted Maven test command passed with 24 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, focused Gemini tool-argument matrix, condition-tree normalization matrix, fixture JSON parsing, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, query payload shape divergence, benign shape divergence classification, condition-tree normalization, fixture-level tool argument predicate-scope validation, broader stable fixture rules, observed-path validation diagnostics, sales-intent fixture disambiguation, and executed-normalized payload semantics for validator/report comparison. |
+| testing | complete | Targeted Maven test command passed with 26 tests after normalized execution semantics; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, focused Gemini tool-argument matrix, condition-tree normalization matrix, normalized groupBy matrix, updated 7-case Gemini matrix, fixture JSON parsing, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -142,6 +145,9 @@ Completed work:
 - Added validator regression coverage for expression column references in tool argument rules.
 - Added report regression coverage for semantic versus benign query payload shape divergence classification.
 - Added report regression coverage for OR-equality condition trees matching equivalent IN predicates as benign divergence.
+- Added validator regression coverage for accepting tool argument rules from executed `debug.normalized.groupBy` when the raw LLM payload relies on engine auto groupBy.
+- Added report regression coverage for normalized groupBy semantic signatures while excluding aggregate group metadata from business grouping semantics.
+- Updated `FILTER-002` fixture wording and expected columns to make sales detail intent explicit and avoid routing ambiguity with order records.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
@@ -341,6 +347,76 @@ Result:
 - Remaining semantic warning is `FILTER-002`, where direct baseline used `FactSalesQueryModel` and `gemini-pro-agent` selected `FactOrderQueryModel` for customer purchase records.
 - Warning review artifacts show 12 warnings from one run across 7 cases.
 
+Focused `FILTER-002` sales intent disambiguation evidence on 2026-06-04:
+
+```bash
+bash -lc 'set -euo pipefail; set -a; source /Users/fengjianguang/foggy-projects/foggy-data-mcp/.env.local; set +a; base="${OPENAI_BASE_URL%/}"; base="${base%/v1}"; export JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home; export PATH="$JAVA_HOME/bin:$PATH"; export AI_TEST_OPENAI_API_KEY="$OPENAI_API_KEY"; export AI_TEST_OPENAI_BASE_URL="$base"; scripts/run-ai-llm-matrix.sh --models gemini-pro-agent,gemini-3-flash --base-url "$AI_TEST_OPENAI_BASE_URL" --case-ids FILTER-002 --continue-on-error --run-id focused-filter002-sales-intent-gemini-20260604'
+scripts/collect-ai-warning-samples.sh \
+  --source-dir foggy-dataset-mcp/target/ai-test-reports/focused-filter002-sales-intent-gemini-20260604 \
+  --output-dir foggy-dataset-mcp/target/ai-warning-review-focused-filter002-sales-intent-gemini-20260604
+```
+
+Result:
+
+- Run ID: `focused-filter002-sales-intent-gemini-20260604`.
+- Models: `gemini-pro-agent`, `gemini-3-flash`.
+- Case ID: `FILTER-002`.
+- Matrix result count: 4, passed: 4, failed: 0.
+- Per-model LLM result: `gemini-pro-agent` 1/1 passed; `gemini-3-flash` 1/1 passed.
+- Direct baseline result: 2/2 passed across the two model passes.
+- Warning count: 2, warning cases: 1.
+- Warning categories: `benign_query_payload_shape_divergence=2`.
+- Tool business error count: 0.
+- Both Gemini models selected `FactSalesQueryModel`.
+- Previous `FactSalesQueryModel` versus `FactOrderQueryModel` semantic warning was eliminated by making the sales purchase detail intent explicit.
+- Warning review artifacts show 2 warnings from one run across one case.
+
+Focused `SORT-001` normalized groupBy evidence on 2026-06-04:
+
+```bash
+bash -lc 'set -euo pipefail; set -a; source /Users/fengjianguang/foggy-projects/foggy-data-mcp/.env.local; set +a; base="${OPENAI_BASE_URL%/}"; base="${base%/v1}"; export JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home; export PATH="$JAVA_HOME/bin:$PATH"; export AI_TEST_OPENAI_API_KEY="$OPENAI_API_KEY"; export AI_TEST_OPENAI_BASE_URL="$base"; scripts/run-ai-llm-matrix.sh --models gemini-pro-agent,gemini-3-flash --base-url "$AI_TEST_OPENAI_BASE_URL" --case-ids SORT-001 --continue-on-error --run-id focused-sort001-normalized-groupby-gemini-20260604'
+scripts/collect-ai-warning-samples.sh \
+  --source-dir foggy-dataset-mcp/target/ai-test-reports/focused-sort001-normalized-groupby-gemini-20260604 \
+  --output-dir foggy-dataset-mcp/target/ai-warning-review-focused-sort001-normalized-groupby-gemini-20260604
+```
+
+Result:
+
+- Run ID: `focused-sort001-normalized-groupby-gemini-20260604`.
+- Models: `gemini-pro-agent`, `gemini-3-flash`.
+- Case ID: `SORT-001`.
+- Matrix result count: 4, passed: 4, failed: 0.
+- Per-model LLM result: `gemini-pro-agent` 1/1 passed; `gemini-3-flash` 1/1 passed.
+- Direct baseline result: 2/2 passed across the two model passes.
+- Warning count: 1, warning cases: 1.
+- Warning categories: `benign_query_payload_shape_divergence=1`.
+- Tool business error count: 0.
+- No semantic query payload warnings remained.
+- Validator and report now use executed `data.debug.normalized.groupBy` as final execution semantics and ignore aggregate group metadata such as `totalSales agg=SUM` when comparing business group dimensions.
+
+Focused normalized groupBy 7-case Gemini matrix evidence on 2026-06-04:
+
+```bash
+bash -lc 'set -euo pipefail; set -a; source /Users/fengjianguang/foggy-projects/foggy-data-mcp/.env.local; set +a; base="${OPENAI_BASE_URL%/}"; base="${base%/v1}"; export JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home; export PATH="$JAVA_HOME/bin:$PATH"; export AI_TEST_OPENAI_API_KEY="$OPENAI_API_KEY"; export AI_TEST_OPENAI_BASE_URL="$base"; scripts/run-ai-llm-matrix.sh --models gemini-pro-agent,gemini-3-flash --base-url "$AI_TEST_OPENAI_BASE_URL" --case-ids FILTER-001,FILTER-002,AGG-001,AGG-002,DIM-001,SORT-001,COMPLEX-001 --continue-on-error --run-id focused-tool-argument-rules-normalized-groupby-gemini-20260604'
+scripts/collect-ai-warning-samples.sh \
+  --source-dir foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-normalized-groupby-gemini-20260604 \
+  --output-dir foggy-dataset-mcp/target/ai-warning-review-focused-tool-argument-rules-normalized-groupby-gemini-20260604
+```
+
+Result:
+
+- Run ID: `focused-tool-argument-rules-normalized-groupby-gemini-20260604`.
+- Models: `gemini-pro-agent`, `gemini-3-flash`.
+- Case IDs: `FILTER-001`, `FILTER-002`, `AGG-001`, `AGG-002`, `DIM-001`, `SORT-001`, `COMPLEX-001`.
+- Matrix result count: 28, passed: 28, failed: 0.
+- Per-model LLM result: `gemini-pro-agent` 7/7 passed; `gemini-3-flash` 7/7 passed.
+- Direct baseline result: 14/14 passed across the two model passes.
+- Warning count: 12, warning cases: 7.
+- Warning categories: `benign_query_payload_shape_divergence=12`.
+- Tool business error count: 0.
+- Semantic query payload warning count: 0.
+- Warning review artifacts show 12 benign warnings from one run across 7 cases.
+
 Artifacts:
 
 - `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/matrix-summary.json`
@@ -364,6 +440,18 @@ Artifacts:
 - `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-condition-tree-normalization-gemini-20260604/warnings.json`
 - `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-condition-tree-normalization-gemini-20260604/warnings.jsonl`
 - `foggy-dataset-mcp/target/ai-warning-review-focused-tool-argument-rules-condition-tree-normalization-gemini-20260604/warning-review.md`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-filter002-sales-intent-gemini-20260604/matrix-summary.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-filter002-sales-intent-gemini-20260604/warnings.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-filter002-sales-intent-gemini-20260604/warnings.jsonl`
+- `foggy-dataset-mcp/target/ai-warning-review-focused-filter002-sales-intent-gemini-20260604/warning-review.md`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-sort001-normalized-groupby-gemini-20260604/matrix-summary.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-sort001-normalized-groupby-gemini-20260604/warnings.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-sort001-normalized-groupby-gemini-20260604/warnings.jsonl`
+- `foggy-dataset-mcp/target/ai-warning-review-focused-sort001-normalized-groupby-gemini-20260604/warning-review.md`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-normalized-groupby-gemini-20260604/matrix-summary.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-normalized-groupby-gemini-20260604/warnings.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-normalized-groupby-gemini-20260604/warnings.jsonl`
+- `foggy-dataset-mcp/target/ai-warning-review-focused-tool-argument-rules-normalized-groupby-gemini-20260604/warning-review.md`
 
 ## Follow-Up
 

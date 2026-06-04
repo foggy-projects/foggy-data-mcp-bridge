@@ -306,6 +306,7 @@ final class AiTestReportSummary {
             return Optional.empty();
         }
         Map<String, Object> payload = queryPayloadBody(arguments).orElse(arguments);
+        Map<String, Object> normalizedPayload = queryNormalizedPayload(record).orElse(Map.of());
         Map<String, Object> signatureShape = new LinkedHashMap<>();
         signatureShape.put("argumentModel", argumentValue(arguments,
                 "model", "modelName", "queryModel", "queryModelName", "qm", "qmCode"));
@@ -319,7 +320,7 @@ final class AiTestReportSummary {
         signatureShape.put("orderBy", orderValues(payload.get("orderBy")));
         signatureShape.put("limit", compactValue(payload.get("limit")));
         signatureShape.put("offset", compactValue(payload.get("offset")));
-        Map<String, Object> semanticShape = queryPayloadSemanticShape(signatureShape);
+        Map<String, Object> semanticShape = queryPayloadSemanticShape(signatureShape, normalizedPayload);
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("source", "toolCall#" + record.getSequence());
@@ -359,6 +360,42 @@ final class AiTestReportSummary {
             }
         }
         return normalizeResult(value);
+    }
+
+    private static Optional<Map<String, Object>> queryNormalizedPayload(ToolCallCollector.ToolCallRecord record) {
+        if (record == null) {
+            return Optional.empty();
+        }
+        return normalizeResult(record.getResult()).flatMap(AiTestReportSummary::findNormalizedPayload);
+    }
+
+    private static Optional<Map<String, Object>> findNormalizedPayload(Map<String, Object> result) {
+        Object debug = result.get("debug");
+        if (debug instanceof Map<?, ?> debugMap) {
+            Object normalized = debugMap.get("normalized");
+            Optional<Map<String, Object>> normalizedPayload = normalizeResult(normalized);
+            if (normalizedPayload.isPresent()) {
+                return normalizedPayload;
+            }
+        }
+        Object normalized = result.get("normalized");
+        Optional<Map<String, Object>> normalizedPayload = normalizeResult(normalized);
+        if (normalizedPayload.isPresent()) {
+            return normalizedPayload;
+        }
+        Object data = result.get("data");
+        if (data != null) {
+            Optional<Map<String, Object>> nested = normalizeResult(data)
+                    .flatMap(AiTestReportSummary::findNormalizedPayload);
+            if (nested.isPresent()) {
+                return nested;
+            }
+        }
+        Object nestedResult = result.get("result");
+        if (nestedResult != null) {
+            return normalizeResult(nestedResult).flatMap(AiTestReportSummary::findNormalizedPayload);
+        }
+        return Optional.empty();
     }
 
     private static List<Map<String, Object>> summarizeQueryPayloadShapeSignatures(
@@ -480,13 +517,49 @@ final class AiTestReportSummary {
         return "semantic";
     }
 
-    private static Map<String, Object> queryPayloadSemanticShape(Map<String, Object> signatureShape) {
+    private static Map<String, Object> queryPayloadSemanticShape(Map<String, Object> signatureShape,
+                                                                 Map<String, Object> normalizedPayload) {
         Map<String, Object> semanticShape = new LinkedHashMap<>();
         semanticShape.put("argumentModel", signatureShape.get("argumentModel"));
-        semanticShape.put("slice", normalizeStringList(signatureShape.get("slice")));
-        semanticShape.put("having", normalizeStringList(signatureShape.get("having")));
-        semanticShape.put("groupBy", normalizeGroupBy(signatureShape.get("groupBy")));
+        semanticShape.put("slice", normalizeStringList(firstNonNull(
+                normalizedConditionValues(normalizedPayload.get("slice")),
+                signatureShape.get("slice"))));
+        semanticShape.put("having", normalizeStringList(firstNonNull(
+                normalizedConditionValues(normalizedPayload.get("having")),
+                signatureShape.get("having"))));
+        semanticShape.put("groupBy", normalizeGroupBy(firstNonNull(
+                normalizedGroupByValues(normalizedPayload.get("groupBy")),
+                signatureShape.get("groupBy"))));
         return semanticShape;
+    }
+
+    private static List<String> normalizedConditionValues(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return conditionValues(value);
+    }
+
+    private static List<String> normalizedGroupByValues(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return mapItems(value).stream()
+                .filter(AiTestReportSummary::isNonAggregateGroupItem)
+                .map(AiTestReportSummary::fieldValue)
+                .filter(field -> field != null && !field.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private static boolean isNonAggregateGroupItem(Object item) {
+        if (!(item instanceof Map<?, ?> rawMap)) {
+            return true;
+        }
+        Map<String, Object> map = new LinkedHashMap<>();
+        rawMap.forEach((key, value) -> map.put(String.valueOf(key), value));
+        String agg = stringValue(map.get("agg"));
+        return agg == null || agg.isBlank();
     }
 
     private static List<String> normalizeStringList(Object value) {

@@ -601,6 +601,84 @@ class AiTestReportSummaryTest {
     }
 
     @Test
+    @DisplayName("应使用执行结果中的 normalized groupBy 收敛自动分组语义")
+    @SuppressWarnings("unchecked")
+    void build_shouldUseNormalizedGroupByForSemanticPayloadSignature() {
+        ToolCallCollector.ToolCallRecord baseline = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of("product$caption", "sum(salesAmount) as totalSales"),
+                                "groupBy", List.of("product$caption"),
+                                "orderBy", List.of(Map.of("field", "totalSales", "dir", "desc")),
+                                "limit", 5
+                        )
+                ))
+                .result(Map.of("code", 200))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+        ToolCallCollector.ToolCallRecord llm = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of("product$caption", "sum(salesAmount) as totalSales"),
+                                "orderBy", List.of("-totalSales"),
+                                "limit", 5
+                        )
+                ))
+                .result(Map.of("data", Map.of("debug", Map.of("normalized", Map.of(
+                        "groupBy", List.of(
+                                Map.of("field", "product$caption"),
+                                Map.of("field", "totalSales", "agg", "SUM")
+                        )
+                )))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult direct = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("SORT-001")
+                .provider("direct")
+                .modelName("tool-execution")
+                .success(true)
+                .question("查询销售额最高的5个商品")
+                .toolCallRecords(List.of(baseline))
+                .durationMs(10)
+                .build();
+        SpringAiTestExecutor.AiTestResult gemini = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("SORT-001")
+                .provider("spring-ai")
+                .modelName("gemini-pro-agent")
+                .success(true)
+                .question("查询销售额最高的5个商品")
+                .toolCallRecords(List.of(llm))
+                .durationMs(10)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(direct, gemini));
+
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(Map.of("benign_query_payload_shape_divergence", 1L), summary.get("warningCategories"));
+
+        List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
+        assertEquals("benign", comparison.get(0).get("queryPayloadShapeDivergenceClass"));
+        assertEquals(1, comparison.get(0).get("queryPayloadSemanticSignatureCount"));
+
+        List<Map<String, Object>> semanticSignatures =
+                (List<Map<String, Object>>) comparison.get(0).get("queryPayloadSemanticSignatures");
+        assertEquals(List.of("product$caption"), semanticSignatures.get(0).get("groupBy"));
+    }
+
+    @Test
     @DisplayName("应将 OR 等值条件和 IN 条件的等价差异分类为良性 payload shape 分歧")
     @SuppressWarnings("unchecked")
     void build_shouldClassifyOrEqualsAndInConditionShapeAsBenign() {

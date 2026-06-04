@@ -275,6 +275,61 @@ class ResultValidatorTest {
     }
 
     @Test
+    @DisplayName("tool argument validation should accept normalized groupBy from query result")
+    void validateFromAiResponse_shouldAcceptNormalizedGroupByFieldRule() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("SORT-001")
+                .expectedTool("dataset.query_model")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .toolArgumentRules(List.of(
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("groupBy")
+                                        .field("product$caption")
+                                        .mustExist(true)
+                                        .build()
+                        ))
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of(
+                                "columns", List.of("product$caption", "sum(salesAmount) as totalSales"),
+                                "orderBy", List.of("-totalSales"),
+                                "limit", 5
+                        )
+                ))
+                .result(Map.of("data", Map.of(
+                        "items", List.of(Map.of("product$caption", "商品1", "totalSales", 1000)),
+                        "debug", Map.of("normalized", Map.of(
+                                "groupBy", List.of(
+                                        Map.of("field", "product$caption"),
+                                        Map.of("field", "totalSales", "agg", "SUM")
+                                )
+                        ))
+                )))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "商品1 总销售额 1000。",
+                List.of(call)
+        );
+
+        assertTrue(result.isPassed(), () -> result.getFailedRules().toString());
+        assertTrue(result.getPassedRules().stream()
+                .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:groupBy:product$caption")));
+    }
+
+    @Test
     @DisplayName("tool argument validation should explain observed payload paths on failure")
     void validateFromAiResponse_shouldExplainToolArgumentFailureWithObservedPaths() {
         EcommerceTestCase testCase = EcommerceTestCase.builder()

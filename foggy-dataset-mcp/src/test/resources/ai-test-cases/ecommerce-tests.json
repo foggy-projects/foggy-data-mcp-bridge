@@ -116,20 +116,21 @@
     {
       "id": "FILTER-002",
       "category": "FILTER_QUERY",
-      "question": "查询客户'客户1'的所有购买记录",
+      "question": "查询客户'客户1'的所有销售购买明细记录，显示商品名称、销售数量和销售金额",
       "expected_tool": "dataset.query_model",
       "target_model": "FactSalesQueryModel",
       "description": "过滤查询 - 文本精确匹配",
       "difficulty": "MEDIUM",
       "direct_tool_arguments": {
         "payload": {
+          "columns": ["customer$caption", "product$caption", "quantity", "salesAmount"],
           "slice": [
             {"field": "customer$caption", "op": "=", "value": "客户1"}
           ]
         }
       },
       "expected": {
-        "required_columns": ["customer$caption"],
+        "required_columns": ["customer$caption", "product$caption", "quantity", "salesAmount"],
         "tool_argument_rules": [
           {
             "tool": "dataset.query_model",

@@ -780,7 +780,11 @@ public class ResultValidator {
             return false;
         }
         Object node = toolCallPayloadPathNode(call, rule.getPath());
-        return conditionTreeContains(node, rule.getField(), rule.getOperator());
+        if (conditionTreeContains(node, rule.getField(), rule.getOperator())) {
+            return true;
+        }
+        Object normalizedNode = toolCallNormalizedPayloadPathNode(call, rule.getPath());
+        return conditionTreeContains(normalizedNode, rule.getField(), rule.getOperator());
     }
 
     @SuppressWarnings("unchecked")
@@ -793,6 +797,44 @@ public class ResultValidator {
             return null;
         }
         return ((Map<String, Object>) payloadMap).get(path);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object toolCallNormalizedPayloadPathNode(ToolCallCollector.ToolCallRecord call, String path) {
+        Object result = call.getResult();
+        if (result instanceof RX rx) {
+            result = rx.getData();
+        }
+        return findNormalizedPathNode(result, path);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object findNormalizedPathNode(Object node, String path) {
+        if (!(node instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Map<String, Object> typedMap = new LinkedHashMap<>();
+        map.forEach((key, value) -> typedMap.put(String.valueOf(key), value));
+
+        Object debug = typedMap.get("debug");
+        if (debug instanceof Map<?, ?> debugMap) {
+            Object normalized = debugMap.get("normalized");
+            if (normalized instanceof Map<?, ?> normalizedMap && normalizedMap.containsKey(path)) {
+                return ((Map<String, Object>) normalizedMap).get(path);
+            }
+        }
+
+        Object normalized = typedMap.get("normalized");
+        if (normalized instanceof Map<?, ?> normalizedMap && normalizedMap.containsKey(path)) {
+            return ((Map<String, Object>) normalizedMap).get(path);
+        }
+
+        Object data = typedMap.get("data");
+        Object nested = findNormalizedPathNode(data, path);
+        if (nested != null) {
+            return nested;
+        }
+        return findNormalizedPathNode(typedMap.get("result"), path);
     }
 
     private boolean conditionTreeContains(Object node, String expectedField, String expectedOperator) {
