@@ -55,6 +55,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Expanded `tool_argument_rules` to stable existing ecommerce cases for detail filters, grouped dimensions, selected measure columns, and complex year/store grouping.
 - Enhanced tool-argument validation failure messages with observed payload path summaries so reviewer can see whether the model misplaced a predicate or omitted a grouping field.
 - Reused column-reference matching for tool argument rules so expression columns such as `sum(quantity) as totalQuantity` satisfy rules for the underlying measure field.
+- Added semantic classification for query payload shape divergence. Alias, orderBy alias, limit/mode, and redundant dimension `$id` grouping differences are now classified as `benign_query_payload_shape_divergence` when slice/having predicates and normalized groupBy semantics match.
 - Business errors are detected from numeric tool result `code` values where `code != 200`.
 - String route codes such as `ROUTING_TERMINAL_CLARIFY` are ignored and are not classified as tool business errors.
 - Error details are intentionally concise: source, tool names, sequence, duration, code, exCode, message, and the model-like argument value.
@@ -66,6 +67,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
   - `tool_call_failure`: a failed tool call record does not match the JSON parse error class.
   - `model_describe_retry`: the same case repeats describe-model calls for the same model argument.
   - `query_payload_shape_divergence`: the same case produced multiple successful `query_model` argument shape signatures across compared models.
+  - `benign_query_payload_shape_divergence`: exact payload shapes differ, but semantic signatures match after ignoring alias/orderBy alias/limit/mode differences and redundant dimension `$id` grouping.
 
 ## Acceptance Criteria
 
@@ -85,6 +87,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 - Tool argument shape rules support condition-tree predicates and string field lists such as `groupBy`.
 - Tool argument shape rules accept expression references to underlying fields where aliases are expected.
 - Tool argument failures include observed payload path details for faster triage.
+- Query payload shape divergence is classified into semantic versus benign divergence.
 - Existing AI report, validator, and executor tests remain green.
 
 ## Constraints And Non-Goals
@@ -98,8 +101,8 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, query payload shape divergence, fixture-level tool argument predicate-scope validation, broader stable fixture rules, and observed-path validation diagnostics. |
-| testing | complete | Targeted Maven test command passed with 22 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, focused Gemini tool-argument matrix, fixture JSON parsing, and diff checks passed. |
+| development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, warning classification for unknown model probes, tool call anomalies, repeated describe-model calls, query payload shape divergence, benign shape divergence classification, fixture-level tool argument predicate-scope validation, broader stable fixture rules, and observed-path validation diagnostics. |
+| testing | complete | Targeted Maven test command passed with 23 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, focused Gemini tool-argument matrix, fixture JSON parsing, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -122,7 +125,11 @@ Completed work:
 - Added string-node tool argument matching so list-shaped fields like `groupBy: ["product$caption"]` can be validated without artificial condition objects.
 - Added expression-aware tool argument matching so measure rules can accept generated columns such as `sum(quantity) as totalQuantity`.
 - Added observed payload path summaries to tool argument validation failures, for example showing `slice=[...]` and `having=[...]` in the failed rule.
+- Added semantic signatures for query payload shape comparison.
+- Added `queryPayloadShapeDivergenceClass` so exact-shape divergence is classified as `benign` when normalized semantic signatures match, and `semantic` when predicates or grouping semantics differ.
+- Added `benign_query_payload_shape_divergence` warning type with `severity=info`.
 - Added warning review detail expansion for query payload shape divergence.
+- Updated warning sample review details so benign shape divergence still shows class and payload-shape details.
 - Added single-run source directory support to the warning sample collector.
 - Added regression tests for `code=600` pass-with-recovery and `code=200` wrapper ignore behavior.
 - Added regression coverage for repeated describe-model calls.
@@ -131,6 +138,7 @@ Completed work:
 - Added validator regression coverage for accepting the expected detail-row `slice` predicate and rejecting the same intent moved to aggregate `having`.
 - Added validator regression coverage for `groupBy` string field matching and observed payload path diagnostics on failed tool argument rules.
 - Added validator regression coverage for expression column references in tool argument rules.
+- Added report regression coverage for semantic versus benign query payload shape divergence classification.
 - Recorded this workitem under `docs/9.1.0/workitems/`.
 
 Touched code paths:
@@ -175,6 +183,8 @@ Updated targeted result on 2026-06-04 after query payload shape observability ch
 Updated targeted result on 2026-06-04 after fixture-level predicate-scope validation: passed, 19 tests.
 
 Updated targeted result on 2026-06-04 after broader stable fixture rules, expression-aware matching, and observed-path diagnostics: passed, 22 tests.
+
+Updated targeted result on 2026-06-04 after benign query payload shape divergence classification: passed, 23 tests.
 
 Additional checks on 2026-06-04:
 
@@ -279,6 +289,29 @@ Result:
 - New fixture-level `tool_argument_rules` passed for both Gemini models on all selected cases.
 - Warning review details showed expected benign shape variation such as extra ID grouping, alias/orderBy differences, chart export versus query tool choice, and direct baseline versus LLM limit/default differences.
 
+Focused benign query payload shape classification evidence on 2026-06-04:
+
+```bash
+bash -lc 'set -euo pipefail; set -a; source /Users/fengjianguang/foggy-projects/foggy-data-mcp/.env.local; set +a; base="${OPENAI_BASE_URL%/}"; base="${base%/v1}"; export JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home; export PATH="$JAVA_HOME/bin:$PATH"; export AI_TEST_OPENAI_API_KEY="$OPENAI_API_KEY"; export AI_TEST_OPENAI_BASE_URL="$base"; scripts/run-ai-llm-matrix.sh --models gemini-pro-agent,gemini-3-flash --base-url "$AI_TEST_OPENAI_BASE_URL" --case-ids FILTER-001,FILTER-002,AGG-001,AGG-002,DIM-001,SORT-001,COMPLEX-001 --continue-on-error --run-id focused-tool-argument-rules-benign-classification-gemini-20260604'
+scripts/collect-ai-warning-samples.sh \
+  --source-dir foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-benign-classification-gemini-20260604 \
+  --output-dir foggy-dataset-mcp/target/ai-warning-review-focused-tool-argument-rules-benign-classification-gemini-20260604
+```
+
+Result:
+
+- Run ID: `focused-tool-argument-rules-benign-classification-gemini-20260604`.
+- Models: `gemini-pro-agent`, `gemini-3-flash`.
+- Case IDs: `FILTER-001`, `FILTER-002`, `AGG-001`, `AGG-002`, `DIM-001`, `SORT-001`, `COMPLEX-001`.
+- Matrix result count: 28, passed: 28, failed: 0.
+- Per-model LLM result: `gemini-pro-agent` 7/7 passed; `gemini-3-flash` 7/7 passed.
+- Direct baseline result: 14/14 passed across the two model passes.
+- Warning count: 12, warning cases: 7.
+- Warning categories: `benign_query_payload_shape_divergence=9`, `query_payload_shape_divergence=3`.
+- Tool business error count: 0.
+- Benign classification covered alias/orderBy/limit/mode variation, redundant dimension `$id` grouping, and chart-export-versus-query shape variation where normalized semantic signatures matched.
+- Semantic warnings remained for cases whose normalized predicates or grouping semantics still differed, for example `FILTER-002` and `COMPLEX-001`.
+
 Artifacts:
 
 - `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/matrix-summary.json`
@@ -294,10 +327,14 @@ Artifacts:
 - `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-gemini-java17-20260604/warnings.json`
 - `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-gemini-java17-20260604/warnings.jsonl`
 - `foggy-dataset-mcp/target/ai-warning-review-focused-tool-argument-rules-gemini-java17-20260604/warning-review.md`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-benign-classification-gemini-20260604/matrix-summary.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-benign-classification-gemini-20260604/warnings.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-tool-argument-rules-benign-classification-gemini-20260604/warnings.jsonl`
+- `foggy-dataset-mcp/target/ai-warning-review-focused-tool-argument-rules-benign-classification-gemini-20260604/warning-review.md`
 
 ## Follow-Up
 
 - Continue collecting focused real LLM warning samples, especially cases where final pass masks intermediate model/tool recovery behavior.
 - Run `scripts/collect-ai-warning-samples.sh` after real LLM runs to maintain local aggregate samples by warning type, model, case, and run.
-- Promote repeated shape divergences into additional fixture rules only when the expected semantics are unambiguous.
+- Promote repeated semantic shape divergences into additional fixture rules only when the expected semantics are unambiguous.
 - Treat non-zero `warningCount` as warning-level evidence, not an immediate case failure, until enough samples show whether recovery behavior correlates with unstable answers.

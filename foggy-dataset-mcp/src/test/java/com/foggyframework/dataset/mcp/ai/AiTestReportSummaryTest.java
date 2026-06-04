@@ -495,8 +495,10 @@ class AiTestReportSummaryTest {
 
         List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
         assertEquals("mixed", comparison.get(0).get("queryPayloadShapeConsensus"));
+        assertEquals("semantic", comparison.get(0).get("queryPayloadShapeDivergenceClass"));
         assertEquals(2, comparison.get(0).get("queryPayloadCount"));
         assertEquals(2, comparison.get(0).get("queryPayloadShapeSignatureCount"));
+        assertEquals(2, comparison.get(0).get("queryPayloadSemanticSignatureCount"));
         List<Map<String, Object>> signatures =
                 (List<Map<String, Object>>) comparison.get(0).get("queryPayloadShapeSignatures");
         assertEquals(2, signatures.size());
@@ -508,7 +510,94 @@ class AiTestReportSummaryTest {
         List<Map<String, Object>> warnings =
                 (List<Map<String, Object>>) summary.get("warnings");
         assertEquals("query_payload_shape_divergence", warnings.get(0).get("warningType"));
+        assertEquals("semantic", warnings.get(0).get("queryPayloadShapeDivergenceClass"));
         assertEquals("comparison", warnings.get(0).get("provider"));
+    }
+
+    @Test
+    @DisplayName("应将别名、排序、limit 和冗余 ID 分组差异分类为良性 payload shape 分歧")
+    @SuppressWarnings("unchecked")
+    void build_shouldClassifyBenignQueryPayloadShapeDivergence() {
+        ToolCallCollector.ToolCallRecord baseline = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "SalesOrderModel",
+                        "mode", "execute",
+                        "payload", Map.of(
+                                "columns", List.of("store$caption", "salesAmount"),
+                                "groupBy", List.of("store$caption"),
+                                "limit", 20
+                        )
+                ))
+                .result(Map.of("code", 200))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+        ToolCallCollector.ToolCallRecord llm = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "SalesOrderModel",
+                        "payload", Map.of(
+                                "columns", List.of("store$id", "store$caption", "sum(salesAmount) as totalSales"),
+                                "groupBy", List.of(
+                                        Map.of("field", "store$id"),
+                                        Map.of("field", "store$caption")
+                                ),
+                                "orderBy", List.of(Map.of("field", "totalSales", "dir", "desc")),
+                                "limit", 100
+                        )
+                ))
+                .result(Map.of("code", 200))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(1)
+                .build();
+
+        SpringAiTestExecutor.AiTestResult direct = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("AGG-STORE")
+                .provider("direct")
+                .modelName("tool-execution")
+                .success(true)
+                .question("按门店统计销售额")
+                .toolCallRecords(List.of(baseline))
+                .durationMs(10)
+                .build();
+        SpringAiTestExecutor.AiTestResult gemini = SpringAiTestExecutor.AiTestResult.builder()
+                .testCaseId("AGG-STORE")
+                .provider("spring-ai")
+                .modelName("gemini-3-flash")
+                .success(true)
+                .question("按门店统计销售额")
+                .toolCallRecords(List.of(llm))
+                .durationMs(10)
+                .build();
+
+        Map<String, Object> summary = AiTestReportSummary.build(List.of(direct, gemini));
+
+        assertEquals(1, summary.get("warningCount"));
+        assertEquals(Map.of("benign_query_payload_shape_divergence", 1L), summary.get("warningCategories"));
+
+        List<Map<String, Object>> comparison = (List<Map<String, Object>>) summary.get("caseComparison");
+        assertEquals("mixed", comparison.get(0).get("queryPayloadShapeConsensus"));
+        assertEquals("benign", comparison.get(0).get("queryPayloadShapeDivergenceClass"));
+        assertEquals(2, comparison.get(0).get("queryPayloadShapeSignatureCount"));
+        assertEquals(1, comparison.get(0).get("queryPayloadSemanticSignatureCount"));
+
+        List<Map<String, Object>> semanticSignatures =
+                (List<Map<String, Object>>) comparison.get(0).get("queryPayloadSemanticSignatures");
+        assertEquals(1, semanticSignatures.size());
+        assertEquals(List.of("store$caption"), semanticSignatures.get(0).get("groupBy"));
+
+        List<Map<String, Object>> warnings =
+                (List<Map<String, Object>>) summary.get("warnings");
+        assertEquals("benign_query_payload_shape_divergence", warnings.get(0).get("warningType"));
+        assertEquals("info", warnings.get(0).get("severity"));
+        assertEquals("benign", warnings.get(0).get("queryPayloadShapeDivergenceClass"));
     }
 
     @Test

@@ -234,6 +234,8 @@ final class AiTestReportSummary {
                             .toList();
                     List<Map<String, Object>> queryPayloadShapeSignatures =
                             summarizeQueryPayloadShapeSignatures(queryPayloads);
+                    List<Map<String, Object>> queryPayloadSemanticSignatures =
+                            summarizeQueryPayloadSemanticSignatures(queryPayloads);
                     Map<String, Object> summary = new LinkedHashMap<>();
                     summary.put("testCaseId", entry.getKey());
                     summary.put("question", firstQuestion(caseResults));
@@ -246,6 +248,12 @@ final class AiTestReportSummary {
                             queryPayloadShapeConsensus(queryPayloads.size(), queryPayloadShapeSignatures.size()));
                     summary.put("queryPayloadShapeSignatureCount", queryPayloadShapeSignatures.size());
                     summary.put("queryPayloadShapeSignatures", queryPayloadShapeSignatures);
+                    summary.put("queryPayloadSemanticSignatureCount", queryPayloadSemanticSignatures.size());
+                    summary.put("queryPayloadSemanticSignatures", queryPayloadSemanticSignatures);
+                    summary.put("queryPayloadShapeDivergenceClass",
+                            queryPayloadShapeDivergenceClass(queryPayloads.size(),
+                                    queryPayloadShapeSignatures.size(),
+                                    queryPayloadSemanticSignatures.size()));
                     summary.put("models", caseResults.stream()
                             .map(AiTestReportSummary::summarizeCaseModelResult)
                             .toList());
@@ -310,6 +318,7 @@ final class AiTestReportSummary {
         signatureShape.put("orderBy", orderValues(payload.get("orderBy")));
         signatureShape.put("limit", compactValue(payload.get("limit")));
         signatureShape.put("offset", compactValue(payload.get("offset")));
+        Map<String, Object> semanticShape = queryPayloadSemanticShape(signatureShape);
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("source", "toolCall#" + record.getSequence());
@@ -330,6 +339,7 @@ final class AiTestReportSummary {
         summary.put("limit", signatureShape.get("limit"));
         summary.put("offset", signatureShape.get("offset"));
         summary.put("signature", stableJson(signatureShape));
+        summary.put("semanticSignature", stableJson(semanticShape));
         return Optional.of(summary);
     }
 
@@ -383,6 +393,37 @@ final class AiTestReportSummary {
                 .toList();
     }
 
+    private static List<Map<String, Object>> summarizeQueryPayloadSemanticSignatures(
+            List<Map<String, Object>> queryPayloads) {
+        Map<String, Map<String, Object>> summariesBySignature = new LinkedHashMap<>();
+        for (Map<String, Object> payload : queryPayloads) {
+            String signature = stringValue(payload.get("semanticSignature"));
+            if (signature == null || signature.isBlank()) {
+                continue;
+            }
+            Map<String, Object> summary = summariesBySignature.computeIfAbsent(signature, key -> {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("signature", key);
+                item.put("count", 0);
+                item.put("models", new ArrayList<String>());
+                item.put("sliceFields", payload.get("sliceFields"));
+                item.put("havingFields", payload.get("havingFields"));
+                item.put("groupBy", normalizeGroupBy(payload.get("groupBy")));
+                return item;
+            });
+            summary.put("count", ((Integer) summary.get("count")) + 1);
+            @SuppressWarnings("unchecked")
+            List<String> models = (List<String>) summary.get("models");
+            String model = stringValue(payload.get("provider")) + "/" + stringValue(payload.get("modelName"));
+            if (!models.contains(model)) {
+                models.add(model);
+            }
+        }
+        return summariesBySignature.values().stream()
+                .peek(item -> item.put("models", List.copyOf(castStringList(item.get("models")))))
+                .toList();
+    }
+
     private static List<Map<String, Object>> queryPayloadShapeWarnings(List<Map<String, Object>> caseComparison) {
         if (caseComparison == null || caseComparison.isEmpty()) {
             return List.of();
@@ -396,12 +437,19 @@ final class AiTestReportSummary {
             warning.put("testCaseId", comparison.get("testCaseId"));
             warning.put("provider", "comparison");
             warning.put("modelName", "cross-model");
-            warning.put("warningType", "query_payload_shape_divergence");
-            warning.put("severity", "warning");
+            String divergenceClass = stringValue(comparison.get("queryPayloadShapeDivergenceClass"));
+            boolean benign = "benign".equals(divergenceClass);
+            warning.put("warningType", benign
+                    ? "benign_query_payload_shape_divergence"
+                    : "query_payload_shape_divergence");
+            warning.put("severity", benign ? "info" : "warning");
             warning.put("source", "caseComparison");
+            warning.put("queryPayloadShapeDivergenceClass", divergenceClass);
             warning.put("queryPayloadCount", comparison.get("queryPayloadCount"));
             warning.put("queryPayloadShapeSignatureCount", comparison.get("queryPayloadShapeSignatureCount"));
             warning.put("queryPayloadShapeSignatures", comparison.get("queryPayloadShapeSignatures"));
+            warning.put("queryPayloadSemanticSignatureCount", comparison.get("queryPayloadSemanticSignatureCount"));
+            warning.put("queryPayloadSemanticSignatures", comparison.get("queryPayloadSemanticSignatures"));
             warnings.add(warning);
         }
         return List.copyOf(warnings);
@@ -415,6 +463,51 @@ final class AiTestReportSummary {
             return "same";
         }
         return "mixed";
+    }
+
+    private static String queryPayloadShapeDivergenceClass(int payloadCount, int shapeSignatureCount,
+                                                           int semanticSignatureCount) {
+        if (payloadCount == 0) {
+            return "none";
+        }
+        if (shapeSignatureCount <= 1) {
+            return "same";
+        }
+        if (semanticSignatureCount <= 1) {
+            return "benign";
+        }
+        return "semantic";
+    }
+
+    private static Map<String, Object> queryPayloadSemanticShape(Map<String, Object> signatureShape) {
+        Map<String, Object> semanticShape = new LinkedHashMap<>();
+        semanticShape.put("argumentModel", signatureShape.get("argumentModel"));
+        semanticShape.put("slice", normalizeStringList(signatureShape.get("slice")));
+        semanticShape.put("having", normalizeStringList(signatureShape.get("having")));
+        semanticShape.put("groupBy", normalizeGroupBy(signatureShape.get("groupBy")));
+        return semanticShape;
+    }
+
+    private static List<String> normalizeStringList(Object value) {
+        return castStringList(value).stream()
+                .sorted()
+                .toList();
+    }
+
+    private static List<String> normalizeGroupBy(Object value) {
+        List<String> fields = castStringList(value);
+        Set<String> redundantIdPrefixes = fields.stream()
+                .filter(field -> field.endsWith("$id"))
+                .map(field -> field.substring(0, field.length() - 3))
+                .filter(prefix -> fields.stream()
+                        .anyMatch(field -> !field.endsWith("$id") && field.startsWith(prefix + "$")))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return fields.stream()
+                .filter(field -> !(field.endsWith("$id")
+                        && redundantIdPrefixes.contains(field.substring(0, field.length() - 3))))
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     private static List<String> fieldValues(Object value) {

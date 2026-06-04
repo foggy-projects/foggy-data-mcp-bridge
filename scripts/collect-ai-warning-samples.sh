@@ -117,15 +117,17 @@ jq -s \
     def join_values:
       if type == "array" then map(tostring) | join("+") else tostring end;
     def query_payload_shape_detail:
-      if (.warningType // "") != "query_payload_shape_divergence" then ""
+      if ((.warningType // "") | test("(^|_)query_payload_shape_divergence$") | not) then ""
       else
-        [(.queryPayloadShapeSignatures // [])[]
+        (if (.queryPayloadShapeDivergenceClass // "") == "" then ""
+         else "class=" + (.queryPayloadShapeDivergenceClass // "") + "<br>" end)
+        + ([(.queryPayloadShapeSignatures // [])[]
           | "models=" + ((.models // []) | join_values)
             + "; slice=" + ((.sliceFields // []) | join_values)
             + "; having=" + ((.havingFields // []) | join_values)
             + "; groupBy=" + ((.groupBy // []) | join_values)
             + "; orderBy=" + ((.orderBy // []) | join_values)]
-        | join("<br>")
+          | join("<br>"))
       end;
 
     {
