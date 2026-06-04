@@ -3,6 +3,8 @@ package com.foggyframework.dataset.mcp.ai;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -21,9 +23,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 @DisplayName("AI 工具集成测试")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AiToolsIntegrationTest extends AiIntegrationTestSupport {
 
-    private List<SpringAiTestExecutor.AiTestResult> allResults = new ArrayList<>();
+    private final List<SpringAiTestExecutor.AiTestResult> allResults = new ArrayList<>();
 
     // ==================== 环境检查 ====================
 
@@ -116,7 +119,7 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
         @Test
         @Order(4)
         @DisplayName("全部直接调用测试 - 汇总")
-        void allDirectCalls_summary() {
+        void allDirectCalls_summary() throws Exception {
             List<EcommerceTestCase> testCases = loadTestCases();
 
             List<SpringAiTestExecutor.AiTestResult> results = new ArrayList<>();
@@ -126,6 +129,7 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
             }
 
             printTestSummary(results);
+            writeStructuredTestReport(results);
 
             // 断言直接调用应该全部成功（验证工具本身正确性）
             long passedCount = results.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
@@ -243,7 +247,7 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
 //        @Test
         @Order(4)
         @DisplayName("全部测试用例")
-        void allTestCases() {
+        void allTestCases() throws Exception {
             skipIfNoAiModel();
 
             List<EcommerceTestCase> testCases = loadTestCases();
@@ -275,6 +279,7 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
             }
 
             printTestSummary(results);
+            writeStructuredTestReport(results);
 
             // 记录成功率并断言
             long passed = results.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
@@ -294,7 +299,7 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
 //        @Test
         @Order(5)
         @DisplayName("阿里云通义千问 - 全部测试")
-        void aliyunQwen_allTestCases() {
+        void aliyunQwen_allTestCases() throws Exception {
             skipIfNoAiModel();
 
             // 验证是阿里云配置
@@ -333,6 +338,7 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
             }
 
             printTestSummary(results);
+            writeStructuredTestReport(results);
 
             // 断言：所有测试必须通过
             long passed = results.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
@@ -349,7 +355,7 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
     @Test
     @Order(100)
     @DisplayName("生成测试报告")
-    void generateTestReport() {
+    void generateTestReport() throws Exception {
         if (allResults.isEmpty()) {
             log.info("No test results to report");
             return;
@@ -402,6 +408,16 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
             log.info("  {}: {}/{} passed", entry.getKey(), passed, entry.getValue().size());
         }
 
+        writeStructuredTestReport(allResults);
+
         log.info("\n============================================\n");
+    }
+
+    private void writeStructuredTestReport(List<SpringAiTestExecutor.AiTestResult> results) throws Exception {
+        Path output = Path.of("target", "ai-test-report-summary.json");
+        Files.createDirectories(output.getParent());
+        objectMapper.writerWithDefaultPrettyPrinter()
+                .writeValue(output.toFile(), AiTestReportSummary.build(results));
+        log.info("Structured AI test report written to {}", output.toAbsolutePath());
     }
 }
