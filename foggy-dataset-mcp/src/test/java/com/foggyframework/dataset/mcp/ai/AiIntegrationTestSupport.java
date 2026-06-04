@@ -32,10 +32,12 @@ import java.util.*;
 @SpringBootTest(
         classes = McpIntegrationTestApplication.class,
         properties = {
-                "spring.ai.openai.api-key=test-api-key-disabled",
-                "spring.ai.openai.chat.api-key=test-api-key-disabled",
-                "spring.ai.openai.base-url=http://127.0.0.1:65535/v1",
-                "spring.ai.openai.chat.options.model=test-model-disabled"
+                "spring.ai.openai.api-key=${AI_TEST_OPENAI_API_KEY:${OPENAI_API_KEY:test-api-key-disabled}}",
+                "spring.ai.openai.chat.api-key=${AI_TEST_OPENAI_API_KEY:${OPENAI_API_KEY:test-api-key-disabled}}",
+                "spring.ai.openai.base-url=${AI_TEST_OPENAI_BASE_URL:http://127.0.0.1:65535}",
+                "spring.ai.openai.chat.options.model=${AI_TEST_OPENAI_MODEL:test-model-disabled}",
+                "spring.ai.openai.chat.options.temperature=${AI_TEST_OPENAI_TEMPERATURE:0.1}",
+                "spring.ai.openai.chat.options.max-tokens=${AI_TEST_OPENAI_MAX_TOKENS:4096}"
         }
 )
 @Import(McpIntegrationTestConfig.class)
@@ -87,6 +89,21 @@ public abstract class AiIntegrationTestSupport {
     @Value("${spring.ai.openai.chat.options.model:qwen-plus}")
     protected String modelName;
 
+    @Value("${AI_TEST_LLM_ENABLED:false}")
+    protected boolean llmEnabled;
+
+    @Value("${AI_TEST_CASE_IDS:}")
+    protected String llmCaseIds;
+
+    @Value("${AI_TEST_CATEGORIES:}")
+    protected String llmCategories;
+
+    @Value("${AI_TEST_MAX_CASES:0}")
+    protected int llmMaxCases;
+
+    @Value("${AI_TEST_LLM_FAIL_ON_MISMATCH:false}")
+    protected boolean llmFailOnMismatch;
+
     // ==================== 测试工具 ====================
 
     protected TestCaseLoader testCaseLoader;
@@ -108,6 +125,7 @@ public abstract class AiIntegrationTestSupport {
         }
         log.info("Model: {}", modelName);
         log.info("Base URL: {}", baseUrl);
+        log.info("LLM enabled: {}", llmEnabled);
         log.info("API Key configured: {}", apiKey != null && !apiKey.isEmpty());
         log.info("API Key (masked): {}", apiKey != null && apiKey.length() > 10
                 ? apiKey.substring(0, 6) + "..." + apiKey.substring(apiKey.length() - 4)
@@ -208,6 +226,57 @@ public abstract class AiIntegrationTestSupport {
     }
 
     /**
+     * 选择真实 LLM 对比样本。
+     */
+    protected List<EcommerceTestCase> loadSelectedLlmTestCases() {
+        List<EcommerceTestCase> testCases = new ArrayList<>(loadTestCases());
+
+        Set<String> caseIds = parseCsv(llmCaseIds).stream()
+                .map(String::toUpperCase)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (!caseIds.isEmpty()) {
+            testCases = testCases.stream()
+                    .filter(testCase -> caseIds.contains(testCase.getId().toUpperCase(Locale.ROOT)))
+                    .toList();
+        }
+
+        Set<EcommerceTestCase.TestCategory> categories = parseCategories(llmCategories);
+        if (!categories.isEmpty()) {
+            testCases = testCases.stream()
+                    .filter(testCase -> categories.contains(testCase.getCategory()))
+                    .toList();
+        }
+
+        if (llmMaxCases > 0 && testCases.size() > llmMaxCases) {
+            testCases = testCases.subList(0, llmMaxCases);
+        }
+
+        return testCases;
+    }
+
+    private Set<String> parseCsv(String value) {
+        if (value == null || value.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isEmpty())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Set<EcommerceTestCase.TestCategory> parseCategories(String value) {
+        Set<EcommerceTestCase.TestCategory> categories = new LinkedHashSet<>();
+        for (String raw : parseCsv(value)) {
+            try {
+                categories.add(EcommerceTestCase.TestCategory.valueOf(raw.toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Unknown AI test category: " + raw, e);
+            }
+        }
+        return categories;
+    }
+
+    /**
      * 打印测试结果摘要
      */
     protected void printTestSummary(List<SpringAiTestExecutor.AiTestResult> results) {
@@ -262,7 +331,18 @@ public abstract class AiIntegrationTestSupport {
      * 检查是否有可用的 AI 模型
      */
     protected boolean hasAvailableAiModel() {
-        return chatModel != null;
+        return llmEnabled
+                && chatModel != null
+                && apiKey != null
+                && !apiKey.isBlank()
+                && !apiKey.contains("disabled")
+                && !apiKey.contains("placeholder")
+                && baseUrl != null
+                && !baseUrl.isBlank()
+                && !baseUrl.contains("127.0.0.1:65535")
+                && modelName != null
+                && !modelName.isBlank()
+                && !modelName.contains("disabled");
     }
 
     /**

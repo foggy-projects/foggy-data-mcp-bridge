@@ -144,6 +144,64 @@ class AiToolsIntegrationTest extends AiIntegrationTestSupport {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class AiModelCallTest {
 
+        @Test
+        @Order(0)
+        @DisplayName("显式启用 - LLM 与直接工具基线对比")
+        void llmOptIn_selectedCasesWithDirectBaseline() throws Exception {
+            skipIfNoAiModel();
+
+            List<EcommerceTestCase> testCases = loadSelectedLlmTestCases();
+            Assumptions.assumeFalse(testCases.isEmpty(), "No AI test cases selected");
+
+            log.info("========================================");
+            log.info("Running opt-in LLM comparison");
+            log.info("Model: {}", modelName);
+            log.info("Base URL: {}", baseUrl);
+            log.info("Test cases: {}", testCases.stream().map(EcommerceTestCase::getId).toList());
+            log.info("Fail on mismatch: {}", llmFailOnMismatch);
+            log.info("========================================");
+
+            List<SpringAiTestExecutor.AiTestResult> comparisonResults = new ArrayList<>();
+
+            for (EcommerceTestCase testCase : testCases) {
+                SpringAiTestExecutor.AiTestResult directResult = testExecutor.executeToolDirectly(testCase);
+                comparisonResults.add(directResult);
+                log.info("Direct baseline: {}", directResult.getSummary());
+            }
+
+            List<SpringAiTestExecutor.AiTestResult> llmResults = new ArrayList<>();
+            for (EcommerceTestCase testCase : testCases) {
+                log.info("\n--- LLM Test: {} ---", testCase.getId());
+                log.info("Question: {}", testCase.getQuestion());
+
+                SpringAiTestExecutor.AiTestResult result = testExecutor.executeTest(testCase);
+                llmResults.add(result);
+                comparisonResults.add(result);
+                allResults.add(result);
+
+                log.info("LLM result: {}", result.getSummary());
+                if (result.getToolCallRecords() != null && !result.getToolCallRecords().isEmpty()) {
+                    log.info("Tool calls: {}", result.getToolCallSummary());
+                }
+                if (!result.isSuccess() && result.getValidationResult() != null) {
+                    log.info("Failed rules: {}", result.getValidationResult().getFailedRules());
+                    log.info("Validation errors: {}", result.getValidationResult().getErrors());
+                }
+            }
+
+            printTestSummary(comparisonResults);
+            writeStructuredTestReport(comparisonResults);
+
+            long failedCount = llmResults.stream()
+                    .filter(result -> !result.isSuccess())
+                    .count();
+            if (llmFailOnMismatch) {
+                assertEquals(0, failedCount,
+                        String.format("LLM comparison failed: %d/%d failed",
+                                failedCount, llmResults.size()));
+            }
+        }
+
         /**
          * 需要token，先拿掉
          */

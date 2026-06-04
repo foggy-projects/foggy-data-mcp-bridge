@@ -107,6 +107,22 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
 2. 设置 Active Profiles 为 `integration`
 3. 运行测试
 
+### AI 题库真实模型对比
+
+真实 LLM 调用默认关闭，只在显式设置 key 和开关时运行。推荐使用仓库脚本：
+
+```bash
+AI_TEST_OPENAI_API_KEY=... \
+  ./scripts/run-ai-llm-comparison.sh \
+  --model gemini-pro-agent \
+  --case-ids META-001,QUERY-001
+```
+
+脚本会同时写入直接工具基线和 LLM 结果到
+`foggy-dataset-mcp/target/ai-test-report-summary.json`。注意 Spring AI 的
+`AI_TEST_OPENAI_BASE_URL` 使用不带 `/v1` 的地址，例如
+`https://codex2.qlfloor.com:7443`。
+
 ## 测试覆盖范围
 
 ### 1. 环境验证测试

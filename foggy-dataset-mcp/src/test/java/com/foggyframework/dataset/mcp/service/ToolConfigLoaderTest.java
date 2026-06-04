@@ -1,9 +1,12 @@
 package com.foggyframework.dataset.mcp.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,6 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * 确保 Spring Boot list 替换行为不会导致工具丢失。
  */
 class ToolConfigLoaderTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
     @DisplayName("getBuiltinDefaults 应返回 12 个内置工具")
@@ -85,6 +90,29 @@ class ToolConfigLoaderTest {
                 ToolConfigLoaderTest.class.getResource("/schemas/manage_experience_recipe_registry_schema.json"),
                 "manage_experience_recipe_registry schema should be packaged"
         );
+    }
+
+    @Test
+    @DisplayName("已发布内置工具 schema 中所有 array 都应声明 items")
+    void testBuiltinToolSchemas_ArrayTypesShouldDeclareItems() throws Exception {
+        List<String> missingItems = new ArrayList<>();
+        int scannedSchemas = 0;
+
+        for (McpProperties.ToolConfigItem tool : ToolConfigLoader.getBuiltinDefaults()) {
+            String schemaFile = tool.getSchemaFile();
+            String resourcePath = schemaFile.replace("classpath:", "");
+            try (InputStream inputStream = ToolConfigLoaderTest.class.getResourceAsStream(resourcePath)) {
+                if (inputStream == null) {
+                    continue;
+                }
+                scannedSchemas++;
+                JsonNode root = OBJECT_MAPPER.readTree(inputStream);
+                collectArraySchemasWithoutItems(root, tool.getName(), missingItems);
+            }
+        }
+
+        assertTrue(scannedSchemas > 0, "Should scan at least one packaged builtin schema");
+        assertTrue(missingItems.isEmpty(), "Array schemas missing items: " + missingItems);
     }
 
     @Test
@@ -260,5 +288,25 @@ class ToolConfigLoaderTest {
                 .filter(t -> name.equals(t.getName()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private void collectArraySchemasWithoutItems(JsonNode node, String path, List<String> missingItems) {
+        if (node == null || node.isMissingNode()) {
+            return;
+        }
+
+        if (node.isObject()) {
+            JsonNode type = node.get("type");
+            if (type != null && type.isTextual() && "array".equals(type.asText()) && !node.has("items")) {
+                missingItems.add(path);
+            }
+
+            node.fields().forEachRemaining(entry ->
+                    collectArraySchemasWithoutItems(entry.getValue(), path + "." + entry.getKey(), missingItems));
+        } else if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                collectArraySchemasWithoutItems(node.get(i), path + "[" + i + "]", missingItems);
+            }
+        }
     }
 }

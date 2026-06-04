@@ -212,13 +212,19 @@ mvn test -Dtest=*ControllerTest
 # 运行工具测试
 mvn test -Dtest=*ToolTest
 
-# 运行 AI 集成测试
+# 运行 AI direct baseline / report 测试
 cd ..
 ./scripts/ensure-ai-test-mysql.sh
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
   mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
   -Dtest=AiToolsIntegrationTest,AiTestReportSummaryTest,SpringAiTestExecutorTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
+
+# 显式运行真实 LLM 对比。Spring AI 的 base-url 不要追加 /v1。
+AI_TEST_OPENAI_API_KEY=... \
+  ./scripts/run-ai-llm-comparison.sh \
+  --model gemini-pro-agent \
+  --case-ids META-001,QUERY-001
 ```
 
 ## 测试配置

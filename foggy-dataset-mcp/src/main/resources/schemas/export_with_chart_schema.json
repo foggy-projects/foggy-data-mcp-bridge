@@ -18,15 +18,41 @@
         },
         "slice": {
           "type": "array",
-          "description": "过滤条件数组"
+          "description": "过滤条件数组",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
         },
         "orderBy": {
           "type": "array",
-          "description": "排序规则数组"
+          "description": "排序规则数组",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          }
         },
         "groupBy": {
           "type": "array",
-          "description": "分组聚合配置"
+          "description": "分组聚合配置",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          }
         },
         "limit": {
           "type": "integer",
