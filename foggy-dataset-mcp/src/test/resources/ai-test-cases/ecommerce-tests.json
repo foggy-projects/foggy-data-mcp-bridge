@@ -222,6 +222,46 @@
       }
     },
     {
+      "id": "ROUTE-ORDER-003",
+      "category": "FILTER_QUERY",
+      "question": "查询所有未完全支付订单（支付状态为未支付或部分支付），显示订单ID、支付状态、客户名称和订单应付金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "FactOrderQueryModel",
+      "description": "路由意图 - 未完全支付订单应使用支付状态而不是订单生命周期状态",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["orderId", "paymentStatus", "customer$caption", "payAmount"],
+          "slice": [
+            {"field": "paymentStatus", "op": "in", "value": ["UNPAID", "PARTIAL"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["orderId", "paymentStatus", "customer$caption", "payAmount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentStatus",
+            "value": ["UNPAID", "PARTIAL"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "orderStatus",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
       "id": "AGG-001",
       "category": "AGGREGATION",
       "question": "按商品统计销售总额，显示商品名称和总销售额",
