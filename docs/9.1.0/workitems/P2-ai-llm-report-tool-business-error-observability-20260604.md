@@ -85,7 +85,7 @@ AI matrix JSON reports should make intermediate tool business errors visible wit
 | Dimension | Status | Evidence |
 |---|---|---|
 | development | complete | Added report aggregation, concise error extraction, warning-layer fields, matrix script warning output, warning artifacts, safe env-file loading, warning sample aggregation/review, and warning classification for unknown model probes, tool call anomalies, and repeated describe-model calls. |
-| testing | complete | Targeted Maven test command passed with 16 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, local historical report aggregation/review, and diff checks passed. |
+| testing | complete | Targeted Maven test command passed with 16 tests; shell syntax, env-file print-selection, synthetic warning sample aggregation/review, focused real LLM sample aggregation/review, and diff checks passed. |
 | experience | N/A | Pure test/report JSON observability change; no UI or user-facing interaction flow. |
 
 ## Execution Check-In
@@ -120,7 +120,7 @@ Self-check:
 - Basic self-review completed: pass.
 - Self-check conclusion: self-check-only.
 - Formal quality gate required before coverage audit: no.
-- Remaining blockers: none for report support; focused real LLM rerun was not executed in this environment because `AI_TEST_OPENAI_API_KEY` is not injected.
+- Remaining blockers: none for report support; focused real LLM rerun completed with local temporary ignored credential injection.
 
 ## Validation
 
@@ -146,8 +146,40 @@ Additional checks on 2026-06-04:
 - `git diff --check`: passed.
 - Synthetic jq aggregation for `matrix-summary.json` warning fields and terminal warning output: passed.
 
+Focused real LLM evidence on 2026-06-04:
+
+```bash
+scripts/run-ai-llm-matrix.sh \
+  --models gpt-oss-120b-medium,gemini-3-flash \
+  --case-ids QUERY-002 \
+  --continue-on-error \
+  --run-id focused-warning-query002-20260604
+scripts/collect-ai-warning-samples.sh
+```
+
+Result:
+
+- Run ID: `focused-warning-query002-20260604`.
+- Models: `gpt-oss-120b-medium`, `gemini-3-flash`.
+- Case ID: `QUERY-002`.
+- Matrix result count: 4, passed: 4, failed: 0.
+- Warning count: 2, warning cases: 1.
+- Warning categories: `tool_business_error=1`, `unknown_model_probe=1`.
+- Tool business error count: 1.
+- Warning case: `QUERY-002:spring-ai/gpt-oss-120b-medium`.
+- `spring-ai/gpt-oss-120b-medium` probed nonexistent `ProductInfoModel` through `dataset.describe_model_internal` and recovered.
+- `spring-ai/gemini-3-flash` completed the same case with zero warnings.
+
+Artifacts:
+
+- `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/matrix-summary.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/warnings.json`
+- `foggy-dataset-mcp/target/ai-test-reports/focused-warning-query002-20260604/warnings.jsonl`
+- `foggy-dataset-mcp/target/ai-warning-samples/warning-summary.json`
+- `foggy-dataset-mcp/target/ai-warning-samples/warning-review.md`
+
 ## Follow-Up
 
-- Re-run a focused real LLM case such as `QUERY-002` after injecting `AI_TEST_OPENAI_API_KEY` through an ignored local env file to capture a fresh report with `warningCount`, `toolBusinessErrorCount`, `warnings.json`, and `warnings.jsonl`.
+- Continue collecting focused real LLM warning samples, especially cases where final pass masks intermediate model/tool recovery behavior.
 - Run `scripts/collect-ai-warning-samples.sh` after real LLM runs to maintain local aggregate samples by warning type, model, case, and run.
 - Treat non-zero `warningCount` as warning-level evidence, not an immediate case failure, until enough samples show whether recovery behavior correlates with unstable answers.
