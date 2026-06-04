@@ -9,6 +9,7 @@ import com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationActionRe
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -18,7 +19,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -70,23 +74,7 @@ class ClarifyRoutingFixtureTest {
     @DisplayName("fixture 中的 CLARIFY 样本应生成场景化澄清问题")
     @SuppressWarnings("unchecked")
     void fixtureClarifyCase_shouldReturnScenarioAwareQuestions(ClarifyRoutingCase testCase) {
-        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
-                .query(testCase.question())
-                .hints(DatasetNLQueryRequest.QueryHints.builder()
-                        .extra(Map.of(
-                                "routing_calibration_guard", Map.of(
-                                        "raw_route", "CLARIFY",
-                                        "calibrated_route", "CLARIFY",
-                                        "raw_risks", List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
-                                        "calibrated_risks", List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
-                                        "applied_rules", testCase.ruleSignals(),
-                                        "execution_allowed", true
-                                )
-                        ))
-                        .build())
-                .build();
-
-        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-" + testCase.id(), null);
+        DatasetNLQueryResponse response = executeClarifyCase(testCase);
 
         assertEquals("clarify", response.getType());
         assertEquals("ROUTING_TERMINAL_CLARIFY", response.getCode());
@@ -101,6 +89,66 @@ class ClarifyRoutingFixtureTest {
         assertStructuredMissingSlotDetails(detail, testCase.missingSlots());
         assertTemplateMatches(detail, testCase.ownerRules(), testCase.riskTypes(), testCase.domains());
         verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @DisplayName("fixture coverage summary 应输出 template match 可观测性基线")
+    @SuppressWarnings("unchecked")
+    void fixtureCoverageSummary_shouldExposeTemplateMatchMetadata() throws Exception {
+        List<ClarifyRoutingCase> cases = clarifyRoutingCases()
+                .map(Arguments::get)
+                .map(values -> (ClarifyRoutingCase) values[0])
+                .toList();
+
+        List<Map<String, Object>> caseSummaries = new ArrayList<>();
+        Set<String> domains = new LinkedHashSet<>();
+        Set<String> riskTypes = new LinkedHashSet<>();
+        Set<String> ownerRules = new LinkedHashSet<>();
+        Set<String> expectedOwnerRules = new LinkedHashSet<>();
+
+        for (ClarifyRoutingCase testCase : cases) {
+            DatasetNLQueryResponse response = executeClarifyCase(testCase);
+            Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+
+            Set<String> caseDomains = templateMatchValues(detail, "domain");
+            Set<String> caseRiskTypes = templateMatchValues(detail, "riskType");
+            Set<String> caseOwnerRules = templateMatchValues(detail, "ownerRule");
+            domains.addAll(caseDomains);
+            riskTypes.addAll(caseRiskTypes);
+            ownerRules.addAll(caseOwnerRules);
+            expectedOwnerRules.addAll(testCase.ownerRules());
+
+            Map<String, Object> caseSummary = new LinkedHashMap<>();
+            caseSummary.put("id", testCase.id());
+            caseSummary.put("domains", List.copyOf(caseDomains));
+            caseSummary.put("riskTypes", List.copyOf(caseRiskTypes));
+            caseSummary.put("ownerRules", List.copyOf(caseOwnerRules));
+            caseSummary.put("missingSlots", detail.get("clarify_missing_slots"));
+            caseSummaries.add(caseSummary);
+        }
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("source", FIXTURE_PATH);
+        summary.put("caseCount", cases.size());
+        summary.put("domainCount", domains.size());
+        summary.put("riskTypeCount", riskTypes.size());
+        summary.put("ownerRuleCount", ownerRules.size());
+        summary.put("domains", List.copyOf(domains));
+        summary.put("riskTypes", List.copyOf(riskTypes));
+        summary.put("ownerRules", List.copyOf(ownerRules));
+        summary.put("cases", caseSummaries);
+
+        Path output = Path.of("target", "clarify-routing-fixture-summary.json");
+        Files.createDirectories(output.getParent());
+        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(output.toFile(), summary);
+
+        assertEquals(15, cases.size(), "clarify routing fixture case count should stay explicit");
+        assertTrue(domains.size() >= 10, "summary should keep broad domain coverage");
+        assertTrue(riskTypes.size() >= 8, "summary should keep broad risk-type coverage");
+        assertTrue(ownerRules.containsAll(expectedOwnerRules),
+                "summary should include every fixture-declared owner rule");
+        assertTrue(ownerRules.size() >= cases.size(),
+                "summary should keep at least one matched owner rule per fixture case");
     }
 
     private static Stream<Arguments> clarifyRoutingCases() throws Exception {
@@ -130,6 +178,26 @@ class ClarifyRoutingFixtureTest {
             }
             return new ObjectMapper().readTree(inputStream);
         }
+    }
+
+    private DatasetNLQueryResponse executeClarifyCase(ClarifyRoutingCase testCase) {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query(testCase.question())
+                .hints(DatasetNLQueryRequest.QueryHints.builder()
+                        .extra(Map.of(
+                                "routing_calibration_guard", Map.of(
+                                        "raw_route", "CLARIFY",
+                                        "calibrated_route", "CLARIFY",
+                                        "raw_risks", List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                                        "calibrated_risks", List.of("needs_business_rule", "needs_metric_definition", "needs_time_range"),
+                                        "applied_rules", testCase.ruleSignals(),
+                                        "execution_allowed", true
+                                )
+                        ))
+                        .build())
+                .build();
+
+        return queryExpertService.processQuery(request, "trace-" + testCase.id(), null);
     }
 
     private static List<String> textValues(JsonNode array) {
@@ -217,6 +285,20 @@ class ClarifyRoutingFixtureTest {
         assertValuesContain(ownerRules, expectedOwnerRules, "ownerRule");
         assertValuesContain(riskTypes, expectedRiskTypes, "riskType");
         assertValuesContain(domains, expectedDomains, "domain");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> templateMatchValues(Map<String, Object> detail, String fieldName) {
+        assertInstanceOf(List.class, detail.get("clarify_template_matches"),
+                "clarify detail must expose matched template metadata");
+        Set<String> values = new LinkedHashSet<>();
+        for (Object value : (List<?>) detail.get("clarify_template_matches")) {
+            assertInstanceOf(Map.class, value, "template match detail must be a map");
+            Object fieldValue = ((Map<String, Object>) value).get(fieldName);
+            assertNotNull(fieldValue, "template match must expose " + fieldName);
+            values.add(String.valueOf(fieldValue));
+        }
+        return values;
     }
 
     private static void assertValuesContain(Set<String> actualValues, List<String> expectedValues, String valueName) {
