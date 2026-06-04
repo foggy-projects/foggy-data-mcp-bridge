@@ -301,7 +301,6 @@ public class SpringAiTestExecutor {
 
                 Map<String, Object> payload = new HashMap<>();
                 List<String> columns = buildDirectColumns(testCase);
-                applyKnownDirectFixturePayload(testCase, payload, columns);
 
                 payload.put("columns", columns);
                 payload.putIfAbsent("limit", directLimit(testCase));
@@ -312,6 +311,7 @@ public class SpringAiTestExecutor {
                 }
 
                 args.put("payload", payload);
+                mergeDirectToolArguments(args, testCase.getDirectToolArguments());
             }
         }
 
@@ -327,39 +327,18 @@ public class SpringAiTestExecutor {
         return new ArrayList<>(List.of("product$caption", "salesAmount"));
     }
 
-    private void applyKnownDirectFixturePayload(EcommerceTestCase testCase,
-                                                Map<String, Object> payload,
-                                                List<String> columns) {
-        switch (testCase.getId()) {
-            case "FILTER-001" -> payload.put("slice", List.of(condition("salesAmount", ">", 1000)));
-            case "FILTER-002" -> payload.put("slice", List.of(condition("customer$caption", "=", "客户1")));
-            case "AGG-001" -> payload.put("groupBy", List.of("product$caption"));
-            case "AGG-002" -> {
-                addColumn(columns, "quantity");
-                addColumn(columns, "salesAmount");
-                payload.put("groupBy", List.of("store$caption"));
-            }
-            case "DIM-001" -> {
-                addColumn(columns, "product$categoryName");
-                addColumn(columns, "store$caption");
-                addColumn(columns, "salesAmount");
-                payload.put("groupBy", List.of("product$categoryName", "store$caption"));
-            }
-            case "SORT-001" -> payload.put("groupBy", List.of("product$caption"));
-            case "COMPLEX-001" -> {
-                addColumn(columns, "salesDate$year");
-                payload.put("groupBy", List.of("store$caption", "salesDate$year"));
-                payload.put("orderBy", List.of(order("salesAmount", "DESC")));
-                payload.put("slice", List.of(
-                        condition("salesAmount", ">", 500),
-                        Map.of("$or", List.of(
-                                condition("salesDate$year", "=", 2024),
-                                condition("salesDate$year", "=", 2025)
-                        ))
-                ));
-            }
-            default -> {
-                // No fixture-specific arguments.
+    @SuppressWarnings("unchecked")
+    private void mergeDirectToolArguments(Map<String, Object> target, Map<String, Object> overrides) {
+        if (overrides == null || overrides.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : overrides.entrySet()) {
+            Object current = target.get(entry.getKey());
+            Object override = entry.getValue();
+            if (current instanceof Map<?, ?> currentMap && override instanceof Map<?, ?> overrideMap) {
+                mergeDirectToolArguments((Map<String, Object>) currentMap, (Map<String, Object>) overrideMap);
+            } else {
+                target.put(entry.getKey(), override);
             }
         }
     }
@@ -395,20 +374,6 @@ public class SpringAiTestExecutor {
             orderBy.add(order(rule.getColumn(), direction == null ? "ASC" : direction.toString()));
         }
         return orderBy;
-    }
-
-    private void addColumn(List<String> columns, String column) {
-        if (!columns.contains(column)) {
-            columns.add(column);
-        }
-    }
-
-    private Map<String, Object> condition(String field, String op, Object value) {
-        Map<String, Object> condition = new LinkedHashMap<>();
-        condition.put("field", field);
-        condition.put("op", op);
-        condition.put("value", value);
-        return condition;
     }
 
     private Map<String, Object> order(String column, String direction) {

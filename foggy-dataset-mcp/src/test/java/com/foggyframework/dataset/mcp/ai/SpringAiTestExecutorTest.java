@@ -37,6 +37,7 @@ class SpringAiTestExecutorTest {
                 .id("SORT-001")
                 .expectedTool("dataset.query_model")
                 .targetModel("FactSalesQueryModel")
+                .directToolArguments(Map.of("payload", Map.of("groupBy", List.of("product$caption"))))
                 .expected(EcommerceTestCase.ExpectedResult.builder()
                         .requiredColumns(List.of("product$caption", "salesAmount"))
                         .maxRows(5)
@@ -65,6 +66,18 @@ class SpringAiTestExecutorTest {
                 .id("COMPLEX-001")
                 .expectedTool("dataset.query_model")
                 .targetModel("FactSalesQueryModel")
+                .directToolArguments(Map.of("payload", Map.of(
+                        "columns", List.of("store$caption", "salesAmount", "salesDate$year"),
+                        "groupBy", List.of("store$caption", "salesDate$year"),
+                        "orderBy", List.of(Map.of("column", "salesAmount", "direction", "DESC")),
+                        "slice", List.of(
+                                Map.of("field", "salesAmount", "op", ">", "value", 500),
+                                Map.of("$or", List.of(
+                                        Map.of("field", "salesDate$year", "op", "=", "value", 2024),
+                                        Map.of("field", "salesDate$year", "op", "=", "value", 2025)
+                                ))
+                        )
+                )))
                 .expected(EcommerceTestCase.ExpectedResult.builder()
                         .requiredColumns(List.of("store$caption", "salesAmount"))
                         .maxRows(3)
@@ -80,5 +93,14 @@ class SpringAiTestExecutorTest {
         assertEquals(List.of(Map.of("column", "salesAmount", "direction", "DESC")), payload.get("orderBy"));
         assertTrue(columns.contains("salesDate$year"));
         assertTrue(payload.containsKey("slice"));
+    }
+
+    @Test
+    @DisplayName("应从 JSON fixture 加载 direct 工具参数")
+    void testCaseLoader_shouldLoadDirectToolArguments() {
+        EcommerceTestCase testCase = new TestCaseLoader()
+                .loadById("ai-test-cases/ecommerce-tests.json", "FILTER-001");
+
+        assertTrue(testCase.getDirectToolArguments().containsKey("payload"));
     }
 }

@@ -79,6 +79,13 @@
       "target_model": "FactSalesQueryModel",
       "description": "过滤查询 - 数值条件",
       "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "slice": [
+            {"field": "salesAmount", "op": ">", "value": 1000}
+          ]
+        }
+      },
       "expected": {
         "required_columns": ["salesAmount"],
         "rules": [
@@ -98,6 +105,13 @@
       "target_model": "FactSalesQueryModel",
       "description": "过滤查询 - 文本精确匹配",
       "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "slice": [
+            {"field": "customer$caption", "op": "=", "value": "客户1"}
+          ]
+        }
+      },
       "expected": {
         "required_columns": ["customer$caption"],
         "rules": [
@@ -117,6 +131,11 @@
       "target_model": "FactSalesQueryModel",
       "description": "聚合查询 - 分组求和",
       "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "groupBy": ["product$caption"]
+        }
+      },
       "expected": {
         "required_columns": ["product$caption", "salesAmount"],
         "min_rows": 1,
@@ -135,6 +154,12 @@
       "target_model": "FactSalesQueryModel",
       "description": "聚合查询 - 多指标分组",
       "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["store$caption", "quantity", "salesAmount"],
+          "groupBy": ["store$caption"]
+        }
+      },
       "expected": {
         "required_columns": ["store$caption"],
         "min_rows": 1,
@@ -153,6 +178,12 @@
       "target_model": "FactSalesQueryModel",
       "description": "多维分析 - 双维度分组",
       "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["product$categoryName", "store$caption", "salesAmount"],
+          "groupBy": ["product$categoryName", "store$caption"]
+        }
+      },
       "expected": {
         "min_rows": 1,
         "rules": [
@@ -170,6 +201,11 @@
       "target_model": "FactSalesQueryModel",
       "description": "排序查询 - 降序 Top N",
       "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "groupBy": ["product$caption"]
+        }
+      },
       "expected": {
         "required_columns": ["product$caption", "salesAmount"],
         "max_rows": 5,
@@ -214,6 +250,24 @@
       "target_model": "FactSalesQueryModel",
       "description": "复杂查询 - 过滤+分组+排序+限制",
       "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["store$caption", "salesAmount", "salesDate$year"],
+          "groupBy": ["store$caption", "salesDate$year"],
+          "orderBy": [
+            {"column": "salesAmount", "direction": "DESC"}
+          ],
+          "slice": [
+            {"field": "salesAmount", "op": ">", "value": 500},
+            {
+              "$or": [
+                {"field": "salesDate$year", "op": "=", "value": 2024},
+                {"field": "salesDate$year", "op": "=", "value": 2025}
+              ]
+            }
+          ]
+        }
+      },
       "expected": {
         "required_columns": ["store$caption", "salesAmount"],
         "max_rows": 3,

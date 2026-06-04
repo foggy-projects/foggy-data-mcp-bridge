@@ -53,6 +53,14 @@ public class EcommerceTestCase {
     private String targetModel;
 
     /**
+     * 直接工具调用参数补充/覆盖。
+     *
+     * <p>用于 direct baseline 明确表达 groupBy、slice、orderBy 等结构化工具参数。
+     */
+    @JsonProperty("direct_tool_arguments")
+    private Map<String, Object> directToolArguments;
+
+    /**
      * 预期结果验证规则
      */
     private ExpectedResult expected;
