@@ -248,7 +248,8 @@ AI_TEST_OPENAI_API_KEY=... \
 可使用 `--print-selection` 在不连接数据库、不调用 LLM 的情况下查看最终选样。
 矩阵报告会生成 `matrix-summary.json`、`warnings.json` 和 `warnings.jsonl`；
 warning 样本汇总默认输出到
-`foggy-dataset-mcp/target/ai-warning-samples/`。
+`foggy-dataset-mcp/target/ai-warning-samples/`，其中
+`warning-review.md` 提供按 warning 类型、模型、case 和 run 聚合的人工 review 表格。
 
 ## 测试配置
 
