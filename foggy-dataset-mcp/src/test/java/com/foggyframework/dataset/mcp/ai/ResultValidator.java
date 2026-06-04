@@ -649,6 +649,7 @@ public class ResultValidator {
                             " (called: " + toolCalls.stream().map(ToolCallCollector.ToolCallRecord::getToolName).toList() + ")");
                 }
             }
+            validateTargetModel(testCase, toolCalls, result);
         } else {
             result.getDetails().put("toolCallCount", 0);
             // 如果期望有工具调用但没有
@@ -730,6 +731,41 @@ public class ResultValidator {
         return "dataset.query_model".equals(expectedTool)
                 && ("dataset.export_with_chart".equals(call.getToolName())
                 || "dataset_export_with_chart".equals(call.getSpringToolName()));
+    }
+
+    private void validateTargetModel(EcommerceTestCase testCase,
+                                     List<ToolCallCollector.ToolCallRecord> toolCalls,
+                                     ValidationResult result) {
+        String targetModel = testCase.getTargetModel();
+        if (targetModel == null || targetModel.isBlank()
+                || !"dataset.query_model".equals(testCase.getExpectedTool())
+                || toolCalls == null || toolCalls.isEmpty()) {
+            return;
+        }
+        List<String> observedModels = toolCalls.stream()
+                .filter(ToolCallCollector.ToolCallRecord::isSuccess)
+                .filter(call -> toolMatches(testCase.getExpectedTool(), call))
+                .map(call -> argumentModel(call.getArguments()))
+                .filter(model -> model != null && !model.isBlank())
+                .distinct()
+                .toList();
+        if (observedModels.contains(targetModel)) {
+            result.addPassedRule("Target query model used: " + targetModel);
+        } else {
+            result.addFailedRule("Target query model not used: " + targetModel
+                    + " (observed: " + observedModels + ")");
+        }
+    }
+
+    private String argumentModel(Map<String, Object> arguments) {
+        if (arguments == null || arguments.isEmpty()) {
+            return null;
+        }
+        return stringValue(firstNonNull(
+                firstNonNull(arguments.get("model"), arguments.get("modelName")),
+                firstNonNull(arguments.get("queryModel"),
+                        firstNonNull(arguments.get("queryModelName"),
+                                firstNonNull(arguments.get("qm"), arguments.get("qmCode"))))));
     }
 
     private void validateToolArgumentRules(List<EcommerceTestCase.ToolArgumentRule> rules,

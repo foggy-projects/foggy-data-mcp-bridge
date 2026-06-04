@@ -440,6 +440,85 @@ class ResultValidatorTest {
                 .anyMatch(rule -> rule.contains("TOOL_ARGUMENT:columns:salesAmount")));
     }
 
+    @Test
+    @DisplayName("query validation should pass when target model is used")
+    void validateFromAiResponse_shouldAcceptExpectedTargetModel() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("ROUTE-ORDER-001")
+                .expectedTool("dataset.query_model")
+                .targetModel("FactOrderQueryModel")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .successOnly(true)
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactOrderQueryModel",
+                        "payload", Map.of("columns", List.of("orderId", "orderStatus"))
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("orderId", "ORD20260001", "orderStatus", "PENDING")
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "待处理订单 ORD20260001。",
+                List.of(call)
+        );
+
+        assertTrue(result.isPassed(), () -> result.getFailedRules().toString());
+        assertTrue(result.getPassedRules().stream()
+                .anyMatch(rule -> rule.contains("Target query model used: FactOrderQueryModel")));
+    }
+
+    @Test
+    @DisplayName("query validation should fail when route-intent target model is wrong")
+    void validateFromAiResponse_shouldRejectUnexpectedTargetModel() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("ROUTE-ORDER-001")
+                .expectedTool("dataset.query_model")
+                .targetModel("FactOrderQueryModel")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .successOnly(true)
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactSalesQueryModel",
+                        "payload", Map.of("columns", List.of("customer$caption", "salesAmount"))
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("customer$caption", "客户1", "salesAmount", 1000)
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "客户1 销售金额 1000。",
+                List.of(call)
+        );
+
+        assertFalse(result.isPassed());
+        assertTrue(result.getFailedRules().stream()
+                .anyMatch(rule -> rule.contains("Target query model not used: FactOrderQueryModel")
+                        && rule.contains("FactSalesQueryModel")));
+    }
+
     private EcommerceTestCase.ExpectedResult complexExpectedWithPredicateScopeRules() {
         return EcommerceTestCase.ExpectedResult.builder()
                 .requiredColumns(List.of("store$caption", "salesAmount"))

@@ -150,6 +150,77 @@
       }
     },
     {
+      "id": "ROUTE-ORDER-001",
+      "category": "FILTER_QUERY",
+      "question": "查询所有待处理订单积压记录，显示订单ID、订单状态、客户名称和订单应付金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "FactOrderQueryModel",
+      "description": "路由意图 - 订单积压应使用订单事实模型而不是销售明细模型",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["orderId", "orderStatus", "customer$caption", "payAmount"],
+          "slice": [
+            {"field": "orderStatus", "op": "in", "value": ["PENDING", "CONFIRMED", "PROCESSING"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["orderId", "orderStatus", "customer$caption", "payAmount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "orderStatus",
+            "must_exist": true
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ROUTE-ORDER-002",
+      "category": "AGGREGATION",
+      "question": "按销售团队统计订单应付金额，显示销售团队名称和订单应付总额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "FactOrderQueryModel",
+      "description": "路由意图 - 订单金额按销售团队统计应使用订单事实模型",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["salesTeam$caption", "payAmount"],
+          "groupBy": ["salesTeam$caption"]
+        }
+      },
+      "expected": {
+        "required_columns": ["salesTeam$caption", "payAmount"],
+        "min_rows": 1,
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "salesTeam$caption",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "payAmount",
+            "must_exist": true
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
       "id": "AGG-001",
       "category": "AGGREGATION",
       "question": "按商品统计销售总额，显示商品名称和总销售额",
