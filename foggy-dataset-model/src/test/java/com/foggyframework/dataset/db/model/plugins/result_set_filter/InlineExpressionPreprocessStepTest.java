@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,6 +48,38 @@ class InlineExpressionPreprocessStepTest {
 
         assertTrue(exception.getMessage().contains("ILLEGAL_DOUBLE_AGGREGATION"));
         assertTrue(exception.getMessage().contains("arOverdueAmount"));
+    }
+
+    @Test
+    void testPredefinedScalarCalculatedFieldOuterAggregationPasses() {
+        InlineExpressionPreprocessStep step = new InlineExpressionPreprocessStep();
+
+        CalculatedFieldDef predefined = new CalculatedFieldDef();
+        predefined.setName("availablePieceCount");
+        predefined.setExpression("IF(number - plannedPieceCount > 0, number - plannedPieceCount, 0)");
+
+        QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getPredefinedCalculatedFields()).thenReturn(List.of(predefined));
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of("sum(availablePieceCount) as remainingPieceCount"));
+
+        com.foggyframework.dataset.client.domain.PagingRequest reqMock = mock(com.foggyframework.dataset.client.domain.PagingRequest.class);
+        when(reqMock.getParam()).thenReturn(request);
+        ModelResultContext context = mock(ModelResultContext.class);
+        when(context.getRequest()).thenReturn(reqMock);
+        when(context.getQueryModel()).thenReturn(qm);
+
+        assertDoesNotThrow(() -> step.beforeQuery(context));
+
+        assertEquals(List.of("remainingPieceCount"), request.getColumns());
+        assertTrue(request.getCalculatedFields().stream()
+                        .anyMatch(field -> "availablePieceCount".equals(field.getName())),
+                "outer aggregate should keep the referenced predefined scalar formula injected");
+        assertTrue(request.getCalculatedFields().stream()
+                        .anyMatch(field -> "remainingPieceCount".equals(field.getName())
+                                && "SUM".equals(field.getAgg())),
+                "outer aggregate should be converted to a SUM inline calculated field");
     }
 
     @Test

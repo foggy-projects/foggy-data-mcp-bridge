@@ -359,6 +359,9 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         if (fieldDef.getOrigin() == CalculatedFieldDef.Origin.PLAIN_ALIAS) {
             return false;
         }
+        if (!isSelectedField(fieldDef) && isQueryModelPredefinedCalculatedField(fieldDef)) {
+            return false;
+        }
         if (!groupedQuery && !isSoleSelectedPredefinedCalculatedField(fieldDef)) {
             return false;
         }
@@ -383,8 +386,27 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         return baseAggregateMeasureRef && !AGGREGATE_FUNCTION_CALL.matcher(fieldDef.getExpression()).find();
     }
 
+    private boolean isSelectedField(CalculatedFieldDef fieldDef) {
+        return calculateQueryContext != null
+                && calculateQueryContext.getSelectedFields() != null
+                && calculateQueryContext.getSelectedFields().contains(fieldDef.getName());
+    }
+
+    private boolean isQueryModelPredefinedCalculatedField(CalculatedFieldDef fieldDef) {
+        if (queryModel == null || queryModel.getPredefinedCalculatedFields() == null) {
+            return false;
+        }
+        for (CalculatedFieldDef predefined : queryModel.getPredefinedCalculatedFields()) {
+            if (predefined == fieldDef || fieldDef.getName().equals(predefined.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean isSoleSelectedPredefinedCalculatedField(CalculatedFieldDef fieldDef) {
         if (calculateQueryContext == null
+                || calculateQueryContext.getSelectedFields() == null
                 || calculateQueryContext.getSelectedFields().size() != 1
                 || !fieldDef.getName().equals(calculateQueryContext.getSelectedFields().get(0))) {
             return false;

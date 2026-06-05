@@ -5,7 +5,7 @@ version: 9.2.0
 target: Java Engine 9.2.0 Follow-Up Roadmap
 status: proposed
 created_at: 2026-05-03
-updated_at: 2026-05-29
+updated_at: 2026-06-05
 ---
 
 # Foggy Java Engine 9.2.0 Follow-Ups
@@ -59,3 +59,4 @@ The 9.1.0 rule still applies: if semantics or execution capability cannot be pro
 - `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` - Follow-up fix for aggregate relation RHS fixed filters that reference right-side dimension fields; ensures the derived table joins RHS dimensions before filtering and grouping.
 - `workitems/BUG-formula-property-missing-column-error.md` - Follow-up fix for formula-backed TM property fields missing `column`; validation now reports the concrete field path and carrier-column rule instead of dumping the whole model object.
 - `workitems/BUG-qm-predefined-formula-slice-injection.md` - Follow-up fix for QM predefined formula fields referenced outside `columns`; `slice` / `having` / `postSlice` / `orderBy` / `groupBy` / `$field` references now inject trusted predefined calculated fields before SQL condition building.
+- `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` - Allow outer aggregation for row-level scalar QM predefined calculated fields while keeping aggregate/window predefined fields fail-closed.

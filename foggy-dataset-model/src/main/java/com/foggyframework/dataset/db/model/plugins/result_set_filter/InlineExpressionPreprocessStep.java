@@ -114,12 +114,12 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         result.setAliasToExpression(new LinkedHashMap<>());
         result.setColumnAggregations(new LinkedHashMap<>());
 
-        Set<String> predefinedFormulaNames = new HashSet<>();
+        Map<String, CalculatedFieldDef> predefinedFormulaByName = new HashMap<>();
         if (queryModel instanceof QueryModelSupport) {
             List<CalculatedFieldDef> predefined = ((QueryModelSupport) queryModel).getPredefinedCalculatedFields();
             if (predefined != null) {
                 for (CalculatedFieldDef calc : predefined) {
-                    predefinedFormulaNames.add(calc.getName());
+                    predefinedFormulaByName.put(calc.getName(), calc);
                 }
             }
         }
@@ -147,11 +147,12 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 // 通过 AST 分析检测聚合函数，填充 agg 字段，并存储编译后的 AST
                 AggregateAnalysisResult aggResult = analyzeAggregateByAst(inlineExp.getExpression(), calcFieldDef);
 
-                if (aggResult.hasAggregate && !predefinedFormulaNames.isEmpty()) {
+                if (aggResult.hasAggregate && !predefinedFormulaByName.isEmpty()) {
                     try {
                         Set<String> deps = CalculatedFieldService.resolveBaseColumnReferences(inlineExp.getExpression(), Collections.emptyMap());
                         for (String dep : deps) {
-                            if (predefinedFormulaNames.contains(dep)) {
+                            CalculatedFieldDef predefined = predefinedFormulaByName.get(dep);
+                            if (isAggregateUnsafePredefinedCalculatedField(predefined)) {
                                 throw new IllegalArgumentException("ILLEGAL_DOUBLE_AGGREGATION: Cannot wrap predefined calculated field '" + dep + "' in an aggregate function.");
                             }
                         }
@@ -259,6 +260,37 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         }
 
         return result;
+    }
+
+    /**
+     * 判断 QM 预定义计算字段是否不能再被外层聚合包装。
+     *
+     * <p>行级标量公式允许被外层 {@code SUM/AVG/...} 聚合；自身已经携带聚合或窗口语义的
+     * 预定义字段继续 fail-fast，避免双重聚合或窗口结果再聚合导致语义不确定。</p>
+     */
+    private boolean isAggregateUnsafePredefinedCalculatedField(CalculatedFieldDef predefined) {
+        if (predefined == null) {
+            return false;
+        }
+        if (StringUtils.isNotEmpty(predefined.getAgg())) {
+            return true;
+        }
+        if (predefined.getPartitionBy() != null && !predefined.getPartitionBy().isEmpty()) {
+            return true;
+        }
+        if (predefined.getWindowOrderBy() != null && !predefined.getWindowOrderBy().isEmpty()) {
+            return true;
+        }
+        if (StringUtils.isNotEmpty(predefined.getWindowFrame())) {
+            return true;
+        }
+        if (StringUtils.isEmpty(predefined.getExpression())) {
+            return false;
+        }
+
+        CalculatedFieldDef temp = new CalculatedFieldDef();
+        AggregateAnalysisResult aggResult = analyzeAggregateByAst(predefined.getExpression(), temp);
+        return aggResult.hasAggregate;
     }
 
     /**

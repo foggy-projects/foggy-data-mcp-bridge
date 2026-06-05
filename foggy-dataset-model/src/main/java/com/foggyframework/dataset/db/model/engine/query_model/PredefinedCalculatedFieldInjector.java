@@ -7,11 +7,13 @@ import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
+import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -126,14 +128,25 @@ public final class PredefinedCalculatedFieldInjector {
                 continue;
             }
             out.add(column);
+            String expression = column;
             try {
                 ColumnAliasParts parts = AliasExtractor.extract(column);
                 if (parts.hasAlias()) {
-                    out.add(parts.expression());
+                    expression = parts.expression();
+                    out.add(expression);
                 }
             } catch (IllegalArgumentException ignore) {
                 // Keep original field; downstream validation will report malformed aliases.
             }
+            collectExpressionReferences(expression, out);
+        }
+    }
+
+    private static void collectExpressionReferences(String expression, Set<String> out) {
+        try {
+            out.addAll(CalculatedFieldService.resolveBaseColumnReferences(expression, Collections.emptyMap()));
+        } catch (Exception ignore) {
+            // Not every column entry is a parseable expression; keep original references.
         }
     }
 

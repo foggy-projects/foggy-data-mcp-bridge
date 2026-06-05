@@ -1,15 +1,19 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -35,6 +39,9 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
 
     @Resource
     private SystemBundlesContext systemBundlesContext;
+
+    @Resource
+    private QueryFacade queryFacade;
 
     // ==========================================
     // Phase 1A: COUNT(DISTINCT) 测试
@@ -451,6 +458,37 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(25)
+    @DisplayName("QM 预定义标量字段可被外层 SUM 聚合")
+    @SuppressWarnings("unchecked")
+    void testQmPredefinedScalarFormulaOuterAggregation() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(List.of("sum(profitRate) as totalProfitRate"));
+        queryRequest.setSlice(List.of(new SliceRequestDef("salesAmount", ">", 0)));
+
+        PagingRequest<DbQueryRequestDef> form = new PagingRequest<>();
+        form.setParam(queryRequest);
+        form.setPageSize(1);
+
+        PagingResultImpl result = queryFacade.queryModelData(form);
+
+        assertNotNull(result);
+        assertNotNull(result.getItems());
+        assertEquals(1, result.getItems().size());
+
+        Map<String, Object> actualRow = (Map<String, Object>) result.getItems().get(0);
+        Object actual = valueIgnoreCase(actualRow, "totalProfitRate");
+        Object expected = jdbcTemplate.queryForObject("""
+                SELECT SUM(profit_amount / sales_amount * 100) AS totalProfitRate
+                FROM fact_sales
+                WHERE sales_amount > 0
+                """, Object.class);
+
+        assertDecimalClose(expected, actual);
+    }
+
+    @Test
     @Order(21)
     @DisplayName("QM 预定义窗口字段 (salesRank)")
     void testQmPredefinedWindowField() {
@@ -621,5 +659,28 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
             groups.add(g);
         }
         return groups;
+    }
+
+    private static Object valueIgnoreCase(Map<String, Object> row, String field) {
+        if (row.containsKey(field)) {
+            return row.get(field);
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(field)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private static void assertDecimalClose(Object expected, Object actual) {
+        assertNotNull(expected, "expected value should not be null");
+        assertNotNull(actual, "actual value should not be null");
+
+        BigDecimal delta = BigDecimal.valueOf(((Number) actual).doubleValue())
+                .subtract(BigDecimal.valueOf(((Number) expected).doubleValue()))
+                .abs();
+        assertTrue(delta.compareTo(BigDecimal.valueOf(0.000001)) <= 0,
+                "expected=" + expected + ", actual=" + actual + ", delta=" + delta);
     }
 }
