@@ -302,6 +302,52 @@
       }
     },
     {
+      "id": "ROUTE-ORDER-005",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已发货订单，显示订单ID、发货日期、订单状态、客户名称和订单应付金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "FactOrderQueryModel",
+      "description": "路由意图 - 已发货订单应使用订单生命周期状态而不是支付状态或发货日期非空过滤",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["orderId", "shipDate", "orderStatus", "customer$caption", "payAmount"],
+          "slice": [
+            {"field": "orderStatus", "op": "=", "value": "SHIPPED"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["orderId", "shipDate", "orderStatus", "customer$caption", "payAmount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "orderStatus",
+            "value": "SHIPPED",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentStatus",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "shipDate",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
       "id": "AGG-001",
       "category": "AGGREGATION",
       "question": "按商品统计销售总额，显示商品名称和总销售额",
