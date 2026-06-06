@@ -144,6 +144,18 @@ public class DimensionProxy implements PropertyHolder {
         return dimensionPath.toUnderscoreFormat();
     }
 
+    public String getQualifiedAliasPath() {
+        String qualifier = rootProxy.getPublicQualifier();
+        String aliasPath = getAliasPath();
+        return qualifier == null ? aliasPath : qualifier + "." + aliasPath;
+    }
+
+    public String getQualifiedLookupPath() {
+        String qualifier = rootProxy.getPublicQualifier();
+        String lookupPath = getFullPath();
+        return qualifier == null ? lookupPath : qualifier + "." + lookupPath;
+    }
+
     @Override
     public String toString() {
         String alias = rootProxy.getAlias();

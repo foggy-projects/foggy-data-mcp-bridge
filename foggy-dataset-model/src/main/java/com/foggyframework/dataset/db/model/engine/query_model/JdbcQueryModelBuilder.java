@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.query_model;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
@@ -175,8 +176,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
 
         // 分配别名
         String alias = proxy.hasAlias() ? proxy.getAlias() : "t" + aliasCounter++;
+        ensureAliasAvailable(result, alias, qmName);
         proxy.setAlias(alias);
-        getModelProxies().put(proxy.getModelName(), proxy);
+        getModelProxies().put(proxyKey(proxy), proxy);
 
         QueryModelSupport.JdbcModelDx dx = new QueryModelSupport.JdbcModelDx(
                 tm, tm.getIdColumn(), null, alias, JoinType.LEFT);
@@ -215,23 +217,28 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
 
         // 分配别名
         String alias = rightProxy.hasAlias() ? rightProxy.getAlias() : "t" + aliasCounter++;
+        ensureAliasAvailable(result, alias, qmName);
         rightProxy.setAlias(alias);
-        getModelProxies().put(rightProxy.getModelName(), rightProxy);
+        getModelProxies().put(proxyKey(rightProxy), rightProxy);
 
         // 更新左表别名（从已注册的 proxy 获取）
         TableModelProxy leftProxy = aggregateJoinBuilder.getLeft();
         if (!leftProxy.hasAlias()) {
-            TableModelProxy registeredLeft = getModelProxies().get(leftProxy.getModelName());
+            TableModelProxy registeredLeft = getModelProxies().get(proxyKey(leftProxy));
             if (registeredLeft != null) {
                 leftProxy.setAlias(registeredLeft.getAlias());
             }
         }
 
-        TableModel aggregateTableModel = AggregateJoinTableModel.from(sourceTableModel, aggregateJoinBuilder);
+        TableModel aggregateTableModel = AggregateJoinTableModel.from(sourceTableModel, aggregateJoinBuilder, result);
         JoinBuilderFunction onBuilder = new JoinBuilderFunction(aggregateJoinBuilder);
 
         QueryModelSupport.JdbcModelDx dx = new QueryModelSupport.JdbcModelDx(
                 aggregateTableModel, aggregateTableModel.getIdColumn(), onBuilder, alias, aggregateJoinBuilder.getJoinType());
+        TableModel dependsOn = findParsedModelByAlias(result, leftProxy.getAlias());
+        if (dependsOn != null) {
+            dx.addDependsOn(dependsOn);
+        }
         result.add(dx);
 
         return aliasCounter;
@@ -248,13 +255,14 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
 
         // 分配别名
         String alias = rightProxy.hasAlias() ? rightProxy.getAlias() : "t" + aliasCounter++;
+        ensureAliasAvailable(result, alias, qmName);
         rightProxy.setAlias(alias);
-        getModelProxies().put(rightProxy.getModelName(), rightProxy);
+        getModelProxies().put(proxyKey(rightProxy), rightProxy);
 
         // 更新左表别名（从已注册的 proxy 获取）
         TableModelProxy leftProxy = joinBuilder.getLeft();
         if (!leftProxy.hasAlias()) {
-            TableModelProxy registeredLeft = getModelProxies().get(leftProxy.getModelName());
+            TableModelProxy registeredLeft = getModelProxies().get(proxyKey(leftProxy));
             if (registeredLeft != null) {
                 leftProxy.setAlias(registeredLeft.getAlias());
             }
@@ -262,7 +270,7 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
 
         TableModel tm = sourceTableModel;
         if (rightProxy instanceof AggregateRelationProxy aggregateRelationProxy) {
-            tm = AggregateJoinTableModel.from(sourceTableModel, aggregateRelationProxy, joinBuilder);
+            tm = AggregateJoinTableModel.from(sourceTableModel, aggregateRelationProxy, joinBuilder, result);
         }
 
         // 创建 onBuilder 适配器
@@ -270,6 +278,10 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
 
         QueryModelSupport.JdbcModelDx dx = new QueryModelSupport.JdbcModelDx(
                 tm, tm.getIdColumn(), onBuilder, alias, joinBuilder.getJoinType());
+        TableModel dependsOn = findParsedModelByAlias(result, leftProxy.getAlias());
+        if (dependsOn != null) {
+            dx.addDependsOn(dependsOn);
+        }
         result.add(dx);
 
         return aliasCounter;
@@ -315,6 +327,34 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
             log.error("QM [{}] 加载表模型 '{}' 失败: {}", qmName, modelName, e.getMessage());
             return null;
         }
+    }
+
+    private void ensureAliasAvailable(List<TableModel> result, String alias, String qmName) {
+        for (TableModel model : result) {
+            if (StringUtils.equals(model.getAlias(), alias)) {
+                throw RX.throwAUserTip(String.format("QM [%s] 表别名重复: %s", qmName, alias));
+            }
+        }
+    }
+
+    private TableModel findParsedModelByAlias(List<TableModel> result, String alias) {
+        if (StringUtils.isEmpty(alias)) {
+            return null;
+        }
+        for (TableModel model : result) {
+            if (StringUtils.equals(model.getAlias(), alias)) {
+                return model;
+            }
+        }
+        return null;
+    }
+
+    private String proxyKey(TableModelProxy proxy) {
+        if (proxy == null) {
+            return "";
+        }
+        String alias = proxy.hasAlias() ? proxy.getAlias() : "";
+        return proxy.getModelName() + "\u0000" + alias;
     }
 
     // ==================== ThreadLocal 管理 ====================

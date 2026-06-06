@@ -51,6 +51,13 @@ public class LoadTableModelFunction implements FsscriptFunction {
         }
         Object arg = args[0];
         if (arg instanceof String modelName) {
+            if (args.length >= 2) {
+                Object aliasArg = args[1];
+                if (aliasArg instanceof String alias && !alias.isBlank()) {
+                    return new TableModelProxy(modelName, alias.trim());
+                }
+                throw new IllegalArgumentException("loadTableModel alias must be a non-empty string");
+            }
             return new TableModelProxy(modelName);
         }
         throw new IllegalArgumentException("loadTableModel requires a model name string, got: " +
@@ -74,6 +81,13 @@ public class LoadTableModelFunction implements FsscriptFunction {
         }
         Object arg = objects[0];
         if (arg instanceof String modelName) {
+            if (objects.length >= 2) {
+                Object aliasArg = objects[1];
+                if (aliasArg instanceof String alias && !alias.isBlank()) {
+                    return new TableModelProxy(modelName, alias.trim());
+                }
+                throw new IllegalArgumentException("loadTableModel alias must be a non-empty string");
+            }
             return new TableModelProxy(modelName);
         }
         throw new IllegalArgumentException("loadTableModel requires a model name string");
@@ -81,6 +95,6 @@ public class LoadTableModelFunction implements FsscriptFunction {
 
     @Override
     public String toString() {
-        return "loadTableModel(modelName)";
+        return "loadTableModel(modelName, alias?)";
     }
 }

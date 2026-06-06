@@ -64,6 +64,22 @@ class TableModelProxyTest {
     }
 
     @Test
+    @DisplayName("as - 返回带显式别名的新代理")
+    void testAsReturnsAliasedProxy() {
+        TableModelProxy proxy = new TableModelProxy("FactOrderModel");
+
+        Object result = proxy.invoke(null, "as", new Object[]{"originStop"});
+
+        assertInstanceOf(TableModelProxy.class, result);
+        TableModelProxy aliased = (TableModelProxy) result;
+        assertEquals("FactOrderModel", aliased.getModelName());
+        assertEquals("originStop", aliased.getAlias());
+        assertTrue(aliased.hasExplicitAlias());
+        assertEquals("originStop", aliased.getPublicQualifier());
+        assertFalse(proxy.hasAlias());
+    }
+
+    @Test
     @DisplayName("hasAlias - 空字符串视为无别名")
     void testHasAliasEmptyString() {
         TableModelProxy proxy = new TableModelProxy("FactOrderModel", "");
@@ -244,12 +260,12 @@ class TableModelProxyTest {
     }
 
     @Test
-    @DisplayName("equals - 同名不同别名仍然相等（基于 modelName）")
+    @DisplayName("equals - 同名不同别名不等")
     void testEqualsSameModelDifferentAlias() {
         TableModelProxy a = new TableModelProxy("FactOrderModel", "fo1");
         TableModelProxy b = new TableModelProxy("FactOrderModel", "fo2");
 
-        assertEquals(a, b);
+        assertNotEquals(a, b);
     }
 
     @Test

@@ -5,7 +5,8 @@ import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.PropertyHolder;
 import jakarta.persistence.criteria.JoinType;
 import lombok.Getter;
-import lombok.Setter;
+
+import java.util.Objects;
 
 /**
  * 表模型代理对象
@@ -51,8 +52,15 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
     /**
      * 表别名（用于 SQL 生成）
      */
-    @Setter
     private String alias;
+
+    /**
+     * 是否为 QM 作者显式声明的公开别名。
+     *
+     * <p>Builder 在加载时也会给未命名表分配运行时别名（如 t1/t2），
+     * 这类别名不能进入 QM 对外字段名，否则会破坏既有模型 schema。</p>
+     */
+    private boolean explicitAlias;
 
     /**
      * 创建表模型代理
@@ -72,6 +80,7 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
     public TableModelProxy(String modelName, String alias) {
         this.modelName = modelName;
         this.alias = alias;
+        this.explicitAlias = alias != null && !alias.isEmpty();
     }
 
     // ==================== PropertyHolder 实现 ====================
@@ -132,6 +141,14 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
      */
     @Override
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
+        if ("as".equals(methodName)) {
+            if (args == null || args.length != 1 || !(args[0] instanceof String aliasName)
+                    || aliasName.isBlank()) {
+                return PropertyHolder.NO_MATCH;
+            }
+            return new TableModelProxy(this.modelName, aliasName.trim());
+        }
+
         if (isAggregateRelationMethod(methodName)) {
             return AggregateRelationProxy.from(this).invoke(evaluator, methodName, args);
         }
@@ -186,6 +203,22 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
         return alias != null && !alias.isEmpty();
     }
 
+    public void setAlias(String alias) {
+        this.alias = alias;
+    }
+
+    protected void setExplicitAlias(boolean explicitAlias) {
+        this.explicitAlias = explicitAlias;
+    }
+
+    public boolean hasExplicitAlias() {
+        return explicitAlias && hasAlias();
+    }
+
+    public String getPublicQualifier() {
+        return hasExplicitAlias() ? alias : null;
+    }
+
     @Override
     public String toString() {
         if (alias != null && !alias.isEmpty()) {
@@ -199,11 +232,12 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         TableModelProxy that = (TableModelProxy) obj;
-        return modelName.equals(that.modelName);
+        return modelName.equals(that.modelName)
+                && Objects.equals(alias, that.alias);
     }
 
     @Override
     public int hashCode() {
-        return modelName.hashCode();
+        return Objects.hash(modelName, alias);
     }
 }

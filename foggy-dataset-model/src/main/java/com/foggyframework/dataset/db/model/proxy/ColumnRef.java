@@ -124,6 +124,28 @@ public class ColumnRef {
     }
 
     /**
+     * 获取带公开表别名的输出引用。
+     *
+     * <p>仅当 QM 作者显式声明 {@code loadTableModel(...).as('alias')} 或
+     * {@code loadTableModel('Model', 'alias')} 时添加前缀；Builder 自动分配的
+     * t1/t2 运行时别名不会进入对外字段名。</p>
+     */
+    public String getQualifiedAliasRef() {
+        String qualifier = tableModelProxy.getPublicQualifier();
+        String aliasRef = getAliasRef();
+        return qualifier == null ? aliasRef : qualifier + "." + aliasRef;
+    }
+
+    /**
+     * 获取带公开表别名的查找引用。
+     */
+    public String getQualifiedLookupRef() {
+        String qualifier = tableModelProxy.getPublicQualifier();
+        String lookupRef = getFullRef();
+        return qualifier == null ? lookupRef : qualifier + "." + lookupRef;
+    }
+
+    /**
      * 获取第一层字段/维度名称（向后兼容）
      *
      * @return 第一层名称

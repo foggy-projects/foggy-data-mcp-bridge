@@ -75,10 +75,10 @@ public class SelectColumnDef {
             return (String) ref;
         }
         if (ref instanceof ColumnRef columnRef) {
-            return columnRef.getDimensionPath().toColumnAlias();
+            return columnRef.getQualifiedAliasRef();
         }
         if (ref instanceof DimensionProxy dimensionProxy) {
-            return dimensionProxy.getDimensionPath().toUnderscoreFormat();
+            return dimensionProxy.getQualifiedAliasPath();
         }
         return ref.toString();
     }
@@ -97,10 +97,10 @@ public class SelectColumnDef {
             return (String) ref;
         }
         if (ref instanceof ColumnRef columnRef) {
-            return columnRef.getDimensionPath().toColumnRef();
+            return columnRef.getQualifiedLookupRef();
         }
         if (ref instanceof DimensionProxy dimensionProxy) {
-            return dimensionProxy.getDimensionPath().toDotFormat();
+            return dimensionProxy.getQualifiedLookupPath();
         }
         return ref.toString();
     }
