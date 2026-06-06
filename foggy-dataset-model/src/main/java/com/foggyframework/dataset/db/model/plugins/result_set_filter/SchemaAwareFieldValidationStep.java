@@ -287,6 +287,13 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         if (schemaFields.contains(field)) {
             return;
         }
+        try {
+            if (queryModel.findJdbcColumnForSelectByName(field, false) != null) {
+                return;
+            }
+        } catch (Exception ignored) {
+            // Keep validation fail-loud below with schema suggestions.
+        }
         List<String> suggestions = suggest(field, schemaFields);
         String modelName = queryModel.getName();
         String message = "Field '" + field + "' not found in model '" + modelName + "'.";

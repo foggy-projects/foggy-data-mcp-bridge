@@ -1,0 +1,66 @@
+/**
+ * 销售事实自连接多别名查询模型
+ *
+ * @caption 销售事实自连接多别名查询
+ * @description 覆盖同一 TableModel 以不同 alias 多次参与 QM v2 join 的公开语法
+ */
+const sales = loadTableModel('FactSalesModel');
+const leftSales = loadTableModel('FactSalesModel').as('leftSales');
+const rightSales = loadTableModel('FactSalesModel', 'rightSales');
+const aggregateSalesByLine = sales
+    .groupBy(sales.orderId, sales.orderLineNo)
+    .as('aggregateSalesByLine');
+
+export const queryModel = {
+    name: 'FactSalesSelfAliasJoinQueryModel',
+    caption: '销售事实自连接多别名查询',
+    description: '同一 FactSalesModel 以 leftSales/rightSales 两个 alias 参与 join',
+    loader: 'v2',
+
+    model: sales,
+
+    joins: [
+        sales.leftJoin(leftSales)
+            .on(sales.orderId, leftSales.orderId)
+            .and(sales.orderLineNo, leftSales.orderLineNo),
+        sales.leftJoin(aggregateSalesByLine)
+            .on(sales.orderId, aggregateSalesByLine.orderId)
+            .and(leftSales.orderLineNo, aggregateSalesByLine.orderLineNo),
+        sales.leftJoin(rightSales)
+            .on(sales.orderId, rightSales.orderId)
+            .gt(rightSales.orderLineNo, leftSales.orderLineNo)
+    ],
+
+    columnGroups: [
+        {
+            caption: '主表字段',
+            items: [
+                { ref: sales.orderId },
+                { ref: sales.orderLineNo }
+            ]
+        },
+        {
+            caption: '左侧别名字段',
+            items: [
+                { ref: leftSales.orderLineNo },
+                { ref: leftSales.salesAmount }
+            ]
+        },
+        {
+            caption: '右侧别名字段',
+            items: [
+                { ref: rightSales.orderLineNo },
+                { ref: rightSales.salesAmount }
+            ]
+        },
+        {
+            caption: '聚合别名字段',
+            items: [
+                { ref: aggregateSalesByLine.orderLineNo },
+                { ref: aggregateSalesByLine.salesAmount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

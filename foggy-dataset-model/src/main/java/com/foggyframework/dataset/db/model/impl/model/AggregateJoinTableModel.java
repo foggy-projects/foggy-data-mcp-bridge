@@ -90,6 +90,11 @@ public class AggregateJoinTableModel extends TableModelSupport {
     }
 
     public static AggregateJoinTableModel from(TableModel sourceModel, AggregateJoinBuilder builder) {
+        return from(sourceModel, builder, List.of());
+    }
+
+    public static AggregateJoinTableModel from(TableModel sourceModel, AggregateJoinBuilder builder,
+                                               Collection<TableModel> visibleLeftModels) {
         return new AggregateJoinTableModel(sourceModel, new AggregateRelationInput(
                 builder.getRight(),
                 builder.getLeft(),
@@ -97,11 +102,17 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 builder.getConditions(),
                 builder.getGroupByColumns(),
                 builder.getMeasures(),
-                builder.getFilters()));
+                builder.getFilters(),
+                buildLeftJoinScopes(builder.getLeft(), visibleLeftModels)));
     }
 
     public static AggregateJoinTableModel from(TableModel sourceModel, AggregateRelationProxy relationProxy,
                                                JoinBuilder joinBuilder) {
+        return from(sourceModel, relationProxy, joinBuilder, List.of());
+    }
+
+    public static AggregateJoinTableModel from(TableModel sourceModel, AggregateRelationProxy relationProxy,
+                                               JoinBuilder joinBuilder, Collection<TableModel> visibleLeftModels) {
         return new AggregateJoinTableModel(sourceModel, new AggregateRelationInput(
                 relationProxy,
                 joinBuilder.getLeft(),
@@ -109,7 +120,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 joinBuilder.getConditions(),
                 relationProxy.getGroupByColumns(),
                 buildDefaultMeasures(sourceModel),
-                relationProxy.getFilters()));
+                relationProxy.getFilters(),
+                buildLeftJoinScopes(joinBuilder.getLeft(), visibleLeftModels)));
     }
 
     public static void setRuntimeFilterContext(ModelResultContext context) {
@@ -155,8 +167,11 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 throw RX.throwAUserTip("aggregate relation on 条件仅支持等值 join key");
             }
             ColumnRef leftRef = condition.getLeft();
-            if (!input.left().getModelName().equals(leftRef.getModelName())) {
-                throw RX.throwAUserTip("aggregate relation on 左侧字段必须来自左表模型: " + input.left().getModelName());
+            if (!isVisibleLeftJoinRef(input, leftRef)) {
+                throw RX.throwAUserTip("aggregate relation on 左侧字段必须来自当前 query graph 已注册左侧模型或别名: "
+                        + input.leftJoinScopes().stream()
+                        .map(JoinLeftScope::displayName)
+                        .collect(Collectors.joining(", ")));
             }
 
             ColumnRef rightRef = condition.getRightAsColumnRef();
@@ -170,6 +185,20 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 throw RX.throwAUserTip("aggregate relation groupBy 必须覆盖右侧 join key: " + rightRef.getFullRef());
             }
         }
+    }
+
+    private boolean isVisibleLeftJoinRef(AggregateRelationInput input, ColumnRef leftRef) {
+        String refAlias = leftRef.getTableAlias();
+        if (refAlias == null || refAlias.isEmpty()) {
+            // Preserve the original shorthand contract for the declared left model.
+            return input.left().getModelName().equals(leftRef.getModelName());
+        }
+        for (JoinLeftScope scope : input.leftJoinScopes()) {
+            if (scope.matches(leftRef.getModelName(), refAlias)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Set<String> columnRefKeys(ColumnRef columnRef) {
@@ -661,6 +690,25 @@ public class AggregateJoinTableModel extends TableModelSupport {
         };
     }
 
+    private static Set<JoinLeftScope> buildLeftJoinScopes(TableModelProxy declaredLeft,
+                                                          Collection<TableModel> visibleLeftModels) {
+        Set<JoinLeftScope> scopes = new LinkedHashSet<>();
+        addLeftJoinScope(scopes, declaredLeft.getModelName(), declaredLeft.getAlias());
+        if (visibleLeftModels != null) {
+            for (TableModel model : visibleLeftModels) {
+                addLeftJoinScope(scopes, model.getName(), model.getAlias());
+            }
+        }
+        return scopes;
+    }
+
+    private static void addLeftJoinScope(Set<JoinLeftScope> scopes, String modelName, String alias) {
+        if (modelName == null || modelName.isEmpty()) {
+            return;
+        }
+        scopes.add(new JoinLeftScope(modelName, alias));
+    }
+
     private record AggregateRelationInput(
             TableModelProxy right,
             TableModelProxy left,
@@ -668,7 +716,21 @@ public class AggregateJoinTableModel extends TableModelSupport {
             List<JoinCondition> conditions,
             List<ColumnRef> groupByColumns,
             List<AggregateJoinBuilder.AggregateMeasure> measures,
-            List<AggregateJoinBuilder.AggregateFilter> filters) {
+            List<AggregateJoinBuilder.AggregateFilter> filters,
+            Set<JoinLeftScope> leftJoinScopes) {
+    }
+
+    private record JoinLeftScope(String modelName, String alias) {
+        boolean matches(String refModelName, String refAlias) {
+            return modelName.equals(refModelName)
+                    && alias != null
+                    && !alias.isEmpty()
+                    && alias.equals(refAlias);
+        }
+
+        String displayName() {
+            return alias == null || alias.isEmpty() ? modelName : modelName + " as " + alias;
+        }
     }
 
     private record OutputColumn(

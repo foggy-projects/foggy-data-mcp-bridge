@@ -489,6 +489,69 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(26)
+    @DisplayName("QM v2 普通 TM 支持同模型多别名 join")
+    @SuppressWarnings("unchecked")
+    void testQmV2SameTableModelMultipleAliases() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesSelfAliasJoinQueryModel");
+        assertNotNull(queryModel.findJdbcColumnForCond("leftSales.orderLineNo", true));
+        assertNotNull(queryModel.findJdbcColumnForCond("rightSales.orderLineNo", true));
+        assertNotNull(queryModel.findJdbcColumnForCond("aggregateSalesByLine.salesAmount", true));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesSelfAliasJoinQueryModel");
+        queryRequest.setColumns(List.of(
+                "orderId",
+                "orderLineNo",
+                "leftSales.orderLineNo",
+                "rightSales.orderLineNo",
+                "aggregateSalesByLine.orderLineNo",
+                "leftSales.salesAmount",
+                "rightSales.salesAmount",
+                "aggregateSalesByLine.salesAmount"
+        ));
+        queryRequest.setSlice(List.of(
+                new SliceRequestDef("leftSales.orderLineNo", "=", 1),
+                new SliceRequestDef("rightSales.orderLineNo", ">", 1)
+        ));
+
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("rightSales.orderLineNo");
+        order.setDir("asc");
+        queryRequest.setOrderBy(List.of(order));
+
+        PagingRequest<DbQueryRequestDef> form = new PagingRequest<>();
+        form.setParam(queryRequest);
+        form.setPageSize(10);
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        assertNotNull(sql);
+        String normalizedSql = sql.replaceAll("\\s+", " ");
+        String lowerSql = normalizedSql.toLowerCase();
+        String aggregateOnCondition = "leftsales.order_line_no = aggregatesalesbyline.orderlineno";
+        int aggregateOnIndex = lowerSql.indexOf(aggregateOnCondition);
+        int whereIndex = lowerSql.indexOf(" where ");
+        assertTrue(aggregateOnIndex >= 0,
+                "聚合 relation ON 应包含已 join RHS alias 字段: " + normalizedSql);
+        assertTrue(whereIndex < 0 || aggregateOnIndex < whereIndex,
+                "聚合 relation 条件必须渲染在 JOIN ON 内，不能提升到 WHERE: " + normalizedSql);
+
+        PagingResultImpl result = queryFacade.queryModelData(form);
+        assertNotNull(result);
+        assertNotNull(result.getItems());
+        assertFalse(result.getItems().isEmpty());
+
+        Map<String, Object> row = (Map<String, Object>) result.getItems().get(0);
+        assertEquals(1, ((Number) valueIgnoreCase(row, "leftSales.orderLineNo")).intValue());
+        assertTrue(((Number) valueIgnoreCase(row, "rightSales.orderLineNo")).intValue() > 1);
+        assertNotNull(valueIgnoreCase(row, "leftSales.salesAmount"));
+        assertNotNull(valueIgnoreCase(row, "rightSales.salesAmount"));
+        assertNotNull(valueIgnoreCase(row, "aggregateSalesByLine.salesAmount"));
+    }
+
+    @Test
     @Order(21)
     @DisplayName("QM 预定义窗口字段 (salesRank)")
     void testQmPredefinedWindowField() {

@@ -182,9 +182,14 @@ public class JoinCondition {
         candidateNames.add(columnRef.getColumnName());
 
         String modelName = columnRef.getModelName();
+        String tableAlias = columnRef.getTableAlias();
         if (queryModel.getJdbcModelList() != null) {
             for (TableModel tableModel : queryModel.getJdbcModelList()) {
                 if (!modelName.equals(tableModel.getName())) {
+                    continue;
+                }
+                if (tableAlias != null && !tableAlias.isEmpty()
+                        && !tableAlias.equals(tableModel.getAlias())) {
                     continue;
                 }
                 for (String candidateName : candidateNames) {

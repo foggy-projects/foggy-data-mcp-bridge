@@ -12,9 +12,12 @@ import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.db.model.impl.AiObject;
+import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
@@ -225,6 +228,59 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             dependsOn = dm;
         }
 
+        @Override
+        public DbColumn findJdbcColumnByName(String jdbcColumName) {
+            if (StringUtils.isEmpty(jdbcColumName)) {
+                return null;
+            }
+            DbColumn cached = name2JdbcColumn.get(jdbcColumName);
+            if (cached != null) {
+                return cached;
+            }
+            DbColumn column = delegate.findJdbcColumnByName(jdbcColumName);
+            if (column == null) {
+                return null;
+            }
+            DbColumn result = shouldAliasColumn(column)
+                    ? new AliasBoundDbColumn(column, getQueryObject())
+                    : column;
+            name2JdbcColumn.put(jdbcColumName, result);
+            return result;
+        }
+
+        private boolean shouldAliasColumn(DbColumn column) {
+            if (column instanceof AggregateRelationOutputColumn) {
+                return false;
+            }
+            return column.getQueryObject() != null
+                    && column.getQueryObject().isRootEqual(delegate.getQueryObject());
+        }
+
+    }
+
+    private static class AliasBoundDbColumn extends DbColumnDelegate {
+
+        private final QueryObject queryObject;
+
+        AliasBoundDbColumn(DbColumn delegate, QueryObject queryObject) {
+            super(delegate);
+            this.queryObject = queryObject;
+        }
+
+        @Override
+        public QueryObject getQueryObject() {
+            return queryObject;
+        }
+
+        @Override
+        public Object getExtData() {
+            return delegate.getExtData();
+        }
+
+        @Override
+        public AiObject getAi() {
+            return delegate.getAi();
+        }
     }
 
     public QueryModelSupport(List<TableModel> jdbcModelList, Fsscript fsscript) {
@@ -232,8 +288,10 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         this.fsscript = fsscript;
         this.jdbcModelList = jdbcModelList;
         for (TableModel model : jdbcModelList) {
-            // 使用 getRoot() 作为规范的 key，所有包装器（如 JdbcModelDx）都会解析到同一个 root
-            name2Alias.put(model.getQueryObject().getRoot(), model.getAlias());
+            // 先注册包装 QueryObject 本身，支持同一 TM 多 alias 的精确匹配。
+            name2Alias.put(model.getQueryObject(), model.getAlias());
+            // root 仅作为旧列对象的回退，不覆盖已存在 root，避免同一 TM 多别名互相覆盖。
+            name2Alias.putIfAbsent(model.getQueryObject().getRoot(), model.getAlias());
         }
     }
 
@@ -263,20 +321,23 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     private JoinGraph buildMergedJoinGraph() {
         JoinGraph baseGraph = jdbcModel.getJoinGraph();
 
-        // 单模型：直接返回（不复制，节省内存）
         if (jdbcModelList == null || jdbcModelList.size() <= 1) {
-            return baseGraph;
+            JoinGraph single = new JoinGraph(jdbcModel.getQueryObject());
+            copyModelJoinGraph(single, jdbcModel, baseGraph);
+            return single;
         }
 
-        // 多模型：复制并合并
-        JoinGraph merged = baseGraph.copy();
+        // 多模型：以 QM 包裹模型的 QueryObject 为根复制并合并。
+        // 底层 TM 的 JoinGraph root 是原始 TM alias；QM v2 多 alias 场景下必须换成包裹 alias。
+        JoinGraph merged = new JoinGraph(jdbcModel.getQueryObject());
+        copyModelJoinGraph(merged, jdbcModel, baseGraph);
 
         for (int i = 1; i < jdbcModelList.size(); i++) {
             TableModel tm = jdbcModelList.get(i);
             JdbcModelDx dx = tm.getDecorate(JdbcModelDx.class);
 
-            // 使用原始 delegate 的 QueryObject（与度量列的 QueryObject 的 alias 匹配）
-            QueryObject targetQueryObject = dx.getDelegate().getQueryObject();
+            // 使用 JdbcModelDx 的 alias 专属 QueryObject，支持同一 TM 多别名。
+            QueryObject targetQueryObject = dx.getQueryObject();
 
             // 确定 FROM 表：优先使用 dependsOn，否则使用主模型的 root
             QueryObject fromQueryObject = (dx.getDependsOn() != null)
@@ -295,11 +356,7 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             // 添加次模型的维度边
             JoinGraph secondaryGraph = tm.getJoinGraph();
             if (secondaryGraph != null) {
-                for (JoinEdge edge : secondaryGraph.getAllEdges()) {
-                    merged.addEdge(edge.getFrom(), edge.getTo(),
-                            edge.getForeignKey(), edge.getOnBuilder(),
-                            edge.getJoinType());
-                }
+                copyModelJoinGraph(merged, tm, secondaryGraph);
             }
         }
 
@@ -309,6 +366,32 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         }
 
         return merged;
+    }
+
+    private void copyModelJoinGraph(JoinGraph targetGraph, TableModel model, JoinGraph sourceGraph) {
+        if (sourceGraph == null) {
+            return;
+        }
+        QueryObject originalRoot = sourceGraph.getRoot();
+        QueryObject aliasRoot = model.getQueryObject();
+        for (JoinEdge edge : sourceGraph.getAllEdges()) {
+            targetGraph.addEdge(
+                    rebindRootQueryObject(edge.getFrom(), originalRoot, aliasRoot),
+                    rebindRootQueryObject(edge.getTo(), originalRoot, aliasRoot),
+                    edge.getForeignKey(),
+                    edge.getOnBuilder(),
+                    edge.getJoinType());
+        }
+    }
+
+    private QueryObject rebindRootQueryObject(QueryObject queryObject, QueryObject originalRoot, QueryObject aliasRoot) {
+        if (queryObject == null || originalRoot == null || aliasRoot == null) {
+            return queryObject;
+        }
+        if (StringUtils.equals(queryObject.getAlias(), originalRoot.getAlias())) {
+            return aliasRoot;
+        }
+        return queryObject;
     }
 
 
@@ -619,7 +702,16 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             return cond.getColumn();
         }
 
-        DbColumn jdbcColumn = null;
+        DbQueryColumn qc = this.nameToJdbcQueryColumn.get(condColumnName);
+        if (qc != null) {
+            return qc.getSelectColumn();
+        }
+
+        DbColumn jdbcColumn = findAliasQualifiedJdbcColumn(condColumnName);
+        if (jdbcColumn != null) {
+            return jdbcColumn;
+        }
+
         for (TableModel model : this.jdbcModelList) {
             jdbcColumn = model.findJdbcColumnByName(condColumnName);
             if (jdbcColumn != null) {
@@ -632,10 +724,6 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
                 if (model.isDeprecated(condColumnName)) {
                     return null;
                 }
-            }
-            DbQueryColumn qc = this.nameToJdbcQueryColumn.get(condColumnName);
-            if (qc != null) {
-                return qc.getSelectColumn();
             }
 
             if (errorIfNotFound) {
@@ -668,6 +756,10 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             }
         }
 
+        DbColumn aliasQualifiedColumn = findAliasQualifiedJdbcColumn(jdbcColumName);
+        if (aliasQualifiedColumn != null) {
+            return new DbQueryColumnImpl(aliasQualifiedColumn, jdbcColumName, aliasQualifiedColumn.getCaption(), jdbcColumName);
+        }
 
         /**
          * end ***************************
@@ -701,7 +793,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     @Override
     public DbColumn findJdbcColumn(String name) {
 
-        DbColumn jdbcColumn = null;
+        DbColumn jdbcColumn = findAliasQualifiedJdbcColumn(name);
+        if (jdbcColumn != null) {
+            return jdbcColumn;
+        }
+
         for (TableModel model : this.jdbcModelList) {
             jdbcColumn = model.findJdbcColumnByName(name);
             if (jdbcColumn != null) {
@@ -714,7 +810,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     @Override
     public DbDimension findDimension(String name) {
 
-        DbDimension dimension = null;
+        DbDimension dimension = findAliasQualifiedDimension(name);
+        if (dimension != null) {
+            return dimension;
+        }
+
         for (TableModel model : this.jdbcModelList) {
             dimension = model.findJdbcDimensionByName(name);
             if (dimension != null) {
@@ -723,6 +823,61 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         }
 
         return dimension;
+    }
+
+    private DbColumn findAliasQualifiedJdbcColumn(String fieldName) {
+        AliasQualifiedName qualifiedName = parseAliasQualifiedName(fieldName);
+        if (qualifiedName == null) {
+            return null;
+        }
+        for (TableModel model : this.jdbcModelList) {
+            if (!StringUtils.equals(model.getAlias(), qualifiedName.alias())) {
+                continue;
+            }
+            DbColumn column = model.findJdbcColumnByName(qualifiedName.field());
+            if (column != null) {
+                return column;
+            }
+        }
+        return null;
+    }
+
+    private DbDimension findAliasQualifiedDimension(String fieldName) {
+        AliasQualifiedName qualifiedName = parseAliasQualifiedName(fieldName);
+        if (qualifiedName == null) {
+            return null;
+        }
+        for (TableModel model : this.jdbcModelList) {
+            if (!StringUtils.equals(model.getAlias(), qualifiedName.alias())) {
+                continue;
+            }
+            DbDimension dimension = model.findJdbcDimensionByName(qualifiedName.field());
+            if (dimension != null) {
+                return dimension;
+            }
+        }
+        return null;
+    }
+
+    private AliasQualifiedName parseAliasQualifiedName(String fieldName) {
+        if (StringUtils.isEmpty(fieldName)) {
+            return null;
+        }
+        int dotIndex = fieldName.indexOf('.');
+        if (dotIndex <= 0 || dotIndex >= fieldName.length() - 1) {
+            return null;
+        }
+        String alias = fieldName.substring(0, dotIndex);
+        String field = fieldName.substring(dotIndex + 1);
+        for (TableModel model : this.jdbcModelList) {
+            if (StringUtils.equals(model.getAlias(), alias)) {
+                return new AliasQualifiedName(alias, field);
+            }
+        }
+        return null;
+    }
+
+    private record AliasQualifiedName(String alias, String field) {
     }
 
     @Override
@@ -857,8 +1012,12 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         if (name2Alias == null) {
             return queryObject.getAlias();
         }
-        // 使用 getRoot() 作为 key 查找，与注册时保持一致
-        String alias = name2Alias.get(queryObject.getRoot());
+        String alias = name2Alias.get(queryObject);
+        if (StringUtils.isNotEmpty(alias)) {
+            return alias;
+        }
+        // 使用 root 作为旧列对象回退；同 TM 多别名必须走包装 QueryObject 精确匹配。
+        alias = name2Alias.get(queryObject.getRoot());
         return StringUtils.isNotEmpty(alias) ? alias : queryObject.getAlias();
     }
 
