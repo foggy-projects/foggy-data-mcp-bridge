@@ -71,7 +71,8 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertFalse(normalizedSql.contains("count(distinct"), "未请求的 COUNT DISTINCT 聚合不应进入 RHS SELECT");
         assertTrue(normalizedSql.contains("group by"), "右侧子查询应包含 GROUP BY");
         assertTrue(normalizedSql.contains("fact_sales"), "右侧子查询应读取销售明细表");
-        assertTrue(sql.contains("agg_src.order_status = 'COMPLETED'"), "右侧固定 slice 应在聚合前下推");
+        assertTrue(sql.contains("agg_src.order_status = ?"), "右侧固定 slice 应在聚合前下推并使用参数绑定");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧固定 slice 参数应进入查询参数列表");
         assertTrue(sql.contains("order_id"), "JOIN ON 应使用订单物理列");
         assertFalse(sql.contains(".salesAmount"), "SQL 不应直接使用语义字段 salesAmount");
 
@@ -93,7 +94,8 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertTrue(sql.contains("count(distinct agg_src.customer_key) uniqueCustomers"), "COUNT_DISTINCT measure 应按 TM 聚合元数据渲染");
         assertFalse(sql.contains("sum(agg_src.quantity) quantity"), "未请求的 aggregate relation measure 不应进入 RHS SELECT");
         assertFalse(sql.contains("sum(agg_src.unit_price) unitPrice"), "未请求的 aggregate relation measure 不应进入 RHS SELECT");
-        assertTrue(sql.contains("agg_src.order_status = 'COMPLETED'"), "右侧 fixed slice 应在聚合前下推");
+        assertTrue(sql.contains("agg_src.order_status = ?"), "右侧 fixed slice 应在聚合前下推并使用参数绑定");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(normalizedSql.contains("group by"), "右侧子查询应包含 GROUP BY");
         assertTrue(sql.contains("fsByOrder"), "aggregate relation 应保留模型作者声明的 relation alias");
 
@@ -144,12 +146,13 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
         String sql = queryEngine.getSql();
         String normalizedSql = normalizeSql(sql);
-        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > 0"),
+        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
                 "右侧聚合子查询应包含 measure HAVING 下推");
         assertTrue(normalizedSql.contains("fsByOrder.salesAmount >?"),
                 "外层 WHERE 应保留 aggregate relation measure 条件以保持 LEFT 语义");
-        assertEquals(1, queryEngine.getValues().size(), "外层条件仍应使用参数化绑定");
-        assertEquals(0, new BigDecimal(String.valueOf(queryEngine.getValues().get(0))).compareTo(BigDecimal.ZERO));
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧 fixed slice 参数应进入查询参数列表");
+        assertTrue(countBigDecimalValues(queryEngine.getValues(), BigDecimal.ZERO) >= 2,
+                "RHS HAVING 与外层 WHERE 都应使用参数化绑定");
     }
 
     @Test
@@ -164,8 +167,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
             String body = ((DbColumn) groupKey).getQueryObject().getBody();
             String normalizedBody = normalizeSql(body);
-            assertTrue(normalizedBody.contains("where agg_src.order_status = 'COMPLETED' and agg_src.order_id = '" + orderId + "'"),
+            assertTrue(normalizedBody.contains("where agg_src.order_status = ? and agg_src.order_id = ?"),
                     "aggregate relation group key 条件应进入右侧聚合前 WHERE");
+            assertEquals(List.of("COMPLETED", orderId), ((DbColumn) groupKey).getQueryObject().getBodyParameters(),
+                    "aggregate relation body 参数应按 RHS SQL 占位符顺序输出");
             assertFalse(normalizedBody.contains("having"), "group key 条件不应进入 HAVING");
         } finally {
             ((AggregateRelationQueryObject) ((DbColumn) groupKey).getQueryObject()).clearAggregateRelationPushdowns();
@@ -179,8 +184,9 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(orderId);
 
         String sql = queryEngine.getSql();
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "左侧 join key 条件应复制到右侧聚合前 WHERE，限制 RHS key domain");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(queryEngine.getValues().contains(orderId), "外层 WHERE 仍应保留参数化 join key 条件");
     }
 
@@ -282,7 +288,7 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 queryEngine.getSql(),
                 queryEngine.getValues().toArray());
         assertEquals(0, rows.size(), "aggregate measure slice 保留外层 WHERE 后，无右侧聚合结果的 LEFT 行应被过滤");
-        assertTrue(normalizeSql(queryEngine.getSql()).contains("having sum(agg_src.sales_amount) > 0"),
+        assertTrue(normalizeSql(queryEngine.getSql()).contains("having sum(agg_src.sales_amount) > ?"),
                 "右侧 HAVING 下推不应替代外层 WHERE");
     }
 
@@ -298,8 +304,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
         String sql = queryEngine.getSql();
 
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "system_slice 中的左侧 join key 应复制到右侧聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"),
+                "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(queryEngine.getValues().contains(orderId),
                 "外层 WHERE 仍应保留 system_slice 参数化条件");
 
@@ -370,8 +378,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         DbQueryResult result = queryFacade.queryModelResult(context);
         JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
         String sql = normalizeSql(queryEngine.getSql());
-        assertTrue(sql.contains("having sum(agg_src.sales_amount) > 0"),
+        assertTrue(sql.contains("having sum(agg_src.sales_amount) > ?"),
                 "system_slice 中的 aggregate relation measure 应保留 RHS HAVING 下推");
+        assertTrue(countBigDecimalValues(queryEngine.getValues(), BigDecimal.ZERO) >= 2,
+                "RHS HAVING 与外层 WHERE 都应使用参数化绑定");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
@@ -390,8 +400,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 orderId);
 
         String sql = queryEngine.getSql();
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
-                "RHS 运行期 filter 应在聚合前 WHERE 渲染为受控字面量");
+        assertTrue(sql.contains("agg_src.order_id = ?"),
+                "RHS 运行期 filter 应在聚合前 WHERE 渲染为参数化条件");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "RHS 运行期 filter 参数应进入查询参数列表");
         assertFalse(sql.contains("ctx.extData"), "SQL 不应泄漏运行期函数源码");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
@@ -418,8 +430,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "summary columns 不引用 RHS 字段时，slice 引用 RHS alias 仍应保留 LEFT JOIN");
         assertTrue(normalizedSql.contains("fsByPaymentMethod"),
                 "aggregate relation alias 应保留在外层 SQL 中");
-        assertTrue(normalizedSql.contains("agg_src.payment_method = 'CREDIT_CARD'"),
+        assertTrue(normalizedSql.contains("agg_src.payment_method = ?"),
                 "RHS runtime filter 应保留在聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("CREDIT_CARD"),
+                "RHS runtime filter 参数应进入查询参数列表");
         assertFalse(normalizedSql.contains("agg_src.payment_method is null"),
                 "外层 RHS alias is null slice 不应复制到 RHS 聚合子查询内部");
         assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is null"),
@@ -434,8 +448,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         String normalizedSql = normalizeSql(queryEngine.getSql());
         assertTrue(normalizedSql.contains("left join (select"),
                 "slice 引用 RHS alias 时应保留 LEFT JOIN");
-        assertTrue(normalizedSql.contains("agg_src.payment_method = 'CREDIT_CARD'"),
+        assertTrue(normalizedSql.contains("agg_src.payment_method = ?"),
                 "RHS runtime filter 应保留在聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("CREDIT_CARD"),
+                "RHS runtime filter 参数应进入查询参数列表");
         assertFalse(normalizedSql.contains("agg_src.payment_method is not null"),
                 "外层 RHS alias is not null slice 不应复制到 RHS 聚合子查询内部");
         assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is not null"),
@@ -471,8 +487,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationAccessQuery();
 
         String sql = queryEngine.getSql();
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "accessBuilder 追加的左侧 join key 守卫应复制到 RHS 聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"),
+                "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(queryEngine.getValues().contains(orderId),
                 "外层 WHERE 仍应保留 accessBuilder 参数化条件");
 
@@ -499,8 +517,6 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         String normalizedSql = normalizeSql(queryEngine.getSql());
         assertTrue(normalizedSql.contains("t1.order_id = ?"),
                 "raw SQL accessBuilder 条件应保留在外层 WHERE");
-        assertFalse(normalizedSql.contains("agg_src.order_id = '" + orderId + "'"),
-                "raw SQL accessBuilder 条件不应被解析为 RHS 聚合前 WHERE 字面量");
         assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
                 "raw SQL accessBuilder 条件不应被复制为 RHS 聚合前 WHERE 参数条件");
         assertTrue(normalizedSql.contains("sum(agg_src.quantity) quantity"),
@@ -827,8 +843,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "三键 aggregate relation 应正常渲染");
         assertTrue(normalizedSql.contains("agg_src"),
                 "RHS 聚合子查询应正常渲染");
-        assertTrue(normalizedSql.contains("status = 'ACTIVE'") || normalizedSql.contains("status='ACTIVE'"),
+        assertTrue(normalizedSql.contains("status = ?") || normalizedSql.contains("status=?"),
                 "RHS 维度字段固定过滤应进入聚合前过滤");
+        assertTrue(queryEngine.getValues().contains("ACTIVE"),
+                "RHS 维度字段固定过滤参数应进入查询参数列表");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
@@ -869,8 +887,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "三键 aggregate relation 应正常渲染");
         assertTrue(normalizedSql.contains("left join dim_store"),
                 "主查询和 RHS 子查询涉及的维表 join 均应可解析");
-        assertTrue(normalizedSql.contains("status = 'ACTIVE'") || normalizedSql.contains("status='ACTIVE'"),
+        assertTrue(normalizedSql.contains("status = ?") || normalizedSql.contains("status=?"),
                 "RHS 内部维表过滤应进入聚合前过滤");
+        assertTrue(queryEngine.getValues().contains("ACTIVE"),
+                "RHS 内部维表过滤参数应进入查询参数列表");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
@@ -926,8 +946,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "RHS 维度字段 fixed filter 应在 aggregate derived table 内补齐右侧维表 JOIN");
         assertFalse(sql.contains("agg_src.category_id"),
                 "RHS 维度字段不应被错误渲染为 RHS 根表物理列");
-        assertTrue(sql.contains("category_id = 'CAT001'") || sql.contains("category_id='CAT001'"),
+        assertTrue(sql.contains("category_id = ?") || sql.contains("category_id=?"),
                 "RHS fixed filter 应使用右侧维表物理列表达式");
+        assertTrue(queryEngine.getValues().contains("CAT001"),
+                "RHS fixed filter 参数应进入查询参数列表");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 sql,
@@ -956,10 +978,12 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
         String sql = queryEngine.getSql();
         String normalizedSql = normalizeSql(sql);
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "左侧 join key 条件应进入 RHS WHERE，降低右侧聚合 key domain");
-        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > 0"),
+        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
                 "aggregate measure 条件应进入 RHS HAVING");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "RHS join key 参数应进入查询参数列表");
 
         List<Map<String, Object>> planRows = explainQueryPlan(sql, queryEngine.getValues());
         assertFalse(planRows.isEmpty(), "当前数据库应返回 EXPLAIN 执行计划");
@@ -1280,6 +1304,23 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
     private String normalizeSql(String sql) {
         return sql.replaceAll("\\s+", " ").trim();
+    }
+
+    private long countBigDecimalValues(List<Object> values, BigDecimal expected) {
+        return values.stream()
+                .filter(this::isNumericValue)
+                .filter(value -> new BigDecimal(String.valueOf(value)).compareTo(expected) == 0)
+                .count();
+    }
+
+    private boolean isNumericValue(Object value) {
+        if (value instanceof Number) {
+            return true;
+        }
+        if (value instanceof CharSequence text) {
+            return text.toString().matches("-?\\d+(\\.\\d+)?");
+        }
+        return false;
     }
 
     private BigDecimal money(Object value) {

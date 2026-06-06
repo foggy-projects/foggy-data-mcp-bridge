@@ -6,6 +6,8 @@ import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 
+import java.util.List;
+
 //interval expression
 public class QueryObjectDelegate extends AbstractDelegateDecorate<QueryObject> implements QueryObject {
     public QueryObjectDelegate(QueryObject delegate) {
@@ -28,6 +30,11 @@ public class QueryObjectDelegate extends AbstractDelegateDecorate<QueryObject> i
     @Override
     public String getBody() {
         return delegate.getBody();
+    }
+
+    @Override
+    public List<Object> getBodyParameters() {
+        return delegate.getBodyParameters();
     }
 
     @Override
