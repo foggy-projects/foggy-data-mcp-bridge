@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
@@ -81,6 +82,9 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         out.add(flatRowsCase());
         out.add(flatRowsColumnsCase());
         out.add(gridRowsColumnsCase());
+        out.add(flatRowsGrandTotalCase());
+        out.add(flatRowsColumnsGrandTotalCase());
+        out.add(gridRowsColumnsGrandTotalCase());
         return out;
     }
 
@@ -147,6 +151,85 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         c.put("type", "grid-output");
         c.put("request", requestContract("grid",
                 List.of("product$categoryName"), List.of("salesDate$year"), List.of("salesAmount")));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
+    private Map<String, Object> flatRowsGrandTotalCase() {
+        PivotRequest pivot = pivot("flat",
+                List.of(axis("product$categoryName")),
+                null,
+                List.of("salesAmount"),
+                grandTotalOptions());
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), false);
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "sales", 200),
+                row("category", "Align-Electronics", "sales", 150),
+                row("category", "GRAND_TOTAL", "sales", 350)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-flat-rows-grand-total");
+        c.put("type", "flat-output");
+        c.put("request", requestContract("flat",
+                List.of("product$categoryName"), List.of(), List.of("salesAmount"),
+                row("grandTotal", true)));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
+    private Map<String, Object> flatRowsColumnsGrandTotalCase() {
+        PivotRequest pivot = pivot("flat",
+                List.of(axis("product$categoryName")),
+                List.of(axis("salesDate$year")),
+                List.of("salesAmount"),
+                grandTotalOptions());
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), true);
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "year", 2098, "sales", 200),
+                row("category", "Align-Electronics", "year", 2099, "sales", 150),
+                row("category", "GRAND_TOTAL", "year", 2098, "sales", 200),
+                row("category", "GRAND_TOTAL", "year", 2099, "sales", 150)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-flat-rows-columns-grand-total");
+        c.put("type", "flat-output");
+        c.put("request", requestContract("flat",
+                List.of("product$categoryName"), List.of("salesDate$year"), List.of("salesAmount"),
+                row("grandTotal", true)));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
+    private Map<String, Object> gridRowsColumnsGrandTotalCase() {
+        PivotRequest pivot = pivot("grid",
+                List.of(axis("product$categoryName")),
+                List.of(axis("salesDate$year")),
+                List.of("salesAmount"),
+                grandTotalOptions());
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalGridCells(response.getItems());
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "year", 2098, "metric", "salesAmount", "value", 200),
+                row("category", "Align-Clothing", "year", 2099, "metric", "salesAmount", "value", null),
+                row("category", "Align-Electronics", "year", 2098, "metric", "salesAmount", "value", null),
+                row("category", "Align-Electronics", "year", 2099, "metric", "salesAmount", "value", 150),
+                row("category", "GRAND_TOTAL", "year", 2098, "metric", "salesAmount", "value", 200),
+                row("category", "GRAND_TOTAL", "year", 2099, "metric", "salesAmount", "value", 150)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-grid-rows-columns-grand-total");
+        c.put("type", "grid-output");
+        c.put("request", requestContract("grid",
+                List.of("product$categoryName"), List.of("salesDate$year"), List.of("salesAmount"),
+                row("grandTotal", true)));
         c.put("javaCanonical", actual);
         return c;
     }
@@ -278,11 +361,23 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
             List<String> rows,
             List<String> columns,
             List<String> metrics) {
+        return requestContract(outputFormat, rows, columns, metrics, null);
+    }
+
+    private Map<String, Object> requestContract(
+            String outputFormat,
+            List<String> rows,
+            List<String> columns,
+            List<String> metrics,
+            Map<String, Object> options) {
         Map<String, Object> request = ordered();
         request.put("outputFormat", outputFormat);
         request.put("rows", rows);
         request.put("columns", columns);
         request.put("metrics", metrics);
+        if (options != null) {
+            request.put("options", options);
+        }
         request.put("slice", List.of(row("field", "orderStatus", "op", "=", "value", STATUS)));
         return request;
     }
@@ -292,12 +387,28 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
             List<AxisField> rows,
             List<AxisField> columns,
             List<String> metrics) {
+        return pivot(outputFormat, rows, columns, metrics, null);
+    }
+
+    private PivotRequest pivot(
+            String outputFormat,
+            List<AxisField> rows,
+            List<AxisField> columns,
+            List<String> metrics,
+            PivotOptions options) {
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(rows);
         pivot.setColumns(columns);
         pivot.setMetrics(metrics);
         pivot.setOutputFormat(outputFormat);
+        pivot.setOptions(options);
         return pivot;
+    }
+
+    private PivotOptions grandTotalOptions() {
+        PivotOptions options = new PivotOptions();
+        options.setGrandTotal(true);
+        return options;
     }
 
     private AxisField axis(String field) {
