@@ -90,6 +90,8 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         out.add(gridRowsColumnsSubtotalsGrandTotalCase());
         out.add(flatRowsParentShareCase());
         out.add(gridRowsColumnsParentShareCase());
+        out.add(flatRowsColumnsBaselineRatioFirstCase());
+        out.add(gridRowsColumnsBaselineRatioLastCase());
         return out;
     }
 
@@ -387,6 +389,63 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         return c;
     }
 
+    private Map<String, Object> flatRowsColumnsBaselineRatioFirstCase() {
+        PivotRequest pivot = pivotItems("flat",
+                List.of(axis("product$categoryName")),
+                List.of(axis("salesDate$year")),
+                List.of(PivotMetricItem.ofNative("salesAmount"),
+                        baselineRatioMetric("index", "salesAmount", "first")));
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalFlatRows(
+                response.getItems(), true, false, List.of("index"));
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "year", 2098, "sales", 200, "index", 1),
+                row("category", "Align-Electronics", "year", 2099, "sales", 200, "index", null)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-flat-rows-columns-baseline-ratio-first");
+        c.put("type", "flat-output");
+        c.put("request", requestContract("flat",
+                List.of("product$categoryName"),
+                List.of("salesDate$year"),
+                List.of("salesAmount", baselineRatioContract("index", "salesAmount", "first"))));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
+    private Map<String, Object> gridRowsColumnsBaselineRatioLastCase() {
+        PivotRequest pivot = pivotItems("grid",
+                List.of(axis("product$categoryName")),
+                List.of(axis("salesDate$year")),
+                List.of(PivotMetricItem.ofNative("salesAmount"),
+                        baselineRatioMetric("indexLast", "salesAmount", "last")));
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalGridCells(response.getItems(), false);
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "year", 2098, "metric", "indexLast", "value", null),
+                row("category", "Align-Clothing", "year", 2098, "metric", "salesAmount", "value", 200),
+                row("category", "Align-Clothing", "year", 2099, "metric", "indexLast", "value", null),
+                row("category", "Align-Clothing", "year", 2099, "metric", "salesAmount", "value", null),
+                row("category", "Align-Electronics", "year", 2098, "metric", "indexLast", "value", null),
+                row("category", "Align-Electronics", "year", 2098, "metric", "salesAmount", "value", null),
+                row("category", "Align-Electronics", "year", 2099, "metric", "indexLast", "value", 1),
+                row("category", "Align-Electronics", "year", 2099, "metric", "salesAmount", "value", 200)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-grid-rows-columns-baseline-ratio-last");
+        c.put("type", "grid-output");
+        c.put("request", requestContract("grid",
+                List.of("product$categoryName"),
+                List.of("salesDate$year"),
+                List.of("salesAmount", baselineRatioContract("indexLast", "salesAmount", "last"))));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
     private SemanticQueryResponse execute(PivotRequest pivot) {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
@@ -411,6 +470,18 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
             boolean includeYear,
             boolean includeSubcategory,
             boolean includeShare) {
+        return canonicalFlatRows(
+                items,
+                includeYear,
+                includeSubcategory,
+                includeShare ? List.of("share") : List.of());
+    }
+
+    private List<Map<String, Object>> canonicalFlatRows(
+            List<Map<String, Object>> items,
+            boolean includeYear,
+            boolean includeSubcategory,
+            List<String> extraMetrics) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> item : items) {
             Map<String, Object> row = ordered();
@@ -422,8 +493,8 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                 row.put("year", normalizeNumber(pick(item, "salesDate$year", "年")));
             }
             row.put("sales", normalizeNumber(pick(item, "salesAmount", "销售金额")));
-            if (includeShare) {
-                row.put("share", normalizeNumber(pick(item, "share")));
+            for (String metric : extraMetrics) {
+                row.put(metric, normalizeNumber(pick(item, metric)));
             }
             out.add(row);
         }
@@ -623,8 +694,22 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         return item;
     }
 
+    private PivotMetricItem baselineRatioMetric(String name, String of, String baseline) {
+        PivotMetricItem item = new PivotMetricItem();
+        item.setName(name);
+        item.setType("baselineRatio");
+        item.setOf(of);
+        item.setAxis("columns");
+        item.setBaseline(baseline);
+        return item;
+    }
+
     private Map<String, Object> parentShareContract(String name, String of) {
         return row("name", name, "type", "parentShare", "of", of);
+    }
+
+    private Map<String, Object> baselineRatioContract(String name, String of, String baseline) {
+        return row("name", name, "type", "baselineRatio", "of", of, "axis", "columns", "baseline", baseline);
     }
 
     private PivotOptions grandTotalOptions() {
