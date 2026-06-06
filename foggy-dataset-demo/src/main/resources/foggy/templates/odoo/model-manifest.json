@@ -1,0 +1,21 @@
+{
+  "models": [
+    { "name": "OdooAccountMoveLineModel", "edition": "community" },
+    { "name": "OdooAccountMoveModel", "edition": "community" },
+    { "name": "OdooAccountPaymentBillMatchModel", "edition": "community" },
+    { "name": "OdooAccountPaymentModel", "edition": "community" },
+    { "name": "OdooCrmLeadModel", "edition": "community" },
+    { "name": "OdooHrEmployeeModel", "edition": "community" },
+    { "name": "OdooMrpProductionModel", "edition": "pro" },
+    { "name": "OdooProductTemplateModel", "edition": "community" },
+    { "name": "OdooProjectTaskModel", "edition": "pro" },
+    { "name": "OdooPurchaseDocumentFlowModel", "edition": "community" },
+    { "name": "OdooPurchaseOrderModel", "edition": "community" },
+    { "name": "OdooResCompanyModel", "edition": "community" },
+    { "name": "OdooResPartnerModel", "edition": "community" },
+    { "name": "OdooSaleDocumentFlowModel", "edition": "community" },
+    { "name": "OdooSaleOrderLineModel", "edition": "community" },
+    { "name": "OdooSaleOrderModel", "edition": "community" },
+    { "name": "OdooStockPickingModel", "edition": "community" }
+  ]
+}

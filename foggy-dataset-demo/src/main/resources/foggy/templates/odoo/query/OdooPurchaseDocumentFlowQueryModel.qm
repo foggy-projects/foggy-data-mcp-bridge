@@ -1,0 +1,78 @@
+/**
+ * Odoo Purchase Document Flow Query Model
+ *
+ * @caption Purchase Cross-Document Flow Analysis
+ * @description Query explicit purchase-order to receipt to vendor-bill flows.
+ */
+const pdf = loadTableModel('OdooPurchaseDocumentFlowModel');
+
+export const queryModel = {
+    name: 'OdooPurchaseDocumentFlowQueryModel',
+    caption: 'Purchase Cross-Document Flow Analysis',
+    description: 'Analyze purchase cross-document flows that connect purchase orders, inbound receipts, '
+        + 'and vendor bills. Use this model when the question asks which receipt or vendor bill belongs '
+        + 'to a purchase order, or asks for received-but-open payable flows.',
+    loader: 'v2',
+
+    model: pdf,
+
+    columnGroups: [
+        {
+            caption: 'Flow',
+            items: [
+                { ref: pdf.id },
+                { ref: pdf.flowStatus },
+                { ref: pdf.receiptStatus },
+                { ref: pdf.billingStatus },
+                { ref: pdf.paymentState },
+                { ref: pdf.flowCount }
+            ]
+        },
+        {
+            caption: 'Purchase Order',
+            items: [
+                { ref: pdf.purchaseOrder },
+                { ref: pdf.purchaseOrder$state },
+                { ref: pdf.purchaseOrder$invoiceStatus },
+                { ref: pdf.purchaseOrder$dateOrder },
+                { ref: pdf.purchaseOrder$dateApprove },
+                { ref: pdf.purchaseOrder$amountTotal },
+                { ref: pdf.vendor }
+            ]
+        },
+        {
+            caption: 'Receipt',
+            items: [
+                { ref: pdf.receiptPicking },
+                { ref: pdf.receiptPicking$state },
+                { ref: pdf.receiptPicking$origin },
+                { ref: pdf.receiptPicking$scheduledDate },
+                { ref: pdf.receiptPicking$dateDone }
+            ]
+        },
+        {
+            caption: 'Vendor Bill',
+            items: [
+                { ref: pdf.billMove },
+                { ref: pdf.billMove$moveType },
+                { ref: pdf.billMove$state },
+                { ref: pdf.billMove$paymentState },
+                { ref: pdf.billMove$invoiceOrigin },
+                { ref: pdf.billMove$invoiceDate },
+                { ref: pdf.billMove$invoiceDateDue },
+                { ref: pdf.billMove$amountTotal },
+                { ref: pdf.billMove$amountResidual }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: pdf.orderedAmount },
+                { ref: pdf.billedAmount },
+                { ref: pdf.billResidual }
+            ]
+        }
+    ],
+
+    accesses: []
+};

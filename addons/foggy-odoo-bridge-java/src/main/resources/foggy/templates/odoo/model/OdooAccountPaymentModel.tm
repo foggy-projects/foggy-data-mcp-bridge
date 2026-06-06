@@ -24,22 +24,9 @@ export const model = {
             caption: 'Journal Entry',
             description: 'Linked journal entry',
             properties: [
+                { column: 'company_id', caption: 'Company ID', type: 'INTEGER' },
                 { column: 'date', caption: 'Accounting Date', type: 'DAY',
-                  timeRole: 'business_date',
-                  recommendedUse: 'Primary payment business date for payment trend and period pivot queries.',
-                  description: 'Canonical payment business date (回款入账日期) from the linked journal entry (account_move.date). '
-                      + 'For customer collection / 回款 amount queries: filter by move$date with an absolute date range slice, '
-                      + 'e.g. {"field": "move$date", "op": "[]", "value": ["2026-05-01", "2026-05-31"]}. '
-                      + 'IMPORTANT CONSTRAINTS — DO NOT VIOLATE: '
-                      + '(1) For current-month vs prior-month AR-011 style comparisons, prefer explicit absolute '
-                      + 'date ranges on move$date; timeWindow.field=move$date is only valid where the engine exposes '
-                      + 'this property-level business date as a time field and the requested mode does not require '
-                      + 'missing calendar grain aliases. '
-                      + '(2) Do NOT invent date-grain suffix fields like move$date$year or move$date$month — '
-                      + 'no calendar dimension alias exists for move$date; those fields do not exist. '
-                      + '(3) Do NOT use createDate as the payment business date — createDate is the system record '
-                      + 'creation timestamp, not the accounting entry date. '
-                      + 'Use createDate only when the user explicitly asks about record creation time.' },
+                  timeRole: 'business_date', recommendedUse: 'Primary payment business date for payment trend and period pivot queries.' },
                 { column: 'state', caption: 'Entry Status', type: 'STRING' }
             ]
         },

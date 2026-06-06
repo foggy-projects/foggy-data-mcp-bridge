@@ -114,25 +114,6 @@ export const model = {
             captionColumn: 'name',
             caption: 'Currency',
             description: 'Line currency'
-        },
-        {
-            name: 'invoiceDate',
-            tableName: 'dim_date',
-            foreignKey: 'invoice_date',
-            primaryKey: 'full_date',
-            captionColumn: 'year_month',
-            caption: 'Invoice Date',
-            description: 'Calendar dimension for the account.move.line invoice_date field.',
-            type: 'DATE',
-            properties: [
-                { column: 'year', caption: 'Invoice Year', type: 'INTEGER' },
-                { column: 'quarter', caption: 'Invoice Quarter', type: 'INTEGER' },
-                { column: 'month', caption: 'Invoice Month', type: 'INTEGER' },
-                { column: 'week_of_year', name: 'week', caption: 'Invoice Week', type: 'INTEGER' },
-                { column: 'day_of_month', name: 'dayOfMonth', caption: 'Invoice Day of Month', type: 'INTEGER' },
-                { column: 'year_month', name: 'yearMonth', caption: 'Invoice Year-Month', type: 'STRING' },
-                { column: 'year_quarter', name: 'yearQuarter', caption: 'Invoice Year-Quarter', type: 'STRING' }
-            ]
         }
     ],
 
@@ -173,9 +154,10 @@ export const model = {
         { column: 'amount_currency', caption: 'Amount in Currency', type: 'MONEY', aggregation: 'sum' },
         { column: 'amount_residual', caption: 'Residual Amount', type: 'MONEY', aggregation: 'sum',
           description: 'Outstanding balance on this line in company currency. Positive for both '
-              + 'AR and AP while unpaid; drops to 0 once reconciled. The canonical AR "open '
-              + 'balance" measure. Combine with parent_state=posted and move.payment_state in '
-              + '(not_paid, partial, in_payment) to compute AR outstanding / overdue totals.' },
+              + 'AR and AP while unpaid; drops to 0 once reconciled. The canonical AR/AP "open '
+              + 'balance" measure. Combine with parent_state=posted, move.move_type, and '
+              + 'move.payment_state in (not_paid, partial, in_payment) to compute outstanding '
+              + '/ overdue receivable or payable totals.' },
         { column: 'quantity', caption: 'Quantity', type: 'NUMBER', aggregation: 'sum' },
         { column: 'price_unit', caption: 'Unit Price', type: 'MONEY' },
         { column: 'price_subtotal', caption: 'Subtotal', type: 'MONEY', aggregation: 'sum' },

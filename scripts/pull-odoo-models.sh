@@ -31,7 +31,7 @@ DRY_RUN=false
 ADDON_DIR="$PROJECT_ROOT/addons/foggy-odoo-bridge-java"
 MODEL_DIR="$ADDON_DIR/src/main/resources/foggy/templates/odoo"
 LOCK_FILE="$ADDON_DIR/models.lock.json"
-REGISTRY_PULL_SCRIPT="$PROJECT_ROOT/../foggy-model-registry/scripts/pull.py"
+REGISTRY_PULL_SCRIPT=""
 
 # ---------- arg parsing ----------
 while [[ $# -gt 0 ]]; do
@@ -54,6 +54,51 @@ if [[ -z "$PACKAGE" ]]; then
   PACKAGE="foggy.odoo.${EDITION}"
 fi
 
+if [[ "$REGISTRY" != http://* && "$REGISTRY" != https://* && ! -d "$REGISTRY" ]]; then
+  for candidate in \
+    "$PROJECT_ROOT/../foggy-model-registry/data" \
+    "$PROJECT_ROOT/../../foggy-model-registry/data"; do
+    if [[ -d "$candidate" ]]; then
+      REGISTRY="$candidate"
+      break
+    fi
+  done
+fi
+
+resolve_registry_script() {
+  local registry_repo=""
+  local candidate=""
+
+  if [[ -n "${REGISTRY_REPO:-}" ]]; then
+    registry_repo="$REGISTRY_REPO"
+  elif [[ "$REGISTRY" != http://* && "$REGISTRY" != https://* ]]; then
+    local registry_abs=""
+    if registry_abs="$(cd "$REGISTRY" 2>/dev/null && pwd)"; then
+      candidate="$(cd "$registry_abs/.." && pwd)"
+      if [[ -f "$candidate/scripts/pull.py" ]]; then
+        registry_repo="$candidate"
+      fi
+    fi
+  fi
+
+  if [[ -z "$registry_repo" ]]; then
+    for candidate in \
+      "$PROJECT_ROOT/../foggy-model-registry" \
+      "$PROJECT_ROOT/../../foggy-model-registry"; do
+      if [[ -f "$candidate/scripts/pull.py" ]]; then
+        registry_repo="$candidate"
+        break
+      fi
+    done
+  fi
+
+  if [[ -n "$registry_repo" ]]; then
+    echo "$registry_repo/scripts/pull.py"
+  fi
+}
+
+REGISTRY_PULL_SCRIPT="$(resolve_registry_script)"
+
 echo "=== pull-odoo-models ==="
 echo "  registry : $REGISTRY"
 echo "  package  : $PACKAGE"
@@ -69,6 +114,7 @@ fi
 if [[ ! -f "$REGISTRY_PULL_SCRIPT" ]]; then
   echo "ERROR: Registry pull script not found at $REGISTRY_PULL_SCRIPT" >&2
   echo "  Ensure foggy-model-registry is checked out alongside this repo." >&2
+  echo "  Or set REGISTRY_REPO=/path/to/foggy-model-registry." >&2
   exit 1
 fi
 

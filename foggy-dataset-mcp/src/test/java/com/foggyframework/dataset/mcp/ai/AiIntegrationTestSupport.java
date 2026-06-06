@@ -104,6 +104,9 @@ public abstract class AiIntegrationTestSupport {
     @Value("${AI_TEST_LLM_FAIL_ON_MISMATCH:false}")
     protected boolean llmFailOnMismatch;
 
+    @Value("${AI_TEST_CASE_FILES:}")
+    protected String aiTestCaseFiles;
+
     // ==================== 测试工具 ====================
 
     protected TestCaseLoader testCaseLoader;
@@ -215,14 +218,18 @@ public abstract class AiIntegrationTestSupport {
      * 加载测试用例
      */
     protected List<EcommerceTestCase> loadTestCases() {
-        return testCaseLoader.loadEnabled(ECOMMERCE_TESTS);
+        return testCaseLoader.loadMultiple(testCaseResourcePaths().toArray(String[]::new)).stream()
+                .filter(EcommerceTestCase::isEnabled)
+                .toList();
     }
 
     /**
      * 按分类加载测试用例
      */
     protected List<EcommerceTestCase> loadTestCases(EcommerceTestCase.TestCategory category) {
-        return testCaseLoader.loadByCategory(ECOMMERCE_TESTS, category);
+        return loadTestCases().stream()
+                .filter(tc -> tc.getCategory() == category)
+                .toList();
     }
 
     /**
@@ -252,6 +259,14 @@ public abstract class AiIntegrationTestSupport {
         }
 
         return testCases;
+    }
+
+    protected List<String> testCaseResourcePaths() {
+        Set<String> configuredPaths = parseCsv(aiTestCaseFiles);
+        if (configuredPaths.isEmpty()) {
+            return List.of(ECOMMERCE_TESTS);
+        }
+        return List.copyOf(configuredPaths);
     }
 
     private Set<String> parseCsv(String value) {

@@ -1,7 +1,7 @@
 {
-  "registry": "D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge-wt-dev-compose/../foggy-model-registry/data",
+  "registry": "../../foggy-model-registry/data",
   "package": "foggy.odoo.pro",
-  "version": "1.1.9",
-  "checksum": "sha256:61b713a3734612cf627b011f048e79bb9c1f9004d8b1fcfd32d46dd33bde1eb1",
-  "content_checksum": "sha256:7681f99be89965e56565bd42f09bf06c1779f229b5acad9d09d940e457f5cff2"
+  "version": "1.1.10",
+  "checksum": "sha256:e821093622e8dbc1006d63648bee5fbf37d0f7763d5b9d492c0eb144d35bf2a6",
+  "content_checksum": "sha256:1a26e46d695a7c46134317e61436c24a4a7fde763b3a8e654b699212f90ec5af"
 }

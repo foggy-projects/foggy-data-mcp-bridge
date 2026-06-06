@@ -1,0 +1,90 @@
+/**
+ * Odoo Sale Document Flow Query Model
+ *
+ * @caption Sale Cross-Document Flow Analysis
+ * @description Query explicit sales-order to delivery to customer-invoice to customer-payment flows.
+ */
+const sdf = loadTableModel('OdooSaleDocumentFlowModel');
+
+export const queryModel = {
+    name: 'OdooSaleDocumentFlowQueryModel',
+    caption: 'Sale Cross-Document Flow Analysis',
+    description: 'Analyze sales cross-document flows that connect sales orders, outbound deliveries, '
+        + 'customer invoices, and customer payments. Use this model when the question asks which '
+        + 'delivery, customer invoice, or customer receipt belongs to a sales order, or asks for '
+        + 'delivered-but-not-fully-collected flows.',
+    loader: 'v2',
+
+    model: sdf,
+
+    columnGroups: [
+        {
+            caption: 'Flow',
+            items: [
+                { ref: sdf.id },
+                { ref: sdf.flowStatus },
+                { ref: sdf.deliveryStatus },
+                { ref: sdf.invoiceStatus },
+                { ref: sdf.paymentState },
+                { ref: sdf.flowCount }
+            ]
+        },
+        {
+            caption: 'Sale Order',
+            items: [
+                { ref: sdf.saleOrder },
+                { ref: sdf.saleOrder$state },
+                { ref: sdf.saleOrder$invoiceStatus },
+                { ref: sdf.saleOrder$dateOrder },
+                { ref: sdf.saleOrder$amountTotal },
+                { ref: sdf.customer }
+            ]
+        },
+        {
+            caption: 'Delivery',
+            items: [
+                { ref: sdf.deliveryPicking },
+                { ref: sdf.deliveryPicking$state },
+                { ref: sdf.deliveryPicking$origin },
+                { ref: sdf.deliveryPicking$scheduledDate },
+                { ref: sdf.deliveryPicking$dateDone }
+            ]
+        },
+        {
+            caption: 'Customer Invoice',
+            items: [
+                { ref: sdf.invoiceMove },
+                { ref: sdf.invoiceMove$moveType },
+                { ref: sdf.invoiceMove$state },
+                { ref: sdf.invoiceMove$paymentState },
+                { ref: sdf.invoiceMove$invoiceOrigin },
+                { ref: sdf.invoiceMove$invoiceDate },
+                { ref: sdf.invoiceMove$invoiceDateDue },
+                { ref: sdf.invoiceMove$amountTotal },
+                { ref: sdf.invoiceMove$amountResidual }
+            ]
+        },
+        {
+            caption: 'Customer Payment',
+            items: [
+                { ref: sdf.payment },
+                { ref: sdf.payment$paymentType },
+                { ref: sdf.payment$partnerType },
+                { ref: sdf.payment$isReconciled },
+                { ref: sdf.payment$isMatched },
+                { ref: sdf.payment$amount }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: sdf.orderedAmount },
+                { ref: sdf.invoicedAmount },
+                { ref: sdf.invoiceResidual },
+                { ref: sdf.paidAmount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

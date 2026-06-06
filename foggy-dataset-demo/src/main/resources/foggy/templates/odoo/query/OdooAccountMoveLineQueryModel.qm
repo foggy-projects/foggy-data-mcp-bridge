@@ -118,7 +118,7 @@ export const queryModel = {
         // equals today is treated as overdue once we pass midnight of the
         // due date, which matches Odoo's aged-receivable report default.
         //
-        // `arOverdueCustomerCount` MUST use count(distinct(if(.., null))) so
+        // `arOverdueCustomerCount` MUST use COUNT_DISTINCT(if(.., null)) so
         // that SQL's native NULL-ignoring semantics drop filtered-out rows
         // before DISTINCT; DO NOT rewrite as count(if(..)) — that counts
         // filtered-out rows as zeros and breaks the cardinality.
@@ -161,17 +161,65 @@ export const queryModel = {
                     name: 'arOverdueCustomerCount',
                     caption: 'AR Overdue Customer Count',
                     type: 'INTEGER',
-                    formula: "count(distinct(if(move$moveType == 'out_invoice'"
+                    formula: "COUNT_DISTINCT(if(move$moveType == 'out_invoice'"
                         + " && move$state == 'posted'"
                         + " && move$paymentState in ('not_paid', 'partial', 'in_payment')"
                         + " && dateMaturity < now(),"
-                        + " partner$id, null)))",
+                        + " partner$id, null))",
                     description: 'Distinct count of customers with at least one '
-                        + 'overdue receivable line. Uses count(distinct(if(.., '
+                        + 'overdue receivable line. Uses COUNT_DISTINCT(if(.., '
                         + 'null))) — the IF-false branch returns NULL and '
                         + 'COUNT(DISTINCT) ignores NULL natively. '
                         + 'MUST NOT rewrite as count(if(..)) (that counts '
                         + 'filtered-out rows as zeros and breaks cardinality).'
+                }
+            ]
+        },
+        //
+        // Accounts Payable measures.  These intentionally mirror the AR
+        // measures above but use vendor bills (moveType == 'in_invoice') and
+        // vendor partner cardinality.
+        {
+            caption: 'AP Measures',
+            items: [
+                {
+                    name: 'apOutstandingAmount',
+                    caption: 'AP Outstanding Amount',
+                    type: 'MONEY',
+                    formula: "sum(if(move$moveType == 'in_invoice'"
+                        + " && move$state == 'posted'"
+                        + " && move$paymentState in ('not_paid', 'partial', 'in_payment'),"
+                        + " amountResidual, 0))",
+                    description: 'Current accounts-payable balance for posted vendor '
+                        + 'bills that are still unpaid (payment_state in not_paid / '
+                        + 'partial / in_payment). MUST use this measure directly for '
+                        + 'AP outstanding questions.'
+                },
+                {
+                    name: 'apOverdueAmount',
+                    caption: 'AP Overdue Amount',
+                    type: 'MONEY',
+                    formula: "sum(if(move$moveType == 'in_invoice'"
+                        + " && move$state == 'posted'"
+                        + " && move$paymentState in ('not_paid', 'partial', 'in_payment')"
+                        + " && dateMaturity < now(),"
+                        + " amountResidual, 0))",
+                    description: 'Overdue accounts-payable amount - '
+                        + 'apOutstandingAmount restricted to rows whose dateMaturity '
+                        + 'is in the past. MUST use this measure directly for AP aging.'
+                },
+                {
+                    name: 'apOverdueVendorCount',
+                    caption: 'AP Overdue Vendor Count',
+                    type: 'INTEGER',
+                    formula: "COUNT_DISTINCT(if(move$moveType == 'in_invoice'"
+                        + " && move$state == 'posted'"
+                        + " && move$paymentState in ('not_paid', 'partial', 'in_payment')"
+                        + " && dateMaturity < now(),"
+                        + " partner$id, null))",
+                    description: 'Distinct count of vendors with at least one overdue '
+                        + 'payable line. Uses COUNT_DISTINCT(if(.., null)) so filtered '
+                        + 'rows are ignored by NULL semantics.'
                 }
             ]
         }

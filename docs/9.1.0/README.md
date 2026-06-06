@@ -41,6 +41,12 @@ These remain rejected or research-only unless a separate product requirement reo
 - `detailed_design/12_pivot_stage5b_cascade_generate_disambiguation.md`
 - `detailed_design/13_pivot_stage5b_c2_implementation_plan.md`
 - `detailed_design/14_llm_query_tool_capability_matrix.md`
+- `domain_models/commerce-order-domain-model.md`
+- `domain_models/domain-capability-review-20260605.md`
+- `domain_models/domain-skill-and-model-plan.md`
+- `domain_models/initial-domain-skill-blueprint.md`
+- `domain_models/odoo-erp-domain-model.md`
+- `domain_models/service-ticket-domain-model.md`
 - `workitems/pivot-java-engine-9.1.0-followups.md`
 - `quality/pivot-stage5b-c2-cascade-generate-implementation-quality.md`
 - `test_coverage/pivot-stage5b-c2-cascade-generate-coverage-audit.md`

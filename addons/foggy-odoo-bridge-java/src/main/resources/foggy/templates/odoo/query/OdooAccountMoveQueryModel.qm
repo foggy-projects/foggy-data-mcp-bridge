@@ -14,14 +14,11 @@ const am = loadTableModel('OdooAccountMoveModel');
 export const queryModel = {
     name: 'OdooAccountMoveQueryModel',
     caption: 'Invoice & Billing Analysis',
-    description: `Analyze invoice headers, vendor bills, and credit notes by partner, journal, payment status, and time period.
-Filter by move_type to focus on customer invoices (out_invoice) or vendor bills (in_invoice).
-▶ 核销率 / reconciliation rate / collection rate: use predefined measures collectionRate or reconciliationRate (formula: (amountTotal - amountResidual) / amountTotal * 100).
-Filter by moveType=out_invoice, state=posted. Use invoiceDate$year / invoiceDate$month for period slicing.
-MUST query columns ["collectionRate"] or ["reconciliationRate"] directly; do NOT use calculatedFields, do NOT query raw amountTotal/amountResidual to recompute it, and do NOT inline "((amountTotal - amountResidual) / amountTotal * 100) as collectionRate".
-If the predefined collectionRate query returns empty rows for the requested period, answer that there are no matching posted customer invoices and do NOT retry with formula expansion or draft-state diagnostics.
-Do NOT guess fields reconciledAmount or reconciled_amount — they do not exist.
-For AR aging, overdue receivable amount, overdue customer count, or collection-priority questions, prefer OdooAccountMoveLineQueryModel, which exposes the predefined AR measures arOverdueAmount, arOutstandingAmount, and arOverdueCustomerCount.`,
+    description: 'Analyze invoice headers, vendor bills, and credit notes by partner, journal, payment status, and time period. '
+        + 'Filter by move_type to focus on customer invoices (out_invoice) or vendor bills (in_invoice). '
+        + 'For AR aging, overdue receivable amount, overdue customer count, or collection-priority questions, '
+        + 'prefer OdooAccountMoveLineQueryModel, which exposes the predefined AR measures arOverdueAmount, '
+        + 'arOutstandingAmount, and arOverdueCustomerCount.',
     loader: 'v2',
 
     model: am,
@@ -36,6 +33,9 @@ For AR aging, overdue receivable amount, overdue customer count, or collection-p
                 { ref: am.state },
                 { ref: am.date },
                 { ref: am.invoiceDate },
+                { ref: am.invoiceDate$year },
+                { ref: am.invoiceDate$month },
+                { ref: am.invoiceDate$yearMonth },
                 { ref: am.invoiceDateDue },
                 { ref: am.paymentState },
                 { ref: am.ref },
@@ -88,26 +88,7 @@ For AR aging, overdue receivable amount, overdue customer count, or collection-p
                     name: 'collectionRate',
                     caption: 'Collection Rate (%)',
                     formula: '(amountTotal - amountResidual) / amountTotal * 100',
-                    type: 'NUMBER',
-                    description: `核销率 / reconciliation rate / collection rate.
-Invoice-level settlement rate: (amountTotal - amountResidual) / amountTotal * 100.
-Measures the proportion of invoice amount that has been collected / settled.
-Use for posted customer invoices: filter moveType=out_invoice, state=posted.
-For current-period rate, add invoiceDate$year and invoiceDate$month slice.
-This is residual-based settlement rate, NOT exact partial-reconciliation event rate.
-MUST use this predefined measure directly — do NOT redefine the formula inline, do NOT use calculatedFields, and do NOT query raw amountTotal/amountResidual just to recompute it.`
-                },
-                {
-                    name: 'reconciliationRate',
-                    caption: '核销率 (%)',
-                    formula: '(amountTotal - amountResidual) / amountTotal * 100',
-                    type: 'NUMBER',
-                    description: `核销率 / reconciliation rate — alias for collectionRate.
-公式：(amountTotal - amountResidual) / amountTotal * 100。
-适用于已过账客户发票（moveType=out_invoice, state=posted）的发票级回款率/核销率统计。
-按期间统计：配合 invoiceDate$year 和 invoiceDate$month 过滤。
-不支持严格的 Odoo 部分核销事件口径；如需精确事件级核销率需要建模 account.partial.reconcile。
-MUST use this predefined measure directly — do NOT guess reconciledAmount or reconciled_amount, do NOT use calculatedFields, and do NOT expand the formula inline.`
+                    type: 'NUMBER'
                 }
             ]
         }

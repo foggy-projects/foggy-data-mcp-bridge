@@ -33,11 +33,7 @@ export const queryModel = {
             items: [
                 { ref: sol.order },
                 { ref: sol.order$state },
-                { ref: sol.order$dateOrder },
-                { ref: sol.orderDate },
-                { ref: sol.orderDate$year },
-                { ref: sol.orderDate$month },
-                { ref: sol.orderDate$yearMonth }
+                { ref: sol.order$dateOrder }
             ]
         },
         {

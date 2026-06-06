@@ -627,6 +627,60 @@ class ResultValidatorTest {
                         && rule.contains("PROCESSING")));
     }
 
+    @Test
+    @DisplayName("tool argument validation should reject forbidden condition values")
+    void validateFromAiResponse_shouldRejectForbiddenConditionValues() {
+        EcommerceTestCase testCase = EcommerceTestCase.builder()
+                .id("ROUTE-ORDER-007")
+                .expectedTool("dataset.query_model")
+                .expected(EcommerceTestCase.ExpectedResult.builder()
+                        .successOnly(true)
+                        .toolArgumentRules(List.of(
+                                EcommerceTestCase.ToolArgumentRule.builder()
+                                        .tool("dataset.query_model")
+                                        .path("slice")
+                                        .field("orderStatus")
+                                        .value("PAID")
+                                        .mustExist(false)
+                                        .build()
+                        ))
+                        .build())
+                .build();
+
+        ToolCallCollector.ToolCallRecord call = ToolCallCollector.ToolCallRecord.builder()
+                .toolName("dataset.query_model")
+                .springToolName("dataset_query_model")
+                .arguments(Map.of(
+                        "model", "FactOrderQueryModel",
+                        "payload", Map.of(
+                                "slice", List.of(Map.of(
+                                        "field", "orderStatus",
+                                        "op", "in",
+                                        "value", List.of("PENDING", "CONFIRMED", "PROCESSING", "PAID")
+                                ))
+                        )
+                ))
+                .result(Map.of("data", Map.of("items", List.of(
+                        Map.of("orderStatus", "PENDING")
+                ))))
+                .success(true)
+                .durationMs(10)
+                .timestamp(Instant.now())
+                .sequence(0)
+                .build();
+
+        ResultValidator.ValidationResult result = validator.validateFromAiResponse(
+                testCase,
+                "未发货订单。",
+                List.of(call)
+        );
+
+        assertFalse(result.isPassed());
+        assertTrue(result.getFailedRules().stream()
+                .anyMatch(rule -> rule.contains("forbidden field orderStatus")
+                        && rule.contains("PAID")));
+    }
+
     private EcommerceTestCase.ExpectedResult complexExpectedWithPredicateScopeRules() {
         return EcommerceTestCase.ExpectedResult.builder()
                 .requiredColumns(List.of("store$caption", "salesAmount"))
