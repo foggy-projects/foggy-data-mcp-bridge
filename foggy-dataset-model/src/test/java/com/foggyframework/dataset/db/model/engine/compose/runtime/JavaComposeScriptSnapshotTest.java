@@ -1,0 +1,301 @@
+package com.foggyframework.dataset.db.model.engine.compose.runtime;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.engine.compose.context.Principal;
+import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
+import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Java-side producer for Python P0-4 compose-script runtime/tool replay.
+ */
+@DisplayName("JavaComposeScriptSnapshotTest · Python alignment P0-4")
+class JavaComposeScriptSnapshotTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .enable(SerializationFeature.INDENT_OUTPUT);
+
+    @Test
+    @DisplayName("writes java_compose_script_snapshot_parity.json for Python replay")
+    void shouldProduceComposeScriptSnapshot() throws Exception {
+        Map<String, Object> snapshot = ordered();
+        snapshot.put("schemaVersion", 1);
+        snapshot.put("feature", "scriptRuntimeTool");
+        snapshot.put("source", "JavaComposeScriptSnapshotTest");
+        snapshot.put("tool", toolSnapshot());
+        snapshot.put("runtime", Map.of(
+                "allowedScriptGlobals", ScriptRuntime.ALLOWED_SCRIPT_GLOBALS,
+                "acceptedPythonExtraGlobals", List.of(
+                        "JSON", "parseInt", "parseFloat", "toString",
+                        "String", "Number", "Boolean", "isNaN", "isFinite",
+                        "Array", "Object", "Function", "typeof", "params"
+                )
+        ));
+        snapshot.put("cases", cases());
+
+        for (Map<String, Object> c : cases()) {
+            assertJavaRuntimeContract(c);
+        }
+
+        Path pythonTarget = Path.of(
+                "..",
+                "..",
+                "foggy-data-mcp-bridge-python",
+                "tests",
+                "fixtures",
+                "java_compose_script_snapshot_parity.json"
+        ).normalize();
+        Files.createDirectories(pythonTarget.getParent());
+        MAPPER.writeValue(pythonTarget.toFile(), snapshot);
+
+        Path localCopy = Path.of("target", "parity", "java_compose_script_snapshot_parity.json");
+        Files.createDirectories(localCopy.getParent());
+        MAPPER.writeValue(localCopy.toFile(), snapshot);
+        assertTrue(Files.exists(pythonTarget),
+                "snapshot was not written: " + pythonTarget.toAbsolutePath());
+    }
+
+    private static Map<String, Object> toolSnapshot() throws Exception {
+        Path schemaPath = Path.of(
+                "..",
+                "foggy-dataset-mcp",
+                "src",
+                "main",
+                "resources",
+                "schemas",
+                "compose_query_schema.json"
+        );
+        JsonNode schema = MAPPER.readTree(schemaPath.toFile());
+        Path descriptionPath = Path.of(
+                "..",
+                "foggy-dataset-mcp",
+                "src",
+                "main",
+                "resources",
+                "schemas",
+                "descriptions",
+                "compose_script_m2.md"
+        );
+        String description = Files.readString(descriptionPath);
+
+        assertEquals("object", schema.get("type").asText());
+        assertTrue(schema.get("required").toString().contains("script"));
+        assertTrue(description.contains("dataset.compose_script"));
+        assertFalse(description.contains("Query.from"));
+
+        Map<String, Object> tool = ordered();
+        tool.put("name", "dataset.compose_script");
+        tool.put("schemaFile", "compose_query_schema.json");
+        tool.put("descriptionFile", "compose_script_m2.md");
+        tool.put("required", List.of("script"));
+        tool.put("schemaMarkers", List.of(
+                "SemanticDSL compose script",
+                "single-model pivot",
+                "baselineRatio",
+                "return { plans:"
+        ));
+        tool.put("descriptionMarkers", List.of(
+                "dataset.compose_script",
+                "跨模型 Join / Union",
+                "dataset.query_model.payload.pivot",
+                "timeRole=business_date",
+                "不要直接 `.execute()`"
+        ));
+        tool.put("forbiddenMarkers", List.of("Query.from"));
+        return tool;
+    }
+
+    private static List<Map<String, Object>> cases() {
+        return List.of(
+                caseDef(
+                        "literal-return",
+                        "return 42;",
+                        false,
+                        expected("number", 42, false, List.of(), List.of(), null)
+                ),
+                caseDef(
+                        "empty-plans-envelope",
+                        "return { plans: [] };",
+                        false,
+                        expected("map", null, false, List.of(), List.of(), null)
+                ),
+                caseDef(
+                        "preview-base-plan-sql",
+                        """
+                                return { plans: dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderStatus$caption"]
+                                }) };
+                                """,
+                        true,
+                        expected("map", null, true, List.of("SELECT 1 AS __stub__"), List.of(), null)
+                ),
+                caseDef(
+                        "security-param-denied",
+                        """
+                                return dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderStatus$caption"],
+                                  systemSlice: [{ field: "tenant_id", op: "=", value: "demo" }]
+                                });
+                        """,
+                        false,
+                        expected("error", null, false, List.of(), List.of(), "Security parameters")
+                )
+        );
+    }
+
+    private static Map<String, Object> caseDef(String id, String script, boolean previewMode,
+                                               Map<String, Object> expected) {
+        Map<String, Object> c = ordered();
+        c.put("id", id);
+        c.put("dialect", "mysql");
+        c.put("previewMode", previewMode);
+        c.put("script", script);
+        c.put("expected", expected);
+        return c;
+    }
+
+    private static Map<String, Object> expected(String valueType, Object value,
+                                                boolean hasSql, List<String> sqlMarkers,
+                                                List<Object> params, String errorMarker) {
+        Map<String, Object> e = ordered();
+        e.put("valueType", valueType);
+        if (value != null) {
+            e.put("value", value);
+        }
+        e.put("hasSql", hasSql);
+        e.put("sqlMarkers", sqlMarkers);
+        e.put("params", params);
+        if (errorMarker != null) {
+            e.put("errorMarker", errorMarker);
+        }
+        return e;
+    }
+
+    private static void assertJavaRuntimeContract(Map<String, Object> c) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> expected = (Map<String, Object>) c.get("expected");
+        String errorMarker = (String) expected.get("errorMarker");
+        if (errorMarker != null) {
+            try {
+                ScriptRuntime.runScript(
+                        (String) c.get("script"),
+                        dummyCtx(),
+                        previewOnlySemanticService(),
+                        (String) c.get("dialect"),
+                        Boolean.TRUE.equals(c.get("previewMode"))
+                );
+                throw new AssertionError("Expected Java script case to fail: " + c.get("id"));
+            } catch (RuntimeException ex) {
+                assertTrue(ex.getMessage().contains(errorMarker),
+                        "Expected error marker '" + errorMarker + "' in: " + ex.getMessage());
+            }
+            return;
+        }
+
+        ScriptRuntime.ScriptResult result = ScriptRuntime.runScript(
+                (String) c.get("script"),
+                dummyCtx(),
+                previewOnlySemanticService(),
+                (String) c.get("dialect"),
+                Boolean.TRUE.equals(c.get("previewMode"))
+        );
+        String valueType = (String) expected.get("valueType");
+        if ("number".equals(valueType)) {
+            assertInstanceOf(Number.class, result.value());
+            assertEquals(((Number) expected.get("value")).intValue(),
+                    ((Number) result.value()).intValue());
+        } else if ("map".equals(valueType)) {
+            assertInstanceOf(Map.class, result.value());
+        }
+
+        if (Boolean.TRUE.equals(expected.get("hasSql"))) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> value = (Map<String, Object>) result.value();
+            Object plans = value.get("plans");
+            assertInstanceOf(ComposedSql.class, plans);
+            String sql = ((ComposedSql) plans).getSql();
+            @SuppressWarnings("unchecked")
+            List<String> markers = (List<String>) expected.get("sqlMarkers");
+            for (String marker : markers) {
+                assertTrue(sql.contains(marker), "SQL marker missing: " + marker + "\n" + sql);
+            }
+        }
+    }
+
+    private static ComposeQueryContext dummyCtx() {
+        AuthorityResolver resolver = request -> {
+            Map<String, ModelBinding> bindings = new LinkedHashMap<>();
+            for (String name : request.modelNames()) {
+                bindings.put(name, ModelBinding.builder().build());
+            }
+            return AuthorityResolution.builder().bindings(bindings).build();
+        };
+        return ComposeQueryContext.builder()
+                .principal(Principal.builder()
+                        .userId("snapshot-user")
+                        .tenantId("demo")
+                        .roles(List.of("analyst"))
+                        .build())
+                .namespace("demo")
+                .traceId("java-compose-script-snapshot")
+                .authorityResolver(resolver)
+                .build();
+    }
+
+    private static SemanticQueryServiceV3 previewOnlySemanticService() {
+        return new SemanticQueryServiceV3() {
+            @Override
+            public SqlGenerationResult generateSql(String model, SemanticQueryRequest req,
+                                                   SemanticRequestContext ctx) {
+                return new SqlGenerationResult("SELECT 1 AS __stub__", List.of(), null, List.of());
+            }
+
+            @Override
+            public SemanticQueryResponse queryModel(String model, SemanticQueryRequest req,
+                                                    String mode, SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException("queryModel is not used by script snapshots");
+            }
+
+            @Override
+            public SemanticQueryResponse validateQuery(String model, SemanticQueryRequest req,
+                                                       SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException("validateQuery is not used by script snapshots");
+            }
+
+            @Override
+            public List<Map<String, Object>> executeSql(String sql, List<Object> params,
+                                                        String routeModel) {
+                return List.of(Map.of("stub", 1));
+            }
+        };
+    }
+
+    private static Map<String, Object> ordered() {
+        return new LinkedHashMap<>();
+    }
+}
