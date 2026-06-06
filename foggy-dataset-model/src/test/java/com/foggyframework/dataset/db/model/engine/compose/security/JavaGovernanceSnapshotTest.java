@@ -19,6 +19,8 @@ import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.FieldAccessPermissionStep;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -58,6 +60,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 @DisplayName("JavaGovernanceSnapshotTest · Python alignment P0-5/P0-6")
 class JavaGovernanceSnapshotTest {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+
     @Test
     @DisplayName("writes java_governance_snapshot_parity.json for Python replay")
     void shouldProduceGovernanceSnapshot() throws Exception {
@@ -72,7 +76,6 @@ class JavaGovernanceSnapshotTest {
         snapshot.put("source", "JavaGovernanceSnapshotTest");
         snapshot.put("cases", cases);
 
-        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         Path pythonTarget = Path.of(
                 "..",
                 "..",
@@ -82,11 +85,11 @@ class JavaGovernanceSnapshotTest {
                 "java_governance_snapshot_parity.json"
         ).normalize();
         Files.createDirectories(pythonTarget.getParent());
-        mapper.writeValue(pythonTarget.toFile(), snapshot);
+        MAPPER.writeValue(pythonTarget.toFile(), snapshot);
 
         Path localCopy = Path.of("target", "parity", "java_governance_snapshot_parity.json");
         Files.createDirectories(localCopy.getParent());
-        mapper.writeValue(localCopy.toFile(), snapshot);
+        MAPPER.writeValue(localCopy.toFile(), snapshot);
         assertTrue(Files.exists(pythonTarget),
                 "snapshot was not written: " + pythonTarget.toAbsolutePath());
     }
@@ -99,6 +102,8 @@ class JavaGovernanceSnapshotTest {
             case "compile-error" -> assertCompileError(c);
             case "denied-column-mapping" -> assertDeniedColumnMapping(c);
             case "query-validation" -> assertQueryValidation(c);
+            case "pivot-query-validation" -> assertPivotQueryValidation(c);
+            case "domain-transport-query-validation" -> assertDomainTransportQueryValidation(c);
             case "metadata-trimming" -> assertMetadataTrimmingContract(c);
             default -> fail("Unknown governance snapshot case type: " + type);
         }
@@ -163,27 +168,67 @@ class JavaGovernanceSnapshotTest {
     }
 
     private static void assertQueryValidation(Map<String, Object> c) {
+        assertQueryValidationRequest(
+                (String) c.get("id"),
+                stringList(c.get("columns")),
+                orderByFrom(c.get("orderBy")),
+                deniedColumnsFrom(c.get("deniedColumns")),
+                expectedMap(c));
+    }
+
+    private static void assertPivotQueryValidation(Map<String, Object> c) {
+        SemanticQueryRequest request = MAPPER.convertValue(c.get("request"), SemanticQueryRequest.class);
+        PivotRequest pivot = request.getPivot();
+        assertNotNull(pivot, "[" + c.get("id") + "] pivot request missing");
+        pivot.validateMetrics();
+
+        List<String> translatedColumns = new ArrayList<>();
+        translatedColumns.addAll(axisNames(pivot.getRows()));
+        translatedColumns.addAll(axisNames(pivot.getColumns()));
+        translatedColumns.addAll(pivot.getSqlMetricNames());
+
+        assertQueryValidationRequest(
+                (String) c.get("id"),
+                translatedColumns,
+                List.of(),
+                deniedColumnsFrom(c.get("deniedColumns")),
+                expectedMap(c));
+    }
+
+    private static void assertDomainTransportQueryValidation(Map<String, Object> c) {
+        assertQueryValidationRequest(
+                (String) c.get("id"),
+                stringList(c.get("columns")),
+                orderByFrom(c.get("orderBy")),
+                deniedColumnsFrom(c.get("deniedColumns")),
+                expectedMap(c));
+    }
+
+    private static void assertQueryValidationRequest(String id,
+                                                     List<String> columns,
+                                                     List<OrderRequestDef> orderBy,
+                                                     List<DeniedPhysicalColumn> deniedColumns,
+                                                     Map<String, Object> expected) {
         @SuppressWarnings("unchecked")
-        Map<String, Object> expected = (Map<String, Object>) c.get("expected");
         DbQueryRequestDef request = new DbQueryRequestDef();
-        request.setColumns(stringList(c.get("columns")));
-        request.setOrderBy(orderByFrom(c.get("orderBy")));
+        request.setColumns(columns);
+        request.setOrderBy(orderBy);
 
         ModelResultContext ctx = new ModelResultContext();
         ctx.setRequest(PagingRequest.buildPagingRequest(request, 100));
         ctx.setQueryModel(neutralQueryModel());
-        ctx.setDeniedColumns(deniedColumnsFrom(c.get("deniedColumns")));
+        ctx.setDeniedColumns(deniedColumns);
 
         try {
             new FieldAccessPermissionStep().beforeQuery(ctx);
             assertTrue(Boolean.TRUE.equals(expected.get("passes")),
-                    "[" + c.get("id") + "] expected denied column validation to fail");
+                    "[" + id + "] expected denied column validation to fail");
         } catch (RuntimeException ex) {
             assertFalse(Boolean.TRUE.equals(expected.get("passes")),
-                    "[" + c.get("id") + "] expected denied column validation to pass: " + ex.getMessage());
+                    "[" + id + "] expected denied column validation to pass: " + ex.getMessage());
             for (String marker : stringList(expected.get("messageMarkers"))) {
                 assertTrue(ex.getMessage().contains(marker),
-                        "[" + c.get("id") + "] error marker missing: " + marker + " in " + ex.getMessage());
+                        "[" + id + "] error marker missing: " + marker + " in " + ex.getMessage());
             }
         }
     }
@@ -394,6 +439,31 @@ class JavaGovernanceSnapshotTest {
                         List.of(deniedColumn(null, "fact_sales", "sales_amount")),
                         false,
                         List.of("salesAmount")),
+                pivotQueryValidationCase(
+                        "pivot-denied-row-axis-refused",
+                        pivotRequest(List.of(field("product$categoryName")), List.of(), List.of("salesAmount")),
+                        List.of(deniedColumn(null, "dim_product", "category_name")),
+                        false,
+                        List.of("product$categoryName")),
+                pivotQueryValidationCase(
+                        "pivot-parent-share-denied-native-metric-refused",
+                        pivotRequest(
+                                List.of(field("product$categoryName"), field("product$caption")),
+                                List.of(),
+                                List.of(
+                                        "salesAmount",
+                                        metric("categoryShare", "parentShare", "salesAmount",
+                                                "rows", "product$categoryName", null))),
+                        List.of(deniedColumn(null, "fact_sales", "sales_amount")),
+                        false,
+                        List.of("salesAmount")),
+                domainTransportQueryValidationCase(
+                        "domain-transport-denied-domain-column-refused",
+                        List.of("product$categoryName", "salesAmount"),
+                        List.of(deniedColumn(null, "dim_product", "category_name")),
+                        domainTransportPlan(List.of("product$categoryName"), List.of(List.of("Electronics")), 0),
+                        false,
+                        List.of("product$categoryName")),
                 metadataCase(
                         "metadata-denied-measure-trims-sales-amount",
                         "FactSalesModel",
@@ -426,6 +496,12 @@ class JavaGovernanceSnapshotTest {
         }
         out.put("expected", expected);
         return out;
+    }
+
+    private static Map<String, Object> expectedMap(Map<String, Object> c) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> expected = (Map<String, Object>) c.get("expected");
+        return expected;
     }
 
     private static Map<String, Object> deniedMappingCase(String id,
@@ -472,6 +548,86 @@ class JavaGovernanceSnapshotTest {
         }
         out.put("deniedColumns", deniedColumns);
         out.put("expected", expectedMetadata(presentFields, absentFields));
+        return out;
+    }
+
+    private static Map<String, Object> pivotQueryValidationCase(String id,
+                                                                Map<String, Object> request,
+                                                                List<Map<String, Object>> deniedColumns,
+                                                                boolean passes,
+                                                                List<String> messageMarkers) {
+        Map<String, Object> out = ordered();
+        out.put("id", id);
+        out.put("type", "pivot-query-validation");
+        out.put("model", "FactSalesModel");
+        out.put("request", request);
+        out.put("deniedColumns", deniedColumns);
+        out.put("expected", expectedQueryValidation(passes, messageMarkers));
+        return out;
+    }
+
+    private static Map<String, Object> domainTransportQueryValidationCase(String id,
+                                                                          List<String> columns,
+                                                                          List<Map<String, Object>> deniedColumns,
+                                                                          Map<String, Object> domainTransportPlan,
+                                                                          boolean passes,
+                                                                          List<String> messageMarkers) {
+        Map<String, Object> out = ordered();
+        out.put("id", id);
+        out.put("type", "domain-transport-query-validation");
+        out.put("model", "FactSalesModel");
+        out.put("columns", columns);
+        out.put("orderBy", List.of());
+        out.put("deniedColumns", deniedColumns);
+        out.put("domainTransportPlan", domainTransportPlan);
+        out.put("expected", expectedQueryValidation(passes, messageMarkers));
+        return out;
+    }
+
+    private static Map<String, Object> pivotRequest(List<Map<String, Object>> rows,
+                                                    List<Map<String, Object>> columns,
+                                                    List<Object> metrics) {
+        Map<String, Object> request = ordered();
+        Map<String, Object> pivot = ordered();
+        pivot.put("rows", rows);
+        pivot.put("columns", columns);
+        pivot.put("metrics", metrics);
+        pivot.put("outputFormat", "flat");
+        request.put("pivot", pivot);
+        return request;
+    }
+
+    private static Map<String, Object> field(String name) {
+        Map<String, Object> out = ordered();
+        out.put("field", name);
+        return out;
+    }
+
+    private static Map<String, Object> metric(String name,
+                                              String type,
+                                              String of,
+                                              String axis,
+                                              String level,
+                                              String parentLevel) {
+        Map<String, Object> out = ordered();
+        out.put("name", name);
+        out.put("type", type);
+        out.put("of", of);
+        out.put("axis", axis);
+        out.put("level", level);
+        if (parentLevel != null) {
+            out.put("parentLevel", parentLevel);
+        }
+        return out;
+    }
+
+    private static Map<String, Object> domainTransportPlan(List<String> columns,
+                                                           List<List<Object>> tuples,
+                                                           int threshold) {
+        Map<String, Object> out = ordered();
+        out.put("columns", columns);
+        out.put("tuples", tuples);
+        out.put("threshold", threshold);
         return out;
     }
 
@@ -627,6 +783,13 @@ class JavaGovernanceSnapshotTest {
         @SuppressWarnings("unchecked")
         List<String> out = (List<String>) raw;
         return out;
+    }
+
+    private static List<String> axisNames(List<AxisField> axis) {
+        if (axis == null) {
+            return List.of();
+        }
+        return axis.stream().map(AxisField::getField).toList();
     }
 
     private static Map<String, Object> ordered() {
