@@ -5,7 +5,7 @@ version: 9.2.0
 target: QueryModel Aggregate Join
 status: accepted-with-risks
 created_at: 2026-05-27
-updated_at: 2026-06-04
+updated_at: 2026-06-06
 source_type: requirement
 upstream_issue: foggy-projects/foggy-data-mcp-workspace#3
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
@@ -271,7 +271,7 @@ Known limits in this cut:
 - Tenant/access guards can be pushed only when they are expressed as structured field refs and are safely derivable from the aggregate join graph, for example left `tenantId` is joined to right `tenantId` and the right key is part of the aggregate relation grain. Raw SQL guards and implicit tenant conditions are intentionally not parsed or guessed.
 - Query-time RHS pushdown is intentionally AND-only in this cut. OR groups, unsupported operators, and non-join-key left filters remain outer-query only.
 - Query-time duplicated RHS fragments are rendered as generated SQL literals for the same reason as fixed filters; the outer QueryModel condition remains parameterized.
-- System slice propagation through the normal QueryFacade lifecycle is covered in this cut. AccessBuilder structured field-ref join-key pushdown is now covered; field-permission and raw-SQL guard pushdown remain follow-up risks.
+- System slice propagation through the normal QueryFacade lifecycle is covered in this cut. AccessBuilder structured field-ref join-key pushdown is now covered. Request-side `fieldAccess` allow/deny checks now cover aggregate relation output fields; RHS raw-SQL guard pushdown and system-slice permission validation remain follow-up risks.
 - Aggregate relation output fields now inherit TM measure captions and runtime types where safe. `COUNT` / `COUNT_DISTINCT` outputs are exposed as `BIGINT`; source-backed aggregates keep the source measure type and formatter. Output `extData.aggregateRelation` records aggregation, source column/caption/measure, semantic scale/unit metadata, and source/aggregate SQL lineage.
 - SQLite targeted execution and MySQL 5.7 real database execution-plan evidence are recorded here. PostgreSQL and target TMS database evidence remain follow-up items because local Docker is unavailable and the local PostgreSQL port is closed.
 - MCP/LLM public schema is not expanded. LLM analysis benefits from consuming stable QM fields after model authors define them, not from generating this DSL directly.
@@ -339,7 +339,7 @@ ETL promotion is intentionally deferred. The current work stays on the Java engi
 | Contract validation unit tests | yes | done-initial: groupBy missing right join key fails closed. |
 | Real query parity test | yes | done-initial: aggregate join result equals native `fact_sales` aggregate for a fixed order. |
 | LEFT JOIN no-match behavior | yes | done-initial: left row is retained and RHS aggregate fields are null. |
-| Permission/system slice propagation | yes | covered-initial: system slice lifecycle through QueryFacade is covered; structured accessBuilder field-ref join-key guard pushdown is covered. Field-permission and raw-SQL guard pushdown remain follow-up risks. |
+| Permission/system slice propagation | yes | covered-initial: system slice lifecycle through QueryFacade is covered; structured accessBuilder field-ref join-key guard pushdown is covered; request-side `fieldAccess` allow/deny checks cover aggregate relation output fields. RHS raw-SQL guard pushdown and system-slice permission validation remain follow-up risks. |
 | Dialect fallback evidence | yes | done-initial: SQLite and live MySQL 5.7 profile passed; PostgreSQL and target TMS database `EXPLAIN` remain follow-up because local Docker is unavailable and local PostgreSQL is closed. |
 | Query-time RHS pushdown SQL shape | yes | done-initial: aggregate group-key condition duplicates to RHS `WHERE`; aggregate measure slice duplicates to RHS `HAVING`; left join-key slice and accessBuilder field-ref guards duplicate to RHS source-key `WHERE`; outer filters remain parameterized. |
 | Query-time LEFT no-match semantics | yes | done-initial: measure slice with no RHS match returns zero rows because the outer filter is retained. |
@@ -357,6 +357,8 @@ ETL promotion is intentionally deferred. The current work stays on the Java engi
 | `mvn test -pl foggy-dataset-model -Dspring.profiles.active=docker -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success on live MySQL 5.7; Tests run: 15, Failures: 0, Errors: 0, Skipped: 0. |
 | MySQL 5.7 `EXPLAIN` for aggregate relation with pushed filters | evidence shows derived aggregate source `agg_src` uses `uk_order_line` with `type=ref`, `rows=10`, and `Using where` for the pushed `order_id`, avoiding broad full-table aggregation for the tested selective predicate. |
 | `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=MultiFactTableJoinTest` | success; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationOutputFieldShouldRespectFieldAccessAllowList+aggregateRelationOutputFieldShouldFailClosedWhenMissingFromFieldAccess' test` | success; aggregate relation output field `fieldAccess` allow/deny coverage; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest test` | success; full aggregate join sqlite regression after fieldAccess coverage; Tests run: 33, Failures: 0, Errors: 0, Skipped: 0. |
 
 ### Experience Progress
 

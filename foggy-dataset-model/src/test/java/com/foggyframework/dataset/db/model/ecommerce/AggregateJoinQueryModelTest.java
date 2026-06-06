@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -313,6 +314,43 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertEquals(orderId, row.get("orderId"));
         assertEquals(0, money(nativeSalesAmount).compareTo(money(row.get("salesAmount"))),
                 "QueryFacade 完整生命周期下 RHS 聚合金额应与原生聚合一致");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 输出字段应遵守 fieldAccess 白名单")
+    void aggregateRelationOutputFieldShouldRespectFieldAccessAllowList() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderId", "amount", "salesAmount", "uniqueCustomers"));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        assertTrue(queryEngine.getSql().contains("fsByOrder.salesAmount"),
+                "fieldAccess 允许的 aggregate relation 输出字段应正常参与查询");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "fieldAccess 允许全部请求字段时应返回真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("aggregate relation 输出字段缺少 fieldAccess 时应拒绝")
+    void aggregateRelationOutputFieldShouldFailClosedWhenMissingFromFieldAccess() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderId", "amount", "uniqueCustomers"));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "缺少 aggregate relation 输出字段权限时应指出被拒绝字段");
     }
 
     @Test
