@@ -42,6 +42,7 @@ import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDime
 import com.foggyframework.dataset.db.model.impl.model.AggregateJoinTableModel;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
+import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -462,6 +463,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         AggregateJoinTableModel.setRuntimeFilterContext(context);
         try {
+            prepareAggregateRelationProjection(jdbcQuery);
             if (hasPostAggregateCalculations) {
                 if (hasWindowCf) {
                     throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
@@ -506,6 +508,66 @@ public class JdbcModelQueryEngine implements QueryEngine {
         for (AggregateRelationQueryObject queryObject : collectAggregateRelationQueryObjects(jdbcQueryModel)) {
             queryObject.clearAggregateRelationPushdowns();
         }
+    }
+
+    private void prepareAggregateRelationProjection(JdbcQuery jdbcQuery) {
+        Set<AggregateRelationQueryObject> queryObjects = collectAggregateRelationQueryObjects(jdbcQueryModel);
+        if (queryObjects.isEmpty()) {
+            return;
+        }
+        boolean pruningEnabled = jdbcQuery != null && !jdbcQuery.isRawSqlConditionAdded();
+        for (AggregateRelationQueryObject queryObject : queryObjects) {
+            queryObject.setAggregateRelationProjectionPruningEnabled(pruningEnabled);
+        }
+        if (!pruningEnabled || jdbcQuery == null) {
+            return;
+        }
+
+        if (jdbcQuery.getSelect() != null && jdbcQuery.getSelect().getColumns() != null) {
+            for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+                markAggregateRelationOutput(column);
+            }
+        }
+        if (jdbcQuery.getOrder() != null && jdbcQuery.getOrder().getOrders() != null) {
+            for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
+                markAggregateRelationOutput(order == null ? null : order.getSelectColumn());
+            }
+        }
+        if (jdbcQuery.getGroup() != null && jdbcQuery.getGroup().getGroups() != null) {
+            for (DbQueryGroupColumnImpl group : jdbcQuery.getGroup().getGroups()) {
+                markAggregateRelationOutput(group == null ? null : group.getAggColumn());
+            }
+        }
+    }
+
+    private void markAggregateRelationOutput(DbColumn column) {
+        if (column == null) {
+            return;
+        }
+        if (column instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
+            AggregateRelationQueryObject queryObject = resolveAggregateRelationQueryObject(column.getQueryObject());
+            if (queryObject != null) {
+                queryObject.markAggregateRelationOutput(aggregateRelationColumn);
+            }
+            return;
+        }
+        AggregateRelationQueryObject queryObject = resolveAggregateRelationQueryObject(column.getQueryObject());
+        if (queryObject != null) {
+            queryObject.markAggregateRelationOutputAlias(column.getAlias());
+        }
+        if (column instanceof CalculatedDbColumn calculatedColumn
+                && calculatedColumn.getReferencedColumns() != null) {
+            for (DbQueryColumn referencedColumn : calculatedColumn.getReferencedColumns()) {
+                markAggregateRelationOutput(referencedColumn);
+            }
+        }
+    }
+
+    private AggregateRelationQueryObject resolveAggregateRelationQueryObject(QueryObject queryObject) {
+        if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
+            return aggregateRelationQueryObject;
+        }
+        return queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
     }
 
     private Set<AggregateRelationQueryObject> collectAggregateRelationQueryObjects(JdbcQueryModel jdbcQueryModel) {

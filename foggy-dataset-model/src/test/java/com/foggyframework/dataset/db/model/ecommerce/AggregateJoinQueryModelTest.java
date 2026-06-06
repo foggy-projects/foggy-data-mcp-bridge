@@ -68,7 +68,7 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertTrue(normalizedSql.contains("(select"), "aggregate join 右侧应是内联聚合子查询");
         assertTrue(normalizedSql.contains("sum("), "右侧子查询应包含 SUM 聚合");
         assertTrue(normalizedSql.contains("count(*)"), "右侧子查询应包含 COUNT 聚合");
-        assertTrue(normalizedSql.contains("count(distinct"), "右侧子查询应包含 COUNT DISTINCT 聚合");
+        assertFalse(normalizedSql.contains("count(distinct"), "未请求的 COUNT DISTINCT 聚合不应进入 RHS SELECT");
         assertTrue(normalizedSql.contains("group by"), "右侧子查询应包含 GROUP BY");
         assertTrue(normalizedSql.contains("fact_sales"), "右侧子查询应读取销售明细表");
         assertTrue(sql.contains("agg_src.order_status = 'COMPLETED'"), "右侧固定 slice 应在聚合前下推");
@@ -91,6 +91,8 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertTrue(normalizedSql.contains("(select"), "aggregate relation 右侧应是内联聚合子查询");
         assertTrue(sql.contains("sum(agg_src.sales_amount) salesAmount"), "salesAmount 应按 TM 默认 SUM 聚合");
         assertTrue(sql.contains("count(distinct agg_src.customer_key) uniqueCustomers"), "COUNT_DISTINCT measure 应按 TM 聚合元数据渲染");
+        assertFalse(sql.contains("sum(agg_src.quantity) quantity"), "未请求的 aggregate relation measure 不应进入 RHS SELECT");
+        assertFalse(sql.contains("sum(agg_src.unit_price) unitPrice"), "未请求的 aggregate relation measure 不应进入 RHS SELECT");
         assertTrue(sql.contains("agg_src.order_status = 'COMPLETED'"), "右侧 fixed slice 应在聚合前下推");
         assertTrue(normalizedSql.contains("group by"), "右侧子查询应包含 GROUP BY");
         assertTrue(sql.contains("fsByOrder"), "aggregate relation 应保留模型作者声明的 relation alias");
@@ -501,6 +503,8 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "raw SQL accessBuilder 条件不应被解析为 RHS 聚合前 WHERE 字面量");
         assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
                 "raw SQL accessBuilder 条件不应被复制为 RHS 聚合前 WHERE 参数条件");
+        assertTrue(normalizedSql.contains("sum(agg_src.quantity) quantity"),
+                "raw SQL accessBuilder 存在时应退回全量 RHS projection，避免误裁未知 raw SQL 引用");
         assertTrue(queryEngine.getValues().contains(orderId),
                 "外层 WHERE 应保留 raw SQL accessBuilder 参数化条件");
 

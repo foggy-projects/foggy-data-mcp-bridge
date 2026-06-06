@@ -272,27 +272,18 @@ public class AggregateJoinTableModel extends TableModelSupport {
                                                                            AggregateRelationInput input,
                                                                            List<OutputColumn> outputColumns,
                                                                            AggregateSourceSqlContext sourceSqlContext) {
-        List<String> selectParts = new ArrayList<>();
         List<String> groupByParts = new ArrayList<>();
 
         for (OutputColumn outputColumn : outputColumns) {
             if (!outputColumn.groupKey()) {
                 continue;
             }
-            selectParts.add(outputColumn.sourceExpression() + " " + outputColumn.outputAlias());
             groupByParts.add(outputColumn.sourceExpression());
-        }
-
-        for (OutputColumn outputColumn : outputColumns) {
-            if (outputColumn.groupKey()) {
-                continue;
-            }
-            selectParts.add(outputColumn.aggregateExpression() + " " + outputColumn.outputAlias());
         }
 
         return new GeneratedAggregateRelationQueryObject(
                 sqlTable,
-                selectParts,
+                outputColumns,
                 sourceBody(),
                 sourceSqlContext.joinParts(),
                 input.filters(),
@@ -764,7 +755,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
     }
 
     private class GeneratedAggregateRelationQueryObject extends ViewSqlQueryObject implements AggregateRelationQueryObject {
-        private final List<String> selectParts;
+        private final List<OutputColumn> outputColumns;
         private final String sourceBody;
         private final List<String> sourceJoinParts;
         private final List<AggregateJoinBuilder.AggregateFilter> baseFilters;
@@ -774,7 +765,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private final ThreadLocal<PushdownState> pushdownState = ThreadLocal.withInitial(PushdownState::new);
 
         GeneratedAggregateRelationQueryObject(SqlTable sqlTable,
-                                              List<String> selectParts,
+                                              List<OutputColumn> outputColumns,
                                               String sourceBody,
                                               List<String> sourceJoinParts,
                                               List<AggregateJoinBuilder.AggregateFilter> baseFilters,
@@ -782,7 +773,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
                                               List<String> groupByParts,
                                               List<JoinKeyPushdownMapping> joinKeyPushdownMappings) {
             super("", sqlTable);
-            this.selectParts = List.copyOf(selectParts);
+            this.outputColumns = List.copyOf(outputColumns);
             this.sourceBody = sourceBody;
             this.sourceJoinParts = List.copyOf(sourceJoinParts);
             this.baseFilters = baseFilters == null ? List.of() : List.copyOf(baseFilters);
@@ -796,7 +787,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             PushdownState state = pushdownState.get();
             StringBuilder sql = new StringBuilder();
             sql.append("select ")
-                    .append(String.join(", ", selectParts))
+                    .append(String.join(", ", renderSelectParts(state)))
                     .append(" from ")
                     .append(sourceBody)
                     .append(" ")
@@ -825,9 +816,50 @@ public class AggregateJoinTableModel extends TableModelSupport {
             return "(" + sql + ")";
         }
 
+        private List<String> renderSelectParts(PushdownState state) {
+            if (!state.projectionPruningEnabled || state.requiredOutputAliases.isEmpty()) {
+                return outputColumns.stream()
+                        .map(this::renderSelectPart)
+                        .toList();
+            }
+            return outputColumns.stream()
+                    .filter(outputColumn -> outputColumn.groupKey()
+                            || state.requiredOutputAliases.contains(outputColumn.outputAlias()))
+                    .map(this::renderSelectPart)
+                    .toList();
+        }
+
+        private String renderSelectPart(OutputColumn outputColumn) {
+            if (outputColumn.groupKey()) {
+                return outputColumn.sourceExpression() + " " + outputColumn.outputAlias();
+            }
+            return outputColumn.aggregateExpression() + " " + outputColumn.outputAlias();
+        }
+
         @Override
         public void clearAggregateRelationPushdowns() {
             pushdownState.remove();
+        }
+
+        @Override
+        public void setAggregateRelationProjectionPruningEnabled(boolean enabled) {
+            pushdownState.get().projectionPruningEnabled = enabled;
+        }
+
+        @Override
+        public void markAggregateRelationOutput(AggregateRelationOutputColumn column) {
+            if (!(column instanceof AggregateOutputDbColumn aggregateColumn)) {
+                return;
+            }
+            markAggregateRelationOutputAlias(aggregateColumn.getSqlColumn().getName());
+        }
+
+        @Override
+        public void markAggregateRelationOutputAlias(String alias) {
+            if (alias == null || alias.isBlank()) {
+                return;
+            }
+            pushdownState.get().requiredOutputAliases.add(alias);
         }
 
         @Override
@@ -835,6 +867,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             if (column == null) {
                 return false;
             }
+            markAggregateRelationOutput(column);
             String expression = column.isAggregateRelationMeasure()
                     ? column.getAggregateRelationAggregateExpression()
                     : column.getAggregateRelationSourceExpression();
@@ -962,6 +995,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private class PushdownState {
             private final List<String> whereFragments = new ArrayList<>();
             private final List<String> havingFragments = new ArrayList<>();
+            private final Set<String> requiredOutputAliases = new LinkedHashSet<>();
+            private boolean projectionPruningEnabled;
         }
     }
 
