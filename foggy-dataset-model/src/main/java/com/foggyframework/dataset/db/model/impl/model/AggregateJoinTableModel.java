@@ -16,9 +16,11 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
+import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.DbMeasure;
 import com.foggyframework.dataset.db.model.spi.DbMeasureColumn;
 import com.foggyframework.dataset.db.model.spi.DbModelType;
+import com.foggyframework.dataset.db.model.spi.DbProperty;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.support.SimpleSqlJdbcColumn;
@@ -102,7 +104,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 builder.getGroupByColumns(),
                 builder.getMeasures(),
                 builder.getFilters(),
-                buildLeftJoinScopes(builder.getLeft(), visibleLeftModels)));
+                buildLeftJoinScopes(builder.getLeft(), visibleLeftModels),
+                List.copyOf(visibleLeftModels)));
     }
 
     public static AggregateJoinTableModel from(TableModel sourceModel, AggregateRelationProxy relationProxy,
@@ -120,7 +123,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 relationProxy.getGroupByColumns(),
                 buildDefaultMeasures(sourceModel),
                 relationProxy.getFilters(),
-                buildLeftJoinScopes(joinBuilder.getLeft(), visibleLeftModels)));
+                buildLeftJoinScopes(joinBuilder.getLeft(), visibleLeftModels),
+                List.copyOf(visibleLeftModels)));
     }
 
     public static void setRuntimeFilterContext(ModelResultContext context) {
@@ -528,10 +532,77 @@ public class AggregateJoinTableModel extends TableModelSupport {
             ColumnRef rightRef = condition.getRightAsColumnRef();
             DbColumn rightColumn = resolveSourceColumn(rightRef);
             mappings.add(new JoinKeyPushdownMapping(
-                    columnRefKeys(condition.getLeft()),
+                    leftJoinKeyPushdownKeys(condition.getLeft(), input),
                     sourceColumnSql(rightColumn, sourceSqlContext)));
         }
         return mappings;
+    }
+
+    private Set<String> leftJoinKeyPushdownKeys(ColumnRef leftRef, AggregateRelationInput input) {
+        Set<String> keys = new LinkedHashSet<>(columnRefKeys(leftRef));
+        DbColumn leftColumn = resolveVisibleLeftColumn(leftRef, input);
+        if (leftColumn == null || leftColumn.getSqlColumnName() == null) {
+            return keys;
+        }
+        String sqlColumnName = leftColumn.getSqlColumnName();
+        for (TableModel model : input.visibleLeftModels()) {
+            if (!matchesLeftRefModel(model, leftRef)) {
+                continue;
+            }
+            for (DbColumn candidate : allModelColumns(model)) {
+                if (candidate == null || !sqlColumnName.equals(candidate.getSqlColumnName())) {
+                    continue;
+                }
+                keys.add(candidate.getName());
+            }
+        }
+        keys.add(sqlColumnName);
+        return keys;
+    }
+
+    private DbColumn resolveVisibleLeftColumn(ColumnRef leftRef, AggregateRelationInput input) {
+        for (TableModel model : input.visibleLeftModels()) {
+            if (!matchesLeftRefModel(model, leftRef)) {
+                continue;
+            }
+            DbColumn dbColumn = model.findJdbcColumnByName(leftRef.getFullRef());
+            if (dbColumn == null) {
+                dbColumn = model.findJdbcColumnByName(leftRef.getAliasRef());
+            }
+            if (dbColumn == null) {
+                dbColumn = model.findJdbcColumnByName(leftRef.getColumnName());
+            }
+            if (dbColumn != null) {
+                return dbColumn;
+            }
+        }
+        return null;
+    }
+
+    private List<DbColumn> allModelColumns(TableModel model) {
+        List<DbColumn> result = new ArrayList<>();
+        for (DbDimension dimension : model.getDimensions()) {
+            result.addAll(dimension.getAllDbColumns());
+        }
+        for (DbProperty property : model.getProperties()) {
+            result.add(property.getPropertyDbColumn());
+        }
+        for (DbMeasure measure : model.getMeasures()) {
+            result.add(measure.getJdbcColumn());
+        }
+        return result;
+    }
+
+    private boolean matchesLeftRefModel(TableModel model, ColumnRef leftRef) {
+        if (model == null || leftRef == null || !model.getName().equals(leftRef.getModelName())) {
+            return false;
+        }
+        String refAlias = leftRef.getTableAlias();
+        if (refAlias == null || refAlias.isEmpty()) {
+            return true;
+        }
+        QueryObject queryObject = model.getQueryObject();
+        return queryObject != null && refAlias.equals(queryObject.getAlias());
     }
 
     private DbColumn resolveSourceColumn(ColumnRef columnRef) {
@@ -697,7 +768,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
             List<ColumnRef> groupByColumns,
             List<AggregateJoinBuilder.AggregateMeasure> measures,
             List<AggregateJoinBuilder.AggregateFilter> filters,
-            Set<JoinLeftScope> leftJoinScopes) {
+            Set<JoinLeftScope> leftJoinScopes,
+            List<TableModel> visibleLeftModels) {
     }
 
     private record JoinLeftScope(String modelName, String alias) {

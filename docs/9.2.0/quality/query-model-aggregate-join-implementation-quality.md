@@ -3,7 +3,7 @@ quality_scope: feature
 quality_mode: pre-coverage-audit
 version: 9.2.0
 target: QueryModel Aggregate Join
-status: reviewed-tms-feedback-hardening
+status: reviewed-tenant-guard-hardening
 decision: ready-for-acceptance-with-risks
 reviewed_by: Codex
 reviewed_at: 2026-05-27
@@ -31,7 +31,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/proxy/AggregateRelationProxy.java` | Added relation-level aggregate proxy for `filter*`, `groupBy`, and `as`. |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/proxy/TableModelProxy.java` | Added `leftJoinAggregate` entrypoint and aggregate relation method dispatch. |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java` | Added structured field-ref RHS aggregate pushdown for accessBuilder and other `JdbcQuery` conditions. |
-| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/model/AggregateJoinTableModel.java` | Added synthetic right-side aggregate relation, SQL lowering, and aggregate output metadata inheritance for explicit and relation-level aggregate joins. |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/model/AggregateJoinTableModel.java` | Added synthetic right-side aggregate relation, SQL lowering, aggregate output metadata inheritance, and same-physical-column left join-key expansion for explicit and relation-level aggregate joins. |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/model/AggregateRelationOutputColumn.java` | Added generated column metadata contract for group keys, aggregate measures, source lineage, and pushdown hook. |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/model/AggregateRelationQueryObject.java` | Added aggregate relation query object pushdown lifecycle contract. |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java` | Added AND-only conservative query-time RHS pushdown for aggregate relation fields and left join-key filters. |
@@ -52,8 +52,8 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 | Raw SQL exposure | pass-with-note | Generated SQL uses an internal derived-query carrier; model authors still provide structured DSL only. |
 | Readability and locality | pass | New behavior is isolated to aggregate builder, synthetic table model, and QueryModel builder branch. |
 | LLM analysis ergonomics | pass-initial | Relation-level DSL lets model authors publish ordinary QM fields backed by TM aggregation metadata, reducing LLM need to synthesize raw SQL/CTE. |
-| Query-time RHS filter performance | pass-initial-with-risk | AND-only request slices on aggregate relation output fields now duplicate into RHS `WHERE` or `HAVING`; left join-key filters and structured accessBuilder field-ref guards mirror into the RHS source key domain. Duplicated RHS fragments now render with bind placeholders through the derived relation parameter channel. MySQL 5.7 `EXPLAIN` confirms keyed RHS source access for the selective order predicate. OR join-key and OR aggregate-measure slices are covered as outer-only behavior; remaining risks are expanding complex predicate pushdown and broader cross-dialect plan evidence. |
-| Permission/system slice proof | pass-initial-with-risk | System slice lifecycle through QueryFacade is covered. Structured accessBuilder field-ref join-key guard pushdown is covered. Field-permission, implicit tenant guards, and raw SQL guard pushdown remain follow-up risks unless modeled as safe structured join keys. |
+| Query-time RHS filter performance | pass-hardening-with-risk | AND-only request slices on aggregate relation output fields now duplicate into RHS `WHERE` or `HAVING`; left join-key filters and structured accessBuilder field-ref guards mirror into the RHS source key domain. The left join-key match expands through same-physical-column visible TM/QM fields, so a guard authored against `tenant$id` can still mirror when the aggregate join uses `tenantId`. Duplicated RHS fragments render with bind placeholders through the derived relation parameter channel. MySQL 5.7 `EXPLAIN` confirms keyed RHS source access for the selective order predicate. OR join-key and OR aggregate-measure slices are covered as outer-only behavior; remaining risks are expanding complex predicate pushdown and broader cross-dialect plan evidence. |
+| Permission/system slice proof | pass-hardening-with-risk | System slice lifecycle through QueryFacade is covered. Structured accessBuilder field-ref join-key guard pushdown is covered, including equivalent left join-key refs and a system-slice tenant guard that bypasses user `fieldAccess` without leaking to output columns. Field-permission-specific custom rules, implicit tenant guards, and raw SQL guard pushdown remain follow-up risks unless modeled as safe structured join keys. |
 | Aggregate field metadata | pass-initial | Aggregate relation fields inherit TM caption, resolved output type, formatter, AI/deprecation metadata, and expose `extData.aggregateRelation` lineage including aggregation/source/semantic scale/unit metadata. |
 | Dialect/old database proof | pass-initial-with-risk | SQLite and live MySQL 5.7 execution passed. PostgreSQL and the target TMS database were not available in this environment. |
 
@@ -61,7 +61,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 
 - No blocking implementation-quality issue was found in the initial Java cut.
 - The relation-level DSL implementation matches the planned direction: `filter*` belongs inside the RHS aggregate relation, `groupBy` defines relation grain, and normal `leftJoin(...).on(...)` remains the join surface.
-- The largest remaining correctness gap is scoped evidence, not code shape: system slice lifecycle and structured accessBuilder field-ref join-key pushdown have coverage; field-permission, implicit tenant guards, and raw SQL guards remain follow-up risks unless the condition is represented as a safe structured join-key predicate.
+- The largest remaining correctness gap is scoped evidence, not code shape: system slice lifecycle and structured accessBuilder field-ref join-key pushdown have coverage, including same-physical-column tenant guard refs. Field-permission-specific custom rules, implicit tenant guards, and raw SQL guards remain follow-up risks unless the condition is represented as a safe structured join-key predicate.
 - The main performance gap is now narrower: MySQL 5.7 `EXPLAIN` confirms the RHS derived aggregate source can use keyed access (`uk_order_line`, `type=ref`, `rows=10`, `Using where`) after left join-key pushdown for the tested selective predicate. PostgreSQL and target TMS database plans remain follow-up evidence.
 - Query-time RHS pushdown deliberately preserves the outer QueryModel filter, so it improves optimizer visibility without changing LEFT JOIN no-match semantics.
 - Aggregate relation runtime schema now carries business captions and type semantics from TM measures; the remaining schema risk is frontend-meta/query-cloud/data-viewer propagation, not the core QueryModel schema object.
@@ -70,7 +70,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 ## Follow-Ups
 
 - Add field-permission-specific RHS aggregate relation tests once representative permission rules are available.
-- Add explicit tenant guard tests in a fixture where tenant is declared as an aggregate relation join key and group key.
+- Add more cross-domain tenant guard fixtures if future industry models use non-standard tenant grains; the O615 explicit tenant join-key fixture is covered for the current engine cut.
 - Add direct fixture coverage for request-time slice on aggregate relation group keys once alias exposure can avoid root-field collisions cleanly.
 - Verify query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields after core schema metadata is available.
 - Keep OR/complex predicate pushdown disabled unless a future boolean-normalization design proves semantic equivalence; current OR join-key and OR aggregate-measure boundaries are covered as outer-only regressions.

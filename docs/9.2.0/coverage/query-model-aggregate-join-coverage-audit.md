@@ -3,10 +3,10 @@ audit_scope: feature
 audit_mode: pre-acceptance-check
 version: 9.2.0
 target: QueryModel Aggregate Join
-status: reviewed-tms-feedback-hardening
+status: reviewed-tenant-guard-hardening
 conclusion: ready-with-gaps
 reviewed_by: Codex
-reviewed_at: 2026-05-27
+reviewed_at: 2026-06-06
 follow_up_required: yes
 ---
 
@@ -33,8 +33,8 @@ ETL / pre-aggregation promotion is not part of this delivery. It remains a futur
 | AJ-REQ-01 prevent 1:N row multiplication | Integration query execution | covered | Aggregate join result is compared with native `fact_sales` aggregate SQL; left row is not multiplied by detail rows. |
 | AJ-REQ-02 support controlled DSL contracts | SQL shape and execution tests | covered | `leftJoinAggregate` compatibility DSL and aggregate-relation-first DSL are both exercised through QM fixtures. |
 | AJ-REQ-03 render fixed RHS filters inside aggregate relation | SQL shape and real execution | covered | `order_status = 'COMPLETED'` is rendered in the RHS derived relation before `GROUP BY`. |
-| AJ-REQ-04 query-time RHS pushdown | SQL shape and explain evidence | covered-initial | Left join-key filters and structured accessBuilder field-ref guards mirror into RHS source-key `WHERE`; aggregate group-key filters push to RHS `WHERE`; aggregate measure filters push to RHS `HAVING`; outer filters are retained. |
-| AJ-REQ-05 preserve system slice lifecycle | QueryFacade and accessBuilder fixture tests | covered-initial | System slice lifecycle is covered; structured accessBuilder field-ref join-key pushdown is covered. Field-permission, implicit tenant, and raw SQL guard pushdown remain follow-up risks unless represented as safe structured join-key predicates. |
+| AJ-REQ-04 query-time RHS pushdown | SQL shape and explain evidence | covered-hardening | Left join-key filters and structured accessBuilder field-ref guards mirror into RHS source-key `WHERE`; equivalent visible left refs backed by the same physical SQL column are recognized; aggregate group-key filters push to RHS `WHERE`; aggregate measure filters push to RHS `HAVING`; outer filters are retained. |
+| AJ-REQ-05 preserve system slice lifecycle | QueryFacade and accessBuilder fixture tests | covered-hardening | System slice lifecycle is covered; structured accessBuilder field-ref join-key pushdown is covered, including a system-slice tenant guard that bypasses user `fieldAccess` without leaking to returned columns. Field-permission-specific custom rules, implicit tenant, and raw SQL guard pushdown remain follow-up risks unless represented as safe structured join-key predicates. |
 | AJ-REQ-06 invalid grain fails closed | Negative test | covered | Missing right join key in `groupBy` is rejected. |
 | AJ-REQ-07 prove old database behavior | Live database execution | covered-initial | SQLite and live MySQL 5.7 profiles passed; MySQL `EXPLAIN` shows keyed access on `agg_src` for the pushed order predicate. |
 | AJ-REQ-08 avoid ordinary join regression | Existing regression suite | covered | `MultiFactTableJoinTest` passed after the implementation. |
@@ -51,14 +51,15 @@ ETL / pre-aggregation promotion is not part of this delivery. It remains a futur
 | MySQL 5.7 explain log | Derived aggregate source `agg_src` uses `uk_order_line`, `type=ref`, `rows=10`, `Using where` for pushed `order_id`. |
 | `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=MultiFactTableJoinTest` | success; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0. |
 | Local service availability check | Docker command unavailable; MySQL 5.7 port `13306` reachable; PostgreSQL `15432` and MySQL 8 `13308` closed. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationO615ProbeExpressJoinNoColumnsShouldResolveJoinPath+aggregateRelationO615TenantGuardShouldBypassFieldAccessWithoutLeaking' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; O615 explicit tenant guard backed by an equivalent left physical column is pushed into RHS aggregate `WHERE`, RHS groupBy retains the tenant key, and system-slice tenant guard bypasses user fieldAccess without leaking to returned columns; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after equivalent left join-key pushdown hardening; Tests run: 38, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Gaps
 
 - PostgreSQL and target TMS database `EXPLAIN` evidence is not available in this environment.
-- RHS duplicate pushdown fragments are literal-rendered because the current derived relation carrier has no parameter channel.
 - OR / complex predicate groups are intentionally not pushed to the RHS aggregate relation.
-- Relation-level default aggregates currently render all supported source TM measures; projection pruning remains a follow-up.
-- Field-permission, implicit tenant, and raw SQL guard pushdown remain follow-up risks. Tenant pushdown should be covered by a fixture where tenant is an explicit aggregate relation join key and group key.
+- Relation-level default aggregate projection pruning is covered for structured references; raw SQL predicates intentionally disable pruning because alias usage is not inferred from raw SQL text.
+- Field-permission-specific custom rules, implicit tenant, and raw SQL guard pushdown remain follow-up risks. Explicit tenant guard pushdown is covered when the tenant is an aggregate relation join key/group key and the left guard ref resolves to an equivalent physical join-key column.
 - Query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields remains an upstream metadata-chain check. Core QueryColumn caption/type coverage is now present.
 
 ## Recommended Next Skills

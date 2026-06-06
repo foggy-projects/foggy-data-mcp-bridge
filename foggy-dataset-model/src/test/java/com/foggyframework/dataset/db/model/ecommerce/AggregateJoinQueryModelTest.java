@@ -814,11 +814,63 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "显式运单 join 应进入 query graph");
         assertTrue(normalizedSql.contains("left join dim_store"),
                 "显式库存仓 join 与 stockHouse 维度路径 join 应都能进入 query graph");
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"),
+                "accessBuilder 中的显式 tenant join key 应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("group by agg_src.store_key"),
+                "RHS groupBy 应保留显式 tenant join key，避免跨租户聚合后再关联");
+        assertTrue(queryEngine.getValues().contains(20240101),
+                "tenant guard 参数应进入查询参数列表");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
         assertEquals(1, rows.size(), "O615 orderNo slice payload 形态应返回一行真实数据");
         assertEquals(orderNo, rows.get(0).get("orderNo"));
+    }
+
+    @Test
+    @DisplayName("O615 probe: 显式 tenant guard 可绕过用户字段白名单且不泄露")
+    void aggregateRelationO615TenantGuardShouldBypassFieldAccessWithoutLeaking() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderNo, ds.store_id srcId, ds.store_type useType
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ExpressJoinProbeQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderNo", "srcId", "useType", "number", "plannedPieceCount"));
+        queryRequest.setSlice(List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderNo", "srcId", "useType", "number", "plannedPieceCount"));
+        context.setSystemSlice(List.of(slice("tenantId", "=", 20240101)));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"),
+                "system_slice 中的显式 tenant join key 应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("plannedByOrder"),
+                "请求 aggregate relation 输出时应保留计划占用聚合关系");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "tenant guard 不在 fieldAccess 中时仍应作为系统过滤生效");
+        assertEquals(orderNo, rows.get(0).get("orderNo"));
+        assertFalse(rows.get(0).containsKey("tenantId"),
+                "tenant guard 不应因为参与过滤而泄露到返回列");
     }
 
     @Test
