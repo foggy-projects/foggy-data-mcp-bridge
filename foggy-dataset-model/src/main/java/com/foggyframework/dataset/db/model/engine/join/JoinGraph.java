@@ -267,6 +267,8 @@ public class JoinGraph {
         // 检查是否所有目标都可达
         for (String target : targetAliases) {
             if (!parentEdge.containsKey(target)) {
+                log.warn("JoinGraph 路径解析失败: target={}, rootAliases={}, nodes={}, edges={}",
+                        target, rootAliases, nodes.keySet(), getAllEdges());
                 throw RX.throwAUserTip("无法找到表 [" + target + "] 的关联路径");
             }
         }

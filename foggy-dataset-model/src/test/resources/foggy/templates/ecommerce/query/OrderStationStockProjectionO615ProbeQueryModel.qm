@@ -1,0 +1,71 @@
+/**
+ * O615 运单站点库存投影复现探针。
+ *
+ * @description 显式普通 join 公开库存仓字段，同时 aggregate relation ON 使用主侧 stockHouse 维度路径。
+ */
+const si = loadTableModel('FactOrderO615StockItemProbeModel');
+const sh = loadTableModel('DimStoreO615StockHouseProbeModel');
+const pa = loadTableModel('DimStoreO615PlanAssignmentProbeModel');
+
+const plannedByOrder = pa
+    .filterEq(pa.planAssignmentStatus, 'ACTIVE')
+    .groupBy(pa.tenantId, pa.plannedLoadSiteId, pa.sourceOrderId)
+    .as('plannedByOrder');
+
+export const queryModel = {
+    name: 'OrderStationStockProjectionO615ProbeQueryModel',
+    caption: 'O615 运单站点库存投影探针',
+    loader: 'v2',
+    model: si,
+
+    joins: [
+        si.leftJoin(sh).on(si.stockHouseId, sh.stockHouseId),
+        si.leftJoin(plannedByOrder)
+            .on(si.tenantId, plannedByOrder.tenantId)
+            .and(si.stockHouse$srcId, plannedByOrder.plannedLoadSiteId)
+            .and(si.orderId, plannedByOrder.sourceOrderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '公开运单',
+            items: [
+                { ref: si.orderId },
+                { ref: si.orderStatus }
+            ]
+        },
+        {
+            caption: '当前站点库存',
+            items: [
+                { ref: si.orderKey },
+                { ref: sh.stockHouseId },
+                { ref: sh.srcId },
+                { ref: sh.useType },
+                { ref: sh.caption },
+                { ref: si.number },
+                { ref: si.stWeight }
+            ]
+        },
+        {
+            caption: '计划占用汇总',
+            items: [
+                { ref: plannedByOrder.plannedLoadSiteId },
+                { ref: plannedByOrder.sourceOrderId },
+                { ref: plannedByOrder.plannedPieceCount }
+            ]
+        },
+        {
+            caption: '内部关联',
+            items: [
+                { ref: si.tenantId }
+            ]
+        }
+    ],
+
+    accesses: [{
+        property: 'tenantId',
+        queryBuilder: (context) => {
+            context.query.and(si.tenant$id, 20240101);
+        }
+    }]
+};

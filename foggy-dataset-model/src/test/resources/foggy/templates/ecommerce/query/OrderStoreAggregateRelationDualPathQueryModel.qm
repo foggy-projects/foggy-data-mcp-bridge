@@ -1,0 +1,49 @@
+/**
+ * 订单-门店双路径聚合关系查询模型
+ *
+ * @description 显式普通 join 公开门店字段，同时 aggregate relation ON 使用主表维度路径。
+ */
+const fo = loadTableModel('FactOrderModel');
+const ds = loadTableModel('DimStoreNoAreaModel');
+const stores = loadTableModel('StoreAggregateSourceModel');
+
+const storeAgg = stores
+    .filterEq(stores.status, 'ACTIVE')
+    .groupBy(stores.storeId)
+    .as('storeAggByBusinessId');
+
+export const queryModel = {
+    name: 'OrderStoreAggregateRelationDualPathQueryModel',
+    caption: '订单门店双路径聚合关系查询',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(ds).on(fo.store$id, ds.storeKey),
+        fo.leftJoin(storeAgg).on(fo.store$storeId, storeAgg.storeId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '显式门店',
+            items: [
+                { ref: ds.storeId },
+                { ref: ds.storeType }
+            ]
+        },
+        {
+            caption: '门店聚合',
+            items: [
+                { ref: storeAgg.areaSqm, caption: '门店面积汇总' }
+            ]
+        }
+    ]
+};
