@@ -1,0 +1,42 @@
+/**
+ * Order-sales aggregate relation null-slice pushdown probe.
+ *
+ * @description RHS aggregate relation has a runtime filter on the same RHS output field that the outer query checks with is null.
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .filterEq(sales.paymentMethod, (ctx) => ctx.extData.paymentMethod)
+    .groupBy(sales.orderId, sales.paymentMethod)
+    .as('fsByPaymentMethod');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel',
+    caption: '订单销售聚合关系空值切片下推探针',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细聚合',
+            items: [
+                { ref: fs.paymentMethod, caption: 'RHS 支付方式' },
+                { ref: fs.salesAmount, caption: '销售明细金额' }
+            ]
+        }
+    ]
+};

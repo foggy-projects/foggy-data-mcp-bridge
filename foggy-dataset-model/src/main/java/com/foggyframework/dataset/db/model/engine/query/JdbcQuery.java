@@ -230,6 +230,9 @@ public class JdbcQuery {
             return;
         }
         if (dbColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
+            if (isNullCheckCondition(op, value)) {
+                return;
+            }
             aggregateRelationColumn.pushAggregateRelationCondition(op, value);
             return;
         }
@@ -248,6 +251,20 @@ public class JdbcQuery {
                 aggregateRelationQueryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
             }
         }
+    }
+
+    private boolean isNullCheckCondition(String op, Object value) {
+        if (op == null || op.isBlank()) {
+            return false;
+        }
+        String normalizedOp = op.trim().toLowerCase();
+        return "is null".equals(normalizedOp)
+                || "isnull".equals(normalizedOp)
+                || "is not null".equals(normalizedOp)
+                || "isnotnull".equals(normalizedOp)
+                || value == null && ("=".equals(normalizedOp)
+                || "<>".equals(normalizedOp)
+                || "!=".equals(normalizedOp));
     }
 
     private Set<String> columnRefKeys(ColumnRef columnRef) {

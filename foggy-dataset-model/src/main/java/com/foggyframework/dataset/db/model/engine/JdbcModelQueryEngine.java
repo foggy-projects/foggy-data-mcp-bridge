@@ -1822,6 +1822,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
             return;
         }
         if (jdbcColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
+            if (isNullCheckCondition(sliceDef.getOp(), sliceDef.getValue())) {
+                return;
+            }
             aggregateRelationColumn.pushAggregateRelationCondition(sliceDef.getOp(), sliceDef.getValue());
             return;
         }
@@ -1839,6 +1842,20 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     private boolean isConjunctiveCondition(String parentLink) {
         return parentLink == null || parentLink.isBlank() || "AND".equalsIgnoreCase(parentLink);
+    }
+
+    private boolean isNullCheckCondition(String op, Object value) {
+        if (op == null || op.isBlank()) {
+            return false;
+        }
+        String normalizedOp = op.trim().toLowerCase();
+        return "is null".equals(normalizedOp)
+                || "isnull".equals(normalizedOp)
+                || "is not null".equals(normalizedOp)
+                || "isnotnull".equals(normalizedOp)
+                || value == null && ("=".equals(normalizedOp)
+                || "<>".equals(normalizedOp)
+                || "!=".equals(normalizedOp));
     }
 
     private void rejectAggregateConditionInSlice(CondRequestDef sliceDef) {
