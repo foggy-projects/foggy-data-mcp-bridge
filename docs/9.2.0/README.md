@@ -3,9 +3,9 @@ doc_role: version_followup_plan
 doc_purpose: Track items intentionally deferred from 9.1.0 and new Java engine semantic-layer follow-up work in the 9.2.0 line.
 version: 9.2.0
 target: Java Engine 9.2.0 Follow-Up Roadmap
-status: proposed
+status: readiness-review
 created_at: 2026-05-03
-updated_at: 2026-06-05
+updated_at: 2026-06-06
 ---
 
 # Foggy Java Engine 9.2.0 Follow-Ups
@@ -15,6 +15,29 @@ updated_at: 2026-06-05
 9.2.0 starts from the 9.1.0 accepted-with-risks boundary and also accepts new Java engine semantic-layer work that must remain governed, fail-closed, and queryModel lifecycle preserving.
 
 The 9.1.0 rule still applies: if semantics or execution capability cannot be proven, the engine must refuse explicitly and guide the LLM to a safer query shape.
+
+## Current Readiness Snapshot
+
+9.2.0 is no longer only a proposed backlog. The aggregate-join slice has a formal accepted-with-risks record, and the follow-up hardening workitems have targeted local or upstream evidence.
+
+This snapshot is not a final release signoff. It records the current readiness boundary for the Java engine workstream and separates local engine evidence from upstream TMS verification.
+
+| Area | Current Status | Evidence / Record | Remaining Boundary |
+|---|---|---|---|
+| QueryModel aggregate join | accepted-with-risks | `acceptance/query-model-aggregate-join-acceptance.md` | Risk items remain for broader DB EXPLAIN, parameter-carrying derived relations, complex predicate pushdown, tenant/access edge cases, and ETL promotion. |
+| Aggregate relation joined left key | local-verified | `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` | Await upstream issue #84 consumer confirmation where applicable. |
+| Aggregate relation RHS dimension filter | upstream-verified | `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` | No extra engine action recorded. |
+| Formula TM property missing column error | local-verified-awaiting-upstream | `workitems/BUG-formula-property-missing-column-error.md` | Needs upstream TMS issue #85 verification. |
+| QM predefined formula slice injection | local-verified-awaiting-upstream | `workitems/BUG-qm-predefined-formula-slice-injection.md` | Needs upstream verification with `OrderStationStockProjectionQuery.availablePieceCount`. |
+| QM predefined scalar formula outer aggregate | implemented | `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` | Keep aggregate/window predefined fields fail-closed. |
+| QM v2 TableModel multi-alias | implemented | `workitems/OPT-qm-v2-tablemodel-multi-alias.md` | Continue using explicit aliases only; do not infer ambiguous joins. |
+| Data Viewer direct extData runtime filter | current-source-verified | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | Negative-case validation log is expected; no production regression claimed. |
+| Odoo registry consumer gate | consumer-verified | `../9.1.0/workitems/P1-odoo-model-registry-promotion-20260606.md` | Registry promotion remains a cross-repo follow-up, not a 9.2 Java engine blocker. |
+
+Readiness documents:
+
+- `acceptance/version-readiness-snapshot.md` records the current 9.2.0 signoff view across workitems.
+- `quality/query-model-hardening-followups-quality-and-coverage.md` consolidates non aggregate-join quality review and coverage evidence.
 
 ## Candidate Scope
 
@@ -52,6 +75,13 @@ The 9.1.0 rule still applies: if semantics or execution capability cannot be pro
 
 9.2.0 work must produce its own implementation plans, quality gates, coverage audits, and acceptance records. The 9.1.0 acceptance record only signs off the existing C2 v1 rows two-level cascade subset and fail-closed residual risks.
 
+The current readiness boundary is:
+
+- No 9.2.0 workitem remains in `ready-for-verification`.
+- Two workitems are local-verified but still need upstream TMS confirmation.
+- Default full multi-db Maven execution still depends on external database services; local evidence records targeted SQLite/MySQL/addon gates separately.
+- Aggregate join release readiness remains accepted-with-risks, not risk-free.
+
 ## Primary Workitems
 
 - `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.
@@ -61,3 +91,4 @@ The 9.1.0 rule still applies: if semantics or execution capability cannot be pro
 - `workitems/BUG-qm-predefined-formula-slice-injection.md` - Follow-up fix for QM predefined formula fields referenced outside `columns`; `slice` / `having` / `postSlice` / `orderBy` / `groupBy` / `$field` references now inject trusted predefined calculated fields before SQL condition building.
 - `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` - Allow outer aggregation for row-level scalar QM predefined calculated fields while keeping aggregate/window predefined fields fail-closed.
 - `workitems/OPT-qm-v2-tablemodel-multi-alias.md` - Support ordinary QM v2 `TableModel` explicit aliases so one TM can join multiple times with alias-qualified root fields in `on`, `columns`, `slice`, and `orderBy`.
+- `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` - Data Viewer direct-query entrypoint now preserves top-level `extData` as runtime filter context for direct QM execution.
