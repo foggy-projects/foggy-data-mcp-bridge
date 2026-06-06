@@ -9,8 +9,11 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -269,6 +272,57 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertFalse(results.isEmpty());
     }
 
+    @Test
+    @Order(13)
+    @DisplayName("Running SUM with ordinary slice and postSlice executes and matches hand-written SQL")
+    void testRunningSumPostSliceExecutesAndMatchesHandWrittenSql() {
+        assumeCommonTableExpressionsSupported();
+
+        if (!supportsWindowFunctions()) {
+            log.info("running SUM postSlice parity not executed on {}", getDialectKey());
+            return;
+        }
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(new ArrayList<>(List.of("orderId", "salesAmount", "runningSalesAmount")));
+        request.setGroupBy(buildGroupBy("orderId"));
+        request.setSlice(new ArrayList<>(List.of(new SliceRequestDef("orderStatus", "=", "COMPLETED"))));
+
+        CalculatedFieldDef runningSalesAmount = new CalculatedFieldDef();
+        runningSalesAmount.setName("runningSalesAmount");
+        runningSalesAmount.setCaption("累计销售额");
+        runningSalesAmount.setExpression("SUM(salesAmount)");
+        runningSalesAmount.setWindowOrderBy(new ArrayList<>(List.of(
+                new WindowOrderDef("salesAmount", "desc"),
+                new WindowOrderDef("orderId", "asc")
+        )));
+        runningSalesAmount.setWindowFrame("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW");
+        request.setCalculatedFields(new ArrayList<>(List.of(runningSalesAmount)));
+        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("runningSalesAmount", "<=", 15000))));
+        request.setOrderBy(new ArrayList<>(List.of(
+                orderDesc("salesAmount"),
+                orderAsc("orderId")
+        )));
+
+        JdbcModelQueryEngine engine = analyze(request);
+        String sql = engine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+        printSql(sql, "CTE Wrapping: Running SUM postSlice parity");
+
+        assertTrue(normalizedSql.contains("__POST_RESULT_STAGE__ AS"), sql);
+        assertTrue(normalizedSql.toUpperCase().contains("SUM("), sql);
+        assertTrue(normalizedSql.toUpperCase().contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"), sql);
+        assertTrue(engine.getValues().contains("COMPLETED"), "ordinary slice value should be bound");
+        assertTrue(engine.getValues().contains(15000), "postSlice threshold should be bound");
+
+        List<Map<String, Object>> actual = jdbcTemplate.queryForList(
+                sql, engine.getValues().toArray(new Object[0]));
+        List<Map<String, Object>> expected = executeQuery(handWrittenRunningSumSql(15000));
+
+        assertRowsEqualInOrder(expected, actual, sql);
+    }
+
     // ==========================================
     // Backward Compatibility: Single-Pass
     // ==========================================
@@ -465,6 +519,107 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         // Find the SELECT before FROM stage1
         int outerSelect = sql.toUpperCase().lastIndexOf("SELECT ", fromStage1);
         return outerSelect >= 0 ? sql.substring(outerSelect, fromStage1) : sql;
+    }
+
+    private String handWrittenRunningSumSql(int threshold) {
+        String orderId = quoteIdentifier("orderId");
+        String salesAmount = quoteIdentifier("salesAmount");
+        String runningSalesAmount = quoteIdentifier("runningSalesAmount");
+        return """
+                WITH order_sales AS (
+                    SELECT fs.order_id AS %s,
+                           SUM(fs.sales_amount) AS %s
+                    FROM fact_sales fs
+                    WHERE fs.order_status = 'COMPLETED'
+                    GROUP BY fs.order_id
+                ),
+                order_sales_window AS (
+                    SELECT %s,
+                           %s,
+                           SUM(%s) OVER (
+                               ORDER BY %s DESC, %s ASC
+                               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                           ) AS %s
+                    FROM order_sales
+                )
+                SELECT %s, %s, %s
+                FROM order_sales_window
+                WHERE %s <= %d
+                ORDER BY %s DESC, %s ASC
+                """.formatted(
+                orderId, salesAmount,
+                orderId, salesAmount, salesAmount, salesAmount, orderId, runningSalesAmount,
+                orderId, salesAmount, runningSalesAmount,
+                runningSalesAmount, threshold,
+                salesAmount, orderId);
+    }
+
+    private String quoteIdentifier(String identifier) {
+        String dialect = getDialectKey();
+        if (dialect.contains("mysql")) {
+            return "`" + identifier + "`";
+        }
+        if (dialect.contains("sqlserver")) {
+            return "[" + identifier + "]";
+        }
+        return "\"" + identifier + "\"";
+    }
+
+    private static void assertRowsEqualInOrder(
+            List<Map<String, Object>> expected,
+            List<Map<String, Object>> actual,
+            String sql) {
+        assertFalse(actual.isEmpty(), "actual result should not be empty");
+        List<Map<String, String>> expectedRows = canonicalRowsInOrder(expected);
+        List<Map<String, String>> actualRows = canonicalRowsInOrder(actual);
+        assertTrue(expectedRows.equals(actualRows), () -> {
+            int firstDiff = firstDiff(expectedRows, actualRows);
+            String diff = firstDiff < 0
+                    ? "no row diff"
+                    : "firstDiff=" + firstDiff
+                    + ", expected=" + expectedRows.get(firstDiff)
+                    + ", actual=" + actualRows.get(firstDiff);
+            return "expectedSize=" + expectedRows.size()
+                    + ", actualSize=" + actualRows.size()
+                    + ", " + diff
+                    + "\nSQL:\n" + sql;
+        });
+    }
+
+    private static int firstDiff(List<Map<String, String>> expectedRows, List<Map<String, String>> actualRows) {
+        int size = Math.min(expectedRows.size(), actualRows.size());
+        for (int i = 0; i < size; i++) {
+            if (!expectedRows.get(i).equals(actualRows.get(i))) {
+                return i;
+            }
+        }
+        return expectedRows.size() == actualRows.size() ? -1 : size;
+    }
+
+    private static List<Map<String, String>> canonicalRowsInOrder(List<Map<String, Object>> rows) {
+        List<Map<String, String>> canonical = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Map<String, String> normalized = new LinkedHashMap<>();
+            row.entrySet().stream()
+                    .filter(entry -> !entry.getKey().startsWith("_"))
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> normalized.put(entry.getKey(), canonicalValue(entry.getValue())));
+            canonical.add(normalized);
+        }
+        return canonical;
+    }
+
+    private static String canonicalValue(Object value) {
+        if (value == null) {
+            return "<null>";
+        }
+        if (value instanceof Number) {
+            return new BigDecimal(value.toString())
+                    .setScale(6, RoundingMode.HALF_UP)
+                    .stripTrailingZeros()
+                    .toPlainString();
+        }
+        return value.toString();
     }
 
     private JdbcModelQueryEngine analyze(JdbcModelQueryEngine engine) {
