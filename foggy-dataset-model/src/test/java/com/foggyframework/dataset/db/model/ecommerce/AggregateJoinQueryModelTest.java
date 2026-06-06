@@ -489,6 +489,29 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation raw SQL accessBuilder 不应猜测下推到右侧 WHERE")
+    void aggregateRelationRawSqlAccessBuilderShouldStayOuterOnly() {
+        String orderId = "ORD20240101000001";
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationRawAccessQuery();
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("t1.order_id = ?"),
+                "raw SQL accessBuilder 条件应保留在外层 WHERE");
+        assertFalse(normalizedSql.contains("agg_src.order_id = '" + orderId + "'"),
+                "raw SQL accessBuilder 条件不应被解析为 RHS 聚合前 WHERE 字面量");
+        assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
+                "raw SQL accessBuilder 条件不应被复制为 RHS 聚合前 WHERE 参数条件");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "外层 WHERE 应保留 raw SQL accessBuilder 参数化条件");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "raw SQL accessBuilder 限定订单后应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
     @DisplayName("aggregate relation ON 左键应支持已 join 维度字段")
     void aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField() {
         String orderId = findOrderIdWithActiveStore();
@@ -1037,6 +1060,20 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationAccessQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationRawAccessQuery() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationRawAccessQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationRawAccessQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
