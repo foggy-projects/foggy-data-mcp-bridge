@@ -38,6 +38,7 @@ ETL / pre-aggregation promotion is not part of this delivery. It remains a futur
 | AJ-REQ-06 invalid grain fails closed | Negative test | covered | Missing right join key in `groupBy` is rejected. |
 | AJ-REQ-07 prove old database behavior | Live database execution | covered-initial | SQLite and live MySQL 5.7 profiles passed; MySQL `EXPLAIN` shows keyed access on `agg_src` for the pushed order predicate. |
 | AJ-REQ-08 avoid ordinary join regression | Existing regression suite | covered | `MultiFactTableJoinTest` passed after the implementation. |
+| AJ-REQ-09 aggregate output order/total | SQL shape, execution, and QueryFacade total tests | covered | Top-level `orderBy` on aggregate relation measure keeps RHS projection and renders on the relation output alias; QueryFacade `returnTotal` keeps aggregate relation SQL and returns filtered `total` / `totalData`. |
 | AJ-NG-ETL keep ETL out of current scope | Documentation | covered | Workitem records ETL promotion as deferred/out of scope for this Java engine cut. |
 
 ## Evidence Summary
@@ -53,12 +54,15 @@ ETL / pre-aggregation promotion is not part of this delivery. It remains a futur
 | Local service availability check | Docker command unavailable; MySQL 5.7 port `13306` reachable; PostgreSQL `15432` and MySQL 8 `13308` closed. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationO615ProbeExpressJoinNoColumnsShouldResolveJoinPath+aggregateRelationO615TenantGuardShouldBypassFieldAccessWithoutLeaking' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; O615 explicit tenant guard backed by an equivalent left physical column is pushed into RHS aggregate `WHERE`, RHS groupBy retains the tenant key, and system-slice tenant guard bypasses user fieldAccess without leaking to returned columns; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after equivalent left join-key pushdown hardening; Tests run: 38, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationMeasureOrderByShouldRetainProjection+aggregateRelationReturnTotalShouldKeepAggregateRelationQuery' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate relation measure `orderBy` keeps RHS projection and executes, while QueryFacade `returnTotal` returns filtered total/totalData and keeps aggregate relation SQL; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after aggregate output `orderBy` and QueryFacade `returnTotal` coverage; Tests run: 40, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Gaps
 
 - PostgreSQL and target TMS database `EXPLAIN` evidence is not available in this environment.
 - OR / complex predicate groups are intentionally not pushed to the RHS aggregate relation.
 - Relation-level default aggregate projection pruning is covered for structured references; raw SQL predicates intentionally disable pruning because alias usage is not inferred from raw SQL text.
+- Aggregate relation output `orderBy` and QueryFacade `returnTotal` are covered against the current relation-level DSL fixture.
 - Field-permission-specific custom rules, implicit tenant, and raw SQL guard pushdown remain follow-up risks. Explicit tenant guard pushdown is covered when the tenant is an aggregate relation join key/group key and the left guard ref resolves to an equivalent physical join-key column.
 - Query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields remains an upstream metadata-chain check. Core QueryColumn caption/type coverage is now present.
 

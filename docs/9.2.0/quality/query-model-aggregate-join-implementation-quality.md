@@ -54,6 +54,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 | LLM analysis ergonomics | pass-initial | Relation-level DSL lets model authors publish ordinary QM fields backed by TM aggregation metadata, reducing LLM need to synthesize raw SQL/CTE. |
 | Query-time RHS filter performance | pass-hardening-with-risk | AND-only request slices on aggregate relation output fields now duplicate into RHS `WHERE` or `HAVING`; left join-key filters and structured accessBuilder field-ref guards mirror into the RHS source key domain. The left join-key match expands through same-physical-column visible TM/QM fields, so a guard authored against `tenant$id` can still mirror when the aggregate join uses `tenantId`. Duplicated RHS fragments render with bind placeholders through the derived relation parameter channel. MySQL 5.7 `EXPLAIN` confirms keyed RHS source access for the selective order predicate. OR join-key and OR aggregate-measure slices are covered as outer-only behavior; remaining risks are expanding complex predicate pushdown and broader cross-dialect plan evidence. |
 | Permission/system slice proof | pass-hardening-with-risk | System slice lifecycle through QueryFacade is covered. Structured accessBuilder field-ref join-key guard pushdown is covered, including equivalent left join-key refs and a system-slice tenant guard that bypasses user `fieldAccess` without leaking to output columns. Field-permission-specific custom rules, implicit tenant guards, and raw SQL guard pushdown remain follow-up risks unless modeled as safe structured join keys. |
+| Aggregate output order/total | pass-hardening | Top-level `orderBy` on an aggregate relation measure keeps the required RHS projection and renders against the relation output alias. QueryFacade `returnTotal` keeps the aggregate relation derived table in total SQL and returns filtered `total` / `totalData`. |
 | Aggregate field metadata | pass-initial | Aggregate relation fields inherit TM caption, resolved output type, formatter, AI/deprecation metadata, and expose `extData.aggregateRelation` lineage including aggregation/source/semantic scale/unit metadata. |
 | Dialect/old database proof | pass-initial-with-risk | SQLite and live MySQL 5.7 execution passed. PostgreSQL and the target TMS database were not available in this environment. |
 
@@ -66,6 +67,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 - Query-time RHS pushdown deliberately preserves the outer QueryModel filter, so it improves optimizer visibility without changing LEFT JOIN no-match semantics.
 - Aggregate relation runtime schema now carries business captions and type semantics from TM measures; the remaining schema risk is frontend-meta/query-cloud/data-viewer propagation, not the core QueryModel schema object.
 - The previous default-measure projection-width gap is closed for tracked structured references: aggregate relation RHS projection is pruned to required group keys and referenced outputs. Raw SQL conditions intentionally disable this pruning because alias usage is not inferred from raw SQL text.
+- Aggregate relation output `orderBy` and QueryFacade `returnTotal` are no longer incidental coverage: both have targeted SQL-shape and execution assertions against the relation-level DSL fixture.
 
 ## Follow-Ups
 
@@ -74,7 +76,6 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 - Add direct fixture coverage for request-time slice on aggregate relation group keys once alias exposure can avoid root-field collisions cleanly.
 - Verify query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields after core schema metadata is available.
 - Keep OR/complex predicate pushdown disabled unless a future boolean-normalization design proves semantic equivalence; current OR join-key and OR aggregate-measure boundaries are covered as outer-only regressions.
-- Add `orderBy` on aggregate output and `returnTotal` focused assertions if these become acceptance requirements rather than incidental coverage.
 - Add PostgreSQL and target TMS database SQL/explain evidence when those services are available.
 - Keep derived relation body-parameter ordering covered as more derived table carriers are added; aggregate relation now uses `QueryObject.getBodyParameters()` for RHS fixed/runtime filters and duplicated pushdown fragments.
 - Keep relation-level projection pruning covered when new query-reference sources are added; structured references are pruned today, while raw SQL predicates retain full RHS projection by design.

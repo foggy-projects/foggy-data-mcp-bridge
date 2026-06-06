@@ -4,6 +4,7 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -20,6 +21,7 @@ import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -295,6 +297,63 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertEquals(orderId, row.get("orderId"));
         assertEquals(0, money(nativeSalesAmount).compareTo(money(row.get("salesAmount"))), "默认聚合销售金额应一致");
         assertEquals(nativeUniqueCustomers.longValue(), ((Number) row.get("uniqueCustomers")).longValue(), "默认去重客户数应一致");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 输出字段用于 orderBy 时应保留 RHS projection")
+    void aggregateRelationMeasureOrderByShouldRetainProjection() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("salesAmount");
+        order.setDir("desc");
+        queryRequest.setOrderBy(List.of(order));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("sum(agg_src.sales_amount) salesAmount"),
+                "orderBy 引用 aggregate relation measure 时 RHS SELECT 不应裁掉该 measure");
+        assertTrue(normalizedSql.toLowerCase().contains("order by"),
+                "aggregate relation measure orderBy 应渲染外层 ORDER BY");
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount"),
+                "orderBy 应引用 aggregate relation 输出 alias，而不是直接引用 RHS 源列");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertFalse(rows.isEmpty(), "aggregate relation measure orderBy 查询应可真实执行");
+    }
+
+    @Test
+    @DisplayName("aggregate relation returnTotal 应执行 total 查询并保持聚合关系")
+    void aggregateRelationReturnTotalShouldKeepAggregateRelationQuery() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setReturnTotal(true);
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        PagingResultImpl<?> pagingResult = result.getPagingResult();
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+
+        assertEquals(1, pagingResult.getTotal(), "returnTotal 应返回过滤后的总行数");
+        assertTrue(pagingResult.getTotalData() instanceof Map, "returnTotal 应返回 totalData");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totalData = (Map<String, Object>) pagingResult.getTotalData();
+        assertEquals(1, ((Number) totalData.get("total")).intValue(),
+                "totalData.total 应与分页 total 保持一致");
+        assertTrue(normalizeSql(queryEngine.getAggSql()).contains("fsByOrder"),
+                "returnTotal 的 total SQL 应保留 aggregate relation 外层 alias");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) pagingResult.getItems();
+        assertEquals(1, rows.size(), "returnTotal 不应影响明细查询结果");
+        assertEquals(orderId, rows.get(0).get("orderId"));
     }
 
     @Test
