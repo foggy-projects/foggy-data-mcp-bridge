@@ -181,6 +181,41 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation group key alias 请求条件应复制到右侧 WHERE")
+    void aggregateRelationGroupKeyAliasSliceShouldPushWhereThroughRequest() {
+        String orderId = findOrderIdWithCompletedSales();
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationGroupKeyAliasQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        DbQueryColumn salesOrderIdColumn = queryModel.findJdbcQueryColumnByName("salesOrderId", true);
+        assertTrue(salesOrderIdColumn.getSelectColumn() instanceof AggregateRelationOutputColumn,
+                "salesOrderId 应是 aggregate relation group key 的 QM alias");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationGroupKeyAliasRequest();
+        queryRequest.setSlice(List.of(slice("salesOrderId", "=", orderId)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("agg_src.order_id = ?"),
+                "请求侧 aggregate relation group key alias 条件应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("fsByOrder.orderId =?") || normalizedSql.contains("fsByOrder.orderId = ?"),
+                "外层 WHERE 应保留 group key alias 条件以保持 LEFT JOIN 语义");
+        assertTrue(normalizedSql.contains("fsByOrder.orderId \"salesOrderId\""),
+                "RHS group key 应按 QM alias 返回，避免与左侧 orderId 冲突");
+        assertEquals(List.of("COMPLETED", orderId, orderId), queryEngine.getValues(),
+                "RHS fixed filter、RHS group key pushdown、outer WHERE 参数顺序应稳定");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "aggregate relation group key alias slice 应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+        assertEquals(orderId, rows.get(0).get("salesOrderId"));
+    }
+
+    @Test
     @DisplayName("左侧 join key slice 应复制到 aggregate relation 右侧 WHERE")
     void aggregateRelationLeftJoinKeySliceShouldPushRightWhere() {
         String orderId = findOrderIdWithCompletedSales();
@@ -1360,6 +1395,13 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        return queryRequest;
+    }
+
+    private DbQueryRequestDef buildOrderSalesAggregateRelationGroupKeyAliasRequest() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationGroupKeyAliasQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesOrderId", "salesAmount", "uniqueCustomers"));
         return queryRequest;
     }
 

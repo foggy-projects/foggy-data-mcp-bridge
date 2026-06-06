@@ -11,7 +11,7 @@ signed_off_at: 2026-05-27
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 20
+evidence_count: 24
 ---
 
 # Feature Acceptance
@@ -36,6 +36,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | Main-side measure not multiplied | accepted | Query execution compares generated aggregate join with native aggregate SQL. |
 | Fixed RHS filters inside aggregate relation | accepted | Filters before `groupBy` are rendered inside the RHS relation before aggregation. |
 | Query-time RHS pushdown | accepted-with-risk | AND-only group-key, measure, left join-key, and structured accessBuilder field-ref guard pushdown is implemented with RHS derived relation bind parameters. Left join-key matching recognizes same-physical-column aliases across visible left TM/QM fields, covering tenant guard expressions that use a no-table dimension `$id` while the join uses a property alias. OR/complex predicates stay outer-query only, with OR join-key and OR aggregate-measure boundary coverage. |
+| Aggregate group-key alias request slice | accepted | Request-side slice on an explicitly exposed aggregate relation group key alias duplicates to RHS source-key `WHERE`, keeps the outer aggregate relation filter, and avoids root-field name collisions. |
 | Derived relation parameter binding | accepted | RHS fixed/runtime filters and duplicated RHS pushdown fragments render with `?` placeholders through `QueryObject.getBodyParameters()`; SQLite aggregate numeric comparison binding is covered. |
 | Relation-level RHS projection pruning | accepted | Structured requests prune unreferenced aggregate relation measures from RHS SELECT; raw SQL conditions disable pruning and keep full RHS projection. |
 | Aggregate output order/total | accepted | Top-level `orderBy` on aggregate relation output measures retains the required RHS projection and renders against the relation output alias; QueryFacade `returnTotal` keeps the aggregate relation derived table in total SQL. |
@@ -70,6 +71,10 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after equivalent left join-key pushdown hardening; Tests run: 38, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationMeasureOrderByShouldRetainProjection+aggregateRelationReturnTotalShouldKeepAggregateRelationQuery' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate relation measure `orderBy` keeps RHS projection and executes, while QueryFacade `returnTotal` returns filtered total/totalData and keeps aggregate relation SQL; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after aggregate output `orderBy` and QueryFacade `returnTotal` coverage; Tests run: 40, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationGroupKeyAliasSliceShouldPushWhereThroughRequest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate relation group-key alias request slice duplicates to RHS source-key `WHERE`, keeps the outer relation filter, exposes `salesOrderId`, and executes against real SQLite data; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationO615ProbeExpressJoinNoColumnsShouldResolveJoinPath+aggregateRelationO615ProbeExpressJoinDimensionIdSliceShouldResolveJoinPath' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; QM external aliases remain compatible with O615 dimension join-path planning after owner lookup was hardened to prefer the selected source column; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after aggregate group-key alias slice and QM owner-resolution hardening; Tests run: 41, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=MultiFactTableJoinTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; ordinary multi-fact join regression after QM alias owner-resolution hardening; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Risks / Open Items
 

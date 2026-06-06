@@ -499,6 +499,14 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         if (sourceQueryColumn == null || jdbcModelList == null) {
             return null;
         }
+        DbColumn selectColumn = sourceQueryColumn.getSelectColumn();
+        if (selectColumn != null) {
+            TableModel ownerModel = findOwnerModelBySelectColumn(selectColumn);
+            if (ownerModel != null) {
+                return ownerModel;
+            }
+        }
+
         String columnName = sourceQueryColumn.getName();
         if (StringUtils.isNotEmpty(columnName)) {
             for (TableModel model : jdbcModelList) {
@@ -510,6 +518,29 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         }
 
         QueryObject queryObject = sourceQueryColumn.getQueryObject();
+        if (queryObject == null) {
+            return null;
+        }
+        for (TableModel model : jdbcModelList) {
+            if (model.getQueryObject() == queryObject || queryObject.isRootEqual(model.getQueryObject())) {
+                return model;
+            }
+        }
+        return null;
+    }
+
+    private TableModel findOwnerModelBySelectColumn(DbColumn selectColumn) {
+        String selectColumnName = selectColumn.getName();
+        if (StringUtils.isNotEmpty(selectColumnName)) {
+            for (TableModel model : jdbcModelList) {
+                DbColumn column = model.findJdbcColumnByName(selectColumnName);
+                if (column == selectColumn) {
+                    return model;
+                }
+            }
+        }
+
+        QueryObject queryObject = selectColumn.getQueryObject();
         if (queryObject == null) {
             return null;
         }
