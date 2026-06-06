@@ -93,6 +93,7 @@ Actual before fix:
 - [x] `DbPropertyImpl` 兜底错误去掉模型对象 dump。
 - [x] 新增 invalid fixture 和集成测试。
 - [x] 当前 Java engine 源码本地复核通过。
+- [x] 生成上游复测 handoff：`upstream-verification-handoff-20260606.md`。
 - [ ] 等待 TMS 侧用 #85 场景复测确认。
 
 ## Verification
@@ -130,3 +131,4 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-datas
 
 - GitHub issue: `foggy-projects/foggy-data-mcp-bridge#85`
 - Related TMS commit: `c9fbe9a5 feat: stabilize order settlement subject fields`
+- Upstream verification handoff: `upstream-verification-handoff-20260606.md`

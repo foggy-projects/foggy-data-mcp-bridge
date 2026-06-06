@@ -38,6 +38,7 @@ Readiness documents:
 
 - `acceptance/version-readiness-snapshot.md` records the current 9.2.0 signoff view across workitems.
 - `quality/query-model-hardening-followups-quality-and-coverage.md` consolidates non aggregate-join quality review and coverage evidence.
+- `workitems/upstream-verification-handoff-20260606.md` provides the compact TMS verification packet for local-verified items.
 
 ## Candidate Scope
 
@@ -79,6 +80,7 @@ The current readiness boundary is:
 
 - No 9.2.0 workitem remains in `ready-for-verification`.
 - Two workitems are local-verified but still need upstream TMS confirmation.
+- A compact upstream verification handoff is available at `workitems/upstream-verification-handoff-20260606.md`.
 - Default full multi-db Maven execution still depends on external database services; local evidence records targeted SQLite/MySQL/addon gates separately.
 - Aggregate join release readiness remains accepted-with-risks, not risk-free.
 

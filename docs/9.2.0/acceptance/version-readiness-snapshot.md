@@ -20,6 +20,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 - aggregate join has been accepted with explicit residual risks;
 - follow-up QueryModel hardening work has targeted Java evidence;
 - local-only fixes are separated from upstream TMS confirmation;
+- a compact upstream verification handoff exists for the two local-only consumer checks;
 - environment-dependent full multi-db gates are not represented as completed.
 
 ## Signoff Matrix
@@ -50,6 +51,6 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 
 Recommended next actions:
 
-- collect upstream confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`;
+- send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
 - run the full multi-db Maven gate in an environment with MySQL and PostgreSQL services before a release tag.

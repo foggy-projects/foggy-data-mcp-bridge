@@ -32,6 +32,8 @@ This review intentionally does not re-sign the main aggregate-join feature. Aggr
 
 This review also does not claim upstream completion for workitems that only have local Java evidence. The two local-verified-awaiting-upstream items remain open until TMS confirms the real consumer scenarios.
 
+The upstream verification packet is recorded at `../workitems/upstream-verification-handoff-20260606.md`.
+
 ## Workitem Readiness Matrix
 
 | Workitem | Status | Engine Surface | Evidence | Remaining Action |
@@ -120,6 +122,7 @@ Coverage:
 
 - `BUG-formula-property-missing-column-error` still requires upstream TMS issue #85 verification.
 - `BUG-qm-predefined-formula-slice-injection` still requires upstream verification with `OrderStationStockProjectionQuery.availablePieceCount`.
+- The handoff packet for both checks is available at `../workitems/upstream-verification-handoff-20260606.md`.
 - Default full multi-db Maven execution is environment-dependent and should be rerun with MySQL/PostgreSQL services before release signoff.
 - Aggregate join residual risks remain governed by `acceptance/query-model-aggregate-join-acceptance.md`.
 

@@ -1,0 +1,165 @@
+---
+doc_role: upstream_verification_handoff
+doc_purpose: Provide a compact TMS/upstream verification packet for 9.2.0 workitems that are local-verified but still awaiting consumer confirmation.
+version: 9.2.0
+target: TMS Upstream Verification For 9.2 QueryModel Hardening
+status: ready-for-upstream-verification
+created_at: 2026-06-06
+updated_at: 2026-06-06
+owner_repo: foggy-data-mcp-bridge-wt-dev-compose
+owner_module: foggy-dataset-model
+---
+
+# TMS Upstream Verification Handoff
+
+## Purpose
+
+This handoff is for the remaining 9.2.0 items that already have local Java engine evidence but still need TMS-side confirmation:
+
+- `BUG-formula-property-missing-column-error`
+- `BUG-qm-predefined-formula-slice-injection`
+
+The upstream verifier does not need to re-run the full Foggy Java test suite. The expected output is a short pass/fail confirmation against the real TMS model and query shapes.
+
+## Engine Baseline
+
+Use `foggy-projects/foggy-data-mcp-bridge` branch `main` at, or after, the 2026-06-06 hardening verification baseline.
+
+Relevant Java engine evidence already recorded locally:
+
+```text
+Tests run: 68, Failures: 0, Errors: 0, Skipped: 0
+```
+
+Command used for the local combination gate:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite '-Dtest=AggregateJoinQueryModelTest,SemanticScaleFactorIntegrationTest,InlineExpressionPreprocessStepTest,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat+testQmPredefinedFormulaInPivotTopLevelSlice+testQmPredefinedFormulaInPivotAxisHavingAndOrderBy+testQmPredefinedFormulaMetricInPivotGrandTotal' test
+```
+
+## Verification Item 1: Formula Property Missing Column Error
+
+Source workitem:
+
+- `docs/9.2.0/workitems/BUG-formula-property-missing-column-error.md`
+- upstream issue: `foggy-projects/foggy-data-mcp-bridge#85`
+
+### What To Verify
+
+When a formula-backed TM property is missing its physical carrier `column`, the model loading or validation error should point to the concrete model field instead of dumping the whole model object.
+
+Expected diagnostic shape:
+
+```text
+<ModelName>.<fieldName> column不能为空；formulaDef/dialectFormulaDef 字段必须声明 carrier column，用于字段元数据、权限和物理列绑定
+```
+
+### Suggested TMS Scenario
+
+Use the original TMS #85 model family:
+
+- `OrderSettlementCandidateQuery`
+- `FactOrderSettlementModel`
+- formula-backed JSON/property fields around settlement cost data
+
+If TMS has already added carrier columns to all affected fields, this can be verified by temporarily removing one carrier `column` in a local verification branch and loading the model.
+
+### Pass Criteria
+
+- The error names the concrete model and field path.
+- The error mentions that `formulaDef` / `dialectFormulaDef` property fields still require a carrier column.
+- The error no longer prints a full `DbObjectSupport(...)` model dump as the only actionable context.
+
+### Fail Criteria
+
+- The model load still fails with only a full model dump.
+- The message does not identify which field lacks `column`.
+- A formula-backed property without carrier column is silently accepted.
+
+## Verification Item 2: QM Predefined Formula Slice Injection
+
+Source workitem:
+
+- `docs/9.2.0/workitems/BUG-qm-predefined-formula-slice-injection.md`
+
+### What To Verify
+
+When a QM predefined formula field is referenced by request clauses outside `columns`, the Java engine should inject the trusted predefined calculated field before SQL condition building.
+
+Primary upstream field:
+
+```javascript
+{
+  name: 'availablePieceCount',
+  caption: '可配件数',
+  type: 'DOUBLE',
+  formula: 'GREATEST(COALESCE(number, 0) - COALESCE(plannedPieceCount, 0), 0)'
+}
+```
+
+Primary query model:
+
+- `OrderStationStockProjectionQuery`
+
+### Suggested TMS Scenario
+
+Run the real consumer query with `availablePieceCount` referenced only from a filter-like clause and not explicitly selected in `columns`.
+
+Minimal request shape:
+
+```json
+{
+  "slice": [
+    {
+      "field": "availablePieceCount",
+      "op": ">",
+      "value": 0
+    }
+  ]
+}
+```
+
+If the TMS query also requires runtime context such as `extData`, include the same `extData` payload used by the production query path.
+
+### Pass Criteria
+
+- The request no longer fails with `未能找到列[availablePieceCount]`.
+- The formula field can be referenced from `slice` even when omitted from `columns`.
+- Paging, totals, and any existing backend filters keep the same business result shape as the equivalent workaround query that explicitly selected the formula field.
+
+### Fail Criteria
+
+- The request still fails with `未能找到列[availablePieceCount]`.
+- The request succeeds only when `availablePieceCount` is also listed in `columns`.
+- The generated result shape changes unexpectedly when the formula is used only in `slice`.
+
+## Upstream Reply Template
+
+Please return the following fields in the upstream confirmation:
+
+```text
+engine branch / commit:
+TMS branch / commit:
+model bundle or registry version:
+
+BUG-formula-property-missing-column-error:
+  result: pass | fail | not-applicable
+  scenario used:
+  observed message or error:
+
+BUG-qm-predefined-formula-slice-injection:
+  result: pass | fail | not-applicable
+  scenario used:
+  request shape:
+  observed result or error:
+
+extra notes:
+```
+
+## Local Follow-Up Rule
+
+After upstream confirmation:
+
+- mark the corresponding workitem as `upstream-verified` when the real scenario passes;
+- keep status as `local-verified-awaiting-upstream` if no consumer confirmation is available;
+- reopen the workitem as a regression if either fail criterion is observed.

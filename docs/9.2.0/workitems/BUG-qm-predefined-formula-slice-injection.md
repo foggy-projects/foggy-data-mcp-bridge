@@ -120,6 +120,7 @@ Regression coverage:
 - [x] Pivot 顶层 `slice` 引用聚合型 QM formula 时，需避免将聚合表达式下推到 SQL `WHERE`。
 - [x] Pivot grandTotal/subtotal rollup 分析需在进入 `MetricAdditivityAnalyzer` 前获得 QM 预定义 calculatedFields。
 - [x] 当前 Java engine 源码本地复核通过。
+- [x] 生成上游复测 handoff：`upstream-verification-handoff-20260606.md`。
 - [ ] 等待上游用 `OrderStationStockProjectionQuery.availablePieceCount` 场景复测确认。
 
 ## Verification
@@ -200,3 +201,4 @@ Result:
 
 - Upstream report: QM predefined formula field referenced only in `slice` raises `未能找到列[...]`.
 - Related runtime stack: `JdbcModelQueryEngine.buildSingleCondition` -> `buildSlice` -> `analysisQueryRequest`.
+- Upstream verification handoff: `upstream-verification-handoff-20260606.md`
