@@ -52,7 +52,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 | Raw SQL exposure | pass-with-note | Generated SQL uses an internal derived-query carrier; model authors still provide structured DSL only. |
 | Readability and locality | pass | New behavior is isolated to aggregate builder, synthetic table model, and QueryModel builder branch. |
 | LLM analysis ergonomics | pass-initial | Relation-level DSL lets model authors publish ordinary QM fields backed by TM aggregation metadata, reducing LLM need to synthesize raw SQL/CTE. |
-| Query-time RHS filter performance | pass-initial-with-risk | AND-only request slices on aggregate relation output fields now duplicate into RHS `WHERE` or `HAVING`; left join-key filters and structured accessBuilder field-ref guards mirror into the RHS source key domain. Duplicated RHS fragments now render with bind placeholders through the derived relation parameter channel. MySQL 5.7 `EXPLAIN` confirms keyed RHS source access for the selective order predicate. Remaining risks are OR/complex predicates and broader cross-dialect plan evidence. |
+| Query-time RHS filter performance | pass-initial-with-risk | AND-only request slices on aggregate relation output fields now duplicate into RHS `WHERE` or `HAVING`; left join-key filters and structured accessBuilder field-ref guards mirror into the RHS source key domain. Duplicated RHS fragments now render with bind placeholders through the derived relation parameter channel. MySQL 5.7 `EXPLAIN` confirms keyed RHS source access for the selective order predicate. OR join-key and OR aggregate-measure slices are covered as outer-only behavior; remaining risks are expanding complex predicate pushdown and broader cross-dialect plan evidence. |
 | Permission/system slice proof | pass-initial-with-risk | System slice lifecycle through QueryFacade is covered. Structured accessBuilder field-ref join-key guard pushdown is covered. Field-permission, implicit tenant guards, and raw SQL guard pushdown remain follow-up risks unless modeled as safe structured join keys. |
 | Aggregate field metadata | pass-initial | Aggregate relation fields inherit TM caption, resolved output type, formatter, AI/deprecation metadata, and expose `extData.aggregateRelation` lineage including aggregation/source/semantic scale/unit metadata. |
 | Dialect/old database proof | pass-initial-with-risk | SQLite and live MySQL 5.7 execution passed. PostgreSQL and the target TMS database were not available in this environment. |
@@ -73,7 +73,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 - Add explicit tenant guard tests in a fixture where tenant is declared as an aggregate relation join key and group key.
 - Add direct fixture coverage for request-time slice on aggregate relation group keys once alias exposure can avoid root-field collisions cleanly.
 - Verify query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields after core schema metadata is available.
-- Add OR/complex predicate analysis before expanding query-time RHS pushdown beyond AND-only conditions.
+- Keep OR/complex predicate pushdown disabled unless a future boolean-normalization design proves semantic equivalence; current OR join-key and OR aggregate-measure boundaries are covered as outer-only regressions.
 - Add `orderBy` on aggregate output and `returnTotal` focused assertions if these become acceptance requirements rather than incidental coverage.
 - Add PostgreSQL and target TMS database SQL/explain evidence when those services are available.
 - Keep derived relation body-parameter ordering covered as more derived table carriers are added; aggregate relation now uses `QueryObject.getBodyParameters()` for RHS fixed/runtime filters and duplicated pushdown fragments.
@@ -84,4 +84,4 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 
 Decision: ready-for-acceptance-with-risks.
 
-The implementation is suitable for accepted-with-risks signoff for the Java engine cut. Remaining risks are explicitly scoped to PostgreSQL/target TMS explain evidence, OR/complex predicate pushdown, field-permission-specific RHS coverage, explicit tenant-key fixtures, and upstream frontend-meta propagation.
+The implementation is suitable for accepted-with-risks signoff for the Java engine cut. Remaining risks are explicitly scoped to PostgreSQL/target TMS explain evidence, future expansion of complex predicate pushdown beyond the covered OR outer-only boundary, field-permission-specific RHS coverage, explicit tenant-key fixtures, and upstream frontend-meta propagation.

@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
@@ -188,6 +189,60 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "左侧 join key 条件应复制到右侧聚合前 WHERE，限制 RHS key domain");
         assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(queryEngine.getValues().contains(orderId), "外层 WHERE 仍应保留参数化 join key 条件");
+    }
+
+    @Test
+    @DisplayName("aggregate relation OR join key slice 不应复制到右侧 WHERE")
+    void aggregateRelationOrJoinKeySliceShouldStayOuterOnly() {
+        String matchedOrderId = findOrderIdWithCompletedSales();
+        String unmatchedOrderId = findOrderIdWithoutCompletedSales();
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(
+                null,
+                List.of(SliceRequestDef.or(List.of(
+                        condition("orderId", "=", matchedOrderId),
+                        condition("orderId", "=", unmatchedOrderId)))));
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
+                "OR join key slice 不应复制到 RHS 聚合前 WHERE，避免收窄 LEFT JOIN 右侧 key domain");
+        assertTrue(normalizedSql.contains("t1.order_id =?") || normalizedSql.contains("t1.order_id = ?"),
+                "OR join key slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.toLowerCase().contains(" or "),
+                "外层 WHERE 应保留 OR 连接语义");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(2, rows.size(), "OR join key slice 应返回两个左侧订单");
+        assertTrue(rows.stream().anyMatch(row -> matchedOrderId.equals(row.get("orderId"))));
+        assertTrue(rows.stream().anyMatch(row -> unmatchedOrderId.equals(row.get("orderId"))));
+    }
+
+    @Test
+    @DisplayName("aggregate relation OR measure slice 不应复制到右侧 HAVING")
+    void aggregateRelationOrMeasureSliceShouldStayOuterOnly() {
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(
+                null,
+                List.of(SliceRequestDef.or(List.of(
+                        condition("salesAmount", ">", BigDecimal.ZERO),
+                        condition("uniqueCustomers", ">", 0)))));
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertFalse(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
+                "OR measure slice 不应复制为 RHS HAVING");
+        assertFalse(normalizedSql.contains("having count(distinct agg_src.customer_key) > ?"),
+                "OR measure slice 不应复制为 RHS HAVING");
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount >?") || normalizedSql.contains("fsByOrder.salesAmount > ?"),
+                "OR measure slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.contains("fsByOrder.uniqueCustomers >?") || normalizedSql.contains("fsByOrder.uniqueCustomers > ?"),
+                "OR measure slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.toLowerCase().contains(" or "),
+                "外层 WHERE 应保留 OR 连接语义");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertFalse(rows.isEmpty(), "OR measure slice 应返回有右侧聚合结果的订单");
     }
 
     @Test
@@ -1300,6 +1355,14 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         slice.setOp(op);
         slice.setValue(value);
         return slice;
+    }
+
+    private CondRequestDef condition(String field, String op, Object value) {
+        CondRequestDef condition = new CondRequestDef();
+        condition.setField(field);
+        condition.setOp(op);
+        condition.setValue(value);
+        return condition;
     }
 
     private String normalizeSql(String sql) {

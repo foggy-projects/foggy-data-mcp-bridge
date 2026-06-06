@@ -11,7 +11,7 @@ signed_off_at: 2026-05-27
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 12
+evidence_count: 16
 ---
 
 # Feature Acceptance
@@ -35,7 +35,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | Aggregate RHS before LEFT JOIN | accepted | Engine generates a structured derived aggregate relation instead of relying on `viewSql`. |
 | Main-side measure not multiplied | accepted | Query execution compares generated aggregate join with native aggregate SQL. |
 | Fixed RHS filters inside aggregate relation | accepted | Filters before `groupBy` are rendered inside the RHS relation before aggregation. |
-| Query-time RHS pushdown | accepted-with-risk | AND-only group-key, measure, left join-key, and structured accessBuilder field-ref guard pushdown is implemented with RHS derived relation bind parameters; OR/complex predicates stay outer-query only. |
+| Query-time RHS pushdown | accepted-with-risk | AND-only group-key, measure, left join-key, and structured accessBuilder field-ref guard pushdown is implemented with RHS derived relation bind parameters; OR/complex predicates stay outer-query only, with OR join-key and OR aggregate-measure boundary coverage. |
 | Derived relation parameter binding | accepted | RHS fixed/runtime filters and duplicated RHS pushdown fragments render with `?` placeholders through `QueryObject.getBodyParameters()`; SQLite aggregate numeric comparison binding is covered. |
 | Relation-level RHS projection pruning | accepted | Structured requests prune unreferenced aggregate relation measures from RHS SELECT; raw SQL conditions disable pruning and keep full RHS projection. |
 | Aggregate field metadata inheritance | accepted-with-risk | Core QueryModel schema exposes inherited TM caption/type and aggregate lineage metadata; query-cloud/data-viewer `frontend-meta` propagation remains a separate chain check. |
@@ -63,12 +63,14 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest test` | success; full aggregate join sqlite regression after fieldAccess, system_slice guard, raw SQL no-pushdown boundary, and RHS projection pruning coverage; Tests run: 35, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; RHS fixed filter, group-key pushdown, and HAVING pushdown use derived body parameters; SQLite BigDecimal values are bound as numeric values for aggregate comparisons; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after derived relation parameter binding; Tests run: 35, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationOrJoinKeySliceShouldStayOuterOnly+aggregateRelationOrMeasureSliceShouldStayOuterOnly' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; OR join-key and OR aggregate-measure request slices remain outer-query only and are not copied into RHS aggregate `WHERE` / `HAVING`; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join sqlite regression after OR outer-only boundary coverage; Tests run: 37, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Risks / Open Items
 
 - PostgreSQL and target TMS database `EXPLAIN` evidence is still required before claiming broad dialect optimizer confidence.
 - Derived relation parameter binding is implemented for aggregate RHS fixed/runtime filters and duplicated pushdown fragments; additional cross-dialect execution evidence remains follow-up.
-- OR / complex predicate RHS pushdown is intentionally not enabled.
+- OR / complex predicate RHS pushdown is intentionally not enabled; OR join-key and OR aggregate-measure slices are covered as outer-only behavior.
 - Tenant/access guard RHS pushdown requires structured field-ref conditions and an explicit aggregate join key/group key mapping; implicit tenant guards and raw SQL predicates are not guessed. Raw SQL accessBuilder guards remain parameterized outer filters.
 - Query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields still needs upstream verification.
 - Relation-level default aggregate projection is now pruned for tracked structured references. Raw SQL accessBuilder predicates remain outer-only and force full RHS projection because alias usage is intentionally not inferred from raw SQL text.
