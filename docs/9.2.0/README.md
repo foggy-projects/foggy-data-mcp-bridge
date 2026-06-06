@@ -32,6 +32,7 @@ This snapshot is not a final release signoff. It records the current readiness b
 | QM predefined scalar formula outer aggregate | implemented | `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` | Keep aggregate/window predefined fields fail-closed. |
 | QM v2 TableModel multi-alias | implemented | `workitems/OPT-qm-v2-tablemodel-multi-alias.md` | Continue using explicit aliases only; do not infer ambiguous joins. |
 | Data Viewer direct extData runtime filter | current-source-verified | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | Negative-case validation log is expected; no production regression claimed. |
+| Formula SQL logical operator extraction | implemented | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | SQL `and` / `or` normalization is limited to SQL expression dialect and string-external tokens. |
 | Odoo registry consumer gate | consumer-verified | `../9.1.0/workitems/P1-odoo-model-registry-promotion-20260606.md` | Registry promotion remains a cross-repo follow-up, not a 9.2 Java engine blocker. |
 
 Readiness documents:
@@ -81,7 +82,7 @@ The current readiness boundary is:
 - No 9.2.0 workitem remains in `ready-for-verification`.
 - Two workitems are local-verified but still need upstream TMS confirmation.
 - A compact upstream verification handoff is available at `workitems/upstream-verification-handoff-20260606.md`.
-- Default full multi-db Maven execution still depends on external database services; local evidence records targeted SQLite/MySQL/addon gates separately.
+- Prepared MySQL dataset-model gate is recorded as passing; PostgreSQL still depends on an external prepared service in this local environment.
 - Aggregate join release readiness remains accepted-with-risks, not risk-free.
 
 ## Primary Workitems
@@ -94,3 +95,4 @@ The current readiness boundary is:
 - `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` - Allow outer aggregation for row-level scalar QM predefined calculated fields while keeping aggregate/window predefined fields fail-closed.
 - `workitems/OPT-qm-v2-tablemodel-multi-alias.md` - Support ordinary QM v2 `TableModel` explicit aliases so one TM can join multiple times with alias-qualified root fields in `on`, `columns`, `slice`, and `orderBy`.
 - `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` - Data Viewer direct-query entrypoint now preserves top-level `extData` as runtime filter context for direct QM execution.
+- `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` - SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values.

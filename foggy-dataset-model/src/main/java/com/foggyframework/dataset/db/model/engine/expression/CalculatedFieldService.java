@@ -499,13 +499,14 @@ public final class CalculatedFieldService {
      */
     public static Exp compileExpression(String expression, FsscriptDialect dialect) {
         try {
+            String source = preprocessSqlExpression(expression, dialect);
             // 使用 compileEl 解析纯 fsscript 表达式
             // compile 是为 SQL 模板语法设计的（如 select ... where ${expr}），会把标识符当作字面量
-            Exp exp = SHARED_PARSER.compileEl(null, expression, dialect);
+            Exp exp = SHARED_PARSER.compileEl(null, source, dialect);
             if (log.isDebugEnabled()) {
                 String dialectName = (dialect == null ? "null" : dialect.getName());
                 log.debug("Compiled expression '{}' (dialect={}) -> AST type: {}, AST: {}",
-                        expression, dialectName, exp.getClass().getName(), exp);
+                        source, dialectName, exp.getClass().getName(), exp);
             }
             return exp;
         } catch (SecurityException e) {
@@ -513,6 +514,65 @@ public final class CalculatedFieldService {
         } catch (Exception e) {
             throw new RuntimeException("表达式语法错误: " + e.getMessage(), e);
         }
+    }
+
+    private static String preprocessSqlExpression(String expression, FsscriptDialect dialect) {
+        if (dialect != FsscriptDialect.SQL_EXPRESSION || expression == null || expression.isEmpty()) {
+            return expression;
+        }
+        return normalizeSqlLogicalOperators(expression);
+    }
+
+    private static String normalizeSqlLogicalOperators(String expression) {
+        StringBuilder result = new StringBuilder(expression.length());
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+        int i = 0;
+        while (i < expression.length()) {
+            char c = expression.charAt(i);
+            if (c == '\'' && !inDoubleQuote) {
+                result.append(c);
+                if (inSingleQuote && i + 1 < expression.length() && expression.charAt(i + 1) == '\'') {
+                    result.append(expression.charAt(i + 1));
+                    i += 2;
+                    continue;
+                }
+                inSingleQuote = !inSingleQuote;
+                i++;
+                continue;
+            }
+            if (c == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+                result.append(c);
+                i++;
+                continue;
+            }
+            if (!inSingleQuote && !inDoubleQuote && matchesSqlWord(expression, i, "and")) {
+                result.append("&&");
+                i += 3;
+                continue;
+            }
+            if (!inSingleQuote && !inDoubleQuote && matchesSqlWord(expression, i, "or")) {
+                result.append("||");
+                i += 2;
+                continue;
+            }
+            result.append(c);
+            i++;
+        }
+        return result.toString();
+    }
+
+    private static boolean matchesSqlWord(String expression, int index, String word) {
+        int end = index + word.length();
+        return end <= expression.length()
+                && expression.regionMatches(true, index, word, 0, word.length())
+                && (index == 0 || !isIdentifierChar(expression.charAt(index - 1)))
+                && (end == expression.length() || !isIdentifierChar(expression.charAt(end)));
+    }
+
+    private static boolean isIdentifierChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '$';
     }
 
     /**

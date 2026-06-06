@@ -25,6 +25,7 @@ Covered workitems:
 - outer aggregation for safe row-level scalar predefined formulas;
 - QM v2 ordinary `TableModel` multi-alias support;
 - Data Viewer direct-query `extData` runtime filter propagation.
+- SQL-style logical operator normalization for formula dependency extraction.
 
 ## Scope Boundary
 
@@ -45,6 +46,7 @@ The upstream verification packet is recorded at `../workitems/upstream-verificat
 | `OPT-qm-predefined-scalar-formula-outer-aggregate` | implemented | Final projection aggregation over row-level scalar predefined formulas. | Unit and integration evidence. | Preserve fail-closed behavior for aggregate/window formulas. |
 | `OPT-qm-v2-tablemodel-multi-alias` | implemented | Explicit aliases for repeated ordinary `TableModel` use. | Unit and integration evidence. | Do not introduce implicit alias inference. |
 | `BUG-data-viewer-direct-extdata-runtime-filter` | current-source-verified | Data Viewer direct endpoint parameter conversion. | Launcher smoke test evidence. | Keep expected negative-case validation log documented. |
+| `BUG-formula-sql-logical-operator-reference-extraction` | implemented | SQL-expression formula compiler preprocessing for reference extraction. | Targeted unit evidence and MySQL gate evidence. | Keep normalization limited to SQL expression dialect and outside quoted strings. |
 
 ## Quality Review
 
@@ -79,6 +81,26 @@ Coverage:
 - predefined formula slice/top-level reference injection;
 - predefined scalar formula outer aggregation behavior;
 - regression coverage around semantic scale and aggregate join paths touched by the same engine area.
+
+### Formula SQL Logical Operator Regression
+
+Command:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='DialectTest$SqlServerDialectTest#testGeneratePagingSqlWithDistinctAndNoOrderBy,CalculatedFieldServiceTest#extractRefs_ifFunctionWithSqlAndConditions+extractRefs_sqlLogicalOperatorsIgnoreStringLiterals' test
+```
+
+Result:
+
+```text
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+```
+
+Coverage:
+
+- SQL Server DISTINCT pagination assertion after refreshing the current `foggy-dataset` local artifact;
+- SQL-style `and` formula reference extraction;
+- `and` / `or` normalization outside strings while preserving quoted literal values.
 
 ### Data Viewer Direct Entrypoint Gate
 
@@ -118,14 +140,41 @@ Coverage:
 - confirms the current Java workspace still compiles and tests with the Odoo bridge consumer module after the QueryModel hardening changes;
 - detailed ownership remains in `docs/9.1.0/workitems/P1-odoo-model-registry-promotion-20260606.md`.
 
+### Prepared MySQL Dataset-Model Gate
+
+Prerequisite refresh:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn install -pl foggy-dataset -DskipTests
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn install -pl foggy-dataset-demo -DskipTests
+```
+
+Command:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model surefire:test@test-mysql -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+Result:
+
+```text
+Tests run: 3040, Failures: 0, Errors: 0, Skipped: 51
+```
+
+Environment note:
+
+- MySQL was reachable on `127.0.0.1:13306`.
+- PostgreSQL was not reachable on `127.0.0.1:15432`.
+- `docker` / `podman` were unavailable in this local shell, so PostgreSQL gate remains environment-blocked rather than failed.
+
 ## Known Gaps
 
 - `BUG-formula-property-missing-column-error` still requires upstream TMS issue #85 verification.
 - `BUG-qm-predefined-formula-slice-injection` still requires upstream verification with `OrderStationStockProjectionQuery.availablePieceCount`.
 - The handoff packet for both checks is available at `../workitems/upstream-verification-handoff-20260606.md`.
-- Default full multi-db Maven execution is environment-dependent and should be rerun with MySQL/PostgreSQL services before release signoff.
+- PostgreSQL Maven execution is environment-dependent and should be rerun with a prepared PostgreSQL service before release signoff.
 - Aggregate join residual risks remain governed by `acceptance/query-model-aggregate-join-acceptance.md`.
 
 ## Decision
 
-The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as final release acceptance until upstream TMS confirmations and the prepared-environment multi-db gate are complete.
+The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as final release acceptance until upstream TMS confirmations and the PostgreSQL prepared-environment gate are complete.
