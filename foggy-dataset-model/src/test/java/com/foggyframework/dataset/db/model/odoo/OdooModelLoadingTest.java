@@ -19,6 +19,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContex
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
+import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
@@ -1092,6 +1093,20 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
     @Order(34)
     @DisplayName("验证 SaleOrder dateOrder self grain 字段可用于过滤")
     void testSaleOrderDateOrderTablelessDimensionPropertySlice() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        DbColumn yearColumn = queryModel.findJdbcColumnForCond("dateOrder$year", true, true);
+        DbColumn monthColumn = queryModel.findJdbcColumnForCond("dateOrder$month", true, true);
+        DbColumn yearMonthColumn = queryModel.findJdbcColumnForCond("dateOrder$yearMonth", true, true);
+
+        assertEquals(DbColumnType.INTEGER, yearColumn.getType(),
+                () -> "dateOrder$year 应绑定到 INTEGER 粒度属性列: " + yearColumn.getClass().getName());
+        assertEquals(DbColumnType.INTEGER, monthColumn.getType(),
+                () -> "dateOrder$month 应绑定到 INTEGER 粒度属性列: " + monthColumn.getClass().getName());
+        assertEquals(DbColumnType.STRING, yearMonthColumn.getType(),
+                () -> "dateOrder$yearMonth 应绑定到 STRING 粒度属性列: " + yearMonthColumn.getClass().getName());
+        assertEquals(2024, yearColumn.getFormatter(true).format(2024),
+                () -> "dateOrder$year 条件值不应走日期列 formatter: " + yearColumn.getClass().getName());
+
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(List.of("dateOrder$yearMonth", "amountTotal"));
         request.setGroupBy(List.of(

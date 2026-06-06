@@ -493,13 +493,13 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     @DisplayName("QM v2 普通 TM 支持同模型多别名 join")
     @SuppressWarnings("unchecked")
     void testQmV2SameTableModelMultipleAliases() {
-        JdbcQueryModel queryModel = getQueryModel("FactSalesSelfAliasJoinQueryModel");
+        JdbcQueryModel queryModel = getQueryModel("FactSalesSelfAliasJoinQueryModelTest");
         assertNotNull(queryModel.findJdbcColumnForCond("leftSales.orderLineNo", true));
         assertNotNull(queryModel.findJdbcColumnForCond("rightSales.orderLineNo", true));
         assertNotNull(queryModel.findJdbcColumnForCond("aggregateSalesByLine.salesAmount", true));
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
-        queryRequest.setQueryModel("FactSalesSelfAliasJoinQueryModel");
+        queryRequest.setQueryModel("FactSalesSelfAliasJoinQueryModelTest");
         queryRequest.setColumns(List.of(
                 "orderId",
                 "orderLineNo",

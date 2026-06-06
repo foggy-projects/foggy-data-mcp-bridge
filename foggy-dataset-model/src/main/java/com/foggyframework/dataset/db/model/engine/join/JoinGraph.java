@@ -53,6 +53,13 @@ public class JoinGraph {
     private final QueryObject root;
 
     /**
+     * 与 root 等价的别名。
+     * <p>QM v2 单 TableModel 包装场景中，QM wrapper root 与底层 TM root
+     * 指向同一张主表，路径计算应把二者都视为无需 JOIN 的根节点。</p>
+     */
+    private final Set<String> rootAliases = new LinkedHashSet<>();
+
+    /**
      * 邻接表：from -> [edges]
      * <p>记录从每个节点出发的所有边</p>
      */
@@ -79,6 +86,26 @@ public class JoinGraph {
         RX.notNull(root, "主表不得为空");
         this.root = root;
         this.nodes.put(root.getAlias(), root);
+        this.rootAliases.add(root.getAlias());
+    }
+
+    public JoinGraph addRootAlias(QueryObject queryObject) {
+        if (queryObject != null) {
+            addRootAlias(queryObject.getAlias());
+        }
+        return this;
+    }
+
+    public JoinGraph addRootAlias(String alias) {
+        if (alias != null && !alias.isBlank()) {
+            rootAliases.add(alias);
+            pathCache.clear();
+        }
+        return this;
+    }
+
+    private boolean isRootAlias(String alias) {
+        return alias != null && rootAliases.contains(alias);
     }
 
     /**
@@ -172,7 +199,7 @@ public class JoinGraph {
         // 过滤掉主表本身（使用 alias 比较，解决自引用维度别名冲突）
         Set<String> targetAliases = new LinkedHashSet<>();
         for (QueryObject target : targets) {
-            if (!target.getAlias().equals(root.getAlias())) {
+            if (!isRootAlias(target.getAlias())) {
                 targetAliases.add(target.getAlias());
             }
         }
@@ -203,11 +230,15 @@ public class JoinGraph {
     private List<JoinEdge> findPathBFS(Set<String> targetAliases) {
         // 记录已访问节点的父边
         Map<String, JoinEdge> parentEdge = new HashMap<>();
-        parentEdge.put(root.getAlias(), null);
+        for (String rootAlias : rootAliases) {
+            parentEdge.put(rootAlias, null);
+        }
 
         // BFS 队列
         Queue<String> queue = new LinkedList<>();
-        queue.offer(root.getAlias());
+        for (String rootAlias : rootAliases) {
+            queue.offer(rootAlias);
+        }
 
         // 记录已找到的目标
         Set<String> foundTargets = new HashSet<>();
@@ -244,7 +275,7 @@ public class JoinGraph {
         Set<JoinEdge> neededEdges = new LinkedHashSet<>();
         for (String target : targetAliases) {
             String current = target;
-            while (current != null && !current.equals(root.getAlias())) {
+            while (current != null && !isRootAlias(current)) {
                 JoinEdge edge = parentEdge.get(current);
                 if (edge != null) {
                     neededEdges.add(edge);
@@ -270,7 +301,7 @@ public class JoinGraph {
 
         // 收集涉及的节点
         Set<String> involvedNodes = new LinkedHashSet<>();
-        involvedNodes.add(root.getAlias());
+        involvedNodes.addAll(rootAliases);
         for (JoinEdge edge : edges) {
             involvedNodes.add(edge.getFrom().getAlias());
             involvedNodes.add(edge.getTo().getAlias());

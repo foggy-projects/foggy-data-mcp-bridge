@@ -32,8 +32,8 @@ import java.util.*;
 @SpringBootTest(
         classes = McpIntegrationTestApplication.class,
         properties = {
-                "spring.ai.openai.api-key=${AI_TEST_OPENAI_API_KEY:${OPENAI_API_KEY:test-api-key-disabled}}",
-                "spring.ai.openai.chat.api-key=${AI_TEST_OPENAI_API_KEY:${OPENAI_API_KEY:test-api-key-disabled}}",
+                "spring.ai.openai.api-key=${AI_TEST_OPENAI_API_KEY:sk-test-key-disabled}",
+                "spring.ai.openai.chat.api-key=${AI_TEST_OPENAI_API_KEY:sk-test-key-disabled}",
                 "spring.ai.openai.base-url=${AI_TEST_OPENAI_BASE_URL:http://127.0.0.1:65535}",
                 "spring.ai.openai.chat.options.model=${AI_TEST_OPENAI_MODEL:test-model-disabled}",
                 "spring.ai.openai.chat.options.temperature=${AI_TEST_OPENAI_TEMPERATURE:0.1}",

@@ -321,16 +321,15 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     private JoinGraph buildMergedJoinGraph() {
         JoinGraph baseGraph = jdbcModel.getJoinGraph();
 
-        if (jdbcModelList == null || jdbcModelList.size() <= 1) {
-            JoinGraph single = new JoinGraph(jdbcModel.getQueryObject());
-            copyModelJoinGraph(single, jdbcModel, baseGraph);
-            return single;
-        }
-
-        // 多模型：以 QM 包裹模型的 QueryObject 为根复制并合并。
-        // 底层 TM 的 JoinGraph root 是原始 TM alias；QM v2 多 alias 场景下必须换成包裹 alias。
+        // 以 QM 包裹模型的 QueryObject 为根复制并合并。
+        // 底层 TM 的 JoinGraph root 是原始 TM alias；QM v2 alias 场景下必须换成包裹 alias。
         JoinGraph merged = new JoinGraph(jdbcModel.getQueryObject());
+        merged.addRootAlias(baseGraph.getRoot());
         copyModelJoinGraph(merged, jdbcModel, baseGraph);
+
+        if (jdbcModelList == null || jdbcModelList.size() <= 1) {
+            return merged;
+        }
 
         for (int i = 1; i < jdbcModelList.size(); i++) {
             TableModel tm = jdbcModelList.get(i);

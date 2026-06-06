@@ -58,6 +58,11 @@ public abstract class DbColumnDelegate extends AbstractDelegateDecorate<DbColumn
     }
 
     @Override
+    public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
+        return delegate.getFormatter(errorIfNull);
+    }
+
+    @Override
     public String buildSqlFragment(ApplicationContext appCtx,String alias, String s) {
         return delegate.buildSqlFragment(appCtx,alias, s);
     }
