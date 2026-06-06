@@ -87,6 +87,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         out.add(flatRowsColumnsGrandTotalCase());
         out.add(gridRowsColumnsGrandTotalCase());
         out.add(flatRowsSubtotalsGrandTotalCase());
+        out.add(flatRowsSubtotalsGrandTotalNonAdditiveCase());
         out.add(gridRowsColumnsSubtotalsGrandTotalCase());
         out.add(flatRowsParentShareCase());
         out.add(gridRowsColumnsParentShareCase());
@@ -311,6 +312,42 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         c.put("request", requestContract("grid",
                 List.of("product$categoryName", "product$subCategoryName"),
                 List.of("salesDate$year"), List.of("salesAmount"),
+                row("rowSubtotals", true, "grandTotal", true)));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
+    private Map<String, Object> flatRowsSubtotalsGrandTotalNonAdditiveCase() {
+        PivotRequest pivot = pivot("flat",
+                List.of(axis("product$categoryName"), axis("product$subCategoryName")),
+                null,
+                List.of("salesAmount", "uniqueCustomers"),
+                subtotalsGrandTotalOptions());
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalFlatRows(
+                response.getItems(), false, true, List.of("uniqueCustomers"));
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "subCategory", "ALL",
+                        "sales", 200, "uniqueCustomers", 1),
+                row("category", "Align-Clothing", "subCategory", "Align-Clothing-Sub",
+                        "sales", 200, "uniqueCustomers", 1),
+                row("category", "Align-Electronics", "subCategory", "ALL",
+                        "sales", 200, "uniqueCustomers", 1),
+                row("category", "Align-Electronics", "subCategory", "Align-Electronics-Alt",
+                        "sales", 50, "uniqueCustomers", 1),
+                row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub",
+                        "sales", 150, "uniqueCustomers", 1),
+                row("category", "GRAND_TOTAL", "subCategory", "GRAND_TOTAL",
+                        "sales", 400, "uniqueCustomers", 2)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-flat-rows-subtotals-grand-total-non-additive");
+        c.put("type", "flat-output");
+        c.put("request", requestContract("flat",
+                List.of("product$categoryName", "product$subCategoryName"), List.of(),
+                List.of("salesAmount", "uniqueCustomers"),
                 row("rowSubtotals", true, "grandTotal", true)));
         c.put("javaCanonical", actual);
         return c;
@@ -549,7 +586,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                  quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount, tax_amount,
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "PY_ALIGN_PIVOT_OUT_1", 1, 20990101, 990001, null, null, null, null,
+                """, "PY_ALIGN_PIVOT_OUT_1", 1, 20990101, 990001, 501, null, null, null,
                 1, 100d, 60d, 0d, 100d, 60d, 40d, 0d, STATUS, "ALIGN");
         jdbcTemplate.update("""
                 INSERT INTO fact_sales
@@ -557,7 +594,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                  quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount, tax_amount,
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "PY_ALIGN_PIVOT_OUT_2", 1, 20990101, 990001, null, null, null, null,
+                """, "PY_ALIGN_PIVOT_OUT_2", 1, 20990101, 990001, 501, null, null, null,
                 1, 50d, 30d, 0d, 50d, 30d, 20d, 0d, STATUS, "ALIGN");
         jdbcTemplate.update("""
                 INSERT INTO fact_sales
@@ -565,7 +602,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                  quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount, tax_amount,
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "PY_ALIGN_PIVOT_OUT_3", 1, 20980101, 990002, null, null, null, null,
+                """, "PY_ALIGN_PIVOT_OUT_3", 1, 20980101, 990002, 502, null, null, null,
                 1, 200d, 120d, 0d, 200d, 120d, 80d, 0d, STATUS, "ALIGN");
         jdbcTemplate.update("""
                 INSERT INTO fact_sales
@@ -573,7 +610,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                  quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount, tax_amount,
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "PY_ALIGN_PIVOT_OUT_4", 1, 20990101, 990003, null, null, null, null,
+                """, "PY_ALIGN_PIVOT_OUT_4", 1, 20990101, 990003, 501, null, null, null,
                 1, 50d, 30d, 0d, 50d, 30d, 20d, 0d, STATUS, "ALIGN");
     }
 
@@ -613,13 +650,13 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         seed.put("slice", row("field", "orderStatus", "op", "=", "value", STATUS));
         seed.put("rows", List.of(
                 row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub",
-                        "year", 2099, "sales", 100),
+                        "year", 2099, "sales", 100, "customer", 501),
                 row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub",
-                        "year", 2099, "sales", 50),
+                        "year", 2099, "sales", 50, "customer", 501),
                 row("category", "Align-Clothing", "subCategory", "Align-Clothing-Sub",
-                        "year", 2098, "sales", 200),
+                        "year", 2098, "sales", 200, "customer", 502),
                 row("category", "Align-Electronics", "subCategory", "Align-Electronics-Alt",
-                        "year", 2099, "sales", 50)
+                        "year", 2099, "sales", 50, "customer", 501)
         ));
         return seed;
     }
