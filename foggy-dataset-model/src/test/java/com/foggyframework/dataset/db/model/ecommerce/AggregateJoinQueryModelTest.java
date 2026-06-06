@@ -1121,17 +1121,18 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
     private String findOrderIdWithCompletedElectronicsSales() {
         List<String> orderIds = jdbcTemplate.queryForList("""
-                select fs.order_id
-                from fact_sales fs
+                select fo.order_id
+                from fact_order fo
+                join fact_sales fs on fo.order_id = fs.order_id
                 join dim_product dp on fs.product_key = dp.product_key
                 where fs.order_status = 'COMPLETED'
                   and dp.category_id = 'CAT001'
-                group by fs.order_id
+                group by fo.order_id
                 having sum(fs.sales_amount) > 0
-                order by fs.order_id
+                order by fo.order_id
                 limit 1
                 """, String.class);
-        assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个 COMPLETED 数码品类销售订单");
+        assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个有订单头的 COMPLETED 数码品类销售订单");
         return orderIds.get(0);
     }
 
