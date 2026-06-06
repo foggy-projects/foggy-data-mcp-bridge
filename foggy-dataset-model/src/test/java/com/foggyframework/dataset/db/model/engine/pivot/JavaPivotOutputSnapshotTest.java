@@ -85,6 +85,8 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         out.add(flatRowsGrandTotalCase());
         out.add(flatRowsColumnsGrandTotalCase());
         out.add(gridRowsColumnsGrandTotalCase());
+        out.add(flatRowsSubtotalsGrandTotalCase());
+        out.add(gridRowsColumnsSubtotalsGrandTotalCase());
         return out;
     }
 
@@ -94,7 +96,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                 null,
                 List.of("salesAmount"));
         SemanticQueryResponse response = execute(pivot);
-        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), false);
+        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), false, false);
         List<Map<String, Object>> expected = List.of(
                 row("category", "Align-Clothing", "sales", 200),
                 row("category", "Align-Electronics", "sales", 150)
@@ -115,7 +117,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                 List.of(axis("salesDate$year")),
                 List.of("salesAmount"));
         SemanticQueryResponse response = execute(pivot);
-        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), true);
+        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), true, false);
         List<Map<String, Object>> expected = List.of(
                 row("category", "Align-Clothing", "year", 2098, "sales", 200),
                 row("category", "Align-Electronics", "year", 2099, "sales", 150)
@@ -137,7 +139,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                 List.of(axis("salesDate$year")),
                 List.of("salesAmount"));
         SemanticQueryResponse response = execute(pivot);
-        List<Map<String, Object>> actual = canonicalGridCells(response.getItems());
+        List<Map<String, Object>> actual = canonicalGridCells(response.getItems(), false);
         List<Map<String, Object>> expected = List.of(
                 row("category", "Align-Clothing", "year", 2098, "metric", "salesAmount", "value", 200),
                 row("category", "Align-Clothing", "year", 2099, "metric", "salesAmount", "value", null),
@@ -162,7 +164,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                 List.of("salesAmount"),
                 grandTotalOptions());
         SemanticQueryResponse response = execute(pivot);
-        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), false);
+        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), false, false);
         List<Map<String, Object>> expected = List.of(
                 row("category", "Align-Clothing", "sales", 200),
                 row("category", "Align-Electronics", "sales", 150),
@@ -187,7 +189,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                 List.of("salesAmount"),
                 grandTotalOptions());
         SemanticQueryResponse response = execute(pivot);
-        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), true);
+        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), true, false);
         List<Map<String, Object>> expected = List.of(
                 row("category", "Align-Clothing", "year", 2098, "sales", 200),
                 row("category", "Align-Electronics", "year", 2099, "sales", 150),
@@ -213,7 +215,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
                 List.of("salesAmount"),
                 grandTotalOptions());
         SemanticQueryResponse response = execute(pivot);
-        List<Map<String, Object>> actual = canonicalGridCells(response.getItems());
+        List<Map<String, Object>> actual = canonicalGridCells(response.getItems(), false);
         List<Map<String, Object>> expected = List.of(
                 row("category", "Align-Clothing", "year", 2098, "metric", "salesAmount", "value", 200),
                 row("category", "Align-Clothing", "year", 2099, "metric", "salesAmount", "value", null),
@@ -234,6 +236,76 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         return c;
     }
 
+    private Map<String, Object> flatRowsSubtotalsGrandTotalCase() {
+        PivotRequest pivot = pivot("flat",
+                List.of(axis("product$categoryName"), axis("product$subCategoryName")),
+                null,
+                List.of("salesAmount"),
+                subtotalsGrandTotalOptions());
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalFlatRows(response.getItems(), false, true);
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "subCategory", "ALL", "sales", 200),
+                row("category", "Align-Clothing", "subCategory", "Align-Clothing-Sub", "sales", 200),
+                row("category", "Align-Electronics", "subCategory", "ALL", "sales", 150),
+                row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub", "sales", 150),
+                row("category", "GRAND_TOTAL", "subCategory", "GRAND_TOTAL", "sales", 350)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-flat-rows-subtotals-grand-total");
+        c.put("type", "flat-output");
+        c.put("request", requestContract("flat",
+                List.of("product$categoryName", "product$subCategoryName"), List.of(), List.of("salesAmount"),
+                row("rowSubtotals", true, "grandTotal", true)));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
+    private Map<String, Object> gridRowsColumnsSubtotalsGrandTotalCase() {
+        PivotRequest pivot = pivot("grid",
+                List.of(axis("product$categoryName"), axis("product$subCategoryName")),
+                List.of(axis("salesDate$year")),
+                List.of("salesAmount"),
+                subtotalsGrandTotalOptions());
+        SemanticQueryResponse response = execute(pivot);
+        List<Map<String, Object>> actual = canonicalGridCells(response.getItems(), true);
+        List<Map<String, Object>> expected = List.of(
+                row("category", "Align-Clothing", "subCategory", "ALL",
+                        "year", 2098, "metric", "salesAmount", "value", 200),
+                row("category", "Align-Clothing", "subCategory", "ALL",
+                        "year", 2099, "metric", "salesAmount", "value", null),
+                row("category", "Align-Clothing", "subCategory", "Align-Clothing-Sub",
+                        "year", 2098, "metric", "salesAmount", "value", 200),
+                row("category", "Align-Clothing", "subCategory", "Align-Clothing-Sub",
+                        "year", 2099, "metric", "salesAmount", "value", null),
+                row("category", "Align-Electronics", "subCategory", "ALL",
+                        "year", 2098, "metric", "salesAmount", "value", null),
+                row("category", "Align-Electronics", "subCategory", "ALL",
+                        "year", 2099, "metric", "salesAmount", "value", 150),
+                row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub",
+                        "year", 2098, "metric", "salesAmount", "value", null),
+                row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub",
+                        "year", 2099, "metric", "salesAmount", "value", 150),
+                row("category", "GRAND_TOTAL", "subCategory", "GRAND_TOTAL",
+                        "year", 2098, "metric", "salesAmount", "value", 200),
+                row("category", "GRAND_TOTAL", "subCategory", "GRAND_TOTAL",
+                        "year", 2099, "metric", "salesAmount", "value", 150)
+        );
+        assertEquals(expected, actual);
+
+        Map<String, Object> c = ordered();
+        c.put("id", "pivot-grid-rows-columns-subtotals-grand-total");
+        c.put("type", "grid-output");
+        c.put("request", requestContract("grid",
+                List.of("product$categoryName", "product$subCategoryName"),
+                List.of("salesDate$year"), List.of("salesAmount"),
+                row("rowSubtotals", true, "grandTotal", true)));
+        c.put("javaCanonical", actual);
+        return c;
+    }
+
     private SemanticQueryResponse execute(PivotRequest pivot) {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
@@ -246,23 +318,29 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         return response;
     }
 
-    private List<Map<String, Object>> canonicalFlatRows(List<Map<String, Object>> items, boolean includeYear) {
+    private List<Map<String, Object>> canonicalFlatRows(
+            List<Map<String, Object>> items,
+            boolean includeYear,
+            boolean includeSubcategory) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> item : items) {
             Map<String, Object> row = ordered();
             row.put("category", pick(item, "product$categoryName", "一级品类名称"));
+            if (includeSubcategory) {
+                row.put("subCategory", pick(item, "product$subCategoryName", "二级品类名称"));
+            }
             if (includeYear) {
                 row.put("year", normalizeNumber(pick(item, "salesDate$year", "年")));
             }
             row.put("sales", normalizeNumber(pick(item, "salesAmount", "销售金额")));
             out.add(row);
         }
-        out.sort(flatComparator(includeYear));
+        out.sort(flatComparator(includeYear, includeSubcategory));
         return out;
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> canonicalGridCells(List<Map<String, Object>> items) {
+    private List<Map<String, Object>> canonicalGridCells(List<Map<String, Object>> items, boolean includeSubcategory) {
         assertEquals(1, items.size());
         Map<String, Object> grid = items.get(0);
         assertEquals("grid", grid.get("format"));
@@ -275,6 +353,9 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
             for (int j = 0; j < columnHeaders.size(); j++) {
                 Map<String, Object> row = ordered();
                 row.put("category", pick(rowHeaders.get(i), "product$categoryName", "一级品类名称"));
+                if (includeSubcategory) {
+                    row.put("subCategory", pick(rowHeaders.get(i), "product$subCategoryName", "二级品类名称"));
+                }
                 row.put("year", normalizeNumber(pick(columnHeaders.get(j), "salesDate$year", "年")));
                 row.put("metric", pick(columnHeaders.get(j), "metric"));
                 row.put("value", normalizeNumber(cells.get(i).get(j)));
@@ -283,6 +364,7 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         }
         out.sort(Comparator
                 .comparing((Map<String, Object> row) -> String.valueOf(row.get("category")))
+                .thenComparing(row -> String.valueOf(row.getOrDefault("subCategory", "")))
                 .thenComparing(row -> ((Number) row.get("year")).intValue())
                 .thenComparing(row -> String.valueOf(row.get("metric"))));
         return out;
@@ -349,9 +431,12 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         Map<String, Object> seed = ordered();
         seed.put("slice", row("field", "orderStatus", "op", "=", "value", STATUS));
         seed.put("rows", List.of(
-                row("category", "Align-Electronics", "year", 2099, "sales", 100),
-                row("category", "Align-Electronics", "year", 2099, "sales", 50),
-                row("category", "Align-Clothing", "year", 2098, "sales", 200)
+                row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub",
+                        "year", 2099, "sales", 100),
+                row("category", "Align-Electronics", "subCategory", "Align-Electronics-Sub",
+                        "year", 2099, "sales", 50),
+                row("category", "Align-Clothing", "subCategory", "Align-Clothing-Sub",
+                        "year", 2098, "sales", 200)
         ));
         return seed;
     }
@@ -411,6 +496,12 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         return options;
     }
 
+    private PivotOptions subtotalsGrandTotalOptions() {
+        PivotOptions options = grandTotalOptions();
+        options.setRowSubtotals(true);
+        return options;
+    }
+
     private AxisField axis(String field) {
         AxisField axis = new AxisField();
         axis.setField(field);
@@ -448,9 +539,12 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         return decimal.doubleValue();
     }
 
-    private Comparator<Map<String, Object>> flatComparator(boolean includeYear) {
+    private Comparator<Map<String, Object>> flatComparator(boolean includeYear, boolean includeSubcategory) {
         Comparator<Map<String, Object>> comparator =
                 Comparator.comparing(row -> String.valueOf(row.get("category")));
+        if (includeSubcategory) {
+            comparator = comparator.thenComparing(row -> String.valueOf(row.get("subCategory")));
+        }
         if (includeYear) {
             comparator = comparator.thenComparing(row -> ((Number) row.get("year")).intValue());
         }
