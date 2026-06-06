@@ -188,6 +188,8 @@ class JavaPivotDomainSnapshotTest {
         out.add(pivotTranslationCase());
         out.add(postgresDomainCase());
         out.add(sqliteTupleDomainCase());
+        out.add(sqliteLargeDomainCase());
+        out.add(sqlitePythonBindLimitGapCase());
         out.add(mysql8DomainCase());
         out.add(emptyColumnRefusalCase());
         out.add(mysql57DocumentedGapCase());
@@ -267,6 +269,57 @@ class JavaPivotDomainSnapshotTest {
                 "_base.\"product\" IS _d.\"product\""));
         pythonExpected.put("paramCount", 6);
         pythonExpected.put("params", Arrays.asList("A", "p1", "A", null, "B", "p2"));
+        c.put("pythonExpected", pythonExpected);
+        return c;
+    }
+
+    private static Map<String, Object> sqliteLargeDomainCase() {
+        Map<String, Object> c = domainCaseBase("domain-sqlite-large-501-transport", "sqlite", "sqlite", largeSingleFieldPlan(501));
+        c.put("largeDomainThreshold", 500);
+
+        Map<String, Object> javaExpected = ordered();
+        javaExpected.put("placement", "CTE");
+        javaExpected.put("sqlMarkers", List.of(
+                "_pivot_domain_transport(\"category\") AS (",
+                "VALUES (?)"));
+        javaExpected.put("joinPredicateMarkers", List.of(
+                "_base.\"category\" IS _d.\"category\""));
+        javaExpected.put("paramCount", 501);
+        c.put("javaExpected", javaExpected);
+
+        Map<String, Object> pythonExpected = ordered();
+        pythonExpected.put("placement", "CTE");
+        pythonExpected.put("sqlMarkers", List.of(
+                "WITH _pivot_domain_transport(\"category\") AS (",
+                "VALUES (?), (?)"));
+        pythonExpected.put("joinPredicateMarkers", List.of(
+                "_base.\"category\" IS _d.\"category\""));
+        pythonExpected.put("paramCount", 501);
+        c.put("pythonExpected", pythonExpected);
+        return c;
+    }
+
+    private static Map<String, Object> sqlitePythonBindLimitGapCase() {
+        Map<String, Object> c = domainCaseBase("domain-sqlite-python-bind-limit-gap", "sqlite", "sqlite", largeSingleFieldPlan(1000));
+        c.put("type", "documented-gap");
+        c.put("parityGap", "Java SQLite renderer accepts 1000 bind params under its 30000 guard; Python intentionally fails closed above 999.");
+
+        Map<String, Object> javaExpected = ordered();
+        javaExpected.put("placement", "CTE");
+        javaExpected.put("sqlMarkers", List.of(
+                "_pivot_domain_transport(\"category\") AS (",
+                "VALUES (?)"));
+        javaExpected.put("joinPredicateMarkers", List.of(
+                "_base.\"category\" IS _d.\"category\""));
+        javaExpected.put("paramCount", 1000);
+        c.put("javaExpected", javaExpected);
+
+        Map<String, Object> pythonExpected = ordered();
+        pythonExpected.put("status", "renderer-refused");
+        pythonExpected.put("messageMarkers", List.of(
+                "PIVOT_DOMAIN_TRANSPORT_REFUSED",
+                "SQLite bind param limit",
+                "1000 > 999"));
         c.put("pythonExpected", pythonExpected);
         return c;
     }
@@ -389,6 +442,17 @@ class JavaPivotDomainSnapshotTest {
                 Collections.singletonList("A"),
                 Collections.singletonList("B"),
                 Collections.singletonList(null)));
+        return plan;
+    }
+
+    private static Map<String, Object> largeSingleFieldPlan(int tupleCount) {
+        Map<String, Object> plan = ordered();
+        plan.put("fields", List.of("category"));
+        List<List<Object>> tuples = new ArrayList<>();
+        for (int i = 0; i < tupleCount; i++) {
+            tuples.add(Collections.singletonList("Category-" + i));
+        }
+        plan.put("tuples", tuples);
         return plan;
     }
 
