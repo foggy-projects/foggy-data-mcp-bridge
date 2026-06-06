@@ -2,7 +2,7 @@
 doc_role: workitem
 doc_purpose: Track promotion of verified Odoo TM/QM artifacts from bridge debug workspace into foggy-model-registry.
 version: 9.1.0
-status: tracked
+status: consumer-verified
 created_at: 2026-06-06
 updated_at: 2026-06-06
 ---
@@ -100,7 +100,7 @@ Registry-side tracking doc:
 - Promotion task recorded: complete.
 - Model artifact publish: complete for local registry `1.1.10`.
 - Registry pull verification after publish: complete for community and pro.
-- Downstream consumer verification: complete for `addons/foggy-odoo-bridge-java` pro bundle sync and packaging.
+- Downstream consumer verification: complete for `addons/foggy-odoo-bridge-java` pro bundle sync, packaging, and addon full test gate.
 
 ## Downstream Consumer Verification
 
@@ -110,6 +110,7 @@ Commands executed on 2026-06-06:
 bash scripts/pull-odoo-models.sh --edition pro --registry /Users/fengjianguang/foggy-projects/foggy-model-registry/data --channel stable --key fmk_live_xxx
 bash scripts/check-model-drift.sh
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl addons/foggy-odoo-bridge-java -am -DskipTests package
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl addons/foggy-odoo-bridge-java -am -P'!multi-db' test
 ```
 
 Results:
@@ -117,4 +118,5 @@ Results:
 - `scripts/pull-odoo-models.sh` resolved `foggy.odoo.pro@1.1.10`, verified bundle checksum `sha256:e821093622e8dbc1006d63648bee5fbf37d0f7763d5b9d492c0eb144d35bf2a6`, and synced `36` model files into the Java addon generated resource directory.
 - `scripts/check-model-drift.sh` passed with content checksum `sha256:1a26e46d695a7c46134317e61436c24a4a7fde763b3a8e654b699212f90ec5af`.
 - `mvn -pl addons/foggy-odoo-bridge-java -am -DskipTests package` passed; addon jar and sources jar were built.
-- A full `mvn -pl addons/foggy-odoo-bridge-java -am test` attempt did not reach the addon because dependency module `foggy-dataset-model` failed existing MySQL-data-sensitive tests in `AdvancedAnalyticsTest` and `AggregateJoinQueryModelTest`. The failures are unrelated to the Odoo registry bundle sync and should be handled as a separate fixture/reset issue before using that command as an addon gate.
+- After MySQL ecommerce aggregate fixture repair in bridge commit `c2ff9dc6`, `mvn -pl addons/foggy-odoo-bridge-java -am -P'!multi-db' test` passed across the required reactor slice. Result: 10 modules `SUCCESS`, including `foggy-dataset-model`, `foggy-dataset-demo`, `foggy-dataset-mcp`, `foggy-mcp-launcher`, `foggy-data-viewer`, and `foggy-odoo-bridge-java`.
+- Earlier addon full-test blocking from `AdvancedAnalyticsTest` and `AggregateJoinQueryModelTest` is no longer a consumer gate blocker for this promoted Odoo bundle; default `multi-db` profile still depends on external PostgreSQL/MySQL services being available.
