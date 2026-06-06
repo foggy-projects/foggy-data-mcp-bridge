@@ -342,6 +342,41 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("O616: aggregate relation RHS 输出字段 is null slice 不应下推到 RHS 子查询")
+    void aggregateRelationOutputNullSliceShouldStayOuterWhere() {
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationNullSlicePushdownProbeQuery("is null");
+
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql);
+        assertTrue(normalizedSql.contains("left join (select"),
+                "summary columns 不引用 RHS 字段时，slice 引用 RHS alias 仍应保留 LEFT JOIN");
+        assertTrue(normalizedSql.contains("fsByPaymentMethod"),
+                "aggregate relation alias 应保留在外层 SQL 中");
+        assertTrue(normalizedSql.contains("agg_src.payment_method = 'CREDIT_CARD'"),
+                "RHS runtime filter 应保留在聚合前 WHERE");
+        assertFalse(normalizedSql.contains("agg_src.payment_method is null"),
+                "外层 RHS alias is null slice 不应复制到 RHS 聚合子查询内部");
+        assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is null"),
+                "RHS alias is null slice 应只渲染在外层 WHERE");
+    }
+
+    @Test
+    @DisplayName("O616: aggregate relation RHS 输出字段 is not null slice 不应下推到 RHS 子查询")
+    void aggregateRelationOutputNotNullSliceShouldStayOuterWhere() {
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationNullSlicePushdownProbeQuery("is not null");
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("left join (select"),
+                "slice 引用 RHS alias 时应保留 LEFT JOIN");
+        assertTrue(normalizedSql.contains("agg_src.payment_method = 'CREDIT_CARD'"),
+                "RHS runtime filter 应保留在聚合前 WHERE");
+        assertFalse(normalizedSql.contains("agg_src.payment_method is not null"),
+                "外层 RHS alias is not null slice 不应复制到 RHS 聚合子查询内部");
+        assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is not null"),
+                "RHS alias is not null slice 应只渲染在外层 WHERE");
+    }
+
+    @Test
     @DisplayName("aggregate relation RHS 运行期 filter 缺值应失败关闭")
     void aggregateRelationRuntimeFilterShouldFailClosedWhenMissing() {
         RuntimeException exception = assertThrows(RuntimeException.class,
@@ -959,6 +994,24 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         if (outerOrderId != null) {
             queryRequest.setSlice(List.of(slice("orderId", "=", outerOrderId)));
         }
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationNullSlicePushdownProbeQuery(String op) {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "count(orderId) as candidateCount",
+                "sum(amount) as totalAmount"));
+        queryRequest.setExtData(Map.of("paymentMethod", "CREDIT_CARD"));
+        queryRequest.setSlice(List.of(slice("paymentMethod", op, null)));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
         return queryEngine;
