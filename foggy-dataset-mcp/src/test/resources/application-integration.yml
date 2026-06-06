@@ -50,7 +50,7 @@ spring:
   # ==========================================
   ai:
     openai:
-      api-key: test-api-key-disabled
+      api-key: sk-test-key-disabled
       base-url: https://localhost:9999
       chat:
         options:

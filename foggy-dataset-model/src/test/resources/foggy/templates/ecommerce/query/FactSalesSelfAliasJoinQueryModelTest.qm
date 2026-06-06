@@ -12,7 +12,7 @@ const aggregateSalesByLine = sales
     .as('aggregateSalesByLine');
 
 export const queryModel = {
-    name: 'FactSalesSelfAliasJoinQueryModel',
+    name: 'FactSalesSelfAliasJoinQueryModelTest',
     caption: '销售事实自连接多别名查询',
     description: '同一 FactSalesModel 以 leftSales/rightSales 两个 alias 参与 join',
     loader: 'v2',

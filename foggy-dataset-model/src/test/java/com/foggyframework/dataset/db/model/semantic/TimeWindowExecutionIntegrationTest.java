@@ -373,7 +373,6 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     }
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
-        request.setLimit(100);
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
                 TEST_MODEL, request, "execute", SemanticRequestContext.empty());
         assertNotNull(response);

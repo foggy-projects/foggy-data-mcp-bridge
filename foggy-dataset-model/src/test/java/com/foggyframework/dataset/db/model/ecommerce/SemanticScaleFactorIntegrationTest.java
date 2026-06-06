@@ -490,7 +490,6 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
                 "comparison", "rolling_7d",
                 "targetMetrics", List.of("salesAmountYuan")
         ));
-        request.setLimit(100);
 
         String salesDateId = quoteIdentifier("salesDate$id");
         String amount = quoteIdentifier("salesAmountYuan");

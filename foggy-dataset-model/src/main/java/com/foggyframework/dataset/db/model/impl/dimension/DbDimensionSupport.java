@@ -332,12 +332,19 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
         @Override
         public ObjectTransFormatter<?> getFormatter() {
-            return property.getPropertyDbColumn().getFormatter();
+            return getPropertyFormatter(property.getPropertyDbColumn().getFormatter());
         }
 
         @Override
         public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
-            return property.getPropertyDbColumn().getFormatter(errorIfNull);
+            return getPropertyFormatter(property.getPropertyDbColumn().getFormatter(errorIfNull));
+        }
+
+        private ObjectTransFormatter<?> getPropertyFormatter(ObjectTransFormatter<?> fallback) {
+            if (property.getType() != null && property.getType() != DbColumnType.UNKNOWN) {
+                return property.getType().getFormatter();
+            }
+            return fallback;
         }
 
         @Override
