@@ -11,7 +11,7 @@ signed_off_at: 2026-05-27
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 9
+evidence_count: 10
 ---
 
 # Feature Acceptance
@@ -55,7 +55,8 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=MultiFactTableJoinTest` | success; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0. |
 | Environment evidence | Docker unavailable; MySQL 5.7 local port reachable; PostgreSQL and MySQL 8 local ports closed. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationOutputFieldShouldRespectFieldAccessAllowList+aggregateRelationOutputFieldShouldFailClosedWhenMissingFromFieldAccess' test` | success; aggregate relation output field `fieldAccess` allow/deny coverage; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
-| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest test` | success; full aggregate join sqlite regression after fieldAccess coverage; Tests run: 33, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationSystemSliceShouldBypassUserFieldAccessForGuardFields' test` | success; aggregate relation `system_slice` guard field bypasses user `fieldAccess` for filtering without leaking the guard field to returned columns; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest test` | success; full aggregate join sqlite regression after fieldAccess and system_slice guard coverage; Tests run: 34, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Risks / Open Items
 
@@ -65,7 +66,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 - Tenant/access guard RHS pushdown requires structured field-ref conditions and an explicit aggregate join key/group key mapping; implicit tenant guards and raw SQL predicates are not guessed.
 - Query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields still needs upstream verification.
 - Relation-level default aggregate projection should be pruned to referenced QM fields in a later optimization.
-- Request-side `fieldAccess` allow/deny checks now cover aggregate relation output fields. RHS raw-SQL guard pushdown and system-slice permission validation remain follow-up risks; system slice lifecycle and structured accessBuilder join-key guard coverage are covered.
+- Request-side `fieldAccess` allow/deny checks now cover aggregate relation output fields. System-slice guard fields may intentionally bypass user `fieldAccess` for filtering and must not leak into returned columns; authorization of the system-slice producer remains an upstream governance boundary. RHS raw-SQL guard pushdown remains a follow-up risk; system slice lifecycle and structured accessBuilder join-key guard coverage are covered.
 - ETL / pre-aggregated promotion is deferred and should be handled as a separate modeling/optimization work item.
 
 ## Failed Items

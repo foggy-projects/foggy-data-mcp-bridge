@@ -354,6 +354,32 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation system_slice 可引用未开放给用户的输出字段")
+    void aggregateRelationSystemSliceShouldBypassUserFieldAccessForGuardFields() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderId", "amount"));
+        context.setSystemSlice(List.of(slice("salesAmount", ">", BigDecimal.ZERO)));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String sql = normalizeSql(queryEngine.getSql());
+        assertTrue(sql.contains("having sum(agg_src.sales_amount) > 0"),
+                "system_slice 中的 aggregate relation measure 应保留 RHS HAVING 下推");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "system_slice guard 字段不在 fieldAccess 中时仍应作为系统过滤生效");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+        assertFalse(rows.get(0).containsKey("salesAmount"),
+                "system_slice guard 字段不应因为参与过滤而泄露到返回列");
+    }
+
+    @Test
     @DisplayName("aggregate relation RHS 运行期 filter 应读取 ModelResultContext.extData")
     void aggregateRelationRuntimeFilterShouldReadContextExtData() {
         String orderId = findOrderIdWithCompletedSales();
