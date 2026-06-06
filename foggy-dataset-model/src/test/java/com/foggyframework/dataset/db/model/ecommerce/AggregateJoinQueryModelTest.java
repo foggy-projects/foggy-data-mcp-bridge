@@ -422,6 +422,337 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation ON 左键维度字段被 slice 使用时应可解析 join path")
+    void aggregateRelationOnLeftDimensionKeySliceShouldResolveJoinPath() {
+        Map<String, Object> activeStoreOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderId, ds.store_id storeId
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where ds.status = 'ACTIVE'
+                order by fo.order_id
+                limit 1
+                """);
+        String orderId = String.valueOf(activeStoreOrder.get("orderId"));
+        String storeId = String.valueOf(activeStoreOrder.get("storeId"));
+
+        JdbcQueryModel queryModel = getQueryModel("OrderStoreAggregateRelationDimensionKeyQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStoreAggregateRelationDimensionKeyQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "areaSqm"));
+        queryRequest.setSlice(List.of(
+                slice("orderId", "=", orderId),
+                slice("store$storeId", "=", storeId)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql);
+        assertTrue(normalizedSql.contains("left join dim_store"),
+                "slice 中的左侧维度字段应能复用维表 JOIN");
+        assertTrue(normalizedSql.matches("(?s).*d\\d+\\.store_id\\s*=\\?.*"),
+                "外层 WHERE 应使用维表物理字段表达式");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "订单与门店双条件限定后应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("aggregate relation ON 左键维度路径与显式 join 公开字段并存时应可解析")
+    void aggregateRelationDimensionPathShouldCoexistWithExplicitJoinSlice() {
+        Map<String, Object> activeStoreOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderId, ds.store_id storeId
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where ds.status = 'ACTIVE'
+                order by fo.order_id
+                limit 1
+                """);
+        String orderId = String.valueOf(activeStoreOrder.get("orderId"));
+        String storeId = String.valueOf(activeStoreOrder.get("storeId"));
+
+        JdbcQueryModel queryModel = getQueryModel("OrderStoreAggregateRelationDualPathQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStoreAggregateRelationDualPathQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "storeId", "amount", "areaSqm"));
+        queryRequest.setSlice(List.of(
+                slice("orderId", "=", orderId),
+                slice("storeId", "=", storeId)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql);
+        assertTrue(normalizedSql.contains("left join dim_store"),
+                "显式 join 与维度路径 JOIN 应能共同参与 query graph");
+        assertTrue(normalizedSql.contains("storeAggByBusinessId"),
+                "aggregate relation 应正常渲染");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "订单与显式门店字段限定后应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+        assertEquals(storeId, rows.get(0).get("storeId"));
+    }
+
+    @Test
+    @DisplayName("aggregate relation 双路径模型无 columns 请求应可解析")
+    void aggregateRelationDualPathNoColumnsRequestShouldResolveJoinPath() {
+        Map<String, Object> activeStoreOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderId, ds.store_id storeId
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where ds.status = 'ACTIVE'
+                order by fo.order_id
+                limit 1
+                """);
+        String orderId = String.valueOf(activeStoreOrder.get("orderId"));
+        String storeId = String.valueOf(activeStoreOrder.get("storeId"));
+
+        JdbcQueryModel queryModel = getQueryModel("OrderStoreAggregateRelationDualPathQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStoreAggregateRelationDualPathQueryModel");
+        queryRequest.setSlice(List.of(
+                slice("orderId", "=", orderId),
+                slice("storeId", "=", storeId)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertTrue(sql.contains("storeAggByBusinessId"),
+                "无 columns 请求仍应保留默认列集中的 aggregate relation");
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "无 columns 请求应返回一行真实数据");
+    }
+
+    @Test
+    @DisplayName("O615 probe: 三键 aggregate relation 双路径模型无 columns 和 access 应可解析")
+    void aggregateRelationO615ProbeNoColumnsWithAccessShouldResolveJoinPath() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderId, ds.store_id srcId, ds.store_type useType
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        String orderId = String.valueOf(stockOrder.get("orderId"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ProbeQueryModel");
+        queryRequest.setSlice(List.of(
+                slice("orderId", "=", orderId),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql);
+
+        assertTrue(normalizedSql.contains("plannedByOrder"),
+                "三键 aggregate relation 应正常渲染");
+        assertTrue(normalizedSql.contains("left join dim_store"),
+                "显式库存仓 join 与 stockHouse 维度路径 join 应都能进入 query graph");
+        assertTrue(normalizedSql.contains("where"),
+                "slice 与 access 应正常生成 WHERE");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "O615 no-columns payload 形态应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("O615 probe: orderNo 来自显式 join 时无 columns 和 access 应可解析")
+    void aggregateRelationO615ProbeExpressJoinNoColumnsShouldResolveJoinPath() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderNo, ds.store_id srcId, ds.store_type useType
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ExpressJoinProbeQueryModel");
+        queryRequest.setSlice(List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+
+        assertTrue(normalizedSql.contains("plannedByOrder"),
+                "三键 aggregate relation 应正常渲染");
+        assertTrue(normalizedSql.contains("left join fact_order"),
+                "显式运单 join 应进入 query graph");
+        assertTrue(normalizedSql.contains("left join dim_store"),
+                "显式库存仓 join 与 stockHouse 维度路径 join 应都能进入 query graph");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "O615 orderNo slice payload 形态应返回一行真实数据");
+        assertEquals(orderNo, rows.get(0).get("orderNo"));
+    }
+
+    @Test
+    @DisplayName("O615 probe: 显式 join RHS 维度 $id slice 应可解析")
+    void aggregateRelationO615ProbeExpressJoinDimensionIdSliceShouldResolveJoinPath() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderNo, ds.store_id srcId, ds.store_type useType, ds.store_key destinationServiceAreaId
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+        Object destinationServiceAreaId = stockOrder.get("destinationServiceAreaId");
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ExpressJoinProbeQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderNo", "srcId", "useType", "number"));
+        queryRequest.setSlice(List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0),
+                slice("destinationServiceArea$id", "in", List.of(destinationServiceAreaId))));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+
+        assertTrue(normalizedSql.contains("left join fact_order"),
+                "显式运单 join 应进入 query graph");
+        assertTrue(normalizedSql.contains("destinationServiceArea") || normalizedSql.contains("store_key"),
+                "RHS 维度 $id slice 应渲染为可达字段，不应引用 graph 外 alias");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "O615 destinationServiceArea$id slice payload 形态应返回一行真实数据");
+        assertEquals(orderNo, rows.get(0).get("orderNo"));
+    }
+
+    @Test
+    @DisplayName("O615 probe: RHS 维度过滤叠加 orderNo slice 时应可解析")
+    void aggregateRelationO615ProbeRhsDimensionFilterShouldResolveJoinPath() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderNo, ds.store_id srcId, ds.store_type useType
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615RhsDimensionProbeQueryModel");
+        queryRequest.setSlice(List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql);
+
+        assertTrue(normalizedSql.contains("plannedByOrder"),
+                "三键 aggregate relation 应正常渲染");
+        assertTrue(normalizedSql.contains("agg_src"),
+                "RHS 聚合子查询应正常渲染");
+        assertTrue(normalizedSql.contains("status = 'ACTIVE'") || normalizedSql.contains("status='ACTIVE'"),
+                "RHS 维度字段固定过滤应进入聚合前过滤");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "O615 RHS 维度过滤 payload 形态应返回一行真实数据");
+        assertEquals(orderNo, rows.get(0).get("orderNo"));
+    }
+
+    @Test
+    @DisplayName("O615 probe: RHS 聚合源内部维表 join 叠加 orderNo slice 时应可解析")
+    void aggregateRelationO615ProbeRhsJoinDimensionFilterShouldResolveJoinPath() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderNo, ds.store_id srcId, ds.store_type useType
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615RhsJoinDimensionProbeQueryModel");
+        queryRequest.setSlice(List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+
+        assertTrue(normalizedSql.contains("plannedByOrder"),
+                "三键 aggregate relation 应正常渲染");
+        assertTrue(normalizedSql.contains("left join dim_store"),
+                "主查询和 RHS 子查询涉及的维表 join 均应可解析");
+        assertTrue(normalizedSql.contains("status = 'ACTIVE'") || normalizedSql.contains("status='ACTIVE'"),
+                "RHS 内部维表过滤应进入聚合前过滤");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "O615 RHS 内部维表 join payload 形态应返回一行真实数据");
+        assertEquals(orderNo, rows.get(0).get("orderNo"));
+    }
+
+    @Test
     @DisplayName("aggregate relation ON 左键应支持嵌套维度路径")
     void aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath() {
         JdbcModelQueryEngine queryEngine = buildSalesNestedCategoryAggregateRelationDimensionPathQuery();

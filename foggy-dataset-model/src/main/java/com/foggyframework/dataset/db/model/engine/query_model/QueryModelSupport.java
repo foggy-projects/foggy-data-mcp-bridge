@@ -467,7 +467,8 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
             if (support != null && dimensionColumn != null && dimensionColumn.isCaptionColumn()) {
                 DbDimension dbDimension = support.getDimension();
-                DbColumn foreignKeyJdbcColumn = support.getDimension().getForeignKeyDbColumn();
+                DbColumn foreignKeyJdbcColumn = bindDimensionForeignKeyToOwnerAlias(
+                        support.getDimension().getForeignKeyDbColumn(), dbQueryColumn);
                 DbColumn captionJdbcColumn = support.getDimension().getCaptionDbColumn();
                 registerNestedDimensionAliases(dbDimension, foreignKeyJdbcColumn, captionJdbcColumn, dbQueryColumn.getCaption());
             }
@@ -475,6 +476,49 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         }
 
         registerJdbcQueryColumnDirectly(dbQueryColumn);
+    }
+
+    private DbColumn bindDimensionForeignKeyToOwnerAlias(DbColumn foreignKeyJdbcColumn, DbQueryColumn sourceQueryColumn) {
+        if (foreignKeyJdbcColumn == null || foreignKeyJdbcColumn.getQueryObject() == null) {
+            return foreignKeyJdbcColumn;
+        }
+        TableModel ownerModel = findOwnerModelForQueryColumn(sourceQueryColumn);
+        if (ownerModel == null || ownerModel.getQueryObject() == null) {
+            return foreignKeyJdbcColumn;
+        }
+        if (!foreignKeyJdbcColumn.getQueryObject().isRootEqual(ownerModel.getQueryObject())) {
+            return foreignKeyJdbcColumn;
+        }
+        if (StringUtils.equals(foreignKeyJdbcColumn.getQueryObject().getAlias(), ownerModel.getQueryObject().getAlias())) {
+            return foreignKeyJdbcColumn;
+        }
+        return new AliasBoundDbColumn(foreignKeyJdbcColumn, ownerModel.getQueryObject());
+    }
+
+    private TableModel findOwnerModelForQueryColumn(DbQueryColumn sourceQueryColumn) {
+        if (sourceQueryColumn == null || jdbcModelList == null) {
+            return null;
+        }
+        String columnName = sourceQueryColumn.getName();
+        if (StringUtils.isNotEmpty(columnName)) {
+            for (TableModel model : jdbcModelList) {
+                DbColumn column = model.findJdbcColumnByName(columnName);
+                if (column != null) {
+                    return model;
+                }
+            }
+        }
+
+        QueryObject queryObject = sourceQueryColumn.getQueryObject();
+        if (queryObject == null) {
+            return null;
+        }
+        for (TableModel model : jdbcModelList) {
+            if (model.getQueryObject() == queryObject || queryObject.isRootEqual(model.getQueryObject())) {
+                return model;
+            }
+        }
+        return null;
     }
 
     private void registerJdbcQueryColumnDirectly(DbQueryColumn dbQueryColumn) {

@@ -1,0 +1,74 @@
+/**
+ * O615 运单站点库存投影复现探针：RHS 聚合源内部维度 join 版本。
+ *
+ * @description plannedByOrder 的固定过滤必须在 RHS 子查询内生成 planSheet 维表 join。
+ */
+const si = loadTableModel('FactOrderO615StockItemProbeModel');
+const sh = loadTableModel('DimStoreO615StockHouseProbeModel');
+const fo = loadTableModel('FactOrderO615ExpressOrderProbeModel');
+const pa = loadTableModel('FactOrderO615PlanAssignmentProbeModel');
+
+const plannedByOrder = pa
+    .filterEq(pa.planSheet$planStatus, 'ACTIVE')
+    .groupBy(pa.tenantId, pa.plannedLoadSiteId, pa.sourceOrderId)
+    .as('plannedByOrder');
+
+export const queryModel = {
+    name: 'OrderStationStockProjectionO615RhsJoinDimensionProbeQueryModel',
+    caption: 'O615 RHS 内部维表 join 探针',
+    loader: 'v2',
+    model: si,
+
+    joins: [
+        si.leftJoin(sh).on(si.stockHouseId, sh.stockHouseId),
+        si.leftJoin(fo).on(si.orderId, fo.expressOrderId),
+        si.leftJoin(plannedByOrder)
+            .on(si.tenantId, plannedByOrder.tenantId)
+            .and(si.stockHouse$id, plannedByOrder.plannedLoadSiteId)
+            .and(si.orderId, plannedByOrder.sourceOrderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '公开运单',
+            items: [
+                { ref: fo.orderNo },
+                { ref: fo.orderStatus },
+                { ref: fo.numberOfPackages }
+            ]
+        },
+        {
+            caption: '当前站点库存',
+            items: [
+                { ref: si.orderKey },
+                { ref: sh.stockHouseId },
+                { ref: sh.srcId },
+                { ref: sh.useType },
+                { ref: si.number },
+                { ref: si.stWeight }
+            ]
+        },
+        {
+            caption: '计划占用汇总',
+            items: [
+                { ref: plannedByOrder.plannedLoadSiteId },
+                { ref: plannedByOrder.sourceOrderId },
+                { ref: plannedByOrder.plannedPieceCount }
+            ]
+        },
+        {
+            caption: '内部关联',
+            items: [
+                { ref: si.tenantId },
+                { ref: si.orderId }
+            ]
+        }
+    ],
+
+    accesses: [{
+        property: 'tenantId',
+        queryBuilder: (context) => {
+            context.query.and(si.tenant$id, 20240101);
+        }
+    }]
+};
