@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.compose.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
@@ -202,6 +203,7 @@ class JavaGovernanceSnapshotTest {
                 (String) c.get("id"),
                 stringList(c.get("columns")),
                 orderByFrom(c.get("orderBy")),
+                calculatedFieldsFrom(c.get("calculatedFields")),
                 deniedColumnsFrom(c.get("deniedColumns")),
                 expectedMap(c));
     }
@@ -221,6 +223,7 @@ class JavaGovernanceSnapshotTest {
                 (String) c.get("id"),
                 translatedColumns,
                 List.of(),
+                List.of(),
                 deniedColumnsFrom(c.get("deniedColumns")),
                 expectedMap(c));
     }
@@ -230,6 +233,7 @@ class JavaGovernanceSnapshotTest {
                 (String) c.get("id"),
                 stringList(c.get("columns")),
                 orderByFrom(c.get("orderBy")),
+                calculatedFieldsFrom(c.get("calculatedFields")),
                 deniedColumnsFrom(c.get("deniedColumns")),
                 expectedMap(c));
     }
@@ -237,12 +241,14 @@ class JavaGovernanceSnapshotTest {
     private static void assertQueryValidationRequest(String id,
                                                      List<String> columns,
                                                      List<OrderRequestDef> orderBy,
+                                                     List<CalculatedFieldDef> calculatedFields,
                                                      List<DeniedPhysicalColumn> deniedColumns,
                                                      Map<String, Object> expected) {
         @SuppressWarnings("unchecked")
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(columns);
         request.setOrderBy(orderBy);
+        request.setCalculatedFields(calculatedFields);
 
         ModelResultContext ctx = new ModelResultContext();
         ctx.setRequest(PagingRequest.buildPagingRequest(request, 100));
@@ -516,6 +522,34 @@ class JavaGovernanceSnapshotTest {
                         List.of(deniedColumn(null, "fact_sales", "sales_amount")),
                         false,
                         List.of("salesAmount")),
+                calculatedQueryValidationCase(
+                        "query-denied-calculated-direct-dependency-refused",
+                        List.of("product$caption", "netAmount"),
+                        null,
+                        List.of(calculatedField("netAmount", "salesAmount - discountAmount")),
+                        List.of(deniedColumn(null, "fact_sales", "discount_amount")),
+                        false,
+                        List.of("discountAmount")),
+                calculatedQueryValidationCase(
+                        "query-denied-calculated-transitive-dependency-refused",
+                        List.of("product$caption", "marginRatio"),
+                        null,
+                        List.of(
+                                calculatedField("netAmount", "salesAmount - discountAmount"),
+                                calculatedField("marginRatio", "netAmount / salesAmount")),
+                        List.of(deniedColumn(null, "fact_sales", "discount_amount")),
+                        false,
+                        List.of("discountAmount")),
+                calculatedQueryValidationCase(
+                        "query-denied-calculated-relation-dependency-refused",
+                        List.of("product$caption", "categoryShare"),
+                        null,
+                        List.of(calculatedField("categoryShare",
+                                "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), "
+                                        + "REMOVE(product$categoryName)), 0)")),
+                        List.of(deniedColumn(null, "dim_product", "category_name")),
+                        false,
+                        List.of("product$categoryName")),
                 pivotQueryValidationCase(
                         "pivot-denied-row-axis-refused",
                         pivotRequest(List.of(field("product$categoryName")), List.of(), List.of("salesAmount")),
@@ -620,6 +654,18 @@ class JavaGovernanceSnapshotTest {
         out.put("orderBy", orderBy == null ? List.of() : orderBy);
         out.put("deniedColumns", deniedColumns);
         out.put("expected", expectedQueryValidation(passes, messageMarkers));
+        return out;
+    }
+
+    private static Map<String, Object> calculatedQueryValidationCase(String id,
+                                                                     List<String> columns,
+                                                                     List<Map<String, Object>> orderBy,
+                                                                     List<Map<String, Object>> calculatedFields,
+                                                                     List<Map<String, Object>> deniedColumns,
+                                                                     boolean passes,
+                                                                     List<String> messageMarkers) {
+        Map<String, Object> out = queryValidationCase(id, columns, orderBy, deniedColumns, passes, messageMarkers);
+        out.put("calculatedFields", calculatedFields);
         return out;
     }
 
@@ -762,6 +808,13 @@ class JavaGovernanceSnapshotTest {
         return out;
     }
 
+    private static Map<String, Object> calculatedField(String name, String expression) {
+        Map<String, Object> out = ordered();
+        out.put("name", name);
+        out.put("expression", expression);
+        return out;
+    }
+
     private static Map<String, Object> orderBy(String field, String dir) {
         Map<String, Object> out = ordered();
         out.put("field", field);
@@ -860,6 +913,16 @@ class JavaGovernanceSnapshotTest {
             order.setField((String) m.get("field"));
             order.setDir((String) m.getOrDefault("dir", "ASC"));
             out.add(order);
+        }
+        return out;
+    }
+
+    private static List<CalculatedFieldDef> calculatedFieldsFrom(Object raw) {
+        List<CalculatedFieldDef> out = new ArrayList<>();
+        for (Object item : list(raw)) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = (Map<String, Object>) item;
+            out.add(new CalculatedFieldDef((String) m.get("name"), (String) m.get("expression")));
         }
         return out;
     }
