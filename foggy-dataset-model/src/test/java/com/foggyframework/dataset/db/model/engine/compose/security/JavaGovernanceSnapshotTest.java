@@ -100,6 +100,7 @@ class JavaGovernanceSnapshotTest {
             case "binding-semantics" -> assertBindingSemantics(c);
             case "compile-forwarding" -> assertCompileForwarding(c);
             case "compile-error" -> assertCompileError(c);
+            case "authority-resolution" -> assertAuthorityResolution(c);
             case "denied-column-mapping" -> assertDeniedColumnMapping(c);
             case "query-validation" -> assertQueryValidation(c);
             case "pivot-query-validation" -> assertPivotQueryValidation(c);
@@ -156,6 +157,35 @@ class JavaGovernanceSnapshotTest {
             ComposeCompileException ce = assertInstanceOf(ComposeCompileException.class, ex);
             assertEquals(expected.get("errorCode"), ce.code());
             assertEquals(expected.get("phase"), ce.phase());
+        }
+    }
+
+    private static void assertAuthorityResolution(Map<String, Object> c) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> expected = (Map<String, Object>) c.get("expected");
+        try {
+            CapturingSemanticService svc = new CapturingSemanticService();
+            ComposedSql sql = compileWithResolver(
+                    planFrom(c.get("plan")),
+                    bindingsFromSnapshot(c.get("resolverBindings")),
+                    svc);
+            assertTrue(Boolean.TRUE.equals(expected.get("passes")),
+                    "Expected Java authority-resolution case to fail: " + c.get("id"));
+
+            for (String marker : stringList(expected.get("sqlMarkers"))) {
+                assertTrue(sql.getSql().contains(marker),
+                        "[" + c.get("id") + "] SQL marker missing: " + marker + "\n" + sql.getSql());
+            }
+            assertEquals(expected.get("forwardedModel"), svc.model);
+            assertEquals(expected.get("forwardedColumns"), svc.request.getColumns());
+            assertEquals(expected.get("forwardedFieldAccess"), sorted(svc.context.getFieldAccess()));
+        } catch (RuntimeException ex) {
+            assertFalse(Boolean.TRUE.equals(expected.get("passes")),
+                    "[" + c.get("id") + "] expected authority-resolution case to pass: " + ex.getMessage());
+            AuthorityResolutionException ae = assertInstanceOf(AuthorityResolutionException.class, ex);
+            assertEquals(expected.get("errorCode"), ae.code());
+            assertEquals(expected.get("phase"), ae.phase());
+            assertEquals(expected.get("modelInvolved"), ae.modelInvolved());
         }
     }
 
@@ -265,7 +295,23 @@ class JavaGovernanceSnapshotTest {
                         .build());
     }
 
+    private static ComposedSql compileWithResolver(QueryPlan plan,
+                                                   Map<String, ModelBinding> resolverBindings,
+                                                   CapturingSemanticService svc) {
+        return ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                context(resolverBindings),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .dialect("mysql8")
+                        .build());
+    }
+
     private static ComposeQueryContext context() {
+        return context(Map.of());
+    }
+
+    private static ComposeQueryContext context(Map<String, ModelBinding> resolverBindings) {
         return ComposeQueryContext.builder()
                 .principal(Principal.builder()
                         .userId("snapshot-user")
@@ -275,7 +321,7 @@ class JavaGovernanceSnapshotTest {
                 .namespace("demo")
                 .traceId("java-governance-snapshot")
                 .authorityResolver(request -> AuthorityResolution.builder()
-                        .bindings(Map.of())
+                        .bindings(resolverBindings)
                         .build())
                 .build();
     }
@@ -300,6 +346,16 @@ class JavaGovernanceSnapshotTest {
         b.deniedColumns(deniedColumnsFrom(node.get("deniedColumns")));
         b.systemSlice(systemSliceFrom(node.get("systemSlice")));
         return b.build();
+    }
+
+    private static Map<String, ModelBinding> bindingsFromSnapshot(Object raw) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nodes = (Map<String, Object>) raw;
+        Map<String, ModelBinding> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            out.put(entry.getKey(), bindingFrom(entry.getValue()));
+        }
+        return out;
     }
 
     private static List<DeniedPhysicalColumn> deniedColumnsFrom(Object raw) {
@@ -399,6 +455,27 @@ class JavaGovernanceSnapshotTest {
                         base("HiddenModel", List.of("secretAmount"), null),
                         expectedError(ComposeCompileErrorCodes.MISSING_BINDING,
                                 ComposeCompileErrorCodes.PHASE_PLAN_LOWER)),
+                authorityCase(
+                        "authority-visible-model-allow-compiles",
+                        base("FactSalesModel",
+                                List.of("product$caption", "salesAmount"),
+                                List.of(slice("orderStatus$caption", "=", "COMPLETED"))),
+                        resolverBindings("FactSalesModel", binding(
+                                List.of("product$caption", "salesAmount"),
+                                List.of(deniedColumn(null, "fact_sales", "secret_margin")),
+                                List.of(slice("tenant_id", "=", "demo")))),
+                        expectedAuthoritySuccess(
+                                "FactSalesModel",
+                                List.of("product$caption", "salesAmount"),
+                                List.of("product$caption", "salesAmount"))),
+                authorityCase(
+                        "authority-visible-model-deny-missing-binding-fails-closed",
+                        base("FactSalesModel", List.of("salesAmount"), null),
+                        ordered(),
+                        expectedAuthorityError(
+                                AuthorityErrorCodes.MODEL_BINDING_MISSING,
+                                AuthorityErrorCodes.PHASE_AUTHORITY_RESOLVE,
+                                "FactSalesModel")),
                 deniedMappingCase(
                         "denied-physical-measure-maps-to-qm-field",
                         List.of(deniedColumn("public", "fact_sales", "sales_amount")),
@@ -494,6 +571,19 @@ class JavaGovernanceSnapshotTest {
         if (plan != null) {
             out.put("plan", plan);
         }
+        out.put("expected", expected);
+        return out;
+    }
+
+    private static Map<String, Object> authorityCase(String id,
+                                                     Map<String, Object> plan,
+                                                     Map<String, Object> resolverBindings,
+                                                     Map<String, Object> expected) {
+        Map<String, Object> out = ordered();
+        out.put("id", id);
+        out.put("type", "authority-resolution");
+        out.put("plan", plan);
+        out.put("resolverBindings", resolverBindings);
         out.put("expected", expected);
         return out;
     }
@@ -643,6 +733,12 @@ class JavaGovernanceSnapshotTest {
         return out;
     }
 
+    private static Map<String, Object> resolverBindings(String model, Map<String, Object> binding) {
+        Map<String, Object> out = ordered();
+        out.put(model, binding);
+        return out;
+    }
+
     private static Map<String, Object> base(String model,
                                             List<String> columns,
                                             List<Map<String, Object>> slice) {
@@ -702,6 +798,29 @@ class JavaGovernanceSnapshotTest {
         out.put("forwardedFieldAccess", List.of("orderStatus$caption", "salesAmount"));
         out.put("forwardedDeniedColumns", List.of(deniedColumn(null, "fact_sales", "secret_margin")));
         out.put("forwardedSystemSlice", List.of(slice("tenant_id", "=", "demo")));
+        return out;
+    }
+
+    private static Map<String, Object> expectedAuthoritySuccess(String model,
+                                                                List<String> columns,
+                                                                List<String> fieldAccess) {
+        Map<String, Object> out = ordered();
+        out.put("passes", true);
+        out.put("sqlMarkers", List.of("WITH ", "cte_0 AS", "__governance_stub__"));
+        out.put("forwardedModel", model);
+        out.put("forwardedColumns", columns);
+        out.put("forwardedFieldAccess", fieldAccess);
+        return out;
+    }
+
+    private static Map<String, Object> expectedAuthorityError(String code,
+                                                              String phase,
+                                                              String modelInvolved) {
+        Map<String, Object> out = ordered();
+        out.put("passes", false);
+        out.put("errorCode", code);
+        out.put("phase", phase);
+        out.put("modelInvolved", modelInvolved);
         return out;
     }
 
@@ -857,12 +976,14 @@ class JavaGovernanceSnapshotTest {
     }
 
     private static final class CapturingSemanticService implements SemanticQueryServiceV3 {
+        private String model;
         private SemanticQueryRequest request;
         private SemanticRequestContext context;
 
         @Override
         public SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                                SemanticRequestContext context) {
+            this.model = model;
             this.request = request;
             this.context = context;
             if (!"FactSalesModel".equals(model)) {
