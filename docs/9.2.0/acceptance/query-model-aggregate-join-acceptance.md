@@ -11,7 +11,7 @@ signed_off_at: 2026-06-07
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 28
+evidence_count: 29
 ---
 
 # Feature Acceptance
@@ -41,7 +41,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | Relation-level RHS projection pruning | accepted | Structured requests prune unreferenced aggregate relation measures from RHS SELECT; raw SQL conditions disable pruning and keep full RHS projection. |
 | Aggregate output order/total | accepted | Top-level `orderBy` on aggregate relation output measures retains the required RHS projection and renders against the relation output alias; QueryFacade `returnTotal` keeps the aggregate relation derived table in total SQL. |
 | Aggregate field metadata inheritance | accepted-with-risk | Core QueryModel schema exposes inherited TM caption/type and aggregate lineage metadata; query-cloud/data-viewer `frontend-meta` propagation remains a separate chain check. |
-| Source physical-column deniedColumns | accepted | Aggregate relation output fields map back to RHS source physical columns; denying `fact_sales.sales_amount` rejects `salesAmount`, while unrelated denied source columns do not over-block. Dynamic calculated fields that directly or transitively depend on aggregate outputs inherit the same deniedColumns boundary. |
+| Source physical-column deniedColumns | accepted | Aggregate relation output fields map back to RHS source physical columns; denying `fact_sales.sales_amount` rejects `salesAmount`, while unrelated denied source columns do not over-block. Dynamic calculated fields and QM predefined calculated fields that depend on aggregate outputs inherit the same deniedColumns boundary. |
 | LEFT no-match semantics | accepted | Outer filters are retained where needed; no-match behavior remains normal LEFT JOIN null behavior. |
 | Invalid grain fail-closed | accepted | Missing right join key in RHS `groupBy` is rejected. |
 | Real database evidence | accepted-with-risk | SQLite and live MySQL 5.7 passed; PostgreSQL and target TMS database evidence remain follow-up. |
@@ -80,6 +80,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest,PhysicalColumnPermissionIntegrationTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate relation regression and ordinary physical-column permission integration tests pass together after RHS source physical-column mapping hardening; Tests run: 54, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationCalculatedFieldShouldFailClosedWhenDeniedPhysicalSourceColumn+aggregateRelationCalculatedFieldChainShouldFailClosedWhenDeniedPhysicalSourceColumn' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; direct and chained dynamic calculated fields depending on aggregate relation output `salesAmount` are rejected when RHS source physical column `fact_sales.sales_amount` is denied; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest,PhysicalColumnPermissionIntegrationTest,JavaGovernanceSnapshotTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate join SQLite regression, ordinary physical-column permission integration, and Java governance snapshot all pass after calculated-field deniedColumns coverage; Tests run: 57, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationCalculatedFieldShouldFailClosedWhenDeniedPhysicalSourceColumn+aggregateRelationCalculatedFieldChainShouldFailClosedWhenDeniedPhysicalSourceColumn+aggregateRelationPredefinedCalculatedFieldShouldFailClosedWhenDeniedPhysicalSourceColumn' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; request-side direct/chained dynamic calculated fields and QM predefined calculated field depending on aggregate relation output `salesAmount` are rejected when RHS source physical column `fact_sales.sales_amount` is denied; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Risks / Open Items
 
@@ -90,7 +91,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 - Query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields still needs upstream verification.
 - Relation-level default aggregate projection is now pruned for tracked structured references. Raw SQL accessBuilder predicates remain outer-only and force full RHS projection because alias usage is intentionally not inferred from raw SQL text.
 - Aggregate relation output `orderBy` and QueryFacade `returnTotal` paths are covered for the current relation-level DSL fixture.
-- Request-side `fieldAccess` allow/deny checks and source physical-column `deniedColumns` now cover aggregate relation output fields and request-side dynamic calculated fields that depend on them. System-slice guard fields may intentionally bypass user `fieldAccess` for filtering and must not leak into returned columns; authorization of the system-slice producer remains an upstream governance boundary. System slice lifecycle, structured accessBuilder join-key guard pushdown, and raw SQL accessBuilder outer-only/no-pushdown behavior are covered.
+- Request-side `fieldAccess` allow/deny checks and source physical-column `deniedColumns` now cover aggregate relation output fields and calculated fields that depend on them, including QM predefined calculated fields. System-slice guard fields may intentionally bypass user `fieldAccess` for filtering and must not leak into returned columns; authorization of the system-slice producer remains an upstream governance boundary. System slice lifecycle, structured accessBuilder join-key guard pushdown, and raw SQL accessBuilder outer-only/no-pushdown behavior are covered.
 - ETL / pre-aggregated promotion is deferred and should be handled as a separate modeling/optimization work item.
 
 ## Failed Items

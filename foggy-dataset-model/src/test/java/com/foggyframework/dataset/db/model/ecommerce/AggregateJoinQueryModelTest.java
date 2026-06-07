@@ -590,6 +590,23 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation 预定义计算字段应遵守源物理列 deniedColumns")
+    void aggregateRelationPredefinedCalculatedFieldShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountPredefinedTax"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时，QM 预定义计算字段依赖应展开到被拒绝输出字段");
+    }
+
+    @Test
     @DisplayName("aggregate relation system_slice 可引用未开放给用户的输出字段")
     void aggregateRelationSystemSliceShouldBypassUserFieldAccessForGuardFields() {
         String orderId = findOrderIdWithCompletedSales();
