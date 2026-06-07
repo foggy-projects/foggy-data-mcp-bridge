@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Java-side producer for Python compose-script MCP error payload replay.
  */
-@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-23")
+@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-24")
 class JavaComposeScriptToolErrorSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -81,6 +81,17 @@ class JavaComposeScriptToolErrorSnapshotTest {
                                 "compose-authority-resolve/principal-mismatch",
                                 "permission-resolve",
                                 List.of("principal", "differs"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
+                ),
+                caseDef(
+                        "remote-missing-authority-binding",
+                        remoteMissingAuthorityBindingArguments(),
+                        remoteToolContextSnapshot(),
+                        expected(
+                                "compose-authority-resolve/invalid-response",
+                                "permission-resolve",
+                                List.of("authority", "binding"),
                                 List.of("NullPointerException", "Traceback", "Exception:", "at com.")
                         )
                 )
@@ -143,6 +154,17 @@ class JavaComposeScriptToolErrorSnapshotTest {
                         "systemSlice", List.of()
                 ))
         ));
+        return args;
+    }
+
+    private static Map<String, Object> remoteMissingAuthorityBindingArguments() {
+        Map<String, Object> args = ordered();
+        args.put("script", """
+                return from({
+                  model: "FactSalesModel",
+                  columns: ["salesAmount"]
+                }).execute();
+                """);
         return args;
     }
 
