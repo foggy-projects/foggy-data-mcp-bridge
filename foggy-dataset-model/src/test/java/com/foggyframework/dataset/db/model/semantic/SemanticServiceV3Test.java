@@ -410,6 +410,16 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         assertNotNull(models, "字段应保留模型归属信息");
         assertTrue(models.containsKey("OrderSalesAggregateRelationAccessQueryModel"),
                 "字段归属应指向 aggregate relation QM");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aggregateRelation = (Map<String, Object>) salesAmount.get("aggregateRelation");
+        assertNotNull(aggregateRelation, "字段应保留 aggregate relation lineage");
+        assertEquals("SUM", aggregateRelation.get("aggregation"));
+        assertEquals("salesAmount", aggregateRelation.get("sourceMeasure"));
+        assertEquals("销售金额", aggregateRelation.get("sourceCaption"));
+        assertTrue(String.valueOf(aggregateRelation.get("sourceExpression")).contains("sales_amount"));
+        assertTrue(String.valueOf(aggregateRelation.get("aggregateExpression")).contains("sum"));
+        assertTrue(String.valueOf(aggregateRelation.get("aggregateExpression")).contains("sales_amount"));
     }
 
     // ==========================================

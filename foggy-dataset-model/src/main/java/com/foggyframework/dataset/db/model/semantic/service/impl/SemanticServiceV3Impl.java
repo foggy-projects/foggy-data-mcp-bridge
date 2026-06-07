@@ -1948,7 +1948,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("measure", true);
         fieldInfo.put("aggregatable", true);
         fieldInfo.put("aggregation", aggregation);
-        addAggregateRelationSemanticScaleMetadata(fieldInfo, measure);
+        addAggregateRelationMetadata(fieldInfo, measure);
 
         String sqlCol = measure.getSqlColumnName();
         if (sqlCol != null) {
@@ -1965,8 +1965,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         return fieldInfo;
     }
 
-    private void addAggregateRelationSemanticScaleMetadata(Map<String, Object> fieldInfo, DbQueryColumn measure) {
-        Object extData = measure.getExtData();
+    private void addAggregateRelationMetadata(Map<String, Object> fieldInfo, DbQueryColumn measure) {
+        Object extData = measure.getSelectColumn() == null ? measure.getExtData() : measure.getSelectColumn().getExtData();
         if (!(extData instanceof Map<?, ?> extMap)) {
             return;
         }
@@ -1979,6 +1979,33 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 toBigDecimal(relation.get("semanticScaleFactor")),
                 relation.get("semanticUnit") instanceof String ? (String) relation.get("semanticUnit") : null,
                 relation.get("semanticUnitLabel") instanceof String ? (String) relation.get("semanticUnitLabel") : null);
+
+        Map<String, Object> relationInfo = new LinkedHashMap<>();
+        copyAggregateRelationValue(relationInfo, relation, "aggregation");
+        copyAggregateRelationValue(relationInfo, relation, "sourceColumn");
+        copyAggregateRelationValue(relationInfo, relation, "sourceAlias");
+        copyAggregateRelationValue(relationInfo, relation, "sourceCaption");
+        copyAggregateRelationValue(relationInfo, relation, "sourceMeasure");
+        BigDecimal semanticScaleFactor = toBigDecimal(relation.get("semanticScaleFactor"));
+        if (semanticScaleFactor != null) {
+            relationInfo.put("semanticScaleFactor", semanticScaleFactor.stripTrailingZeros().toPlainString());
+        }
+        copyAggregateRelationValue(relationInfo, relation, "semanticUnit");
+        copyAggregateRelationValue(relationInfo, relation, "semanticUnitLabel");
+        copyAggregateRelationValue(relationInfo, relation, "sourceExpression");
+        copyAggregateRelationValue(relationInfo, relation, "aggregateExpression");
+        if (!relationInfo.isEmpty()) {
+            fieldInfo.put("aggregateRelation", relationInfo);
+        }
+    }
+
+    private void copyAggregateRelationValue(Map<String, Object> target, Map<?, ?> source, String key) {
+        Object value = source.get(key);
+        if (value instanceof String str && !str.isBlank()) {
+            target.put(key, str);
+        } else if (value instanceof Number || value instanceof Boolean) {
+            target.put(key, value);
+        }
     }
 
     private BigDecimal toBigDecimal(Object value) {
