@@ -380,6 +380,30 @@ class RuntimeCapabilitiesControllerEnabledTest {
         verify(queryModelLoader).clearByNamespace(null);
     }
 
+    @Test
+    void shouldReturnModelRefreshFailedWhenRequestedModelFails() {
+        when(queryModelLoader.getJdbcQueryModel(eq("MissingModel"), isNull()))
+                .thenThrow(new IllegalArgumentException("QM model was not found."));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/models/refresh",
+                Map.of("models", List.of("MissingModel")),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("MODEL_REFRESH_FAILED");
+        assertThat(body.path("error").path("phase").asText()).isEqualTo("models.refresh");
+        assertThat(body.path("error").path("model").asText()).isEqualTo("MissingModel");
+        assertThat(body.path("diagnostics").path("attributes").path("refresh").path("failedCount").asInt())
+                .isEqualTo(1);
+        assertThat(body.path("diagnostics").path("attributes").path("refresh").path("failures").get(0)
+                .path("model").asText()).isEqualTo("MissingModel");
+    }
+
     @SpringBootApplication(scanBasePackages = "com.foggyframework.runtime.api")
     static class TestApplication {
     }

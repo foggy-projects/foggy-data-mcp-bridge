@@ -233,6 +233,17 @@ public class RuntimeModelsController {
                 failures,
                 warnings
         );
+        if (!failures.isEmpty()) {
+            return fail(
+                    "MODEL_REFRESH_FAILED",
+                    "models.refresh",
+                    firstRefreshFailureMessage(response),
+                    failures.get(0).model(),
+                    "Inspect diagnostics.attributes.refresh.failures and fix or register the requested QM model.",
+                    false,
+                    diagnosticsForRefresh(response)
+            );
+        }
         return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
     }
 
@@ -431,6 +442,10 @@ public class RuntimeModelsController {
         return new RuntimeDiagnostics(null, null, warnings, Map.of("validation", response));
     }
 
+    private static RuntimeDiagnostics diagnosticsForRefresh(ModelRefreshResponse response) {
+        return new RuntimeDiagnostics(null, null, response.warnings(), Map.of("refresh", response));
+    }
+
     private static String firstValidationMessage(ModelValidateResponse response) {
         if (response.errors() != null && !response.errors().isEmpty()) {
             String message = response.errors().get(0).message();
@@ -439,6 +454,16 @@ public class RuntimeModelsController {
             }
         }
         return "Model validation failed.";
+    }
+
+    private static String firstRefreshFailureMessage(ModelRefreshResponse response) {
+        if (response.failures() != null && !response.failures().isEmpty()) {
+            ModelRefreshFailure failure = response.failures().get(0);
+            if (failure.message() != null && !failure.message().isBlank()) {
+                return failure.message();
+            }
+        }
+        return "Model refresh failed.";
     }
 
     private static String validationBundleName(String namespace) {
