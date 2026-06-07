@@ -3,6 +3,9 @@ package com.foggyframework.dataset.mcp.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
+import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -16,6 +19,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -23,9 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Java-side producer for Python P0-22 compose-script MCP error payload replay.
+ * Java-side producer for Python compose-script MCP error payload replay.
  */
-@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22")
+@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-23")
 class JavaComposeScriptToolErrorSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -68,6 +72,17 @@ class JavaComposeScriptToolErrorSnapshotTest {
                                 List.of("resolver", "returned"),
                                 List.of("NullPointerException", "Traceback", "Exception:", "at com.")
                         )
+                ),
+                caseDef(
+                        "remote-principal-mismatch",
+                        remotePrincipalMismatchArguments(),
+                        remoteToolContextSnapshot(),
+                        expected(
+                                "compose-authority-resolve/principal-mismatch",
+                                "permission-resolve",
+                                List.of("principal", "differs"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
                 )
         );
     }
@@ -95,6 +110,42 @@ class JavaComposeScriptToolErrorSnapshotTest {
         return c;
     }
 
+    private static Map<String, Object> remoteToolContextSnapshot() {
+        Map<String, Object> c = ordered();
+        c.put("traceId", "java-compose-script-tool-error-snapshot");
+        c.put("namespace", "odoo");
+        c.put("headers", Map.of(
+                ComposeScriptTool.REMOTE_COMPOSE_HEADER, "1",
+                "X-User-Id", "u1",
+                "X-Tenant-Id", "t1",
+                "X-Namespace", "odoo",
+                "X-Roles", "analyst"
+        ));
+        return c;
+    }
+
+    private static Map<String, Object> remotePrincipalMismatchArguments() {
+        Map<String, Object> args = ordered();
+        args.put("script", """
+                return from({
+                  model: "FactSalesModel",
+                  columns: ["salesAmount"]
+                }).execute();
+                """);
+        args.put(ComposeScriptTool.AUTHORITY_BINDING_ARGUMENT, Map.of(
+                "version", "foggy.compose.authority-binding.v1",
+                "issuer", "test-fixture-issuer",
+                "namespace", "odoo",
+                "principal", Map.of("userId", "u2", "tenantId", "t1"),
+                "bindings", Map.of("FactSalesModel", Map.of(
+                        "fieldAccess", List.of("salesAmount"),
+                        "deniedColumns", List.of(),
+                        "systemSlice", List.of()
+                ))
+        ));
+        return args;
+    }
+
     private static Map<String, Object> expected(String errorCode,
                                                 String phase,
                                                 List<String> messageMarkers,
@@ -109,12 +160,21 @@ class JavaComposeScriptToolErrorSnapshotTest {
     }
 
     private static void assertJavaToolErrorContract(Map<String, Object> c) {
-        ComposeScriptTool tool = new ComposeScriptTool(noopSemanticService(), ctx -> null, "mysql");
+        ComposeScriptTool tool = new ComposeScriptTool(
+                noopSemanticService(),
+                resolverFactoryFor((String) c.get("id")),
+                "mysql"
+        );
 
         @SuppressWarnings("unchecked")
         Map<String, Object> arguments = (Map<String, Object>) c.get("arguments");
         @SuppressWarnings("unchecked")
-        Map<String, Object> actual = (Map<String, Object>) tool.execute(arguments, toolContext());
+        Map<String, Object> context = (Map<String, Object>) c.get("context");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actual = (Map<String, Object>) tool.execute(
+                new LinkedHashMap<>(arguments),
+                toolContext(context)
+        );
         @SuppressWarnings("unchecked")
         Map<String, Object> expected = (Map<String, Object>) c.get("expected");
 
@@ -139,14 +199,26 @@ class JavaComposeScriptToolErrorSnapshotTest {
         }
     }
 
-    private static ToolExecutionContext toolContext() {
+    private static Function<ToolExecutionContext, AuthorityResolver> resolverFactoryFor(String caseId) {
+        if ("resolver-null-host-misconfig".equals(caseId)) {
+            return ctx -> null;
+        }
+        return ctx -> request -> {
+            Map<String, ModelBinding> bindings = new LinkedHashMap<>();
+            for (String modelName : request.modelNames()) {
+                bindings.put(modelName, ModelBinding.builder().build());
+            }
+            return AuthorityResolution.builder().bindings(bindings).build();
+        };
+    }
+
+    private static ToolExecutionContext toolContext(Map<String, Object> c) {
+        @SuppressWarnings("unchecked")
+        Map<String, String> headers = (Map<String, String>) c.get("headers");
         return ToolExecutionContext.builder()
-                .traceId("java-compose-script-tool-error-snapshot")
-                .namespace("demo")
-                .headers(Map.of(
-                        "X-User-Id", "snapshot-user",
-                        "X-Namespace", "demo"
-                ))
+                .traceId((String) c.get("traceId"))
+                .namespace((String) c.get("namespace"))
+                .headers(headers)
                 .build();
     }
 
