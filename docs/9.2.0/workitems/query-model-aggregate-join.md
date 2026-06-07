@@ -5,7 +5,7 @@ version: 9.2.0
 target: QueryModel Aggregate Join
 status: accepted-with-risks
 created_at: 2026-05-27
-updated_at: 2026-06-06
+updated_at: 2026-06-07
 source_type: requirement
 upstream_issue: foggy-projects/foggy-data-mcp-workspace#3
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
@@ -105,6 +105,7 @@ TMS 库存、计划、付款、执行段等模型中经常出现左侧主记录�
 - Support selecting RHS aggregate fields.
 - Support `orderBy` on RHS aggregate fields when SQL lowering can prove the alias is available.
 - Support `returnTotal` without changing total semantics.
+- Dynamic `calculatedFields` that depend on aggregate relation outputs must inherit the same source physical-column permission boundary as the referenced aggregate output, including transitive calculated-field chains.
 
 ### Stage 4. Tests and Evidence
 
@@ -115,6 +116,7 @@ TMS 库存、计划、付款、执行段等模型中经常出现左侧主记录�
 - Cover tenant/system slice propagation.
 - Cover invalid groupBy/join key mismatch refusal.
 - Cover `orderBy` aggregate field and `returnTotal`.
+- Cover `deniedColumns` for aggregate relation outputs and dynamic calculated fields that reference those outputs.
 - Run targeted Maven tests with SQLite. Add MySQL/PostgreSQL evidence if dialect-specific lowering changes are nontrivial.
 
 ## Acceptance Criteria

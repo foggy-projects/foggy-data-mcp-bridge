@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
@@ -545,6 +546,47 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
         assertEquals(1, rows.size(), "deny 未参与 RHS 聚合输出的源物理列时查询应正常返回");
         assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("aggregate relation 动态计算字段应遵守源物理列 deniedColumns")
+    void aggregateRelationCalculatedFieldShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountWithTax"));
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "salesAmountWithTax",
+                "含税销售金额",
+                "salesAmount * 1.1")));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时，依赖该输出字段的动态计算字段应失败关闭");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 链式动态计算字段应传递遵守源物理列 deniedColumns")
+    void aggregateRelationCalculatedFieldChainShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountScore"));
+        queryRequest.setCalculatedFields(List.of(
+                new CalculatedFieldDef("salesAmountWithTax", "含税销售金额", "salesAmount * 1.1"),
+                new CalculatedFieldDef("salesAmountScore", "销售金额评分", "salesAmountWithTax + 1")));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时，链式动态计算字段依赖应展开到被拒绝输出字段");
     }
 
     @Test
