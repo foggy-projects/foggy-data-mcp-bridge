@@ -337,6 +337,34 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation 预定义计算字段未受限时应正常执行")
+    void aggregateRelationPredefinedCalculatedFieldShouldExecuteWhenAllowed() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "salesAmount", "salesAmountPredefinedTax"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        DbQueryResult result = queryFacade.queryModelResult(buildQueryFacadeContext(queryRequest));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "指定订单应只返回一行");
+
+        Map<String, Object> row = rows.get(0);
+        BigDecimal nativeSalesAmount = jdbcTemplate.queryForObject(
+                "select sum(sales_amount) from fact_sales where order_id = ? and order_status = 'COMPLETED'",
+                BigDecimal.class,
+                orderId);
+        BigDecimal expectedTaxAmount = nativeSalesAmount.multiply(new BigDecimal("1.1"));
+
+        assertEquals(orderId, row.get("orderId"));
+        assertEquals(0, money(nativeSalesAmount).compareTo(money(row.get("salesAmount"))),
+                "预定义计算字段查询中仍应保留原始聚合销售金额");
+        assertEquals(0, money(expectedTaxAmount).compareTo(money(row.get("salesAmountPredefinedTax"))),
+                "QM 预定义计算字段应按 aggregate relation 输出字段执行公式");
+    }
+
+    @Test
     @DisplayName("aggregate relation 输出字段用于 orderBy 时应保留 RHS projection")
     void aggregateRelationMeasureOrderByShouldRetainProjection() {
         JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationQueryModel");
