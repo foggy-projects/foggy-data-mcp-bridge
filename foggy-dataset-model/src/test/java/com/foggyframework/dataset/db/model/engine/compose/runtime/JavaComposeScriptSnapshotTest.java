@@ -117,7 +117,14 @@ class JavaComposeScriptSnapshotTest {
                 "timeRole=business_date",
                 "不要直接 `.execute()`"
         ));
-        tool.put("forbiddenMarkers", List.of("Query.from"));
+        tool.put("forbiddenMarkers", List.of(
+                "Query.from",
+                "DataSetResult",
+                "ComposedDataSetResult",
+                "toList",
+                "withJoin",
+                "joinInMemory"
+        ));
         return tool;
     }
 
