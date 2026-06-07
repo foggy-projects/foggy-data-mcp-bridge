@@ -46,14 +46,7 @@ class JavaComposeScriptSnapshotTest {
         snapshot.put("feature", "scriptRuntimeTool");
         snapshot.put("source", "JavaComposeScriptSnapshotTest");
         snapshot.put("tool", toolSnapshot());
-        snapshot.put("runtime", Map.of(
-                "allowedScriptGlobals", ScriptRuntime.ALLOWED_SCRIPT_GLOBALS,
-                "acceptedPythonExtraGlobals", List.of(
-                        "JSON", "parseInt", "parseFloat", "toString",
-                        "String", "Number", "Boolean", "isNaN", "isFinite",
-                        "Array", "Object", "Function", "typeof", "params"
-                )
-        ));
+        snapshot.put("runtime", runtimeSnapshot());
         snapshot.put("cases", cases());
 
         for (Map<String, Object> c : cases()) {
@@ -128,6 +121,23 @@ class JavaComposeScriptSnapshotTest {
         return tool;
     }
 
+    private static Map<String, Object> runtimeSnapshot() {
+        Map<String, Object> runtime = ordered();
+        runtime.put("allowedScriptGlobals", orderedAllowedScriptGlobals());
+        runtime.put("acceptedPythonExtraGlobals", List.of(
+                "JSON", "parseInt", "parseFloat", "toString",
+                "String", "Number", "Boolean", "isNaN", "isFinite",
+                "Array", "Object", "Function", "typeof", "params"
+        ));
+        return runtime;
+    }
+
+    private static List<String> orderedAllowedScriptGlobals() {
+        List<String> globals = List.of("from", "subquery", "Query", "dsl");
+        assertEquals(Set.copyOf(globals), ScriptRuntime.ALLOWED_SCRIPT_GLOBALS);
+        return globals;
+    }
+
     private static List<Map<String, Object>> cases() {
         return List.of(
                 caseDef(
@@ -154,6 +164,17 @@ class JavaComposeScriptSnapshotTest {
                         expected("map", null, true, List.of("SELECT 1 AS __stub__"), List.of(), null)
                 ),
                 caseDef(
+                        "execute-base-plan-rows-envelope",
+                        """
+                                return { plans: dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderStatus$caption"]
+                                }) };
+                                """,
+                        false,
+                        expectedRowsEnvelope(List.of(Map.of("stub", 1)))
+                ),
+                caseDef(
                         "security-param-denied",
                         """
                                 return dsl({
@@ -177,6 +198,13 @@ class JavaComposeScriptSnapshotTest {
         c.put("script", script);
         c.put("expected", expected);
         return c;
+    }
+
+    private static Map<String, Object> expectedRowsEnvelope(List<Map<String, Object>> rows) {
+        Map<String, Object> e = expected("map", null, false, List.of(), List.of(), null);
+        e.put("hasRows", true);
+        e.put("rows", rows);
+        return e;
     }
 
     private static Map<String, Object> expected(String valueType, Object value,
@@ -244,6 +272,14 @@ class JavaComposeScriptSnapshotTest {
             for (String marker : markers) {
                 assertTrue(sql.contains(marker), "SQL marker missing: " + marker + "\n" + sql);
             }
+        }
+
+        if (Boolean.TRUE.equals(expected.get("hasRows"))) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> value = (Map<String, Object>) result.value();
+            Object plans = value.get("plans");
+            assertInstanceOf(List.class, plans);
+            assertEquals(expected.get("rows"), plans);
         }
     }
 
