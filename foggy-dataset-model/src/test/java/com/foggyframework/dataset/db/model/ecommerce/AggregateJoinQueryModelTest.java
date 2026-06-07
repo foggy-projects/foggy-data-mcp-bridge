@@ -15,6 +15,7 @@ import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObje
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.proxy.AggregateJoinBuilder;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
@@ -510,6 +511,40 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 () -> queryFacade.queryModelResult(context));
         assertTrue(exception.getMessage().contains("salesAmount"),
                 "缺少 aggregate relation 输出字段权限时应指出被拒绝字段");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 输出字段应遵守源物理列 deniedColumns")
+    void aggregateRelationOutputFieldShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时应指出被拒绝的 aggregate relation 输出字段");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 未引用源物理列被 deniedColumns 命中时应放行")
+    void aggregateRelationDeniedPhysicalUnreferencedSourceColumnShouldPass() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount")));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "deny 未参与 RHS 聚合输出的源物理列时查询应正常返回");
+        assertEquals(orderId, rows.get(0).get("orderId"));
     }
 
     @Test
