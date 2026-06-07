@@ -6,7 +6,7 @@ target: Java Engine 9.2.0 Readiness Snapshot
 status: readiness-with-upstream-followups
 decision: ready-for-next-hardening-cycle
 created_at: 2026-06-06
-updated_at: 2026-06-06
+updated_at: 2026-06-07
 ---
 
 # Java Engine 9.2.0 Readiness Snapshot
@@ -36,6 +36,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | `workitems/OPT-qm-v2-tablemodel-multi-alias.md` | implemented | Explicit ordinary `TableModel` aliases are supported across joins, projections, filters, and ordering. | Unit and integration evidence recorded in the workitem. |
 | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | current-source-verified | Current source preserves direct-query `extData` runtime context; the expected negative-case validation log does not indicate a regression. | `DataViewerApiSmokeTest` run on 2026-06-06. |
 | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | implemented | SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values. | Targeted unit regression plus prepared MySQL gate on 2026-06-06. |
+| `workitems/COMPOSE-python-script-snapshot-parity.md` | local-verified | Java compose script snapshot producer covers tool/runtime markers, preview SQL envelope, execute rows envelope, and security refusal for Python replay. | `JavaComposeScriptSnapshotTest` run on 2026-06-07. |
 
 ## Gate Snapshot
 
@@ -44,6 +45,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | Java QueryModel targeted regression gate | pass | `Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`. |
 | Data Viewer direct-query smoke gate | pass | `DataViewerApiSmokeTest` passed; expected negative-case validation log observed. |
 | Odoo registry consumer gate | pass | `addons/foggy-odoo-bridge-java` reactor test passed and is recorded under 9.1.0 Odoo registry promotion evidence. |
+| Compose script snapshot producer gate | pass | `JavaComposeScriptSnapshotTest` passed and regenerated the tracked Python fixture with five cases. |
 | Prepared MySQL dataset-model gate | pass | After refreshing local `foggy-dataset` and `foggy-dataset-demo` artifacts, `mvn -pl foggy-dataset-model surefire:test@test-mysql -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3040, Failures: 0, Errors: 0, Skipped: 51`. |
 | PostgreSQL prepared gate | blocked-by-environment | `docker` / `podman` unavailable locally and `127.0.0.1:15432` is not accepting connections. |
 | Default full multi-db gate | partially claimed | MySQL evidence is now recorded; PostgreSQL still requires a prepared service before release signoff. |

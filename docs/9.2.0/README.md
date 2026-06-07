@@ -5,7 +5,7 @@ version: 9.2.0
 target: Java Engine 9.2.0 Follow-Up Roadmap
 status: readiness-review
 created_at: 2026-05-03
-updated_at: 2026-06-06
+updated_at: 2026-06-07
 ---
 
 # Foggy Java Engine 9.2.0 Follow-Ups
@@ -34,6 +34,7 @@ This snapshot is not a final release signoff. It records the current readiness b
 | Data Viewer direct extData runtime filter | current-source-verified | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | Negative-case validation log is expected; no production regression claimed. |
 | Formula SQL logical operator extraction | implemented | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | SQL `and` / `or` normalization is limited to SQL expression dialect and string-external tokens. |
 | Pivot output snapshot parity | local-verified | `workitems/PIVOT-python-output-snapshot-parity.md` | Java producer now covers 8 Python replay cases including flat/grid row subtotals + grand total; Python replay remains a cross-repo follow-up. |
+| Compose script snapshot parity | local-verified | `workitems/COMPOSE-python-script-snapshot-parity.md` | Java producer now covers five compose script runtime/tool cases including execute-mode rows envelope; Python replay remains a cross-repo follow-up. |
 | Odoo registry consumer gate | consumer-verified | `../9.1.0/workitems/P1-odoo-model-registry-promotion-20260606.md` | Registry promotion remains a cross-repo follow-up, not a 9.2 Java engine blocker. |
 
 Readiness documents:
@@ -98,3 +99,4 @@ The current readiness boundary is:
 - `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` - Data Viewer direct-query entrypoint now preserves top-level `extData` as runtime filter context for direct QM execution.
 - `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` - SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values.
 - `workitems/PIVOT-python-output-snapshot-parity.md` - Java Pivot output snapshot producer for Python replay now covers flat/grid, grand total, and row subtotal + grand total cases.
+- `workitems/COMPOSE-python-script-snapshot-parity.md` - Java compose script snapshot producer for Python replay now covers tool/runtime markers, preview SQL envelope, execute rows envelope, and security refusal.
