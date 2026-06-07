@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Java-side producer for Python compose-script MCP error payload replay.
  */
-@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-24")
+@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-25")
 class JavaComposeScriptToolErrorSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -62,6 +62,28 @@ class JavaComposeScriptToolErrorSnapshotTest {
 
     private static List<Map<String, Object>> cases() {
         return List.of(
+                caseDef(
+                        "missing-script",
+                        Map.of(),
+                        toolContextSnapshot(),
+                        expected(
+                                "missing-script",
+                                "internal",
+                                List.of("script", "required"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
+                ),
+                caseDef(
+                        "missing-context",
+                        Map.of("script", "return 1;"),
+                        null,
+                        expected(
+                                "internal-error",
+                                "internal",
+                                List.of("ToolExecutionContext", "required"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
+                ),
                 caseDef(
                         "resolver-null-host-misconfig",
                         Map.of("script", "return 1;"),
@@ -195,7 +217,7 @@ class JavaComposeScriptToolErrorSnapshotTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> actual = (Map<String, Object>) tool.execute(
                 new LinkedHashMap<>(arguments),
-                toolContext(context)
+                context == null ? null : toolContext(context)
         );
         @SuppressWarnings("unchecked")
         Map<String, Object> expected = (Map<String, Object>) c.get("expected");
