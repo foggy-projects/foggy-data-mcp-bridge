@@ -144,6 +144,10 @@ public class SemanticModelCatalogService {
         }
     }
 
+    public void clearCachedModelNames() {
+        cachedModelNames = null;
+    }
+
     private Map<String, Object> fetchCatalogMetadata(List<String> modelNames, String namespace,
                                                      String authorization, Map<String, Object> options) {
         try {

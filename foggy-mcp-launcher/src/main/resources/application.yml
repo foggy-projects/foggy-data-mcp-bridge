@@ -33,6 +33,10 @@ spring:
 
 # Foggy MCP Service Configuration
 foggy:
+  runtime-api:
+    # Development/test-only CLI adapter. Keep disabled by default; production should not enable it.
+    enabled: ${FOGGY_RUNTIME_API_ENABLED:false}
+
   # 测试功能开关（DemoSecurityIdentityResolver 和 SavedQueryTestController）
   # 默认关闭，仅在测试环境或 Docker 环境中启用
   test:

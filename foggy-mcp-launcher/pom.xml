@@ -82,6 +82,20 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <profile>
+            <id>runtime-api</id>
+            <dependencies>
+                <!-- Development/test-only Runtime API adapter. Production packaging should not enable this profile. -->
+                <dependency>
+                    <groupId>com.foggysource</groupId>
+                    <artifactId>foggy-runtime-api</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
     <build>
         <plugins>
             <plugin>
