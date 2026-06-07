@@ -414,7 +414,21 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         @SuppressWarnings("unchecked")
         Map<String, Object> aggregateRelation = (Map<String, Object>) salesAmount.get("aggregateRelation");
         assertNotNull(aggregateRelation, "字段应保留 aggregate relation lineage");
+        assertEquals(Set.of(
+                        "aggregation",
+                        "sourceCaption",
+                        "sourceMeasure",
+                        "sourceAlias",
+                        "sourceExpression",
+                        "aggregateExpression",
+                        "sourceColumn"),
+                aggregateRelation.keySet(),
+                "aggregate relation lineage JSON contract 不应漂移");
+        aggregateRelation.forEach((key, value) ->
+                assertTrue(value instanceof String, "aggregate relation lineage 字段应保持 JSON 字符串: " + key));
         assertEquals("SUM", aggregateRelation.get("aggregation"));
+        assertEquals("salesAmount", aggregateRelation.get("sourceColumn"));
+        assertEquals("salesAmount", aggregateRelation.get("sourceAlias"));
         assertEquals("salesAmount", aggregateRelation.get("sourceMeasure"));
         assertEquals("销售金额", aggregateRelation.get("sourceCaption"));
         assertTrue(String.valueOf(aggregateRelation.get("sourceExpression")).contains("sales_amount"));
