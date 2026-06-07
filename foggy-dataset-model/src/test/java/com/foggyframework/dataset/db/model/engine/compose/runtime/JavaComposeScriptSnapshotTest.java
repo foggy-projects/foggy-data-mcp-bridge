@@ -161,7 +161,7 @@ class JavaComposeScriptSnapshotTest {
                                 }) };
                                 """,
                         true,
-                        expected("map", null, true, List.of("SELECT 1 AS __stub__"), List.of(), null)
+                        expected("map", null, true, List.of("SELECT 'FactSalesModel' AS __model__"), List.of(), null)
                 ),
                 caseDef(
                         "execute-base-plan-rows-envelope",
@@ -172,7 +172,120 @@ class JavaComposeScriptSnapshotTest {
                                 }) };
                                 """,
                         false,
-                        expectedRowsEnvelope(List.of(Map.of("stub", 1)))
+                        expectedRowsEnvelope(List.of(row("routeModel", "FactSalesModel", "stub", 1)))
+                ),
+                caseDef(
+                        "preview-derived-plan-sql",
+                        """
+                                const base = dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderStatus$caption", "salesAmount"],
+                                  groupBy: ["orderStatus$caption"]
+                                });
+                                return { plans: dsl({
+                                  source: base,
+                                  columns: ["orderStatus$caption", "salesAmount"],
+                                  slice: [{ field: "salesAmount", op: ">", value: 1000 }]
+                                }) };
+                                """,
+                        true,
+                        expected("map", null, true,
+                                List.of("SELECT 'FactSalesModel' AS __model__", "FROM (", "salesAmount"),
+                                List.of(), null)
+                ),
+                caseDef(
+                        "execute-derived-plan-rows-envelope",
+                        """
+                                const base = dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderStatus$caption", "salesAmount"],
+                                  groupBy: ["orderStatus$caption"]
+                                });
+                                return { plans: dsl({
+                                  source: base,
+                                  columns: ["orderStatus$caption", "salesAmount"],
+                                  slice: [{ field: "salesAmount", op: ">", value: 1000 }]
+                                }) };
+                                """,
+                        false,
+                        expectedRowsEnvelope(List.of(row("routeModel", "FactSalesModel", "stub", 1)))
+                ),
+                caseDef(
+                        "preview-union-plan-sql",
+                        """
+                                const current = dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderStatus$caption"]
+                                });
+                                const archived = dsl({
+                                  model: "ArchivedSalesModel",
+                                  columns: ["orderStatus$caption"]
+                                });
+                                return { plans: current.union(archived, { all: true }) };
+                                """,
+                        true,
+                        expected("map", null, true,
+                                List.of("SELECT 'FactSalesModel' AS __model__",
+                                        "SELECT 'ArchivedSalesModel' AS __model__",
+                                        "UNION ALL"),
+                                List.of(), null)
+                ),
+                caseDef(
+                        "execute-union-plan-rows-envelope",
+                        """
+                                const current = dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderStatus$caption"]
+                                });
+                                const archived = dsl({
+                                  model: "ArchivedSalesModel",
+                                  columns: ["orderStatus$caption"]
+                                });
+                                return { plans: current.union(archived, { all: true }) };
+                                """,
+                        false,
+                        expectedRowsEnvelope(List.of(row("routeModel", "FactSalesModel", "stub", 1)))
+                ),
+                caseDef(
+                        "preview-join-plan-sql",
+                        """
+                                const sales = dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderId", "salesAmount"]
+                                });
+                                const returns = dsl({
+                                  model: "FactReturnModel",
+                                  columns: ["orderId", "returnAmount"]
+                                });
+                                return { plans: sales.join(returns, "left", [
+                                  { left: "orderId", op: "=", right: "orderId" }
+                                ]) };
+                                """,
+                        true,
+                        expected("map", null, true,
+                                List.of("SELECT 'FactSalesModel' AS __model__",
+                                        "SELECT 'FactReturnModel' AS __model__",
+                                        "LEFT JOIN",
+                                        "orderId"),
+                                List.of(), null)
+                ),
+                caseDef(
+                        "execute-join-plan-rows-envelope",
+                        """
+                                const sales = dsl({
+                                  model: "FactSalesModel",
+                                  columns: ["orderId", "salesAmount"]
+                                });
+                                const returns = dsl({
+                                  model: "FactReturnModel",
+                                  columns: ["orderId", "returnAmount"]
+                                });
+                                return { plans: sales.join(returns, "left", [
+                                  { left: "orderId", op: "=", right: "orderId" }
+                                ]) };
+                                """,
+                        false,
+                        expectedRowsEnvelope(List.of(row("routeModel", "FactSalesModel", "stub", 1)))
                 ),
                 caseDef(
                         "security-param-denied",
@@ -187,6 +300,13 @@ class JavaComposeScriptSnapshotTest {
                         expected("error", null, false, List.of(), List.of(), "Security parameters")
                 )
         );
+    }
+
+    private static Map<String, Object> row(String key1, Object value1, String key2, Object value2) {
+        Map<String, Object> row = ordered();
+        row.put(key1, value1);
+        row.put(key2, value2);
+        return row;
     }
 
     private static Map<String, Object> caseDef(String id, String script, boolean previewMode,
@@ -308,7 +428,7 @@ class JavaComposeScriptSnapshotTest {
             @Override
             public SqlGenerationResult generateSql(String model, SemanticQueryRequest req,
                                                    SemanticRequestContext ctx) {
-                return new SqlGenerationResult("SELECT 1 AS __stub__", List.of(), null, List.of());
+                return new SqlGenerationResult("SELECT '" + model + "' AS __model__", List.of(), null, List.of());
             }
 
             @Override
@@ -326,7 +446,7 @@ class JavaComposeScriptSnapshotTest {
             @Override
             public List<Map<String, Object>> executeSql(String sql, List<Object> params,
                                                         String routeModel) {
-                return List.of(Map.of("stub", 1));
+                return List.of(row("routeModel", routeModel, "stub", 1));
             }
         };
     }
