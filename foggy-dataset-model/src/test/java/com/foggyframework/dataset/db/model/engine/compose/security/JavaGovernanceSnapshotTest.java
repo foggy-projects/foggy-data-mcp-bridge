@@ -266,6 +266,10 @@ class JavaGovernanceSnapshotTest {
                 assertTrue(ex.getMessage().contains(marker),
                         "[" + id + "] error marker missing: " + marker + " in " + ex.getMessage());
             }
+            for (String marker : stringList(expected.get("forbiddenMarkers"))) {
+                assertFalse(ex.getMessage().contains(marker),
+                        "[" + id + "] sanitized error leaked forbidden marker: " + marker + " in " + ex.getMessage());
+            }
         }
     }
 
@@ -522,6 +526,22 @@ class JavaGovernanceSnapshotTest {
                         List.of(deniedColumn(null, "fact_sales", "sales_amount")),
                         false,
                         List.of("salesAmount")),
+                sanitizedQueryValidationCase(
+                        "query-denied-sanitized-measure-error-payload",
+                        List.of("product$caption", "salesAmount"),
+                        null,
+                        List.of(deniedColumn(null, "fact_sales", "sales_amount")),
+                        false,
+                        List.of("salesAmount"),
+                        List.of("fact_sales", "sales_amount")),
+                sanitizedQueryValidationCase(
+                        "query-denied-sanitized-relation-error-payload",
+                        List.of("product$caption", "product$categoryName"),
+                        null,
+                        List.of(deniedColumn(null, "dim_product", "category_name")),
+                        false,
+                        List.of("product$categoryName"),
+                        List.of("dim_product", "category_name")),
                 calculatedQueryValidationCase(
                         "query-denied-calculated-direct-dependency-refused",
                         List.of("product$caption", "netAmount"),
@@ -654,6 +674,24 @@ class JavaGovernanceSnapshotTest {
         out.put("orderBy", orderBy == null ? List.of() : orderBy);
         out.put("deniedColumns", deniedColumns);
         out.put("expected", expectedQueryValidation(passes, messageMarkers));
+        return out;
+    }
+
+    private static Map<String, Object> sanitizedQueryValidationCase(String id,
+                                                                    List<String> columns,
+                                                                    List<Map<String, Object>> orderBy,
+                                                                    List<Map<String, Object>> deniedColumns,
+                                                                    boolean passes,
+                                                                    List<String> messageMarkers,
+                                                                    List<String> forbiddenMarkers) {
+        Map<String, Object> out = ordered();
+        out.put("id", id);
+        out.put("type", "query-validation");
+        out.put("model", "FactSalesModel");
+        out.put("columns", columns);
+        out.put("orderBy", orderBy == null ? List.of() : orderBy);
+        out.put("deniedColumns", deniedColumns);
+        out.put("expected", expectedQueryValidation(passes, messageMarkers, forbiddenMarkers));
         return out;
     }
 
@@ -891,9 +929,18 @@ class JavaGovernanceSnapshotTest {
     }
 
     private static Map<String, Object> expectedQueryValidation(boolean passes, List<String> messageMarkers) {
+        return expectedQueryValidation(passes, messageMarkers, List.of());
+    }
+
+    private static Map<String, Object> expectedQueryValidation(boolean passes,
+                                                              List<String> messageMarkers,
+                                                              List<String> forbiddenMarkers) {
         Map<String, Object> out = ordered();
         out.put("passes", passes);
         out.put("messageMarkers", messageMarkers);
+        if (!forbiddenMarkers.isEmpty()) {
+            out.put("forbiddenMarkers", forbiddenMarkers);
+        }
         return out;
     }
 
