@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityPolicy;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityRegistry;
+import com.foggyframework.dataset.db.model.engine.compose.capability.FunctionDescriptor;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.context.Principal;
 import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
@@ -305,6 +308,20 @@ class JavaComposeScriptSnapshotTest {
                         """,
                         false,
                         expected("error", null, false, List.of(), List.of(), "Security parameters")
+                ),
+                caseDef(
+                        "capability-pure-runtime-policy-allow",
+                        "return fiscalYear(4);",
+                        false,
+                        "fiscal-year-allow",
+                        expected("number", 2025, false, List.of(), List.of(), null)
+                ),
+                caseDef(
+                        "capability-pure-runtime-policy-deny",
+                        "return fiscalYear(4);",
+                        false,
+                        "fiscal-year-deny",
+                        expected("error", null, false, List.of(), List.of(), "fiscalYear")
                 )
         );
     }
@@ -324,6 +341,14 @@ class JavaComposeScriptSnapshotTest {
         c.put("previewMode", previewMode);
         c.put("script", script);
         c.put("expected", expected);
+        return c;
+    }
+
+    private static Map<String, Object> caseDef(String id, String script, boolean previewMode,
+                                               String capabilityScenario,
+                                               Map<String, Object> expected) {
+        Map<String, Object> c = caseDef(id, script, previewMode, expected);
+        c.put("capabilityScenario", capabilityScenario);
         return c;
     }
 
@@ -354,6 +379,7 @@ class JavaComposeScriptSnapshotTest {
     private static void assertJavaRuntimeContract(Map<String, Object> c) {
         @SuppressWarnings("unchecked")
         Map<String, Object> expected = (Map<String, Object>) c.get("expected");
+        RuntimeInputs inputs = runtimeInputs(c);
         String errorMarker = (String) expected.get("errorMarker");
         if (errorMarker != null) {
             try {
@@ -362,7 +388,9 @@ class JavaComposeScriptSnapshotTest {
                         dummyCtx(),
                         previewOnlySemanticService(),
                         (String) c.get("dialect"),
-                        Boolean.TRUE.equals(c.get("previewMode"))
+                        Boolean.TRUE.equals(c.get("previewMode")),
+                        inputs.registry(),
+                        inputs.policy()
                 );
                 throw new AssertionError("Expected Java script case to fail: " + c.get("id"));
             } catch (RuntimeException ex) {
@@ -377,7 +405,9 @@ class JavaComposeScriptSnapshotTest {
                 dummyCtx(),
                 previewOnlySemanticService(),
                 (String) c.get("dialect"),
-                Boolean.TRUE.equals(c.get("previewMode"))
+                Boolean.TRUE.equals(c.get("previewMode")),
+                inputs.registry(),
+                inputs.policy()
         );
         String valueType = (String) expected.get("valueType");
         if ("number".equals(valueType)) {
@@ -409,6 +439,38 @@ class JavaComposeScriptSnapshotTest {
             assertEquals(expected.get("rows"), plans);
         }
     }
+
+    private static RuntimeInputs runtimeInputs(Map<String, Object> c) {
+        Object scenario = c.get("capabilityScenario");
+        if ("fiscal-year-allow".equals(scenario)) {
+            return fiscalYearInputs(true);
+        }
+        if ("fiscal-year-deny".equals(scenario)) {
+            return fiscalYearInputs(false);
+        }
+        return new RuntimeInputs(null, null);
+    }
+
+    private static RuntimeInputs fiscalYearInputs(boolean allow) {
+        CapabilityRegistry registry = new CapabilityRegistry();
+        registry.registerFunction(new FunctionDescriptor(
+                "fiscalYear",
+                "pure_runtime",
+                List.of(Map.of("name", "month", "type", "int")),
+                "int",
+                true,
+                "none",
+                List.of("compose_runtime"),
+                "test.fiscalYear",
+                null
+        ), args -> ((Number) args.get("month")).intValue() >= 4 ? 2025 : 2024);
+        CapabilityPolicy policy = allow
+                ? new CapabilityPolicy(Set.of("fiscalYear"), Map.of(), Set.of())
+                : CapabilityPolicy.empty();
+        return new RuntimeInputs(registry, policy);
+    }
+
+    private record RuntimeInputs(CapabilityRegistry registry, CapabilityPolicy policy) {}
 
     private static ComposeQueryContext dummyCtx() {
         AuthorityResolver resolver = request -> {
