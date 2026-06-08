@@ -45,7 +45,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | Java QueryModel targeted regression gate | pass | `Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`. |
 | Data Viewer direct-query smoke gate | pass | `DataViewerApiSmokeTest` passed; expected negative-case validation log observed. |
 | Odoo registry consumer gate | pass | `addons/foggy-odoo-bridge-java` reactor test passed and is recorded under 9.1.0 Odoo registry promotion evidence. |
-| Compose script snapshot producer gate | pass | `JavaComposeScriptSnapshotTest` passed and regenerated the tracked Python runtime fixture with 11 cases; `JavaComposeScriptToolErrorSnapshotTest` passed and regenerated the tracked MCP tool error fixture with 7 cases. Python replay passed for both fixtures. |
+| Compose script snapshot producer gate | pass | `JavaComposeScriptSnapshotTest` passed and regenerated the tracked Python runtime fixture with 13 cases; `JavaComposeScriptToolErrorSnapshotTest` passed and regenerated the tracked MCP tool error fixture with 7 cases. Python replay passed for both fixtures. |
 | Prepared MySQL dataset-model gate | pass | After refreshing local `foggy-dataset` and `foggy-dataset-demo` artifacts, `mvn -pl foggy-dataset-model surefire:test@test-mysql -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3040, Failures: 0, Errors: 0, Skipped: 51`. |
 | PostgreSQL prepared gate | blocked-by-environment | `docker` / `podman` unavailable locally and `127.0.0.1:15432` is not accepting connections. |
 | Default full multi-db gate | partially claimed | MySQL evidence is now recorded; PostgreSQL still requires a prepared service before release signoff. |

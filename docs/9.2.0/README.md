@@ -34,7 +34,7 @@ This snapshot is not a final release signoff. It records the current readiness b
 | Data Viewer direct extData runtime filter | current-source-verified | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | Negative-case validation log is expected; no production regression claimed. |
 | Formula SQL logical operator extraction | implemented | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | SQL `and` / `or` normalization is limited to SQL expression dialect and string-external tokens. |
 | Pivot output snapshot parity | local-verified | `workitems/PIVOT-python-output-snapshot-parity.md` | Java producer now covers 8 Python replay cases including flat/grid row subtotals + grand total; Python replay remains a cross-repo follow-up. |
-| Compose script snapshot parity | local-verified | `workitems/COMPOSE-python-script-snapshot-parity.md` | Java producers now cover 11 compose script runtime cases plus 7 MCP tool error cases; Python replay passes for both generated fixtures. |
+| Compose script snapshot parity | local-verified | `workitems/COMPOSE-python-script-snapshot-parity.md` | Java producers now cover 13 compose script runtime cases plus 7 MCP tool error cases; Python replay passes for both generated fixtures. |
 | Odoo registry consumer gate | consumer-verified | `../9.1.0/workitems/P1-odoo-model-registry-promotion-20260606.md` | Registry promotion remains a cross-repo follow-up, not a 9.2 Java engine blocker. |
 
 Readiness documents:
