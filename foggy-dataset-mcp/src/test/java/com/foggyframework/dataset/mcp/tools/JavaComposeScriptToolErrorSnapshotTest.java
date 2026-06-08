@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Java-side producer for Python compose-script MCP error payload replay.
  */
-@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-25")
+@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-26")
 class JavaComposeScriptToolErrorSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -81,6 +81,28 @@ class JavaComposeScriptToolErrorSnapshotTest {
                                 "internal-error",
                                 "internal",
                                 List.of("ToolExecutionContext", "required"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
+                ),
+                caseDef(
+                        "missing-user-id-header",
+                        Map.of("script", "return 1;"),
+                        missingUserIdToolContextSnapshot(),
+                        expected(
+                                "internal-error",
+                                "internal",
+                                List.of("X-User-Id", "required"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
+                ),
+                caseDef(
+                        "missing-namespace-header",
+                        Map.of("script", "return 1;"),
+                        missingNamespaceToolContextSnapshot(),
+                        expected(
+                                "internal-error",
+                                "internal",
+                                List.of("X-Namespace", "required"),
                                 List.of("NullPointerException", "Traceback", "Exception:", "at com.")
                         )
                 ),
@@ -139,6 +161,26 @@ class JavaComposeScriptToolErrorSnapshotTest {
         c.put("headers", Map.of(
                 "X-User-Id", "snapshot-user",
                 "X-Namespace", "demo"
+        ));
+        return c;
+    }
+
+    private static Map<String, Object> missingUserIdToolContextSnapshot() {
+        Map<String, Object> c = ordered();
+        c.put("traceId", "java-compose-script-tool-error-snapshot");
+        c.put("namespace", "demo");
+        c.put("headers", Map.of(
+                "X-Namespace", "demo"
+        ));
+        return c;
+    }
+
+    private static Map<String, Object> missingNamespaceToolContextSnapshot() {
+        Map<String, Object> c = ordered();
+        c.put("traceId", "java-compose-script-tool-error-snapshot");
+        c.put("namespace", null);
+        c.put("headers", Map.of(
+                "X-User-Id", "snapshot-user"
         ));
         return c;
     }
