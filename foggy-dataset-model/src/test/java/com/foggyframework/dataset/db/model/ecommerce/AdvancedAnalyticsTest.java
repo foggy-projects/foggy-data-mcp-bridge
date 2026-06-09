@@ -458,6 +458,31 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(21)
+    @DisplayName("QM 预定义普通计算字段重复注入时不应误报名称冲突")
+    void testDuplicateInjectedQmPredefinedFormulaDoesNotCollide() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        CalculatedFieldDef profitRate = queryModel.getPredefinedCalculatedFields().stream()
+                .filter(field -> "profitRate".equals(field.getName()))
+                .findFirst()
+                .orElseThrow();
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(List.of("orderId", "salesAmount", "profitRate"));
+        queryRequest.setSlice(List.of(new SliceRequestDef("profitRate", ">", 10)));
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(profitRate, profitRate)));
+
+        assertDoesNotThrow(() -> queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest));
+        String sql = queryEngine.getSql();
+        assertNotNull(sql);
+        assertTrue(sql.contains("profit") && sql.contains("sales"),
+                "SQL 应包含 profitRate 公式依赖: " + sql);
+    }
+
+    @Test
     @Order(25)
     @DisplayName("QM 预定义标量字段可被外层 SUM 聚合")
     @SuppressWarnings("unchecked")

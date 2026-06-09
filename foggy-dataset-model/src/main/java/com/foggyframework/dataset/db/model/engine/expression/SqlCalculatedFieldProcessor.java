@@ -57,8 +57,10 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         this.context = new SqlExpContext(queryModel, dialect, appCtx);
         this.context.setCalculateQueryContext(calculateQueryContext);
 
+        List<CalculatedFieldDef> normalizedFields = deduplicateQueryModelPredefinedFields(calculatedFields);
+
         // 按依赖关系排序（委托 CalculatedFieldService）
-        List<CalculatedFieldDef> sortedFields = CalculatedFieldService.sortByDependencies(calculatedFields);
+        List<CalculatedFieldDef> sortedFields = CalculatedFieldService.sortByDependencies(normalizedFields);
 
         List<CalculatedDbColumn> result = new ArrayList<>(sortedFields.size());
 
@@ -182,6 +184,56 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     private boolean isInlineAggregateAlias(CalculatedFieldDef fieldDef) {
         return fieldDef.getOrigin() == CalculatedFieldDef.Origin.INLINE_EXPRESSION
                 && StringUtils.isNotEmpty(fieldDef.getAgg());
+    }
+
+    private List<CalculatedFieldDef> deduplicateQueryModelPredefinedFields(List<CalculatedFieldDef> calculatedFields) {
+        if (calculatedFields == null || calculatedFields.size() < 2
+                || queryModel == null || queryModel.getPredefinedCalculatedFields() == null
+                || queryModel.getPredefinedCalculatedFields().isEmpty()) {
+            return calculatedFields;
+        }
+
+        Set<String> seenPredefinedNames = new HashSet<>();
+        List<CalculatedFieldDef> result = new ArrayList<>(calculatedFields.size());
+        boolean changed = false;
+        for (CalculatedFieldDef fieldDef : calculatedFields) {
+            if (isExactQueryModelPredefinedCalculatedField(fieldDef)) {
+                if (!seenPredefinedNames.add(fieldDef.getName())) {
+                    changed = true;
+                    if (log.isDebugEnabled()) {
+                        log.debug("Ignored duplicate QM predefined calculated field: {}", fieldDef.getName());
+                    }
+                    continue;
+                }
+            }
+            result.add(fieldDef);
+        }
+        return changed ? result : calculatedFields;
+    }
+
+    private boolean isExactQueryModelPredefinedCalculatedField(CalculatedFieldDef fieldDef) {
+        if (fieldDef == null || queryModel == null || queryModel.getPredefinedCalculatedFields() == null) {
+            return false;
+        }
+        for (CalculatedFieldDef predefined : queryModel.getPredefinedCalculatedFields()) {
+            if (predefined == fieldDef || sameCalculatedFieldDefinition(predefined, fieldDef)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sameCalculatedFieldDefinition(CalculatedFieldDef left, CalculatedFieldDef right) {
+        return left != null
+                && right != null
+                && Objects.equals(left.getName(), right.getName())
+                && Objects.equals(left.getExpression(), right.getExpression())
+                && Objects.equals(left.getAgg(), right.getAgg())
+                && Objects.equals(left.getPartitionBy(), right.getPartitionBy())
+                && Objects.equals(left.getWindowOrderBy(), right.getWindowOrderBy())
+                && Objects.equals(left.getWindowFrame(), right.getWindowFrame())
+                && Objects.equals(left.getType(), right.getType())
+                && Objects.equals(left.getEmptyDefault(), right.getEmptyDefault());
     }
 
     /**
