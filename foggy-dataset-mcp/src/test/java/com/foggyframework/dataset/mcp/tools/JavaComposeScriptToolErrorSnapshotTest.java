@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Java-side producer for Python compose-script MCP error payload replay.
  */
-@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-26")
+@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-26/P0-34")
 class JavaComposeScriptToolErrorSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -114,6 +114,17 @@ class JavaComposeScriptToolErrorSnapshotTest {
                                 "host-misconfig",
                                 "internal",
                                 List.of("resolver", "returned"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
+                ),
+                caseDef(
+                        "resolver-factory-exception",
+                        Map.of("script", "return 1;"),
+                        toolContextSnapshot(),
+                        expected(
+                                "internal-error",
+                                "internal",
+                                List.of("resolver", "factory", "boom"),
                                 List.of("NullPointerException", "Traceback", "Exception:", "at com.")
                         )
                 ),
@@ -288,6 +299,11 @@ class JavaComposeScriptToolErrorSnapshotTest {
     private static Function<ToolExecutionContext, AuthorityResolver> resolverFactoryFor(String caseId) {
         if ("resolver-null-host-misconfig".equals(caseId)) {
             return ctx -> null;
+        }
+        if ("resolver-factory-exception".equals(caseId)) {
+            return ctx -> {
+                throw new IllegalStateException("resolver factory boom");
+            };
         }
         return ctx -> request -> {
             Map<String, ModelBinding> bindings = new LinkedHashMap<>();
