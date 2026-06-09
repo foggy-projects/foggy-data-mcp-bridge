@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Java-side producer for Python compose-script MCP error payload replay.
  */
-@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-26/P0-34")
+@DisplayName("JavaComposeScriptToolErrorSnapshotTest · Python alignment P0-22/P0-26/P0-34/P0-40")
 class JavaComposeScriptToolErrorSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -125,6 +125,22 @@ class JavaComposeScriptToolErrorSnapshotTest {
                                 "internal-error",
                                 "internal",
                                 List.of("resolver", "factory", "boom"),
+                                List.of("NullPointerException", "Traceback", "Exception:", "at com.")
+                        )
+                ),
+                caseDef(
+                        "resolver-resolve-exception",
+                        Map.of("script", """
+                                return from({
+                                  model: "FactSalesModel",
+                                  columns: ["salesAmount"]
+                                }).execute();
+                                """),
+                        toolContextSnapshot(),
+                        expected(
+                                "compose-authority-resolve/upstream-failure",
+                                "permission-resolve",
+                                List.of("AuthorityResolver.resolve", "unexpected exception", "details"),
                                 List.of("NullPointerException", "Traceback", "Exception:", "at com.")
                         )
                 ),
@@ -303,6 +319,11 @@ class JavaComposeScriptToolErrorSnapshotTest {
         if ("resolver-factory-exception".equals(caseId)) {
             return ctx -> {
                 throw new IllegalStateException("resolver factory boom");
+            };
+        }
+        if ("resolver-resolve-exception".equals(caseId)) {
+            return ctx -> request -> {
+                throw new IllegalStateException("resolver resolve boom");
             };
         }
         return ctx -> request -> {
