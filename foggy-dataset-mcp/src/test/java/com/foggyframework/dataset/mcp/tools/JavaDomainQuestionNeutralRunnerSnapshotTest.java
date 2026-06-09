@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * of LLM transcripts. Python can replay this boundary without Odoo models or a
  * live model provider.</p>
  */
-@DisplayName("JavaDomainQuestionNeutralRunnerSnapshotTest · Python alignment P0-31")
+@DisplayName("JavaDomainQuestionNeutralRunnerSnapshotTest · Python alignment P0-31/P0-41")
 class JavaDomainQuestionNeutralRunnerSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -166,8 +166,28 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
         expected.put("resultMarkers", resultMarkers);
         expected.put("warnings", warnings);
         expected.put("errorCode", errorCode);
+        expected.put("reports", List.of(reportMetadata(model, mode, warnings, errorCode)));
         expected.put("forbiddenMarkers", List.of("odoo", "res_partner", "res_users", "LLM"));
         return expected;
+    }
+
+    private static Map<String, Object> reportMetadata(String model,
+                                                      String mode,
+                                                      List<String> warnings,
+                                                      String errorCode) {
+        Map<String, Object> report = ordered();
+        report.put("reportType", "neutral-runner-case-summary");
+        report.put("toolName", "dataset.query_model");
+        report.put("model", model);
+        report.put("mode", mode);
+        report.put("status", errorCode == null ? "ok" : "error");
+        report.put("warningCount", warnings.size());
+        report.put("errorCount", errorCode == null ? 0 : 1);
+        report.put("warningMarkers", warnings);
+        if (errorCode != null) {
+            report.put("errorCode", errorCode);
+        }
+        return report;
     }
 
     private static Map<String, Object> payload(List<String> columns,
@@ -221,6 +241,19 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
         assertTrue(payload.containsKey("columns"));
         assertTrue(payload.containsKey("start"));
         assertTrue(payload.containsKey("limit"));
+
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) expected.get("warnings");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> reports = (List<Map<String, Object>>) expected.get("reports");
+        assertEquals(1, reports.size());
+        Map<String, Object> report = reports.get(0);
+        assertEquals("neutral-runner-case-summary", report.get("reportType"));
+        assertEquals(expected.get("toolName"), report.get("toolName"));
+        assertEquals(toolArguments.get("model"), report.get("model"));
+        assertEquals(toolArguments.get("mode"), report.get("mode"));
+        assertEquals(warnings.size(), report.get("warningCount"));
+        assertEquals(expected.get("errorCode") == null ? 0 : 1, report.get("errorCount"));
 
         String serialized = toolArguments.toString();
         @SuppressWarnings("unchecked")
