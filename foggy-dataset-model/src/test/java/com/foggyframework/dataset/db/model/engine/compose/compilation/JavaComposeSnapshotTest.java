@@ -409,6 +409,25 @@ class JavaComposeSnapshotTest {
                                 List.of("sales.salesAmount", "orders.totalAmount"),
                                 List.of(0))),
                 caseOf(
+                        "ambiguous-duplicate-source-alias-ref-refused",
+                        "postgres",
+                        derived(
+                                join(
+                                        base("FactSalesModel",
+                                                List.of("orderStatus$caption", "salesAmount"),
+                                                null, null, List.of("dup")),
+                                        base("FactOrderModel",
+                                                List.of("orderStatus$caption", "totalAmount"),
+                                                null, null, List.of("dup")),
+                                        "inner",
+                                        List.of(joinOn("left.orderStatus$caption", "=", "right.orderStatus$caption"))),
+                                List.of("dup.salesAmount"),
+                                null,
+                                null,
+                                null,
+                                null),
+                        expectedError("ambiguous")),
+                caseOf(
                         "source-alias-dropped-column-refused",
                         "mysql8",
                         derived(

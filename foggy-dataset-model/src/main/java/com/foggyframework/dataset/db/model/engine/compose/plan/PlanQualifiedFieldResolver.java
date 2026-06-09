@@ -249,26 +249,36 @@ final class PlanQualifiedFieldResolver {
         }
     }
 
-    private record Scope(Map<String, String> qualified, Set<String> knownPrefixes) {
+    private record Scope(Map<String, String> qualified,
+                         Set<String> knownPrefixes,
+                         Set<String> ambiguousPrefixes) {
 
         static Scope forDerivedSource(QueryPlan source) {
             Map<String, String> map = new LinkedHashMap<>();
             Set<String> prefixes = new LinkedHashSet<>();
+            Set<String> ambiguousPrefixes = new LinkedHashSet<>();
             if (source instanceof JoinPlan join) {
+                Set<String> leftAliases = collectAliases(join.left());
+                Set<String> rightAliases = collectAliases(join.right());
+                for (String alias : leftAliases) {
+                    if (rightAliases.contains(alias)) {
+                        ambiguousPrefixes.add(alias);
+                    }
+                }
                 addSide(map, prefixes, "left", join.left(), declaredOutputColumns(join.left()), Set.of());
                 Set<String> leftNames = new LinkedHashSet<>(declaredOutputColumns(join.left()));
                 addSide(map, prefixes, "right", join.right(), declaredOutputColumns(join.right()), leftNames);
             } else {
                 addSide(map, prefixes, null, source, declaredOutputColumns(source), Set.of());
             }
-            return new Scope(map, prefixes);
+            return new Scope(map, prefixes, ambiguousPrefixes);
         }
 
         static Scope forSingleSource(QueryPlan source, String sideName) {
             Map<String, String> map = new LinkedHashMap<>();
             Set<String> prefixes = new LinkedHashSet<>();
             addSide(map, prefixes, sideName, source, declaredOutputColumns(source), Set.of());
-            return new Scope(map, prefixes);
+            return new Scope(map, prefixes, Set.of());
         }
 
         private static void addSide(Map<String, String> map, Set<String> prefixes, String sideName, QueryPlan plan,
@@ -301,11 +311,21 @@ final class PlanQualifiedFieldResolver {
             if (!isSimpleQualifiedRef(trimmed)) {
                 return ref;
             }
+            String prefix = trimmed.substring(0, trimmed.indexOf('.'));
+            if (ambiguousPrefixes.contains(prefix)) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.JOIN_AMBIGUOUS_COLUMN,
+                        "qualified source alias '" + prefix
+                                + "' is ambiguous across join sides; use left/right "
+                                + "or distinct source aliases",
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        "DerivedQueryPlan",
+                        trimmed);
+            }
             String mapped = qualified.get(trimmed);
             if (mapped != null) {
                 return mapped;
             }
-            String prefix = trimmed.substring(0, trimmed.indexOf('.'));
             if (knownPrefixes.contains(prefix)) {
                 throw new ComposeSchemaException(
                         ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
