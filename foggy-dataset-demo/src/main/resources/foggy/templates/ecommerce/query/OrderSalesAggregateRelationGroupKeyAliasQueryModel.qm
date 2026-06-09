@@ -1,0 +1,44 @@
+/**
+ * 订单-销售明细聚合关系 group key alias 查询模型
+ *
+ * @caption 订单销售聚合关系 group key alias 查询
+ * @description 暴露 RHS aggregate relation group key 的独立别名，用于验证请求侧条件不与左侧同名字段冲突
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .groupBy(sales.orderId)
+    .as('fsByOrder');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationGroupKeyAliasQueryModel',
+    caption: '订单销售聚合关系 group key alias 查询',
+    description: '暴露 RHS aggregate relation group key 的独立别名，用于验证请求侧条件不与左侧同名字段冲突',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细聚合',
+            items: [
+                { ref: 'fsByOrder.orderId', name: 'salesOrderId', alias: 'salesOrderId', caption: '销售订单号' },
+                { ref: fs.salesAmount, caption: '销售明细金额' },
+                { ref: fs.uniqueCustomers, caption: '独立客户数' }
+            ]
+        }
+    ]
+};

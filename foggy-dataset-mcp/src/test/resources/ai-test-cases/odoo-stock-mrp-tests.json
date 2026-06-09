@@ -1,0 +1,377 @@
+{
+  "version": "1.0",
+  "description": "Odoo stock/MRP optional AI route fixtures. Enable with AI_TEST_CASE_FILES=ai-test-cases/odoo-stock-mrp-tests.json when Odoo stock_picking and mrp_production demo data is available.",
+  "testCases": [
+    {
+      "id": "ODOO-STOCK-001",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已完成库存调拨，显示调拨单号、作业类型、调拨状态、计划时间和完成时间",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooStockPickingQueryModel",
+      "description": "Odoo 库存语义 - 已完成调拨使用库存调拨生命周期 state=done，完成时间 dateDone 只作为实际完成日期",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "pickingType$caption", "pickingType$code", "state", "scheduledDate", "dateDone"],
+          "slice": [
+            {"field": "state", "op": "=", "value": "done"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "pickingType$caption", "pickingType$code", "state", "scheduledDate", "dateDone"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "done",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "dateDone",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-STOCK-002",
+      "category": "FILTER_QUERY",
+      "question": "查询所有等待处理或已就绪的库存调拨，显示调拨单号、作业类型、状态和计划时间",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooStockPickingQueryModel",
+      "description": "Odoo 库存语义 - 待处理/就绪调拨使用 stock.picking state，不用完成时间为空代替状态",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "pickingType$caption", "pickingType$code", "state", "scheduledDate"],
+          "slice": [
+            {"field": "state", "op": "in", "value": ["waiting", "confirmed", "assigned"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "pickingType$caption", "pickingType$code", "state", "scheduledDate"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": ["waiting", "confirmed", "assigned"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "dateDone",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-STOCK-003",
+      "category": "AGGREGATION",
+      "question": "按计划月份统计库存调拨数量，显示计划月份和调拨单数量",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooStockPickingQueryModel",
+      "description": "Odoo 库存日期语义 - 计划期趋势使用 scheduledDate，不使用 createDate/writeDate 或完成时间",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["scheduledDate$yearMonth", "transferCount"],
+          "groupBy": ["scheduledDate$yearMonth"],
+          "orderBy": [
+            {"column": "scheduledDate$yearMonth", "direction": "ASC"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["scheduledDate$yearMonth", "transferCount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "scheduledDate$yearMonth",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "dateDone$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "createDate$yearMonth",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-MRP-001",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已完成生产订单，显示生产单号、产品、状态、开始时间和完成时间",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooMrpProductionQueryModel",
+      "description": "Odoo 制造语义 - 已完成生产订单使用 MRP lifecycle state=done，完成时间 dateFinished 只作为实际完成日期",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "product$caption", "state", "dateStart", "dateFinished"],
+          "slice": [
+            {"field": "state", "op": "=", "value": "done"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "product$caption", "state", "dateStart", "dateFinished"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "done",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "dateFinished",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-MRP-002",
+      "category": "FILTER_QUERY",
+      "question": "查询正在生产或待收尾的生产订单，显示生产单号、产品、状态、计划开始时间和截止时间",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooMrpProductionQueryModel",
+      "description": "Odoo 制造语义 - 在制/待收尾生产订单使用 MRP state，不用完成时间为空代替状态",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "product$caption", "state", "dateStart", "dateDeadline"],
+          "slice": [
+            {"field": "state", "op": "in", "value": ["progress", "to_close"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "product$caption", "state", "dateStart", "dateDeadline"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": ["progress", "to_close"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "dateFinished",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-MRP-003",
+      "category": "AGGREGATION",
+      "question": "按完成月份统计生产订单数量和生产数量，显示完成月份、生产单数量和计划生产数量",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooMrpProductionQueryModel",
+      "description": "Odoo 制造日期语义 - 产出/吞吐趋势使用完成日期 dateFinished，不使用 createDate/writeDate 或计划开始日期",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["dateFinished$yearMonth", "productionCount", "productQty"],
+          "groupBy": ["dateFinished$yearMonth"],
+          "slice": [
+            {"field": "state", "op": "=", "value": "done"}
+          ],
+          "orderBy": [
+            {"column": "dateFinished$yearMonth", "direction": "ASC"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["dateFinished$yearMonth", "productionCount", "productQty"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "dateFinished$yearMonth",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "dateStart$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "createDate$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "done",
+            "must_exist": true
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-MRP-004",
+      "category": "FILTER_QUERY",
+      "question": "查询所有未完成但已经进入生产或待收尾的生产订单，显示生产单号、产品、状态、开始时间和截止时间",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooMrpProductionQueryModel",
+      "description": "Odoo 制造负向语义 - 未完成的在制/待收尾订单应使用 lifecycle state，不用 dateFinished 为空替代状态",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "product$caption", "state", "dateStart", "dateDeadline"],
+          "slice": [
+            {"field": "state", "op": "in", "value": ["progress", "to_close"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "product$caption", "state", "dateStart", "dateDeadline"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": ["progress", "to_close"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "dateFinished",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "done",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-MRP-005",
+      "category": "AGGREGATION",
+      "question": "按完成月份统计已完成生产订单的产出数量，显示完成月份、生产单数量和计划生产数量",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooMrpProductionQueryModel",
+      "description": "Odoo 制造负向语义 - 产出吞吐趋势必须按完成日期角色分组，不能用计划开始日期或截止日期替代",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["dateFinished$yearMonth", "productionCount", "productQty"],
+          "groupBy": ["dateFinished$yearMonth"],
+          "slice": [
+            {"field": "state", "op": "=", "value": "done"}
+          ],
+          "orderBy": [
+            {"column": "dateFinished$yearMonth", "direction": "ASC"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["dateFinished$yearMonth", "productionCount", "productQty"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "dateFinished$yearMonth",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "dateStart$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "dateDeadline$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "createDate$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "done",
+            "must_exist": true
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    }
+  ]
+}

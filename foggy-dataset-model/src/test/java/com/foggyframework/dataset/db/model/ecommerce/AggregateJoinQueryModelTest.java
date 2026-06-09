@@ -2,7 +2,10 @@ package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -13,12 +16,14 @@ import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObje
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.proxy.AggregateJoinBuilder;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +36,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,10 +73,11 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertTrue(normalizedSql.contains("(select"), "aggregate join 右侧应是内联聚合子查询");
         assertTrue(normalizedSql.contains("sum("), "右侧子查询应包含 SUM 聚合");
         assertTrue(normalizedSql.contains("count(*)"), "右侧子查询应包含 COUNT 聚合");
-        assertTrue(normalizedSql.contains("count(distinct"), "右侧子查询应包含 COUNT DISTINCT 聚合");
+        assertFalse(normalizedSql.contains("count(distinct"), "未请求的 COUNT DISTINCT 聚合不应进入 RHS SELECT");
         assertTrue(normalizedSql.contains("group by"), "右侧子查询应包含 GROUP BY");
         assertTrue(normalizedSql.contains("fact_sales"), "右侧子查询应读取销售明细表");
-        assertTrue(sql.contains("agg_src.order_status = 'COMPLETED'"), "右侧固定 slice 应在聚合前下推");
+        assertTrue(sql.contains("agg_src.order_status = ?"), "右侧固定 slice 应在聚合前下推并使用参数绑定");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧固定 slice 参数应进入查询参数列表");
         assertTrue(sql.contains("order_id"), "JOIN ON 应使用订单物理列");
         assertFalse(sql.contains(".salesAmount"), "SQL 不应直接使用语义字段 salesAmount");
 
@@ -90,7 +97,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertTrue(normalizedSql.contains("(select"), "aggregate relation 右侧应是内联聚合子查询");
         assertTrue(sql.contains("sum(agg_src.sales_amount) salesAmount"), "salesAmount 应按 TM 默认 SUM 聚合");
         assertTrue(sql.contains("count(distinct agg_src.customer_key) uniqueCustomers"), "COUNT_DISTINCT measure 应按 TM 聚合元数据渲染");
-        assertTrue(sql.contains("agg_src.order_status = 'COMPLETED'"), "右侧 fixed slice 应在聚合前下推");
+        assertFalse(sql.contains("sum(agg_src.quantity) quantity"), "未请求的 aggregate relation measure 不应进入 RHS SELECT");
+        assertFalse(sql.contains("sum(agg_src.unit_price) unitPrice"), "未请求的 aggregate relation measure 不应进入 RHS SELECT");
+        assertTrue(sql.contains("agg_src.order_status = ?"), "右侧 fixed slice 应在聚合前下推并使用参数绑定");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(normalizedSql.contains("group by"), "右侧子查询应包含 GROUP BY");
         assertTrue(sql.contains("fsByOrder"), "aggregate relation 应保留模型作者声明的 relation alias");
 
@@ -141,12 +151,13 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
         String sql = queryEngine.getSql();
         String normalizedSql = normalizeSql(sql);
-        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > 0"),
+        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
                 "右侧聚合子查询应包含 measure HAVING 下推");
         assertTrue(normalizedSql.contains("fsByOrder.salesAmount >?"),
                 "外层 WHERE 应保留 aggregate relation measure 条件以保持 LEFT 语义");
-        assertEquals(1, queryEngine.getValues().size(), "外层条件仍应使用参数化绑定");
-        assertEquals(0, new BigDecimal(String.valueOf(queryEngine.getValues().get(0))).compareTo(BigDecimal.ZERO));
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧 fixed slice 参数应进入查询参数列表");
+        assertTrue(countBigDecimalValues(queryEngine.getValues(), BigDecimal.ZERO) >= 2,
+                "RHS HAVING 与外层 WHERE 都应使用参数化绑定");
     }
 
     @Test
@@ -161,12 +172,49 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
             String body = ((DbColumn) groupKey).getQueryObject().getBody();
             String normalizedBody = normalizeSql(body);
-            assertTrue(normalizedBody.contains("where agg_src.order_status = 'COMPLETED' and agg_src.order_id = '" + orderId + "'"),
+            assertTrue(normalizedBody.contains("where agg_src.order_status = ? and agg_src.order_id = ?"),
                     "aggregate relation group key 条件应进入右侧聚合前 WHERE");
+            assertEquals(List.of("COMPLETED", orderId), ((DbColumn) groupKey).getQueryObject().getBodyParameters(),
+                    "aggregate relation body 参数应按 RHS SQL 占位符顺序输出");
             assertFalse(normalizedBody.contains("having"), "group key 条件不应进入 HAVING");
         } finally {
             ((AggregateRelationQueryObject) ((DbColumn) groupKey).getQueryObject()).clearAggregateRelationPushdowns();
         }
+    }
+
+    @Test
+    @DisplayName("aggregate relation group key alias 请求条件应复制到右侧 WHERE")
+    void aggregateRelationGroupKeyAliasSliceShouldPushWhereThroughRequest() {
+        String orderId = findOrderIdWithCompletedSales();
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationGroupKeyAliasQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        DbQueryColumn salesOrderIdColumn = queryModel.findJdbcQueryColumnByName("salesOrderId", true);
+        assertTrue(salesOrderIdColumn.getSelectColumn() instanceof AggregateRelationOutputColumn,
+                "salesOrderId 应是 aggregate relation group key 的 QM alias");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationGroupKeyAliasRequest();
+        queryRequest.setSlice(List.of(slice("salesOrderId", "=", orderId)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("agg_src.order_id = ?"),
+                "请求侧 aggregate relation group key alias 条件应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("fsByOrder.orderId =?") || normalizedSql.contains("fsByOrder.orderId = ?"),
+                "外层 WHERE 应保留 group key alias 条件以保持 LEFT JOIN 语义");
+        assertTrue(normalizedSql.contains("fsByOrder.orderId \"salesOrderId\""),
+                "RHS group key 应按 QM alias 返回，避免与左侧 orderId 冲突");
+        assertEquals(List.of("COMPLETED", orderId, orderId), queryEngine.getValues(),
+                "RHS fixed filter、RHS group key pushdown、outer WHERE 参数顺序应稳定");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "aggregate relation group key alias slice 应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+        assertEquals(orderId, rows.get(0).get("salesOrderId"));
     }
 
     @Test
@@ -176,9 +224,64 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(orderId);
 
         String sql = queryEngine.getSql();
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "左侧 join key 条件应复制到右侧聚合前 WHERE，限制 RHS key domain");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"), "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(queryEngine.getValues().contains(orderId), "外层 WHERE 仍应保留参数化 join key 条件");
+    }
+
+    @Test
+    @DisplayName("aggregate relation OR join key slice 不应复制到右侧 WHERE")
+    void aggregateRelationOrJoinKeySliceShouldStayOuterOnly() {
+        String matchedOrderId = findOrderIdWithCompletedSales();
+        String unmatchedOrderId = findOrderIdWithoutCompletedSales();
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(
+                null,
+                List.of(SliceRequestDef.or(List.of(
+                        condition("orderId", "=", matchedOrderId),
+                        condition("orderId", "=", unmatchedOrderId)))));
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
+                "OR join key slice 不应复制到 RHS 聚合前 WHERE，避免收窄 LEFT JOIN 右侧 key domain");
+        assertTrue(normalizedSql.contains("t1.order_id =?") || normalizedSql.contains("t1.order_id = ?"),
+                "OR join key slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.toLowerCase().contains(" or "),
+                "外层 WHERE 应保留 OR 连接语义");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(2, rows.size(), "OR join key slice 应返回两个左侧订单");
+        assertTrue(rows.stream().anyMatch(row -> matchedOrderId.equals(row.get("orderId"))));
+        assertTrue(rows.stream().anyMatch(row -> unmatchedOrderId.equals(row.get("orderId"))));
+    }
+
+    @Test
+    @DisplayName("aggregate relation OR measure slice 不应复制到右侧 HAVING")
+    void aggregateRelationOrMeasureSliceShouldStayOuterOnly() {
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(
+                null,
+                List.of(SliceRequestDef.or(List.of(
+                        condition("salesAmount", ">", BigDecimal.ZERO),
+                        condition("uniqueCustomers", ">", 0)))));
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertFalse(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
+                "OR measure slice 不应复制为 RHS HAVING");
+        assertFalse(normalizedSql.contains("having count(distinct agg_src.customer_key) > ?"),
+                "OR measure slice 不应复制为 RHS HAVING");
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount >?") || normalizedSql.contains("fsByOrder.salesAmount > ?"),
+                "OR measure slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.contains("fsByOrder.uniqueCustomers >?") || normalizedSql.contains("fsByOrder.uniqueCustomers > ?"),
+                "OR measure slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.toLowerCase().contains(" or "),
+                "外层 WHERE 应保留 OR 连接语义");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertFalse(rows.isEmpty(), "OR measure slice 应返回有右侧聚合结果的订单");
     }
 
     @Test
@@ -234,6 +337,91 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation 预定义计算字段未受限时应正常执行")
+    void aggregateRelationPredefinedCalculatedFieldShouldExecuteWhenAllowed() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "salesAmount", "salesAmountPredefinedTax"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        DbQueryResult result = queryFacade.queryModelResult(buildQueryFacadeContext(queryRequest));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "指定订单应只返回一行");
+
+        Map<String, Object> row = rows.get(0);
+        BigDecimal nativeSalesAmount = jdbcTemplate.queryForObject(
+                "select sum(sales_amount) from fact_sales where order_id = ? and order_status = 'COMPLETED'",
+                BigDecimal.class,
+                orderId);
+        BigDecimal expectedTaxAmount = nativeSalesAmount.multiply(new BigDecimal("1.1"));
+
+        assertEquals(orderId, row.get("orderId"));
+        assertEquals(0, money(nativeSalesAmount).compareTo(money(row.get("salesAmount"))),
+                "预定义计算字段查询中仍应保留原始聚合销售金额");
+        assertEquals(0, money(expectedTaxAmount).compareTo(money(row.get("salesAmountPredefinedTax"))),
+                "QM 预定义计算字段应按 aggregate relation 输出字段执行公式");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 输出字段用于 orderBy 时应保留 RHS projection")
+    void aggregateRelationMeasureOrderByShouldRetainProjection() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("salesAmount");
+        order.setDir("desc");
+        queryRequest.setOrderBy(List.of(order));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("sum(agg_src.sales_amount) salesAmount"),
+                "orderBy 引用 aggregate relation measure 时 RHS SELECT 不应裁掉该 measure");
+        assertTrue(normalizedSql.toLowerCase().contains("order by"),
+                "aggregate relation measure orderBy 应渲染外层 ORDER BY");
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount"),
+                "orderBy 应引用 aggregate relation 输出 alias，而不是直接引用 RHS 源列");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertFalse(rows.isEmpty(), "aggregate relation measure orderBy 查询应可真实执行");
+    }
+
+    @Test
+    @DisplayName("aggregate relation returnTotal 应执行 total 查询并保持聚合关系")
+    void aggregateRelationReturnTotalShouldKeepAggregateRelationQuery() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setReturnTotal(true);
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        PagingResultImpl<?> pagingResult = result.getPagingResult();
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+
+        assertEquals(1, pagingResult.getTotal(), "returnTotal 应返回过滤后的总行数");
+        assertTrue(pagingResult.getTotalData() instanceof Map, "returnTotal 应返回 totalData");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totalData = (Map<String, Object>) pagingResult.getTotalData();
+        assertEquals(1, ((Number) totalData.get("total")).intValue(),
+                "totalData.total 应与分页 total 保持一致");
+        assertTrue(normalizeSql(queryEngine.getAggSql()).contains("fsByOrder"),
+                "returnTotal 的 total SQL 应保留 aggregate relation 外层 alias");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) pagingResult.getItems();
+        assertEquals(1, rows.size(), "returnTotal 不应影响明细查询结果");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
     @DisplayName("aggregate join 右侧 fixed slice 无匹配时应保留左侧行")
     void aggregateJoinNoRightMatchShouldKeepLeftRow() {
         String orderId = findOrderIdWithoutCompletedSales();
@@ -279,7 +467,7 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 queryEngine.getSql(),
                 queryEngine.getValues().toArray());
         assertEquals(0, rows.size(), "aggregate measure slice 保留外层 WHERE 后，无右侧聚合结果的 LEFT 行应被过滤");
-        assertTrue(normalizeSql(queryEngine.getSql()).contains("having sum(agg_src.sales_amount) > 0"),
+        assertTrue(normalizeSql(queryEngine.getSql()).contains("having sum(agg_src.sales_amount) > ?"),
                 "右侧 HAVING 下推不应替代外层 WHERE");
     }
 
@@ -295,8 +483,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
         String sql = queryEngine.getSql();
 
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "system_slice 中的左侧 join key 应复制到右侧聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"),
+                "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(queryEngine.getValues().contains(orderId),
                 "外层 WHERE 仍应保留 system_slice 参数化条件");
 
@@ -316,6 +506,163 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation 输出字段应遵守 fieldAccess 白名单")
+    void aggregateRelationOutputFieldShouldRespectFieldAccessAllowList() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderId", "amount", "salesAmount", "uniqueCustomers"));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        assertTrue(queryEngine.getSql().contains("fsByOrder.salesAmount"),
+                "fieldAccess 允许的 aggregate relation 输出字段应正常参与查询");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "fieldAccess 允许全部请求字段时应返回真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("aggregate relation 输出字段缺少 fieldAccess 时应拒绝")
+    void aggregateRelationOutputFieldShouldFailClosedWhenMissingFromFieldAccess() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderId", "amount", "uniqueCustomers"));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "缺少 aggregate relation 输出字段权限时应指出被拒绝字段");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 输出字段应遵守源物理列 deniedColumns")
+    void aggregateRelationOutputFieldShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时应指出被拒绝的 aggregate relation 输出字段");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 未引用源物理列被 deniedColumns 命中时应放行")
+    void aggregateRelationDeniedPhysicalUnreferencedSourceColumnShouldPass() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount")));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "deny 未参与 RHS 聚合输出的源物理列时查询应正常返回");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("aggregate relation 动态计算字段应遵守源物理列 deniedColumns")
+    void aggregateRelationCalculatedFieldShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountWithTax"));
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "salesAmountWithTax",
+                "含税销售金额",
+                "salesAmount * 1.1")));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时，依赖该输出字段的动态计算字段应失败关闭");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 链式动态计算字段应传递遵守源物理列 deniedColumns")
+    void aggregateRelationCalculatedFieldChainShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountScore"));
+        queryRequest.setCalculatedFields(List.of(
+                new CalculatedFieldDef("salesAmountWithTax", "含税销售金额", "salesAmount * 1.1"),
+                new CalculatedFieldDef("salesAmountScore", "销售金额评分", "salesAmountWithTax + 1")));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时，链式动态计算字段依赖应展开到被拒绝输出字段");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 预定义计算字段应遵守源物理列 deniedColumns")
+    void aggregateRelationPredefinedCalculatedFieldShouldFailClosedWhenDeniedPhysicalSourceColumn() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountPredefinedTax"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setDeniedColumns(List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryFacade.queryModelResult(context));
+        assertTrue(exception.getMessage().contains("salesAmount"),
+                "deny RHS 源物理列 fact_sales.sales_amount 时，QM 预定义计算字段依赖应展开到被拒绝输出字段");
+    }
+
+    @Test
+    @DisplayName("aggregate relation system_slice 可引用未开放给用户的输出字段")
+    void aggregateRelationSystemSliceShouldBypassUserFieldAccessForGuardFields() {
+        String orderId = findOrderIdWithCompletedSales();
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationRequest();
+        queryRequest.setColumns(List.of("orderId", "amount"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderId", "amount"));
+        context.setSystemSlice(List.of(slice("salesAmount", ">", BigDecimal.ZERO)));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String sql = normalizeSql(queryEngine.getSql());
+        assertTrue(sql.contains("having sum(agg_src.sales_amount) > ?"),
+                "system_slice 中的 aggregate relation measure 应保留 RHS HAVING 下推");
+        assertTrue(countBigDecimalValues(queryEngine.getValues(), BigDecimal.ZERO) >= 2,
+                "RHS HAVING 与外层 WHERE 都应使用参数化绑定");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "system_slice guard 字段不在 fieldAccess 中时仍应作为系统过滤生效");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+        assertFalse(rows.get(0).containsKey("salesAmount"),
+                "system_slice guard 字段不应因为参与过滤而泄露到返回列");
+    }
+
+    @Test
     @DisplayName("aggregate relation RHS 运行期 filter 应读取 ModelResultContext.extData")
     void aggregateRelationRuntimeFilterShouldReadContextExtData() {
         String orderId = findOrderIdWithCompletedSales();
@@ -324,8 +671,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 orderId);
 
         String sql = queryEngine.getSql();
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
-                "RHS 运行期 filter 应在聚合前 WHERE 渲染为受控字面量");
+        assertTrue(sql.contains("agg_src.order_id = ?"),
+                "RHS 运行期 filter 应在聚合前 WHERE 渲染为参数化条件");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "RHS 运行期 filter 参数应进入查询参数列表");
         assertFalse(sql.contains("ctx.extData"), "SQL 不应泄漏运行期函数源码");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
@@ -352,8 +701,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "summary columns 不引用 RHS 字段时，slice 引用 RHS alias 仍应保留 LEFT JOIN");
         assertTrue(normalizedSql.contains("fsByPaymentMethod"),
                 "aggregate relation alias 应保留在外层 SQL 中");
-        assertTrue(normalizedSql.contains("agg_src.payment_method = 'CREDIT_CARD'"),
+        assertTrue(normalizedSql.contains("agg_src.payment_method = ?"),
                 "RHS runtime filter 应保留在聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("CREDIT_CARD"),
+                "RHS runtime filter 参数应进入查询参数列表");
         assertFalse(normalizedSql.contains("agg_src.payment_method is null"),
                 "外层 RHS alias is null slice 不应复制到 RHS 聚合子查询内部");
         assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is null"),
@@ -368,8 +719,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         String normalizedSql = normalizeSql(queryEngine.getSql());
         assertTrue(normalizedSql.contains("left join (select"),
                 "slice 引用 RHS alias 时应保留 LEFT JOIN");
-        assertTrue(normalizedSql.contains("agg_src.payment_method = 'CREDIT_CARD'"),
+        assertTrue(normalizedSql.contains("agg_src.payment_method = ?"),
                 "RHS runtime filter 应保留在聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("CREDIT_CARD"),
+                "RHS runtime filter 参数应进入查询参数列表");
         assertFalse(normalizedSql.contains("agg_src.payment_method is not null"),
                 "外层 RHS alias is not null slice 不应复制到 RHS 聚合子查询内部");
         assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is not null"),
@@ -405,8 +758,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationAccessQuery();
 
         String sql = queryEngine.getSql();
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "accessBuilder 追加的左侧 join key 守卫应复制到 RHS 聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"),
+                "右侧 fixed slice 参数应进入查询参数列表");
         assertTrue(queryEngine.getValues().contains(orderId),
                 "外层 WHERE 仍应保留 accessBuilder 参数化条件");
 
@@ -421,6 +776,29 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 sql,
                 queryEngine.getValues().toArray());
         assertEquals(1, rows.size(), "accessBuilder 限定订单后应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("aggregate relation raw SQL accessBuilder 不应猜测下推到右侧 WHERE")
+    void aggregateRelationRawSqlAccessBuilderShouldStayOuterOnly() {
+        String orderId = "ORD20240101000001";
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationRawAccessQuery();
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("t1.order_id = ?"),
+                "raw SQL accessBuilder 条件应保留在外层 WHERE");
+        assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
+                "raw SQL accessBuilder 条件不应被复制为 RHS 聚合前 WHERE 参数条件");
+        assertTrue(normalizedSql.contains("sum(agg_src.quantity) quantity"),
+                "raw SQL accessBuilder 存在时应退回全量 RHS projection，避免误裁未知 raw SQL 引用");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "外层 WHERE 应保留 raw SQL accessBuilder 参数化条件");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "raw SQL accessBuilder 限定订单后应返回一行真实数据");
         assertEquals(orderId, rows.get(0).get("orderId"));
     }
 
@@ -652,11 +1030,63 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "显式运单 join 应进入 query graph");
         assertTrue(normalizedSql.contains("left join dim_store"),
                 "显式库存仓 join 与 stockHouse 维度路径 join 应都能进入 query graph");
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"),
+                "accessBuilder 中的显式 tenant join key 应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("group by agg_src.store_key"),
+                "RHS groupBy 应保留显式 tenant join key，避免跨租户聚合后再关联");
+        assertTrue(queryEngine.getValues().contains(20240101),
+                "tenant guard 参数应进入查询参数列表");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
         assertEquals(1, rows.size(), "O615 orderNo slice payload 形态应返回一行真实数据");
         assertEquals(orderNo, rows.get(0).get("orderNo"));
+    }
+
+    @Test
+    @DisplayName("O615 probe: 显式 tenant guard 可绕过用户字段白名单且不泄露")
+    void aggregateRelationO615TenantGuardShouldBypassFieldAccessWithoutLeaking() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderNo, ds.store_id srcId, ds.store_type useType
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ExpressJoinProbeQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderNo", "srcId", "useType", "number", "plannedPieceCount"));
+        queryRequest.setSlice(List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0)));
+
+        ModelResultContext context = buildQueryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderNo", "srcId", "useType", "number", "plannedPieceCount"));
+        context.setSystemSlice(List.of(slice("tenantId", "=", 20240101)));
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"),
+                "system_slice 中的显式 tenant join key 应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("plannedByOrder"),
+                "请求 aggregate relation 输出时应保留计划占用聚合关系");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertEquals(1, rows.size(), "tenant guard 不在 fieldAccess 中时仍应作为系统过滤生效");
+        assertEquals(orderNo, rows.get(0).get("orderNo"));
+        assertFalse(rows.get(0).containsKey("tenantId"),
+                "tenant guard 不应因为参与过滤而泄露到返回列");
     }
 
     @Test
@@ -736,8 +1166,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "三键 aggregate relation 应正常渲染");
         assertTrue(normalizedSql.contains("agg_src"),
                 "RHS 聚合子查询应正常渲染");
-        assertTrue(normalizedSql.contains("status = 'ACTIVE'") || normalizedSql.contains("status='ACTIVE'"),
+        assertTrue(normalizedSql.contains("status = ?") || normalizedSql.contains("status=?"),
                 "RHS 维度字段固定过滤应进入聚合前过滤");
+        assertTrue(queryEngine.getValues().contains("ACTIVE"),
+                "RHS 维度字段固定过滤参数应进入查询参数列表");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
@@ -778,8 +1210,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "三键 aggregate relation 应正常渲染");
         assertTrue(normalizedSql.contains("left join dim_store"),
                 "主查询和 RHS 子查询涉及的维表 join 均应可解析");
-        assertTrue(normalizedSql.contains("status = 'ACTIVE'") || normalizedSql.contains("status='ACTIVE'"),
+        assertTrue(normalizedSql.contains("status = ?") || normalizedSql.contains("status=?"),
                 "RHS 内部维表过滤应进入聚合前过滤");
+        assertTrue(queryEngine.getValues().contains("ACTIVE"),
+                "RHS 内部维表过滤参数应进入查询参数列表");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
@@ -835,8 +1269,10 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "RHS 维度字段 fixed filter 应在 aggregate derived table 内补齐右侧维表 JOIN");
         assertFalse(sql.contains("agg_src.category_id"),
                 "RHS 维度字段不应被错误渲染为 RHS 根表物理列");
-        assertTrue(sql.contains("category_id = 'CAT001'") || sql.contains("category_id='CAT001'"),
+        assertTrue(sql.contains("category_id = ?") || sql.contains("category_id=?"),
                 "RHS fixed filter 应使用右侧维表物理列表达式");
+        assertTrue(queryEngine.getValues().contains("CAT001"),
+                "RHS fixed filter 参数应进入查询参数列表");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 sql,
@@ -865,10 +1301,12 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
         String sql = queryEngine.getSql();
         String normalizedSql = normalizeSql(sql);
-        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+        assertTrue(sql.contains("agg_src.order_id = ?"),
                 "左侧 join key 条件应进入 RHS WHERE，降低右侧聚合 key domain");
-        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > 0"),
+        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
                 "aggregate measure 条件应进入 RHS HAVING");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "RHS join key 参数应进入查询参数列表");
 
         List<Map<String, Object>> planRows = explainQueryPlan(sql, queryEngine.getValues());
         assertFalse(planRows.isEmpty(), "当前数据库应返回 EXPLAIN 执行计划");
@@ -979,6 +1417,20 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         return queryEngine;
     }
 
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationRawAccessQuery() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationRawAccessQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationRawAccessQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
     private JdbcModelQueryEngine buildOrderSalesAggregateRelationRuntimeFilterQuery(
             Map<String, Object> extData,
             String outerOrderId) {
@@ -1068,6 +1520,13 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         return queryRequest;
     }
 
+    private DbQueryRequestDef buildOrderSalesAggregateRelationGroupKeyAliasRequest() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationGroupKeyAliasQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesOrderId", "salesAmount", "uniqueCustomers"));
+        return queryRequest;
+    }
+
     private ModelResultContext buildQueryFacadeContext(DbQueryRequestDef queryRequest) {
         ModelResultContext context = new ModelResultContext();
         context.setRequest(PagingRequest.buildPagingRequest(queryRequest, 100));
@@ -1121,17 +1580,18 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
     private String findOrderIdWithCompletedElectronicsSales() {
         List<String> orderIds = jdbcTemplate.queryForList("""
-                select fs.order_id
-                from fact_sales fs
+                select fo.order_id
+                from fact_order fo
+                join fact_sales fs on fo.order_id = fs.order_id
                 join dim_product dp on fs.product_key = dp.product_key
                 where fs.order_status = 'COMPLETED'
                   and dp.category_id = 'CAT001'
-                group by fs.order_id
+                group by fo.order_id
                 having sum(fs.sales_amount) > 0
-                order by fs.order_id
+                order by fo.order_id
                 limit 1
                 """, String.class);
-        assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个 COMPLETED 数码品类销售订单");
+        assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个有订单头的 COMPLETED 数码品类销售订单");
         return orderIds.get(0);
     }
 
@@ -1172,8 +1632,33 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         return slice;
     }
 
+    private CondRequestDef condition(String field, String op, Object value) {
+        CondRequestDef condition = new CondRequestDef();
+        condition.setField(field);
+        condition.setOp(op);
+        condition.setValue(value);
+        return condition;
+    }
+
     private String normalizeSql(String sql) {
         return sql.replaceAll("\\s+", " ").trim();
+    }
+
+    private long countBigDecimalValues(List<Object> values, BigDecimal expected) {
+        return values.stream()
+                .filter(this::isNumericValue)
+                .filter(value -> new BigDecimal(String.valueOf(value)).compareTo(expected) == 0)
+                .count();
+    }
+
+    private boolean isNumericValue(Object value) {
+        if (value instanceof Number) {
+            return true;
+        }
+        if (value instanceof CharSequence text) {
+            return text.toString().matches("-?\\d+(\\.\\d+)?");
+        }
+        return false;
     }
 
     private BigDecimal money(Object value) {

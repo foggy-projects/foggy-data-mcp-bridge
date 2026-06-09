@@ -38,7 +38,13 @@ export const queryModel = {
             items: [
                 { ref: fs.salesAmount, caption: '销售明细金额' },
                 { ref: fs.quantity, caption: '销售明细数量' },
-                { ref: fs.uniqueCustomers, caption: '独立客户数' }
+                { ref: fs.uniqueCustomers, caption: '独立客户数' },
+                {
+                    name: 'salesAmountPredefinedTax',
+                    caption: '预定义含税销售金额',
+                    formula: 'salesAmount * 1.1',
+                    type: 'NUMBER'
+                }
             ]
         }
     ]

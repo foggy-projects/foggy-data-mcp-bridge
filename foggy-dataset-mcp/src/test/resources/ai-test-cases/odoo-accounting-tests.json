@@ -1,0 +1,993 @@
+{
+  "version": "1.0",
+  "description": "Odoo accounting/payment optional AI route fixtures. Enable with AI_TEST_CASE_FILES=ai-test-cases/ecommerce-tests.json,ai-test-cases/odoo-accounting-tests.json when Odoo demo data is available.",
+  "testCases": [
+    {
+      "id": "ODOO-ACC-001",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已过账但未完全收款的客户发票，显示发票号、客户、付款状态和未收金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveQueryModel",
+      "description": "Odoo 会计语义 - 已过账是单据生命周期，未完全收款是付款结算状态",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "state", "paymentState", "amountResidual"],
+          "slice": [
+            {"field": "moveType", "op": "=", "value": "out_invoice"},
+            {"field": "state", "op": "=", "value": "posted"},
+            {"field": "paymentState", "op": "in", "value": ["not_paid", "partial", "in_payment"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "state", "paymentState", "amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "posted",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentState",
+            "value": ["not_paid", "partial", "in_payment"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "paid",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-002",
+      "category": "AGGREGATION",
+      "question": "统计当前逾期应收金额和逾期客户数",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveLineQueryModel",
+      "description": "Odoo 应收语义 - 逾期应收应使用已建模 AR 指标而不是临时展开公式",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["arOverdueAmount", "arOverdueCustomerCount"]
+        }
+      },
+      "expected": {
+        "required_columns": ["arOverdueAmount", "arOverdueCustomerCount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "arOverdueAmount",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "arOverdueCustomerCount",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceDate",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-003",
+      "category": "FILTER_QUERY",
+      "question": "查询所有未核销的客户收款，显示客户、收款方向、伙伴类型、金额和是否已匹配",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountPaymentQueryModel",
+      "description": "Odoo 支付语义 - 客户收款由 paymentType/partnerType/reconciliation 字段共同表达",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["partner$caption", "paymentType", "partnerType", "amount", "isReconciled", "isMatched"],
+          "slice": [
+            {"field": "paymentType", "op": "=", "value": "inbound"},
+            {"field": "partnerType", "op": "=", "value": "customer"},
+            {"field": "isReconciled", "op": "=", "value": false}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["partner$caption", "paymentType", "partnerType", "amount", "isReconciled"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentType",
+            "value": "inbound",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "partnerType",
+            "value": "customer",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "isReconciled",
+            "value": false,
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-004",
+      "category": "FILTER_QUERY",
+      "question": "查询逾期应收明细，显示到期日、客户、父单付款状态和未收金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveLineQueryModel",
+      "description": "Odoo 日期语义 - 账龄/逾期使用 due-date role，不使用发票日期或过账日期",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["dateMaturity", "partner$caption", "move$paymentState", "amountResidual"],
+          "slice": [
+            {"field": "move$moveType", "op": "=", "value": "out_invoice"},
+            {"field": "move$state", "op": "=", "value": "posted"},
+            {"field": "move$paymentState", "op": "in", "value": ["not_paid", "partial", "in_payment"]},
+            {"field": "dateMaturity", "op": "<", "value": "2026-06-05"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["dateMaturity", "partner$caption", "move$paymentState", "amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "dateMaturity",
+            "operator": "<",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "move$paymentState",
+            "value": ["not_paid", "partial", "in_payment"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceDate",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-005",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已收清的客户发票，显示发票号、客户、单据状态、付款状态和未收金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveQueryModel",
+      "description": "Odoo 会计负向语义 - 已收清应使用 paymentState=paid，不能把单据 lifecycle state 当作 paid",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "state", "paymentState", "amountResidual"],
+          "slice": [
+            {"field": "moveType", "op": "=", "value": "out_invoice"},
+            {"field": "state", "op": "=", "value": "posted"},
+            {"field": "paymentState", "op": "=", "value": "paid"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "state", "paymentState", "amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "posted",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentState",
+            "value": "paid",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "paid",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-006",
+      "category": "FILTER_QUERY",
+      "question": "查询已过账但未完全收款的逾期应收明细，显示到期日、客户、付款状态和未收金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveLineQueryModel",
+      "description": "Odoo 会计负向语义 - 逾期应收需要 due-date role、open settlement 和 posted lifecycle 同时成立",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["dateMaturity", "partner$caption", "move$paymentState", "amountResidual"],
+          "slice": [
+            {"field": "move$moveType", "op": "=", "value": "out_invoice"},
+            {"field": "move$state", "op": "=", "value": "posted"},
+            {"field": "move$paymentState", "op": "in", "value": ["not_paid", "partial", "in_payment"]},
+            {"field": "dateMaturity", "op": "<", "value": "2026-06-05"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["dateMaturity", "partner$caption", "move$paymentState", "amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "dateMaturity",
+            "operator": "<",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "move$state",
+            "value": "posted",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "move$paymentState",
+            "value": ["not_paid", "partial", "in_payment"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "move$paymentState",
+            "value": "paid",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceDate",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-007",
+      "category": "AGGREGATION",
+      "question": "按开票月份统计客户发票金额和发票数量，显示开票月份、发票总额和发票数量",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveQueryModel",
+      "description": "Odoo 会计负向语义 - 发票收入/开票趋势必须按 invoice_date business date 分组，不能用到期日、过账日或创建时间替代",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["invoiceDate$yearMonth", "amountTotal", "entryCount"],
+          "groupBy": ["invoiceDate$yearMonth"],
+          "slice": [
+            {"field": "moveType", "op": "=", "value": "out_invoice"},
+            {"field": "state", "op": "=", "value": "posted"}
+          ],
+          "orderBy": [
+            {"column": "invoiceDate$yearMonth", "direction": "ASC"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["invoiceDate$yearMonth", "amountTotal", "entryCount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "invoiceDate$yearMonth",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "invoiceDateDue$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "date$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "groupBy",
+            "field": "createDate$yearMonth",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "posted",
+            "must_exist": true
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-008",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已过账且已付款的供应商账单，显示账单号、供应商、单据状态、付款状态和未付金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveQueryModel",
+      "description": "Odoo 应付负向语义 - 供应商账单使用 moveType=in_invoice，已付款使用 paymentState=paid，不能误用客户发票方向或 lifecycle state=paid",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountResidual"],
+          "slice": [
+            {"field": "moveType", "op": "=", "value": "in_invoice"},
+            {"field": "state", "op": "=", "value": "posted"},
+            {"field": "paymentState", "op": "=", "value": "paid"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "in_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_invoice",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "posted",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentState",
+            "value": "paid",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "paid",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-009",
+      "category": "FILTER_QUERY",
+      "question": "查询已核销的供应商付款，显示供应商、付款方向、伙伴类型、付款金额、公司币种签名金额和是否已核销",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountPaymentQueryModel",
+      "description": "Odoo 支付负向语义 - 供应商付款是 outbound + supplier，核销状态使用 isReconciled，不能误用客户收款方向或单据 state",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["partner$caption", "paymentType", "partnerType", "amount", "amountCompanyCurrencySigned", "isReconciled", "isMatched"],
+          "slice": [
+            {"field": "paymentType", "op": "=", "value": "outbound"},
+            {"field": "partnerType", "op": "=", "value": "supplier"},
+            {"field": "isReconciled", "op": "=", "value": true}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["partner$caption", "paymentType", "partnerType", "amount", "amountCompanyCurrencySigned", "isReconciled"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentType",
+            "value": "outbound",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentType",
+            "value": "inbound",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "partnerType",
+            "value": "supplier",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "partnerType",
+            "value": "customer",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "isReconciled",
+            "value": true,
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-010",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已过账但未完全付款的供应商账单，显示账单号、供应商、单据状态、付款状态和未付金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveQueryModel",
+      "description": "Odoo 应付负向语义 - 应付未付需要供应商账单方向、已过账 lifecycle 和 open settlement 同时成立",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountResidual"],
+          "slice": [
+            {"field": "moveType", "op": "=", "value": "in_invoice"},
+            {"field": "state", "op": "=", "value": "posted"},
+            {"field": "paymentState", "op": "in", "value": ["not_paid", "partial", "in_payment"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "in_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_invoice",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "posted",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentState",
+            "value": ["not_paid", "partial", "in_payment"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentState",
+            "value": "paid",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "paid",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-011",
+      "category": "AGGREGATION",
+      "question": "统计当前逾期应付金额和逾期供应商数",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveLineQueryModel",
+      "description": "Odoo 应付语义 - 逾期应付应使用已建模 AP 指标而不是 AR 指标或临时公式",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["apOverdueAmount", "apOverdueVendorCount"]
+        }
+      },
+      "expected": {
+        "required_columns": ["apOverdueAmount", "apOverdueVendorCount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "apOverdueAmount",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "apOverdueVendorCount",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "arOverdueAmount",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "arOverdueCustomerCount",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceDate",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-012",
+      "category": "FILTER_QUERY",
+      "question": "查询已匹配到供应商账单的供应商付款，显示供应商、付款单、账单号、匹配日期、匹配金额和账单付款状态",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountPaymentBillMatchQueryModel",
+      "description": "Odoo 支付到账单匹配语义 - 供应商付款匹配到账单应使用显式匹配模型，不能只看付款 isReconciled",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["vendor$caption", "payment$caption", "billMove$caption", "matchedDate", "matchedAmount", "billMove$paymentState"],
+          "slice": [
+            {"field": "payment$paymentType", "op": "=", "value": "outbound"},
+            {"field": "payment$partnerType", "op": "=", "value": "supplier"},
+            {"field": "payment$isReconciled", "op": "=", "value": true},
+            {"field": "billMove$moveType", "op": "=", "value": "in_invoice"},
+            {"field": "billMove$state", "op": "=", "value": "posted"},
+            {"field": "billMove$paymentState", "op": "=", "value": "paid"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["vendor$caption", "payment$caption", "billMove$caption", "matchedDate", "matchedAmount", "billMove$paymentState"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$paymentType",
+            "value": "outbound",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$partnerType",
+            "value": "supplier",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$isReconciled",
+            "value": true,
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$moveType",
+            "value": "in_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$moveType",
+            "value": "out_invoice",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$state",
+            "value": "posted",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$paymentState",
+            "value": "paid",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-013",
+      "category": "FILTER_QUERY",
+      "question": "查询已经部分匹配付款但供应商账单仍未付清的应付账单，显示供应商、付款单、账单号、匹配金额和账单剩余应付",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountPaymentBillMatchQueryModel",
+      "description": "Odoo 部分付款匹配语义 - 付款已匹配不等于账单已付清，应保留 bill paymentState=partial 与 residual",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["vendor$caption", "payment$caption", "billMove$caption", "matchedAmount", "billMove$paymentState", "billMove$amountResidual"],
+          "slice": [
+            {"field": "payment$paymentType", "op": "=", "value": "outbound"},
+            {"field": "payment$partnerType", "op": "=", "value": "supplier"},
+            {"field": "payment$isMatched", "op": "=", "value": true},
+            {"field": "billMove$moveType", "op": "=", "value": "in_invoice"},
+            {"field": "billMove$state", "op": "=", "value": "posted"},
+            {"field": "billMove$paymentState", "op": "=", "value": "partial"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["vendor$caption", "payment$caption", "billMove$caption", "matchedAmount", "billMove$paymentState", "billMove$amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$isMatched",
+            "value": true,
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$paymentState",
+            "value": "partial",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$paymentState",
+            "value": "paid",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "columns",
+            "field": "billMove$amountResidual",
+            "must_exist": true
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-014",
+      "category": "FILTER_QUERY",
+      "question": "查询同一笔供应商付款拆分匹配到多张供应商账单的明细，显示供应商、付款单、账单号、匹配日期和匹配金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountPaymentBillMatchQueryModel",
+      "description": "Odoo 拆分付款匹配语义 - 一笔供应商付款可以分配到多张供应商账单，应按匹配事实表返回多行",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["vendor$caption", "payment$caption", "billMove$caption", "matchedDate", "matchedAmount"],
+          "slice": [
+            {"field": "payment$paymentType", "op": "=", "value": "outbound"},
+            {"field": "payment$partnerType", "op": "=", "value": "supplier"},
+            {"field": "payment$caption", "op": "=", "value": "PAY/2025/00005"},
+            {"field": "billMove$moveType", "op": "=", "value": "in_invoice"},
+            {"field": "billMove$state", "op": "=", "value": "posted"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["vendor$caption", "payment$caption", "billMove$caption", "matchedDate", "matchedAmount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$caption",
+            "value": "PAY/2025/00005",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$paymentType",
+            "value": "outbound",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$partnerType",
+            "value": "supplier",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$moveType",
+            "value": "in_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$moveType",
+            "value": "out_invoice",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-015",
+      "category": "FILTER_QUERY",
+      "question": "查询已过账并已冲销的客户贷项通知单，显示单号、客户、单据类型、单据状态、付款状态和金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveQueryModel",
+      "description": "Odoo 退款语义 - 客户贷项通知单使用 moveType=out_refund，冲销/反转属于 paymentState=reversed，不能混作普通客户发票或 lifecycle state",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountTotal", "amountTotalSigned"],
+          "slice": [
+            {"field": "moveType", "op": "=", "value": "out_refund"},
+            {"field": "state", "op": "=", "value": "posted"},
+            {"field": "paymentState", "op": "=", "value": "reversed"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountTotalSigned"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_refund",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_invoice",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "posted",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "paymentState",
+            "value": "reversed",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "reversed",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-ACC-016",
+      "category": "FILTER_QUERY",
+      "question": "查询已过账的供应商贷项通知单，显示单号、供应商、单据类型、单据状态、付款状态和签名金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooAccountMoveQueryModel",
+      "description": "Odoo 供应商退款语义 - 供应商贷项通知单使用 moveType=in_refund，不能混作供应商账单 in_invoice",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountTotalSigned"],
+          "slice": [
+            {"field": "moveType", "op": "=", "value": "in_refund"},
+            {"field": "state", "op": "=", "value": "posted"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "moveType", "state", "paymentState", "amountTotalSigned"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "in_refund",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "in_invoice",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "moveType",
+            "value": "out_refund",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "posted",
+            "must_exist": true
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    }
+  ]
+}

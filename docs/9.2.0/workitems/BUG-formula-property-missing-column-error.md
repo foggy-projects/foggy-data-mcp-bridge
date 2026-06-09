@@ -4,13 +4,13 @@ bug_source: upstream-feedback
 version: 9.2.0
 ticket: BUG-formula-property-missing-column-error
 severity: minor
-status: ready-for-verification
+status: local-verified-awaiting-upstream
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
 owner: foggy-dataset-model
 created_at: 2026-05-27
-updated_at: 2026-05-27
+updated_at: 2026-06-06
 upstream_issue: foggy-projects/foggy-data-mcp-bridge#85
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
@@ -92,6 +92,8 @@ Actual before fix:
 - [x] formula-backed property 缺 `column` 时补 carrier-column 规则提示。
 - [x] `DbPropertyImpl` 兜底错误去掉模型对象 dump。
 - [x] 新增 invalid fixture 和集成测试。
+- [x] 当前 Java engine 源码本地复核通过。
+- [x] 生成上游复测 handoff：`upstream-verification-handoff-20260606.md`。
 - [ ] 等待 TMS 侧用 #85 场景复测确认。
 
 ## Verification
@@ -114,7 +116,19 @@ mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '
 FactSalesFormulaPropertyMissingColumnInvalidModel.salesAmountFormulaLeafYuan column不能为空；formulaDef/dialectFormulaDef 字段必须声明 carrier column，用于字段元数据、权限和物理列绑定
 ```
 
+2026-06-06 当前源代码复核已执行：
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite '-Dtest=AggregateJoinQueryModelTest,SemanticScaleFactorIntegrationTest,InlineExpressionPreprocessStepTest,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat+testQmPredefinedFormulaInPivotTopLevelSlice+testQmPredefinedFormulaInPivotAxisHavingAndOrderBy+testQmPredefinedFormulaMetricInPivotGrandTotal' test
+```
+
+结果：
+
+- 组合验证通过；`Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`。
+- `SemanticScaleFactorIntegrationTest` 覆盖 formula-backed property missing-column 诊断路径。
+
 ## References
 
 - GitHub issue: `foggy-projects/foggy-data-mcp-bridge#85`
 - Related TMS commit: `c9fbe9a5 feat: stabilize order settlement subject fields`
+- Upstream verification handoff: `upstream-verification-handoff-20260606.md`

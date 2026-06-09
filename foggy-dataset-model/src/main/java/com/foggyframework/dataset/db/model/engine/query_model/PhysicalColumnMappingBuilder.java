@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.query_model;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
 import com.foggyframework.dataset.db.model.impl.utils.TableQueryObject;
 import com.foggyframework.dataset.db.model.spi.*;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +62,10 @@ public final class PhysicalColumnMappingBuilder {
             processDimension(dim, factTable, qmToPhysical, physicalToQm);
         }
 
-        // 4. QM 预定义计算字段（传递解析到基础字段的物理列）
+        // 4. aggregate relation 输出列（映射到 RHS 源表物理列）
+        processAggregateRelationOutputColumns(qm.getJdbcQueryColumns(), qmToPhysical, physicalToQm);
+
+        // 5. QM 预定义计算字段（传递解析到基础字段的物理列）
         processCalculatedFields(qm.getPredefinedCalculatedFields(), qmToPhysical, physicalToQm);
 
         if (log.isDebugEnabled()) {
@@ -70,6 +74,39 @@ public final class PhysicalColumnMappingBuilder {
         }
 
         return new PhysicalColumnMappingImpl(qmToPhysical, physicalToQm);
+    }
+
+    private static void processAggregateRelationOutputColumns(List<DbQueryColumn> queryColumns,
+                                                              Map<String, List<PhysicalColumnRef>> qmToPhysical,
+                                                              Map<String, List<String>> physicalToQm) {
+        if (queryColumns == null || queryColumns.isEmpty()) {
+            return;
+        }
+        for (DbQueryColumn queryColumn : queryColumns) {
+            if (queryColumn == null || !(queryColumn.getSelectColumn() instanceof AggregateRelationOutputColumn outputColumn)) {
+                continue;
+            }
+            DbColumn sourceColumn = outputColumn.getAggregateRelationSourceColumn();
+            String sourceTable = resolvePhysicalTable(sourceColumn);
+            String sourcePhysicalColumn = sourceColumn == null ? null : sourceColumn.getSqlColumnName();
+            if (sourceTable == null || sourcePhysicalColumn == null) {
+                continue;
+            }
+            addMappingIfNotBlank(qmToPhysical, physicalToQm, queryColumn.getName(), sourceTable, sourcePhysicalColumn);
+            addMappingIfNotBlank(qmToPhysical, physicalToQm, queryColumn.getAlias(), sourceTable, sourcePhysicalColumn);
+            addMappingIfNotBlank(qmToPhysical, physicalToQm, queryColumn.getField(), sourceTable, sourcePhysicalColumn);
+        }
+    }
+
+    private static String resolvePhysicalTable(DbColumn column) {
+        if (column == null || column.getQueryObject() == null) {
+            return null;
+        }
+        TableQueryObject tqo = column.getQueryObject().getDecorate(TableQueryObject.class);
+        if (tqo != null && tqo.getTableName() != null) {
+            return tqo.getTableName();
+        }
+        return null;
     }
 
     /**
@@ -185,5 +222,15 @@ public final class PhysicalColumnMappingBuilder {
         if (!qmNames.contains(qmFieldName)) {
             qmNames.add(qmFieldName);
         }
+    }
+
+    private static void addMappingIfNotBlank(Map<String, List<PhysicalColumnRef>> qmToPhysical,
+                                             Map<String, List<String>> physicalToQm,
+                                             String qmFieldName, String table, String column) {
+        if (qmFieldName == null || qmFieldName.isBlank() || table == null || table.isBlank()
+                || column == null || column.isBlank()) {
+            return;
+        }
+        addMapping(qmToPhysical, physicalToQm, qmFieldName, table, column);
     }
 }

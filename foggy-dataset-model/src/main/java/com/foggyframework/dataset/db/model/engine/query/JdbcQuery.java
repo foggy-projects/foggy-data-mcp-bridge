@@ -48,6 +48,8 @@ public class JdbcQuery {
 
     DbQueryRequest queryRequest;
 
+    boolean rawSqlConditionAdded;
+
     /**
      * 查询模型引用（用于字段引用解析）
      */
@@ -285,6 +287,7 @@ public class JdbcQuery {
      * @return this
      */
     public JdbcQuery andSql(String sqlFragment, Object value) {
+        rawSqlConditionAdded = true;
         getWhere().and(sqlFragment, value);
         return this;
     }
@@ -296,6 +299,7 @@ public class JdbcQuery {
      * @return this
      */
     public JdbcQuery andSql(String sqlFragment) {
+        rawSqlConditionAdded = true;
         getWhere().and(sqlFragment);
         return this;
     }
@@ -308,6 +312,7 @@ public class JdbcQuery {
      * @return this
      */
     public JdbcQuery andSqlList(String sqlFragment, List<Object> values) {
+        rawSqlConditionAdded = true;
         getWhere().andList(sqlFragment, values);
         return this;
     }

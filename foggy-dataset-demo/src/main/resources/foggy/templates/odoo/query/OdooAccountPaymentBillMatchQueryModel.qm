@@ -1,0 +1,74 @@
+/**
+ * Payment To Vendor Bill Match Query Model
+ *
+ * @caption Payment To Bill Matching Analysis
+ * @description Query explicit payment-to-vendor-bill matching facts.
+ */
+const pbm = loadTableModel('OdooAccountPaymentBillMatchModel');
+
+export const queryModel = {
+    name: 'OdooAccountPaymentBillMatchQueryModel',
+    caption: 'Payment To Bill Matching Analysis',
+    description: 'Analyze which supplier payments are matched to which vendor bills. '
+        + 'Use this model when the question asks whether a vendor payment is matched to a bill, '
+        + 'not just whether the payment is reconciled.',
+    loader: 'v2',
+
+    model: pbm,
+
+    columnGroups: [
+        {
+            caption: 'Match Information',
+            items: [
+                { ref: pbm.id },
+                { ref: pbm.matchedDate },
+                { ref: pbm.matchStatus },
+                { ref: pbm.matchCount }
+            ]
+        },
+        {
+            caption: 'Payment',
+            items: [
+                { ref: pbm.payment },
+                { ref: pbm.payment$paymentType },
+                { ref: pbm.payment$partnerType },
+                { ref: pbm.payment$isReconciled },
+                { ref: pbm.payment$isMatched },
+                { ref: pbm.payment$amount },
+                { ref: pbm.payment$amountCompanyCurrencySigned }
+            ]
+        },
+        {
+            caption: 'Vendor Bill',
+            items: [
+                { ref: pbm.billMove },
+                { ref: pbm.billMove$moveType },
+                { ref: pbm.billMove$state },
+                { ref: pbm.billMove$paymentState },
+                { ref: pbm.billMove$invoiceDate },
+                { ref: pbm.billMove$invoiceDateDue },
+                { ref: pbm.billMove$amountTotal },
+                { ref: pbm.billMove$amountResidual },
+                { ref: pbm.vendor }
+            ]
+        },
+        {
+            caption: 'Payable Line',
+            items: [
+                { ref: pbm.payableLine },
+                { ref: pbm.payableLine$dateMaturity },
+                { ref: pbm.payableLine$reconciled },
+                { ref: pbm.payableLine$matchingNumber },
+                { ref: pbm.payableLine$amountResidual }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: pbm.matchedAmount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

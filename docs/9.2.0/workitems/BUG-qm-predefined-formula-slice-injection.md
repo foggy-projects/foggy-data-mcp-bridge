@@ -4,13 +4,13 @@ bug_source: upstream-feedback
 version: 9.2.0
 ticket: BUG-qm-predefined-formula-slice-injection
 severity: major
-status: ready-for-verification
+status: local-verified-awaiting-upstream
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
 owner: foggy-dataset-model
 created_at: 2026-05-29
-updated_at: 2026-05-29
+updated_at: 2026-06-06
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
 ---
@@ -116,9 +116,11 @@ Regression coverage:
 - [x] 扫描条件右侧 `$field` 引用。
 - [x] 保留同名用户自定义 calculatedField 被 QM 预定义字段替换时的 warning。
 - [x] 定向回归测试通过。
-- [x] 已运行根目录全量 `mvn test`，但当前被既有 aggregate join fixture 数据断言失败阻断。
+- [x] 2026-05-29 曾运行根目录全量 `mvn test`；当时被既有 aggregate join fixture 数据断言失败阻断，未观察到本回归新增失败。
 - [x] Pivot 顶层 `slice` 引用聚合型 QM formula 时，需避免将聚合表达式下推到 SQL `WHERE`。
 - [x] Pivot grandTotal/subtotal rollup 分析需在进入 `MetricAdditivityAnalyzer` 前获得 QM 预定义 calculatedFields。
+- [x] 当前 Java engine 源码本地复核通过。
+- [x] 生成上游复测 handoff：`upstream-verification-handoff-20260606.md`。
 - [ ] 等待上游用 `OrderStationStockProjectionQuery.availablePieceCount` 场景复测确认。
 
 ## Verification
@@ -184,7 +186,19 @@ Result:
 - `Tests run: 7, Failures: 0, Errors: 0`
 - Verified the original slice-only regression path and Pivot advanced paths pass together.
 
+2026-06-06 当前源代码复核：
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite '-Dtest=AggregateJoinQueryModelTest,SemanticScaleFactorIntegrationTest,InlineExpressionPreprocessStepTest,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat+testQmPredefinedFormulaInPivotTopLevelSlice+testQmPredefinedFormulaInPivotAxisHavingAndOrderBy+testQmPredefinedFormulaMetricInPivotGrandTotal' test
+```
+
+Result:
+
+- `Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`。
+- 2026-05-29 记录的 aggregate join fixture 阻断已由 2026-06-06 MySQL ecommerce aggregate fixture 修复消除；本次组合验证同时覆盖 `AggregateJoinQueryModelTest`。
+
 ## References
 
 - Upstream report: QM predefined formula field referenced only in `slice` raises `未能找到列[...]`.
 - Related runtime stack: `JdbcModelQueryEngine.buildSingleCondition` -> `buildSlice` -> `analysisQueryRequest`.
+- Upstream verification handoff: `upstream-verification-handoff-20260606.md`

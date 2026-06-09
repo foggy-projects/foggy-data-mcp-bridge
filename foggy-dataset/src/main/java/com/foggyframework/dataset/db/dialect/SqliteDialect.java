@@ -15,6 +15,7 @@ import com.foggyframework.dataset.db.table.SqlTable;
 import com.foggyframework.dataset.utils.DbUtils;
 
 import javax.sql.DataSource;
+import java.math.BigDecimal;
 import java.sql.Types;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -254,6 +255,11 @@ public class SqliteDialect extends FDialect {
         if (value instanceof Date) {
             // 将 Date 对象转换为 SQLite TEXT 格式
             return DATETIME_FORMAT.get().format((Date) value);
+        }
+        if (value instanceof BigDecimal) {
+            // sqlite-jdbc may bind BigDecimal as text; numeric comparisons such as SUM(real) > ? then use
+            // SQLite storage-class ordering instead of numeric ordering.
+            return ((BigDecimal) value).doubleValue();
         }
         return value;
     }

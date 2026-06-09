@@ -16,6 +16,55 @@ export const model = {
 
     dimensions: [
         {
+            name: 'scheduledDate',
+            foreignKey: 'scheduled_date',
+            primaryKey: 'scheduled_date',
+            captionColumn: 'scheduled_date',
+            caption: 'Scheduled Date',
+            description: 'Self date dimension backed by stock_picking.scheduled_date without joining dim_date',
+            type: 'DATETIME',
+            timeRole: 'business_date',
+            recommendedUse: 'Primary inventory transfer business date for scheduled receipts, deliveries, and period pivot queries.',
+            properties: [
+                {
+                    column: 'scheduled_date',
+                    name: 'year',
+                    caption: 'Scheduled Year',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%Y', ${alias}.scheduled_date) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(YEAR FROM ${alias}.scheduled_date)`; } },
+                        mysql: { builder: (alias) => { return `YEAR(${alias}.scheduled_date)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(year, ${alias}.scheduled_date)`; } }
+                    }
+                },
+                {
+                    column: 'scheduled_date',
+                    name: 'month',
+                    caption: 'Scheduled Month',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%m', ${alias}.scheduled_date) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(MONTH FROM ${alias}.scheduled_date)`; } },
+                        mysql: { builder: (alias) => { return `MONTH(${alias}.scheduled_date)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(month, ${alias}.scheduled_date)`; } }
+                    }
+                },
+                {
+                    column: 'scheduled_date',
+                    name: 'yearMonth',
+                    caption: 'Scheduled Year-Month',
+                    type: 'STRING',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `strftime('%Y-%m', ${alias}.scheduled_date)`; } },
+                        postgresql: { builder: (alias) => { return `TO_CHAR(${alias}.scheduled_date, 'YYYY-MM')`; } },
+                        mysql: { builder: (alias) => { return `DATE_FORMAT(${alias}.scheduled_date, '%Y-%m')`; } },
+                        sqlserver: { builder: (alias) => { return `CONVERT(char(7), ${alias}.scheduled_date, 120)`; } }
+                    }
+                }
+            ]
+        },
+        {
             name: 'partner',
             tableName: 'res_partner',
             foreignKey: 'partner_id',
@@ -88,8 +137,6 @@ export const model = {
         { column: 'name', caption: 'Reference', type: 'STRING', description: 'Transfer reference (e.g. WH/IN/00001)' },
         { column: 'state', caption: 'Status', type: 'STRING', dictRef: dicts.stock_picking_state },
         { column: 'origin', caption: 'Source Document', type: 'STRING', description: 'Source document (e.g. SO001)' },
-        { column: 'scheduled_date', caption: 'Scheduled Date', type: 'DATETIME',
-          timeRole: 'business_date', recommendedUse: 'Primary inventory transfer business date for scheduled receipts, deliveries, and period pivot queries.' },
         { column: 'date_deadline', caption: 'Deadline', type: 'DATETIME',
           timeRole: 'deadline_date', recommendedUse: 'Use for deadline and late-transfer analysis.' },
         { column: 'date_done', caption: 'Effective Date', type: 'DATETIME', description: 'Date of transfer completion',

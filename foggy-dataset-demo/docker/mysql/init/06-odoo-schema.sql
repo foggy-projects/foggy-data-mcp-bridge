@@ -272,6 +272,96 @@ CREATE TABLE `account_move` (
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+DROP TABLE IF EXISTS `account_account`;
+CREATE TABLE `account_account` (
+    `id`           INT AUTO_INCREMENT,
+    `name`         VARCHAR(200) NOT NULL,
+    `code`         VARCHAR(20),
+    `account_type` VARCHAR(50),
+    `company_id`   INT,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `account_move_line`;
+CREATE TABLE `account_move_line` (
+    `id`              INT AUTO_INCREMENT,
+    `move_id`         INT,
+    `account_id`      INT,
+    `journal_id`      INT,
+    `partner_id`      INT,
+    `product_id`      INT,
+    `company_id`      INT,
+    `currency_id`     INT,
+    `move_name`       VARCHAR(100),
+    `name`            VARCHAR(200),
+    `ref`             VARCHAR(200),
+    `parent_state`    VARCHAR(20) DEFAULT 'draft',
+    `display_type`    VARCHAR(50),
+    `date`            DATE,
+    `invoice_date`    DATE,
+    `date_maturity`   DATE,
+    `matching_number` VARCHAR(50),
+    `reconciled`      TINYINT(1) DEFAULT 0,
+    `debit`           DECIMAL(18,2) DEFAULT 0,
+    `credit`          DECIMAL(18,2) DEFAULT 0,
+    `balance`         DECIMAL(18,2) DEFAULT 0,
+    `amount_currency` DECIMAL(18,2) DEFAULT 0,
+    `amount_residual` DECIMAL(18,2) DEFAULT 0,
+    `quantity`        DECIMAL(18,4) DEFAULT 0,
+    `price_unit`      DECIMAL(18,2) DEFAULT 0,
+    `price_subtotal`  DECIMAL(18,2) DEFAULT 0,
+    `price_total`     DECIMAL(18,2) DEFAULT 0,
+    `discount`        DECIMAL(18,2) DEFAULT 0,
+    `create_date`     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `write_date`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `account_payment_method`;
+CREATE TABLE `account_payment_method` (
+    `id`           INT AUTO_INCREMENT,
+    `name`         VARCHAR(100) NOT NULL,
+    `code`         VARCHAR(50),
+    `payment_type` VARCHAR(20),
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `account_payment`;
+CREATE TABLE `account_payment` (
+    `id`                             INT AUTO_INCREMENT,
+    `move_id`                        INT,
+    `partner_id`                     INT,
+    `currency_id`                    INT,
+    `destination_journal_id`         INT,
+    `payment_method_id`              INT,
+    `payment_type`                   VARCHAR(20),
+    `partner_type`                   VARCHAR(20),
+    `payment_reference`              VARCHAR(200),
+    `is_reconciled`                  TINYINT(1) DEFAULT 0,
+    `is_matched`                     TINYINT(1) DEFAULT 0,
+    `is_internal_transfer`           TINYINT(1) DEFAULT 0,
+    `amount`                         DECIMAL(18,2) DEFAULT 0,
+    `amount_company_currency_signed` DECIMAL(18,2) DEFAULT 0,
+    `create_date`                    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `write_date`                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `account_payment_bill_match`;
+CREATE TABLE `account_payment_bill_match` (
+    `id`                INT AUTO_INCREMENT,
+    `payment_id`        INT,
+    `bill_move_id`      INT,
+    `payable_line_id`   INT,
+    `partner_id`        INT,
+    `matched_date`      DATE,
+    `match_status`      VARCHAR(20) DEFAULT 'matched',
+    `matched_amount`    DECIMAL(18,2) DEFAULT 0,
+    `create_date`       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `write_date`        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ========== 库存模块 ==========
 
 DROP TABLE IF EXISTS `stock_location`;
@@ -300,6 +390,86 @@ CREATE TABLE `stock_picking` (
     `note`             TEXT,
     `create_date`      DATETIME DEFAULT CURRENT_TIMESTAMP,
     `write_date`       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `purchase_document_flow`;
+CREATE TABLE `purchase_document_flow` (
+    `id`                  INT AUTO_INCREMENT,
+    `purchase_order_id`   INT,
+    `receipt_picking_id`  INT,
+    `bill_move_id`        INT,
+    `vendor_id`           INT,
+    `flow_status`         VARCHAR(30) DEFAULT 'open',
+    `receipt_status`      VARCHAR(20),
+    `billing_status`      VARCHAR(20),
+    `payment_state`       VARCHAR(20),
+    `ordered_amount`      DECIMAL(18,2) DEFAULT 0,
+    `billed_amount`       DECIMAL(18,2) DEFAULT 0,
+    `bill_residual`       DECIMAL(18,2) DEFAULT 0,
+    `create_date`         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `write_date`          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `sale_document_flow`;
+CREATE TABLE `sale_document_flow` (
+    `id`                  INT AUTO_INCREMENT,
+    `sale_order_id`       INT,
+    `delivery_picking_id` INT,
+    `invoice_move_id`     INT,
+    `payment_id`          INT,
+    `customer_id`         INT,
+    `flow_status`         VARCHAR(30) DEFAULT 'open',
+    `delivery_status`     VARCHAR(20),
+    `invoice_status`      VARCHAR(20),
+    `payment_state`       VARCHAR(20),
+    `ordered_amount`      DECIMAL(18,2) DEFAULT 0,
+    `invoiced_amount`     DECIMAL(18,2) DEFAULT 0,
+    `invoice_residual`    DECIMAL(18,2) DEFAULT 0,
+    `paid_amount`         DECIMAL(18,2) DEFAULT 0,
+    `create_date`         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `write_date`          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ========== 制造模块 ==========
+
+DROP TABLE IF EXISTS `mrp_bom`;
+CREATE TABLE `mrp_bom` (
+    `id`         INT AUTO_INCREMENT,
+    `code`       VARCHAR(100),
+    `type`       VARCHAR(20) DEFAULT 'normal',
+    `product_id` INT,
+    `product_qty` DECIMAL(18,4) DEFAULT 1,
+    `company_id` INT,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `mrp_production`;
+CREATE TABLE `mrp_production` (
+    `id`               INT AUTO_INCREMENT,
+    `name`             VARCHAR(100) NOT NULL,
+    `state`            VARCHAR(20) DEFAULT 'draft',
+    `priority`         VARCHAR(5) DEFAULT '0',
+    `origin`           VARCHAR(200),
+    `product_id`       INT,
+    `bom_id`           INT,
+    `product_uom_id`   INT,
+    `user_id`          INT,
+    `company_id`       INT,
+    `picking_type_id`  INT,
+    `location_src_id`  INT,
+    `location_dest_id` INT,
+    `date_start`      DATETIME,
+    `date_finished`   DATETIME,
+    `date_deadline`   DATETIME,
+    `is_locked`       TINYINT(1) DEFAULT 0,
+    `consumption`     VARCHAR(20),
+    `product_qty`     DECIMAL(18,4) DEFAULT 0,
+    `qty_producing`   DECIMAL(18,4) DEFAULT 0,
+    `create_date`     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `write_date`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

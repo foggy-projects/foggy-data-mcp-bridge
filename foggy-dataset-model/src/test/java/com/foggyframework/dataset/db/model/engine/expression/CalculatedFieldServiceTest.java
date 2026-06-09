@@ -129,6 +129,14 @@ class CalculatedFieldServiceTest {
     }
 
     @Test
+    @DisplayName("SQL 风格 and/or 仅在字符串外归一化")
+    void extractRefs_sqlLogicalOperatorsIgnoreStringLiterals() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences(
+                "SUM(if((status == 'A and B' or status == 'C or D') and amount > 0, amount, 0))");
+        assertEquals(Set.of("status", "amount"), refs);
+    }
+
+    @Test
     @DisplayName("表达式仅含字面量和函数（无列引用）— 返回空集合")
     void extractRefs_onlyLiteralsAndFunctions() {
         Set<String> refs = CalculatedFieldService.extractColumnReferences("1 + 2 * 3");

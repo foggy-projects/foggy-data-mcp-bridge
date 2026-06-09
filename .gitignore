@@ -154,6 +154,7 @@ docs-site/.vitepress/dist/
 .tmp-gen*
 .claude/plans/
 model-manifest.json
+!foggy-dataset-demo/src/main/resources/foggy/templates/odoo/model-manifest.json
 
 # ====================
 # Local versioned docs scratch

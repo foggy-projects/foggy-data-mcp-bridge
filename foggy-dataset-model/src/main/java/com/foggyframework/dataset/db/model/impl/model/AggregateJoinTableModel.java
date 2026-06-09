@@ -16,9 +16,11 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
+import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.DbMeasure;
 import com.foggyframework.dataset.db.model.spi.DbMeasureColumn;
 import com.foggyframework.dataset.db.model.spi.DbModelType;
+import com.foggyframework.dataset.db.model.spi.DbProperty;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.support.SimpleSqlJdbcColumn;
@@ -28,10 +30,9 @@ import com.foggyframework.fsscript.exp.FsscriptFunction;
 import jakarta.persistence.criteria.JoinType;
 
 import java.sql.Types;
-import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -103,7 +104,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 builder.getGroupByColumns(),
                 builder.getMeasures(),
                 builder.getFilters(),
-                buildLeftJoinScopes(builder.getLeft(), visibleLeftModels)));
+                buildLeftJoinScopes(builder.getLeft(), visibleLeftModels),
+                List.copyOf(visibleLeftModels)));
     }
 
     public static AggregateJoinTableModel from(TableModel sourceModel, AggregateRelationProxy relationProxy,
@@ -121,7 +123,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 relationProxy.getGroupByColumns(),
                 buildDefaultMeasures(sourceModel),
                 relationProxy.getFilters(),
-                buildLeftJoinScopes(joinBuilder.getLeft(), visibleLeftModels)));
+                buildLeftJoinScopes(joinBuilder.getLeft(), visibleLeftModels),
+                List.copyOf(visibleLeftModels)));
     }
 
     public static void setRuntimeFilterContext(ModelResultContext context) {
@@ -272,27 +275,18 @@ public class AggregateJoinTableModel extends TableModelSupport {
                                                                            AggregateRelationInput input,
                                                                            List<OutputColumn> outputColumns,
                                                                            AggregateSourceSqlContext sourceSqlContext) {
-        List<String> selectParts = new ArrayList<>();
         List<String> groupByParts = new ArrayList<>();
 
         for (OutputColumn outputColumn : outputColumns) {
             if (!outputColumn.groupKey()) {
                 continue;
             }
-            selectParts.add(outputColumn.sourceExpression() + " " + outputColumn.outputAlias());
             groupByParts.add(outputColumn.sourceExpression());
-        }
-
-        for (OutputColumn outputColumn : outputColumns) {
-            if (outputColumn.groupKey()) {
-                continue;
-            }
-            selectParts.add(outputColumn.aggregateExpression() + " " + outputColumn.outputAlias());
         }
 
         return new GeneratedAggregateRelationQueryObject(
                 sqlTable,
-                selectParts,
+                outputColumns,
                 sourceBody(),
                 sourceSqlContext.joinParts(),
                 input.filters(),
@@ -423,35 +417,45 @@ public class AggregateJoinTableModel extends TableModelSupport {
         if (filters == null || filters.isEmpty()) {
             return "";
         }
-        return filters.stream()
-                .map(filter -> renderFilter(filter, sourceSqlContext))
+        return renderFilterFragments(filters, sourceSqlContext).stream()
+                .map(SqlFragment::sql)
                 .collect(Collectors.joining(" and "));
     }
 
-    private String renderFilter(AggregateJoinBuilder.AggregateFilter filter,
-                                AggregateSourceSqlContext sourceSqlContext) {
+    private List<SqlFragment> renderFilterFragments(List<AggregateJoinBuilder.AggregateFilter> filters,
+                                                    AggregateSourceSqlContext sourceSqlContext) {
+        if (filters == null || filters.isEmpty()) {
+            return List.of();
+        }
+        return filters.stream()
+                .map(filter -> renderFilter(filter, sourceSqlContext))
+                .toList();
+    }
+
+    private SqlFragment renderFilter(AggregateJoinBuilder.AggregateFilter filter,
+                                     AggregateSourceSqlContext sourceSqlContext) {
         DbColumn sourceColumn = resolveSourceColumn(filter.getColumn());
         String columnSql = sourceColumnSql(sourceColumn, sourceSqlContext);
         Object filterValue = resolveFilterValue(filter.getValue());
         if (filter.isMultiValue()) {
             Collection<?> values = filterValue instanceof Collection<?> collection ? collection : List.of(filterValue);
             if (values.isEmpty()) {
-                return "1 = 0";
+                return SqlFragment.of("1 = 0");
             }
-            String renderedValues = values.stream()
-                    .map(this::renderLiteral)
+            String placeholders = values.stream()
+                    .map(value -> "?")
                     .collect(Collectors.joining(", "));
-            return columnSql + " in (" + renderedValues + ")";
+            return new SqlFragment(columnSql + " in (" + placeholders + ")", List.copyOf(values));
         }
 
         if (filterValue == null) {
             return switch (filter.getOperator()) {
-                case "=" -> columnSql + " is null";
-                case "<>" -> columnSql + " is not null";
-                default -> columnSql + " " + filter.getOperator() + " null";
+                case "=" -> SqlFragment.of(columnSql + " is null");
+                case "<>" -> SqlFragment.of(columnSql + " is not null");
+                default -> SqlFragment.of(columnSql + " " + filter.getOperator() + " null");
             };
         }
-        return columnSql + " " + filter.getOperator() + " " + renderLiteral(filterValue);
+        return new SqlFragment(columnSql + " " + filter.getOperator() + " ?", List.of(filterValue));
     }
 
     private Object resolveFilterValue(Object value) {
@@ -528,10 +532,77 @@ public class AggregateJoinTableModel extends TableModelSupport {
             ColumnRef rightRef = condition.getRightAsColumnRef();
             DbColumn rightColumn = resolveSourceColumn(rightRef);
             mappings.add(new JoinKeyPushdownMapping(
-                    columnRefKeys(condition.getLeft()),
+                    leftJoinKeyPushdownKeys(condition.getLeft(), input),
                     sourceColumnSql(rightColumn, sourceSqlContext)));
         }
         return mappings;
+    }
+
+    private Set<String> leftJoinKeyPushdownKeys(ColumnRef leftRef, AggregateRelationInput input) {
+        Set<String> keys = new LinkedHashSet<>(columnRefKeys(leftRef));
+        DbColumn leftColumn = resolveVisibleLeftColumn(leftRef, input);
+        if (leftColumn == null || leftColumn.getSqlColumnName() == null) {
+            return keys;
+        }
+        String sqlColumnName = leftColumn.getSqlColumnName();
+        for (TableModel model : input.visibleLeftModels()) {
+            if (!matchesLeftRefModel(model, leftRef)) {
+                continue;
+            }
+            for (DbColumn candidate : allModelColumns(model)) {
+                if (candidate == null || !sqlColumnName.equals(candidate.getSqlColumnName())) {
+                    continue;
+                }
+                keys.add(candidate.getName());
+            }
+        }
+        keys.add(sqlColumnName);
+        return keys;
+    }
+
+    private DbColumn resolveVisibleLeftColumn(ColumnRef leftRef, AggregateRelationInput input) {
+        for (TableModel model : input.visibleLeftModels()) {
+            if (!matchesLeftRefModel(model, leftRef)) {
+                continue;
+            }
+            DbColumn dbColumn = model.findJdbcColumnByName(leftRef.getFullRef());
+            if (dbColumn == null) {
+                dbColumn = model.findJdbcColumnByName(leftRef.getAliasRef());
+            }
+            if (dbColumn == null) {
+                dbColumn = model.findJdbcColumnByName(leftRef.getColumnName());
+            }
+            if (dbColumn != null) {
+                return dbColumn;
+            }
+        }
+        return null;
+    }
+
+    private List<DbColumn> allModelColumns(TableModel model) {
+        List<DbColumn> result = new ArrayList<>();
+        for (DbDimension dimension : model.getDimensions()) {
+            result.addAll(dimension.getAllDbColumns());
+        }
+        for (DbProperty property : model.getProperties()) {
+            result.add(property.getPropertyDbColumn());
+        }
+        for (DbMeasure measure : model.getMeasures()) {
+            result.add(measure.getJdbcColumn());
+        }
+        return result;
+    }
+
+    private boolean matchesLeftRefModel(TableModel model, ColumnRef leftRef) {
+        if (model == null || leftRef == null || !model.getName().equals(leftRef.getModelName())) {
+            return false;
+        }
+        String refAlias = leftRef.getTableAlias();
+        if (refAlias == null || refAlias.isEmpty()) {
+            return true;
+        }
+        QueryObject queryObject = model.getQueryObject();
+        return queryObject != null && refAlias.equals(queryObject.getAlias());
     }
 
     private DbColumn resolveSourceColumn(ColumnRef columnRef) {
@@ -617,26 +688,6 @@ public class AggregateJoinTableModel extends TableModelSupport {
         return alias;
     }
 
-    private String renderLiteral(Object value) {
-        if (value == null) {
-            return "null";
-        }
-        if (value instanceof Number) {
-            return value.toString();
-        }
-        if (value instanceof Boolean bool) {
-            return bool ? "1" : "0";
-        }
-        if (value instanceof Date || value instanceof TemporalAccessor || value instanceof Enum<?>) {
-            return quote(value.toString());
-        }
-        return quote(String.valueOf(value));
-    }
-
-    private String quote(String value) {
-        return "'" + value.replace("'", "''") + "'";
-    }
-
     private static List<AggregateJoinBuilder.AggregateMeasure> buildDefaultMeasures(TableModel sourceModel) {
         List<AggregateJoinBuilder.AggregateMeasure> measures = new ArrayList<>();
         for (DbMeasure measure : sourceModel.getMeasures()) {
@@ -717,7 +768,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
             List<ColumnRef> groupByColumns,
             List<AggregateJoinBuilder.AggregateMeasure> measures,
             List<AggregateJoinBuilder.AggregateFilter> filters,
-            Set<JoinLeftScope> leftJoinScopes) {
+            Set<JoinLeftScope> leftJoinScopes,
+            List<TableModel> visibleLeftModels) {
     }
 
     private record JoinLeftScope(String modelName, String alias) {
@@ -751,6 +803,16 @@ public class AggregateJoinTableModel extends TableModelSupport {
             String rightExpression) {
     }
 
+    private record SqlFragment(String sql, List<Object> values) {
+        private SqlFragment {
+            values = values == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(values));
+        }
+
+        static SqlFragment of(String sql) {
+            return new SqlFragment(sql, List.of());
+        }
+    }
+
     private record AggregateSourceSqlContext(
             Map<String, String> aliases,
             List<String> joinParts) {
@@ -764,7 +826,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
     }
 
     private class GeneratedAggregateRelationQueryObject extends ViewSqlQueryObject implements AggregateRelationQueryObject {
-        private final List<String> selectParts;
+        private final List<OutputColumn> outputColumns;
         private final String sourceBody;
         private final List<String> sourceJoinParts;
         private final List<AggregateJoinBuilder.AggregateFilter> baseFilters;
@@ -774,7 +836,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private final ThreadLocal<PushdownState> pushdownState = ThreadLocal.withInitial(PushdownState::new);
 
         GeneratedAggregateRelationQueryObject(SqlTable sqlTable,
-                                              List<String> selectParts,
+                                              List<OutputColumn> outputColumns,
                                               String sourceBody,
                                               List<String> sourceJoinParts,
                                               List<AggregateJoinBuilder.AggregateFilter> baseFilters,
@@ -782,7 +844,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
                                               List<String> groupByParts,
                                               List<JoinKeyPushdownMapping> joinKeyPushdownMappings) {
             super("", sqlTable);
-            this.selectParts = List.copyOf(selectParts);
+            this.outputColumns = List.copyOf(outputColumns);
             this.sourceBody = sourceBody;
             this.sourceJoinParts = List.copyOf(sourceJoinParts);
             this.baseFilters = baseFilters == null ? List.of() : List.copyOf(baseFilters);
@@ -794,9 +856,10 @@ public class AggregateJoinTableModel extends TableModelSupport {
         @Override
         public String getBody() {
             PushdownState state = pushdownState.get();
+            List<Object> bodyParameters = new ArrayList<>();
             StringBuilder sql = new StringBuilder();
             sql.append("select ")
-                    .append(String.join(", ", selectParts))
+                    .append(String.join(", ", renderSelectParts(state)))
                     .append(" from ")
                     .append(sourceBody)
                     .append(" ")
@@ -806,11 +869,15 @@ public class AggregateJoinTableModel extends TableModelSupport {
             }
 
             List<String> whereParts = new ArrayList<>();
-            String baseWhereSql = renderFilterSql(baseFilters, sourceSqlContext);
-            if (baseWhereSql != null && !baseWhereSql.isBlank()) {
-                whereParts.add(baseWhereSql);
+            List<SqlFragment> baseWhereFragments = renderFilterFragments(baseFilters, sourceSqlContext);
+            for (SqlFragment fragment : baseWhereFragments) {
+                whereParts.add(fragment.sql());
+                bodyParameters.addAll(fragment.values());
             }
-            whereParts.addAll(state.whereFragments);
+            for (SqlFragment fragment : state.whereFragments) {
+                whereParts.add(fragment.sql());
+                bodyParameters.addAll(fragment.values());
+            }
             if (!whereParts.isEmpty()) {
                 sql.append(" where ").append(String.join(" and ", whereParts));
             }
@@ -819,10 +886,42 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 sql.append(" group by ").append(String.join(", ", groupByParts));
             }
             if (!state.havingFragments.isEmpty()) {
-                sql.append(" having ").append(String.join(" and ", state.havingFragments));
+                sql.append(" having ")
+                        .append(state.havingFragments.stream()
+                                .map(SqlFragment::sql)
+                                .collect(Collectors.joining(" and ")));
+                for (SqlFragment fragment : state.havingFragments) {
+                    bodyParameters.addAll(fragment.values());
+                }
             }
 
+            state.lastBodyParameters = List.copyOf(bodyParameters);
             return "(" + sql + ")";
+        }
+
+        @Override
+        public List<Object> getBodyParameters() {
+            return pushdownState.get().lastBodyParameters;
+        }
+
+        private List<String> renderSelectParts(PushdownState state) {
+            if (!state.projectionPruningEnabled || state.requiredOutputAliases.isEmpty()) {
+                return outputColumns.stream()
+                        .map(this::renderSelectPart)
+                        .toList();
+            }
+            return outputColumns.stream()
+                    .filter(outputColumn -> outputColumn.groupKey()
+                            || state.requiredOutputAliases.contains(outputColumn.outputAlias()))
+                    .map(this::renderSelectPart)
+                    .toList();
+        }
+
+        private String renderSelectPart(OutputColumn outputColumn) {
+            if (outputColumn.groupKey()) {
+                return outputColumn.sourceExpression() + " " + outputColumn.outputAlias();
+            }
+            return outputColumn.aggregateExpression() + " " + outputColumn.outputAlias();
         }
 
         @Override
@@ -831,10 +930,32 @@ public class AggregateJoinTableModel extends TableModelSupport {
         }
 
         @Override
+        public void setAggregateRelationProjectionPruningEnabled(boolean enabled) {
+            pushdownState.get().projectionPruningEnabled = enabled;
+        }
+
+        @Override
+        public void markAggregateRelationOutput(AggregateRelationOutputColumn column) {
+            if (!(column instanceof AggregateOutputDbColumn aggregateColumn)) {
+                return;
+            }
+            markAggregateRelationOutputAlias(aggregateColumn.getSqlColumn().getName());
+        }
+
+        @Override
+        public void markAggregateRelationOutputAlias(String alias) {
+            if (alias == null || alias.isBlank()) {
+                return;
+            }
+            pushdownState.get().requiredOutputAliases.add(alias);
+        }
+
+        @Override
         public boolean pushAggregateRelationCondition(AggregateRelationOutputColumn column, String op, Object value) {
             if (column == null) {
                 return false;
             }
+            markAggregateRelationOutput(column);
             String expression = column.isAggregateRelationMeasure()
                     ? column.getAggregateRelationAggregateExpression()
                     : column.getAggregateRelationSourceExpression();
@@ -860,13 +981,13 @@ public class AggregateJoinTableModel extends TableModelSupport {
         }
 
         private boolean pushCondition(boolean having, String expression, String op, Object value) {
-            List<String> fragments = renderConditionFragments(expression, op, value);
+            List<SqlFragment> fragments = renderConditionFragments(expression, op, value);
             if (fragments.isEmpty()) {
                 return false;
             }
             PushdownState state = pushdownState.get();
-            List<String> target = having ? state.havingFragments : state.whereFragments;
-            for (String fragment : fragments) {
+            List<SqlFragment> target = having ? state.havingFragments : state.whereFragments;
+            for (SqlFragment fragment : fragments) {
                 if (!target.contains(fragment)) {
                     target.add(fragment);
                 }
@@ -874,7 +995,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             return true;
         }
 
-        private List<String> renderConditionFragments(String expression, String op, Object value) {
+        private List<SqlFragment> renderConditionFragments(String expression, String op, Object value) {
             String normalizedOp = normalizeOp(op);
             if (normalizedOp == null) {
                 return List.of();
@@ -885,11 +1006,11 @@ public class AggregateJoinTableModel extends TableModelSupport {
             }
 
             if ("is null".equals(normalizedOp) || value == null && "=".equals(normalizedOp)) {
-                return List.of(expression + " is null");
+                return List.of(SqlFragment.of(expression + " is null"));
             }
             if ("is not null".equals(normalizedOp)
                     || value == null && ("<>".equals(normalizedOp) || "!=".equals(normalizedOp))) {
-                return List.of(expression + " is not null");
+                return List.of(SqlFragment.of(expression + " is not null"));
             }
             if (value == null) {
                 return List.of();
@@ -900,31 +1021,36 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 if (values.isEmpty()) {
                     return List.of();
                 }
-                String renderedValues = values.stream()
-                        .map(AggregateJoinTableModel.this::renderLiteral)
+                String placeholders = values.stream()
+                        .map(item -> "?")
                         .collect(Collectors.joining(", "));
-                return List.of(expression + " " + normalizedOp + " (" + renderedValues + ")");
+                return List.of(new SqlFragment(expression + " " + normalizedOp + " (" + placeholders + ")",
+                        new ArrayList<>(values)));
             }
 
             if (isSimpleComparisonOp(normalizedOp)) {
-                return List.of(expression + " " + normalizedOp + " " + renderLiteral(value));
+                return List.of(new SqlFragment(expression + " " + normalizedOp + " ?", List.of(value)));
             }
 
             return List.of();
         }
 
-        private List<String> renderRangeConditionFragments(String expression, String op, Object value) {
+        private List<SqlFragment> renderRangeConditionFragments(String expression, String op, Object value) {
             if (!(value instanceof List<?> values) || values.size() < 2) {
                 return List.of();
             }
-            List<String> fragments = new ArrayList<>();
+            List<SqlFragment> fragments = new ArrayList<>();
             Object start = values.get(0);
             Object end = values.get(1);
             if (start != null) {
-                fragments.add(expression + ("[".equals(op.substring(0, 1)) ? " >= " : " > ") + renderLiteral(start));
+                fragments.add(new SqlFragment(
+                        expression + ("[".equals(op.substring(0, 1)) ? " >= ?" : " > ?"),
+                        List.of(start)));
             }
             if (end != null) {
-                fragments.add(expression + ("]".equals(op.substring(1, 2)) ? " <= " : " < ") + renderLiteral(end));
+                fragments.add(new SqlFragment(
+                        expression + ("]".equals(op.substring(1, 2)) ? " <= ?" : " < ?"),
+                        List.of(end)));
             }
             return fragments;
         }
@@ -960,8 +1086,11 @@ public class AggregateJoinTableModel extends TableModelSupport {
         }
 
         private class PushdownState {
-            private final List<String> whereFragments = new ArrayList<>();
-            private final List<String> havingFragments = new ArrayList<>();
+            private final List<SqlFragment> whereFragments = new ArrayList<>();
+            private final List<SqlFragment> havingFragments = new ArrayList<>();
+            private final Set<String> requiredOutputAliases = new LinkedHashSet<>();
+            private List<Object> lastBodyParameters = List.of();
+            private boolean projectionPruningEnabled;
         }
     }
 

@@ -202,6 +202,67 @@ DELIMITER ;
 CALL sp_generate_sales_data();
 DROP PROCEDURE IF EXISTS `sp_generate_sales_data`;
 
+-- 补回电商查询回归用的确定性订单/明细样本。
+-- 11-preagg-testdata 会重建 fact_sales；这些样本必须在预聚合刷新前插入，
+-- 以保证 aggregate join / same-table alias 测试和预聚合表看到同一份事实数据。
+INSERT INTO `fact_order` (
+    `order_id`, `date_key`, `customer_key`, `store_key`, `sales_team_key`,
+    `channel_key`, `promotion_key`, `total_quantity`, `total_amount`,
+    `discount_amount`, `freight_amount`, `pay_amount`, `order_status`,
+    `payment_status`, `order_time`, `ship_date`
+) VALUES
+('ORD20240101000001', 20240101, 1, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00', '2024-01-02'),
+('ORD20240101000002', 20240101, 2, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00', '2024-01-03'),
+('ORD20240102000003', 20240102, 3, 3, 3, 1, 1, 3, 1298.00, 0, 0, 1298.00, 'COMPLETED', 'PAID', '2024-01-02 09:15:00', '2024-01-03'),
+('ORD20240104000007', 20240104, 7, 4, 2, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00', '2024-01-05')
+ON DUPLICATE KEY UPDATE
+    `date_key` = VALUES(`date_key`),
+    `customer_key` = VALUES(`customer_key`),
+    `store_key` = VALUES(`store_key`),
+    `sales_team_key` = VALUES(`sales_team_key`),
+    `channel_key` = VALUES(`channel_key`),
+    `promotion_key` = VALUES(`promotion_key`),
+    `total_quantity` = VALUES(`total_quantity`),
+    `total_amount` = VALUES(`total_amount`),
+    `discount_amount` = VALUES(`discount_amount`),
+    `freight_amount` = VALUES(`freight_amount`),
+    `pay_amount` = VALUES(`pay_amount`),
+    `order_status` = VALUES(`order_status`),
+    `payment_status` = VALUES(`payment_status`),
+    `order_time` = VALUES(`order_time`),
+    `ship_date` = VALUES(`ship_date`);
+
+INSERT INTO `fact_sales` (
+    `order_id`, `order_line_no`, `date_key`, `product_key`, `customer_key`,
+    `store_key`, `channel_key`, `promotion_key`, `quantity`, `unit_price`,
+    `unit_cost`, `discount_amount`, `sales_amount`, `cost_amount`,
+    `profit_amount`, `tax_amount`, `order_status`, `payment_method`, `created_at`
+) VALUES
+('ORD20240101000001', 1, 20240101, 1, 1, 1, 1, 2, 1, 5999.00, 3599.40, 599.90, 5399.10, 3599.40, 1799.70, 323.95, 'COMPLETED', 'ALIPAY', '2024-01-01 10:30:00'),
+('ORD20240101000001', 2, 20240101, 2, 1, 1, 1, 2, 1, 4999.00, 2999.40, 499.90, 4499.10, 2999.40, 1499.70, 269.95, 'COMPLETED', 'ALIPAY', '2024-01-01 10:31:00'),
+('ORD20240101000002', 1, 20240101, 2, 2, 2, 2, 1, 1, 4599.00, 2759.40, 0, 4599.00, 2759.40, 1839.60, 275.94, 'COMPLETED', 'WECHAT', '2024-01-01 14:20:00'),
+('ORD20240102000003', 1, 20240102, 6, 3, 3, 1, 1, 1, 599.00, 359.40, 0, 599.00, 359.40, 239.60, 35.94, 'COMPLETED', 'ALIPAY', '2024-01-02 09:15:00'),
+('ORD20240102000003', 2, 20240102, 7, 3, 3, 1, 1, 1, 699.00, 419.40, 0, 699.00, 419.40, 279.60, 41.94, 'COMPLETED', 'ALIPAY', '2024-01-02 09:16:00'),
+('ORD20240104000007', 1, 20240104, 8, 7, 4, 1, 1, 2, 399.00, 239.40, 0, 798.00, 478.80, 319.20, 47.88, 'COMPLETED', 'ALIPAY', '2024-01-04 10:00:00')
+ON DUPLICATE KEY UPDATE
+    `date_key` = VALUES(`date_key`),
+    `product_key` = VALUES(`product_key`),
+    `customer_key` = VALUES(`customer_key`),
+    `store_key` = VALUES(`store_key`),
+    `channel_key` = VALUES(`channel_key`),
+    `promotion_key` = VALUES(`promotion_key`),
+    `quantity` = VALUES(`quantity`),
+    `unit_price` = VALUES(`unit_price`),
+    `unit_cost` = VALUES(`unit_cost`),
+    `discount_amount` = VALUES(`discount_amount`),
+    `sales_amount` = VALUES(`sales_amount`),
+    `cost_amount` = VALUES(`cost_amount`),
+    `profit_amount` = VALUES(`profit_amount`),
+    `tax_amount` = VALUES(`tax_amount`),
+    `order_status` = VALUES(`order_status`),
+    `payment_method` = VALUES(`payment_method`),
+    `created_at` = VALUES(`created_at`);
+
 -- ==========================================
 -- 8. 生成退货事实数据（约10%的销售会退货）
 -- ==========================================

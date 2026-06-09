@@ -4,13 +4,13 @@ bug_source: upstream-feedback
 version: 9.2.0
 ticket: BUG-aggregate-relation-joined-dimension-left-key
 severity: major
-status: ready-for-verification
+status: local-verified
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
 owner: foggy-dataset-model
 created_at: 2026-05-27
-updated_at: 2026-05-27
+updated_at: 2026-06-06
 upstream_issue: foggy-projects/foggy-data-mcp-bridge#84
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
@@ -160,8 +160,19 @@ from fact_sales_nested t1
    from dim_category_nested agg_src
    where agg_src.status = 'ACTIVE'
    group by agg_src.category_id
- ) categoryAggByBusinessId on d3.category_id = categoryAggByBusinessId.categoryId
+) categoryAggByBusinessId on d3.category_id = categoryAggByBusinessId.categoryId
 ```
+
+2026-06-06 当前源代码复核已执行：
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite '-Dtest=AggregateJoinQueryModelTest,SemanticScaleFactorIntegrationTest,InlineExpressionPreprocessStepTest,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat+testQmPredefinedFormulaInPivotTopLevelSlice+testQmPredefinedFormulaInPivotAxisHavingAndOrderBy+testQmPredefinedFormulaMetricInPivotGrandTotal' test
+```
+
+结果：
+
+- 组合验证通过；`Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`。
+- 覆盖当前 aggregate relation left-key / RHS dimension filter / predefined formula / pivot formula 相关回归组合。
 
 ## Follow-Up
 

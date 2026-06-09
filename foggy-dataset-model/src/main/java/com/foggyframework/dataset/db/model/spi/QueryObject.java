@@ -4,6 +4,8 @@ import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 
+import java.util.List;
+
 public interface QueryObject extends Decorate, DbObject {
     String getAlias();
 
@@ -12,6 +14,10 @@ public interface QueryObject extends Decorate, DbObject {
     String getForeignKey(QueryObject joinObject);
 
     String getBody();
+
+    default List<Object> getBodyParameters() {
+        return List.of();
+    }
 
     SqlColumn getSqlColumn(String name, boolean errorIfNotFound);
 

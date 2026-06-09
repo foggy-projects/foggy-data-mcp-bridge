@@ -16,6 +16,55 @@ export const model = {
 
     dimensions: [
         {
+            name: 'invoiceDate',
+            foreignKey: 'invoice_date',
+            primaryKey: 'invoice_date',
+            captionColumn: 'invoice_date',
+            caption: 'Invoice Date',
+            description: 'Self date dimension backed by account_move.invoice_date without joining dim_date',
+            type: 'DAY',
+            timeRole: 'business_date',
+            recommendedUse: 'Primary invoice/bill business date for timeWindow, revenue, AP, and period pivot queries.',
+            properties: [
+                {
+                    column: 'invoice_date',
+                    name: 'year',
+                    caption: 'Invoice Year',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%Y', ${alias}.invoice_date) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(YEAR FROM ${alias}.invoice_date)`; } },
+                        mysql: { builder: (alias) => { return `YEAR(${alias}.invoice_date)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(year, ${alias}.invoice_date)`; } }
+                    }
+                },
+                {
+                    column: 'invoice_date',
+                    name: 'month',
+                    caption: 'Invoice Month',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%m', ${alias}.invoice_date) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(MONTH FROM ${alias}.invoice_date)`; } },
+                        mysql: { builder: (alias) => { return `MONTH(${alias}.invoice_date)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(month, ${alias}.invoice_date)`; } }
+                    }
+                },
+                {
+                    column: 'invoice_date',
+                    name: 'yearMonth',
+                    caption: 'Invoice Year-Month',
+                    type: 'STRING',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `strftime('%Y-%m', ${alias}.invoice_date)`; } },
+                        postgresql: { builder: (alias) => { return `TO_CHAR(${alias}.invoice_date, 'YYYY-MM')`; } },
+                        mysql: { builder: (alias) => { return `DATE_FORMAT(${alias}.invoice_date, '%Y-%m')`; } },
+                        sqlserver: { builder: (alias) => { return `CONVERT(char(7), ${alias}.invoice_date, 120)`; } }
+                    }
+                }
+            ]
+        },
+        {
             name: 'partner',
             tableName: 'res_partner',
             foreignKey: 'partner_id',
@@ -113,8 +162,6 @@ export const model = {
               + 'cancel (cancelled). Only posted entries contribute to AR / AP balances.' },
         { column: 'date', caption: 'Accounting Date', type: 'DAY',
           timeRole: 'posting_date', recommendedUse: 'Use for GL posting-period analysis.' },
-        { column: 'invoice_date', caption: 'Invoice Date', type: 'DAY',
-          timeRole: 'business_date', recommendedUse: 'Primary invoice/bill business date for timeWindow, revenue, AP, and period pivot queries.' },
         { column: 'invoice_date_due', caption: 'Due Date', type: 'DAY',
           description: 'Invoice due date (mapped to account.move.line.date_maturity on the '
               + 'receivable/payable line — use dateMaturity via the move dimension when querying '
@@ -123,8 +170,8 @@ export const model = {
         { column: 'payment_state', caption: 'Payment Status', type: 'STRING', dictRef: dicts.account_payment_state,
           description: 'Payment reconciliation status. enum: not_paid / in_payment (bank sync pending) / '
               + 'paid (fully reconciled) / partial (partially reconciled) / reversed / invoicing_legacy '
-              + '(pre-migration). AR outstanding uses not_paid + partial + in_payment; paid / reversed / '
-              + 'invoicing_legacy are excluded from aging.',
+              + '(pre-migration). AR/AP outstanding uses not_paid + partial + in_payment; '
+              + 'paid / reversed / invoicing_legacy are excluded from aging.',
           dictionaryDiscovery: {
               enabled: true,
               strategy: 'group_by',
@@ -140,6 +187,14 @@ export const model = {
                   closed_receivable: {
                       values: ['paid', 'reversed', 'invoicing_legacy'],
                       description: 'Receivable entries excluded from open aging'
+                  },
+                  open_payable: {
+                      values: ['not_paid', 'partial', 'in_payment'],
+                      description: 'Payable entries that are not fully settled'
+                  },
+                  closed_payable: {
+                      values: ['paid', 'reversed', 'invoicing_legacy'],
+                      description: 'Payable entries excluded from open aging'
                   }
               }
           }

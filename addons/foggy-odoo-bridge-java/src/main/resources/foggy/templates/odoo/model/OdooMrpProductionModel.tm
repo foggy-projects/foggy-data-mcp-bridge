@@ -16,6 +16,55 @@ export const model = {
 
     dimensions: [
         {
+            name: 'dateFinished',
+            foreignKey: 'date_finished',
+            primaryKey: 'date_finished',
+            captionColumn: 'date_finished',
+            caption: 'Finished Date',
+            description: 'Self date dimension backed by mrp_production.date_finished without joining dim_date',
+            type: 'DATETIME',
+            timeRole: 'business_date',
+            recommendedUse: 'Primary manufacturing completion date for production count, throughput, and period pivot queries.',
+            properties: [
+                {
+                    column: 'date_finished',
+                    name: 'year',
+                    caption: 'Finished Year',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%Y', ${alias}.date_finished) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(YEAR FROM ${alias}.date_finished)`; } },
+                        mysql: { builder: (alias) => { return `YEAR(${alias}.date_finished)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(year, ${alias}.date_finished)`; } }
+                    }
+                },
+                {
+                    column: 'date_finished',
+                    name: 'month',
+                    caption: 'Finished Month',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%m', ${alias}.date_finished) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(MONTH FROM ${alias}.date_finished)`; } },
+                        mysql: { builder: (alias) => { return `MONTH(${alias}.date_finished)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(month, ${alias}.date_finished)`; } }
+                    }
+                },
+                {
+                    column: 'date_finished',
+                    name: 'yearMonth',
+                    caption: 'Finished Year-Month',
+                    type: 'STRING',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `strftime('%Y-%m', ${alias}.date_finished)`; } },
+                        postgresql: { builder: (alias) => { return `TO_CHAR(${alias}.date_finished, 'YYYY-MM')`; } },
+                        mysql: { builder: (alias) => { return `DATE_FORMAT(${alias}.date_finished, '%Y-%m')`; } },
+                        sqlserver: { builder: (alias) => { return `CONVERT(char(7), ${alias}.date_finished, 120)`; } }
+                    }
+                }
+            ]
+        },
+        {
             name: 'product',
             tableName: 'product_product',
             foreignKey: 'product_id',
@@ -84,20 +133,20 @@ export const model = {
         },
         {
             name: 'location',
-            tableName: 'stock_location',
-            foreignKey: 'location_src_id',
-            primaryKey: 'id',
-            captionDef: jsonbCaption(),
-            caption: 'Source Location',
+        tableName: 'stock_location',
+        foreignKey: 'location_src_id',
+        primaryKey: 'id',
+        captionColumn: 'complete_name',
+        caption: 'Source Location',
             description: 'Source location for raw materials'
         },
         {
             name: 'locationDest',
-            tableName: 'stock_location',
-            foreignKey: 'location_dest_id',
-            primaryKey: 'id',
-            captionDef: jsonbCaption(),
-            caption: 'Destination Location',
+        tableName: 'stock_location',
+        foreignKey: 'location_dest_id',
+        primaryKey: 'id',
+        captionColumn: 'complete_name',
+        caption: 'Destination Location',
             description: 'Destination location for finished products'
         }
     ],
@@ -113,9 +162,6 @@ export const model = {
         { column: 'date_start', caption: 'Start Date', type: 'DATETIME',
           description: 'Planned start date',
           timeRole: 'start_date', recommendedUse: 'Use for planned manufacturing start and queue analysis.' },
-        { column: 'date_finished', caption: 'End Date', type: 'DATETIME',
-          description: 'Actual end date',
-          timeRole: 'business_date', recommendedUse: 'Primary manufacturing completion date for production count, throughput, and period pivot queries.' },
         { column: 'date_deadline', caption: 'Deadline', type: 'DATETIME',
           timeRole: 'deadline_date', recommendedUse: 'Use for manufacturing deadline and lateness analysis.' },
         { column: 'is_locked', caption: 'Is Locked', type: 'BOOL' },

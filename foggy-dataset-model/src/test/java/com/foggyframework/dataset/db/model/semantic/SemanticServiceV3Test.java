@@ -379,6 +379,63 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         log.info("多模型维度属性过滤验证通过");
     }
 
+    @Test
+    @Order(28)
+    @DisplayName("V3元数据 - aggregate relation 输出度量应暴露到 JSON metadata")
+    void testMetadata_Json_ShouldExposeAggregateRelationMeasure() {
+        SemanticMetadataRequest request = new SemanticMetadataRequest();
+        request.setQmModels(Collections.singletonList("OrderSalesAggregateRelationAccessQueryModel"));
+
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) response.getData().get("fields");
+        assertNotNull(fields, "字段信息不应为空");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> salesAmount = (Map<String, Object>) fields.get("salesAmount");
+        assertNotNull(salesAmount, "aggregate relation 输出 salesAmount 应进入 JSON metadata");
+        assertEquals("销售金额", salesAmount.get("name"), "应继承 RHS 源 measure caption");
+        assertEquals("salesAmount", salesAmount.get("fieldName"));
+        assertEquals("MONEY", salesAmount.get("type"), "应继承 RHS 源 measure 类型");
+        assertEquals(true, salesAmount.get("measure"));
+        assertEquals(true, salesAmount.get("aggregatable"));
+        assertEquals("SUM", salesAmount.get("aggregation"), "应继承 RHS 源 measure 聚合方式");
+        assertTrue(String.valueOf(salesAmount.get("meta")).contains("默认聚合:SUM"),
+                "meta 应包含默认聚合信息");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> models = (Map<String, Object>) salesAmount.get("models");
+        assertNotNull(models, "字段应保留模型归属信息");
+        assertTrue(models.containsKey("OrderSalesAggregateRelationAccessQueryModel"),
+                "字段归属应指向 aggregate relation QM");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aggregateRelation = (Map<String, Object>) salesAmount.get("aggregateRelation");
+        assertNotNull(aggregateRelation, "字段应保留 aggregate relation lineage");
+        assertEquals(Set.of(
+                        "aggregation",
+                        "sourceCaption",
+                        "sourceMeasure",
+                        "sourceAlias",
+                        "sourceExpression",
+                        "aggregateExpression",
+                        "sourceColumn"),
+                aggregateRelation.keySet(),
+                "aggregate relation lineage JSON contract 不应漂移");
+        aggregateRelation.forEach((key, value) ->
+                assertTrue(value instanceof String, "aggregate relation lineage 字段应保持 JSON 字符串: " + key));
+        assertEquals("SUM", aggregateRelation.get("aggregation"));
+        assertEquals("salesAmount", aggregateRelation.get("sourceColumn"));
+        assertEquals("salesAmount", aggregateRelation.get("sourceAlias"));
+        assertEquals("salesAmount", aggregateRelation.get("sourceMeasure"));
+        assertEquals("销售金额", aggregateRelation.get("sourceCaption"));
+        assertTrue(String.valueOf(aggregateRelation.get("sourceExpression")).contains("sales_amount"));
+        assertTrue(String.valueOf(aggregateRelation.get("aggregateExpression")).contains("sum"));
+        assertTrue(String.valueOf(aggregateRelation.get("aggregateExpression")).contains("sales_amount"));
+    }
+
     // ==========================================
     // 对比 V2 和 V3
     // ==========================================

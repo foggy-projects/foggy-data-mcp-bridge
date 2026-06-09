@@ -92,13 +92,17 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
     @Override
     public void acceptFrom(JdbcQuery.JdbcFrom from) {
 
-        sb.append("from ").append(from.getFromObject().getBody()).append(" ").append(getAlias(from.getFromObject())).append("\t");
+        sb.append("from ")
+                .append(renderQueryObjectBody(from.getFromObject()))
+                .append(" ")
+                .append(getAlias(from.getFromObject()))
+                .append("\t");
         if (from.getJoins() != null) {
 
             for (JdbcQuery.JdbcFrom.JdbcJoin join : from.getJoins()) {
                 sb
                         .append(join.getJoinTypeString())
-                        .append(join.getRight().getBody()).append(" ")
+                        .append(renderQueryObjectBody(join.getRight())).append(" ")
                         .append(getAlias(join.getRight())).append(" ")
                         .append(join.getRight().getForceIndex() == null ? "" : join.getRight().getForceIndex())
                         .append(" on ");
@@ -134,6 +138,22 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
             }
         }
 
+    }
+
+    private String renderQueryObjectBody(QueryObject queryObject) {
+        String body = queryObject.getBody();
+        appendBodyParameters(queryObject);
+        return body;
+    }
+
+    private void appendBodyParameters(QueryObject queryObject) {
+        List<Object> bodyParameters = queryObject.getBodyParameters();
+        if (bodyParameters == null || bodyParameters.isEmpty()) {
+            return;
+        }
+        for (Object rawValue : bodyParameters) {
+            values.add(dialect.convertParameterValue(rawValue));
+        }
     }
 
     @Override

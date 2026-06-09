@@ -1,0 +1,424 @@
+{
+  "version": "1.0",
+  "description": "Odoo sales/purchase optional AI route fixtures. Enable with AI_TEST_CASE_FILES=ai-test-cases/ecommerce-tests.json,ai-test-cases/odoo-sales-purchase-tests.json when Odoo sale_order and purchase_order demo data is available.",
+  "testCases": [
+    {
+      "id": "ODOO-SALE-001",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已确认销售订单，显示订单号、客户、订单状态、开票状态和订单金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooSaleOrderQueryModel",
+      "description": "Odoo 销售语义 - 已确认销售订单使用销售生命周期 state，不使用开票状态",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "state", "invoiceStatus", "amountTotal"],
+          "slice": [
+            {"field": "state", "op": "in", "value": ["sale", "done"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "state", "invoiceStatus", "amountTotal"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": ["sale", "done"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceStatus",
+            "value": "invoiced",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-SALE-002",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已完全开票的销售订单，显示订单号、客户、订单状态、开票状态和订单金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooSaleOrderQueryModel",
+      "description": "Odoo 销售语义 - 已完全开票使用 invoiceStatus，不使用订单生命周期 done 代替",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "partner$caption", "state", "invoiceStatus", "amountTotal"],
+          "slice": [
+            {"field": "invoiceStatus", "op": "=", "value": "invoiced"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "partner$caption", "state", "invoiceStatus", "amountTotal"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceStatus",
+            "value": "invoiced",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "done",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-PURCHASE-001",
+      "category": "FILTER_QUERY",
+      "question": "查询所有已确认采购订单，显示采购单号、供应商、采购状态、账单状态和采购金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooPurchaseOrderQueryModel",
+      "description": "Odoo 采购语义 - 已确认采购订单使用采购生命周期 state，不使用账单状态",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "vendor$caption", "state", "invoiceStatus", "amountTotal"],
+          "slice": [
+            {"field": "state", "op": "in", "value": ["purchase", "done"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "vendor$caption", "state", "invoiceStatus", "amountTotal"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": ["purchase", "done"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceStatus",
+            "value": "invoiced",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-PURCHASE-002",
+      "category": "FILTER_QUERY",
+      "question": "查询所有等待供应商账单的采购订单，显示采购单号、供应商、采购状态、账单状态和采购金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooPurchaseOrderQueryModel",
+      "description": "Odoo 采购语义 - 等待账单使用 purchase invoiceStatus，不使用采购生命周期 purchase 代替",
+      "difficulty": "MEDIUM",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["name", "vendor$caption", "state", "invoiceStatus", "amountTotal"],
+          "slice": [
+            {"field": "invoiceStatus", "op": "=", "value": "to invoice"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["name", "vendor$caption", "state", "invoiceStatus", "amountTotal"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceStatus",
+            "value": "to invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "state",
+            "value": "purchase",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-PURCHASE-XDOC-001",
+      "category": "FILTER_QUERY",
+      "question": "查询采购订单对应的收货单和供应商账单，显示采购单号、供应商、收货单、收货状态、账单号、账单类型、账单付款状态和账单余额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooPurchaseDocumentFlowQueryModel",
+      "description": "Odoo 采购跨单据语义 - 使用显式采购单据流连接采购订单、收货单和供应商账单",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["purchaseOrder$caption", "vendor$caption", "receiptPicking$caption", "receiptPicking$state", "billMove$caption", "billMove$moveType", "billMove$paymentState", "billMove$amountResidual"],
+          "slice": [
+            {"field": "purchaseOrder$state", "op": "in", "value": ["purchase", "done"]},
+            {"field": "billMove$moveType", "op": "=", "value": "in_invoice"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["purchaseOrder$caption", "vendor$caption", "receiptPicking$caption", "receiptPicking$state", "billMove$caption", "billMove$moveType", "billMove$paymentState", "billMove$amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "purchaseOrder$state",
+            "value": ["purchase", "done"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$moveType",
+            "value": "in_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "receiptPicking$origin",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$invoiceOrigin",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-PURCHASE-XDOC-002",
+      "category": "FILTER_QUERY",
+      "question": "查询已经收货但供应商账单仍未付款的采购单据流，显示采购单号、供应商、收货单、账单号、账单付款状态和未付余额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooPurchaseDocumentFlowQueryModel",
+      "description": "Odoo 采购跨单据语义 - 已收货使用库存收货 state=done，未付款使用供应商账单 paymentState，不使用采购 state 代替付款状态",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["purchaseOrder$caption", "vendor$caption", "receiptPicking$caption", "billMove$caption", "billMove$paymentState", "billMove$amountResidual"],
+          "slice": [
+            {"field": "purchaseOrder$state", "op": "in", "value": ["purchase", "done"]},
+            {"field": "receiptPicking$state", "op": "=", "value": "done"},
+            {"field": "billMove$moveType", "op": "=", "value": "in_invoice"},
+            {"field": "billMove$paymentState", "op": "in", "value": ["not_paid", "partial", "in_payment"]}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["purchaseOrder$caption", "vendor$caption", "receiptPicking$caption", "billMove$caption", "billMove$paymentState", "billMove$amountResidual"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "purchaseOrder$state",
+            "value": ["purchase", "done"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "receiptPicking$state",
+            "value": "done",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$moveType",
+            "value": "in_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "billMove$paymentState",
+            "value": ["not_paid", "partial", "in_payment"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "purchaseOrder$state",
+            "value": "paid",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-SALE-XDOC-001",
+      "category": "FILTER_QUERY",
+      "question": "查询销售订单对应的出库单、客户发票和客户收款，显示销售单号、客户、出库单、出库状态、客户发票号、发票类型、发票付款状态和收款单号",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooSaleDocumentFlowQueryModel",
+      "description": "Odoo 销售跨单据语义 - 使用显式销售单据流连接销售订单、出库单、客户发票和客户收款",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["saleOrder$caption", "customer$caption", "deliveryPicking$caption", "deliveryPicking$state", "invoiceMove$caption", "invoiceMove$moveType", "invoiceMove$paymentState", "payment$caption"],
+          "slice": [
+            {"field": "saleOrder$state", "op": "in", "value": ["sale", "done"]},
+            {"field": "invoiceMove$moveType", "op": "=", "value": "out_invoice"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["saleOrder$caption", "customer$caption", "deliveryPicking$caption", "deliveryPicking$state", "invoiceMove$caption", "invoiceMove$moveType", "invoiceMove$paymentState", "payment$caption"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "saleOrder$state",
+            "value": ["sale", "done"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceMove$moveType",
+            "value": "out_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "deliveryPicking$origin",
+            "must_exist": false
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceMove$invoiceOrigin",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ODOO-SALE-XDOC-002",
+      "category": "FILTER_QUERY",
+      "question": "查询已经出库且已有客户收款但发票仍未完全结清的销售单据流，显示销售单号、客户、出库单、客户发票号、发票付款状态、未收余额和收款金额",
+      "expected_tool": "dataset.query_model",
+      "target_model": "OdooSaleDocumentFlowQueryModel",
+      "description": "Odoo 销售跨单据语义 - 已出库使用库存出库 state=done，未完全回款使用客户发票 paymentState，客户收款使用 inbound/customer",
+      "difficulty": "HARD",
+      "direct_tool_arguments": {
+        "payload": {
+          "columns": ["saleOrder$caption", "customer$caption", "deliveryPicking$caption", "invoiceMove$caption", "invoiceMove$paymentState", "invoiceMove$amountResidual", "payment$amount"],
+          "slice": [
+            {"field": "saleOrder$state", "op": "in", "value": ["sale", "done"]},
+            {"field": "deliveryPicking$state", "op": "=", "value": "done"},
+            {"field": "invoiceMove$moveType", "op": "=", "value": "out_invoice"},
+            {"field": "invoiceMove$paymentState", "op": "in", "value": ["partial", "in_payment"]},
+            {"field": "payment$paymentType", "op": "=", "value": "inbound"},
+            {"field": "payment$partnerType", "op": "=", "value": "customer"}
+          ]
+        }
+      },
+      "expected": {
+        "required_columns": ["saleOrder$caption", "customer$caption", "deliveryPicking$caption", "invoiceMove$caption", "invoiceMove$paymentState", "invoiceMove$amountResidual", "payment$amount"],
+        "tool_argument_rules": [
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "saleOrder$state",
+            "value": ["sale", "done"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "deliveryPicking$state",
+            "value": "done",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceMove$moveType",
+            "value": "out_invoice",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "invoiceMove$paymentState",
+            "value": ["partial", "in_payment"],
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$paymentType",
+            "value": "inbound",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "payment$partnerType",
+            "value": "customer",
+            "must_exist": true
+          },
+          {
+            "tool": "dataset.query_model",
+            "path": "slice",
+            "field": "saleOrder$state",
+            "value": "paid",
+            "must_exist": false
+          }
+        ],
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -19,15 +19,18 @@ foggy:
       model-list:
         - OdooAccountMoveLineQueryModel
         - OdooAccountMoveQueryModel
+        - OdooAccountPaymentBillMatchQueryModel
         - OdooAccountPaymentQueryModel
         - OdooCrmLeadQueryModel
         - OdooHrEmployeeQueryModel
         - OdooMrpProductionQueryModel
         - OdooProductTemplateQueryModel
         - OdooProjectTaskQueryModel
+        - OdooPurchaseDocumentFlowQueryModel
         - OdooPurchaseOrderQueryModel
         - OdooResCompanyQueryModel
         - OdooResPartnerQueryModel
+        - OdooSaleDocumentFlowQueryModel
         - OdooSaleOrderLineQueryModel
         - OdooSaleOrderQueryModel
         - OdooStockPickingQueryModel

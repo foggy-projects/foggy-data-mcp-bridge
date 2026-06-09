@@ -4,11 +4,12 @@ bug_source: user-report
 version: 9.2.0
 ticket: BUG-data-viewer-direct-extdata-runtime-filter
 severity: major
-status: ready-for-verification
+status: current-source-verified
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
 owner: data-viewer-query
+updated_at: 2026-06-06
 ---
 
 # Data Viewer Direct ExtData Runtime Filter Regression
@@ -82,6 +83,18 @@ Result:
 - Failures: 0
 - Errors: 0
 - Skipped: 0
+
+Current-source verification passed on 2026-06-06:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-mcp-launcher -am -Dtest=DataViewerApiSmokeTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Result:
+
+- Reactor build passed across 14 modules.
+- `DataViewerApiSmokeTest`: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`.
+- The logged `aggregate relation runtime filter 值不能为空` stack trace is the expected missing-`extData` negative case asserted by the test; the overall test result is success.
 
 ## Current Conclusion
 

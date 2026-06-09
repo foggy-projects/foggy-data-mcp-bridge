@@ -1040,7 +1040,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 处理度量
+        Set<String> tableMeasureFieldNames = new HashSet<>();
         for (DbMeasure measure : jdbcModel.getMeasures()) {
+            tableMeasureFieldNames.add(measure.getName());
             if (!isFieldInLevels(measure.getAi(), levels)) {
                 continue;
             }
@@ -1056,6 +1058,31 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             Map<String, Object> fieldInfo = createMeasureFieldInfo(measure, queryModel.getName());
+            mergeFieldInfo(fields, fieldName, fieldInfo);
+        }
+
+        // 处理 QM 额外暴露的 measure 查询列，例如 aggregate relation 输出度量。
+        Set<String> queryMeasureFieldNames = new HashSet<>();
+        for (DbQueryColumn queryColumn : queryModel.getJdbcQueryColumns()) {
+            if (!queryColumn.isMeasure()) {
+                continue;
+            }
+
+            String fieldName = queryColumn.getName();
+            if (tableMeasureFieldNames.contains(fieldName) || !queryMeasureFieldNames.add(fieldName)) {
+                continue;
+            }
+            if (!isFieldInLevels(queryColumn.getAi(), levels)) {
+                continue;
+            }
+            if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
+                continue;
+            }
+            if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                continue;
+            }
+
+            Map<String, Object> fieldInfo = createQueryMeasureFieldInfo(queryColumn, queryModel.getName());
             mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
@@ -1902,6 +1929,100 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("models", models);
 
         return fieldInfo;
+    }
+
+    private Map<String, Object> createQueryMeasureFieldInfo(DbQueryColumn measure, String modelName) {
+        Map<String, Object> fieldInfo = new LinkedHashMap<>();
+        String fieldName = measure.getName();
+        String caption = measure.getCaption() != null ? measure.getCaption() : fieldName;
+        fieldInfo.put("name", caption);
+        fieldInfo.put("fieldName", fieldName);
+
+        String aggregation = measure.getAggregation() != null ? measure.getAggregation().name() : "SUM";
+        fieldInfo.put("meta", "度量 | 数值 | 默认聚合:" + aggregation);
+
+        DbColumnType columnType = measure.getType();
+        fieldInfo.put("type", columnType != null ? columnType.name() : "NUMBER");
+        fieldInfo.put("filterType", "number");
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("measure", true);
+        fieldInfo.put("aggregatable", true);
+        fieldInfo.put("aggregation", aggregation);
+        addAggregateRelationMetadata(fieldInfo, measure);
+
+        String sqlCol = measure.getSqlColumnName();
+        if (sqlCol != null) {
+            fieldInfo.put("sourceColumn", sqlCol);
+        }
+
+        Map<String, Object> modelInfo = new LinkedHashMap<>();
+        modelInfo.put("description", caption + " (聚合方式: " + aggregation + ")");
+
+        Map<String, Object> models = new LinkedHashMap<>();
+        models.put(modelName, modelInfo);
+        fieldInfo.put("models", models);
+
+        return fieldInfo;
+    }
+
+    private void addAggregateRelationMetadata(Map<String, Object> fieldInfo, DbQueryColumn measure) {
+        Object extData = measure.getSelectColumn() == null ? measure.getExtData() : measure.getSelectColumn().getExtData();
+        if (!(extData instanceof Map<?, ?> extMap)) {
+            return;
+        }
+        Object aggregateRelation = extMap.get("aggregateRelation");
+        if (!(aggregateRelation instanceof Map<?, ?> relation)) {
+            return;
+        }
+
+        addSemanticScaleMetadata(fieldInfo,
+                toBigDecimal(relation.get("semanticScaleFactor")),
+                relation.get("semanticUnit") instanceof String ? (String) relation.get("semanticUnit") : null,
+                relation.get("semanticUnitLabel") instanceof String ? (String) relation.get("semanticUnitLabel") : null);
+
+        Map<String, Object> relationInfo = new LinkedHashMap<>();
+        copyAggregateRelationValue(relationInfo, relation, "aggregation");
+        copyAggregateRelationValue(relationInfo, relation, "sourceColumn");
+        copyAggregateRelationValue(relationInfo, relation, "sourceAlias");
+        copyAggregateRelationValue(relationInfo, relation, "sourceCaption");
+        copyAggregateRelationValue(relationInfo, relation, "sourceMeasure");
+        BigDecimal semanticScaleFactor = toBigDecimal(relation.get("semanticScaleFactor"));
+        if (semanticScaleFactor != null) {
+            relationInfo.put("semanticScaleFactor", semanticScaleFactor.stripTrailingZeros().toPlainString());
+        }
+        copyAggregateRelationValue(relationInfo, relation, "semanticUnit");
+        copyAggregateRelationValue(relationInfo, relation, "semanticUnitLabel");
+        copyAggregateRelationValue(relationInfo, relation, "sourceExpression");
+        copyAggregateRelationValue(relationInfo, relation, "aggregateExpression");
+        if (!relationInfo.isEmpty()) {
+            fieldInfo.put("aggregateRelation", relationInfo);
+        }
+    }
+
+    private void copyAggregateRelationValue(Map<String, Object> target, Map<?, ?> source, String key) {
+        Object value = source.get(key);
+        if (value instanceof String str && !str.isBlank()) {
+            target.put(key, str);
+        } else if (value instanceof Number || value instanceof Boolean) {
+            target.put(key, value);
+        }
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        try {
+            return new BigDecimal(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private void addSemanticScaleMetadata(Map<String, Object> fieldInfo, DbProperty property) {

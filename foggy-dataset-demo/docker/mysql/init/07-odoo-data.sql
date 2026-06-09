@@ -93,7 +93,8 @@ INSERT INTO `sale_order_line` (`id`, `order_id`, `product_id`, `product_template
 INSERT INTO `stock_picking_type` (`id`, `name`, `code`, `sequence_code`) VALUES
 (1, 'Receipts', 'incoming', 'IN'),
 (2, 'Delivery Orders', 'outgoing', 'OUT'),
-(3, 'Internal Transfers', 'internal', 'INT');
+(3, 'Internal Transfers', 'internal', 'INT'),
+(4, 'Manufacturing', 'mrp_operation', 'MO');
 
 INSERT INTO `purchase_order` (`id`, `name`, `state`, `partner_id`, `user_id`, `company_id`, `currency_id`, `picking_type_id`, `date_order`, `date_approve`, `invoice_status`, `amount_untaxed`, `amount_tax`, `amount_total`) VALUES
 (1, 'P00001', 'purchase', 5, 5, 1, 1, 1, '2025-01-10 09:00:00', '2025-01-11 10:00:00', 'invoiced', 15000.00, 1950.00, 16950.00),
@@ -114,8 +115,49 @@ INSERT INTO `account_move` (`id`, `name`, `move_type`, `state`, `partner_id`, `j
 (2, 'INV/2025/00002', 'out_invoice', 'posted', 3, 1, 1, 1, 3, 2, '2025-02-05', '2025-02-05', '2025-03-07', 'paid',     'S00003', 1299.00, 168.87, 1467.87,    0.00,  1299.00,  1467.87,    0.00),
 (3, 'INV/2025/00003', 'out_invoice', 'posted', 2, 4, 2, 1, 4, 1, '2025-03-10', '2025-03-10', '2025-04-09', 'not_paid', 'S00002', 5990.00, 778.70, 6768.70, 6768.70,  5990.00,  6768.70, 6768.70),
 (4, 'BILL/2025/0001', 'in_invoice',  'posted', 5, 2, 1, 1, NULL, NULL, '2025-01-15', '2025-01-15', '2025-02-14', 'paid',    'P00001', 15000.00, 1950.00, 16950.00,    0.00, -15000.00, -16950.00,    0.00),
-(5, 'BILL/2025/0002', 'in_invoice',  'draft',  6, 2, 1, 1, NULL, NULL, '2025-02-10', '2025-02-10', '2025-03-12', 'not_paid','P00002',  8500.00, 1105.00,  9605.00, 9605.00,  -8500.00,  -9605.00, -9605.00),
-(6, 'INV/2025/00004', 'out_invoice', 'posted', 3, 1, 1, 1, 3, 2, '2025-03-08', '2025-03-08', '2025-04-07', 'partial', 'S00007', 3888.00, 505.44, 4393.44, 2000.00,  3888.00,  4393.44, 2000.00);
+(5, 'BILL/2025/0002', 'in_invoice',  'posted', 6, 2, 1, 1, NULL, NULL, '2025-02-10', '2025-02-10', '2025-03-12', 'not_paid','P00002',  8500.00, 1105.00,  9605.00, 9605.00,  -8500.00,  -9605.00, -9605.00),
+(6, 'INV/2025/00004', 'out_invoice', 'posted', 3, 1, 1, 1, 3, 2, '2025-03-08', '2025-03-08', '2025-04-07', 'partial', 'S00007', 3888.00, 505.44, 4393.44, 2000.00,  3888.00,  4393.44, 2000.00),
+(7, 'BILL/2025/0003', 'in_invoice',  'posted', 5, 2, 1, 1, NULL, NULL, '2025-03-01', '2025-03-01', '2025-03-31', 'partial', 'P00005',  8500.00, 1110.00,  9610.00, 4610.00,  -8500.00,  -9610.00, -4610.00),
+(8, 'BILL/2025/0004', 'in_invoice',  'posted', 6, 2, 1, 1, NULL, NULL, '2025-03-03', '2025-03-03', '2025-04-02', 'paid',    'P00006',  1769.91,  230.09,  2000.00,    0.00,  -1769.91,  -2000.00,     0.00),
+(9, 'BILL/2025/0005', 'in_invoice',  'posted', 6, 2, 1, 1, NULL, NULL, '2025-03-04', '2025-03-04', '2025-04-03', 'paid',    'P00007',  1415.93,  184.07,  1600.00,    0.00,  -1415.93,  -1600.00,     0.00),
+(10,'RINV/2025/0001','out_refund',   'posted', 1, 1, 1, 1, 3, 1, '2025-03-15', '2025-03-15', '2025-03-15', 'reversed','S00001',  500.00,   65.00,   565.00,    0.00,   -500.00,   -565.00,     0.00),
+(11,'RBILL/2025/0001','in_refund',   'posted', 5, 2, 1, 1, NULL, NULL, '2025-03-16', '2025-03-16', '2025-03-16', 'reversed','P00001',  300.00,   39.00,   339.00,    0.00,    300.00,    339.00,     0.00);
+
+INSERT INTO `account_account` (`id`, `name`, `code`, `account_type`, `company_id`) VALUES
+(1, 'Accounts Receivable', '1122', 'asset_receivable', 1),
+(2, 'Sales Revenue',       '6001', 'income',           1),
+(3, 'Accounts Payable',    '2202', 'liability_payable',1),
+(4, 'Bank',                '1002', 'asset_cash',       1);
+
+INSERT INTO `account_move_line` (`id`, `move_id`, `account_id`, `journal_id`, `partner_id`, `product_id`, `company_id`, `currency_id`, `move_name`, `name`, `ref`, `parent_state`, `display_type`, `date`, `invoice_date`, `date_maturity`, `matching_number`, `reconciled`, `debit`, `credit`, `balance`, `amount_currency`, `amount_residual`, `quantity`, `price_unit`, `price_subtotal`, `price_total`, `discount`) VALUES
+(1, 1, 1, 1, 1, NULL, 1, 1, 'INV/2025/00001', 'Receivable - Azure Interior', 'S00001', 'posted', NULL, '2025-01-20', '2025-01-20', '2025-02-19', 'P', 1, 3378.70,    0.00, 3378.70, 3378.70,    0.00, 0,    0.00,    0.00,    0.00, 0),
+(2, 3, 1, 4, 2, NULL, 2, 1, 'INV/2025/00003', 'Receivable - Deco Addict',    'S00002', 'posted', NULL, '2025-03-10', '2025-03-10', '2025-04-09', NULL, 0, 6768.70,    0.00, 6768.70, 6768.70, 6768.70, 0,    0.00,    0.00,    0.00, 0),
+(3, 6, 1, 1, 3, NULL, 1, 1, 'INV/2025/00004', 'Receivable - Gemini Furniture','S00007', 'posted', NULL, '2025-03-08', '2025-03-08', '2025-04-07', 'P', 0, 4393.44,    0.00, 4393.44, 4393.44, 2000.00, 0,    0.00,    0.00,    0.00, 0),
+(4, 4, 3, 2, 5, NULL, 1, 1, 'BILL/2025/0001', 'Payable - Wood Corner',       'P00001', 'posted', NULL, '2025-01-15', '2025-01-15', '2025-02-14', 'P', 1,    0.00,16950.00,-16950.00,-16950.00,    0.00, 0,    0.00,    0.00,    0.00, 0),
+(5, 3, 2, 4, 2, 2,    2, 1, 'INV/2025/00003', 'Desk Combo',                  'S00002', 'posted', 'product', '2025-03-10', '2025-03-10', NULL, NULL, 0, 0.00, 5990.00, -5990.00, -5990.00,    0.00, 10, 599.00, 5990.00, 6768.70, 0),
+(6, 5, 3, 2, 6, NULL, 1, 1, 'BILL/2025/0002', 'Payable - Steel Supplier Co', 'P00002', 'posted', NULL, '2025-02-10', '2025-02-10', '2025-03-12', NULL, 0,    0.00, 9605.00, -9605.00, -9605.00, 9605.00, 0,    0.00,    0.00,    0.00, 0),
+(7, 7, 3, 2, 5, NULL, 1, 1, 'BILL/2025/0003', 'Payable - Wood Corner Partial','P00005', 'posted', NULL, '2025-03-01', '2025-03-01', '2025-03-31', 'P', 0,    0.00, 9610.00, -9610.00, -9610.00, 4610.00, 0,    0.00,    0.00,    0.00, 0),
+(8, 8, 3, 2, 6, NULL, 1, 1, 'BILL/2025/0004', 'Payable - Steel Split A',     'P00006', 'posted', NULL, '2025-03-03', '2025-03-03', '2025-04-02', 'P', 1,    0.00, 2000.00, -2000.00, -2000.00,    0.00, 0,    0.00,    0.00,    0.00, 0),
+(9, 9, 3, 2, 6, NULL, 1, 1, 'BILL/2025/0005', 'Payable - Steel Split B',     'P00007', 'posted', NULL, '2025-03-04', '2025-03-04', '2025-04-03', 'P', 1,    0.00, 1600.00, -1600.00, -1600.00,    0.00, 0,    0.00,    0.00,    0.00, 0),
+(10,10, 1, 1, 1, NULL, 1, 1, 'RINV/2025/0001', 'Receivable Refund - Azure Interior','S00001', 'posted', NULL, '2025-03-15', '2025-03-15', '2025-03-15', 'R', 1,    0.00,  565.00,  -565.00,  -565.00,    0.00, 0,    0.00,    0.00,    0.00, 0),
+(11,11, 3, 2, 5, NULL, 1, 1, 'RBILL/2025/0001','Vendor Refund - Wood Corner','P00001', 'posted', NULL, '2025-03-16', '2025-03-16', '2025-03-16', 'R', 1,  339.00,    0.00,   339.00,   339.00,    0.00, 0,    0.00,    0.00,    0.00, 0);
+
+INSERT INTO `account_payment_method` (`id`, `name`, `code`, `payment_type`) VALUES
+(1, 'Manual', 'manual', 'inbound'),
+(2, 'Manual', 'manual', 'outbound');
+
+INSERT INTO `account_payment` (`id`, `move_id`, `partner_id`, `currency_id`, `destination_journal_id`, `payment_method_id`, `payment_type`, `partner_type`, `payment_reference`, `is_reconciled`, `is_matched`, `is_internal_transfer`, `amount`, `amount_company_currency_signed`) VALUES
+(1, 1, 1, 1, 3, 1, 'inbound',  'customer', 'PAY/2025/00001', 1, 1, 0, 3378.70,  3378.70),
+(2, 6, 3, 1, 3, 1, 'inbound',  'customer', 'PAY/2025/00002', 0, 0, 0, 1200.00,  1200.00),
+(3, 4, 5, 1, 3, 2, 'outbound', 'supplier', 'PAY/2025/00003', 1, 1, 0,16950.00,-16950.00),
+(4, 7, 5, 1, 3, 2, 'outbound', 'supplier', 'PAY/2025/00004', 1, 1, 0, 5000.00, -5000.00),
+(5, 8, 6, 1, 3, 2, 'outbound', 'supplier', 'PAY/2025/00005', 1, 1, 0, 3600.00, -3600.00);
+
+INSERT INTO `account_payment_bill_match` (`id`, `payment_id`, `bill_move_id`, `payable_line_id`, `partner_id`, `matched_date`, `match_status`, `matched_amount`) VALUES
+(1, 3, 4, 4, 5, '2025-02-10', 'matched', 16950.00),
+(2, 4, 7, 7, 5, '2025-03-01', 'matched',  5000.00),
+(3, 5, 8, 8, 6, '2025-03-03', 'matched',  2000.00),
+(4, 5, 9, 9, 6, '2025-03-03', 'matched',  1600.00);
 
 -- ========== 库存模块 ==========
 
@@ -131,7 +173,32 @@ INSERT INTO `stock_picking` (`id`, `name`, `state`, `partner_id`, `picking_type_
 (3, 'WH/OUT/00002', 'assigned',  2, 2, 1, 3, 4, 2, 'S00002', '2025-01-22 08:00:00', NULL),
 (4, 'WH/IN/00002',  'done',      6, 1, 4, 1, 5, 1, 'P00002', '2025-02-07 09:00:00', '2025-02-08 11:00:00'),
 (5, 'WH/OUT/00003', 'done',      3, 2, 1, 3, 3, 1, 'S00003', '2025-02-02 08:00:00', '2025-02-03 14:00:00'),
-(6, 'WH/INT/00001', 'confirmed', NULL, 3, 1, 2, 1, 1, NULL,    '2025-03-01 10:00:00', NULL);
+(6, 'WH/INT/00001', 'confirmed', NULL, 3, 1, 2, 1, 1, NULL,    '2025-03-01 10:00:00', NULL),
+(7, 'WH/OUT/00004', 'done',      3, 2, 1, 3, 3, 1, 'S00007', '2025-03-06 08:00:00', '2025-03-07 15:00:00');
+
+INSERT INTO `purchase_document_flow` (`id`, `purchase_order_id`, `receipt_picking_id`, `bill_move_id`, `vendor_id`, `flow_status`, `receipt_status`, `billing_status`, `payment_state`, `ordered_amount`, `billed_amount`, `bill_residual`) VALUES
+(1, 1, 1, 4, 5, 'received_billed_paid', 'done', 'invoiced',   'paid',     16950.00, 16950.00,    0.00),
+(2, 2, 4, 5, 6, 'received_billed_open', 'done', 'to invoice', 'not_paid',  9605.00,  9605.00, 9605.00);
+
+INSERT INTO `sale_document_flow` (`id`, `sale_order_id`, `delivery_picking_id`, `invoice_move_id`, `payment_id`, `customer_id`, `flow_status`, `delivery_status`, `invoice_status`, `payment_state`, `ordered_amount`, `invoiced_amount`, `invoice_residual`, `paid_amount`) VALUES
+(1, 1, 2, 1, 1, 1, 'delivered_invoiced_paid',    'done',     'invoiced',   'paid',     3378.70, 3378.70,    0.00, 3378.70),
+(2, 2, 3, 3, NULL, 2, 'waiting_delivery_open',   'assigned', 'to invoice', 'not_paid', 6768.70, 6768.70, 6768.70,    0.00),
+(3, 7, 7, 6, 2, 3, 'delivered_invoiced_partial', 'done',     'invoiced',   'partial',  4393.44, 4393.44, 2000.00, 1200.00);
+
+-- ========== 制造模块 ==========
+
+INSERT INTO `mrp_bom` (`id`, `code`, `type`, `product_id`, `product_qty`, `company_id`) VALUES
+(1, 'BOM-FURN-0001', 'normal', 1, 10, 1),
+(2, 'BOM-FURN-0002', 'normal', 2, 5, 1),
+(3, 'BOM-FURN-0004', 'normal', 4, 2, 1);
+
+INSERT INTO `mrp_production` (`id`, `name`, `state`, `priority`, `origin`, `product_id`, `bom_id`, `product_uom_id`, `user_id`, `company_id`, `picking_type_id`, `location_src_id`, `location_dest_id`, `date_start`, `date_finished`, `date_deadline`, `is_locked`, `consumption`, `product_qty`, `qty_producing`) VALUES
+(1, 'MO/2025/00001', 'done',      '0', 'S00001', 1, 1, 1, 1, 1, 4, 1, 1, '2025-01-13 08:00:00', '2025-01-14 17:00:00', '2025-01-15 18:00:00', 1, 'strict',   10, 10),
+(2, 'MO/2025/00002', 'progress',  '1', 'S00002', 2, 2, 1, 1, 1, 4, 1, 1, '2025-02-10 09:00:00', NULL,                  '2025-02-18 18:00:00', 1, 'flexible',  5,  3),
+(3, 'MO/2025/00003', 'confirmed', '0', 'S00003', 4, 3, 1, 1, 1, 4, 1, 1, '2025-03-05 09:00:00', NULL,                  '2025-03-15 18:00:00', 0, 'warning',   2,  0),
+(4, 'MO/2025/00004', 'done',      '0', 'S00007', 4, 3, 1, 1, 1, 4, 1, 1, '2025-03-08 08:00:00', '2025-03-10 16:00:00', '2025-03-11 18:00:00', 1, 'strict',    3,  3),
+(5, 'MO/2025/00005', 'to_close',  '1', 'S00008', 5, NULL, 1, 1, 1, 4, 1, 1, '2025-03-12 08:00:00', NULL,                 '2025-03-20 18:00:00', 1, 'flexible', 20, 18),
+(6, 'MO/2025/00006', 'cancel',    '0', NULL,     3, NULL, 1, 1, 1, 4, 1, 1, '2025-02-01 08:00:00', NULL,                 '2025-02-10 18:00:00', 0, 'warning',   1,  0);
 
 -- ========== HR 模块 ==========
 

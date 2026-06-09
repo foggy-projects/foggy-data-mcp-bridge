@@ -7,6 +7,12 @@ public interface AggregateRelationQueryObject {
 
     void clearAggregateRelationPushdowns();
 
+    void setAggregateRelationProjectionPruningEnabled(boolean enabled);
+
+    void markAggregateRelationOutput(AggregateRelationOutputColumn column);
+
+    void markAggregateRelationOutputAlias(String alias);
+
     boolean pushAggregateRelationCondition(AggregateRelationOutputColumn column, String op, Object value);
 
     boolean pushAggregateRelationJoinKeyCondition(String leftFieldName, String op, Object value);
