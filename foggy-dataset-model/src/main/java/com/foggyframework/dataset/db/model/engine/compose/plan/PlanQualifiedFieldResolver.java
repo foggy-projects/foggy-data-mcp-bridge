@@ -42,8 +42,10 @@ final class PlanQualifiedFieldResolver {
             List<String> groupBy,
             List<String> orderBy) {
         Scope scope = Scope.forDerivedSource(source);
+        List<Object> normalizedColumns = normalizeColumns(columns, scope);
+        rejectProjectedSourceAliasShadowing(normalizedColumns, aliasesVisibleFromDerivedSource(source));
         return new NormalizedDerivedOptions(
-                normalizeColumns(columns, scope),
+                normalizedColumns,
                 normalizeSlice(slice, scope),
                 normalizeStrings(groupBy, scope),
                 normalizeOrderBy(orderBy, scope));
@@ -205,6 +207,9 @@ final class PlanQualifiedFieldResolver {
             }
             return out;
         }
+        if (plan instanceof UnionPlan union) {
+            return declaredOutputColumns(union.left());
+        }
         return Collections.emptyList();
     }
 
@@ -225,6 +230,39 @@ final class PlanQualifiedFieldResolver {
             out.add(AliasExtractor.extract(text).outputName());
         }
         return out;
+    }
+
+    private static void rejectProjectedSourceAliasShadowing(List<Object> columns, Set<String> aliases) {
+        if (columns == null || columns.isEmpty() || aliases.isEmpty()) {
+            return;
+        }
+        for (Object col : columns) {
+            String text;
+            if (col instanceof String stringCol) {
+                text = stringCol;
+            } else if (col instanceof ProjectedColumn projected) {
+                text = projected.toColumnExpr();
+            } else {
+                continue;
+            }
+            var parts = AliasExtractor.extract(text);
+            if (parts.hasAlias() && aliases.contains(parts.outputName())) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.JOIN_AMBIGUOUS_COLUMN,
+                        "projected column alias '" + parts.outputName()
+                                + "' shadows a visible source alias; use a distinct output alias",
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        "DerivedQueryPlan",
+                        parts.outputName());
+            }
+        }
+    }
+
+    private static Set<String> aliasesVisibleFromDerivedSource(QueryPlan source) {
+        if (source instanceof UnionPlan) {
+            return new LinkedHashSet<>(source.composeSourceAliases());
+        }
+        return collectAliases(source);
     }
 
     private static Set<String> collectAliases(QueryPlan plan) {
@@ -265,11 +303,19 @@ final class PlanQualifiedFieldResolver {
                         ambiguousPrefixes.add(alias);
                     }
                 }
-                addSide(map, prefixes, "left", join.left(), declaredOutputColumns(join.left()), Set.of());
+                addSide(map, prefixes, "left", join.left(), declaredOutputColumns(join.left()), Set.of(), true);
                 Set<String> leftNames = new LinkedHashSet<>(declaredOutputColumns(join.left()));
-                addSide(map, prefixes, "right", join.right(), declaredOutputColumns(join.right()), leftNames);
+                addSide(map, prefixes, "right", join.right(), declaredOutputColumns(join.right()), leftNames, true);
             } else {
-                addSide(map, prefixes, null, source, declaredOutputColumns(source), Set.of());
+                addSide(map, prefixes, null, source, declaredOutputColumns(source), Set.of(), !(source instanceof UnionPlan));
+                if (source instanceof UnionPlan) {
+                    Set<String> localAliases = new LinkedHashSet<>(source.composeSourceAliases());
+                    for (String alias : collectAliases(source)) {
+                        if (!localAliases.contains(alias)) {
+                            prefixes.add(alias);
+                        }
+                    }
+                }
             }
             return new Scope(map, prefixes, ambiguousPrefixes);
         }
@@ -277,12 +323,12 @@ final class PlanQualifiedFieldResolver {
         static Scope forSingleSource(QueryPlan source, String sideName) {
             Map<String, String> map = new LinkedHashMap<>();
             Set<String> prefixes = new LinkedHashSet<>();
-            addSide(map, prefixes, sideName, source, declaredOutputColumns(source), Set.of());
+            addSide(map, prefixes, sideName, source, declaredOutputColumns(source), Set.of(), true);
             return new Scope(map, prefixes, Set.of());
         }
 
         private static void addSide(Map<String, String> map, Set<String> prefixes, String sideName, QueryPlan plan,
-                                    List<String> outputColumns, Set<String> hiddenColumns) {
+                                    List<String> outputColumns, Set<String> hiddenColumns, boolean recursiveAliases) {
             Set<String> visible = new LinkedHashSet<>();
             for (String col : outputColumns) {
                 if (!hiddenColumns.contains(col)) {
@@ -295,7 +341,10 @@ final class PlanQualifiedFieldResolver {
                     map.put(sideName + "." + col, col);
                 }
             }
-            for (String alias : collectAliases(plan)) {
+            Set<String> aliases = recursiveAliases
+                    ? collectAliases(plan)
+                    : new LinkedHashSet<>(plan.composeSourceAliases());
+            for (String alias : aliases) {
                 prefixes.add(alias);
                 for (String col : visible) {
                     map.put(alias + "." + col, col);

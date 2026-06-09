@@ -382,6 +382,48 @@ class JavaComposeSnapshotTest {
                                 List.of("sales.salesAmount", "orders.totalAmount"),
                                 List.of(0))),
                 caseOf(
+                        "qualified-source-alias-slice-order-mysql8",
+                        "mysql8",
+                        derived(
+                                join(
+                                        base("FactSalesModel",
+                                                List.of("orderStatus$caption", "salesAmount"),
+                                                null, null, List.of("sales")),
+                                        base("FactOrderModel",
+                                                List.of("orderStatus$caption", "totalAmount"),
+                                                null, null, List.of("orders")),
+                                        "inner",
+                                        List.of(joinOn("left.orderStatus$caption", "=", "right.orderStatus$caption"))),
+                                List.of("sales.salesAmount", "orders.totalAmount"),
+                                List.of(filter("sales.salesAmount", ">", 0)),
+                                List.of("-orders.totalAmount"),
+                                null,
+                                null),
+                        expected(List.of("INNER JOIN", "WHERE", "ORDER BY", "salesAmount", "totalAmount"),
+                                List.of("sales.salesAmount", "orders.totalAmount"),
+                                List.of(0))),
+                caseOf(
+                        "qualified-source-alias-slice-order-sqlserver",
+                        "sqlserver",
+                        derived(
+                                join(
+                                        base("FactSalesModel",
+                                                List.of("orderStatus$caption", "salesAmount"),
+                                                null, null, List.of("sales")),
+                                        base("FactOrderModel",
+                                                List.of("orderStatus$caption", "totalAmount"),
+                                                null, null, List.of("orders")),
+                                        "inner",
+                                        List.of(joinOn("left.orderStatus$caption", "=", "right.orderStatus$caption"))),
+                                List.of("sales.salesAmount", "orders.totalAmount"),
+                                List.of(filter("sales.salesAmount", ">", 0)),
+                                List.of("-orders.totalAmount"),
+                                null,
+                                null),
+                        expected(List.of("INNER JOIN", "WHERE", "ORDER BY", "salesAmount", "totalAmount"),
+                                List.of("sales.salesAmount", "orders.totalAmount"),
+                                List.of(0))),
+                caseOf(
                         "inherited-source-alias-through-derived-postgres",
                         "postgres",
                         derived(
@@ -428,6 +470,19 @@ class JavaComposeSnapshotTest {
                                 null),
                         expectedError("ambiguous")),
                 caseOf(
+                        "source-alias-shadowed-by-projected-alias-refused",
+                        "postgres",
+                        derived(
+                                base("FactSalesModel",
+                                        List.of("orderStatus$caption", "salesAmount"),
+                                        null, null, List.of("sales")),
+                                List.of("salesAmount AS sales"),
+                                null,
+                                null,
+                                null,
+                                null),
+                        expectedError("shadow")),
+                caseOf(
                         "source-alias-dropped-column-refused",
                         "mysql8",
                         derived(
@@ -452,6 +507,45 @@ class JavaComposeSnapshotTest {
                                 null,
                                 null),
                         expectedError("unknown field")),
+                caseOf(
+                        "union-branch-source-alias-ref-refused",
+                        "postgres",
+                        derived(
+                                union(
+                                        base("FactSalesModel",
+                                                List.of("orderStatus$caption AS bucket", "salesAmount AS amount"),
+                                                null, null, List.of("sales")),
+                                        base("FactOrderModel",
+                                                List.of("orderStatus$caption AS bucket", "totalAmount AS amount"),
+                                                null, null, List.of("orders")),
+                                        true),
+                                List.of("sales.amount"),
+                                null,
+                                null,
+                                null,
+                                null),
+                        expectedError("unknown field")),
+                caseOf(
+                        "union-result-alias-qualified-ref-postgres",
+                        "postgres",
+                        derived(
+                                union(
+                                        base("FactSalesModel",
+                                                List.of("orderStatus$caption AS bucket", "salesAmount AS amount"),
+                                                null, null, List.of("sales")),
+                                        base("FactOrderModel",
+                                                List.of("orderStatus$caption AS bucket", "totalAmount AS amount"),
+                                                null, null, List.of("orders")),
+                                        true,
+                                        List.of("combined")),
+                                List.of("combined.amount"),
+                                List.of(filter("combined.amount", ">", 0)),
+                                List.of("-combined.amount"),
+                                null,
+                                null),
+                        expected(List.of("UNION ALL", "WHERE", "ORDER BY", "amount"),
+                                List.of("combined.amount", "sales.amount", "orders.amount"),
+                                List.of(0))),
                 caseOf(
                         "sqlserver-derived-chain-top-level-with",
                         "sqlserver",
@@ -519,11 +613,19 @@ class JavaComposeSnapshotTest {
     private static Map<String, Object> union(Map<String, Object> left,
                                              Map<String, Object> right,
                                              boolean all) {
+        return union(left, right, all, null);
+    }
+
+    private static Map<String, Object> union(Map<String, Object> left,
+                                             Map<String, Object> right,
+                                             boolean all,
+                                             List<String> aliases) {
         Map<String, Object> out = ordered();
         out.put("type", "union");
         out.put("left", left);
         out.put("right", right);
         out.put("all", all);
+        putIf(out, "aliases", aliases);
         return out;
     }
 
