@@ -118,6 +118,27 @@ class JavaComposeSnapshotTest {
                     "[" + c.get("id") + "] params mismatch, expected " + params + ", got "
                             + sql.getParams());
         }
+        expected.put("sqlShape", sqlShape(sql.getSql()));
+    }
+
+    private static Map<String, Object> sqlShape(String sql) {
+        String trimmed = sql.strip();
+        String upper = trimmed.toUpperCase(Locale.ROOT);
+        Map<String, Object> out = ordered();
+        boolean startsWithWith = upper.startsWith("WITH ") || upper.startsWith(";WITH ");
+        boolean startsWithSelect = upper.startsWith("SELECT ");
+        out.put("rootUsesCte", startsWithWith);
+        out.put("rootUsesSubquery", startsWithSelect && upper.contains("FROM ("));
+        out.put("containsFromWith", upper.contains("FROM (WITH") || upper.contains("FROM (;WITH"));
+        out.put("containsUnion", upper.contains("UNION"));
+        out.put("containsUnionAll", upper.contains("UNION ALL"));
+        out.put("containsInnerJoin", upper.contains("INNER JOIN"));
+        out.put("containsLeftJoin", upper.contains("LEFT JOIN"));
+        out.put("containsRightJoin", upper.contains("RIGHT JOIN"));
+        out.put("containsFullOuterJoin", upper.contains("FULL OUTER JOIN"));
+        out.put("containsWhere", upper.contains(" WHERE ") || upper.contains("\nWHERE "));
+        out.put("containsOrderBy", upper.contains("ORDER BY"));
+        return out;
     }
 
     private static ComposedSql compile(QueryPlan plan, String dialect) {
@@ -328,34 +349,34 @@ class JavaComposeSnapshotTest {
                         base("FactSalesModel",
                                 List.of("orderStatus$caption", "salesAmount"),
                                 null, null, null),
-                        expected(List.of("WITH ", "cte_0 AS", "salesAmount"), List.of(), List.of())),
+                        strictShape(expected(List.of("WITH ", "cte_0 AS", "salesAmount"), List.of(), List.of()))),
                 caseOf(
                         "base-mysql57-subquery",
                         "mysql",
                         base("FactSalesModel",
                                 List.of("orderStatus$caption", "salesAmount"),
                                 null, null, null),
-                        expected(List.of("SELECT", "FROM (", " AS t0"),
+                        strictShape(expected(List.of("SELECT", "FROM (", " AS t0"),
                                 List.of("WITH "),
-                                List.of())),
+                                List.of()))),
                 caseOf(
                         "base-postgres-cte",
                         "postgres",
                         base("FactSalesModel",
                                 List.of("orderStatus$caption", "salesAmount"),
                                 null, null, null),
-                        expected(List.of("WITH ", "cte_0 AS", "salesAmount"),
+                        strictShape(expected(List.of("WITH ", "cte_0 AS", "salesAmount"),
                                 List.of(" AS t0"),
-                                List.of())),
+                                List.of()))),
                 caseOf(
                         "base-sqlserver-subquery",
                         "sqlserver",
                         base("FactSalesModel",
                                 List.of("orderStatus$caption", "salesAmount"),
                                 null, null, null),
-                        expected(List.of("SELECT", "FROM (", " AS t0"),
+                        strictShape(expected(List.of("SELECT", "FROM (", " AS t0"),
                                 List.of("WITH ", "FROM (WITH"),
-                                List.of())),
+                                List.of()))),
                 caseOf(
                         "derived-filter-order-limit-mysql8",
                         "mysql8",
@@ -414,9 +435,9 @@ class JavaComposeSnapshotTest {
                                         null, null, null),
                                 "inner",
                                 List.of(joinOn("left.orderStatus$caption", "=", "right.orderStatus$caption"))),
-                        expected(List.of("INNER JOIN", "FROM (", " AS t0"),
+                        strictShape(expected(List.of("INNER JOIN", "FROM (", " AS t0"),
                                 List.of("WITH ", "FROM (WITH"),
-                                List.of())),
+                                List.of()))),
                 caseOf(
                         "qualified-source-alias-slice-order-postgres",
                         "postgres",
@@ -660,9 +681,9 @@ class JavaComposeSnapshotTest {
                                 List.of("-combined.amount"),
                                 null,
                                 null),
-                        expected(List.of("UNION ALL", "WHERE", "ORDER BY", "amount"),
+                        strictShape(expected(List.of("UNION ALL", "WHERE", "ORDER BY", "amount"),
                                 List.of("FROM (WITH", "combined.amount", "sales.amount", "orders.amount"),
-                                List.of(0))),
+                                List.of(0)))),
                 caseOf(
                         "sqlserver-derived-chain-top-level-with",
                         "sqlserver",
@@ -681,9 +702,9 @@ class JavaComposeSnapshotTest {
                                 null,
                                 null,
                                 null),
-                        expected(List.of("SELECT", "FROM (", " AS t0"),
+                        strictShape(expected(List.of("SELECT", "FROM (", " AS t0"),
                                 List.of("WITH ", "FROM (WITH"),
-                                List.of()))
+                                List.of())))
         );
     }
 
@@ -790,6 +811,11 @@ class JavaComposeSnapshotTest {
         out.put("forbiddenSqlMarkers", forbidden);
         out.put("params", params);
         return out;
+    }
+
+    private static Map<String, Object> strictShape(Map<String, Object> expected) {
+        expected.put("strictSqlShape", true);
+        return expected;
     }
 
     private static Map<String, Object> expectedError(String code) {
