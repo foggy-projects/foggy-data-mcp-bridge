@@ -391,6 +391,21 @@ class JavaComposeSnapshotTest {
                                 null),
                         strictShape(expected(List.of("WITH ", "WHERE", "ORDER BY", "LIMIT"), List.of(), List.of("COMPLETED")))),
                 caseOf(
+                        "derived-filter-order-limit-mysql57-subquery",
+                        "mysql",
+                        derived(
+                                base("FactSalesModel",
+                                        List.of("orderStatus$caption", "salesAmount"),
+                                        null, null, null),
+                                List.of("orderStatus$caption", "salesAmount"),
+                                List.of(filter("orderStatus$caption", "=", "COMPLETED")),
+                                List.of("-salesAmount"),
+                                5,
+                                null),
+                        strictShape(expected(List.of("SELECT", "FROM (", "WHERE", "ORDER BY", "LIMIT"),
+                                List.of("WITH ", "FROM (WITH"),
+                                List.of("COMPLETED")))),
+                caseOf(
                         "union-all-sales-orders-mysql8",
                         "mysql8",
                         union(
