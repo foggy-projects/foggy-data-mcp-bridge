@@ -39,8 +39,6 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
 
     private static final String TEST_MODEL = "FactSalesQueryModel";
     private static final int EXPECTED_SNAPSHOT_COUNT = 9;
-    private static final int EXPECTED_SUCCESS_COUNT = 8;
-    private static final String EXPECTED_GENERATION_ERROR_CASE = "wow-week-happy";
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -70,16 +68,12 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
                 "expected exactly " + EXPECTED_SNAPSHOT_COUNT
                         + " timeWindow records, got success=" + snapshots.size()
                         + ", errors=" + generationErrors.size());
-        assertTrue(snapshots.size() == EXPECTED_SUCCESS_COUNT,
-                "expected exactly " + EXPECTED_SUCCESS_COUNT
+        assertTrue(snapshots.size() == EXPECTED_SNAPSHOT_COUNT,
+                "expected exactly " + EXPECTED_SNAPSHOT_COUNT
                         + " timeWindow SQL snapshots, got " + snapshots.size()
                         + ", errors=" + generationErrors);
-        assertTrue(generationErrors.size() == 1,
-                "expected exactly one current Java generation error, got " + generationErrors);
-        assertTrue(EXPECTED_GENERATION_ERROR_CASE.equals(generationErrors.get(0).get("name")),
-                "unexpected Java generation error case: " + generationErrors);
-        assertTrue(String.valueOf(generationErrors.get(0).get("message")).contains("salesDate$week"),
-                "expected current Java wow-week drift to mention salesDate$week: " + generationErrors);
+        assertTrue(generationErrors.isEmpty(),
+                "expected no current Java generation errors, got " + generationErrors);
 
         // Assemble the snapshot JSON
         Map<String, Object> snapshot = new LinkedHashMap<>();

@@ -31,6 +31,7 @@ export const model = {
                 { column: 'quarter', caption: '季度', description: '销售发生的季度（1-4）' },
                 { column: 'month', caption: '月', description: '销售发生的月份（1-12）' },
                 { column: 'month_name', caption: '月份名称', description: '销售月份中文名（一月至十二月）' },
+                { name: 'week', column: 'week_of_year', caption: '周', description: '销售发生在一年中的第几周（1-53）' },
                 { column: 'day_of_week', caption: '周几', description: '销售发生在周几（1=周一）' },
                 { column: 'is_weekend', caption: '是否周末', description: '销售是否发生在周末' }
             ]

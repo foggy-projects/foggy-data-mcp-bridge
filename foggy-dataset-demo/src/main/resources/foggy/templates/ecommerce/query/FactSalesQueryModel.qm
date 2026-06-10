@@ -32,6 +32,7 @@ export const queryModel = {
                 { ref: fs.salesDate$quarter },
                 { ref: fs.salesDate$month },
                 { ref: fs.salesDate$monthName },
+                { ref: fs.salesDate$week },
                 { ref: fs.salesDate$dayOfWeek },
                 { ref: fs.salesDate$isWeekend }
             ]
