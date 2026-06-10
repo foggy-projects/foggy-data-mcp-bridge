@@ -403,6 +403,21 @@ class JavaComposeSnapshotTest {
                                 true),
                         strictShape(expected(List.of("UNION ALL", "order_status"), List.of(), List.of()))),
                 caseOf(
+                        "join-mysql8-cte",
+                        "mysql8",
+                        join(
+                                base("FactSalesModel",
+                                        List.of("orderStatus$caption", "salesAmount"),
+                                        null, null, null),
+                                base("FactOrderModel",
+                                        List.of("orderStatus$caption", "totalAmount"),
+                                        null, null, null),
+                                "inner",
+                                List.of(joinOn("left.orderStatus$caption", "=", "right.orderStatus$caption"))),
+                        strictShape(expected(List.of("WITH ", "INNER JOIN", "salesAmount", "totalAmount"),
+                                List.of("FROM (WITH"),
+                                List.of()))),
+                caseOf(
                         "qualified-source-alias-join-postgres",
                         "postgres",
                         derived(
