@@ -218,8 +218,20 @@ class JavaComposeSnapshotTest {
     }
 
     private static QueryPlan planFrom(Object raw) {
+        return planFrom(raw, new LinkedHashMap<>());
+    }
+
+    private static QueryPlan planFrom(Object raw, Map<String, QueryPlan> reuseCache) {
         @SuppressWarnings("unchecked")
         Map<String, Object> node = (Map<String, Object>) raw;
+        String reuseKey = (String) node.get("reuseKey");
+        if (reuseKey != null && reuseCache.containsKey(reuseKey)) {
+            QueryPlan reused = reuseCache.get(reuseKey);
+            for (String alias : stringList(node.get("aliases"))) {
+                PlanAliasSupport.bindAlias(reused, alias);
+            }
+            return reused;
+        }
         String type = (String) node.get("type");
         QueryPlan plan;
         switch (type) {
@@ -237,7 +249,7 @@ class JavaComposeSnapshotTest {
                 break;
             case "derived":
                 plan = DerivedQueryPlan.builder()
-                        .source(planFrom(node.get("source")))
+                        .source(planFrom(node.get("source"), reuseCache))
                         .columns(list(node.get("columns")))
                         .slice(list(node.get("slice")))
                         .groupBy(stringList(node.get("groupBy")))
@@ -249,15 +261,15 @@ class JavaComposeSnapshotTest {
                 break;
             case "union":
                 plan = UnionPlan.builder()
-                        .left(planFrom(node.get("left")))
-                        .right(planFrom(node.get("right")))
+                        .left(planFrom(node.get("left"), reuseCache))
+                        .right(planFrom(node.get("right"), reuseCache))
                         .all(Boolean.TRUE.equals(node.get("all")))
                         .build();
                 break;
             case "join":
                 plan = JoinPlan.builder()
-                        .left(planFrom(node.get("left")))
-                        .right(planFrom(node.get("right")))
+                        .left(planFrom(node.get("left"), reuseCache))
+                        .right(planFrom(node.get("right"), reuseCache))
                         .type((String) node.get("joinType"))
                         .on(joinOnList(node.get("on")))
                         .build();
@@ -267,6 +279,9 @@ class JavaComposeSnapshotTest {
         }
         for (String alias : stringList(node.get("aliases"))) {
             PlanAliasSupport.bindAlias(plan, alias);
+        }
+        if (reuseKey != null) {
+            reuseCache.put(reuseKey, plan);
         }
         return plan;
     }
@@ -547,6 +562,45 @@ class JavaComposeSnapshotTest {
                                 List.of("combined.amount", "sales.amount", "orders.amount"),
                                 List.of(0))),
                 caseOf(
+                        "stable-reused-base-qualified-ref-postgres",
+                        "postgres",
+                        derived(
+                                join(
+                                        derived(
+                                                reuse(base("FactSalesModel",
+                                                        List.of("orderStatus$caption", "salesAmount"),
+                                                        null, null, null),
+                                                        "sharedSales"),
+                                                List.of(
+                                                        "orderStatus$caption AS statusLeft",
+                                                        "salesAmount AS amountLeft"),
+                                                null,
+                                                null,
+                                                null,
+                                                List.of("leftSales")),
+                                        derived(
+                                                reuse(base("FactSalesModel",
+                                                        List.of("orderStatus$caption", "salesAmount"),
+                                                        null, null, null),
+                                                        "sharedSales"),
+                                                List.of(
+                                                        "orderStatus$caption AS statusRight",
+                                                        "salesAmount AS amountRight"),
+                                                null,
+                                                null,
+                                                null,
+                                                List.of("rightSales")),
+                                        "inner",
+                                        List.of(joinOn("left.statusLeft", "=", "right.statusRight"))),
+                                List.of("left.amountLeft", "right.amountRight"),
+                                List.of(filter("left.amountLeft", ">", 0)),
+                                List.of("-right.amountRight"),
+                                null,
+                                null),
+                        expected(List.of("INNER JOIN", "WHERE", "ORDER BY", "amountLeft", "amountRight"),
+                                List.of("left.amountLeft", "right.amountRight"),
+                                List.of(0))),
+                caseOf(
                         "sqlserver-derived-chain-top-level-with",
                         "sqlserver",
                         derived(
@@ -591,6 +645,11 @@ class JavaComposeSnapshotTest {
         putIf(out, "orderBy", orderBy);
         putIf(out, "aliases", aliases);
         return out;
+    }
+
+    private static Map<String, Object> reuse(Map<String, Object> plan, String reuseKey) {
+        plan.put("reuseKey", reuseKey);
+        return plan;
     }
 
     private static Map<String, Object> derived(Map<String, Object> source,
