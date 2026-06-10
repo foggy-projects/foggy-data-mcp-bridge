@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * of LLM transcripts. Python can replay this boundary without Odoo models or a
  * live model provider.</p>
  */
-@DisplayName("JavaDomainQuestionNeutralRunnerSnapshotTest · Python alignment P0-31/P0-41")
+@DisplayName("JavaDomainQuestionNeutralRunnerSnapshotTest · Python alignment P0-31/P0-41/P0-47")
 class JavaDomainQuestionNeutralRunnerSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -126,6 +126,93 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                 List.of("deniedColumns:customerEmail"),
                                 "governance/denied-field"
                         )
+                ),
+                caseDef(
+                        "pivot-time-window-mutual-exclusion-unsupported",
+                        "pivot sales by status and also compare this quarter year over year",
+                        expectedQueryModel(
+                                "FactSalesModel",
+                                "validate",
+                                with(
+                                        payload(
+                                                List.of(),
+                                                List.of(),
+                                                List.of(),
+                                                Map.of("field", "orderDate", "preset", "currentQuarter"),
+                                                List.of(),
+                                                List.of(),
+                                                50
+                                        ),
+                                        Map.of(
+                                                "pivot", Map.of(
+                                                        "rows", List.of("orderStatus"),
+                                                        "columns", List.of("orderMonth"),
+                                                        "metrics", List.of("salesAmount"),
+                                                        "outputFormat", "grid"
+                                                )
+                                        )
+                                ),
+                                List.of(),
+                                List.of(),
+                                List.of("unsupported:pivot+timeWindow"),
+                                "domain-question/unsupported-construct",
+                                List.of("pivot+timeWindow")
+                        )
+                ),
+                caseDef(
+                        "hidden-axis-function-calculated-field-unsupported",
+                        "show sales ratio against the first pivot column",
+                        expectedQueryModel(
+                                "FactSalesModel",
+                                "validate",
+                                payload(
+                                        List.of("axisRatio"),
+                                        List.of("orderStatus"),
+                                        List.of(),
+                                        null,
+                                        List.of(Map.of(
+                                                "name", "axisRatio",
+                                                "expression", "CELL_AT('columns', 'first')"
+                                        )),
+                                        List.of(),
+                                        50
+                                ),
+                                List.of(),
+                                List.of(),
+                                List.of("unsupported:hidden-axis-function"),
+                                "domain-question/unsupported-construct",
+                                List.of("CELL_AT")
+                        )
+                ),
+                caseDef(
+                        "cross-model-join-needs-compose-script-unsupported",
+                        "join sales with support tickets by customer",
+                        expectedQueryModel(
+                                "FactSalesModel",
+                                "validate",
+                                with(
+                                        payload(
+                                                List.of("salesAmount"),
+                                                List.of("customerId"),
+                                                List.of(),
+                                                null,
+                                                List.of(),
+                                                List.of(),
+                                                50
+                                        ),
+                                        Map.of(
+                                                "hints", Map.of(
+                                                        "requestedConstruct", "crossModelJoin",
+                                                        "recommendedTool", "dataset.compose_script"
+                                                )
+                                        )
+                                ),
+                                List.of(),
+                                List.of(),
+                                List.of("unsupported:cross-model-join"),
+                                "domain-question/unsupported-construct",
+                                List.of("crossModelJoin")
+                        )
                 )
         );
     }
@@ -154,6 +241,26 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                                           List<String> resultMarkers,
                                                           List<String> warnings,
                                                           String errorCode) {
+        return expectedQueryModel(
+                model,
+                mode,
+                payload,
+                sqlMarkers,
+                resultMarkers,
+                warnings,
+                errorCode,
+                List.of()
+        );
+    }
+
+    private static Map<String, Object> expectedQueryModel(String model,
+                                                          String mode,
+                                                          Map<String, Object> payload,
+                                                          List<String> sqlMarkers,
+                                                          List<String> resultMarkers,
+                                                          List<String> warnings,
+                                                          String errorCode,
+                                                          List<String> unsupportedConstructs) {
         Map<String, Object> toolArguments = ordered();
         toolArguments.put("model", model);
         toolArguments.put("mode", mode);
@@ -166,7 +273,10 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
         expected.put("resultMarkers", resultMarkers);
         expected.put("warnings", warnings);
         expected.put("errorCode", errorCode);
-        expected.put("reports", List.of(reportMetadata(model, mode, warnings, errorCode)));
+        if (!unsupportedConstructs.isEmpty()) {
+            expected.put("unsupportedConstructs", unsupportedConstructs);
+        }
+        expected.put("reports", List.of(reportMetadata(model, mode, warnings, errorCode, unsupportedConstructs)));
         expected.put("forbiddenMarkers", List.of("odoo", "res_partner", "res_users", "LLM"));
         return expected;
     }
@@ -174,7 +284,8 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
     private static Map<String, Object> reportMetadata(String model,
                                                       String mode,
                                                       List<String> warnings,
-                                                      String errorCode) {
+                                                      String errorCode,
+                                                      List<String> unsupportedConstructs) {
         Map<String, Object> report = ordered();
         report.put("reportType", "neutral-runner-case-summary");
         report.put("toolName", "dataset.query_model");
@@ -186,6 +297,9 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
         report.put("warningMarkers", warnings);
         if (errorCode != null) {
             report.put("errorCode", errorCode);
+        }
+        if (!unsupportedConstructs.isEmpty()) {
+            report.put("unsupportedConstructs", unsupportedConstructs);
         }
         return report;
     }
@@ -224,6 +338,11 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
             p.put("deniedColumns", deniedColumns);
         }
         return p;
+    }
+
+    private static Map<String, Object> with(Map<String, Object> payload, Map<String, Object> extras) {
+        payload.putAll(extras);
+        return payload;
     }
 
     private static void assertJavaFixtureContract(Map<String, Object> c) {
