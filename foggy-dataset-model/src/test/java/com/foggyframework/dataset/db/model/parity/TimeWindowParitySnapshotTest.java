@@ -19,30 +19,28 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * TimeWindow post-scalar calculatedFields SQL snapshot producer (Stage 3).
+ * TimeWindow SQL snapshot producer (Stage 3).
  *
  * <p>Mirrors the pattern of {@link FormulaParitySnapshotTest}: drives the
  * real Java {@link SemanticQueryServiceV3#generateSql} pipeline to produce
- * SQL for two post-scalar calculatedFields happy cases, normalizes the output
- * and writes a JSON snapshot consumed by the Python golden diff harness at
+ * SQL for all happy cases in the shared timeWindow catalog, normalizes the
+ * output and writes a JSON snapshot consumed by the Python golden diff harness at
  * {@code tests/integration/test_time_window_golden_diff.py}.</p>
- *
- * <p>Target cases (from Java 8.5.0 timeWindow fixtures):</p>
- * <ul>
- *   <li>{@code yoy-month-post-calc-growth-happy} — growthPercent = salesAmount__ratio * 100</li>
- *   <li>{@code rolling_7d-post-calc-gap-happy} — rollingGap = salesAmount - salesAmount__rolling_7d</li>
- * </ul>
  */
 @Slf4j
 @DisplayName("TimeWindowParitySnapshotTest · Stage 3 (Java side)")
 class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
 
     private static final String TEST_MODEL = "FactSalesQueryModel";
+    private static final int EXPECTED_SNAPSHOT_COUNT = 9;
+    private static final int EXPECTED_SUCCESS_COUNT = 8;
+    private static final String EXPECTED_GENERATION_ERROR_CASE = "wow-week-happy";
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -56,15 +54,32 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
         }
 
         List<Map<String, Object>> snapshots = new ArrayList<>();
+        List<Map<String, Object>> generationErrors = new ArrayList<>();
 
-        // Case 1: yoy-month-post-calc-growth-happy
-        snapshots.add(buildYoyPostCalcGrowthSnapshot());
+        recordSnapshot("mom-month-happy", snapshots, generationErrors, this::buildMomMonthSnapshot);
+        recordSnapshot("mtd-day-happy", snapshots, generationErrors, this::buildMtdDaySnapshot);
+        recordSnapshot("rolling_30d-day-happy", snapshots, generationErrors, this::buildRolling30dSnapshot);
+        recordSnapshot("rolling_7d-day-happy", snapshots, generationErrors, this::buildRolling7dSnapshot);
+        recordSnapshot("rolling_7d-post-calc-gap-happy", snapshots, generationErrors, this::buildRolling7dPostCalcGapSnapshot);
+        recordSnapshot("wow-week-happy", snapshots, generationErrors, this::buildWowWeekSnapshot);
+        recordSnapshot("yoy-month-happy", snapshots, generationErrors, this::buildYoyMonthSnapshot);
+        recordSnapshot("yoy-month-post-calc-growth-happy", snapshots, generationErrors, this::buildYoyPostCalcGrowthSnapshot);
+        recordSnapshot("ytd-month-happy", snapshots, generationErrors, this::buildYtdMonthSnapshot);
 
-        // Case 2: rolling_7d-post-calc-gap-happy
-        snapshots.add(buildRolling7dPostCalcGapSnapshot());
-
-        assertTrue(snapshots.size() == 2,
-                "expected exactly 2 timeWindow snapshots, got " + snapshots.size());
+        assertTrue(snapshots.size() + generationErrors.size() == EXPECTED_SNAPSHOT_COUNT,
+                "expected exactly " + EXPECTED_SNAPSHOT_COUNT
+                        + " timeWindow records, got success=" + snapshots.size()
+                        + ", errors=" + generationErrors.size());
+        assertTrue(snapshots.size() == EXPECTED_SUCCESS_COUNT,
+                "expected exactly " + EXPECTED_SUCCESS_COUNT
+                        + " timeWindow SQL snapshots, got " + snapshots.size()
+                        + ", errors=" + generationErrors);
+        assertTrue(generationErrors.size() == 1,
+                "expected exactly one current Java generation error, got " + generationErrors);
+        assertTrue(EXPECTED_GENERATION_ERROR_CASE.equals(generationErrors.get(0).get("name")),
+                "unexpected Java generation error case: " + generationErrors);
+        assertTrue(String.valueOf(generationErrors.get(0).get("message")).contains("salesDate$week"),
+                "expected current Java wow-week drift to mention salesDate$week: " + generationErrors);
 
         // Assemble the snapshot JSON
         Map<String, Object> snapshot = new LinkedHashMap<>();
@@ -72,6 +87,7 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
         snapshot.put("source", "TimeWindowParitySnapshotTest");
         snapshot.put("feature", "timeWindow");
         snapshot.put("snapshots", snapshots);
+        snapshot.put("generation_errors", generationErrors);
 
         ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
@@ -103,79 +119,204 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
     // Case builders
     // ------------------------------------------------------------------
 
-    private Map<String, Object> buildYoyPostCalcGrowthSnapshot() {
-        // Request shape mirrors java_time_window_parity_catalog.json
-        // case "yoy-month-post-calc-growth-happy"
-        //
-        // Stage 5: request columns now include the post-calc output alias.
-        // SchemaAwareFieldValidationStep is skipped when timeWindow is active
-        // (isSkipQuery=true), and collectSchemaFields() adds request-level
-        // calculatedFields.name to the valid set anyway.
-        SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(List.of(
-                "salesDate$year", "salesDate$month",
-                "salesAmount", "salesAmount__prior",
-                "salesAmount__diff", "salesAmount__ratio",
-                "growthPercent"));
-        request.setGroupBy(List.of(
-                new SemanticQueryRequest.GroupByItem("salesDate$year", null),
-                new SemanticQueryRequest.GroupByItem("salesDate$month", null)));
-        request.setTimeWindow(Map.of(
-                "field", "salesDate$id",
-                "grain", "month",
-                "comparison", "yoy",
-                "range", "[)",
-                "value", List.of("2024-01-01", "2025-01-01"),
-                "targetMetrics", List.of("salesAmount")));
-        request.setCalculatedFields(List.of(
-                new CalculatedFieldDef("growthPercent", "salesAmount__ratio * 100")));
+    private void recordSnapshot(
+            String name,
+            List<Map<String, Object>> snapshots,
+            List<Map<String, Object>> generationErrors,
+            Supplier<Map<String, Object>> supplier) {
+        try {
+            snapshots.add(supplier.get());
+        } catch (RuntimeException ex) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("name", name);
+            row.put("dialect", "default");
+            row.put("error_code", "GENERATE_SQL_FAILED");
+            row.put("exception", ex.getClass().getSimpleName());
+            row.put("message", ex.getMessage());
+            generationErrors.add(row);
+            log.warn("{} snapshot generation failed: {}", name, ex.getMessage());
+        }
+    }
 
-        SqlGenerationResult result = semanticQueryServiceV3.generateSql(
-                TEST_MODEL, request, SemanticRequestContext.empty());
-        assertNotNull(result, "generateSql returned null for yoy-month-post-calc-growth-happy");
-        assertNotNull(result.getSql(), "SQL is null for yoy-month-post-calc-growth-happy");
+    private Map<String, Object> buildMomMonthSnapshot() {
+        return buildSnapshot(
+                "mom-month-happy",
+                List.of(
+                        "salesDate$month", "salesDate$id", "salesAmount",
+                        "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio"),
+                List.of("salesDate$month", "salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "mom",
+                        "range", "[)",
+                        "value", List.of("2024-01-01", "2025-01-01"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of());
+    }
 
-        log.info("yoy-month-post-calc-growth-happy SQL:\n{}", result.getSql());
+    private Map<String, Object> buildMtdDaySnapshot() {
+        return buildSnapshot(
+                "mtd-day-happy",
+                List.of(
+                        "salesDate$year", "salesDate$month", "salesDate$id",
+                        "salesAmount", "salesAmount__mtd"),
+                List.of("salesDate$year", "salesDate$month", "salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "day",
+                        "comparison", "mtd",
+                        "range", "[)",
+                        "value", List.of("2024-01-01", "now"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of());
+    }
 
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("name", "yoy-month-post-calc-growth-happy");
-        row.put("dialect", "default");
-        row.put("sql_normalized", result.getSql());
-        row.put("bind_params", result.getParams() != null ? result.getParams() : List.of());
-        return row;
+    private Map<String, Object> buildRolling30dSnapshot() {
+        return buildSnapshot(
+                "rolling_30d-day-happy",
+                List.of("salesDate$id", "salesAmount", "salesAmount__rolling_30d"),
+                List.of("salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "day",
+                        "comparison", "rolling_30d",
+                        "range", "[)",
+                        "value", List.of("-60D", "now"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of());
+    }
+
+    private Map<String, Object> buildRolling7dSnapshot() {
+        return buildSnapshot(
+                "rolling_7d-day-happy",
+                List.of("salesDate$id", "salesAmount", "salesAmount__rolling_7d"),
+                List.of("salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "day",
+                        "comparison", "rolling_7d",
+                        "range", "[)",
+                        "value", List.of("-30D", "now"),
+                        "targetMetrics", List.of("salesAmount"),
+                        "rollingAggregator", "avg"),
+                List.of());
     }
 
     private Map<String, Object> buildRolling7dPostCalcGapSnapshot() {
-        // Request shape mirrors java_time_window_parity_catalog.json
-        // case "rolling_7d-post-calc-gap-happy"
-        //
-        // Stage 5: request columns now include the post-calc output alias.
+        return buildSnapshot(
+                "rolling_7d-post-calc-gap-happy",
+                List.of(
+                        "salesDate$id", "salesAmount",
+                        "salesAmount__rolling_7d",
+                        "rollingGap"),
+                List.of("salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "day",
+                        "comparison", "rolling_7d",
+                        "range", "[)",
+                        "value", List.of("-1M", "now"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of(new CalculatedFieldDef(
+                        "rollingGap", "salesAmount - salesAmount__rolling_7d")));
+    }
+
+    private Map<String, Object> buildWowWeekSnapshot() {
+        return buildSnapshot(
+                "wow-week-happy",
+                List.of(
+                        "salesDate$week", "salesDate$dayOfWeek", "salesAmount",
+                        "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio"),
+                List.of("salesDate$week", "salesDate$dayOfWeek"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "week",
+                        "comparison", "wow",
+                        "range", "[)",
+                        "value", List.of("-2W", "now"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of());
+    }
+
+    private Map<String, Object> buildYoyMonthSnapshot() {
+        return buildSnapshot(
+                "yoy-month-happy",
+                List.of(
+                        "salesDate$year", "salesDate$month",
+                        "salesAmount", "salesAmount__prior",
+                        "salesAmount__diff", "salesAmount__ratio"),
+                List.of("salesDate$year", "salesDate$month"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "range", "[)",
+                        "value", List.of("2024-01-01", "2025-01-01"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of());
+    }
+
+    private Map<String, Object> buildYoyPostCalcGrowthSnapshot() {
+        return buildSnapshot(
+                "yoy-month-post-calc-growth-happy",
+                List.of(
+                        "salesDate$year", "salesDate$month",
+                        "salesAmount", "salesAmount__prior",
+                        "salesAmount__diff", "salesAmount__ratio",
+                        "growthPercent"),
+                List.of("salesDate$year", "salesDate$month"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "range", "[)",
+                        "value", List.of("2024-01-01", "2025-01-01"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of(new CalculatedFieldDef(
+                        "growthPercent", "salesAmount__ratio * 100")));
+    }
+
+    private Map<String, Object> buildYtdMonthSnapshot() {
+        return buildSnapshot(
+                "ytd-month-happy",
+                List.of("salesDate$year", "salesDate$id", "salesAmount", "salesAmount__ytd"),
+                List.of("salesDate$year", "salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "ytd",
+                        "range", "[)",
+                        "value", List.of("2024-01-01", "now"),
+                        "targetMetrics", List.of("salesAmount")),
+                List.of());
+    }
+
+    private Map<String, Object> buildSnapshot(
+            String name,
+            List<String> columns,
+            List<String> groupBy,
+            Map<String, Object> timeWindow,
+            List<CalculatedFieldDef> calculatedFields) {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(List.of(
-                "salesDate$id", "salesAmount",
-                "salesAmount__rolling_7d",
-                "rollingGap"));
-        request.setGroupBy(List.of(
-                new SemanticQueryRequest.GroupByItem("salesDate$id", null)));
-        request.setTimeWindow(Map.of(
-                "field", "salesDate$id",
-                "grain", "day",
-                "comparison", "rolling_7d",
-                "range", "[)",
-                "value", List.of("-1M", "now"),
-                "targetMetrics", List.of("salesAmount")));
-        request.setCalculatedFields(List.of(
-                new CalculatedFieldDef("rollingGap", "salesAmount - salesAmount__rolling_7d")));
+        request.setColumns(columns);
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+        for (String field : groupBy) {
+            groupByItems.add(new SemanticQueryRequest.GroupByItem(field, null));
+        }
+        request.setGroupBy(groupByItems);
+        request.setTimeWindow(timeWindow);
+        request.setCalculatedFields(calculatedFields);
 
         SqlGenerationResult result = semanticQueryServiceV3.generateSql(
                 TEST_MODEL, request, SemanticRequestContext.empty());
-        assertNotNull(result, "generateSql returned null for rolling_7d-post-calc-gap-happy");
-        assertNotNull(result.getSql(), "SQL is null for rolling_7d-post-calc-gap-happy");
+        assertNotNull(result, "generateSql returned null for " + name);
+        assertNotNull(result.getSql(), "SQL is null for " + name);
 
-        log.info("rolling_7d-post-calc-gap-happy SQL:\n{}", result.getSql());
+        log.info("{} SQL:\n{}", name, result.getSql());
 
         Map<String, Object> row = new LinkedHashMap<>();
-        row.put("name", "rolling_7d-post-calc-gap-happy");
+        row.put("name", name);
         row.put("dialect", "default");
         row.put("sql_normalized", result.getSql());
         row.put("bind_params", result.getParams() != null ? result.getParams() : List.of());
