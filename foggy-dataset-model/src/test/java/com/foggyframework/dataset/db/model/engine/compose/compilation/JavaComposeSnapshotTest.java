@@ -601,6 +601,27 @@ class JavaComposeSnapshotTest {
                                 List.of("left.amountLeft", "right.amountRight"),
                                 List.of(0))),
                 caseOf(
+                        "sqlserver-union-result-alias-derived-fallback",
+                        "sqlserver",
+                        derived(
+                                union(
+                                        base("FactSalesModel",
+                                                List.of("orderStatus$caption AS bucket", "salesAmount AS amount"),
+                                                null, null, List.of("sales")),
+                                        base("FactOrderModel",
+                                                List.of("orderStatus$caption AS bucket", "totalAmount AS amount"),
+                                                null, null, List.of("orders")),
+                                        true,
+                                        List.of("combined")),
+                                List.of("combined.amount"),
+                                List.of(filter("combined.amount", ">", 0)),
+                                List.of("-combined.amount"),
+                                null,
+                                null),
+                        expected(List.of("UNION ALL", "WHERE", "ORDER BY", "amount"),
+                                List.of("FROM (WITH", "combined.amount", "sales.amount", "orders.amount"),
+                                List.of(0))),
+                caseOf(
                         "sqlserver-derived-chain-top-level-with",
                         "sqlserver",
                         derived(
@@ -618,7 +639,9 @@ class JavaComposeSnapshotTest {
                                 null,
                                 null,
                                 null),
-                        expected(List.of("SELECT"), List.of("FROM (WITH"), List.of()))
+                        expected(List.of("SELECT", "FROM (", " AS t0"),
+                                List.of("WITH ", "FROM (WITH"),
+                                List.of()))
         );
     }
 
