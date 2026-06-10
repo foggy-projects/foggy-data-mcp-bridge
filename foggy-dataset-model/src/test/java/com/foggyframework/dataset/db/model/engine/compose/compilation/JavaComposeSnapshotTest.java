@@ -369,6 +369,15 @@ class JavaComposeSnapshotTest {
                                 List.of(" AS t0"),
                                 List.of()))),
                 caseOf(
+                        "base-sqlite-cte",
+                        "sqlite",
+                        base("FactSalesModel",
+                                List.of("orderStatus$caption", "salesAmount"),
+                                null, null, null),
+                        strictShape(expected(List.of("WITH ", "cte_0 AS", "salesAmount"),
+                                List.of(" AS t0"),
+                                List.of()))),
+                caseOf(
                         "base-sqlserver-subquery",
                         "sqlserver",
                         base("FactSalesModel",
@@ -417,6 +426,20 @@ class JavaComposeSnapshotTest {
                                         null, null, null),
                                 true),
                         strictShape(expected(List.of("UNION ALL", "order_status"), List.of(), List.of()))),
+                caseOf(
+                        "union-all-sales-orders-mysql57",
+                        "mysql",
+                        union(
+                                base("FactSalesModel",
+                                        List.of("orderStatus$caption AS bucket", "salesAmount AS amount"),
+                                        null, null, null),
+                                base("FactOrderModel",
+                                        List.of("orderStatus$caption AS bucket", "totalAmount AS amount"),
+                                        null, null, null),
+                                true),
+                        strictShape(expected(List.of("UNION ALL", "order_status"),
+                                List.of("WITH ", "FROM (WITH"),
+                                List.of()))),
                 caseOf(
                         "join-mysql8-cte",
                         "mysql8",
