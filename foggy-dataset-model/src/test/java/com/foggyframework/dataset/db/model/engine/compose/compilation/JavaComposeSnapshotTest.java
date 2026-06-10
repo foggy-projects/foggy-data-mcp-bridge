@@ -389,7 +389,7 @@ class JavaComposeSnapshotTest {
                                 List.of("-salesAmount"),
                                 5,
                                 null),
-                        expected(List.of("WITH ", "WHERE", "ORDER BY", "LIMIT"), List.of(), List.of("COMPLETED"))),
+                        strictShape(expected(List.of("WITH ", "WHERE", "ORDER BY", "LIMIT"), List.of(), List.of("COMPLETED")))),
                 caseOf(
                         "union-all-sales-orders-mysql8",
                         "mysql8",
@@ -401,7 +401,7 @@ class JavaComposeSnapshotTest {
                                         List.of("orderStatus$caption AS bucket", "totalAmount AS amount"),
                                         null, null, null),
                                 true),
-                        expected(List.of("UNION ALL", "order_status"), List.of(), List.of())),
+                        strictShape(expected(List.of("UNION ALL", "order_status"), List.of(), List.of()))),
                 caseOf(
                         "qualified-source-alias-join-postgres",
                         "postgres",
@@ -498,9 +498,9 @@ class JavaComposeSnapshotTest {
                                 List.of("-orders.totalAmount"),
                                 null,
                                 null),
-                        expected(List.of("INNER JOIN", "WHERE", "ORDER BY", "salesAmount", "totalAmount"),
+                        strictShape(expected(List.of("INNER JOIN", "WHERE", "ORDER BY", "salesAmount", "totalAmount"),
                                 List.of("sales.salesAmount", "orders.totalAmount"),
-                                List.of(0))),
+                                List.of(0)))),
                 caseOf(
                         "inherited-source-alias-through-derived-postgres",
                         "postgres",
