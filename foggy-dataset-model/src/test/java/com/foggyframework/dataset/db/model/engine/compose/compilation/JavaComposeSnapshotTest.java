@@ -456,6 +456,21 @@ class JavaComposeSnapshotTest {
                                 List.of("FROM (WITH"),
                                 List.of()))),
                 caseOf(
+                        "join-mysql57-subquery",
+                        "mysql",
+                        join(
+                                base("FactSalesModel",
+                                        List.of("orderStatus$caption", "salesAmount"),
+                                        null, null, null),
+                                base("FactOrderModel",
+                                        List.of("orderStatus$caption", "totalAmount"),
+                                        null, null, null),
+                                "inner",
+                                List.of(joinOn("left.orderStatus$caption", "=", "right.orderStatus$caption"))),
+                        strictShape(expected(List.of("SELECT", "FROM (", "INNER JOIN", "salesAmount", "totalAmount"),
+                                List.of("WITH ", "FROM (WITH"),
+                                List.of()))),
+                caseOf(
                         "join-postgres-cte",
                         "postgres",
                         join(
