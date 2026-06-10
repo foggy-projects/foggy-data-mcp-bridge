@@ -2,6 +2,7 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.foggyframework.dataset.mcp.service.ToolCallCollector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * of LLM transcripts. Python can replay this boundary without Odoo models or a
  * live model provider.</p>
  */
-@DisplayName("JavaDomainQuestionNeutralRunnerSnapshotTest · Python alignment P0-31/P0-41/P0-47")
+@DisplayName("JavaDomainQuestionNeutralRunnerSnapshotTest · Python alignment P0-31/P0-41/P0-47/P0-51")
 class JavaDomainQuestionNeutralRunnerSnapshotTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -65,8 +66,8 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                 payload(
                                         List.of("salesAmount"),
                                         List.of("orderStatus"),
-                                        List.of(Map.of("field", "salesAmount", "order", "desc")),
-                                        Map.of("field", "orderDate", "preset", "currentQuarter"),
+                                        List.of(ordered("field", "salesAmount", "order", "desc")),
+                                        ordered("field", "orderDate", "preset", "currentQuarter"),
                                         List.of(),
                                         List.of(),
                                         10
@@ -88,11 +89,11 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                         List.of("orderMonth"),
                                         List.of(),
                                         null,
-                                        List.of(Map.of(
+                                        List.of(ordered(
                                                 "name", "grossMargin",
                                                 "expression", "salesAmount - costAmount"
                                         )),
-                                        List.of(Map.of("field", "orderStatus", "op", "eq", "value", "closed")),
+                                        List.of(ordered("field", "orderStatus", "op", "eq", "value", "closed")),
                                         20
                                 ),
                                 List.of("grossMargin", "orderMonth", "salesAmount - costAmount"),
@@ -115,10 +116,10 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                         List.of(),
                                         List.of(),
                                         50,
-                                        List.of(Map.of(
+                                        List.of(ordered(
                                                 "table", "fact_sales",
-                                                "column", "customer_email",
-                                                "field", "customerEmail"
+                                                "field", "customerEmail",
+                                                "column", "customer_email"
                                         ))
                                 ),
                                 List.of(),
@@ -138,17 +139,17 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                                 List.of(),
                                                 List.of(),
                                                 List.of(),
-                                                Map.of("field", "orderDate", "preset", "currentQuarter"),
+                                                ordered("field", "orderDate", "preset", "currentQuarter"),
                                                 List.of(),
                                                 List.of(),
                                                 50
                                         ),
-                                        Map.of(
-                                                "pivot", Map.of(
-                                                        "rows", List.of("orderStatus"),
+                                        ordered(
+                                                "pivot", ordered(
                                                         "columns", List.of("orderMonth"),
-                                                        "metrics", List.of("salesAmount"),
-                                                        "outputFormat", "grid"
+                                                        "outputFormat", "grid",
+                                                        "rows", List.of("orderStatus"),
+                                                        "metrics", List.of("salesAmount")
                                                 )
                                         )
                                 ),
@@ -170,7 +171,7 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                         List.of("orderStatus"),
                                         List.of(),
                                         null,
-                                        List.of(Map.of(
+                                        List.of(ordered(
                                                 "name", "axisRatio",
                                                 "expression", "CELL_AT('columns', 'first')"
                                         )),
@@ -200,8 +201,8 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
                                                 List.of(),
                                                 50
                                         ),
-                                        Map.of(
-                                                "hints", Map.of(
+                                        ordered(
+                                                "hints", ordered(
                                                         "requestedConstruct", "crossModelJoin",
                                                         "recommendedTool", "dataset.compose_script"
                                                 )
@@ -222,13 +223,13 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
         Map<String, Object> c = ordered();
         c.put("id", id);
         c.put("question", question);
-        c.put("context", Map.of(
-                "namespace", "demo",
-                "principal", Map.of(
+        c.put("context", ordered(
+                "principal", ordered(
+                        "roles", List.of("analyst"),
                         "userId", "snapshot-user",
-                        "tenantId", "demo",
-                        "roles", List.of("analyst")
-                )
+                        "tenantId", "demo"
+                ),
+                "namespace", "demo"
         ));
         c.put("expected", expected);
         return c;
@@ -277,8 +278,47 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
             expected.put("unsupportedConstructs", unsupportedConstructs);
         }
         expected.put("reports", List.of(reportMetadata(model, mode, warnings, errorCode, unsupportedConstructs)));
+        expected.put("collectorRecord", collectorRecord(toolArguments, errorCode));
         expected.put("forbiddenMarkers", List.of("odoo", "res_partner", "res_users", "LLM"));
         return expected;
+    }
+
+    private static Map<String, Object> collectorRecord(Map<String, Object> toolArguments,
+                                                       String errorCode) {
+        ToolCallCollector collector = new ToolCallCollector("domain-question-neutral-runner");
+
+        Map<String, Object> result = ordered();
+        if (errorCode == null) {
+            result.put("status", "ok");
+            result.put("rowCount", 1);
+        } else {
+            result.put("status", "error");
+            result.put("errorCode", errorCode);
+        }
+
+        collector.recordToolCall(
+                "dataset.query_model",
+                "dataset_query_model",
+                toolArguments,
+                result,
+                errorCode == null ? null : "[NEUTRAL_RUNNER_REJECTED] " + errorCode,
+                0
+        );
+
+        ToolCallCollector.ToolCallRecord record = collector.getFirstCall();
+        Map<String, Object> envelope = ordered();
+        envelope.put("sessionId", collector.getSessionId());
+        envelope.put("callCount", collector.getCallCount());
+        envelope.put("allSuccess", collector.isAllSuccess());
+        envelope.put("toolName", record.getToolName());
+        envelope.put("springToolName", record.getSpringToolName());
+        envelope.put("arguments", toolArguments);
+        envelope.put("result", record.getResult());
+        envelope.put("error", record.getError());
+        envelope.put("success", record.isSuccess());
+        envelope.put("durationMs", record.getDurationMs());
+        envelope.put("sequence", record.getSequence());
+        return envelope;
     }
 
     private static Map<String, Object> reportMetadata(String model,
@@ -374,6 +414,30 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
         assertEquals(warnings.size(), report.get("warningCount"));
         assertEquals(expected.get("errorCode") == null ? 0 : 1, report.get("errorCount"));
 
+        @SuppressWarnings("unchecked")
+        Map<String, Object> collectorRecord = (Map<String, Object>) expected.get("collectorRecord");
+        assertEquals("domain-question-neutral-runner", collectorRecord.get("sessionId"));
+        assertEquals(1, collectorRecord.get("callCount"));
+        assertEquals(expected.get("errorCode") == null, collectorRecord.get("allSuccess"));
+        assertEquals(expected.get("toolName"), collectorRecord.get("toolName"));
+        assertEquals("dataset_query_model", collectorRecord.get("springToolName"));
+        assertEquals(toolArguments, collectorRecord.get("arguments"));
+        assertEquals(expected.get("errorCode") == null, collectorRecord.get("success"));
+        assertEquals(0L, collectorRecord.get("durationMs"));
+        assertEquals(0, collectorRecord.get("sequence"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> collectorResult = (Map<String, Object>) collectorRecord.get("result");
+        if (expected.get("errorCode") == null) {
+            assertEquals("ok", collectorResult.get("status"));
+            assertEquals(1, collectorResult.get("rowCount"));
+            assertEquals(null, collectorRecord.get("error"));
+        } else {
+            assertEquals("error", collectorResult.get("status"));
+            assertEquals(expected.get("errorCode"), collectorResult.get("errorCode"));
+            assertTrue(String.valueOf(collectorRecord.get("error"))
+                    .contains(String.valueOf(expected.get("errorCode"))));
+        }
+
         String serialized = toolArguments.toString();
         @SuppressWarnings("unchecked")
         List<String> forbiddenMarkers = (List<String>) expected.get("forbiddenMarkers");
@@ -403,5 +467,16 @@ class JavaDomainQuestionNeutralRunnerSnapshotTest {
 
     private static Map<String, Object> ordered() {
         return new LinkedHashMap<>();
+    }
+
+    private static Map<String, Object> ordered(Object... entries) {
+        if (entries.length % 2 != 0) {
+            throw new IllegalArgumentException("ordered map entries must be key/value pairs");
+        }
+        Map<String, Object> map = ordered();
+        for (int i = 0; i < entries.length; i += 2) {
+            map.put(String.valueOf(entries[i]), entries[i + 1]);
+        }
+        return map;
     }
 }
