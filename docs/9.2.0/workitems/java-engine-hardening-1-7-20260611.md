@@ -22,19 +22,19 @@ or cross-language alignment.
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| 1 | Aggregate Join PostgreSQL evidence | blocked-by-local-env | `docker` and `psql` are not available in this shell, and local PostgreSQL port `15432` is closed. This is an environment block, not a failed engine result. |
-| 2 | Aggregate Join target TMS-style representative fixture | verified-local | Added a local TMS-style order+site composite-key aggregate relation fixture and verified RHS source-key `WHERE` plus measure `HAVING` pushdown on SQLite and live MySQL 5.7. Real target TMS database evidence and model-registry promotion remain follow-up. |
+| 1 | Aggregate Join PostgreSQL evidence | blocked-by-local-env | `application-postgres.yml` and the compose PostgreSQL service both target `15432`, but `docker`, `podman`, and `psql` are not available in this shell, and local PostgreSQL ports `15432`/`5432` are closed. This is an environment block, not a failed engine result. |
+| 2 | Aggregate Join target TMS-style representative fixture | verified-local-gate-defined | Added a local TMS-style order+site composite-key aggregate relation fixture and verified RHS source-key `WHERE` plus measure `HAVING` pushdown on SQLite and live MySQL 5.7. Registry promotion gate is defined in `foggy-model-registry` commit `4e97d73`, but no TMS package is published before real authority models and target DB evidence exist. |
 | 3 | Complex predicate pushdown boundary hardening | verified-local | Added coverage for mixed OR staying outer-only and AND `in`/range being pushed to RHS `WHERE` / `HAVING` while retaining the outer filters. |
 | 4 | Tenant/access guard edge cases | maintained | Existing system-slice, accessBuilder, deniedColumns, and predefined calculated-field tests continue to guard the hardening boundary. No new engine code was required in this pass. |
 | 5 | Data Viewer direct `extData` runtime filter negative cases | verified-local | Added fail-closed coverage for blank top-level `extData.orderId` and for nested `param.extData` being ignored by the direct endpoint. |
-| 6 | Pivot SQL Server cascade oracle | blocked-by-local-env | `docker` is unavailable and SQL Server port `11433` is closed. No SQL Server cascade enablement is claimed. |
+| 6 | Pivot SQL Server cascade oracle | blocked-by-local-env | `application-sqlserver.yml` and the compose SQL Server service both target `11433`, but `docker`, `podman`, and `sqlcmd` are not available in this shell, and local SQL Server ports `11433`/`1433` are closed. No SQL Server cascade enablement is claimed. |
 | 7 | Pivot MySQL 5.7 live large-domain/cascade evidence | partial-by-related-live-evidence | MySQL 5.7 is reachable on `127.0.0.1:13306`. This pass collected live aggregate-join evidence there; Pivot cascade large-domain evidence remains a separate follow-up. |
 
 ## Verification
 
 | Command | Result |
 |---|---|
-| `/usr/local/bin/mysql`, `nc -z 127.0.0.1 13306`, `nc -z 127.0.0.1 15432`, `nc -z 127.0.0.1 11433` | MySQL client exists and MySQL 5.7 port `13306` is reachable. PostgreSQL `15432` and SQL Server `11433` are closed. `docker` and `psql` are unavailable in this shell. |
+| `command -v docker`, `command -v podman`, `command -v psql`, `command -v sqlcmd`, `command -v mysql`, `nc -z 127.0.0.1 15432`, `nc -z 127.0.0.1 5432`, `nc -z 127.0.0.1 11433`, `nc -z 127.0.0.1 1433`, `nc -z 127.0.0.1 13306` | Only `/usr/local/bin/mysql` exists. MySQL 5.7 port `13306` is reachable. PostgreSQL `15432`/`5432` and SQL Server `11433`/`1433` are closed. `docker`, `podman`, `psql`, and `sqlcmd` are unavailable in this shell. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationMixedOrSliceShouldStayOuterOnly+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; new complex-predicate aggregate relation coverage; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#tmsStyleAggregateRelationShouldPushCompositeKeyFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; local TMS-style order+site composite-key aggregate relation fixture verifies RHS `agg_src.order_id = ?`, `agg_src.store_key = ?`, `HAVING sum(agg_src.sales_amount) > ?`, and native aggregate parity; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join SQLite regression after the new predicate-boundary and TMS-style composite-key fixture tests; Tests run: 50, Failures: 0, Errors: 0, Skipped: 0. |
@@ -46,11 +46,16 @@ or cross-language alignment.
 ## Follow-Up Boundary
 
 - PostgreSQL aggregate join `EXPLAIN` must be rerun with a prepared PostgreSQL
-  service, `psql`, and a reachable local port.
-- SQL Server Pivot cascade oracle still needs a prepared SQL Server service and
-  an explicit dialect oracle. This pass does not change SQL Server support.
+  service, `psql`, and a reachable local port. The local profile and compose
+  service exist, but they were not runnable from this shell.
+- SQL Server Pivot cascade oracle still needs a prepared SQL Server service,
+  `sqlcmd`, and an explicit dialect oracle. The local profile and compose
+  service exist, but they were not runnable from this shell. This pass does not
+  change SQL Server support.
 - MySQL 5.7 Pivot large-domain/cascade evidence remains separate from the
   aggregate-join live MySQL 5.7 evidence collected here.
-- Target TMS model promotion should still happen through `foggy-model-registry`
-  or a real target TMS database bundle after the representative local fixture is
-  mapped to the production model names and grains.
+- Target TMS model promotion gate is now recorded in
+  `/Users/fengjianguang/foggy-projects/foggy-model-registry/docs/v1.0/P2-tms-aggregate-relation-promotion-gate.md`
+  at registry commit `4e97d73`. It intentionally does not publish the local
+  ecommerce-style test fixture as a registry bundle; publication waits for real
+  authority TMS models and target database evidence.
