@@ -26,6 +26,7 @@ import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +70,9 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
     @Test
     @DisplayName("produces _querymodel_aggregate_join_snapshot.json")
     void shouldProduceSnapshot() throws Exception {
+        Assumptions.assumeTrue(Boolean.getBoolean("foggy.parity.snapshot"),
+                "set -Dfoggy.parity.snapshot=true to export aggregate join parity snapshot");
+
         String matchedOrderId = findOrderIdWithCompletedSales();
         String unmatchedOrderId = findOrderIdWithoutCompletedSales();
 
