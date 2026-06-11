@@ -28,7 +28,7 @@ or cross-language alignment.
 | 4 | Tenant/access guard edge cases | maintained | Existing system-slice, accessBuilder, deniedColumns, and predefined calculated-field tests continue to guard the hardening boundary. No new engine code was required in this pass. |
 | 5 | Data Viewer direct `extData` runtime filter negative cases | verified-local | Added fail-closed coverage for blank top-level `extData.orderId` and for nested `param.extData` being ignored by the direct endpoint. |
 | 6 | Pivot SQL Server cascade oracle | blocked-by-local-env | `application-sqlserver.yml` and the compose SQL Server service both target `11433`, but `docker`, `podman`, and `sqlcmd` are not available in this shell, and local SQL Server ports `11433`/`1433` are closed. No SQL Server cascade enablement is claimed. |
-| 7 | Pivot MySQL 5.7 live large-domain/cascade evidence | partial-by-related-live-evidence | MySQL 5.7 is reachable on `127.0.0.1:13306`. This pass collected live aggregate-join evidence there; Pivot cascade large-domain evidence remains a separate follow-up. |
+| 7 | Pivot MySQL 5.7 live large-domain/cascade evidence | verified-live-refusal-and-large-domain | MySQL 5.7 is reachable on `127.0.0.1:13306`. Pivot live evidence now covers large-domain axis-domain TopN/start pushdown, domain transport planning, and rows-cascade fail-closed refusal with `PIVOT_CASCADE_SQL_REQUIRED`. No MySQL 5.7 cascade enablement is claimed. |
 
 ## Verification
 
@@ -51,6 +51,10 @@ or cross-language alignment.
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dtest='AggregateRelationDiagnosticContractTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate relation diagnostics contract pins record component order, JSON keys, pushed/retained/refused factory semantics, and the eight reason codes; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='JavaQueryModelAggregateJoinSnapshotTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate join parity snapshot exporter is skipped by default unless `foggy.parity.snapshot` is enabled; Tests run: 1, Failures: 0, Errors: 0, Skipped: 1. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dfoggy.parity.snapshot=true -Dtest='JavaQueryModelAggregateJoinSnapshotTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; explicit aggregate join parity export writes `target/parity/_querymodel_aggregate_join_snapshot.json`; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotCascadeGenerateSqlParityIntegrationTest#testMysql57RowsCascadeFailsClosedWithoutMemoryFallback' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; MySQL 5.7 live-refusal test is gated away on non-docker profiles; Tests run: 1, Failures: 0, Errors: 0, Skipped: 1. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=docker -Dtest='PivotCascadeGenerateSqlParityIntegrationTest#testMysql57RowsCascadeFailsClosedWithoutMemoryFallback' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; rows two-level cascade with per-level TopN fails closed with `PIVOT_CASCADE_SQL_REQUIRED` and does not fall back to memory execution; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=docker -Dtest='PivotIntegrationTest#testLargeAxisDomainTopNPushdownBeforeDefaultLimit+testLargeAxisDomainStartPushdownBeyondDefaultLimit+testLargeAxisDomainConstraintUsesDomainTransportPlan' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; large-domain axis-domain TopN/start pushdown and 501-tuple domain transport planning remain executable beyond the default 1000-row boundary; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dtest='DomainRelationRendererTest#testMysql57DerivedTableRenderer_ThresholdRefusal' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; MySQL 5.7 domain-relation renderer remains threshold-limited and refuses oversized derived-table rendering instead of emitting unsafe SQL; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Follow-Up Boundary
 
@@ -61,8 +65,10 @@ or cross-language alignment.
   `sqlcmd`, and an explicit dialect oracle. The local profile and compose
   service exist, but they were not runnable from this shell. This pass does not
   change SQL Server support.
-- MySQL 5.7 Pivot large-domain/cascade evidence remains separate from the
-  aggregate-join live MySQL 5.7 evidence collected here.
+- MySQL 5.7 Pivot evidence now covers live large-domain axis-domain pushdown,
+  domain transport planning, and live cascade fail-closed refusal. Enabling
+  cascade on MySQL 5.7 remains out of scope unless a future non-window staged
+  oracle exists.
 - Target TMS model promotion gate is now recorded in
   `/Users/fengjianguang/foggy-projects/foggy-model-registry/docs/v1.0/P2-tms-aggregate-relation-promotion-gate.md`
   at registry commit `4e97d73`. It intentionally does not publish the local

@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeErrorCode;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeException;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -13,6 +15,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
@@ -20,6 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -34,6 +38,39 @@ class PivotCascadeGenerateSqlParityIntegrationTest extends EcommerceTestSupport 
 
     @Resource
     private JdbcTemplate jdbcTemplate;
+
+    @Value("${spring.profiles.active:}")
+    private String activeProfiles;
+
+    @Test
+    @DisplayName("0. MySQL 5.7 rows cascade fails closed without memory fallback")
+    void testMysql57RowsCascadeFailsClosedWithoutMemoryFallback() {
+        assumeTrue(activeProfiles.contains("docker"),
+                "Skipping: MySQL 5.7 live refusal evidence only runs on docker profile");
+        assumeTrue("mysql".equals(getDialectKey()) && !supportsWindowFunctions(),
+                "Skipping: requires MySQL 5.7/non-window MySQL profile");
+
+        PivotRequest pivot = new PivotRequest();
+        AxisField category = axis("product$categoryName");
+        category.setLimit(2);
+        category.setOrderBy(List.of("-salesAmount"));
+
+        AxisField subCategory = axis("product$subCategoryName");
+        subCategory.setLimit(2);
+        subCategory.setOrderBy(List.of("-salesAmount"));
+
+        pivot.setRows(List.of(category, subCategory));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        PivotCascadeException ex = assertThrows(PivotCascadeException.class, () -> execute(request));
+        assertEquals(PivotCascadeErrorCode.PIVOT_CASCADE_SQL_REQUIRED, ex.getCode());
+        assertTrue(ex.getMessage().contains("Multi-level TopN requires staged SQL execution"));
+        assertTrue(ex.getMessage().contains("Planner failure"));
+    }
 
     @Test
     @DisplayName("1. Parent TopN + child TopN (child domain is subset of parent)")
