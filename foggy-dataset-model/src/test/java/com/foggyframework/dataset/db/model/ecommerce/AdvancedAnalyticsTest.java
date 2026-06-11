@@ -514,6 +514,41 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(25)
+    @DisplayName("QM 预定义标量字段可同时用于外层 SUM 聚合与 slice")
+    @SuppressWarnings("unchecked")
+    void testQmPredefinedScalarFormulaOuterAggregationWithSlice() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(List.of("sum(profitRate) as totalProfitRate"));
+        queryRequest.setSlice(List.of(
+                new SliceRequestDef("salesAmount", ">", 0),
+                new SliceRequestDef("profitRate", ">", 10)
+        ));
+
+        PagingRequest<DbQueryRequestDef> form = new PagingRequest<>();
+        form.setParam(queryRequest);
+        form.setPageSize(1);
+
+        PagingResultImpl result = queryFacade.queryModelData(form);
+
+        assertNotNull(result);
+        assertNotNull(result.getItems());
+        assertEquals(1, result.getItems().size());
+
+        Map<String, Object> actualRow = (Map<String, Object>) result.getItems().get(0);
+        Object actual = valueIgnoreCase(actualRow, "totalProfitRate");
+        Object expected = jdbcTemplate.queryForObject("""
+                SELECT SUM(profit_amount / sales_amount * 100) AS totalProfitRate
+                FROM fact_sales
+                WHERE sales_amount > 0
+                  AND profit_amount / sales_amount * 100 > 10
+                """, Object.class);
+
+        assertDecimalClose(expected, actual);
+    }
+
+    @Test
     @Order(26)
     @DisplayName("QM v2 普通 TM 支持同模型多别名 join")
     @SuppressWarnings("unchecked")
