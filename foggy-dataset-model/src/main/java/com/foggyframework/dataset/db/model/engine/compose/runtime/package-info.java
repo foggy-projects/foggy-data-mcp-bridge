@@ -12,6 +12,8 @@
  *       — {@code ToolExecutionContext → ComposeQueryContext} bridge (embedded mode)</li>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution}
  *       — {@code QueryPlan → List<Map>} via compiler + executeSql</li>
+ *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService}
+ *       — host-facing validate/preview/execute facade over restricted fsscript</li>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRuntime}
  *       — fsscript evaluator with sandboxed visible surface ({@code from}, {@code dsl})</li>
  * </ul>
