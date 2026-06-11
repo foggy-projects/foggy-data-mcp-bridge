@@ -11,17 +11,23 @@ import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.AggregateJoinTableModel;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationDiagnostic;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.proxy.AggregateJoinBuilder;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
@@ -59,6 +65,9 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
     @Resource
     private QueryFacade queryFacade;
+
+    @Resource
+    private SemanticQueryServiceV3 semanticQueryService;
 
     @Test
     @DisplayName("aggregate join 应生成右侧聚合子查询")
@@ -179,6 +188,48 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
             assertFalse(normalizedBody.contains("having"), "group key 条件不应进入 HAVING");
         } finally {
             ((AggregateRelationQueryObject) ((DbColumn) groupKey).getQueryObject()).clearAggregateRelationPushdowns();
+        }
+    }
+
+    @Test
+    @DisplayName("aggregate relation pushdown 拒绝路径应记录稳定 reason code")
+    void aggregateRelationPushdownRefusalShouldRecordReasonCodes() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+        DbColumn salesAmountColumn = queryModel.findJdbcColumnForCond("salesAmount", true, true);
+        assertTrue(salesAmountColumn instanceof AggregateRelationOutputColumn,
+                "salesAmount 应来自 aggregate relation 输出列");
+
+        AggregateRelationOutputColumn salesAmount = (AggregateRelationOutputColumn) salesAmountColumn;
+        AggregateRelationQueryObject queryObject = resolveAggregateRelationQueryObject(salesAmountColumn.getQueryObject());
+        assertNotNull(queryObject, "aggregate relation query object 应可解析");
+
+        try {
+            assertFalse(salesAmount.pushAggregateRelationCondition("like", "%10%"),
+                    "unsupported operator 不应下推");
+            assertFalse(salesAmount.pushAggregateRelationCondition("in", List.of()),
+                    "empty IN 不应下推");
+            assertFalse(salesAmount.pushAggregateRelationCondition("[]", List.of(BigDecimal.ZERO)),
+                    "invalid range 不应下推");
+
+            List<AggregateRelationDiagnostic> diagnostics = queryObject.getAggregateRelationDiagnostics();
+            assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                            "refused".equals(diagnostic.decision())
+                                    && AggregateRelationQueryObject.REASON_UNSUPPORTED_OPERATOR.equals(diagnostic.reasonCode())
+                                    && "salesAmount".equals(diagnostic.field())),
+                    "unsupported operator 应记录拒绝原因");
+            assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                            "refused".equals(diagnostic.decision())
+                                    && AggregateRelationQueryObject.REASON_EMPTY_IN_VALUES.equals(diagnostic.reasonCode())
+                                    && "salesAmount".equals(diagnostic.field())),
+                    "empty IN 应记录拒绝原因");
+            assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                            "refused".equals(diagnostic.decision())
+                                    && AggregateRelationQueryObject.REASON_INVALID_RANGE_VALUE.equals(diagnostic.reasonCode())
+                                    && "salesAmount".equals(diagnostic.field())),
+                    "invalid range 应记录拒绝原因");
+        } finally {
+            queryObject.clearAggregateRelationPushdowns();
         }
     }
 
@@ -305,6 +356,17 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "mixed OR measure slice 应保留在外层 WHERE");
         assertTrue(normalizedSql.toLowerCase().contains(" or "),
                 "mixed OR 应保留外层 OR 连接语义");
+        List<AggregateRelationDiagnostic> diagnostics = aggregateRelationDiagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY.equals(diagnostic.reasonCode())
+                                && "orderId".equals(diagnostic.field())),
+                "mixed OR 中的 join-key slice 应记录为 outer-only");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY.equals(diagnostic.reasonCode())
+                                && "salesAmount".equals(diagnostic.field())),
+                "mixed OR 中的 measure slice 应记录为 outer-only");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 queryEngine.getSql(),
@@ -338,12 +400,63 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         assertTrue(queryEngine.getValues().contains(unmatchedOrderId), "IN 参数应进入查询参数列表");
         assertTrue(countBigDecimalValues(queryEngine.getValues(), BigDecimal.ZERO) >= 2,
                 "RHS HAVING 与外层 WHERE 都应绑定 range 下界");
+        List<AggregateRelationDiagnostic> diagnostics = aggregateRelationDiagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "pushed".equals(diagnostic.decision())
+                                && "where".equals(diagnostic.target())
+                                && "orderId".equals(diagnostic.field())
+                                && diagnostic.expression().contains("agg_src.order_id in")),
+                "AND join-key IN slice 应记录 RHS WHERE pushdown 诊断");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "pushed".equals(diagnostic.decision())
+                                && "having".equals(diagnostic.target())
+                                && "salesAmount".equals(diagnostic.field())
+                                && diagnostic.expression().contains("sum(agg_src.sales_amount) >=")),
+                "AND measure range slice 应记录 RHS HAVING pushdown 诊断");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 queryEngine.getSql(),
                 queryEngine.getValues().toArray());
         assertEquals(1, rows.size(), "measure range 保留外层 WHERE 后仅有 RHS 聚合匹配的订单返回");
         assertEquals(matchedOrderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
+    @DisplayName("semantic response debug.extra 应暴露 aggregate relation pushdown diagnostics")
+    void semanticResponseShouldExposeAggregateRelationDiagnostics() {
+        String matchedOrderId = findOrderIdWithCompletedSales();
+        String unmatchedOrderId = findOrderIdWithoutCompletedSales();
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        request.setSlice(List.of(
+                semanticSlice("orderId", "in", List.of(matchedOrderId, unmatchedOrderId)),
+                semanticSlice("salesAmount", "[]", List.of(BigDecimal.ZERO, new BigDecimal("999999999")))));
+        request.setLimit(100);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                "OrderSalesAggregateRelationQueryModel",
+                request,
+                "execute",
+                SemanticRequestContext.empty());
+
+        assertNotNull(response.getDebug(), "semantic response 应包含 debug 信息");
+        assertNotNull(response.getDebug().getExtra(), "semantic response debug.extra 应包含执行证据");
+        Object rawDiagnostics = response.getDebug().getExtra().get("aggregateRelationDiagnostics");
+        assertTrue(rawDiagnostics instanceof List<?>, "debug.extra 应暴露 aggregateRelationDiagnostics 列表");
+
+        @SuppressWarnings("unchecked")
+        List<AggregateRelationDiagnostic> diagnostics = (List<AggregateRelationDiagnostic>) rawDiagnostics;
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "pushed".equals(diagnostic.decision())
+                                && "where".equals(diagnostic.target())
+                                && "orderId".equals(diagnostic.field())),
+                "semantic debug.extra 应包含 RHS WHERE pushdown 诊断");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "pushed".equals(diagnostic.decision())
+                                && "having".equals(diagnostic.target())
+                                && "salesAmount".equals(diagnostic.field())),
+                "semantic debug.extra 应包含 RHS HAVING pushdown 诊断");
     }
 
     @Test
@@ -821,6 +934,13 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "外层 RHS alias is null slice 不应复制到 RHS 聚合子查询内部");
         assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is null"),
                 "RHS alias is null slice 应只渲染在外层 WHERE");
+        List<AggregateRelationDiagnostic> diagnostics = aggregateRelationDiagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_NULL_CHECK_OUTER_ONLY.equals(diagnostic.reasonCode())
+                                && "paymentMethod".equals(diagnostic.field())
+                                && "is null".equals(diagnostic.op())),
+                "RHS alias is null slice 应记录为 outer-only");
     }
 
     @Test
@@ -839,6 +959,13 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "外层 RHS alias is not null slice 不应复制到 RHS 聚合子查询内部");
         assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod is not null"),
                 "RHS alias is not null slice 应只渲染在外层 WHERE");
+        List<AggregateRelationDiagnostic> diagnostics = aggregateRelationDiagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_NULL_CHECK_OUTER_ONLY.equals(diagnostic.reasonCode())
+                                && "paymentMethod".equals(diagnostic.field())
+                                && "is not null".equals(diagnostic.op())),
+                "RHS alias is not null slice 应记录为 outer-only");
     }
 
     @Test
@@ -1462,6 +1589,24 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 .orElseThrow();
     }
 
+    private List<AggregateRelationDiagnostic> aggregateRelationDiagnostics(JdbcModelQueryEngine queryEngine) {
+        assertNotNull(queryEngine.getJdbcQueryModel(), "查询引擎应保留 JDBC QueryModel");
+        return queryEngine.getJdbcQueryModel().getJdbcModelList().stream()
+                .map(TableModel::getQueryObject)
+                .map(this::resolveAggregateRelationQueryObject)
+                .filter(AggregateRelationQueryObject.class::isInstance)
+                .findFirst()
+                .map(AggregateRelationQueryObject::getAggregateRelationDiagnostics)
+                .orElseThrow();
+    }
+
+    private AggregateRelationQueryObject resolveAggregateRelationQueryObject(QueryObject queryObject) {
+        if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
+            return aggregateRelationQueryObject;
+        }
+        return queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
+    }
+
     private JdbcModelQueryEngine buildOrderSalesAggregateJoinQuery(String orderId) {
         JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateJoinQueryModel");
         assertNotNull(queryModel, "查询模型加载失败");
@@ -1754,6 +1899,14 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
     private SliceRequestDef slice(String field, String op, Object value) {
         SliceRequestDef slice = new SliceRequestDef();
+        slice.setField(field);
+        slice.setOp(op);
+        slice.setValue(value);
+        return slice;
+    }
+
+    private SemanticQueryRequest.SliceItem semanticSlice(String field, String op, Object value) {
+        SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
         slice.setField(field);
         slice.setOp(op);
         slice.setValue(value);

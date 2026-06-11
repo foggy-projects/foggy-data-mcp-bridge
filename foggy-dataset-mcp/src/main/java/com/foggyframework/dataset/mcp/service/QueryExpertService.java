@@ -154,7 +154,28 @@ public class QueryExpertService {
         } else if (response.getPagination() != null && response.getPagination().getHasMore() != null) {
             normalized.put("hasNext", response.getPagination().getHasMore());
         }
+        Map<String, Object> debug = semanticDebugInfoToMap(response.getDebug());
+        if (!debug.isEmpty()) {
+            normalized.put("debug", debug);
+        }
         return normalized;
+    }
+
+    private static Map<String, Object> semanticDebugInfoToMap(SemanticQueryResponse.DebugInfo debugInfo) {
+        Map<String, Object> debug = new LinkedHashMap<>();
+        if (debugInfo == null) {
+            return debug;
+        }
+        if (debugInfo.getNormalized() != null) {
+            debug.put("normalized", debugInfo.getNormalized());
+        }
+        if (debugInfo.getDurationMs() != null) {
+            debug.put("durationMs", debugInfo.getDurationMs());
+        }
+        if (debugInfo.getExtra() != null && !debugInfo.getExtra().isEmpty()) {
+            debug.put("extra", debugInfo.getExtra());
+        }
+        return debug;
     }
 
     /**
@@ -2068,6 +2089,9 @@ public class QueryExpertService {
                 .total(total)
                 .summary(summary)
                 .hasNext(items.size() >= 20)
+                .debug(queryResult.get("debug") instanceof Map<?, ?> debug
+                        ? (Map<String, Object>) debug
+                        : null)
                 .build();
     }
 

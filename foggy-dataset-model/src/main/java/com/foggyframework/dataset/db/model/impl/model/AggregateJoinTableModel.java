@@ -834,6 +834,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private final List<String> groupByParts;
         private final List<JoinKeyPushdownMapping> joinKeyPushdownMappings;
         private final ThreadLocal<PushdownState> pushdownState = ThreadLocal.withInitial(PushdownState::new);
+        private volatile List<AggregateRelationDiagnostic> lastDiagnostics = List.of();
 
         GeneratedAggregateRelationQueryObject(SqlTable sqlTable,
                                               List<OutputColumn> outputColumns,
@@ -926,6 +927,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
 
         @Override
         public void clearAggregateRelationPushdowns() {
+            lastDiagnostics = List.copyOf(pushdownState.get().diagnostics);
             pushdownState.remove();
         }
 
@@ -953,6 +955,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
         @Override
         public boolean pushAggregateRelationCondition(AggregateRelationOutputColumn column, String op, Object value) {
             if (column == null) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        null, op, REASON_NO_AGGREGATE_EXPRESSION));
                 return false;
             }
             markAggregateRelationOutput(column);
@@ -960,9 +964,17 @@ public class AggregateJoinTableModel extends TableModelSupport {
                     ? column.getAggregateRelationAggregateExpression()
                     : column.getAggregateRelationSourceExpression();
             if (expression == null || expression.isBlank()) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        column.getAggregateRelationSourceExpression(), op, REASON_NO_AGGREGATE_EXPRESSION));
                 return false;
             }
-            return pushCondition(column.isAggregateRelationMeasure(), expression, op, value);
+            return pushCondition(column.isAggregateRelationMeasure(),
+                    column.getAggregateRelationSourceColumn() == null
+                            ? expression
+                            : column.getAggregateRelationSourceColumn().getName(),
+                    expression,
+                    op,
+                    value);
         }
 
         @Override
@@ -975,30 +987,53 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 if (!mapping.leftFieldNames().contains(leftFieldName)) {
                     continue;
                 }
-                pushed = pushCondition(false, mapping.rightExpression(), op, value) || pushed;
+                pushed = pushCondition(false, leftFieldName, mapping.rightExpression(), op, value) || pushed;
+            }
+            if (!pushed) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        leftFieldName, op, REASON_NO_JOIN_KEY_MAPPING));
             }
             return pushed;
         }
 
-        private boolean pushCondition(boolean having, String expression, String op, Object value) {
-            List<SqlFragment> fragments = renderConditionFragments(expression, op, value);
-            if (fragments.isEmpty()) {
+        @Override
+        public void recordAggregateRelationRetainedCondition(String fieldName, String op, String reasonCode) {
+            pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.retained(fieldName, op, reasonCode));
+        }
+
+        @Override
+        public List<AggregateRelationDiagnostic> getAggregateRelationDiagnostics() {
+            PushdownState state = pushdownState.get();
+            if (!state.diagnostics.isEmpty()) {
+                return List.copyOf(state.diagnostics);
+            }
+            return lastDiagnostics;
+        }
+
+        private boolean pushCondition(boolean having, String fieldName, String expression, String op, Object value) {
+            RenderedConditionFragments rendered = renderConditionFragments(expression, op, value);
+            if (rendered.fragments().isEmpty()) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        fieldName, op, rendered.reasonCode()));
                 return false;
             }
             PushdownState state = pushdownState.get();
             List<SqlFragment> target = having ? state.havingFragments : state.whereFragments;
-            for (SqlFragment fragment : fragments) {
+            String targetName = having ? "having" : "where";
+            for (SqlFragment fragment : rendered.fragments()) {
                 if (!target.contains(fragment)) {
                     target.add(fragment);
+                    state.diagnostics.add(AggregateRelationDiagnostic.pushed(
+                            fieldName, op, targetName, fragment.sql()));
                 }
             }
             return true;
         }
 
-        private List<SqlFragment> renderConditionFragments(String expression, String op, Object value) {
+        private RenderedConditionFragments renderConditionFragments(String expression, String op, Object value) {
             String normalizedOp = normalizeOp(op);
             if (normalizedOp == null) {
-                return List.of();
+                return RenderedConditionFragments.refused(REASON_UNSUPPORTED_OPERATOR);
             }
 
             if (isRangeOp(normalizedOp)) {
@@ -1006,38 +1041,40 @@ public class AggregateJoinTableModel extends TableModelSupport {
             }
 
             if ("is null".equals(normalizedOp) || value == null && "=".equals(normalizedOp)) {
-                return List.of(SqlFragment.of(expression + " is null"));
+                return RenderedConditionFragments.pushed(List.of(SqlFragment.of(expression + " is null")));
             }
             if ("is not null".equals(normalizedOp)
                     || value == null && ("<>".equals(normalizedOp) || "!=".equals(normalizedOp))) {
-                return List.of(SqlFragment.of(expression + " is not null"));
+                return RenderedConditionFragments.pushed(List.of(SqlFragment.of(expression + " is not null")));
             }
             if (value == null) {
-                return List.of();
+                return RenderedConditionFragments.refused(REASON_NULL_VALUE_UNSUPPORTED);
             }
 
             if ("in".equals(normalizedOp) || "not in".equals(normalizedOp)) {
                 Collection<?> values = value instanceof Collection<?> collection ? collection : List.of(value);
                 if (values.isEmpty()) {
-                    return List.of();
+                    return RenderedConditionFragments.refused(REASON_EMPTY_IN_VALUES);
                 }
                 String placeholders = values.stream()
                         .map(item -> "?")
                         .collect(Collectors.joining(", "));
-                return List.of(new SqlFragment(expression + " " + normalizedOp + " (" + placeholders + ")",
-                        new ArrayList<>(values)));
+                return RenderedConditionFragments.pushed(List.of(
+                        new SqlFragment(expression + " " + normalizedOp + " (" + placeholders + ")",
+                                new ArrayList<>(values))));
             }
 
             if (isSimpleComparisonOp(normalizedOp)) {
-                return List.of(new SqlFragment(expression + " " + normalizedOp + " ?", List.of(value)));
+                return RenderedConditionFragments.pushed(List.of(
+                        new SqlFragment(expression + " " + normalizedOp + " ?", List.of(value))));
             }
 
-            return List.of();
+            return RenderedConditionFragments.refused(REASON_UNSUPPORTED_OPERATOR);
         }
 
-        private List<SqlFragment> renderRangeConditionFragments(String expression, String op, Object value) {
+        private RenderedConditionFragments renderRangeConditionFragments(String expression, String op, Object value) {
             if (!(value instanceof List<?> values) || values.size() < 2) {
-                return List.of();
+                return RenderedConditionFragments.refused(REASON_INVALID_RANGE_VALUE);
             }
             List<SqlFragment> fragments = new ArrayList<>();
             Object start = values.get(0);
@@ -1052,7 +1089,10 @@ public class AggregateJoinTableModel extends TableModelSupport {
                         expression + ("]".equals(op.substring(1, 2)) ? " <= ?" : " < ?"),
                         List.of(end)));
             }
-            return fragments;
+            if (fragments.isEmpty()) {
+                return RenderedConditionFragments.refused(REASON_INVALID_RANGE_VALUE);
+            }
+            return RenderedConditionFragments.pushed(fragments);
         }
 
         private boolean isSimpleComparisonOp(String op) {
@@ -1088,9 +1128,24 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private class PushdownState {
             private final List<SqlFragment> whereFragments = new ArrayList<>();
             private final List<SqlFragment> havingFragments = new ArrayList<>();
+            private final List<AggregateRelationDiagnostic> diagnostics = new ArrayList<>();
             private final Set<String> requiredOutputAliases = new LinkedHashSet<>();
             private List<Object> lastBodyParameters = List.of();
             private boolean projectionPruningEnabled;
+        }
+    }
+
+    private record RenderedConditionFragments(List<SqlFragment> fragments, String reasonCode) {
+        private RenderedConditionFragments {
+            fragments = fragments == null ? List.of() : List.copyOf(fragments);
+        }
+
+        static RenderedConditionFragments pushed(List<SqlFragment> fragments) {
+            return new RenderedConditionFragments(fragments, null);
+        }
+
+        static RenderedConditionFragments refused(String reasonCode) {
+            return new RenderedConditionFragments(List.of(), reasonCode);
         }
     }
 

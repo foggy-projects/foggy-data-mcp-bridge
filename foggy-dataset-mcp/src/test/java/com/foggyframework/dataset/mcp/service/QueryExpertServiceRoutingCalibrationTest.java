@@ -1780,6 +1780,17 @@ class QueryExpertServiceRoutingCalibrationTest {
             semanticResponse.setItems(List.of(Map.of("orderId", "SO-1")));
             semanticResponse.setTotal(1L);
             semanticResponse.setHasNext(false);
+            SemanticQueryResponse.DebugInfo debugInfo = new SemanticQueryResponse.DebugInfo();
+            debugInfo.setExtra(Map.of(
+                    "aggregateRelationDiagnostics", List.of(Map.of(
+                            "decision", "pushed",
+                            "field", "salesAmount",
+                            "op", "[]",
+                            "target", "having",
+                            "expression", "sum(agg_src.sales_amount) >= ?"
+                    ))
+            ));
+            semanticResponse.setDebug(debugInfo);
 
             QueryExpertService.captureQueryResult(RX.ok(semanticResponse));
 
@@ -1789,6 +1800,12 @@ class QueryExpertServiceRoutingCalibrationTest {
             assertEquals(false, captured.get("hasNext"));
             List<Map<String, Object>> items = (List<Map<String, Object>>) captured.get("items");
             assertEquals("SO-1", items.get(0).get("orderId"));
+            Map<String, Object> debug = (Map<String, Object>) captured.get("debug");
+            Map<String, Object> extra = (Map<String, Object>) debug.get("extra");
+            List<Map<String, Object>> diagnostics =
+                    (List<Map<String, Object>>) extra.get("aggregateRelationDiagnostics");
+            assertEquals("pushed", diagnostics.get(0).get("decision"));
+            assertEquals("having", diagnostics.get(0).get("target"));
         } finally {
             QueryExpertService.clearCapture();
         }

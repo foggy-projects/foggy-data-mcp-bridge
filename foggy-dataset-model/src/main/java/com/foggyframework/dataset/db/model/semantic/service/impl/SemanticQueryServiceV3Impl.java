@@ -17,6 +17,8 @@ import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasPart
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationDiagnostic;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
@@ -38,8 +40,10 @@ import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
+import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.semantic.util.CaseInsensitiveFieldResolver;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
@@ -1748,10 +1752,49 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             extra.put("sql", normalizeDebugSql(queryEngine.getSql()));
             extra.put("aggSql", normalizeDebugSql(queryEngine.getAggSql()));
             extra.put("params", queryEngine.getValues());
+            List<AggregateRelationDiagnostic> aggregateRelationDiagnostics =
+                    collectAggregateRelationDiagnostics(queryEngine);
+            if (!aggregateRelationDiagnostics.isEmpty()) {
+                extra.put("aggregateRelationDiagnostics", aggregateRelationDiagnostics);
+            }
             debugInfo.setExtra(extra);
         }
 
         response.setDebug(debugInfo);
+    }
+
+    private List<AggregateRelationDiagnostic> collectAggregateRelationDiagnostics(JdbcModelQueryEngine queryEngine) {
+        QueryModel queryModel = queryEngine == null ? null : queryEngine.getJdbcQueryModel();
+        if (queryModel == null || queryModel.getJdbcModelList() == null) {
+            return List.of();
+        }
+        Set<AggregateRelationQueryObject> queryObjects = new LinkedHashSet<>();
+        for (TableModel tableModel : queryModel.getJdbcModelList()) {
+            collectAggregateRelationQueryObject(tableModel == null ? null : tableModel.getQueryObject(), queryObjects);
+            if (tableModel == null || tableModel.getVisibleSelectColumns() == null) {
+                continue;
+            }
+            for (DbColumn column : tableModel.getVisibleSelectColumns()) {
+                collectAggregateRelationQueryObject(column == null ? null : column.getQueryObject(), queryObjects);
+            }
+        }
+        return queryObjects.stream()
+                .flatMap(queryObject -> queryObject.getAggregateRelationDiagnostics().stream())
+                .collect(Collectors.toList());
+    }
+
+    private void collectAggregateRelationQueryObject(
+            QueryObject queryObject,
+            Set<AggregateRelationQueryObject> queryObjects) {
+        if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
+            queryObjects.add(aggregateRelationQueryObject);
+            return;
+        }
+        AggregateRelationQueryObject aggregateRelationQueryObject =
+                queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
+        if (aggregateRelationQueryObject != null) {
+            queryObjects.add(aggregateRelationQueryObject);
+        }
     }
 
     private List<SemanticQueryRequest.SliceItem> toSemanticSliceItems(List<SliceRequestDef> slice) {

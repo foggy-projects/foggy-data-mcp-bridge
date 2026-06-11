@@ -590,6 +590,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void collectAggregateRelationQueryObject(QueryObject queryObject, Set<AggregateRelationQueryObject> queryObjects) {
         if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
             queryObjects.add(aggregateRelationQueryObject);
+            return;
+        }
+        AggregateRelationQueryObject aggregateRelationQueryObject =
+                queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
+        if (aggregateRelationQueryObject != null) {
+            queryObjects.add(aggregateRelationQueryObject);
         }
     }
 
@@ -1881,10 +1887,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void pushAggregateRelationFilterIfSafe(JdbcQueryModel jdbcQueryModel, DbColumn jdbcColumn,
                                                    CondRequestDef sliceDef, String parentLink) {
         if (!isConjunctiveCondition(parentLink) || sliceDef == null || jdbcColumn == null) {
+            recordAggregateRelationRetainedFilter(jdbcQueryModel, jdbcColumn, sliceDef, parentLink);
             return;
         }
         if (jdbcColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
             if (isNullCheckCondition(sliceDef.getOp(), sliceDef.getValue())) {
+                recordAggregateRelationRetained(aggregateRelationColumn, sliceDef.getField(), sliceDef.getOp(),
+                        AggregateRelationQueryObject.REASON_NULL_CHECK_OUTER_ONLY);
                 return;
             }
             aggregateRelationColumn.pushAggregateRelationCondition(sliceDef.getOp(), sliceDef.getValue());
@@ -1899,6 +1908,34 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
         for (AggregateRelationQueryObject queryObject : collectAggregateRelationQueryObjects(jdbcQueryModel)) {
             queryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
+        }
+    }
+
+    private void recordAggregateRelationRetainedFilter(JdbcQueryModel jdbcQueryModel, DbColumn jdbcColumn,
+                                                       CondRequestDef sliceDef, String parentLink) {
+        if (sliceDef == null || jdbcColumn == null || isConjunctiveCondition(parentLink)) {
+            return;
+        }
+        if (jdbcColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
+            recordAggregateRelationRetained(aggregateRelationColumn, sliceDef.getField(), sliceDef.getOp(),
+                    AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY);
+            return;
+        }
+        if (sliceDef.getField() == null || sliceDef.getField().isBlank()) {
+            return;
+        }
+        for (AggregateRelationQueryObject queryObject : collectAggregateRelationQueryObjects(jdbcQueryModel)) {
+            queryObject.recordAggregateRelationRetainedCondition(sliceDef.getField(), sliceDef.getOp(),
+                    AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY);
+        }
+    }
+
+    private void recordAggregateRelationRetained(AggregateRelationOutputColumn column, String fieldName,
+                                                 String op, String reasonCode) {
+        QueryObject queryObject = column == null ? null : ((DbColumn) column).getQueryObject();
+        AggregateRelationQueryObject aggregateRelationQueryObject = resolveAggregateRelationQueryObject(queryObject);
+        if (aggregateRelationQueryObject != null) {
+            aggregateRelationQueryObject.recordAggregateRelationRetainedCondition(fieldName, op, reasonCode);
         }
     }
 

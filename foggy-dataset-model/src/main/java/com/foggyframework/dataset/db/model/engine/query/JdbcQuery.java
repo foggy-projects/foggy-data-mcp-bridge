@@ -233,6 +233,8 @@ public class JdbcQuery {
         }
         if (dbColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
             if (isNullCheckCondition(op, value)) {
+                recordAggregateRelationRetained(aggregateRelationColumn, columnRef.getFullRef(), op,
+                        AggregateRelationQueryObject.REASON_NULL_CHECK_OUTER_ONLY);
                 return;
             }
             aggregateRelationColumn.pushAggregateRelationCondition(op, value);
@@ -244,8 +246,7 @@ public class JdbcQuery {
         Set<String> fieldNames = columnRefKeys(columnRef);
         for (TableModel model : queryModel.getJdbcModelList()) {
             QueryObject queryObject = model.getQueryObject();
-            AggregateRelationQueryObject aggregateRelationQueryObject =
-                    queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
+            AggregateRelationQueryObject aggregateRelationQueryObject = resolveAggregateRelationQueryObject(queryObject);
             if (aggregateRelationQueryObject == null) {
                 continue;
             }
@@ -253,6 +254,22 @@ public class JdbcQuery {
                 aggregateRelationQueryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
             }
         }
+    }
+
+    private void recordAggregateRelationRetained(AggregateRelationOutputColumn column, String fieldName,
+                                                 String op, String reasonCode) {
+        QueryObject queryObject = column == null ? null : ((DbColumn) column).getQueryObject();
+        AggregateRelationQueryObject aggregateRelationQueryObject = resolveAggregateRelationQueryObject(queryObject);
+        if (aggregateRelationQueryObject != null) {
+            aggregateRelationQueryObject.recordAggregateRelationRetainedCondition(fieldName, op, reasonCode);
+        }
+    }
+
+    private AggregateRelationQueryObject resolveAggregateRelationQueryObject(QueryObject queryObject) {
+        if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
+            return aggregateRelationQueryObject;
+        }
+        return queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
     }
 
     private boolean isNullCheckCondition(String op, Object value) {

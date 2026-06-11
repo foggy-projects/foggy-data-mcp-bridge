@@ -74,6 +74,46 @@ public RX<QueryMetaResponse> getQueryMeta(@PathVariable String id) {
 }
 ```
 
+## Semantic Query Debug Contract
+
+`SemanticQueryResponse.debug` is optional diagnostic data. Normal business
+clients must not depend on it for result correctness, but AI/MCP callers may use
+it to explain query planning and routing decisions.
+
+`debug.extra.aggregateRelationDiagnostics` is an optional array emitted when the
+Java engine plans an aggregate relation query and has filter-handling evidence.
+Each item has this stable shape:
+
+```json
+{
+  "decision": "pushed",
+  "reasonCode": null,
+  "field": "salesAmount",
+  "op": "[]",
+  "target": "having",
+  "expression": "sum(agg_src.sales_amount) >= ?"
+}
+```
+
+Field meanings:
+
+- `decision`: `pushed`, `retained`, or `refused`.
+- `target`: `where`, `having`, or `outer`; present when the planner can name
+  where the predicate is applied.
+- `reasonCode`: stable refusal or retention reason when a predicate is not
+  pushed, for example `OR_CONDITION_OUTER_ONLY`, `NULL_CHECK_OUTER_ONLY`, or
+  `UNSUPPORTED_OPERATOR`.
+- `field` and `op`: the semantic field and request operator that triggered the
+  decision.
+- `expression`: SQL fragment evidence for pushed predicates only. It is
+  diagnostic text, not an executable SQL API.
+
+AI/MCP consumers should treat `pushed` as planner evidence that a safe RHS
+aggregate `WHERE` / `HAVING` duplicate was created. `retained` means the outer
+filter is intentionally kept as the authority predicate. `refused` means the
+predicate shape was not copied into the aggregate relation because it crossed a
+defined safety boundary.
+
 ## RX 类 API 参考
 
 ### 静态工厂方法
