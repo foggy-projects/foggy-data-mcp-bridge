@@ -22,12 +22,21 @@ parser code {:
 	private BaseScanner scanner;
 	ExpFactory factory =DefaultExpFactory.DEFAULT ;
 	FsscriptClosureDefinition fcDefinition;
+	FsscriptDialect dialect;
 
 	public final FsscriptClosureDefinition getFcDefinition(){
 		return fcDefinition;
 	}
 	public final void setFcDefinition(FsscriptClosureDefinition fcDefinition){
 		this.fcDefinition= fcDefinition;
+	}
+	public final void setDialect(FsscriptDialect dialect){
+		this.dialect= dialect;
+	}
+	private void applyDialect(){
+		if(scanner instanceof ElExpScanner){
+			((ElExpScanner)scanner).setDialect(dialect);
+		}
 	}
 	public ExpParser(ExpFactory factory){
 		super(null, new java_cup.runtime.DefaultSymbolFactory());
@@ -41,6 +50,7 @@ parser code {:
 	*/
 	public Exp compile(String str) throws CompileException {
 		scanner = new ExpScanner(str);
+		applyDialect();
 		try {
 			Object obj = this.parse().value;
 			return obj instanceof Exp ? (Exp) obj : new ObjectExp(obj);
@@ -53,6 +63,7 @@ parser code {:
 	
 	public Exp compileEl(String str) throws CompileException {
 		scanner = new ElExpScanner(str);
+		applyDialect();
 		try {
 			Object obj = this.parse().value;
 			return obj instanceof Exp ? (Exp) obj : new ObjectExp(obj);
@@ -1229,6 +1240,9 @@ property_identifier ::=
         :}
     |   FROM {:
             RESULT = "from";
+        :}
+    |   ORR {:
+            RESULT = "or";
         :}
     ;
 

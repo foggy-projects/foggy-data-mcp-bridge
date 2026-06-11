@@ -301,6 +301,21 @@ public class ExpParserTest {
     public void testListMapJoin() {
         checkExp("[1,2,3].map(e=>e+1).join(',');","2,3,4");
     }
+
+    @Test
+    public void testKeywordMemberMethodNames() {
+        Exp exp = new ExpParser().compileEl("receiver.or('x');");
+        DefaultExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        ee.setVar("receiver", new KeywordReceiver());
+        Assertions.assertEquals("or:x", exp.evalResult(ee));
+    }
+
+    public static class KeywordReceiver {
+        public String or(String value) {
+            return "or:" + value;
+        }
+    }
+
     private Object evalReulst(String expStr) {
         Exp exp = new ExpParser().compileEl(expStr);
         DefaultExpEvaluator ee = DefaultExpEvaluator.newInstance();
