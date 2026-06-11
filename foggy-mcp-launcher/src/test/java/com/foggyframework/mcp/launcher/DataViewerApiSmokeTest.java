@@ -183,6 +183,48 @@ class DataViewerApiSmokeTest {
                 """);
 
         assertEquals(600, query.path("code").asInt(), query.toString());
+        assertTrue(query.path("msg").asText().contains("aggregate relation runtime filter")
+                        && query.path("msg").asText().contains("不能为空"),
+                query.toString());
+    }
+
+    @Test
+    @DisplayName("query/direct aggregate relation runtime filter fails closed when extData value is blank")
+    void directQueryRuntimeFilterFailsClosedWhenExtDataValueBlank() throws Exception {
+        JsonNode query = postDirectRuntimeFilterQuery("""
+                {
+                  "start": 0,
+                  "limit": 1,
+                  "columns": ["orderId", "amount", "salesAmount"],
+                  "extData": {
+                    "orderId": ""
+                  }
+                }
+                """);
+
+        assertEquals(600, query.path("code").asInt(), query.toString());
+        assertTrue(query.path("msg").asText().contains("aggregate relation runtime filter")
+                        && query.path("msg").asText().contains("不能为空"),
+                query.toString());
+    }
+
+    @Test
+    @DisplayName("query/direct does not treat nested param.extData as direct runtime context")
+    void directQueryRuntimeFilterDoesNotReadNestedParamExtData() throws Exception {
+        JsonNode query = postDirectRuntimeFilterQuery("""
+                {
+                  "start": 0,
+                  "limit": 1,
+                  "columns": ["orderId", "amount", "salesAmount"],
+                  "param": {
+                    "extData": {
+                      "orderId": "ORD20240101000001"
+                    }
+                  }
+                }
+                """);
+
+        assertEquals(600, query.path("code").asInt(), query.toString());
         assertTrue(query.path("msg").asText().contains("aggregate relation runtime filter 值不能为空"),
                 query.toString());
     }

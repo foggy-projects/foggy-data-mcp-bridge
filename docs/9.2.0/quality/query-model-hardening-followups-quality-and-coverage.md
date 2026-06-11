@@ -6,7 +6,7 @@ target: QueryModel Hardening Follow-Ups
 status: reviewed-with-upstream-followups
 decision: ready-for-version-readiness-with-followups
 reviewed_by: Codex
-reviewed_at: 2026-06-06
+reviewed_at: 2026-06-11
 follow_up_required: yes
 ---
 
@@ -113,13 +113,40 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-mcp-l
 Result:
 
 ```text
-Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
 ```
 
 Coverage:
 
 - `/data-viewer/api/query/direct/{qmModel}` propagates top-level `extData` into the direct QueryModel runtime filter context;
+- blank top-level `extData` values fail closed with the aggregate relation runtime-filter validation error;
+- nested `param.extData` is intentionally ignored by the direct endpoint and fails closed when no top-level direct runtime context is present;
 - the logged `aggregate relation runtime filter 值不能为空` belongs to an expected negative-case assertion and is not a positive-path regression.
+
+### Java Engine Hardening 1-7 Supplement
+
+Command:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationMixedOrSliceShouldStayOuterOnly+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Result:
+
+```text
+Targeted SQLite predicate-boundary tests: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+Full AggregateJoinQueryModelTest SQLite suite: Tests run: 49, Failures: 0, Errors: 0, Skipped: 0
+MySQL 5.7 live aggregate-join gate: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+```
+
+Coverage:
+
+- mixed join-key/measure OR request slices stay outer-only and are not copied into RHS `WHERE` / `HAVING`;
+- AND `in`/range request slices duplicate safely to RHS source-key `WHERE` and aggregate-measure `HAVING` while retaining the outer filters;
+- live MySQL 5.7 `EXPLAIN` shows derived source `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, and `Using where` for pushed filters;
+- PostgreSQL and SQL Server remain environment-blocked locally because `docker` is unavailable and ports `15432` / `11433` are closed.
 
 ### Odoo Registry Consumer Gate
 

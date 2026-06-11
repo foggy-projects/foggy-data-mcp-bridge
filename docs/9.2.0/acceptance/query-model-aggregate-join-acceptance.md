@@ -11,7 +11,7 @@ signed_off_at: 2026-06-07
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 34
+evidence_count: 37
 ---
 
 # Feature Acceptance
@@ -86,12 +86,15 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join SQLite regression after predefined calculated-field positive execution coverage; Tests run: 47, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='SemanticServiceV3Test#testMetadata_Json_ShouldExposeAggregateRelationMeasure' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; Java V3 JSON metadata exposes aggregate relation output measure `salesAmount` with inherited caption/type/aggregation, QueryModel attribution, and structured `aggregateRelation` lineage; the JSON contract now pins the seven string keys `aggregation`, `sourceCaption`, `sourceMeasure`, `sourceAlias`, `sourceExpression`, `aggregateExpression`, and `sourceColumn`; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=SemanticServiceV3Test -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full V3 semantic metadata/query regression after aggregate relation JSON metadata lineage contract hardening; Tests run: 22, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationMixedOrSliceShouldStayOuterOnly+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; mixed join-key/measure OR remains outer-only while AND `in`/range slices duplicate to RHS source-key `WHERE` and aggregate-measure `HAVING`; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join SQLite regression after mixed OR and AND `in`/range predicate-boundary coverage; Tests run: 49, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; aggregate relation `EXPLAIN` shows derived source `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, and `Using where` for pushed filters; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Risks / Open Items
 
 - PostgreSQL and target TMS database `EXPLAIN` evidence is still required before claiming broad dialect optimizer confidence.
 - Derived relation parameter binding is implemented for aggregate RHS fixed/runtime filters and duplicated pushdown fragments; additional cross-dialect execution evidence remains follow-up.
-- OR / complex predicate RHS pushdown is intentionally not enabled; OR join-key and OR aggregate-measure slices are covered as outer-only behavior.
+- OR / complex predicate RHS pushdown is intentionally not enabled; OR join-key, OR aggregate-measure, and mixed join-key/measure OR slices are covered as outer-only behavior. AND `in`/range slices are covered for safe RHS `WHERE` / `HAVING` duplication.
 - Tenant/access guard RHS pushdown requires structured field-ref conditions and an explicit aggregate join key/group key mapping. Equivalent visible left refs backed by the same physical SQL column are recognized; implicit tenant guards and raw SQL predicates are not guessed. Raw SQL accessBuilder guards remain parameterized outer filters.
 - Query-cloud/data-viewer consumption/display of Java V3 JSON metadata for aggregate relation fields still needs upstream verification; Java now exports structured aggregate lineage for product metadata to consume.
 - Relation-level default aggregate projection is now pruned for tracked structured references. Raw SQL accessBuilder predicates remain outer-only and force full RHS projection because alias usage is intentionally not inferred from raw SQL text.
@@ -111,4 +114,4 @@ The Java engine aggregate join implementation is accepted for mainline delivery.
 
 ## Signoff Marker
 
-accepted-with-risks: QueryModel Aggregate Join, Java engine 9.2.0, signed off by Codex on 2026-06-07.
+accepted-with-risks: QueryModel Aggregate Join, Java engine 9.2.0, signed off by Codex on 2026-06-07. Supplemental hardening evidence was appended on 2026-06-11.

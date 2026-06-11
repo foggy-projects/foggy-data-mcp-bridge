@@ -9,7 +9,7 @@ reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
 owner: data-viewer-query
-updated_at: 2026-06-06
+updated_at: 2026-06-11
 ---
 
 # Data Viewer Direct ExtData Runtime Filter Regression
@@ -59,6 +59,10 @@ Coverage:
 
 - Direct request with `extData.orderId` succeeds.
 - Direct request without `extData.orderId` returns fail-closed error.
+- Direct request with blank top-level `extData.orderId` returns a fail-closed
+  validation error.
+- Direct request with nested `param.extData.orderId` is not treated as direct
+  runtime context and returns the same fail-closed validation error.
 - Result rows prove the LEFT JOIN main table is not filtered by RHS runtime
   filter, while unmatched RHS aggregate columns remain empty.
 
@@ -79,10 +83,26 @@ mvn -pl foggy-mcp-launcher -Dtest=DataViewerApiSmokeTest test
 
 Result:
 
-- Tests run: 4
+- Tests run: 6
 - Failures: 0
 - Errors: 0
 - Skipped: 0
+
+2026-06-11 negative-case hardening:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-mcp-launcher -am -P'!multi-db' -Dtest='DataViewerApiSmokeTest#directQueryRuntimeFilterFailsClosedWhenExtDataValueBlank+directQueryRuntimeFilterDoesNotReadNestedParamExtData' -Dsurefire.failIfNoSpecifiedTests=false test
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-mcp-launcher -am -P'!multi-db' -Dtest=DataViewerApiSmokeTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Result:
+
+- Targeted negative tests: `Tests run: 2, Failures: 0, Errors: 0, Skipped: 0`.
+- Full `DataViewerApiSmokeTest`: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`.
+- The first full-suite attempt was blocked by a missing local Maven
+  `target/generated-test-sources/test-annotations` directory under
+  `foggy-dataset`; after recreating the local generated directory, the suite
+  passed.
 
 Current-source verification passed on 2026-06-06:
 
@@ -93,7 +113,7 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-mcp-l
 Result:
 
 - Reactor build passed across 14 modules.
-- `DataViewerApiSmokeTest`: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`.
+- `DataViewerApiSmokeTest`: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`.
 - The logged `aggregate relation runtime filter 值不能为空` stack trace is the expected missing-`extData` negative case asserted by the test; the overall test result is success.
 
 ## Current Conclusion

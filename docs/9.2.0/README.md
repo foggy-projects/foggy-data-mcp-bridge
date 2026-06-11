@@ -5,7 +5,7 @@ version: 9.2.0
 target: Java Engine 9.2.0 Follow-Up Roadmap
 status: readiness-review
 created_at: 2026-05-03
-updated_at: 2026-06-07
+updated_at: 2026-06-11
 ---
 
 # Foggy Java Engine 9.2.0 Follow-Ups
@@ -24,7 +24,7 @@ This snapshot is not a final release signoff. It records the current readiness b
 
 | Area | Current Status | Evidence / Record | Remaining Boundary |
 |---|---|---|---|
-| QueryModel aggregate join | accepted-with-risks | `acceptance/query-model-aggregate-join-acceptance.md` | Risk items remain for broader DB EXPLAIN, parameter-carrying derived relations, complex predicate pushdown, tenant/access edge cases, and ETL promotion. |
+| QueryModel aggregate join | accepted-with-risks | `acceptance/query-model-aggregate-join-acceptance.md` | Complex predicate boundary now has SQLite and MySQL 5.7 evidence for mixed OR and AND `in`/range cases. Broader DB EXPLAIN, target TMS fixture promotion, and ETL promotion remain follow-up. |
 | Aggregate relation joined left key | local-verified | `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` | Await upstream issue #84 consumer confirmation where applicable. |
 | Aggregate relation RHS dimension filter | upstream-verified | `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` | No extra engine action recorded. |
 | Formula TM property missing column error | local-verified-awaiting-upstream | `workitems/BUG-formula-property-missing-column-error.md` | Needs upstream TMS issue #85 verification. |
@@ -84,12 +84,13 @@ The current readiness boundary is:
 - No 9.2.0 workitem remains in `ready-for-verification`.
 - Two workitems are local-verified but still need upstream TMS confirmation.
 - A compact upstream verification handoff is available at `workitems/upstream-verification-handoff-20260606.md`.
-- Prepared MySQL dataset-model gate is recorded as passing; PostgreSQL still depends on an external prepared service in this local environment.
+- Prepared MySQL dataset-model gate is recorded as passing; PostgreSQL and SQL Server evidence still depend on external prepared services in this local environment.
 - Aggregate join release readiness remains accepted-with-risks, not risk-free.
 
 ## Primary Workitems
 
 - `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.
+- `workitems/java-engine-hardening-1-7-20260611.md` - 2026-06-11 Java engine hardening pass for aggregate join predicate boundaries, direct Data Viewer `extData` fail-closed cases, and local dialect evidence boundaries.
 - `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` - Follow-up fix for aggregate relation ON left keys that reference already-joined dimension fields or nested dimension paths; ensures ON dependencies join before the aggregate derived table.
 - `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` - Follow-up fix for aggregate relation RHS fixed filters that reference right-side dimension fields; ensures the derived table joins RHS dimensions before filtering and grouping.
 - `workitems/BUG-formula-property-missing-column-error.md` - Follow-up fix for formula-backed TM property fields missing `column`; validation now reports the concrete field path and carrier-column rule instead of dumping the whole model object.

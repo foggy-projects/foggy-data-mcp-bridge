@@ -285,6 +285,68 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation mixed OR slice 不应复制到右侧 WHERE 或 HAVING")
+    void aggregateRelationMixedOrSliceShouldStayOuterOnly() {
+        String orderId = findOrderIdWithCompletedSales();
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(
+                null,
+                List.of(SliceRequestDef.or(List.of(
+                        condition("orderId", "=", orderId),
+                        condition("salesAmount", ">", BigDecimal.ZERO)))));
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
+                "mixed OR 中的 join key slice 不应复制到 RHS WHERE");
+        assertFalse(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
+                "mixed OR 中的 measure slice 不应复制到 RHS HAVING");
+        assertTrue(normalizedSql.contains("t1.order_id =?") || normalizedSql.contains("t1.order_id = ?"),
+                "mixed OR join key slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount >?") || normalizedSql.contains("fsByOrder.salesAmount > ?"),
+                "mixed OR measure slice 应保留在外层 WHERE");
+        assertTrue(normalizedSql.toLowerCase().contains(" or "),
+                "mixed OR 应保留外层 OR 连接语义");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertFalse(rows.isEmpty(), "mixed OR slice 应可真实执行");
+    }
+
+    @Test
+    @DisplayName("aggregate relation AND in/range slice 应复制到右侧并保留外层 WHERE")
+    void aggregateRelationAndInRangeSlicesShouldPushRightFilters() {
+        String matchedOrderId = findOrderIdWithCompletedSales();
+        String unmatchedOrderId = findOrderIdWithoutCompletedSales();
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationQuery(
+                null,
+                List.of(
+                        slice("orderId", "in", List.of(matchedOrderId, unmatchedOrderId)),
+                        slice("salesAmount", "[]", List.of(BigDecimal.ZERO, new BigDecimal("999999999")))));
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("agg_src.order_id in (?, ?)"),
+                "AND join-key IN slice 应复制到 RHS WHERE 并使用参数绑定");
+        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) >= ? and sum(agg_src.sales_amount) <= ?"),
+                "AND measure range slice 应复制到 RHS HAVING 并使用参数绑定");
+        assertTrue(normalizedSql.contains("t1.order_id in (?, ?)") || normalizedSql.contains("t1.order_id in (?,?)"),
+                "外层 WHERE 应保留 join-key IN slice");
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount >=?") || normalizedSql.contains("fsByOrder.salesAmount >= ?"),
+                "外层 WHERE 应保留 measure range 下界");
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount <=?") || normalizedSql.contains("fsByOrder.salesAmount <= ?"),
+                "外层 WHERE 应保留 measure range 上界");
+        assertTrue(queryEngine.getValues().contains(matchedOrderId), "IN 参数应进入查询参数列表");
+        assertTrue(queryEngine.getValues().contains(unmatchedOrderId), "IN 参数应进入查询参数列表");
+        assertTrue(countBigDecimalValues(queryEngine.getValues(), BigDecimal.ZERO) >= 2,
+                "RHS HAVING 与外层 WHERE 都应绑定 range 下界");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "measure range 保留外层 WHERE 后仅有 RHS 聚合匹配的订单返回");
+        assertEquals(matchedOrderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
     @DisplayName("aggregate join 查询结果应等于原生订单明细聚合")
     void aggregateJoinResultShouldMatchNativeAggregate() {
         String orderId = findOrderIdWithCompletedSales();
