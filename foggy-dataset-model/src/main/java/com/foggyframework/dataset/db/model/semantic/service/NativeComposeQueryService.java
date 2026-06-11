@@ -3,7 +3,7 @@ package com.foggyframework.dataset.db.model.semantic.service;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeCompileException;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.context.Principal;
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRuntime;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ComposeSandboxViolationException;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
@@ -52,8 +52,9 @@ public class NativeComposeQueryService {
         try {
             ComposeQueryContext context = buildContext(request, namespace, authorization, headers);
             boolean previewMode = boolValue(request.get("previewMode"));
-            ScriptRuntime.ScriptResult result = ScriptRuntime.runScript(
-                    script, context, semanticQueryServiceV3, defaultDialect, previewMode);
+            ComposeScriptService.ComposeScriptResult result = previewMode
+                    ? ComposeScriptService.preview(script, context, semanticQueryServiceV3, defaultDialect)
+                    : ComposeScriptService.execute(script, context, semanticQueryServiceV3, defaultDialect);
             Object value = withEmptyResultSemantic(result.value());
 
             Map<String, Object> data = new LinkedHashMap<>();

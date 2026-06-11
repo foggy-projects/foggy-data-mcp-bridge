@@ -40,8 +40,11 @@ public class RuntimeCapabilitiesController {
         capabilities.put("query.validate", "supported");
         capabilities.put("query.execute", "supported");
         capabilities.put("tables.inspect", dataSourceProvider.getIfAvailable() != null ? "supported" : "unsupported");
-        capabilities.put("compose.validate", "unsupported");
-        capabilities.put("compose.execute", "unsupported");
+        capabilities.put("compose.validate", "supported");
+        capabilities.put("compose.preview", "supported");
+        capabilities.put("compose.execute", "supported");
+        capabilities.put("fsscript.execute", "supported");
+        capabilities.put("fsscript.cteBridge", "supported");
 
         CapabilitiesResponse response = new CapabilitiesResponse(
                 ENGINE,

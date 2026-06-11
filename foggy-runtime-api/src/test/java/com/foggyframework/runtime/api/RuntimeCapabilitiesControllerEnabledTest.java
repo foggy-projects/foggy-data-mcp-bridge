@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -99,8 +101,11 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("query.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.execute").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("tables.inspect").asText()).isEqualTo("supported");
-        assertThat(body.path("data").path("capabilities").path("compose.validate").asText()).isEqualTo("unsupported");
-        assertThat(body.path("data").path("capabilities").path("compose.execute").asText()).isEqualTo("unsupported");
+        assertThat(body.path("data").path("capabilities").path("compose.validate").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("compose.preview").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("compose.execute").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("fsscript.execute").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("fsscript.cteBridge").asText()).isEqualTo("supported");
     }
 
     @Test
@@ -296,6 +301,188 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("items").get(0).path("orderNo").asText()).isEqualTo("SO-001");
         verify(semanticQueryServiceV3).queryModel(eq("OrderModel"), any(SemanticQueryRequest.class), eq("execute"), any());
+    }
+
+    @Test
+    void shouldValidateComposeThroughRuntimeEnvelope() {
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/validate",
+                Map.of(
+                        "script", "const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };",
+                        "params", Map.of(),
+                        "options", Map.of("diagnostics", "normal")
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("valid").asBoolean()).isTrue();
+        assertThat(body.path("data").path("scriptKind").asText()).isEqualTo("compose");
+        assertThat(body.path("data").path("mode").asText()).isEqualTo("validate");
+        assertThat(body.path("data").path("value").path("plans").path("sql").asText())
+                .contains("SELECT order_id FROM fact_order");
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldPreviewComposeThroughRuntimeEnvelope() {
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/preview",
+                Map.of(
+                        "script", "const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };",
+                        "params", Map.of()
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("mode").asText()).isEqualTo("preview");
+        assertThat(body.path("data").path("value").path("plans").path("sql").asText())
+                .contains("SELECT order_id FROM fact_order");
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldExecuteComposeThroughRuntimeEnvelope() {
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+        when(semanticQueryServiceV3.executeSql(any(), any(), eq("FactOrderQueryModel")))
+                .thenReturn(List.of(Map.of("orderId", "FO-001")));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/execute",
+                Map.of(
+                        "script", "const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };",
+                        "params", Map.of()
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("mode").asText()).isEqualTo("execute");
+        assertThat(body.path("data").path("value").path("plans").get(0).path("orderId").asText())
+                .isEqualTo("FO-001");
+        verify(semanticQueryServiceV3).executeSql(any(), any(), eq("FactOrderQueryModel"));
+    }
+
+    @Test
+    void shouldReturnComposeSandboxViolationThroughRuntimeEnvelope() {
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/validate",
+                Map.of("script", "import java.lang.System; return { plans: [] };"),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("runtimeApiVersion").asText()).isEqualTo("foggy-runtime-api/v1");
+        assertThat(body.path("error").path("code").asText()).isEqualTo("COMPOSE_SANDBOX_VIOLATION");
+        assertThat(body.path("error").path("phase").asText()).isEqualTo("compose.validate");
+        assertThat(body.path("error").path("safeToAutoRepair").asBoolean()).isFalse();
+        verify(semanticQueryServiceV3, never()).generateSql(any(), any(), any());
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldExecuteFsscriptThroughRuntimeEnvelope() {
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                Map.of("script", "return 1 + 2;"),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("scriptKind").asText()).isEqualTo("fsscript");
+        assertThat(body.path("data").path("mode").asText()).isEqualTo("execute");
+        assertThat(body.path("data").path("value").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    void shouldDenyFsscriptCteBridgeByDefault() {
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                Map.of("script", "return foggy.cte.preview({script: \"return { plans: [] };\"});"),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("FSSCRIPT_CTE_BRIDGE_DENIED");
+        assertThat(body.path("error").path("phase").asText()).isEqualTo("fsscript.execute");
+        assertThat(body.path("error").path("safeToAutoRepair").asBoolean()).isFalse();
+        verify(semanticQueryServiceV3, never()).generateSql(any(), any(), any());
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldPreviewComposeThroughFsscriptCteBridge() {
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                Map.of(
+                        "script", "return foggy.cte.preview({script: \"const plan = dsl({model: 'FactOrderQueryModel', columns: ['orderId'], limit: 3}); return { plans: plan };\"});",
+                        "capabilities", Map.of("cteBridge", true)
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("scriptKind").asText()).isEqualTo("fsscript");
+        JsonNode value = body.path("data").path("value");
+        assertThat(value.path("scriptKind").asText()).isEqualTo("compose");
+        assertThat(value.path("mode").asText()).isEqualTo("preview");
+        assertThat(value.path("value").path("plans").path("sql").asText())
+                .contains("SELECT order_id FROM fact_order");
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldReturnComposeSandboxViolationThroughFsscriptCteBridge() {
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                Map.of(
+                        "script", "return foggy.cte.validate({script: \"import java.lang.System; return { plans: [] };\"});",
+                        "capabilities", Map.of("cteBridge", true)
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("COMPOSE_SANDBOX_VIOLATION");
+        assertThat(body.path("error").path("phase").asText()).isEqualTo("compose.validate");
+        assertThat(body.path("error").path("safeToAutoRepair").asBoolean()).isFalse();
+        verify(semanticQueryServiceV3, never()).generateSql(any(), any(), any());
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
     }
 
     @Test
