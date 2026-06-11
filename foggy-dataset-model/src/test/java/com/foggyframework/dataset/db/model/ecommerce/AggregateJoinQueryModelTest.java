@@ -460,6 +460,45 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("semantic response debug.extra 应暴露 aggregate relation retained/refused diagnostics")
+    void semanticResponseShouldExposeRetainedAndRefusedAggregateRelationDiagnostics() {
+        String orderId = findOrderIdWithCompletedSales();
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("orderId", "salesAmount", "uniqueCustomers"));
+        request.setSlice(List.of(
+                semanticOr(
+                        semanticSlice("orderId", "=", orderId),
+                        semanticSlice("salesAmount", ">", BigDecimal.ZERO)),
+                semanticSlice("salesAmount", "[]", Arrays.asList(null, null))));
+        request.setLimit(100);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                "OrderSalesAggregateRelationQueryModel",
+                request,
+                "execute",
+                SemanticRequestContext.empty());
+
+        List<AggregateRelationDiagnostic> diagnostics = semanticAggregateRelationDiagnostics(response);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY.equals(diagnostic.reasonCode())
+                                && "orderId".equals(diagnostic.field())),
+                "semantic debug.extra 应包含 OR join-key retained 诊断");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY.equals(diagnostic.reasonCode())
+                                && "salesAmount".equals(diagnostic.field())),
+                "semantic debug.extra 应包含 OR measure retained 诊断");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "refused".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_INVALID_RANGE_VALUE.equals(diagnostic.reasonCode())
+                                && "salesAmount".equals(diagnostic.field())
+                                && "[]".equals(diagnostic.op())),
+                "semantic debug.extra 应包含 invalid range refused 诊断");
+    }
+
+    @Test
     @DisplayName("TMS-style aggregate relation 应支持主单+站点双 key 粒度")
     void tmsStyleAggregateRelationShouldPushCompositeKeyFilters() {
         Map<String, Object> fixture = findOrderStoreWithCompletedSales();
@@ -1911,6 +1950,21 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         slice.setOp(op);
         slice.setValue(value);
         return slice;
+    }
+
+    private SemanticQueryRequest.SliceItem semanticOr(SemanticQueryRequest.SliceItem... children) {
+        SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
+        slice.setOr(Arrays.asList(children));
+        return slice;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<AggregateRelationDiagnostic> semanticAggregateRelationDiagnostics(SemanticQueryResponse response) {
+        assertNotNull(response.getDebug(), "semantic response 应包含 debug 信息");
+        assertNotNull(response.getDebug().getExtra(), "semantic response debug.extra 应包含执行证据");
+        Object rawDiagnostics = response.getDebug().getExtra().get("aggregateRelationDiagnostics");
+        assertTrue(rawDiagnostics instanceof List<?>, "debug.extra 应暴露 aggregateRelationDiagnostics 列表");
+        return (List<AggregateRelationDiagnostic>) rawDiagnostics;
     }
 
     private CondRequestDef condition(String field, String op, Object value) {

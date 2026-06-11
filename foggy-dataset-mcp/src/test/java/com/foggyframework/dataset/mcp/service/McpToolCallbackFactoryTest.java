@@ -2,6 +2,7 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.mcp.spi.McpTool;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +22,46 @@ class McpToolCallbackFactoryTest {
     @AfterEach
     void tearDown() {
         QueryExpertService.clearCapture();
+    }
+
+    @Test
+    @DisplayName("query_model 成功 RX 应通过真实 callback 捕获 debug.extra 诊断")
+    @SuppressWarnings("unchecked")
+    void queryModelSuccessRx_shouldCaptureDebugExtraDiagnostics() throws Exception {
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of(Map.of("orderId", "SO-1")));
+        response.setTotal(1L);
+        response.setHasNext(false);
+        SemanticQueryResponse.DebugInfo debugInfo = new SemanticQueryResponse.DebugInfo();
+        debugInfo.setExtra(Map.of(
+                "aggregateRelationDiagnostics", List.of(Map.of(
+                        "decision", "retained",
+                        "reasonCode", "OR_CONDITION_OUTER_ONLY",
+                        "field", "salesAmount",
+                        "op", ">",
+                        "target", "outer"
+                ))
+        ));
+        response.setDebug(debugInfo);
+
+        McpTool tool = mockQueryModelTool(RX.ok(response));
+
+        String rawResponse = createCallback(tool).call("""
+                {"model":"OrderSalesAggregateRelationQueryModel","payload":{"columns":["orderId","salesAmount"]}}
+                """);
+
+        Map<String, Object> payload = new ObjectMapper().readValue(rawResponse, Map.class);
+        assertEquals(200, payload.get("code"));
+
+        Map<String, Object> captured = QueryExpertService.LAST_QUERY_RESULT.get();
+        assertNotNull(captured);
+        assertEquals(1L, captured.get("total"));
+        Map<String, Object> debug = (Map<String, Object>) captured.get("debug");
+        Map<String, Object> extra = (Map<String, Object>) debug.get("extra");
+        List<Map<String, Object>> diagnostics =
+                (List<Map<String, Object>>) extra.get("aggregateRelationDiagnostics");
+        assertEquals("retained", diagnostics.get(0).get("decision"));
+        assertEquals("OR_CONDITION_OUTER_ONLY", diagnostics.get(0).get("reasonCode"));
     }
 
     @Test
