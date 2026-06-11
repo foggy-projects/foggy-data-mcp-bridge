@@ -1,0 +1,45 @@
+/**
+ * TMS-style 主单-站点-明细聚合关系查询模型。
+ *
+ * @description 使用订单号 + 门店代理键模拟 TMS 主单 + 站点粒度，右侧销售明细先按相同粒度聚合后再 LEFT JOIN。
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesTmsStyleDetailProbeModel');
+
+const salesByOrderStore = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .groupBy(sales.orderId, sales.storeKey)
+    .as('salesByOrderStore');
+
+export const queryModel = {
+    name: 'TmsStyleOrderStoreSalesAggregateRelationQueryModel',
+    caption: 'TMS风格订单站点销售聚合关系查询',
+    description: '订单主表按订单号和门店粒度关联右侧预聚合销售明细，模拟 TMS 主单-站点-明细占用类投影。',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(salesByOrderStore)
+            .on(fo.orderId, salesByOrderStore.orderId)
+            .and(fo.store$id, salesByOrderStore.storeKey)
+    ],
+
+    columnGroups: [
+        {
+            caption: '主单',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '站点明细聚合',
+            items: [
+                { ref: salesByOrderStore.salesAmount, caption: '站点销售金额' },
+                { ref: salesByOrderStore.quantity, caption: '站点销售数量' },
+                { ref: salesByOrderStore.uniqueCustomers, caption: '站点独立客户数' }
+            ]
+        }
+    ]
+};

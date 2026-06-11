@@ -24,7 +24,7 @@ This snapshot is not a final release signoff. It records the current readiness b
 
 | Area | Current Status | Evidence / Record | Remaining Boundary |
 |---|---|---|---|
-| QueryModel aggregate join | accepted-with-risks | `acceptance/query-model-aggregate-join-acceptance.md` | Complex predicate boundary now has SQLite and MySQL 5.7 evidence for mixed OR and AND `in`/range cases. Broader DB EXPLAIN, target TMS fixture promotion, and ETL promotion remain follow-up. |
+| QueryModel aggregate join | accepted-with-risks | `acceptance/query-model-aggregate-join-acceptance.md` | Complex predicate boundary now has SQLite and MySQL 5.7 evidence for mixed OR and AND `in`/range cases; local TMS-style order+site composite-key fixture is verified. Broader DB EXPLAIN, real target TMS/model-registry promotion, and ETL promotion remain follow-up. |
 | Aggregate relation joined left key | local-verified | `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` | Await upstream issue #84 consumer confirmation where applicable. |
 | Aggregate relation RHS dimension filter | upstream-verified | `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` | No extra engine action recorded. |
 | Formula TM property missing column error | local-verified-awaiting-upstream | `workitems/BUG-formula-property-missing-column-error.md` | Needs upstream TMS issue #85 verification. |
@@ -89,7 +89,7 @@ The current readiness boundary is:
 
 ## Primary Workitems
 
-- `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.
+- `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, local TMS-style composite-key fixture, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.
 - `workitems/java-engine-hardening-1-7-20260611.md` - 2026-06-11 Java engine hardening pass for aggregate join predicate boundaries, direct Data Viewer `extData` fail-closed cases, and local dialect evidence boundaries.
 - `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` - Follow-up fix for aggregate relation ON left keys that reference already-joined dimension fields or nested dimension paths; ensures ON dependencies join before the aggregate derived table.
 - `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` - Follow-up fix for aggregate relation RHS fixed filters that reference right-side dimension fields; ensures the derived table joins RHS dimensions before filtering and grouping.

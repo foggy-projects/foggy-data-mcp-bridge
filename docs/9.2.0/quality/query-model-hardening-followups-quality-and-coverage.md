@@ -129,22 +129,27 @@ Command:
 
 ```bash
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationMixedOrSliceShouldStayOuterOnly+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#tmsStyleAggregateRelationShouldPushCompositeKeyFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#tmsStyleAggregateRelationShouldPushCompositeKeyFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 Result:
 
 ```text
 Targeted SQLite predicate-boundary tests: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
-Full AggregateJoinQueryModelTest SQLite suite: Tests run: 49, Failures: 0, Errors: 0, Skipped: 0
+Targeted SQLite TMS-style composite-key fixture: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+Full AggregateJoinQueryModelTest SQLite suite: Tests run: 50, Failures: 0, Errors: 0, Skipped: 0
 MySQL 5.7 live aggregate-join gate: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+MySQL 5.7 live TMS-style composite-key fixture: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
 ```
 
 Coverage:
 
 - mixed join-key/measure OR request slices stay outer-only and are not copied into RHS `WHERE` / `HAVING`;
 - AND `in`/range request slices duplicate safely to RHS source-key `WHERE` and aggregate-measure `HAVING` while retaining the outer filters;
+- local TMS-style order+site composite-key fixture verifies RHS `order_id` and `store_key` pushdown plus aggregate-measure `HAVING` while matching native aggregate SQL;
 - live MySQL 5.7 `EXPLAIN` shows derived source `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, and `Using where` for pushed filters;
 - PostgreSQL and SQL Server remain environment-blocked locally because `docker` is unavailable and ports `15432` / `11433` are closed.
 

@@ -347,6 +347,56 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("TMS-style aggregate relation 应支持主单+站点双 key 粒度")
+    void tmsStyleAggregateRelationShouldPushCompositeKeyFilters() {
+        Map<String, Object> fixture = findOrderStoreWithCompletedSales();
+        String orderId = String.valueOf(fixture.get("orderId"));
+        Object storeKey = fixture.get("storeKey");
+
+        JdbcQueryModel queryModel = getQueryModel("TmsStyleOrderStoreSalesAggregateRelationQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("TmsStyleOrderStoreSalesAggregateRelationQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "quantity", "uniqueCustomers"));
+        queryRequest.setSlice(List.of(
+                slice("orderId", "=", orderId),
+                slice("store$id", "=", storeKey),
+                slice("salesAmount", ">", BigDecimal.ZERO)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("salesByOrderStore"),
+                "TMS-style aggregate relation alias 应正常渲染");
+        assertTrue(normalizedSql.contains("group by agg_src.order_id, agg_src.store_key")
+                        || normalizedSql.contains("group by agg_src.store_key, agg_src.order_id"),
+                "RHS groupBy 应覆盖订单号与站点双 key 粒度");
+        assertTrue(normalizedSql.contains("agg_src.order_id = ?"),
+                "订单号 slice 应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"),
+                "站点 slice 应复制到 RHS 聚合前 WHERE");
+        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"),
+                "聚合金额 slice 应复制到 RHS HAVING");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "订单号 + 站点双 key 限定后应返回一行真实数据");
+
+        BigDecimal nativeSalesAmount = jdbcTemplate.queryForObject("""
+                select sum(fs.sales_amount)
+                from fact_sales fs
+                where fs.order_id = ?
+                  and fs.store_key = ?
+                  and fs.order_status = 'COMPLETED'
+                """, BigDecimal.class, orderId, storeKey);
+        assertEquals(0, money(nativeSalesAmount).compareTo(money(rows.get(0).get("salesAmount"))),
+                "TMS-style 双 key RHS 聚合结果应与原生聚合一致");
+    }
+
+    @Test
     @DisplayName("aggregate join 查询结果应等于原生订单明细聚合")
     void aggregateJoinResultShouldMatchNativeAggregate() {
         String orderId = findOrderIdWithCompletedSales();
@@ -1638,6 +1688,22 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 """, String.class);
         assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个无 COMPLETED 销售明细的左侧订单");
         return orderIds.get(0);
+    }
+
+    private Map<String, Object> findOrderStoreWithCompletedSales() {
+        Map<String, Object> fixture = jdbcTemplate.queryForMap("""
+                select fo.order_id orderId, fo.store_key storeKey
+                from fact_order fo
+                join fact_sales fs on fo.order_id = fs.order_id
+                                  and fo.store_key = fs.store_key
+                where fs.order_status = 'COMPLETED'
+                group by fo.order_id, fo.store_key
+                having sum(fs.sales_amount) > 0
+                order by fo.order_id
+                limit 1
+                """);
+        assertFalse(fixture.isEmpty(), "测试数据应至少包含一个订单+站点粒度的 COMPLETED 销售明细");
+        return fixture;
     }
 
     private String findOrderIdWithCompletedElectronicsSales() {
