@@ -56,6 +56,7 @@ public class PivotPipeline {
     private final CardinalityBreaker cardinalityBreaker;
     private final QueryModelLoader queryModelLoader;
     private final QueryFacade queryFacade;
+    private final PivotOuterResponseCache outerResponseCache;
 
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService) {
         this(semanticQueryService, new CardinalityBreaker(), null, null);
@@ -75,10 +76,35 @@ public class PivotPipeline {
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader,
                          QueryFacade queryFacade) {
+        this(semanticQueryService, cardinalityBreaker, queryModelLoader, queryFacade, OuterCacheOptions.disabled());
+    }
+
+    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
+                         CardinalityBreaker cardinalityBreaker,
+                         QueryModelLoader queryModelLoader,
+                         QueryFacade queryFacade,
+                         OuterCacheOptions outerCacheOptions) {
         this.semanticQueryService = semanticQueryService;
         this.cardinalityBreaker = cardinalityBreaker;
         this.queryModelLoader = queryModelLoader;
         this.queryFacade = queryFacade;
+        this.outerResponseCache = new PivotOuterResponseCache(outerCacheOptions);
+    }
+
+    public record OuterCacheOptions(boolean enabled, long ttlMillis, int maximumSize) {
+
+        private static final long DEFAULT_TTL_MILLIS = 300_000L;
+        private static final int DEFAULT_MAXIMUM_SIZE = 256;
+
+        public static OuterCacheOptions disabled() {
+            return new OuterCacheOptions(false, DEFAULT_TTL_MILLIS, DEFAULT_MAXIMUM_SIZE);
+        }
+
+        OuterCacheOptions normalized() {
+            long safeTtlMillis = ttlMillis > 0L ? ttlMillis : DEFAULT_TTL_MILLIS;
+            int safeMaximumSize = maximumSize > 0 ? maximumSize : DEFAULT_MAXIMUM_SIZE;
+            return new OuterCacheOptions(enabled, safeTtlMillis, safeMaximumSize);
+        }
     }
 
 
@@ -141,6 +167,38 @@ public class PivotPipeline {
         List<String> rowFields = extractFieldNames(pivot.getRows());
         List<String> colFields = extractFieldNames(pivot.getColumns());
         List<String> metrics = pivot.getSqlMetricNames();
+        boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
+
+        String cacheEligibilityStage = outerResponseCache.isEnabled()
+                ? PivotOuterCacheTelemetry.CACHE_STAGE
+                : PivotOuterCacheTelemetry.TELEMETRY_STAGE;
+        PivotOuterCacheTelemetry.Evaluation cacheEvaluation = PivotOuterCacheTelemetry.evaluate(
+                model, queryModel, request, context, hierarchyCtx.isTree(), cascadeRequest, cacheEligibilityStage);
+        diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
+        if (cacheEvaluation.refused()) {
+            diagnostics.cacheRefused(cacheEvaluation.keyHash(), cacheEligibilityStage,
+                    cacheEvaluation.refusalReason(), cacheEvaluation.shapeClass());
+        } else if (!outerResponseCache.isEnabled()) {
+            diagnostics.cacheMiss(cacheEvaluation.keyHash(), cacheEligibilityStage,
+                    PivotOuterCacheTelemetry.TELEMETRY_MISS_REASON, cacheEvaluation.shapeClass());
+        } else {
+            PivotOuterResponseCache.LookupResult cacheLookup = outerResponseCache.lookup(
+                    cacheEvaluation.keyHash(), System.currentTimeMillis());
+            if (cacheLookup.hit()) {
+                diagnostics.cacheHit(cacheEvaluation.keyHash(), cacheEligibilityStage,
+                        cacheLookup.ageMs(), PivotOuterResponseCache.CACHE_NAME, cacheEvaluation.shapeClass());
+                return cachedResponse(cacheLookup.response(), startTime, diagnostics.snapshot());
+            }
+            if (cacheLookup.expired()) {
+                diagnostics.cacheEvicted(cacheEvaluation.keyHash(), cacheEligibilityStage,
+                        PivotOuterCacheTelemetry.CACHE_EXPIRED_REASON, cacheEvaluation.shapeClass());
+            }
+            diagnostics.cacheMiss(cacheEvaluation.keyHash(), cacheEligibilityStage,
+                    cacheLookup.expired()
+                            ? PivotOuterCacheTelemetry.CACHE_EXPIRED_REASON
+                            : PivotOuterCacheTelemetry.CACHE_MISS_REASON,
+                    cacheEvaluation.shapeClass());
+        }
 
         // 如果有 tree hierarchy，确保 Phase 1 带出 $id 字段
         if (hierarchyCtx.isTree()) {
@@ -167,7 +225,6 @@ public class PivotPipeline {
         boolean sqlPushdownUsed = false;
         boolean axisDomainSelectionUsed = false;
         boolean axisDomainSelectionRequest = hasAxisDomainSelectionRequest(pivot);
-        boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         List<Map<String, Object>> resultSet;
         Map<String, Map<String, Number>> baselineRatioExternalValues = Collections.emptyMap();
         List<Map<String, Object>> baselineRatioEvidence = Collections.emptyList();
@@ -239,7 +296,8 @@ public class PivotPipeline {
             Map<String, Object> capabilityContract = buildPivotCapabilityContract(
                     pivot, pivot.getOutputFormat(), hierarchyCtx, null, rowFields, colFields, outputMetricsForContract(pivot),
                     sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
-            return buildEmptyResponse(pivot, startTime, capabilityContract, diagnostics.snapshot());
+            SemanticQueryResponse response = buildEmptyResponse(pivot, startTime, capabilityContract, diagnostics.snapshot());
+            return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response);
         }
 
         // ===== Phase 1.5: 父子维度骨架查询 =====
@@ -384,8 +442,9 @@ public class PivotPipeline {
         Map<String, Object> capabilityContract = buildPivotCapabilityContract(
                 pivot, pivotResult.getFormat(), hierarchyCtx, hierarchySkeleton, rowFields, colFields, outputMetrics,
                 sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
-        return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence, parentShareEvidence,
-                capabilityContract, diagnostics.snapshot());
+        SemanticQueryResponse response = buildPivotResponse(pivotResult, startTime, baselineRatioEvidence,
+                parentShareEvidence, capabilityContract, diagnostics.snapshot());
+        return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response);
     }
 
     private void injectPredefinedCalculatedFields(SemanticQueryRequest request, QueryModel queryModel) {
@@ -1901,6 +1960,62 @@ public class PivotPipeline {
                                                         List<Map<String, Object>> evidence) {
         private static BaselineRatioPrePageAxisDomainResult empty() {
             return new BaselineRatioPrePageAxisDomainResult(Collections.emptyMap(), Collections.emptyList());
+        }
+    }
+
+    private SemanticQueryResponse cachedResponse(SemanticQueryResponse cached,
+                                                 long startTime,
+                                                 List<Map<String, Object>> pivotDiagnostics) {
+        SemanticQueryResponse response = PivotOuterResponseCache.copyResponse(cached);
+        if (response.getDebug() == null) {
+            response.setDebug(new SemanticQueryResponse.DebugInfo());
+        }
+        response.getDebug().setDurationMs(System.currentTimeMillis() - startTime);
+        replacePivotDiagnostics(response, pivotDiagnostics);
+        return response;
+    }
+
+    SemanticQueryResponse storeOuterCacheIfEligible(PivotOuterCacheTelemetry.Evaluation cacheEvaluation,
+                                                    String cacheEligibilityStage,
+                                                    PivotDiagnosticCollector diagnostics,
+                                                    SemanticQueryResponse response) {
+        if (!outerResponseCache.isEnabled()
+                || cacheEvaluation == null
+                || cacheEvaluation.refused()) {
+            return response;
+        }
+        if (hasWarnings(response)) {
+            diagnostics.cacheStoreSkipped(cacheEvaluation.keyHash(), cacheEligibilityStage,
+                    PivotOuterCacheTelemetry.CACHE_STORE_SKIPPED_WARNING_REASON, cacheEvaluation.shapeClass());
+            replacePivotDiagnostics(response, diagnostics.snapshot());
+            return response;
+        }
+        int payloadBytes = outerResponseCache.estimatePayloadBytes(response);
+        diagnostics.cacheStore(cacheEvaluation.keyHash(), cacheEligibilityStage, payloadBytes,
+                outerResponseCache.ttlMillis(), cacheEvaluation.shapeClass());
+        replacePivotDiagnostics(response, diagnostics.snapshot());
+        outerResponseCache.store(cacheEvaluation.keyHash(), response, System.currentTimeMillis());
+        return response;
+    }
+
+    private boolean hasWarnings(SemanticQueryResponse response) {
+        return response != null && response.getWarnings() != null && !response.getWarnings().isEmpty();
+    }
+
+    private void replacePivotDiagnostics(SemanticQueryResponse response, List<Map<String, Object>> pivotDiagnostics) {
+        if (response == null) {
+            return;
+        }
+        if (response.getDebug() == null) {
+            response.setDebug(new SemanticQueryResponse.DebugInfo());
+        }
+        Map<String, Object> extra = response.getDebug().getExtra();
+        if (extra == null) {
+            extra = new LinkedHashMap<>();
+            response.getDebug().setExtra(extra);
+        }
+        if (pivotDiagnostics != null && !pivotDiagnostics.isEmpty()) {
+            extra.put("pivotDiagnostics", pivotDiagnostics);
         }
     }
 

@@ -5,7 +5,7 @@ version: 9.2.0
 target: TMS Upstream Verification For 9.2 QueryModel Hardening
 status: ready-for-upstream-verification
 created_at: 2026-06-06
-updated_at: 2026-06-06
+updated_at: 2026-06-13
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
 ---
@@ -20,6 +20,14 @@ This handoff is for the remaining 9.2.0 items that already have local Java engin
 - `BUG-qm-predefined-formula-slice-injection`
 
 The upstream verifier does not need to re-run the full Foggy Java test suite. The expected output is a short pass/fail confirmation against the real TMS model and query shapes.
+
+## Current Upstream Audit
+
+2026-06-13 audit result:
+
+- `foggy-projects/foggy-data-mcp-bridge#85` remains open. It has the Java engine fix comment for commit `1a39d711`, but no TMS pass/fail confirmation yet.
+- No standalone upstream issue was found for `OrderStationStockProjectionQuery.availablePieceCount`; keep this handoff as the tracking packet until a real TMS confirmation is returned.
+- Both items therefore remain `local-verified-awaiting-upstream`; do not mark them `upstream-verified` from local Java evidence alone.
 
 ## Engine Baseline
 

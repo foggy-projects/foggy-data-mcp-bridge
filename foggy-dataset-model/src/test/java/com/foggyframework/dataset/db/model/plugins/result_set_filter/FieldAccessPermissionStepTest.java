@@ -94,7 +94,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("calculatedFields 表达式依赖的源字段全部在白名单 — 通过")
     void fieldAccess_calculatedField_allDepsAllowed() {
-        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "total"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -112,6 +112,29 @@ class FieldAccessPermissionStepTest {
         assertEquals(0, result, "依赖字段全部在白名单时应通过");
     }
 
+    @Test
+    @DisplayName("calculatedFields 输出别名不在白名单 — 抛出异常")
+    void fieldAccess_calculatedField_aliasDenied() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf = new CalculatedFieldDef();
+        cf.setName("total");
+        cf.setExpression("a + b");
+        request.setCalculatedFields(List.of(cf));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("total"),
+                "异常消息应包含被拒绝的计算字段别名 'total'，实际: " + ex.getMessage());
+    }
+
     // ==============================================
     // calculatedFields 依赖被拒绝
     // ==============================================
@@ -119,7 +142,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("calculatedFields 表达式依赖的源字段不在白名单 — 抛出异常")
     void fieldAccess_calculatedField_depDenied() {
-        Set<String> allowed = new LinkedHashSet<>(List.of("a"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "total"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -146,7 +169,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("calculatedFields 聚合表达式依赖的源字段不在白名单 — 抛出异常")
     void fieldAccess_aggregateExpr_depDenied() {
-        Set<String> allowed = new LinkedHashSet<>(List.of("a"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "total"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -366,7 +389,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("fail-closed — 无法解析的表达式被拒绝")
     void fieldAccess_failClosed_unparseable() {
-        Set<String> allowed = new LinkedHashSet<>(List.of("amount"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("amount", "bad"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -435,7 +458,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("传递依赖 — 计算字段 d=c+e，c=a+b，基础字段全部在白名单时通过")
     void fieldAccess_transitiveCalcField_allBaseDepsAllowed() {
-        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "e"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "c", "d", "e"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -461,7 +484,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("传递依赖 — 计算字段 d=c+e，c=a+b，基础字段 b 不在白名单时拒绝")
     void fieldAccess_transitiveCalcField_baseDep_denied() {
-        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "e")); // 缺 b
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "c", "d", "e")); // 缺 b
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -490,7 +513,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("传递依赖 — 三层嵌套 f=d+g，d=c+e，c=a+b 全部在白名单时通过")
     void fieldAccess_deepTransitive_passes() {
-        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "e", "g"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "c", "d", "e", "f", "g"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -519,7 +542,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("orderBy 引用计算字段别名 — 传递展开后校验基础字段")
     void fieldAccess_orderByCalcAlias_transitiveCheck() {
-        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "total"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -548,7 +571,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("表达式引用维度属性字段 product$categoryName — 剥离后缀匹配白名单 product")
     void fieldAccess_expressionWithDimensionProperty_passes() {
-        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("salesAmount", "product"));
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("salesAmount", "product", "adjusted"));
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 
@@ -569,7 +592,7 @@ class FieldAccessPermissionStepTest {
     @Test
     @DisplayName("表达式引用维度属性字段 — 维度基础名不在白名单时拒绝")
     void fieldAccess_expressionWithDimensionProperty_denied() {
-        Set<String> allowed = new LinkedHashSet<>(List.of("salesAmount")); // 没有 product
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("salesAmount", "adjusted")); // 没有 product
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setColumns(List.of());
 

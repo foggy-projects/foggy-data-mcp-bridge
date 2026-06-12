@@ -6,7 +6,7 @@ target: Java Engine 9.2.0 Readiness Snapshot
 status: readiness-with-upstream-followups
 decision: ready-for-next-hardening-cycle
 created_at: 2026-06-06
-updated_at: 2026-06-07
+updated_at: 2026-06-13
 ---
 
 # Java Engine 9.2.0 Readiness Snapshot
@@ -36,6 +36,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | `workitems/OPT-qm-v2-tablemodel-multi-alias.md` | implemented | Explicit ordinary `TableModel` aliases are supported across joins, projections, filters, and ordering. | Unit and integration evidence recorded in the workitem. |
 | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | current-source-verified | Current source preserves direct-query `extData` runtime context; the expected negative-case validation log does not indicate a regression. | `DataViewerApiSmokeTest` run on 2026-06-06. |
 | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | implemented | SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values. | Targeted unit regression plus prepared MySQL gate on 2026-06-06. |
+| `workitems/MODEL-field-permissions.md` | local-verified | Declarative TM/QM field visibility rules are resolved together with runtime `fieldAccess` and physical-column `deniedColumns` for query enforcement and semantic metadata. | Targeted dataset-model unit and integration gate on 2026-06-13. |
 | `workitems/COMPOSE-python-script-snapshot-parity.md` | local-verified | Java compose script snapshot producers cover runtime markers, base/derived/union/join preview SQL and execute rows envelopes, security refusal, and MCP tool error payloads for Python replay. | `JavaComposeScriptSnapshotTest`, `JavaComposeScriptToolErrorSnapshotTest`, and Python replay tests run on 2026-06-07. |
 
 ## Gate Snapshot
@@ -56,6 +57,6 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 
 Recommended next actions:
 
-- send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`;
+- send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open and no standalone `availablePieceCount` issue;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
 - run the PostgreSQL Maven gate in an environment with a prepared PostgreSQL service before a release tag.

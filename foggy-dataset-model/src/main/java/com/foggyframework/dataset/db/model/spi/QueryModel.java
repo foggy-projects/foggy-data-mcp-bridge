@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.spi;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionsDef;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
@@ -148,6 +149,14 @@ public interface QueryModel extends Decorate, DbObject {
      */
     @Nullable
     default PhysicalColumnMapping getPhysicalColumnMapping() {
+        return null;
+    }
+
+    /**
+     * QM-level dynamic field permission narrowing layer.
+     */
+    @Nullable
+    default FieldPermissionsDef getFieldPermissions() {
         return null;
     }
 

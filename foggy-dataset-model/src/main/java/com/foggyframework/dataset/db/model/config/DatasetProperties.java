@@ -128,6 +128,11 @@ public class DatasetProperties {
      */
     private SemanticScaleConfig semanticScale = new SemanticScaleConfig();
 
+    /**
+     * Pivot engine configuration.
+     */
+    private PivotConfig pivot = new PivotConfig();
+
     @Data
     public static class RequestConfig {
 
@@ -150,5 +155,33 @@ public class DatasetProperties {
          * 禁用 semanticScaleFactor 的命名空间列表。
          */
         private List<String> disabledNamespaces = new ArrayList<>();
+    }
+
+    @Data
+    public static class PivotConfig {
+
+        /**
+         * Outer response cache for fully-shaped Pivot responses.
+         */
+        private OuterCacheConfig outerCache = new OuterCacheConfig();
+    }
+
+    @Data
+    public static class OuterCacheConfig {
+
+        /**
+         * Default false. E1b cache return path must be explicitly enabled.
+         */
+        private boolean enabled = false;
+
+        /**
+         * Conservative local TTL for cached Pivot responses.
+         */
+        private long ttlMillis = 300_000L;
+
+        /**
+         * Maximum entries kept by the local in-memory cache.
+         */
+        private int maximumSize = 256;
     }
 }

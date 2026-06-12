@@ -219,9 +219,9 @@ class FieldAccessPermissionIntegrationTest extends EcommerceTestSupport {
             cf.setExpression("salesAmount * 2");
             queryRequest.setCalculatedFields(new java.util.ArrayList<>(List.of(cf)));
 
-            // fieldAccess 包含 orderId 和 salesAmount — 应通过
+            // fieldAccess 包含输出别名和依赖源字段 — 应通过
             ModelResultContext ctx = buildContextWithFieldAccess(queryRequest,
-                    Set.of("orderId", "salesAmount"));
+                    Set.of("orderId", "salesAmount", "doubleAmount"));
 
             // 不抛异常即通过
             DbQueryResult dbResult = queryFacade.queryModelResult(ctx);
@@ -244,9 +244,9 @@ class FieldAccessPermissionIntegrationTest extends EcommerceTestSupport {
             cf.setExpression("salesAmount * 2");
             queryRequest.setCalculatedFields(new java.util.ArrayList<>(List.of(cf)));
 
-            // fieldAccess 只有 orderId，不包含 salesAmount — 应拒绝
+            // fieldAccess 包含输出别名，但不包含依赖源字段 salesAmount — 应拒绝
             ModelResultContext ctx = buildContextWithFieldAccess(queryRequest,
-                    Set.of("orderId"));
+                    Set.of("orderId", "doubleAmount"));
 
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> queryFacade.queryModelResult(ctx),

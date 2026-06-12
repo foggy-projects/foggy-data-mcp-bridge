@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.impl.model;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.DbDefSupport;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionsDef;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
@@ -76,6 +77,11 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
      * @since 8.2.0
      */
     List<PreAggregation> preAggregations = new ArrayList<>();
+
+    /**
+     * TM-level dynamic field permissions. QM layers can only narrow this set.
+     */
+    FieldPermissionsDef fieldPermissions;
 
     /**
      * 模型加载错误列表

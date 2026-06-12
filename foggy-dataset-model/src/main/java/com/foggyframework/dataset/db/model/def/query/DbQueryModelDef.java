@@ -4,6 +4,8 @@ import com.foggyframework.dataset.db.model.def.DbDefSupport;
 import com.foggyframework.dataset.db.model.def.access.DbAccessDef;
 import com.foggyframework.dataset.db.model.def.column.DbColumnGroupDef;
 import com.foggyframework.dataset.db.model.def.order.OrderDef;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionsDef;
+import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.semantic.member.permission.QmMemberPermissionDef;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
 import com.foggyframework.dataset.db.model.spi.TableModel;
@@ -51,5 +53,15 @@ public class DbQueryModelDef extends DbDefSupport {
 
     /** 成员权限配置列表，每项按 dimension 定位根维度，patch 覆盖 TM 默认值 */
     List<QmMemberPermissionDef> memberPermissions;
+
+    /**
+     * QM-level dynamic field permission narrowing layer.
+     */
+    FieldPermissionsDef fieldPermissions;
+
+    public void apply(QueryModelSupport queryModelSupport) {
+        super.apply(queryModelSupport);
+        queryModelSupport.setFieldPermissions(fieldPermissions);
+    }
 
 }

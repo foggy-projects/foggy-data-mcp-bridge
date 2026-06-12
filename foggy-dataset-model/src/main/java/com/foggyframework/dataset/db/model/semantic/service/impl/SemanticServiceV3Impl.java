@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.DictionaryDiscoveryRe
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.permission.FieldPermissionResolver;
 import com.foggyframework.dataset.db.model.semantic.service.DictionaryDiscoveryService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.*;
@@ -53,6 +54,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
     @Autowired(required = false)
     private DictionaryDiscoveryService dictionaryDiscoveryService;
+
+    @Resource
+    private FieldPermissionResolver fieldPermissionResolver;
 
     @Override
     public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
@@ -116,11 +120,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     continue;
                 }
 
-                // 解析 deniedColumns → denied QM 字段集合（per model）
-                Set<String> deniedQmFields = resolveDeniedQmFieldsForModel(queryModel, deniedColumns);
-                // 合并 fieldAccess + deniedQmFields 为统一的有效 fieldAccess
-                Set<String> effectiveFieldAccess = mergeFieldAccessAndDenied(fieldAccess, deniedQmFields,
-                        queryModel);
+                Set<String> effectiveFieldAccess = resolveEffectiveFieldAccess(queryModel, namespace,
+                        fieldAccess, deniedColumns, context);
 
                 // 处理字段信息（展开维度字段，按列权限裁剪）
                 processModelFieldsV3(queryModel, fields, request.getFields(), request.getLevels(),
@@ -195,6 +196,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         if (queryModel == null) {
             return "# 错误\n\n模型不存在: " + modelName;
         }
+        Set<String> effectiveFieldAccess = resolveEffectiveFieldAccess(queryModel, namespace, fieldAccess,
+                context.getDeniedColumns(), context);
 
         TableModel jdbcModel = queryModel.getJdbcModel();
         StringBuilder md = new StringBuilder();
@@ -243,7 +246,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 }
 
                 // fieldAccess 列权限裁剪
-                if (fieldAccess != null && !fieldAccess.contains(dimName)) {
+                if (effectiveFieldAccess != null && !effectiveFieldAccess.contains(dimName)) {
                     continue;
                 }
                 
@@ -373,7 +376,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             List<DbQueryProperty> filteredProperties = queryProperties.stream()
                     .filter(qp -> !dimensionFieldNames.contains(qp.getName()))
                     .filter(qp -> isFieldInLevels(qp.getAi(), request.getLevels()))
-                    .filter(qp -> fieldAccess == null || fieldAccess.contains(qp.getProperty().getName()))
+                    .filter(qp -> effectiveFieldAccess == null
+                            || effectiveFieldAccess.contains(qp.getProperty().getName()))
                     .toList();
 
             List<DbQueryProperty> timeProperties = new ArrayList<>();
@@ -543,7 +547,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 String fieldName = measure.getName();
 
                 // fieldAccess 列权限裁剪
-                if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                if (effectiveFieldAccess != null && !effectiveFieldAccess.contains(fieldName)) {
                     continue;
                 }
 
@@ -568,7 +572,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             List<CalculatedFieldDef> filteredCalcs = new ArrayList<>();
             Map<String, String> calcFieldMap = buildPredefinedCalcFieldMap(predefinedCalcs);
             for (CalculatedFieldDef calc : predefinedCalcs) {
-                if (!isCalculatedFieldAccessible(calc, fieldAccess, calcFieldMap)) {
+                if (!isCalculatedFieldAccessible(calc, effectiveFieldAccess, calcFieldMap)) {
                     continue;
                 }
                 filteredCalcs.add(calc);
@@ -672,8 +676,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
             modelMap.put(qmModelName, queryModel);
+            Set<String> effectiveFieldAccess = resolveEffectiveFieldAccess(queryModel, namespace, fieldAccess,
+                    context.getDeniedColumns(), context);
             collectFieldsInfoV3(queryModel, allFields, request.getFields(), request.getLevels(),
-                    referencedDictIds, referencedDictClasses, fieldAccess, context);
+                    referencedDictIds, referencedDictClasses, effectiveFieldAccess, context);
         }
 
         // 构建模型简称映射（使用 JdbcQueryModel 的 shortAlias）
@@ -1624,56 +1630,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
     }
 
-    /**
-     * 为指定模型解析 deniedColumns → denied QM 字段集合
-     */
-    private Set<String> resolveDeniedQmFieldsForModel(QueryModel queryModel,
-            java.util.List<com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn> deniedColumns) {
-        if (deniedColumns == null || deniedColumns.isEmpty()) {
-            return Set.of();
-        }
-        com.foggyframework.dataset.db.model.spi.PhysicalColumnMapping mapping = queryModel.getPhysicalColumnMapping();
-        if (mapping == null) {
-            return Set.of();
-        }
-        return mapping.toDeniedQmFields(deniedColumns);
-    }
-
-    /**
-     * 合并 fieldAccess 白名单与 deniedQmFields 黑名单为统一的有效 fieldAccess
-     * <p>
-     * 如果两者都为空/null，返回 null（不限制）。
-     * 如果只有黑名单，从全部 QM 字段中排除 denied 后生成白名单。
-     * 如果两者都有，取交集（白名单中去掉 denied 的）。
-     */
-    private Set<String> mergeFieldAccessAndDenied(Set<String> fieldAccess, Set<String> deniedQmFields,
-                                                    QueryModel queryModel) {
-        boolean hasWhitelist = fieldAccess != null;
-        boolean hasBlacklist = deniedQmFields != null && !deniedQmFields.isEmpty();
-
-        if (!hasWhitelist && !hasBlacklist) {
-            return null; // 不限制
-        }
-
-        if (hasWhitelist && !hasBlacklist) {
-            return fieldAccess; // 只有白名单
-        }
-
-        // 有黑名单：从 QM 全部字段（或 fieldAccess 白名单）中排除 denied
-        Set<String> base;
-        if (hasWhitelist) {
-            base = new LinkedHashSet<>(fieldAccess);
-        } else {
-            // 从映射缓存获取全部 QM 字段名（基础名，不含 $id/$caption 后缀）
-            com.foggyframework.dataset.db.model.spi.PhysicalColumnMapping mapping = queryModel.getPhysicalColumnMapping();
-            if (mapping != null) {
-                base = new LinkedHashSet<>(mapping.getAllQmFieldNames());
-            } else {
-                return null; // 映射不可用时不限制
-            }
-        }
-        base.removeAll(deniedQmFields);
-        return Collections.unmodifiableSet(base);
+    private Set<String> resolveEffectiveFieldAccess(QueryModel queryModel, String namespace,
+                                                    Set<String> fieldAccess,
+                                                    java.util.List<com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn> deniedColumns,
+                                                    SemanticRequestContext context) {
+        return fieldPermissionResolver.resolve(queryModel, namespace,
+                context == null ? null : context.getSecurityContext(),
+                fieldAccess, deniedColumns).getEffectiveFieldAccess();
     }
 
     /**
@@ -1703,6 +1666,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                                                  Map<String, String> calcFieldMap) {
         if (fieldAccess == null || calc.getExpression() == null) {
             return true;
+        }
+        String calcName = calc.getName();
+        if (StringUtils.isNotEmpty(calcName) && !fieldAccess.contains(calcName)) {
+            return false;
         }
         try {
             Set<String> baseDeps = com.foggyframework.dataset.db.model.engine.expression

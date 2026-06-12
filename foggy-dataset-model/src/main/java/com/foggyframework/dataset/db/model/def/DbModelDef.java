@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.def;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.dimension.DbDimensionDef;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionsDef;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggregationDef;
 import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
@@ -67,10 +68,16 @@ public class DbModelDef extends DbDefSupport {
      */
     List<PreAggregationDef> preAggregations;
 
+    /**
+     * TM-level dynamic field permission upper bound.
+     */
+    FieldPermissionsDef fieldPermissions;
+
     public void apply(TableModelSupport jdbcObjectSupport) {
         super.apply(jdbcObjectSupport);
         jdbcObjectSupport.setIdColumn(this.idColumn);
         jdbcObjectSupport.setTableName(tableName);
+        jdbcObjectSupport.setFieldPermissions(fieldPermissions);
         if(StringUtils.isNotEmpty(type)){
             jdbcObjectSupport.setModelType(DbModelType.valueOf(type));
         }else{

@@ -3,6 +3,8 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -87,6 +89,13 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                 "tree_axis_domainSlice_start_offset");
 
         List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
+        Map<String, Object> cacheLookup = diagnosticEvent(diagnostics, "pivot.cache.lookup");
+        assertEquals("E1a", cacheLookup.get("eligibilityStage"));
+        assertEquals("flat", cacheLookup.get("shapeClass"));
+        assertNotNull(cacheLookup.get("keyHash"));
+        Map<String, Object> cacheMiss = diagnosticEvent(diagnostics, "pivot.cache.miss");
+        assertEquals("telemetry_only", cacheMiss.get("reason"));
+        assertEquals(cacheLookup.get("keyHash"), cacheMiss.get("keyHash"));
         assertDiagnosticEvent(diagnostics, "pivot.sql_pushdown.skipped");
         Map<String, Object> executionPath = diagnosticEvent(diagnostics, "pivot.execution_path");
         assertEquals(Boolean.FALSE, executionPath.get("sqlPushdownUsed"));
@@ -130,6 +139,126 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         assertFalse(colHeaders.isEmpty());
         assertTrue(colHeaders.get(0).containsKey("salesDate$month"));
         assertTrue(colHeaders.get(0).containsKey("metric"));
+    }
+
+    @Test
+    @DisplayName("v9.2: E1b outer cache 命中只返回缓存响应，不重跑 Pivot pipeline")
+    void testOuterCacheHitFlatPivotE1b() {
+        SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
+        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        try {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(60_000L));
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setPivot(basicSalesPivot());
+
+            SemanticQueryResponse first = execute(request);
+            SemanticQueryResponse second = execute(request);
+
+            assertEquals(first.getItems(), second.getItems(), "cache hit should return the same Pivot payload");
+
+            List<Map<String, Object>> firstDiagnostics = pivotDiagnostics(first);
+            Map<String, Object> firstLookup = diagnosticEvent(firstDiagnostics, "pivot.cache.lookup");
+            assertEquals("E1b", firstLookup.get("eligibilityStage"));
+            Map<String, Object> firstMiss = diagnosticEvent(firstDiagnostics, "pivot.cache.miss");
+            assertEquals("cache_not_found", firstMiss.get("reason"));
+            Map<String, Object> store = diagnosticEvent(firstDiagnostics, "pivot.cache.store");
+            assertEquals(firstLookup.get("keyHash"), store.get("keyHash"));
+            assertTrue(((Number) store.get("payloadBytes")).intValue() > 0);
+
+            List<Map<String, Object>> secondDiagnostics = pivotDiagnostics(second);
+            Map<String, Object> secondLookup = diagnosticEvent(secondDiagnostics, "pivot.cache.lookup");
+            assertEquals("E1b", secondLookup.get("eligibilityStage"));
+            Map<String, Object> hit = diagnosticEvent(secondDiagnostics, "pivot.cache.hit");
+            assertEquals(secondLookup.get("keyHash"), hit.get("keyHash"));
+            assertEquals(PivotOuterResponseCache.CACHE_NAME, hit.get("cacheName"));
+            assertFalse(hasDiagnosticEvent(secondDiagnostics, "pivot.execution_path"),
+                    "cache hit response must not pretend the Pivot pipeline executed");
+        } finally {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
+        }
+    }
+
+    @Test
+    @DisplayName("v9.2: E1b outer cache TTL 过期后重新执行并写入")
+    void testOuterCacheTtlExpiryFlatPivotE1b() throws InterruptedException {
+        SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
+        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        try {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(1L));
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setPivot(basicSalesPivot());
+
+            SemanticQueryResponse first = execute(request);
+            assertDiagnosticEvent(pivotDiagnostics(first), "pivot.cache.store");
+
+            Thread.sleep(20L);
+
+            SemanticQueryResponse second = execute(request);
+            assertEquals(first.getItems(), second.getItems(), "TTL refresh should preserve query result payload");
+            List<Map<String, Object>> diagnostics = pivotDiagnostics(second);
+            Map<String, Object> evicted = diagnosticEvent(diagnostics, "pivot.cache.evicted");
+            assertEquals("ttl_expired", evicted.get("reason"));
+            Map<String, Object> miss = diagnosticEvent(diagnostics, "pivot.cache.miss");
+            assertEquals("ttl_expired", miss.get("reason"));
+            assertDiagnosticEvent(diagnostics, "pivot.execution_path");
+            assertDiagnosticEvent(diagnostics, "pivot.cache.store");
+        } finally {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
+        }
+    }
+
+    @Test
+    @DisplayName("v9.2: E1b outer cache 不跨安全上下文命中")
+    void testOuterCacheMissesAcrossSecurityContextsE1b() {
+        SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
+        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        try {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(60_000L));
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setPivot(basicSalesPivot());
+
+            SemanticQueryResponse userAFirst = execute(request, outerCacheContext("user-a"));
+            SemanticQueryResponse userBFirst = execute(request, outerCacheContext("user-b"));
+            SemanticQueryResponse userASecond = execute(request, outerCacheContext("user-a"));
+
+            Map<String, Object> userALookup = diagnosticEvent(pivotDiagnostics(userAFirst), "pivot.cache.lookup");
+            Map<String, Object> userBLookup = diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.lookup");
+            assertNotEquals(userALookup.get("keyHash"), userBLookup.get("keyHash"),
+                    "different security contexts must not share cache keys");
+            assertEquals("cache_not_found",
+                    diagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.miss").get("reason"));
+            assertFalse(hasDiagnosticEvent(pivotDiagnostics(userBFirst), "pivot.cache.hit"));
+            assertEquals(userALookup.get("keyHash"),
+                    diagnosticEvent(pivotDiagnostics(userASecond), "pivot.cache.hit").get("keyHash"));
+        } finally {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
+        }
+    }
+
+    @Test
+    @DisplayName("v9.2: E1b outer cache 不存储 warning 响应并输出 store_skipped")
+    void testOuterCacheSkipsWarningResponsesE1b() {
+        PivotPipeline pipeline = outerCachePipeline(60_000L);
+        PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(TEST_MODEL);
+        PivotOuterCacheTelemetry.Evaluation evaluation = new PivotOuterCacheTelemetry.Evaluation(
+                "warning-key", "flat", null);
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of(Map.of("product$categoryName", "Category", "salesAmount", 1)));
+        response.setWarnings(List.of("warning"));
+        SemanticQueryResponse.DebugInfo debug = new SemanticQueryResponse.DebugInfo();
+        debug.setExtra(new LinkedHashMap<>());
+        response.setDebug(debug);
+
+        SemanticQueryResponse result = pipeline.storeOuterCacheIfEligible(
+                evaluation, PivotOuterCacheTelemetry.CACHE_STAGE, diagnostics, response);
+
+        List<Map<String, Object>> diagnosticsOutput = pivotDiagnostics(result);
+        Map<String, Object> skipped = diagnosticEvent(diagnosticsOutput, "pivot.cache.store_skipped");
+        assertEquals(PivotOuterCacheTelemetry.CACHE_STORE_SKIPPED_WARNING_REASON, skipped.get("reason"));
+        assertFalse(hasDiagnosticEvent(diagnosticsOutput, "pivot.cache.store"));
     }
 
     @Test
@@ -790,6 +919,11 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         SemanticQueryResponse response = execute("FactTeamSalesQueryModel", request);
         org.junit.jupiter.api.Assertions.assertNotNull(response);
         org.junit.jupiter.api.Assertions.assertFalse(pivot.getOptions().isRowSubtotals(), "RowSubtotals should be silently set to false");
+        List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
+        Map<String, Object> cacheRefused = diagnosticEvent(diagnostics, "pivot.cache.refused");
+        assertEquals("E1a", cacheRefused.get("eligibilityStage"));
+        assertEquals("tree_mode", cacheRefused.get("reason"));
+        assertEquals("tree", cacheRefused.get("shapeClass"));
         log.info("S8.3: tree+subtotals silently ignored passed");
     }
 
@@ -1723,13 +1857,39 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
     // ========== 辅助方法 ==========
 
+    private PivotPipeline outerCachePipeline(long ttlMillis) {
+        return new PivotPipeline(semanticQueryServiceV3, new CardinalityBreaker(), queryModelLoader, null,
+                new PivotPipeline.OuterCacheOptions(true, ttlMillis, 16));
+    }
+
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
         return execute(TEST_MODEL, request);
     }
 
     private SemanticQueryResponse execute(String model, SemanticQueryRequest request) {
+        return execute(model, request, SemanticRequestContext.empty());
+    }
+
+    private SemanticQueryResponse execute(SemanticQueryRequest request, SemanticRequestContext context) {
+        return execute(TEST_MODEL, request, context);
+    }
+
+    private SemanticQueryResponse execute(String model, SemanticQueryRequest request, SemanticRequestContext context) {
         return semanticQueryServiceV3.queryModel(
-                model, request, "execute", SemanticRequestContext.empty());
+                model, request, "execute", context);
+    }
+
+    private SemanticRequestContext outerCacheContext(String userId) {
+        ModelResultContext.SecurityContext securityContext = ModelResultContext.SecurityContext.builder()
+                .authorization("Bearer " + userId)
+                .userId(userId)
+                .roles(List.of("analyst"))
+                .tenantId("tenant-main")
+                .attributes(Map.of("scope", "pivot-cache-test"))
+                .build();
+        return SemanticRequestContext.of(null, securityContext,
+                Set.of("product$categoryName", "salesAmount"),
+                List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount")));
     }
 
     private Map<?, ?> pivotEngineContract(SemanticQueryResponse response) {
@@ -1776,6 +1936,10 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
     private void assertDiagnosticEvent(List<Map<String, Object>> diagnostics, String event) {
         diagnosticEvent(diagnostics, event);
+    }
+
+    private boolean hasDiagnosticEvent(List<Map<String, Object>> diagnostics, String event) {
+        return diagnostics.stream().anyMatch(item -> event.equals(item.get("event")));
     }
 
     private SemanticQueryRequest.SliceItem slice(String field, String op, Object value) {

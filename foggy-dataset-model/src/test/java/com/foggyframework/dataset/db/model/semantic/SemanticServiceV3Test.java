@@ -1,6 +1,10 @@
 package com.foggyframework.dataset.db.model.semantic;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionRuleDef;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionsDef;
+import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
+import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
@@ -9,6 +13,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -564,6 +569,69 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
 
             assertTrue(fields.isEmpty(), "fieldAccess 为空集合时不应暴露任何字段");
         }
+
+        @Test
+        @DisplayName("JSON/Markdown metadata — TM/QM fieldPermissions 动态裁剪且 QM 不放宽 TM")
+        void metadata_withModelFieldPermissions_filtersFields() {
+            JdbcQueryModel queryModel = getQueryModel(TEST_MODEL);
+            QueryModelSupport qm = queryModel.getDecorate(QueryModelSupport.class);
+            TableModelSupport tm = queryModel.getJdbcModel().getDecorate(TableModelSupport.class);
+            assertNotNull(qm, "测试模型应支持 QM fieldPermissions");
+            assertNotNull(tm, "测试模型应支持 TM fieldPermissions");
+
+            FieldPermissionsDef originalQmPermissions = qm.getFieldPermissions();
+            FieldPermissionsDef originalTmPermissions = tm.getFieldPermissions();
+
+            try {
+                tm.setFieldPermissions(permissions(false,
+                        List.of(rule(Map.of("hasAnyGroup", List.of("metadata.allowed")),
+                                "orderId", "amount", "customer")),
+                        null));
+                qm.setFieldPermissions(permissions(false,
+                        List.of(rule(Map.of("hasAnyGroup", List.of("metadata.allowed")),
+                                "orderId", "amount")),
+                        null));
+
+                SemanticMetadataRequest request = new SemanticMetadataRequest();
+                request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+                ModelResultContext.SecurityContext allowedSecurityContext =
+                        ModelResultContext.SecurityContext.builder()
+                                .roles(List.of("metadata.allowed"))
+                                .build();
+                SemanticRequestContext allowedContext = SemanticRequestContext.of(null,
+                        allowedSecurityContext, null);
+
+                SemanticMetadataResponse jsonResponse = semanticServiceV3.getMetadata(
+                        request, "json", allowedContext);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> fields = (Map<String, Object>) jsonResponse.getData().get("fields");
+
+                assertEquals(Set.of("orderId", "amount"), fields.keySet(),
+                        "metadata JSON 只能包含 TM/QM 共同允许的字段");
+                assertFalse(fields.containsKey("customer$id"), "QM 未允许 customer 时不应输出 customer$id");
+                assertFalse(fields.containsKey("customer$caption"), "QM 未允许 customer 时不应输出 customer$caption");
+
+                SemanticMetadataResponse markdownResponse = semanticServiceV3.getMetadata(
+                        request, "markdown", allowedContext);
+                String markdown = markdownResponse.getContent();
+                assertTrue(markdown.contains("orderId"), "markdown 应包含允许字段 orderId");
+                assertTrue(markdown.contains("amount"), "markdown 应包含允许字段 amount");
+                assertFalse(markdown.contains("customer$id"), "markdown 不应包含 QM 裁剪掉的 customer$id");
+                assertFalse(markdown.contains("customer$caption"), "markdown 不应包含 QM 裁剪掉的 customer$caption");
+
+                SemanticMetadataResponse unmatchedResponse = semanticServiceV3.getMetadata(
+                        request, "json", SemanticRequestContext.empty());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> unmatchedFields =
+                        (Map<String, Object>) unmatchedResponse.getData().get("fields");
+                assertTrue(unmatchedFields.isEmpty(),
+                        "无匹配安全上下文时 defaultVisible=false 的动态规则不应暴露字段");
+            } finally {
+                qm.setFieldPermissions(originalQmPermissions);
+                tm.setFieldPermissions(originalTmPermissions);
+            }
+        }
     }
 
     // ==========================================
@@ -664,5 +732,22 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
             assertEquals(uniqueNames.size(), tableNames.size(),
                     "physicalTables 应去重，不应出现重复表名");
         }
+    }
+
+    private static FieldPermissionsDef permissions(Boolean defaultVisible,
+                                                   List<FieldPermissionRuleDef> visibleFields,
+                                                   List<FieldPermissionRuleDef> hiddenFields) {
+        FieldPermissionsDef permissions = new FieldPermissionsDef();
+        permissions.setDefaultVisible(defaultVisible);
+        permissions.setVisibleFields(visibleFields);
+        permissions.setHiddenFields(hiddenFields);
+        return permissions;
+    }
+
+    private static FieldPermissionRuleDef rule(Map<String, Object> when, String... fields) {
+        FieldPermissionRuleDef rule = new FieldPermissionRuleDef();
+        rule.setWhen(when);
+        rule.setFields(Arrays.asList(fields));
+        return rule;
     }
 }

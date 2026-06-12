@@ -5,7 +5,7 @@ version: 9.2.0
 target: Java Engine 9.2.0 Follow-Up Roadmap
 status: readiness-review
 created_at: 2026-05-03
-updated_at: 2026-06-12
+updated_at: 2026-06-13
 ---
 
 # Foggy Java Engine 9.2.0 Follow-Ups
@@ -33,10 +33,11 @@ This snapshot is not a final release signoff. It records the current readiness b
 | QM v2 TableModel multi-alias | implemented | `workitems/OPT-qm-v2-tablemodel-multi-alias.md` | Continue using explicit aliases only; do not infer ambiguous joins. |
 | Data Viewer direct extData runtime filter | current-source-verified | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | Negative-case validation log is expected; no production regression claimed. |
 | Formula SQL logical operator extraction | implemented | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | SQL `and` / `or` normalization is limited to SQL expression dialect and string-external tokens. |
+| Declarative TM/QM field permissions | local-verified | `workitems/MODEL-field-permissions.md` | TM/QM `fieldPermissions` now resolve with runtime `fieldAccess` and `deniedColumns` into one effective allowlist for query enforcement and semantic metadata; predicates are controlled and fail closed. |
 | Pivot output snapshot parity | local-verified | `workitems/PIVOT-python-output-snapshot-parity.md` | Java producer now covers 8 Python replay cases including flat/grid row subtotals + grand total; Python replay remains a cross-repo follow-up. |
 | Pivot production telemetry diagnostics | local-verified-consumption-contract | `workitems/PIVOT-production-telemetry-diagnostics.md` | Successful Pivot responses now expose `debug.extra.pivotDiagnostics` for SQL pushdown, axis-domain selection, domain transport plan, and final execution-path evidence. Cascade refusals now emit `pivot.cascade.refused`; dashboard/log-query consumption examples are documented. |
 | Pivot tree/cascade/subtotal semantic review | semantic-review-complete-fail-closed | `workitems/PIVOT-tree-cascade-subtotal-semantics.md` | Tree + cascade remains refused, and tree totals remain unsigned until parent/child ranking, visible/full-total, and oracle fixture gates are accepted. |
-| Pivot outer cache design | design-ready-no-implementation | `workitems/PIVOT-outer-cache-design.md` | Cache key, invalidation, staged eligibility, and diagnostics are defined; no cache implementation is enabled yet. |
+| Pivot outer cache design | e1b-safety-verified-default-off | `workitems/PIVOT-outer-cache-design.md` | E1a telemetry remains the default behavior; E1b process-local response cache can be explicitly enabled for successful flat/grid no-warning responses, with permission isolation, key fingerprint, hit/store/store-skipped/TTL, eviction, deep-copy, and concurrent-hit diagnostics locally verified. |
 | Pivot dialect cascade evidence | planned-env-gated | `workitems/PIVOT-dialect-cascade-evidence-plan.md` | SQL Server cascade parity is blocked by live service availability; MySQL 5.7 remains large-domain transport supported and cascade refused. |
 | Compose script snapshot parity | local-verified | `workitems/COMPOSE-python-script-snapshot-parity.md` | Java producers now cover 13 compose script runtime cases plus 7 MCP tool error cases; Python replay passes for both generated fixtures. |
 | Odoo registry consumer gate | consumer-verified | `../9.1.0/workitems/P1-odoo-model-registry-promotion-20260606.md` | Registry promotion remains a cross-repo follow-up, not a 9.2 Java engine blocker. |
@@ -66,7 +67,7 @@ Readiness documents:
 2. PIVOT-92-F1/F2 dialect evidence can proceed independently because they should not change public DSL semantics; SQL Server remains env-gated and MySQL 5.7 remains cascade-refused.
 3. PIVOT-92-O1 response diagnostics and consumption contract are now locally documented; concrete dashboard/log-query packaging can proceed without changing Pivot DSL semantics.
 4. PIVOT-92-D1 semantic review is complete and keeps tree + cascade fail-closed until oracle fixtures define ranking and totals.
-5. PIVOT-92-E1 design is ready for an E1a telemetry-only implementation; cached responses should wait for key/refusal diagnostics and deterministic flat/grid tests.
+5. PIVOT-92-E1 E1b local response cache is safety-verified but remains default-off; promotion beyond local opt-in still needs signed bundle/model hash, operational invalidation, distributed provider, and cross-node coherency evidence.
 
 ## Guardrails
 
@@ -103,9 +104,10 @@ The current readiness boundary is:
 - `workitems/OPT-qm-v2-tablemodel-multi-alias.md` - Support ordinary QM v2 `TableModel` explicit aliases so one TM can join multiple times with alias-qualified root fields in `on`, `columns`, `slice`, and `orderBy`.
 - `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` - Data Viewer direct-query entrypoint now preserves top-level `extData` as runtime filter context for direct QM execution.
 - `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` - SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values.
+- `workitems/MODEL-field-permissions.md` - Declarative TM/QM field visibility rules resolve with runtime `fieldAccess` and physical-column `deniedColumns`, preserving TM upper bounds, QM narrowing, existing query enforcement, and semantic metadata filtering.
 - `workitems/PIVOT-python-output-snapshot-parity.md` - Java Pivot output snapshot producer for Python replay now covers flat/grid, grand total, and row subtotal + grand total cases.
 - `workitems/PIVOT-production-telemetry-diagnostics.md` - Java Pivot responses now expose structured `pivotDiagnostics` for execution-path and large-domain transport evidence, with cascade refusal logging and first dashboard/log-query consumption examples recorded.
 - `workitems/PIVOT-tree-cascade-subtotal-semantics.md` - Semantic review for tree + cascade and tree totals; keeps unsupported combinations fail-closed until explicit oracle gates pass.
-- `workitems/PIVOT-outer-cache-design.md` - Staged outer Pivot cache design covering cache key, invalidation, eligibility, diagnostics, and safety tests before implementation.
+- `workitems/PIVOT-outer-cache-design.md` - Staged outer Pivot cache design plus E1a default telemetry and E1b default-off local cache evidence for permission isolation, key fingerprinting, lookup/miss/refused/hit/store/store-skipped/TTL-expiry diagnostics, eviction, deep-copy, and concurrent-hit safety.
 - `workitems/PIVOT-dialect-cascade-evidence-plan.md` - Dialect evidence plan for SQL Server cascade parity and MySQL 5.7 large-domain transport plus cascade refusal.
 - `workitems/COMPOSE-python-script-snapshot-parity.md` - Java compose script snapshot producers for Python replay now cover tool/runtime markers, base/derived/union/join preview SQL and execute rows envelopes, security refusal, resolver-null host misconfiguration, remote principal mismatch, remote missing binding, and the current boundary that legacy result-object methods are not part of `dataset.compose_script`.

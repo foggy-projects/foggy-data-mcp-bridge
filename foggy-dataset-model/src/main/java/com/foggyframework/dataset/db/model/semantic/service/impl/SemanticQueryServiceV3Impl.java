@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
@@ -88,6 +89,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private QueryModelLoader queryModelLoader;
 
     @Resource
+    private DatasetProperties datasetProperties;
+
+    @Resource
     private DimensionMemberLoader dimensionMemberLoader;
 
     private MemoryGridEngine memoryGridEngine;
@@ -109,11 +113,23 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 if (pivotPipeline == null) {
                     pivotPipeline = new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline(
                             this, new com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker(),
-                            queryModelLoader, queryFacade);
+                            queryModelLoader, queryFacade, pivotOuterCacheOptions());
                 }
             }
         }
         return pivotPipeline;
+    }
+
+    private com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions pivotOuterCacheOptions() {
+        DatasetProperties.OuterCacheConfig config = datasetProperties != null
+                && datasetProperties.getPivot() != null
+                ? datasetProperties.getPivot().getOuterCache()
+                : null;
+        if (config == null) {
+            return com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions.disabled();
+        }
+        return new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions(
+                config.isEnabled(), config.getTtlMillis(), config.getMaximumSize());
     }
 
     @Override

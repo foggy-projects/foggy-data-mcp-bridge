@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.spi;
 
 import com.foggyframework.dataset.db.model.def.DbDefSupport;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionsDef;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 
@@ -67,6 +68,13 @@ public interface TableModel extends DbObject {
      * @since 8.2.0
      */
     List<PreAggregation> getPreAggregations();
+
+    /**
+     * TM-level dynamic field permission upper bound.
+     */
+    default FieldPermissionsDef getFieldPermissions() {
+        return null;
+    }
 
     /**
      * 获取模型加载错误列表

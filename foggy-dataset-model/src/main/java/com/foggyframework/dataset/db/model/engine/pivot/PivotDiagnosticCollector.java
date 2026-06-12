@@ -63,6 +63,70 @@ final class PivotDiagnosticCollector {
         diagnostics.add(item);
     }
 
+    void cacheLookup(String keyHash, String eligibilityStage, String shapeClass) {
+        Map<String, Object> item = event("pivot.cache.lookup", "started");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
+    void cacheMiss(String keyHash, String eligibilityStage, String reason, String shapeClass) {
+        Map<String, Object> item = event("pivot.cache.miss", "miss");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("reason", reason);
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
+    void cacheHit(String keyHash, String eligibilityStage, long ageMs, String cacheName, String shapeClass) {
+        Map<String, Object> item = event("pivot.cache.hit", "hit");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("ageMs", ageMs);
+        item.put("cacheName", cacheName);
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
+    void cacheRefused(String keyHash, String eligibilityStage, String reason, String shapeClass) {
+        Map<String, Object> item = event("pivot.cache.refused", "refused");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("reason", reason);
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
+    void cacheStore(String keyHash, String eligibilityStage, int payloadBytes, long ttlMs, String shapeClass) {
+        Map<String, Object> item = event("pivot.cache.store", "stored");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("payloadBytes", payloadBytes);
+        item.put("ttlMs", ttlMs);
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
+    void cacheStoreSkipped(String keyHash, String eligibilityStage, String reason, String shapeClass) {
+        Map<String, Object> item = event("pivot.cache.store_skipped", "skipped");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("reason", reason);
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
+    void cacheEvicted(String keyHash, String eligibilityStage, String reason, String shapeClass) {
+        Map<String, Object> item = event("pivot.cache.evicted", "evicted");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("reason", reason);
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
     void executionPath(boolean sqlPushdownUsed,
                        boolean axisDomainSelectionUsed,
                        boolean cascadeRequest,

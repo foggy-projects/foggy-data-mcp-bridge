@@ -176,6 +176,10 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             return;
         }
         for (CalculatedFieldDef field : calculatedFields) {
+            if (field.getName() != null && !field.getName().trim().isEmpty()) {
+                String baseField = stripDimensionSuffix(field.getName());
+                checkField(baseField, field.getName(), "calculatedFields", fieldAccess, deniedQmFields);
+            }
             if (field.getExpression() == null || field.getExpression().trim().isEmpty()) {
                 continue;
             }

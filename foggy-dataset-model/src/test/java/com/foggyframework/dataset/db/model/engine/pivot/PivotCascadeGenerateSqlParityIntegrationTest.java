@@ -95,6 +95,10 @@ class PivotCascadeGenerateSqlParityIntegrationTest extends EcommerceTestSupport 
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
+        Map<String, Object> cacheRefused = diagnosticEvent(pivotDiagnostics(response), "pivot.cache.refused");
+        assertEquals("E1a", cacheRefused.get("eligibilityStage"));
+        assertEquals("cascade_shape", cacheRefused.get("reason"));
+        assertEquals("cascade", cacheRefused.get("shapeClass"));
 
         // SQL Oracle
         String sql = "WITH _base_relation AS (" +
@@ -569,6 +573,25 @@ class PivotCascadeGenerateSqlParityIntegrationTest extends EcommerceTestSupport 
 
     private SemanticQueryResponse execute(String model, SemanticQueryRequest request, SemanticRequestContext ctx) {
         return semanticQueryServiceV3.queryModel(model, request, "execute", ctx);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> pivotDiagnostics(SemanticQueryResponse response) {
+        assertTrue(response.getDebug() != null, "pivot response should include debug info");
+        assertTrue(response.getDebug().getExtra() != null, "pivot response should include debug.extra");
+        Object diagnostics = response.getDebug().getExtra().get("pivotDiagnostics");
+        assertTrue(diagnostics instanceof List<?>, "debug.extra should include pivotDiagnostics");
+        for (Object item : (List<?>) diagnostics) {
+            assertTrue(item instanceof Map<?, ?>, "pivotDiagnostics item should be a map");
+        }
+        return (List<Map<String, Object>>) diagnostics;
+    }
+
+    private Map<String, Object> diagnosticEvent(List<Map<String, Object>> diagnostics, String event) {
+        return diagnostics.stream()
+                .filter(item -> event.equals(item.get("event")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("pivotDiagnostics should contain " + event + ": " + diagnostics));
     }
 
     private AxisField axis(String field) {
