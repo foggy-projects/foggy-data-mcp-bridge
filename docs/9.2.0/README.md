@@ -5,7 +5,7 @@ version: 9.2.0
 target: Java Engine 9.2.0 Follow-Up Roadmap
 status: readiness-review
 created_at: 2026-05-03
-updated_at: 2026-06-11
+updated_at: 2026-06-12
 ---
 
 # Foggy Java Engine 9.2.0 Follow-Ups
@@ -34,6 +34,7 @@ This snapshot is not a final release signoff. It records the current readiness b
 | Data Viewer direct extData runtime filter | current-source-verified | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | Negative-case validation log is expected; no production regression claimed. |
 | Formula SQL logical operator extraction | implemented | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | SQL `and` / `or` normalization is limited to SQL expression dialect and string-external tokens. |
 | Pivot output snapshot parity | local-verified | `workitems/PIVOT-python-output-snapshot-parity.md` | Java producer now covers 8 Python replay cases including flat/grid row subtotals + grand total; Python replay remains a cross-repo follow-up. |
+| Pivot production telemetry diagnostics | local-verified | `workitems/PIVOT-production-telemetry-diagnostics.md` | Successful Pivot responses now expose `debug.extra.pivotDiagnostics` for SQL pushdown, axis-domain selection, domain transport plan, and final execution-path evidence. Cascade refusals now emit `pivot.cascade.refused`; dashboard wiring remains a follow-up. |
 | Compose script snapshot parity | local-verified | `workitems/COMPOSE-python-script-snapshot-parity.md` | Java producers now cover 13 compose script runtime cases plus 7 MCP tool error cases; Python replay passes for both generated fixtures. |
 | Odoo registry consumer gate | consumer-verified | `../9.1.0/workitems/P1-odoo-model-registry-promotion-20260606.md` | Registry promotion remains a cross-repo follow-up, not a 9.2 Java engine blocker. |
 
@@ -52,7 +53,7 @@ Readiness documents:
 | PIVOT-92-E1 | Outer Pivot cache | Not enabled | Define cache key, invalidation, managed relation phase, and telemetry | Correctness unaffected; repeated expensive Pivot queries may run without outer cache acceleration |
 | PIVOT-92-F1 | SQL Server cascade oracle | SQL Server cascade execution is refused | Add dialect-specific SQL oracle, CI profile, and parity/refusal evidence | SQL Server users cannot run C2 cascade; they must simplify to single-level TopN or use a supported dialect |
 | PIVOT-92-F2 | MySQL 5.7 live evidence | C2 cascade refused; Stage 5A transport remains threshold-limited/fail-closed | Keep MySQL 5.7 support as live large-domain transport evidence plus explicit cascade refusal; do not enable cascade without a non-window staged oracle | MySQL 5.7 cascade remains unavailable; large-domain axis-domain pushdown and 501-tuple domain transport planning have live evidence, while oversized renderer paths still fail closed |
-| PIVOT-92-O1 | Production telemetry dashboards | Safe log markers exist; dashboards/log-query examples are not formalized | Add operational dashboard or log-query examples for transport refusal, tuple/parameter distribution, and cascade refusal rates | Operational visibility is manual log review rather than standardized dashboarding |
+| PIVOT-92-O1 | Production telemetry dashboards | Safe log markers exist; dashboards/log-query examples are not formalized | Standardize response-level Pivot diagnostics and add missing refusal markers before dashboard wiring | AI/debug consumers can now read `debug.extra.pivotDiagnostics`; operational dashboards still need to consume these fields and log markers |
 | QM-92-AJ2 | Aggregate join to ETL promotion | Runtime aggregate join provides structured development-stage semantics | Future/deferred: define evidence and metadata rules for promoting stable high-frequency aggregate joins to ETL / pre-aggregated / materialized models after the Java semantic path is stable | Stable TMS projections may keep relying on runtime aggregation longer than necessary on old databases |
 
 ## Required Review Order
@@ -60,7 +61,7 @@ Readiness documents:
 0. QM-92-AJ1 can proceed independently of Pivot follow-ups because it targets queryModel join semantics, not Pivot DSL.
 1. QM-92-AJ2 is explicitly out of the current Java engine delivery scope; it can follow aggregate join SQL-shape and legacy database evidence later as a modeling/optimization promotion rule.
 2. PIVOT-92-F1/F2 dialect evidence can proceed independently because they should not change public DSL semantics.
-3. PIVOT-92-O1 can proceed after production telemetry format is stable.
+3. PIVOT-92-O1 response diagnostics format is now locally verified; dashboard/log-query packaging can proceed without changing Pivot DSL semantics.
 4. PIVOT-92-D1 must start with semantic review before any Java implementation. Tree + cascade must remain fail-closed unless the review produces unambiguous oracle cases.
 5. PIVOT-92-E1 should wait until production telemetry identifies repeated expensive Pivot queries worth caching.
 
@@ -100,4 +101,5 @@ The current readiness boundary is:
 - `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` - Data Viewer direct-query entrypoint now preserves top-level `extData` as runtime filter context for direct QM execution.
 - `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` - SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values.
 - `workitems/PIVOT-python-output-snapshot-parity.md` - Java Pivot output snapshot producer for Python replay now covers flat/grid, grand total, and row subtotal + grand total cases.
+- `workitems/PIVOT-production-telemetry-diagnostics.md` - Java Pivot responses now expose structured `pivotDiagnostics` for execution-path and large-domain transport evidence, with cascade refusal logging added for operational rate tracking.
 - `workitems/COMPOSE-python-script-snapshot-parity.md` - Java compose script snapshot producers for Python replay now cover tool/runtime markers, base/derived/union/join preview SQL and execute rows envelopes, security refusal, resolver-null host misconfiguration, remote principal mismatch, remote missing binding, and the current boundary that legacy result-object methods are not part of `dataset.compose_script`.

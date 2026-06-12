@@ -94,6 +94,7 @@ public class PivotPipeline {
                                           SemanticRequestContext context) {
         PivotRequest pivot = request.getPivot();
         long startTime = System.currentTimeMillis();
+        PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(model);
 
         // ===== 前置校验 =====
         validatePivotRequest(request);
@@ -178,13 +179,16 @@ public class PivotPipeline {
                 : getSqlPushdownSkipReason(pivot, hierarchyCtx);
         if (axisDomainSelectionRequest) {
             if (cascadeRequest) {
+                PivotTelemetry.cascadeRefused(logger, model, sqlPushdownSkipReason, null);
                 throw PivotCascadeException.sqlRequired(
                         "SQL pushdown is unavailable: " + sqlPushdownSkipReason + ".");
             }
             PivotTelemetry.sqlPushdownSkipped(logger, model, sqlPushdownSkipReason);
+            diagnostics.sqlPushdownSkipped(sqlPushdownSkipReason);
+            diagnostics.axisDomainSelectionStarted(sqlPushdownSkipReason);
             logger.debug("[Pivot] Phase 1: Axis domain selection path for model={}", model);
             AxisDomainSelectionResult axisDomainResult = executePhase1WithAxisDomainSelection(model, request, context,
-                    rowFields, colFields, metrics, pivot, queryModel);
+                    rowFields, colFields, metrics, pivot, queryModel, diagnostics);
             resultSet = axisDomainResult.rows();
             baselineRatioExternalValues = axisDomainResult.baselineRatioExternalValues();
             baselineRatioEvidence = axisDomainResult.baselineRatioEvidence();
@@ -193,40 +197,49 @@ public class PivotPipeline {
             logger.debug("[Pivot] Phase 1: SQL pushdown path for model={}", model);
             try {
                 PivotTelemetry.sqlPushdownAttempted(logger, model);
+                diagnostics.sqlPushdownAttempted();
                 long pushdownStart = System.currentTimeMillis();
                 resultSet = executePhase1WithSqlPushdown(model, request, context,
                         rowFields, colFields, metrics, pivot, queryModel);
                 sqlPushdownUsed = true;
+                long pushdownDurationMs = System.currentTimeMillis() - pushdownStart;
                 PivotTelemetry.sqlPushdownSucceeded(logger, model, resultSet.size(),
-                        System.currentTimeMillis() - pushdownStart);
+                        pushdownDurationMs);
+                diagnostics.sqlPushdownSucceeded(resultSet.size(), pushdownDurationMs);
             } catch (PivotCascadeException e) {
                 throw e;
             } catch (PivotPushdownUnsupportedException | UnsupportedOperationException e) {
                 if (cascadeRequest) {
+                    PivotTelemetry.cascadeRefused(logger, model, "plannerFailure", e);
                     throw PivotCascadeException.sqlRequired(
                             "Planner failure: " + e.getMessage(), e);
                 }
                 // Fail-closed: fallback to memory path
                 PivotTelemetry.sqlPushdownFallback(logger, model, e);
+                diagnostics.sqlPushdownFallback(e);
                 resultSet = executePhase1(model, request, context,
                         rowFields, colFields, metrics, queryModel);
             }
         } else {
             if (cascadeRequest) {
+                PivotTelemetry.cascadeRefused(logger, model, sqlPushdownSkipReason, null);
                 throw PivotCascadeException.sqlRequired(
                         "SQL pushdown is unavailable: " + sqlPushdownSkipReason + ".");
             }
             PivotTelemetry.sqlPushdownSkipped(logger, model, sqlPushdownSkipReason);
+            diagnostics.sqlPushdownSkipped(sqlPushdownSkipReason);
             logger.debug("[Pivot] Phase 1: Memory path for model={}", model);
             resultSet = executePhase1(model, request, context,
                     rowFields, colFields, metrics, queryModel);
         }
 
         if (resultSet.isEmpty()) {
+            diagnostics.executionPath(sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest,
+                    0, 0, 0);
             Map<String, Object> capabilityContract = buildPivotCapabilityContract(
                     pivot, pivot.getOutputFormat(), hierarchyCtx, null, rowFields, colFields, outputMetricsForContract(pivot),
                     sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
-            return buildEmptyResponse(pivot, startTime, capabilityContract);
+            return buildEmptyResponse(pivot, startTime, capabilityContract, diagnostics.snapshot());
         }
 
         // ===== Phase 1.5: 父子维度骨架查询 =====
@@ -366,11 +379,13 @@ public class PivotPipeline {
         }
 
         // ===== 构建响应 =====
+        diagnostics.executionPath(sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest,
+                resultSet.size(), rowDomain.size(), colDomain.size());
         Map<String, Object> capabilityContract = buildPivotCapabilityContract(
                 pivot, pivotResult.getFormat(), hierarchyCtx, hierarchySkeleton, rowFields, colFields, outputMetrics,
                 sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
         return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence, parentShareEvidence,
-                capabilityContract);
+                capabilityContract, diagnostics.snapshot());
     }
 
     private void injectPredefinedCalculatedFields(SemanticQueryRequest request, QueryModel queryModel) {
@@ -592,7 +607,8 @@ public class PivotPipeline {
             String model, SemanticQueryRequest originalRequest,
             SemanticRequestContext context,
             List<String> rowFields, List<String> colFields,
-            List<String> metrics, PivotRequest pivot, QueryModel queryModel) {
+            List<String> metrics, PivotRequest pivot, QueryModel queryModel,
+            PivotDiagnosticCollector diagnostics) {
 
         Set<Object> rowDomain = executeAxisDomainSelection(model, originalRequest, context,
                 pivot.getRows(), metrics, queryModel);
@@ -609,7 +625,7 @@ public class PivotPipeline {
         }
 
         DomainConstrainedCellRequest cellRequest = buildAxisDomainConstrainedCellRequest(
-                originalRequest, pivot, rowDomain, columnDomain, context);
+                model, originalRequest, pivot, rowDomain, columnDomain, context, diagnostics);
         List<Map<String, Object>> cellRows = executePhase1(model, cellRequest.request(), cellRequest.context(),
                 rowFields, colFields, metrics, queryModel);
         if (cellRows.isEmpty()) {
@@ -626,7 +642,7 @@ public class PivotPipeline {
         BaselineRatioPrePageAxisDomainResult baselineRatioPrePageResult =
                 executeBaselineRatioPrePageAxisDomain(model, originalRequest, context,
                         rowFields, colFields, metrics, pivot, queryModel,
-                        rowDomain, columnDomain, prePageColumnDomain);
+                        rowDomain, columnDomain, prePageColumnDomain, diagnostics);
         return new AxisDomainSelectionResult(filtered, baselineRatioPrePageResult.values(),
                 baselineRatioPrePageResult.evidence());
     }
@@ -635,18 +651,46 @@ public class PivotPipeline {
             SemanticQueryRequest originalRequest, PivotRequest pivot,
             Set<Object> rowDomain, Set<Object> columnDomain,
             SemanticRequestContext context) {
+        return buildAxisDomainConstrainedCellRequest(
+                null, originalRequest, pivot, rowDomain, columnDomain, context, null);
+    }
+
+    private DomainConstrainedCellRequest buildAxisDomainConstrainedCellRequest(
+            String model,
+            SemanticQueryRequest originalRequest, PivotRequest pivot,
+            Set<Object> rowDomain, Set<Object> columnDomain,
+            SemanticRequestContext context,
+            PivotDiagnosticCollector diagnostics) {
 
         SemanticQueryRequest cellRequest = new SemanticQueryRequest();
         List<DomainTransportPlan> transportPlans = new ArrayList<>();
         cellRequest.setSlice(buildAxisDomainConstrainedSlice(originalRequest, pivot,
                 rowDomain, columnDomain, transportPlans));
         cellRequest.setCalculatedFields(originalRequest.getCalculatedFields());
+        recordDomainTransportPlans(model, transportPlans, diagnostics);
 
         SemanticRequestContext effectiveContext = context;
         if (!transportPlans.isEmpty()) {
             effectiveContext = withDomainTransportPlans(context, transportPlans);
         }
         return new DomainConstrainedCellRequest(cellRequest, effectiveContext);
+    }
+
+    private void recordDomainTransportPlans(String model,
+                                            List<DomainTransportPlan> transportPlans,
+                                            PivotDiagnosticCollector diagnostics) {
+        if (transportPlans == null || transportPlans.isEmpty()) {
+            return;
+        }
+        for (DomainTransportPlan plan : transportPlans) {
+            if (model != null) {
+                PivotTelemetry.domainTransportPlanned(logger, model, plan.getRelationName(),
+                        plan.getFields().size(), plan.getTuples().size(), plan.parameterCount());
+            }
+            if (diagnostics != null) {
+                diagnostics.domainTransportPlanned(plan);
+            }
+        }
     }
 
     private List<SemanticQueryRequest.SliceItem> buildAxisDomainConstrainedSlice(
@@ -797,7 +841,8 @@ public class PivotPipeline {
             SemanticRequestContext context,
             List<String> rowFields, List<String> colFields,
             List<String> metrics, PivotRequest pivot, QueryModel queryModel,
-            Set<Object> rowDomain, Set<Object> visibleColumnDomain, Set<Object> prePageColumnDomain) {
+            Set<Object> rowDomain, Set<Object> visibleColumnDomain, Set<Object> prePageColumnDomain,
+            PivotDiagnosticCollector diagnostics) {
 
         if (!requiresPrePageAxisDomainBaseline(pivot) ||
                 prePageColumnDomain == null || prePageColumnDomain.isEmpty() ||
@@ -817,7 +862,7 @@ public class PivotPipeline {
         }
 
         DomainConstrainedCellRequest baselineRequest = buildAxisDomainConstrainedCellRequest(
-                originalRequest, pivot, rowDomain, baselineColumnDomain, context);
+                model, originalRequest, pivot, rowDomain, baselineColumnDomain, context, diagnostics);
         List<Map<String, Object>> baselineRows = executePhase1(model, baselineRequest.request(),
                 baselineRequest.context(), rowFields, colFields, metrics, queryModel);
 
@@ -1863,7 +1908,8 @@ public class PivotPipeline {
      * 构建空结果响应
      */
     private SemanticQueryResponse buildEmptyResponse(PivotRequest pivot, long startTime,
-                                                     Map<String, Object> capabilityContract) {
+                                                     Map<String, Object> capabilityContract,
+                                                     List<Map<String, Object>> pivotDiagnostics) {
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(Collections.emptyList());
         response.setTotal(0L);
@@ -1874,6 +1920,9 @@ public class PivotPipeline {
         extra.put("pipeline", "pivot");
         extra.put("format", pivot.getOutputFormat());
         extra.put("pivotEngineContract", capabilityContract);
+        if (pivotDiagnostics != null && !pivotDiagnostics.isEmpty()) {
+            extra.put("pivotDiagnostics", pivotDiagnostics);
+        }
         debugInfo.setExtra(extra);
         response.setDebug(debugInfo);
 
@@ -1886,7 +1935,8 @@ public class PivotPipeline {
     private SemanticQueryResponse buildPivotResponse(PivotResult pivotResult, long startTime,
             List<Map<String, Object>> baselineRatioEvidence,
             List<Map<String, Object>> parentShareEvidence,
-            Map<String, Object> capabilityContract) {
+            Map<String, Object> capabilityContract,
+            List<Map<String, Object>> pivotDiagnostics) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // 将 pivot 结果放入 items（对于 flat 模式）或专用字段
@@ -1926,6 +1976,9 @@ public class PivotPipeline {
         extra.put("pipeline", "pivot");
         extra.put("format", pivotResult.getFormat());
         extra.put("pivotEngineContract", capabilityContract);
+        if (pivotDiagnostics != null && !pivotDiagnostics.isEmpty()) {
+            extra.put("pivotDiagnostics", pivotDiagnostics);
+        }
         if (baselineRatioEvidence != null && !baselineRatioEvidence.isEmpty()) {
             extra.put("baselineRatioEvidence", baselineRatioEvidence);
         }

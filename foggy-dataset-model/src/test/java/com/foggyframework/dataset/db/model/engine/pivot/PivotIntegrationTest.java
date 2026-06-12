@@ -85,6 +85,15 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                 "multi_level_domainSlice",
                 "columns_multi_level_start_offset",
                 "tree_axis_domainSlice_start_offset");
+
+        List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
+        assertDiagnosticEvent(diagnostics, "pivot.sql_pushdown.skipped");
+        Map<String, Object> executionPath = diagnosticEvent(diagnostics, "pivot.execution_path");
+        assertEquals(Boolean.FALSE, executionPath.get("sqlPushdownUsed"));
+        assertEquals(Boolean.FALSE, executionPath.get("axisDomainSelectionUsed"));
+        assertEquals(Boolean.FALSE, executionPath.get("cascadeGenerateUsed"));
+        assertEquals(Boolean.TRUE, executionPath.get("memoryShapingUsed"));
+        assertTrue(((Number) executionPath.get("resultRows")).intValue() > 0);
     }
 
     @Test
@@ -1220,6 +1229,48 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("v3.7: 大基数轴域响应输出 pivotDiagnostics domain transport plan")
+    void testLargeAxisDomainDiagnosticsExposeDomainTransportPlan() {
+        insertLargePivotDomainSliceFixture();
+        try {
+            AxisField row = axis("orderId");
+            row.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+            row.setLimit(600);
+            row.setOrderBy(List.of("orderId"));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(row));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderStatus", "=", LARGE_AXIS_DOMAIN_STATUS)));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+
+            assertEquals(600, response.getItems().size());
+            List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
+            assertDiagnosticEvent(diagnostics, "pivot.sql_pushdown.skipped");
+            assertDiagnosticEvent(diagnostics, "pivot.axis_domain_selection.started");
+
+            Map<String, Object> transport = diagnosticEvent(diagnostics, "pivot.domain_transport.planned");
+            assertEquals("_pivot_axis_domain_row_0", transport.get("relation"));
+            assertEquals(1, ((Number) transport.get("fieldCount")).intValue());
+            assertEquals(600, ((Number) transport.get("tupleCount")).intValue());
+            assertEquals(600, ((Number) transport.get("parameterCount")).intValue());
+
+            Map<String, Object> executionPath = diagnosticEvent(diagnostics, "pivot.execution_path");
+            assertEquals(Boolean.FALSE, executionPath.get("sqlPushdownUsed"));
+            assertEquals(Boolean.TRUE, executionPath.get("axisDomainSelectionUsed"));
+            assertEquals(Boolean.FALSE, executionPath.get("cascadeGenerateUsed"));
+            assertEquals(600, ((Number) executionPath.get("rowDomainSize")).intValue());
+        } finally {
+            deleteLargePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
     @DisplayName("v3.7: column domainSlice 只选择列轴域，并约束最终 cell 查询")
     void testColumnDomainSliceSelectsColumnDomain() {
         insertPivotDomainSliceFixture();
@@ -1702,6 +1753,29 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         for (String expected : expectedValues) {
             assertTrue(values.contains(expected), listName + " should contain " + expected + ": " + values);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> pivotDiagnostics(SemanticQueryResponse response) {
+        assertNotNull(response.getDebug(), "pivot response should include debug info");
+        assertNotNull(response.getDebug().getExtra(), "pivot response should include debug.extra");
+        Object diagnostics = response.getDebug().getExtra().get("pivotDiagnostics");
+        assertTrue(diagnostics instanceof List<?>, "debug.extra 应输出 pivotDiagnostics");
+        for (Object item : (List<?>) diagnostics) {
+            assertTrue(item instanceof Map<?, ?>, "pivotDiagnostics item should be a map");
+        }
+        return (List<Map<String, Object>>) diagnostics;
+    }
+
+    private Map<String, Object> diagnosticEvent(List<Map<String, Object>> diagnostics, String event) {
+        return diagnostics.stream()
+                .filter(item -> event.equals(item.get("event")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("pivotDiagnostics should contain " + event + ": " + diagnostics));
+    }
+
+    private void assertDiagnosticEvent(List<Map<String, Object>> diagnostics, String event) {
+        diagnosticEvent(diagnostics, event);
     }
 
     private SemanticQueryRequest.SliceItem slice(String field, String op, Object value) {

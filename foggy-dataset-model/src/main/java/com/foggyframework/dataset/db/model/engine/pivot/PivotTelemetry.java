@@ -33,6 +33,18 @@ public final class PivotTelemetry {
                 model, reason);
     }
 
+    public static void cascadeRefused(Logger logger, String model, String reason, Throwable cause) {
+        if (cause == null) {
+            logger.info("[Pivot] Cascade request refused, event=pivot.cascade.refused, " +
+                            "model={}, reason={}",
+                    model, reason);
+            return;
+        }
+        logger.info("[Pivot] Cascade request refused, event=pivot.cascade.refused, " +
+                        "model={}, reason={}, reasonClass={}, detail={}",
+                model, reason, cause.getClass().getSimpleName(), safeReason(cause));
+    }
+
     public static void domainLimitExceeded(Logger logger,
                                            String model,
                                            int domainSize,
