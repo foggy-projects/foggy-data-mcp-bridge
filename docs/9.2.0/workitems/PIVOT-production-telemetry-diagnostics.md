@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Track Pivot production diagnostics hardening for 9.2.0.
 version: 9.2.0
 target: Java Pivot engine production diagnostics
-status: local-verified
+status: local-verified-consumption-contract
 created_at: 2026-06-12
 updated_at: 2026-06-12
 ---
@@ -37,6 +37,110 @@ This work keeps the Pivot DSL and execution behavior unchanged. It adds a compac
 
 The contract intentionally does not record concrete axis member values.
 
+## Consumption Examples
+
+### Response Diagnostics
+
+Successful Pivot responses can be inspected without parsing logs:
+
+```json
+{
+  "debug": {
+    "extra": {
+      "pivotDiagnostics": [
+        {
+          "event": "pivot.sql_pushdown.skipped",
+          "decision": "skipped",
+          "model": "OrderPivot",
+          "reason": "WINDOW_UNSUPPORTED"
+        },
+        {
+          "event": "pivot.domain_transport.planned",
+          "decision": "planned",
+          "model": "OrderPivot",
+          "relation": "orderItems",
+          "fieldCount": 2,
+          "tupleCount": 501,
+          "parameterCount": 1002
+        },
+        {
+          "event": "pivot.execution_path",
+          "decision": "completed",
+          "model": "OrderPivot",
+          "sqlPushdownUsed": false,
+          "axisDomainSelectionUsed": true,
+          "cascadeGenerateUsed": false,
+          "memoryShapingUsed": true,
+          "resultRows": 24,
+          "rowDomainSize": 12,
+          "columnDomainSize": 2
+        }
+      ]
+    }
+  }
+}
+```
+
+The example is illustrative. Consumers should treat the event names as stable, while optional event-specific fields may be absent when a code path is not reached.
+
+### Operational Metrics
+
+Recommended first dashboards and counters:
+
+| Metric | Source | Group By | Use |
+|---|---|---|---|
+| Pivot SQL pushdown use rate | `pivot.execution_path.sqlPushdownUsed` | model, namespace, datasource | Track whether supported shapes are staying on the optimized path. |
+| Pivot SQL pushdown fallback rate | `pivot.sql_pushdown.fallback` response diagnostics or log marker | model, reason, dialect | Detect SQL-shape regressions or unsupported dialect drift. |
+| Axis-domain selection rate | `pivot.axis_domain_selection.started` | model, relation | Identify queries using the large-domain planning path. |
+| Domain transport tuple and parameter distribution | `pivot.domain_transport.planned` | model, relation, dialect | Watch p50/p95/p99 tuple and parameter counts before renderer thresholds are reached. |
+| Domain transport applied/refused rate | JDBC `pivot.domain_transport.applied` / `pivot.domain_transport.refused` logs | dialect, relation, reason | Confirm whether planned transports are accepted by the database renderer. |
+| Cascade refusal rate | `pivot.cascade.refused` logs | model, reason | Surface LLM/user requests that ask for unsupported cascade shapes. |
+| Memory shaping rate | `pivot.execution_path.memoryShapingUsed` | model, query type | Keep visibility into shapes still requiring Java-side shaping. |
+
+### Log Query Sketches
+
+The concrete syntax should be adapted to the log backend. These sketches define the intended fields and filters:
+
+```text
+count(event="pivot.cascade.refused")
+  by model, reason
+  over 5m
+```
+
+```text
+percentile(event="pivot.domain_transport.planned", field=tupleCount, p=[50,95,99])
+  by model, relation
+  over 1h
+```
+
+```text
+count(event="pivot.sql_pushdown.fallback")
+  by model, reason, dialect
+  over 15m
+```
+
+```text
+ratio(
+  count(event="pivot.execution_path" and sqlPushdownUsed=true),
+  count(event="pivot.execution_path")
+)
+  by model
+  over 1h
+```
+
+### Alert Boundary
+
+Initial alerts should be conservative:
+
+- Alert when `pivot.domain_transport.refused` is non-zero for production traffic, because planned large-domain transport was rejected by the renderer.
+- Alert when p95 `tupleCount` or `parameterCount` approaches the renderer threshold for a model/relation pair.
+- Alert when `pivot.sql_pushdown.fallback` spikes for a model that previously used SQL pushdown.
+- Track `pivot.cascade.refused` as product/LLM training feedback first; alert only if a supported workflow starts depending on unsupported cascade shapes.
+
+### AI / MCP Use
+
+AI-facing tools should use `debug.extra.pivotDiagnostics` to explain what the engine actually did. They must not retry an unsafe shape automatically after `pivot.cascade.refused` or transport refusal evidence. Safe rewrites are limited to simpler, already-supported Pivot shapes such as removing cascade, reducing axis depth, or asking the user to choose a supported output shape.
+
 ## Verification
 
 | Command | Result |
@@ -47,5 +151,6 @@ The contract intentionally does not record concrete axis member values.
 ## Remaining Boundary
 
 - This is not a full operational dashboard. It standardizes the runtime evidence payload and log marker surface that dashboards or log queries can consume.
+- Dashboard panels, concrete log backend queries, and alert rule deployment are packaging work outside this engine-side contract.
 - Cascade refusal responses still fail closed through exceptions; refusal rate should be measured through `pivot.cascade.refused` logs unless a future controller-level error envelope exposes structured exception metadata.
 - Dialect-specific transport applied/refused evidence remains in JDBC engine logs; Pivot response diagnostics records the generated plan, not the final database renderer outcome.
