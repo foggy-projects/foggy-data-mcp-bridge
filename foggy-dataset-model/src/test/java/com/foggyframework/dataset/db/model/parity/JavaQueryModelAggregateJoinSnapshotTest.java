@@ -7,6 +7,7 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
@@ -20,12 +21,17 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 import com.foggyframework.dataset.db.model.proxy.AggregateJoinBuilder;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.TableModel;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
@@ -69,6 +75,9 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
     @Resource
     private QueryFacade queryFacade;
 
+    @Resource
+    private SemanticQueryServiceV3 semanticQueryService;
+
     @Test
     @DisplayName("produces _querymodel_aggregate_join_snapshot.json")
     void shouldProduceSnapshot() throws Exception {
@@ -97,13 +106,23 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
                 predefinedCalculatedFieldDeniedSourceRefusalCase(matchedOrderId),
                 predefinedCalculatedFieldAllowedExecCase(matchedOrderId),
                 rawSqlAccessBuilderOuterOnlyCase(),
+                orderByAggregateOutputCase(),
+                returnTotalAggregateRelationCase(matchedOrderId),
+                nullCheckOuterOnlyCase("is null"),
+                nullCheckOuterOnlyCase("is not null"),
+                semanticDebugExtraDiagnosticsCase(matchedOrderId, unmatchedOrderId),
+                compositeKeyAggregateRelationCase(),
+                structuredAccessBuilderPushdownCase(),
+                runtimeFilterUnsafeCharacterRefusalCase(),
+                leftDimensionKeyCase(),
+                rhsDimensionFixedFilterCase(),
                 metadataLineageCase());
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("schemaVersion", 1);
         snapshot.put("feature", "queryModelAggregateJoin");
         snapshot.put("source", "JavaQueryModelAggregateJoinSnapshotTest");
-        snapshot.put("contractVersion", "querymodel-aggregate-join-2");
+        snapshot.put("contractVersion", "querymodel-aggregate-join-3");
         snapshot.put("generatedAt", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date()));
         snapshot.put("dialect", getDialectKey());
         snapshot.put("cases", cases);
@@ -114,7 +133,7 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
         mapper.writeValue(target.toFile(), snapshot);
 
         assertTrue(Files.exists(target), "snapshot file must be written");
-        assertEquals(19, cases.size(), "expected aggregate join contract case count");
+        assertEquals(29, cases.size(), "expected aggregate join contract case count");
     }
 
     private Map<String, Object> leftMeasureNonMultiplicationCase(String orderId) {
@@ -491,7 +510,7 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
         String normalizedSql = normalizeSql(queryEngine.getSql());
         assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"));
         List<Map<String, Object>> rows = rows(result);
-        assertFalse(rows.get(0).containsKey("salesAmount"),
+        assertTrue(rows.stream().noneMatch(row -> row.containsKey("salesAmount")),
                 "system_slice guard field should not leak into result columns");
 
         Map<String, Object> expected = new LinkedHashMap<>();
@@ -604,6 +623,10 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
     private Map<String, Object> predefinedCalculatedFieldDeniedSourceRefusalCase(String orderId) {
         DbQueryRequestDef queryRequest = aggregateRelationRequest();
         queryRequest.setColumns(List.of("orderId", "amount", "salesAmountPredefinedTax"));
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "salesAmountPredefinedTax",
+                "predefined tax-compatible sales amount",
+                "salesAmount * 1.1")));
         queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
 
         RuntimeException exception = deniedSalesAmountException(queryRequest);
@@ -627,6 +650,10 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
     private Map<String, Object> predefinedCalculatedFieldAllowedExecCase(String orderId) {
         DbQueryRequestDef queryRequest = aggregateRelationRequest();
         queryRequest.setColumns(List.of("orderId", "amount", "salesAmountPredefinedTax"));
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "salesAmountPredefinedTax",
+                "predefined tax-compatible sales amount",
+                "salesAmount * 1.1")));
         queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
 
         DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
@@ -676,6 +703,325 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
                 requestMap("OrderSalesAggregateRelationRawAccessQueryModel",
                         List.of("orderId", "amount", "salesAmount", "uniqueCustomers"),
                         List.of()),
+                expected);
+    }
+
+    private Map<String, Object> orderByAggregateOutputCase() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationQueryModel");
+        assertNotNull(queryModel, "query model should load");
+
+        DbQueryRequestDef queryRequest = aggregateRelationRequest();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("salesAmount");
+        order.setDir("desc");
+        queryRequest.setOrderBy(List.of(order));
+
+        JdbcModelQueryEngine queryEngine = analyze(queryModel, queryRequest);
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("sum(agg_src.sales_amount) salesAmount"));
+        assertTrue(normalizedSql.toLowerCase().contains("order by"));
+        assertTrue(normalizedSql.contains("fsByOrder.salesAmount"));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizedSql);
+        expected.put("params", queryEngine.getValues());
+        expected.put("rows", jdbcTemplate.queryForList(queryEngine.getSql(), queryEngine.getValues().toArray()));
+        expected.put("sqlMarkers", List.of(
+                "fsByOrder",
+                "sum(agg_src.sales_amount) salesAmount",
+                "order by",
+                "fsByOrder.salesAmount"));
+        expected.put("forbiddenSqlMarkers", List.of("order by agg_src.sales_amount"));
+        expected.put("orderBy", List.of(Map.of("field", "salesAmount", "dir", "desc")));
+        expected.put("diagnostics", diagnostics(queryEngine));
+
+        Map<String, Object> request = requestMap(
+                "OrderSalesAggregateRelationQueryModel",
+                List.of("orderId", "amount", "salesAmount", "uniqueCustomers"),
+                List.of());
+        request.put("orderBy", List.of(Map.of("field", "salesAmount", "dir", "desc")));
+
+        return caseMap(
+                "aggregate-join-orderby-aggregate-output",
+                "sql",
+                "OrderSalesAggregateRelationQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> returnTotalAggregateRelationCase(String orderId) {
+        DbQueryRequestDef queryRequest = aggregateRelationRequest();
+        queryRequest.setReturnTotal(true);
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
+        PagingResultImpl<?> pagingResult = result.getPagingResult();
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        String normalizedTotalSql = normalizeSql(queryEngine.getAggSql());
+
+        assertEquals(1, ((Number) pagingResult.getTotal()).intValue());
+        assertTrue(pagingResult.getTotalData() instanceof Map);
+        assertTrue(normalizedTotalSql.contains("fsByOrder"));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizedSql);
+        expected.put("totalSql", queryEngine.getAggSql());
+        expected.put("normalizedTotalSql", normalizedTotalSql);
+        expected.put("params", queryEngine.getValues());
+        expected.put("rows", rows(result));
+        expected.put("total", pagingResult.getTotal());
+        expected.put("totalData", pagingResult.getTotalData());
+        expected.put("sqlMarkers", List.of("fsByOrder", "left join", "(select", "group by"));
+        expected.put("totalSqlMarkers", List.of("fsByOrder"));
+        expected.put("forbiddenSqlMarkers", List.of());
+        expected.put("returnTotal", true);
+
+        Map<String, Object> request = requestMap(
+                "OrderSalesAggregateRelationQueryModel",
+                List.of("orderId", "amount", "salesAmount", "uniqueCustomers"),
+                List.of(sliceMap("orderId", "=", orderId)));
+        request.put("returnTotal", true);
+
+        return caseMap(
+                "aggregate-join-return-total",
+                "sql",
+                "OrderSalesAggregateRelationQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> nullCheckOuterOnlyCase(String op) {
+        JdbcModelQueryEngine queryEngine = buildNullSlicePushdownProbeQuery(op);
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("left join (select"));
+        assertTrue(normalizedSql.contains("fsByPaymentMethod"));
+        assertTrue(normalizedSql.contains("agg_src.payment_method = ?"));
+        assertFalse(normalizedSql.contains("agg_src.payment_method " + op));
+        assertTrue(normalizedSql.contains("fsByPaymentMethod.paymentMethod " + op));
+
+        List<Map<String, Object>> diagnostics = diagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(d -> "retained".equals(d.get("decision"))
+                && AggregateRelationQueryObject.REASON_NULL_CHECK_OUTER_ONLY.equals(d.get("reasonCode"))
+                && "paymentMethod".equals(d.get("field"))
+                && op.equals(d.get("op"))));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizedSql);
+        expected.put("params", queryEngine.getValues());
+        expected.put("sqlMarkers", List.of(
+                "left join (select",
+                "fsByPaymentMethod",
+                "agg_src.payment_method = ?",
+                "fsByPaymentMethod.paymentMethod " + op));
+        expected.put("forbiddenSqlMarkers", List.of("agg_src.payment_method " + op));
+        expected.put("diagnostics", diagnostics);
+
+        return caseMap(
+                "aggregate-join-null-check-outer-only-" + op.replace(" ", "-"),
+                "sql",
+                "OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel",
+                requestMap("OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel",
+                        List.of("count(orderId) as candidateCount", "sum(amount) as totalAmount"),
+                        List.of(sliceMap("paymentMethod", op, null))),
+                expected);
+    }
+
+    private Map<String, Object> semanticDebugExtraDiagnosticsCase(String matchedOrderId, String unmatchedOrderId) {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        request.setSlice(List.of(
+                semanticSlice("orderId", "in", List.of(matchedOrderId, unmatchedOrderId)),
+                semanticSlice("salesAmount", "[]", List.of(BigDecimal.ZERO, new BigDecimal("999999999")))));
+        request.setLimit(100);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                "OrderSalesAggregateRelationQueryModel",
+                request,
+                "execute",
+                SemanticRequestContext.empty());
+
+        List<Map<String, Object>> diagnostics = semanticAggregateRelationDiagnostics(response).stream()
+                .map(this::diagnosticMap)
+                .toList();
+        assertTrue(diagnostics.stream().anyMatch(d -> "pushed".equals(d.get("decision"))
+                && "where".equals(d.get("target")) && "orderId".equals(d.get("field"))));
+        assertTrue(diagnostics.stream().anyMatch(d -> "pushed".equals(d.get("decision"))
+                && "having".equals(d.get("target")) && "salesAmount".equals(d.get("field"))));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("diagnostics", diagnostics);
+        expected.put("debugExtraKeys", response.getDebug().getExtra().keySet());
+        expected.put("requiredDecisions", List.of("pushed"));
+        expected.put("requiredTargets", List.of("where", "having"));
+        expected.put("requiredFields", List.of("orderId", "salesAmount"));
+
+        return caseMap(
+                "aggregate-join-semantic-debug-extra-diagnostics",
+                "diagnostics",
+                "OrderSalesAggregateRelationQueryModel",
+                requestMap("OrderSalesAggregateRelationQueryModel",
+                        List.of("orderId", "amount", "salesAmount", "uniqueCustomers"),
+                        List.of(
+                                sliceMap("orderId", "in", List.of(matchedOrderId, unmatchedOrderId)),
+                                sliceMap("salesAmount", "[]", List.of(BigDecimal.ZERO, new BigDecimal("999999999"))))),
+                expected);
+    }
+
+    private Map<String, Object> compositeKeyAggregateRelationCase() {
+        Map<String, Object> fixture = findOrderStoreWithCompletedSales();
+        String orderId = String.valueOf(fixture.get("orderId"));
+        Object storeKey = fixture.get("storeKey");
+
+        JdbcQueryModel queryModel = getQueryModel("TmsStyleOrderStoreSalesAggregateRelationQueryModel");
+        assertNotNull(queryModel, "query model should load");
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("TmsStyleOrderStoreSalesAggregateRelationQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "quantity", "uniqueCustomers"));
+        queryRequest.setSlice(List.of(
+                slice("orderId", "=", orderId),
+                slice("store$id", "=", storeKey),
+                slice("salesAmount", ">", BigDecimal.ZERO)));
+
+        JdbcModelQueryEngine queryEngine = analyze(queryModel, queryRequest);
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("salesByOrderStore"));
+        assertTrue(normalizedSql.contains("agg_src.order_id = ?"));
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"));
+        assertTrue(normalizedSql.contains("having sum(agg_src.sales_amount) > ?"));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizedSql);
+        expected.put("params", queryEngine.getValues());
+        expected.put("rows", jdbcTemplate.queryForList(queryEngine.getSql(), queryEngine.getValues().toArray()));
+        expected.put("sqlMarkers", List.of(
+                "salesByOrderStore",
+                "agg_src.order_id = ?",
+                "agg_src.store_key = ?",
+                "having sum(agg_src.sales_amount) > ?",
+                "group by"));
+        expected.put("forbiddenSqlMarkers", List.of());
+        expected.put("diagnostics", diagnostics(queryEngine));
+
+        return caseMap(
+                "aggregate-join-composite-key-pushdown",
+                "sql",
+                "TmsStyleOrderStoreSalesAggregateRelationQueryModel",
+                requestMap("TmsStyleOrderStoreSalesAggregateRelationQueryModel",
+                        List.of("orderId", "amount", "salesAmount", "quantity", "uniqueCustomers"),
+                        List.of(
+                                sliceMap("orderId", "=", orderId),
+                                sliceMap("store$id", "=", storeKey),
+                                sliceMap("salesAmount", ">", BigDecimal.ZERO))),
+                expected);
+    }
+
+    private Map<String, Object> structuredAccessBuilderPushdownCase() {
+        JdbcModelQueryEngine queryEngine = buildStructuredAccessBuilderQuery();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("agg_src.order_id = ?"));
+        assertTrue(queryEngine.getValues().contains("COMPLETED"));
+        assertTrue(queryEngine.getValues().contains("ORD20240101000001"));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizedSql);
+        expected.put("params", queryEngine.getValues());
+        expected.put("rows", jdbcTemplate.queryForList(queryEngine.getSql(), queryEngine.getValues().toArray()));
+        expected.put("sqlMarkers", List.of("agg_src.order_id = ?", "sum(agg_src.sales_amount)"));
+        expected.put("forbiddenSqlMarkers", List.of("ctx.extData"));
+        expected.put("diagnostics", diagnostics(queryEngine));
+
+        return caseMap(
+                "aggregate-join-structured-access-builder-pushdown",
+                "sql",
+                "OrderSalesAggregateRelationAccessQueryModel",
+                requestMap("OrderSalesAggregateRelationAccessQueryModel",
+                        List.of("orderId", "amount", "salesAmount", "uniqueCustomers"),
+                        List.of()),
+                expected);
+    }
+
+    private Map<String, Object> runtimeFilterUnsafeCharacterRefusalCase() {
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> buildRuntimeFilterQuery(Map.of("orderId", "ORD001' OR '1'='1"), null));
+        assertTrue(exception.getMessage().contains("runtime filter"));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("errorCode", "QUERYMODEL_AGGREGATE_JOIN_RUNTIME_FILTER_UNSAFE");
+        expected.put("message", exception.getMessage());
+        expected.put("messageMarkers", List.of("runtime filter"));
+        expected.put("forbiddenMessageMarkers", List.of("ORD001' OR '1'='1"));
+
+        return caseMap(
+                "aggregate-join-runtime-filter-unsafe-refusal",
+                "error",
+                "OrderSalesAggregateRelationRuntimeFilterQueryModel",
+                requestMap("OrderSalesAggregateRelationRuntimeFilterQueryModel",
+                        List.of("orderId", "amount", "salesAmount", "uniqueCustomers"),
+                        List.of()),
+                expected);
+    }
+
+    private Map<String, Object> leftDimensionKeyCase() {
+        String orderId = findOrderIdWithActiveStore();
+        JdbcModelQueryEngine queryEngine = buildDimensionKeyQuery(orderId);
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("left join dim_store"));
+        assertFalse(queryEngine.getSql().contains("store$storeId"));
+        assertTrue(queryEngine.getSql().contains("store_id = storeAggByBusinessId.storeId")
+                || queryEngine.getSql().contains("store_id=storeAggByBusinessId.storeId"));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizedSql);
+        expected.put("params", queryEngine.getValues());
+        expected.put("rows", jdbcTemplate.queryForList(queryEngine.getSql(), queryEngine.getValues().toArray()));
+        expected.put("sqlMarkers", List.of("left join dim_store", "storeAggByBusinessId", "store_id = storeAggByBusinessId.storeId"));
+        expected.put("forbiddenSqlMarkers", List.of("store$storeId"));
+        expected.put("diagnostics", diagnostics(queryEngine));
+
+        return caseMap(
+                "aggregate-join-left-dimension-key",
+                "sql",
+                "OrderStoreAggregateRelationDimensionKeyQueryModel",
+                requestMap("OrderStoreAggregateRelationDimensionKeyQueryModel",
+                        List.of("orderId", "amount", "areaSqm"),
+                        List.of(sliceMap("orderId", "=", orderId))),
+                expected);
+    }
+
+    private Map<String, Object> rhsDimensionFixedFilterCase() {
+        String orderId = findOrderIdWithCompletedElectronicsSales();
+        JdbcModelQueryEngine queryEngine = buildRhsDimensionFilterQuery(orderId);
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.toLowerCase().contains("from fact_sales agg_src left join dim_product"));
+        assertFalse(queryEngine.getSql().contains("agg_src.category_id"));
+        assertTrue(queryEngine.getSql().contains("category_id = ?")
+                || queryEngine.getSql().contains("category_id=?"));
+        assertTrue(queryEngine.getValues().contains("CAT001"));
+
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizedSql);
+        expected.put("params", queryEngine.getValues());
+        expected.put("rows", jdbcTemplate.queryForList(queryEngine.getSql(), queryEngine.getValues().toArray()));
+        expected.put("sqlMarkers", List.of("from fact_sales agg_src left join dim_product", "category_id = ?"));
+        expected.put("forbiddenSqlMarkers", List.of("agg_src.category_id"));
+        expected.put("diagnostics", diagnostics(queryEngine));
+
+        return caseMap(
+                "aggregate-join-rhs-dimension-fixed-filter",
+                "sql",
+                "OrderSalesAggregateRelationRhsDimensionFilterQueryModel",
+                requestMap("OrderSalesAggregateRelationRhsDimensionFilterQueryModel",
+                        List.of("orderId", "amount", "salesAmount"),
+                        List.of(sliceMap("orderId", "=", orderId))),
                 expected);
     }
 
@@ -731,6 +1077,52 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationRawAccessQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        return analyze(queryModel, queryRequest);
+    }
+
+    private JdbcModelQueryEngine buildNullSlicePushdownProbeQuery(String op) {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel");
+        assertNotNull(queryModel, "query model should load");
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "count(orderId) as candidateCount",
+                "sum(amount) as totalAmount"));
+        queryRequest.setExtData(Map.of("paymentMethod", "CREDIT_CARD"));
+        queryRequest.setSlice(List.of(slice("paymentMethod", op, null)));
+        return analyze(queryModel, queryRequest);
+    }
+
+    private JdbcModelQueryEngine buildStructuredAccessBuilderQuery() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationAccessQueryModel");
+        assertNotNull(queryModel, "query model should load");
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationAccessQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        return analyze(queryModel, queryRequest);
+    }
+
+    private JdbcModelQueryEngine buildDimensionKeyQuery(String orderId) {
+        JdbcQueryModel queryModel = getQueryModel("OrderStoreAggregateRelationDimensionKeyQueryModel");
+        assertNotNull(queryModel, "query model should load");
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStoreAggregateRelationDimensionKeyQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "areaSqm"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+        return analyze(queryModel, queryRequest);
+    }
+
+    private JdbcModelQueryEngine buildRhsDimensionFilterQuery(String orderId) {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationRhsDimensionFilterQueryModel");
+        assertNotNull(queryModel, "query model should load");
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationRhsDimensionFilterQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
         return analyze(queryModel, queryRequest);
     }
 
@@ -848,12 +1240,75 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
         return orderIds.get(0);
     }
 
+    private Map<String, Object> findOrderStoreWithCompletedSales() {
+        Map<String, Object> fixture = jdbcTemplate.queryForMap("""
+                select fo.order_id orderId, fo.store_key storeKey
+                from fact_order fo
+                join fact_sales fs on fo.order_id = fs.order_id
+                                  and fo.store_key = fs.store_key
+                where fs.order_status = 'COMPLETED'
+                group by fo.order_id, fo.store_key
+                having sum(fs.sales_amount) > 0
+                order by fo.order_id
+                limit 1
+                """);
+        assertFalse(fixture.isEmpty(), "fixture should contain an order/store pair with completed sales");
+        return fixture;
+    }
+
+    private String findOrderIdWithActiveStore() {
+        List<String> orderIds = jdbcTemplate.queryForList("""
+                select fo.order_id
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where ds.status = 'ACTIVE'
+                order by fo.order_id
+                limit 1
+                """, String.class);
+        assertFalse(orderIds.isEmpty(), "fixture should contain an order with an active store");
+        return orderIds.get(0);
+    }
+
+    private String findOrderIdWithCompletedElectronicsSales() {
+        List<String> orderIds = jdbcTemplate.queryForList("""
+                select fo.order_id
+                from fact_order fo
+                join fact_sales fs on fo.order_id = fs.order_id
+                join dim_product dp on fs.product_key = dp.product_key
+                where fs.order_status = 'COMPLETED'
+                  and dp.category_id = 'CAT001'
+                group by fo.order_id
+                having sum(fs.sales_amount) > 0
+                order by fo.order_id
+                limit 1
+                """, String.class);
+        assertFalse(orderIds.isEmpty(), "fixture should contain an order with completed electronics sales");
+        return orderIds.get(0);
+    }
+
     private SliceRequestDef slice(String field, String op, Object value) {
         SliceRequestDef slice = new SliceRequestDef();
         slice.setField(field);
         slice.setOp(op);
         slice.setValue(value);
         return slice;
+    }
+
+    private SemanticQueryRequest.SliceItem semanticSlice(String field, String op, Object value) {
+        SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
+        slice.setField(field);
+        slice.setOp(op);
+        slice.setValue(value);
+        return slice;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<AggregateRelationDiagnostic> semanticAggregateRelationDiagnostics(SemanticQueryResponse response) {
+        assertNotNull(response.getDebug(), "semantic response should include debug evidence");
+        assertNotNull(response.getDebug().getExtra(), "semantic response debug.extra should include evidence");
+        Object rawDiagnostics = response.getDebug().getExtra().get("aggregateRelationDiagnostics");
+        assertTrue(rawDiagnostics instanceof List<?>, "debug.extra should expose aggregateRelationDiagnostics");
+        return (List<AggregateRelationDiagnostic>) rawDiagnostics;
     }
 
     private CondRequestDef condition(String field, String op, Object value) {

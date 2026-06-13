@@ -11,7 +11,7 @@ signed_off_at: 2026-06-07
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 43
+evidence_count: 44
 ---
 
 # Feature Acceptance
@@ -46,6 +46,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | Invalid grain fail-closed | accepted | Missing right join key in RHS `groupBy` is rejected. |
 | Real database evidence | accepted-with-risk | SQLite and live MySQL 5.7 passed, including a local TMS-style order+site composite-key fixture. PostgreSQL and real target TMS database evidence remain follow-up. |
 | Ordinary join regression | accepted | Existing multi-fact ordinary join regression passed. |
+| Java parity snapshot v3 | accepted | `JavaQueryModelAggregateJoinSnapshotTest` now emits `querymodel-aggregate-join-3` with 29 cases covering aggregate-output orderBy, returnTotal SQL, null-check outer-only diagnostics, semantic debug diagnostics, composite-key pushdown, structured accessBuilder pushdown, runtime-filter refusal, joined left dimension keys, and RHS dimension fixed filters. |
 | ETL boundary | accepted | ETL is recorded as deferred/out of current scope. |
 
 ## Evidence
@@ -94,6 +95,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | `mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters+tmsStyleAggregateRelationShouldPushCompositeKeyFilters+aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL profile; RHS aggregate filters, composite-key pushdown, left-side dimension ON, nested dimension path, and RHS dimension filter passed together; Tests run: 6, Failures: 0, Errors: 0, Skipped: 0. |
 | MySQL 2026-06-13 EXPLAIN evidence | Derived aggregate source `agg_src` used `uk_order_line`, `type=ref`, `rows=2`, `Using where`; generated SQL pushed `agg_src.order_id = ?` into the RHS derived relation before grouping. |
 | `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=SemanticServiceV3Test#testMetadata_Json_ShouldExposeAggregateRelationMeasure+metadata_withModelFieldPermissions_filtersFields,AggregateJoinQueryModelTest#semanticResponseShouldExposeAggregateRelationDiagnostics'` | success; aggregate relation diagnostics and Java V3 JSON metadata aggregate-field contract remain valid; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dfoggy.parity.snapshot=true -Dtest=JavaQueryModelAggregateJoinSnapshotTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; Java QueryModel aggregate join parity snapshot producer emitted `querymodel-aggregate-join-3` with 29 cases at `target/parity/_querymodel_aggregate_join_snapshot.json`; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Risks / Open Items
 
@@ -105,6 +107,7 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 - Relation-level default aggregate projection is now pruned for tracked structured references. Raw SQL accessBuilder predicates remain outer-only and force full RHS projection because alias usage is intentionally not inferred from raw SQL text.
 - Aggregate relation output `orderBy` and QueryFacade `returnTotal` paths are covered for the current relation-level DSL fixture.
 - Request-side `fieldAccess` allow/deny checks and source physical-column `deniedColumns` now cover aggregate relation output fields and calculated fields that depend on them, including QM predefined calculated fields. System-slice guard fields may intentionally bypass user `fieldAccess` for filtering and must not leak into returned columns; authorization of the system-slice producer remains an upstream governance boundary. System slice lifecycle, structured accessBuilder join-key guard pushdown, and raw SQL accessBuilder outer-only/no-pushdown behavior are covered.
+- Java aggregate-join parity snapshot v3 is a producer-side Java fixture for Python replay; the generated `target/parity/_querymodel_aggregate_join_snapshot.json` is not committed by the Java repo.
 - ETL / pre-aggregated promotion is deferred and should be handled as a separate modeling/optimization work item.
 
 ## Failed Items
@@ -119,4 +122,4 @@ The Java engine aggregate join implementation is accepted for mainline delivery.
 
 ## Signoff Marker
 
-accepted-with-risks: QueryModel Aggregate Join, Java engine 9.2.0, signed off by Codex on 2026-06-07. Supplemental hardening evidence was appended on 2026-06-11.
+accepted-with-risks: QueryModel Aggregate Join, Java engine 9.2.0, signed off by Codex on 2026-06-07. Supplemental hardening evidence was appended on 2026-06-11; Java aggregate-join parity snapshot v3 evidence was appended on 2026-06-13.
