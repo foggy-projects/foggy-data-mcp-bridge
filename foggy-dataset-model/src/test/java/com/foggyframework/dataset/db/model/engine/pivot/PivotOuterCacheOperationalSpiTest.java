@@ -72,6 +72,15 @@ class PivotOuterCacheOperationalSpiTest {
         assertEquals(7, broadcaster.evict("ns-a", "SalesQM"));
     }
 
+    @Test
+    @DisplayName("local invalidation broadcaster returns zero when service is unavailable")
+    void testLocalInvalidationBroadcasterReturnsZeroWithoutService() {
+        LocalPivotOuterCacheInvalidationBroadcaster broadcaster =
+                new LocalPivotOuterCacheInvalidationBroadcaster(provider(null));
+
+        assertEquals(0, broadcaster.evict("ns-a", "SalesQM"));
+    }
+
     private SystemBundlesContext bundleContext(Map<String, String> resources) {
         Map<String, BundleResource> mapped = new HashMap<>();
         Bundle bundle = bundle();
