@@ -56,8 +56,9 @@ public class PivotPipeline {
     private final CardinalityBreaker cardinalityBreaker;
     private final QueryModelLoader queryModelLoader;
     private final QueryFacade queryFacade;
-    private final PivotOuterResponseCache outerResponseCache;
+    private final PivotOuterCacheProvider outerResponseCache;
     private final OuterCacheOptions outerCacheOptions;
+    private final PivotOuterCacheModelIdentityProvider modelIdentityProvider;
 
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService) {
         this(semanticQueryService, new CardinalityBreaker(), null, null);
@@ -85,6 +86,17 @@ public class PivotPipeline {
                          QueryModelLoader queryModelLoader,
                          QueryFacade queryFacade,
                          OuterCacheOptions outerCacheOptions) {
+        this(semanticQueryService, cardinalityBreaker, queryModelLoader, queryFacade, outerCacheOptions,
+                PivotOuterCacheModelIdentityProvider.empty(), null);
+    }
+
+    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
+                         CardinalityBreaker cardinalityBreaker,
+                         QueryModelLoader queryModelLoader,
+                         QueryFacade queryFacade,
+                         OuterCacheOptions outerCacheOptions,
+                         PivotOuterCacheModelIdentityProvider modelIdentityProvider,
+                         PivotOuterCacheProvider outerResponseCache) {
         this.semanticQueryService = semanticQueryService;
         this.cardinalityBreaker = cardinalityBreaker;
         this.queryModelLoader = queryModelLoader;
@@ -92,7 +104,12 @@ public class PivotPipeline {
         this.outerCacheOptions = outerCacheOptions == null
                 ? OuterCacheOptions.disabled()
                 : outerCacheOptions.normalized();
-        this.outerResponseCache = new PivotOuterResponseCache(this.outerCacheOptions);
+        this.modelIdentityProvider = modelIdentityProvider == null
+                ? PivotOuterCacheModelIdentityProvider.empty()
+                : modelIdentityProvider;
+        this.outerResponseCache = outerResponseCache == null
+                ? new PivotOuterResponseCache(this.outerCacheOptions)
+                : outerResponseCache;
     }
 
     public record OuterCacheOptions(boolean enabled,
@@ -191,9 +208,7 @@ public class PivotPipeline {
                 : PivotOuterCacheTelemetry.TELEMETRY_STAGE;
         PivotOuterCacheTelemetry.Evaluation cacheEvaluation = PivotOuterCacheTelemetry.evaluate(
                 model, queryModel, request, context, hierarchyCtx.isTree(), cascadeRequest, cacheEligibilityStage,
-                PivotOuterCacheTelemetry.ModelIdentity.of(
-                        outerCacheOptions.bundleFingerprint(),
-                        outerCacheOptions.modelFreshnessToken()));
+                resolveOuterCacheModelIdentity(context, model, queryModel));
         diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
         if (cacheEvaluation.refused()) {
             diagnostics.cacheRefused(cacheEvaluation.keyHash(), cacheEligibilityStage,
@@ -202,11 +217,11 @@ public class PivotPipeline {
             diagnostics.cacheMiss(cacheEvaluation.keyHash(), cacheEligibilityStage,
                     PivotOuterCacheTelemetry.TELEMETRY_MISS_REASON, cacheEvaluation.shapeClass());
         } else {
-            PivotOuterResponseCache.LookupResult cacheLookup = outerResponseCache.lookup(
+            PivotOuterCacheProvider.LookupResult cacheLookup = outerResponseCache.lookup(
                     cacheEvaluation.keyHash(), System.currentTimeMillis());
             if (cacheLookup.hit()) {
                 diagnostics.cacheHit(cacheEvaluation.keyHash(), cacheEligibilityStage,
-                        cacheLookup.ageMs(), PivotOuterResponseCache.CACHE_NAME, cacheEvaluation.shapeClass());
+                        cacheLookup.ageMs(), outerResponseCache.name(), cacheEvaluation.shapeClass());
                 return cachedResponse(cacheLookup.response(), startTime, diagnostics.snapshot());
             }
             if (cacheLookup.expired()) {
@@ -528,6 +543,31 @@ public class PivotPipeline {
             logger.debug("[Pivot] 注入了 {} 个 QM 预定义计算字段: {}", toInject.size(),
                     toInject.stream().map(CalculatedFieldDef::getName).collect(Collectors.toList()));
         }
+    }
+
+    private PivotOuterCacheTelemetry.ModelIdentity resolveOuterCacheModelIdentity(SemanticRequestContext context,
+                                                                                  String model,
+                                                                                  QueryModel queryModel) {
+        PivotOuterCacheModelIdentity provided = PivotOuterCacheModelIdentity.empty();
+        try {
+            provided = modelIdentityProvider.resolve(context != null ? context.getNamespace() : null, model, queryModel);
+        } catch (Exception e) {
+            logger.warn("[Pivot] Outer cache model identity provider failed, falling back to configured tokens: model={}",
+                    model, e);
+        }
+        PivotOuterCacheModelIdentity normalized = provided == null
+                ? PivotOuterCacheModelIdentity.empty()
+                : provided.normalized();
+        return PivotOuterCacheTelemetry.ModelIdentity.of(
+                firstNonBlank(outerCacheOptions.bundleFingerprint(), normalized.bundleFingerprint()),
+                firstNonBlank(outerCacheOptions.modelFreshnessToken(), normalized.modelFreshnessToken()));
+    }
+
+    private String firstNonBlank(String preferred, String fallback) {
+        if (preferred != null && !preferred.isBlank()) {
+            return preferred.trim();
+        }
+        return fallback == null ? "" : fallback.trim();
     }
 
     private Set<String> collectSemanticReferences(SemanticQueryRequest request) {

@@ -199,5 +199,12 @@ public class DatasetProperties {
          * cannot yet expose a signed bundle hash directly.</p>
          */
         private String modelFreshnessToken = "";
+
+        /**
+         * Enables the internal REST endpoint for manual Pivot outer-cache
+         * invalidation. Default false to avoid exposing operational controls
+         * unless the host application opts in.
+         */
+        private boolean adminEndpointEnabled = false;
     }
 }

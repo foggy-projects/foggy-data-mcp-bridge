@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Small local cache for E1b Pivot response-cache verification.
  */
-final class PivotOuterResponseCache {
+final class PivotOuterResponseCache implements PivotOuterCacheProvider {
 
     static final String CACHE_NAME = "pivot_outer_response_local";
 
@@ -30,39 +30,48 @@ final class PivotOuterResponseCache {
         this.maximumSize = safeOptions.maximumSize();
     }
 
-    boolean isEnabled() {
+    @Override
+    public String name() {
+        return CACHE_NAME;
+    }
+
+    @Override
+    public boolean isEnabled() {
         return enabled;
     }
 
-    long ttlMillis() {
+    @Override
+    public long ttlMillis() {
         return ttlMillis;
     }
 
-    LookupResult lookup(String keyHash, long nowMillis) {
+    @Override
+    public PivotOuterCacheProvider.LookupResult lookup(String keyHash, long nowMillis) {
         if (!enabled || keyHash == null || keyHash.isBlank()) {
-            return LookupResult.miss();
+            return PivotOuterCacheProvider.LookupResult.miss();
         }
         Entry entry = entries.get(keyHash);
         if (entry == null) {
-            return LookupResult.miss();
+            return PivotOuterCacheProvider.LookupResult.miss();
         }
         long ageMs = Math.max(0L, nowMillis - entry.storedAtMillis());
         if (entry.expiresAtMillis() <= nowMillis) {
             entries.remove(keyHash, entry);
-            return LookupResult.expired(ageMs);
+            return PivotOuterCacheProvider.LookupResult.expired(ageMs);
         }
-        return LookupResult.hit(copyResponse(entry.response()), ageMs);
+        return PivotOuterCacheProvider.LookupResult.hit(copyResponse(entry.response()), ageMs);
     }
 
     void store(String keyHash, SemanticQueryResponse response, long nowMillis) {
         store(keyHash, response, nowMillis, null, null);
     }
 
-    void store(String keyHash,
-               SemanticQueryResponse response,
-               long nowMillis,
-               String namespace,
-               String model) {
+    @Override
+    public void store(String keyHash,
+                      SemanticQueryResponse response,
+                      long nowMillis,
+                      String namespace,
+                      String model) {
         if (!enabled || keyHash == null || keyHash.isBlank() || response == null) {
             return;
         }
@@ -74,7 +83,8 @@ final class PivotOuterResponseCache {
                 normalizeNamespace(namespace), normalizeModel(model)));
     }
 
-    int evict(String namespace, String model) {
+    @Override
+    public int evict(String namespace, String model) {
         if (entries.isEmpty()) {
             return 0;
         }
@@ -98,7 +108,8 @@ final class PivotOuterResponseCache {
         return removed;
     }
 
-    int estimatePayloadBytes(SemanticQueryResponse response) {
+    @Override
+    public int estimatePayloadBytes(SemanticQueryResponse response) {
         if (response == null) {
             return 0;
         }
@@ -213,17 +224,4 @@ final class PivotOuterResponseCache {
                          String namespace,
                          String model) {}
 
-    record LookupResult(SemanticQueryResponse response, long ageMs, boolean hit, boolean expired) {
-        static LookupResult hit(SemanticQueryResponse response, long ageMs) {
-            return new LookupResult(response, ageMs, true, false);
-        }
-
-        static LookupResult expired(long ageMs) {
-            return new LookupResult(null, ageMs, false, true);
-        }
-
-        static LookupResult miss() {
-            return new LookupResult(null, 0L, false, false);
-        }
-    }
 }

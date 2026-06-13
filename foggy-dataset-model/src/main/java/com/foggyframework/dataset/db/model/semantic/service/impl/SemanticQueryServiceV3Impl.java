@@ -16,6 +16,8 @@ import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheModelIdentityProvider;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheProvider;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationDiagnostic;
@@ -96,12 +98,30 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private MemoryGridEngine memoryGridEngine;
 
+    private PivotOuterCacheModelIdentityProvider pivotOuterCacheModelIdentityProvider =
+            PivotOuterCacheModelIdentityProvider.empty();
+
+    private PivotOuterCacheProvider pivotOuterCacheProvider;
+
     @Resource
     private DataSource dataSource;
 
     @Autowired(required = false)
     public void setMemoryGridEngine(MemoryGridEngine memoryGridEngine) {
         this.memoryGridEngine = memoryGridEngine;
+    }
+
+    @Autowired(required = false)
+    public void setPivotOuterCacheModelIdentityProvider(
+            PivotOuterCacheModelIdentityProvider pivotOuterCacheModelIdentityProvider) {
+        if (pivotOuterCacheModelIdentityProvider != null) {
+            this.pivotOuterCacheModelIdentityProvider = pivotOuterCacheModelIdentityProvider;
+        }
+    }
+
+    @Autowired(required = false)
+    public void setPivotOuterCacheProvider(PivotOuterCacheProvider pivotOuterCacheProvider) {
+        this.pivotOuterCacheProvider = pivotOuterCacheProvider;
     }
 
     /** Pivot 流水线（延迟初始化，避免循环依赖） */
@@ -113,7 +133,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 if (pivotPipeline == null) {
                     pivotPipeline = new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline(
                             this, new com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker(),
-                            queryModelLoader, queryFacade, pivotOuterCacheOptions());
+                            queryModelLoader, queryFacade, pivotOuterCacheOptions(),
+                            pivotOuterCacheModelIdentityProvider, pivotOuterCacheProvider);
                 }
             }
         }

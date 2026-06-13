@@ -4,9 +4,14 @@ package com.foggyframework.dataset.db.model;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.SemanticProperties;
+import com.foggyframework.dataset.db.model.engine.pivot.LocalPivotOuterCacheInvalidationBroadcaster;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheInvalidationBroadcaster;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheModelIdentityProvider;
+import com.foggyframework.dataset.db.model.engine.pivot.RuntimeBundlePivotOuterCacheModelIdentityProvider;
 import com.foggyframework.dataset.db.model.engine.formula.*;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderImpl;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.impl.loader.JdbcTableModelLoaderImpl;
 import com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultFilterManager;
@@ -23,6 +28,7 @@ import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -88,6 +94,20 @@ public class DbModelAutoConfiguration {
     @ConfigurationProperties(prefix = "foggy.dataset")
     public DatasetProperties datasetProperties() {
         return new DatasetProperties();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PivotOuterCacheModelIdentityProvider.class)
+    public PivotOuterCacheModelIdentityProvider pivotOuterCacheModelIdentityProvider(
+            SystemBundlesContext systemBundlesContext) {
+        return new RuntimeBundlePivotOuterCacheModelIdentityProvider(systemBundlesContext);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PivotOuterCacheInvalidationBroadcaster.class)
+    public PivotOuterCacheInvalidationBroadcaster pivotOuterCacheInvalidationBroadcaster(
+            ObjectProvider<SemanticQueryServiceV3> semanticQueryServiceProvider) {
+        return new LocalPivotOuterCacheInvalidationBroadcaster(semanticQueryServiceProvider);
     }
 
     @Bean

@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Define the staged design for an outer Pivot response cache in the Java engine.
 version: 9.2.0
 target: Java Pivot outer response cache
-status: e1b-operational-verified-default-off
+status: e1b-provider-boundary-verified-default-off
 created_at: 2026-06-12
 updated_at: 2026-06-13
 ---
@@ -78,21 +78,37 @@ E1b is implemented as a conservative local response cache:
 - Permission isolation is verified both at fingerprint level and through an enabled-pipeline test: different `SecurityContext` values produce different keys and miss instead of sharing cache entries.
 - QueryModel/TableModel fingerprint changes are covered by key-change unit tests.
 - Deployment-provided model identity is part of the key: `bundle-fingerprint` is intended for a signed registry version, bundle digest, release artifact hash, or git SHA; `model-freshness-token` is an operator-controlled bump token for model-file or datasource snapshot changes.
+- A default `PivotOuterCacheModelIdentityProvider` now computes a runtime bundle fingerprint from the loaded QM resource and its related TM resources. Explicit `bundle-fingerprint` / `model-freshness-token` configuration still takes precedence, so production deployments can replace the default provider with a signed registry or deployment manifest provider.
+- `PivotOuterCacheProvider` is the cache-provider boundary. The default implementation remains `PivotOuterResponseCache`, a local in-memory provider. Distributed providers such as Redis must implement the same lookup/store/evict/TTL/copy-isolation contract before being enabled.
+- `PivotOuterCacheInvalidationBroadcaster` is the invalidation fan-out boundary. The default `LocalPivotOuterCacheInvalidationBroadcaster` delegates to `SemanticQueryServiceV3.evictPivotOuterCache(namespace, model)` in the current JVM. Multi-node deployments can replace this bean with an event bus, registry publish hook, or distributed cache invalidation implementation.
+- `BundleRemovedEvent` now clears TM/QM caches and invokes the invalidation broadcaster for the affected namespace.
 - `SemanticQueryServiceV3.evictPivotOuterCache(namespace, model)` is available as the local operational cleanup hook. `namespace == null` clears all namespaces, `namespace == ""` targets the default namespace, and `model == null` or blank clears all models in the selected namespace scope.
+- A production admin endpoint is available but default-off: setting `foggy.dataset.pivot.outer-cache.admin-endpoint-enabled=true` enables `DELETE /semantic/v3/admin/pivot-outer-cache/evict?namespace=...&model=...`, which delegates to the invalidation broadcaster.
 - Maximum-size eviction, deep-copy response isolation, and concurrent cache hits are covered by `PivotOuterResponseCacheTest`.
 
 Current code touchpoints:
 
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/config/DatasetProperties.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/DbModelAutoConfiguration.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/LocalPivotOuterCacheInvalidationBroadcaster.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheInvalidationBroadcaster.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentity.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentityProvider.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheProvider.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetry.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterResponseCache.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotDiagnosticCollector.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotPipeline.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/RuntimeBundlePivotOuterCacheModelIdentityProvider.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/event/BundleLifecycleListener.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/controller/PivotOuterCacheAdminController.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/impl/SemanticQueryServiceV3Impl.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/SemanticQueryServiceV3.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIntegrationTest.java`
+- `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheOperationalSpiTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetryTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterResponseCacheTest.java`
+- `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/controller/PivotOuterCacheAdminControllerTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotCascadeGenerateSqlParityIntegrationTest.java`
 
 ## Invalidation
@@ -105,6 +121,8 @@ Initial invalidation should be conservative:
 - Automatic miss when query model loaded identity changes.
 - Optional datasource/table freshness token when the hosting application can provide one.
 - Manual namespace/model cache eviction via `SemanticQueryServiceV3.evictPivotOuterCache(namespace, model)` for operators or model-registry publish flows.
+- Manual namespace/model cache eviction via the default-off admin endpoint when the host explicitly enables it.
+- Bundle removal events clear the affected namespace through the invalidation broadcaster.
 
 The engine should not attempt database-level invalidation in the first cut. If a freshness token is absent, TTL remains the correctness boundary.
 
@@ -122,14 +140,16 @@ foggy:
         maximum-size: ${FOGGY_PIVOT_OUTER_CACHE_MAX_SIZE:256}
         bundle-fingerprint: ${FOGGY_MODEL_BUNDLE_FINGERPRINT:}
         model-freshness-token: ${FOGGY_MODEL_FRESHNESS_TOKEN:}
+        admin-endpoint-enabled: ${FOGGY_PIVOT_OUTER_CACHE_ADMIN_ENDPOINT_ENABLED:false}
 ```
 
 Operational rules:
 
-- Keep `enabled=false` until the serving deployment can provide either a signed `bundle-fingerprint`, an explicit `model-freshness-token`, or both.
+- Keep `enabled=false` until the serving deployment can trust either the runtime bundle fingerprint, a signed `bundle-fingerprint`, an explicit `model-freshness-token`, or a custom `PivotOuterCacheModelIdentityProvider`.
 - Use a short TTL first, then increase only after cache hit/miss diagnostics show stable key separation.
-- On model registry publish, bundle removal, namespace reload, or emergency rollback, call `evictPivotOuterCache(namespace, model)` on each running service instance. Passing `namespace=null` clears all namespaces; passing `model=null` clears all models in the selected namespace scope.
-- In multi-node deployments, this hook is local to one JVM. Operators must fan out the cleanup call, bump the freshness token, or use a future distributed provider.
+- On model registry publish, namespace reload, or emergency rollback, call `evictPivotOuterCache(namespace, model)` or the default-off admin endpoint. Passing `namespace=null` clears all namespaces; passing `model=null` clears all models in the selected namespace scope.
+- Bundle removal triggers the default invalidation broadcaster automatically for the affected namespace.
+- In multi-node deployments, the default broadcaster is local to one JVM. Operators must replace `PivotOuterCacheInvalidationBroadcaster`, fan out the admin/service call, bump the freshness token, or use a distributed `PivotOuterCacheProvider`.
 - Treat absent fingerprint/token as TTL-only correctness. It is acceptable for local demo and controlled tests, but not enough for broad production promotion.
 
 ## Diagnostics
@@ -182,11 +202,13 @@ Minimum tests before E1b:
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='FieldPermissionResolverTest,SyntheticMemberPermissionResolverTest,FieldAccessPermissionStepTest,FieldAccessPermissionIntegrationTest,PhysicalColumnPermissionIntegrationTest,SemanticServiceV3Test,PivotIntegrationTest,PivotOuterCacheTelemetryTest,PivotOuterResponseCacheTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; permission resolver, field-access, physical denied-column, SemanticServiceV3, Pivot integration, and E1b outer-cache tests pass together after the cache key started carrying permission fingerprints; Tests run: 164, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheTelemetryTest,PivotOuterResponseCacheTest,PivotIntegrationTest#testOuterCacheHitFlatPivotE1b+testOuterCacheTtlExpiryFlatPivotE1b+testOuterCacheMissesAcrossSecurityContextsE1b+testOuterCacheEvictByNamespaceAndModelE1b+testOuterCacheSkipsWarningResponsesE1b' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; bundle fingerprint and freshness token now alter cache keys, local cache evicts by namespace/model, and the service hook forces the next Pivot request to miss and re-execute before storing again; Tests run: 12, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='FieldPermissionResolverTest,SyntheticMemberPermissionResolverTest,FieldAccessPermissionStepTest,FieldAccessPermissionIntegrationTest,PhysicalColumnPermissionIntegrationTest,SemanticServiceV3Test,PivotIntegrationTest,PivotOuterCacheTelemetryTest,PivotOuterResponseCacheTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; permission, SemanticServiceV3, Pivot integration, and outer-cache suites remain green after deployment model identity keying and namespace/model eviction hook; Tests run: 168, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheTelemetryTest,PivotOuterResponseCacheTest,PivotOuterCacheOperationalSpiTest,PivotOuterCacheAdminControllerTest,PivotIntegrationTest#testOuterCacheHitFlatPivotE1b+testOuterCacheTtlExpiryFlatPivotE1b+testOuterCacheMissesAcrossSecurityContextsE1b+testOuterCacheEvictByNamespaceAndModelE1b+testOuterCacheSkipsWarningResponsesE1b,BundleLifecycleListenerTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; runtime bundle fingerprint provider changes hash on QM/TM resource changes, local invalidation broadcaster delegates to the service hook, admin eviction delegates to the broadcaster, and BundleLifecycleListener stays green with namespace cache cleanup; Tests run: 20, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='FieldPermissionResolverTest,SyntheticMemberPermissionResolverTest,FieldAccessPermissionStepTest,FieldAccessPermissionIntegrationTest,PhysicalColumnPermissionIntegrationTest,SemanticServiceV3Test,PivotIntegrationTest,PivotOuterCacheTelemetryTest,PivotOuterResponseCacheTest,PivotOuterCacheOperationalSpiTest,PivotOuterCacheAdminControllerTest,BundleLifecycleListenerTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; permission chain, SemanticServiceV3, full PivotIntegrationTest, existing outer-cache tests, new SPI tests, admin endpoint delegation, and bundle lifecycle cleanup pass together; Tests run: 176, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Remaining Boundary
 
-- E1b remains default-off and process-local; no distributed provider or cross-node coherency is implemented.
-- The current `keyHash` includes the available `QueryModel` / `TableModel` fingerprint plus deployment-provided `bundle-fingerprint` and `model-freshness-token`; the engine does not yet compute or verify a signed registry hash by itself.
-- Real registry/bundle model-file invalidation is supported only through the external fingerprint/freshness token or the manual service hook; automatic registry event fan-out is not implemented.
-- Permission isolation, warning skip, maximum-size eviction, deep-copy isolation, and concurrent-hit behavior now have local tests, but no distributed cache provider or multi-node race evidence exists.
+- E1b remains default-off. The default provider is still process-local; no Redis provider or cross-node coherency implementation is bundled.
+- The current `keyHash` includes the available `QueryModel` / `TableModel` fingerprint, runtime bundle resource fingerprint, and optional deployment-provided `bundle-fingerprint` / `model-freshness-token`; the engine does not verify a signed registry hash by itself.
+- Real registry model-file invalidation is supported through the runtime bundle fingerprint, external fingerprint/freshness token, manual service/admin hook, and replaceable invalidation broadcaster; automatic registry event fan-out is an SPI boundary, not a bundled event bus.
+- Permission isolation, warning skip, maximum-size eviction, deep-copy isolation, concurrent-hit behavior, runtime fingerprint provider, local broadcaster, admin endpoint delegation, and bundle-removal cleanup now have local tests, but no distributed cache provider or multi-node race evidence exists.
 - Tree and cascade cache eligibility remains blocked until their semantics and dialect evidence are separately signed.

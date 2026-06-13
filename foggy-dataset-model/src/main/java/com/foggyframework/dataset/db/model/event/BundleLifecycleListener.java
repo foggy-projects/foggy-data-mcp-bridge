@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.event;
 
 import com.foggyframework.bundle.event.BundleRemovedEvent;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheInvalidationBroadcaster;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import jakarta.annotation.Resource;
@@ -27,6 +28,9 @@ public class BundleLifecycleListener {
     @Resource
     private QueryModelLoader queryModelLoader;
 
+    @Resource
+    private PivotOuterCacheInvalidationBroadcaster pivotOuterCacheInvalidationBroadcaster;
+
     /**
      * 监听Bundle移除事件
      *
@@ -39,9 +43,10 @@ public class BundleLifecycleListener {
     public void onBundleRemoved(BundleRemovedEvent event) {
         String bundleName = event.getBundleName();
         String namespace = event.getNamespace();
+        String displayNamespace = namespace == null || namespace.isEmpty() ? "默认" : namespace;
 
         log.info("监听到Bundle移除事件: bundleName={}, namespace={}",
-                bundleName, namespace.isEmpty() ? "默认" : namespace);
+                bundleName, displayNamespace);
 
         try {
             // 清除TM缓存（表模型）
@@ -52,11 +57,14 @@ public class BundleLifecycleListener {
             log.debug("开始清除QueryModel缓存: namespace={}", namespace);
             queryModelLoader.clearByNamespace(namespace);
 
-            log.info("已清除namespace=[{}] 的所有模型缓存", namespace.isEmpty() ? "默认" : namespace);
+            int outerCacheRemoved = pivotOuterCacheInvalidationBroadcaster.evict(namespace, null);
+
+            log.info("已清除namespace=[{}] 的所有模型缓存，Pivot outer-cache removed={}",
+                    displayNamespace, outerCacheRemoved);
 
         } catch (Exception e) {
             log.error("清除namespace=[{}] 的缓存时发生异常: {}",
-                    namespace.isEmpty() ? "默认" : namespace, e.getMessage(), e);
+                    displayNamespace, e.getMessage(), e);
         }
     }
 }

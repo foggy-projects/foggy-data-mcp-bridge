@@ -29,7 +29,7 @@ class PivotOuterResponseCacheTest {
         cache.store("second", response("second"), 101L);
 
         assertFalse(cache.lookup("first", 102L).hit(), "oldest entry should be evicted");
-        PivotOuterResponseCache.LookupResult second = cache.lookup("second", 102L);
+        PivotOuterCacheProvider.LookupResult second = cache.lookup("second", 102L);
         assertTrue(second.hit(), "newest entry should remain available");
         assertEquals("second", second.response().getItems().get(0).get("value"));
     }
@@ -74,7 +74,7 @@ class PivotOuterResponseCacheTest {
             for (int i = 0; i < 24; i++) {
                 int index = i;
                 futures.add(executor.submit(() -> {
-                    PivotOuterResponseCache.LookupResult lookup = cache.lookup("shared", 101L + index);
+                    PivotOuterCacheProvider.LookupResult lookup = cache.lookup("shared", 101L + index);
                     assertTrue(lookup.hit());
                     lookup.response().getItems().get(0).put("value", "mutated-" + index);
                 }));
