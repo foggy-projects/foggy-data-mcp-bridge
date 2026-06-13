@@ -28,6 +28,9 @@ class PivotOuterCacheAdminControllerTest {
         assertEquals("ns-a", response.getBody().get("namespace"));
         assertEquals("SalesQM", response.getBody().get("model"));
         assertEquals(3, response.getBody().get("removed"));
+        assertEquals(1, response.getBody().get("attemptedNodes"));
+        assertEquals(1, response.getBody().get("succeededNodes"));
+        assertEquals(0, response.getBody().get("failedNodes"));
         assertEquals("namespace/model", response.getBody().get("scope"));
     }
 }

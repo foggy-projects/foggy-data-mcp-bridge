@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.semantic.controller;
 
 import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheInvalidationBroadcaster;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheInvalidationEvent;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheInvalidationResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -31,30 +33,21 @@ public class PivotOuterCacheAdminController {
     public ResponseEntity<Map<String, Object>> evict(
             @RequestParam(value = "namespace", required = false) String namespace,
             @RequestParam(value = "model", required = false) String model) {
-        int removed = pivotOuterCacheInvalidationBroadcaster.evict(namespace, model);
-        log.info("Pivot outer-cache evicted: namespace={}, model={}, removed={}", namespace, model, removed);
+        PivotOuterCacheInvalidationEvent event = PivotOuterCacheInvalidationEvent.of(namespace, model);
+        PivotOuterCacheInvalidationResult result = pivotOuterCacheInvalidationBroadcaster.evict(event);
+        log.info("Pivot outer-cache evicted: namespace={}, model={}, removed={}, attemptedNodes={}, failedNodes={}",
+                event.namespace(), event.model(), result.removed(), result.attemptedNodes(), result.failedNodes());
 
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("success", true);
-        response.put("namespace", namespace);
-        response.put("model", model);
-        response.put("removed", removed);
-        response.put("scope", scope(namespace, model));
+        response.put("success", result.success());
+        response.put("namespace", event.namespace());
+        response.put("model", event.model());
+        response.put("removed", result.removed());
+        response.put("attemptedNodes", result.attemptedNodes());
+        response.put("succeededNodes", result.succeededNodes());
+        response.put("failedNodes", result.failedNodes());
+        response.put("errors", result.errors());
+        response.put("scope", event.scope());
         return ResponseEntity.ok(response);
-    }
-
-    private String scope(String namespace, String model) {
-        boolean allNamespaces = namespace == null;
-        boolean allModels = model == null || model.isBlank();
-        if (allNamespaces && allModels) {
-            return "all-namespaces/all-models";
-        }
-        if (allNamespaces) {
-            return "all-namespaces/model";
-        }
-        if (allModels) {
-            return "namespace/all-models";
-        }
-        return "namespace/model";
     }
 }

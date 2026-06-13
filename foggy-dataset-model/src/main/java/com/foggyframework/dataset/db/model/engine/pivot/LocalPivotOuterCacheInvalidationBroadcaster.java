@@ -17,7 +17,18 @@ public class LocalPivotOuterCacheInvalidationBroadcaster implements PivotOuterCa
 
     @Override
     public int evict(String namespace, String model) {
+        return evict(PivotOuterCacheInvalidationEvent.of(namespace, model)).removed();
+    }
+
+    @Override
+    public PivotOuterCacheInvalidationResult evict(PivotOuterCacheInvalidationEvent event) {
+        PivotOuterCacheInvalidationEvent scoped =
+                event == null ? PivotOuterCacheInvalidationEvent.all() : event;
         SemanticQueryServiceV3 service = semanticQueryServiceProvider.getIfAvailable();
-        return service == null ? 0 : service.evictPivotOuterCache(namespace, model);
+        if (service == null) {
+            return PivotOuterCacheInvalidationResult.unavailable("SemanticQueryServiceV3 is unavailable");
+        }
+        return PivotOuterCacheInvalidationResult.local(
+                service.evictPivotOuterCache(scoped.namespace(), scoped.model()));
     }
 }

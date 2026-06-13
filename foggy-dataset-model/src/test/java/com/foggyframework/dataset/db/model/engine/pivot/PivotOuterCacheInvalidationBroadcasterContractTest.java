@@ -37,6 +37,23 @@ public abstract class PivotOuterCacheInvalidationBroadcasterContractTest {
     }
 
     @Test
+    @DisplayName("broadcaster event result reports aggregate fan-out counts")
+    void eventResultReportsAggregateFanOutCounts() {
+        List<CacheNode> nodes = List.of(new CacheNode("node-a"), new CacheNode("node-b"));
+        nodes.forEach(this::seedCommonEntries);
+        PivotOuterCacheInvalidationBroadcaster broadcaster = newBroadcaster(nodes);
+
+        PivotOuterCacheInvalidationResult result =
+                broadcaster.evict(PivotOuterCacheInvalidationEvent.of("ns-a", "ModelA"));
+
+        assertEquals(2, result.removed());
+        assertEquals(2, result.attemptedNodes());
+        assertEquals(2, result.succeededNodes());
+        assertEquals(0, result.failedNodes());
+        assertTrue(result.success());
+    }
+
+    @Test
     @DisplayName("broadcaster evicts all models in selected namespace on every node")
     void evictsAllModelsInSelectedNamespaceOnEveryNode() {
         List<CacheNode> nodes = List.of(new CacheNode("node-a"), new CacheNode("node-b"));

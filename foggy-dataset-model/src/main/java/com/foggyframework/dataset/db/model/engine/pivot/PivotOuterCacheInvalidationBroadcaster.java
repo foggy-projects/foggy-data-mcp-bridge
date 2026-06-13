@@ -16,4 +16,10 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 public interface PivotOuterCacheInvalidationBroadcaster {
 
     int evict(String namespace, String model);
+
+    default PivotOuterCacheInvalidationResult evict(PivotOuterCacheInvalidationEvent event) {
+        PivotOuterCacheInvalidationEvent scoped =
+                event == null ? PivotOuterCacheInvalidationEvent.all() : event;
+        return PivotOuterCacheInvalidationResult.local(evict(scoped.namespace(), scoped.model()));
+    }
 }

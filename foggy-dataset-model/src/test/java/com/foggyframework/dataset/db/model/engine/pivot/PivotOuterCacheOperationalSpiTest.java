@@ -79,6 +79,13 @@ class PivotOuterCacheOperationalSpiTest {
                 new LocalPivotOuterCacheInvalidationBroadcaster(provider(null));
 
         assertEquals(0, broadcaster.evict("ns-a", "SalesQM"));
+        PivotOuterCacheInvalidationResult result =
+                broadcaster.evict(PivotOuterCacheInvalidationEvent.of("ns-a", "SalesQM"));
+        assertEquals(0, result.removed());
+        assertEquals(1, result.attemptedNodes());
+        assertEquals(0, result.succeededNodes());
+        assertEquals(1, result.failedNodes());
+        assertTrue(result.errors().get(0).contains("SemanticQueryServiceV3"));
     }
 
     private SystemBundlesContext bundleContext(Map<String, String> resources) {
