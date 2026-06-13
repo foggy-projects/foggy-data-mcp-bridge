@@ -183,5 +183,21 @@ public class DatasetProperties {
          * Maximum entries kept by the local in-memory cache.
          */
         private int maximumSize = 256;
+
+        /**
+         * Deployment-provided model bundle fingerprint.
+         * <p>Use a signed registry version, bundle digest, git SHA, or release
+         * artifact hash when the host application has one. A changed value
+         * forces fresh Pivot outer-cache keys without waiting for TTL expiry.</p>
+         */
+        private String bundleFingerprint = "";
+
+        /**
+         * Optional deployment freshness token for model files or datasource
+         * snapshots.
+         * <p>Use this as an operator-controlled bump token when the registry
+         * cannot yet expose a signed bundle hash directly.</p>
+         */
+        private String modelFreshnessToken = "";
     }
 }

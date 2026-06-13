@@ -57,6 +57,7 @@ public class PivotPipeline {
     private final QueryModelLoader queryModelLoader;
     private final QueryFacade queryFacade;
     private final PivotOuterResponseCache outerResponseCache;
+    private final OuterCacheOptions outerCacheOptions;
 
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService) {
         this(semanticQueryService, new CardinalityBreaker(), null, null);
@@ -88,22 +89,38 @@ public class PivotPipeline {
         this.cardinalityBreaker = cardinalityBreaker;
         this.queryModelLoader = queryModelLoader;
         this.queryFacade = queryFacade;
-        this.outerResponseCache = new PivotOuterResponseCache(outerCacheOptions);
+        this.outerCacheOptions = outerCacheOptions == null
+                ? OuterCacheOptions.disabled()
+                : outerCacheOptions.normalized();
+        this.outerResponseCache = new PivotOuterResponseCache(this.outerCacheOptions);
     }
 
-    public record OuterCacheOptions(boolean enabled, long ttlMillis, int maximumSize) {
+    public record OuterCacheOptions(boolean enabled,
+                                    long ttlMillis,
+                                    int maximumSize,
+                                    String bundleFingerprint,
+                                    String modelFreshnessToken) {
 
         private static final long DEFAULT_TTL_MILLIS = 300_000L;
         private static final int DEFAULT_MAXIMUM_SIZE = 256;
 
+        public OuterCacheOptions(boolean enabled, long ttlMillis, int maximumSize) {
+            this(enabled, ttlMillis, maximumSize, "", "");
+        }
+
         public static OuterCacheOptions disabled() {
-            return new OuterCacheOptions(false, DEFAULT_TTL_MILLIS, DEFAULT_MAXIMUM_SIZE);
+            return new OuterCacheOptions(false, DEFAULT_TTL_MILLIS, DEFAULT_MAXIMUM_SIZE, "", "");
         }
 
         OuterCacheOptions normalized() {
             long safeTtlMillis = ttlMillis > 0L ? ttlMillis : DEFAULT_TTL_MILLIS;
             int safeMaximumSize = maximumSize > 0 ? maximumSize : DEFAULT_MAXIMUM_SIZE;
-            return new OuterCacheOptions(enabled, safeTtlMillis, safeMaximumSize);
+            return new OuterCacheOptions(enabled, safeTtlMillis, safeMaximumSize,
+                    normalizeToken(bundleFingerprint), normalizeToken(modelFreshnessToken));
+        }
+
+        private static String normalizeToken(String value) {
+            return value == null ? "" : value.trim();
         }
     }
 
@@ -173,7 +190,10 @@ public class PivotPipeline {
                 ? PivotOuterCacheTelemetry.CACHE_STAGE
                 : PivotOuterCacheTelemetry.TELEMETRY_STAGE;
         PivotOuterCacheTelemetry.Evaluation cacheEvaluation = PivotOuterCacheTelemetry.evaluate(
-                model, queryModel, request, context, hierarchyCtx.isTree(), cascadeRequest, cacheEligibilityStage);
+                model, queryModel, request, context, hierarchyCtx.isTree(), cascadeRequest, cacheEligibilityStage,
+                PivotOuterCacheTelemetry.ModelIdentity.of(
+                        outerCacheOptions.bundleFingerprint(),
+                        outerCacheOptions.modelFreshnessToken()));
         diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
         if (cacheEvaluation.refused()) {
             diagnostics.cacheRefused(cacheEvaluation.keyHash(), cacheEligibilityStage,
@@ -297,7 +317,7 @@ public class PivotPipeline {
                     pivot, pivot.getOutputFormat(), hierarchyCtx, null, rowFields, colFields, outputMetricsForContract(pivot),
                     sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
             SemanticQueryResponse response = buildEmptyResponse(pivot, startTime, capabilityContract, diagnostics.snapshot());
-            return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response);
+            return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response, model, context);
         }
 
         // ===== Phase 1.5: 父子维度骨架查询 =====
@@ -444,7 +464,7 @@ public class PivotPipeline {
                 sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
         SemanticQueryResponse response = buildPivotResponse(pivotResult, startTime, baselineRatioEvidence,
                 parentShareEvidence, capabilityContract, diagnostics.snapshot());
-        return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response);
+        return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response, model, context);
     }
 
     private void injectPredefinedCalculatedFields(SemanticQueryRequest request, QueryModel queryModel) {
@@ -1979,6 +1999,15 @@ public class PivotPipeline {
                                                     String cacheEligibilityStage,
                                                     PivotDiagnosticCollector diagnostics,
                                                     SemanticQueryResponse response) {
+        return storeOuterCacheIfEligible(cacheEvaluation, cacheEligibilityStage, diagnostics, response, null, null);
+    }
+
+    SemanticQueryResponse storeOuterCacheIfEligible(PivotOuterCacheTelemetry.Evaluation cacheEvaluation,
+                                                    String cacheEligibilityStage,
+                                                    PivotDiagnosticCollector diagnostics,
+                                                    SemanticQueryResponse response,
+                                                    String model,
+                                                    SemanticRequestContext context) {
         if (!outerResponseCache.isEnabled()
                 || cacheEvaluation == null
                 || cacheEvaluation.refused()) {
@@ -1994,8 +2023,13 @@ public class PivotPipeline {
         diagnostics.cacheStore(cacheEvaluation.keyHash(), cacheEligibilityStage, payloadBytes,
                 outerResponseCache.ttlMillis(), cacheEvaluation.shapeClass());
         replacePivotDiagnostics(response, diagnostics.snapshot());
-        outerResponseCache.store(cacheEvaluation.keyHash(), response, System.currentTimeMillis());
+        outerResponseCache.store(cacheEvaluation.keyHash(), response, System.currentTimeMillis(),
+                context != null ? context.getNamespace() : null, model);
         return response;
+    }
+
+    public int evictOuterCache(String namespace, String model) {
+        return outerResponseCache.evict(namespace, model);
     }
 
     private boolean hasWarnings(SemanticQueryResponse response) {

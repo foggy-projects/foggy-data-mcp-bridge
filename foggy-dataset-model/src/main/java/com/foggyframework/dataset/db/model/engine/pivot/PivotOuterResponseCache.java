@@ -55,6 +55,14 @@ final class PivotOuterResponseCache {
     }
 
     void store(String keyHash, SemanticQueryResponse response, long nowMillis) {
+        store(keyHash, response, nowMillis, null, null);
+    }
+
+    void store(String keyHash,
+               SemanticQueryResponse response,
+               long nowMillis,
+               String namespace,
+               String model) {
         if (!enabled || keyHash == null || keyHash.isBlank() || response == null) {
             return;
         }
@@ -62,7 +70,32 @@ final class PivotOuterResponseCache {
         if (entries.size() >= maximumSize) {
             evictOldest();
         }
-        entries.put(keyHash, new Entry(copyResponse(response), nowMillis, nowMillis + ttlMillis));
+        entries.put(keyHash, new Entry(copyResponse(response), nowMillis, nowMillis + ttlMillis,
+                normalizeNamespace(namespace), normalizeModel(model)));
+    }
+
+    int evict(String namespace, String model) {
+        if (entries.isEmpty()) {
+            return 0;
+        }
+        boolean namespaceFiltered = namespace != null;
+        boolean modelFiltered = model != null && !model.isBlank();
+        String normalizedNamespace = normalizeNamespace(namespace);
+        String normalizedModel = normalizeModel(model);
+        int removed = 0;
+        for (Map.Entry<String, Entry> entry : entries.entrySet()) {
+            Entry value = entry.getValue();
+            if (namespaceFiltered && !normalizedNamespace.equals(value.namespace())) {
+                continue;
+            }
+            if (modelFiltered && !normalizedModel.equals(value.model())) {
+                continue;
+            }
+            if (entries.remove(entry.getKey(), value)) {
+                removed++;
+            }
+        }
+        return removed;
     }
 
     int estimatePayloadBytes(SemanticQueryResponse response) {
@@ -166,7 +199,19 @@ final class PivotOuterResponseCache {
         }
     }
 
-    private record Entry(SemanticQueryResponse response, long storedAtMillis, long expiresAtMillis) {}
+    private static String normalizeNamespace(String namespace) {
+        return namespace == null || namespace.isBlank() ? "" : namespace.trim();
+    }
+
+    private static String normalizeModel(String model) {
+        return model == null || model.isBlank() ? "" : model.trim();
+    }
+
+    private record Entry(SemanticQueryResponse response,
+                         long storedAtMillis,
+                         long expiresAtMillis,
+                         String namespace,
+                         String model) {}
 
     record LookupResult(SemanticQueryResponse response, long ageMs, boolean hit, boolean expired) {
         static LookupResult hit(SemanticQueryResponse response, long ageMs) {

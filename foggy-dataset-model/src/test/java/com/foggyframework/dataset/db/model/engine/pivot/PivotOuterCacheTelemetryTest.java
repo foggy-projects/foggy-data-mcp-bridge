@@ -61,11 +61,38 @@ class PivotOuterCacheTelemetryTest {
         assertNotEquals(first.keyHash(), changedTableModel.keyHash(), "table model identity must affect cache keys");
     }
 
+    @Test
+    @DisplayName("E1b cache key includes bundle fingerprint and freshness token")
+    void testKeyChangesForBundleFingerprintAndFreshnessToken() {
+        QueryModel queryModel = queryModel("FactSalesQueryModel", "FS", "FactSalesTableModel");
+        SemanticQueryRequest request = request();
+        SemanticRequestContext context = context("user-a", Set.of("product$categoryName", "salesAmount"), null);
+
+        PivotOuterCacheTelemetry.Evaluation first = evaluate(queryModel, request, context,
+                PivotOuterCacheTelemetry.ModelIdentity.of("bundle-sha:aaa", "freshness:1"));
+        PivotOuterCacheTelemetry.Evaluation changedBundle = evaluate(queryModel, request, context,
+                PivotOuterCacheTelemetry.ModelIdentity.of("bundle-sha:bbb", "freshness:1"));
+        PivotOuterCacheTelemetry.Evaluation changedFreshness = evaluate(queryModel, request, context,
+                PivotOuterCacheTelemetry.ModelIdentity.of("bundle-sha:aaa", "freshness:2"));
+
+        assertNotEquals(first.keyHash(), changedBundle.keyHash(),
+                "deployment bundle fingerprint must affect cache keys");
+        assertNotEquals(first.keyHash(), changedFreshness.keyHash(),
+                "model freshness token must affect cache keys");
+    }
+
     private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
                                                          SemanticQueryRequest request,
                                                          SemanticRequestContext context) {
+        return evaluate(queryModel, request, context, PivotOuterCacheTelemetry.ModelIdentity.empty());
+    }
+
+    private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
+                                                         SemanticQueryRequest request,
+                                                         SemanticRequestContext context,
+                                                         PivotOuterCacheTelemetry.ModelIdentity modelIdentity) {
         return PivotOuterCacheTelemetry.evaluate("FactSalesQueryModel", queryModel, request, context,
-                false, false, PivotOuterCacheTelemetry.CACHE_STAGE);
+                false, false, PivotOuterCacheTelemetry.CACHE_STAGE, modelIdentity);
     }
 
     private SemanticRequestContext context(String userId,

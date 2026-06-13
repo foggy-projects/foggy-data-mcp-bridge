@@ -78,6 +78,19 @@ public interface SemanticQueryServiceV3 {
     }
 
     /**
+     * Evict local Pivot outer-cache entries by namespace and/or model.
+     *
+     * <p>{@code namespace == null} means all namespaces; {@code namespace == ""}
+     * targets the default namespace. {@code model == null} or blank means all
+     * models in the selected namespace scope.</p>
+     *
+     * @return number of local entries removed by this service instance
+     */
+    default int evictPivotOuterCache(String namespace, String model) {
+        return 0;
+    }
+
+    /**
      * Execute raw SQL compiled by M6 {@link com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler}
      * and return rows.
      *

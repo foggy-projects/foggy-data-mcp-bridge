@@ -239,6 +239,36 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("v9.2: E1b outer cache 可按 namespace/model 手动清理")
+    void testOuterCacheEvictByNamespaceAndModelE1b() {
+        SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
+        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        try {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(60_000L));
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setPivot(basicSalesPivot());
+
+            SemanticQueryResponse first = execute(request);
+            SemanticQueryResponse second = execute(request);
+            assertDiagnosticEvent(pivotDiagnostics(first), "pivot.cache.store");
+            assertDiagnosticEvent(pivotDiagnostics(second), "pivot.cache.hit");
+
+            assertEquals(1, impl.evictPivotOuterCache(null, TEST_MODEL),
+                    "model-level eviction should remove the cached default-namespace entry");
+
+            SemanticQueryResponse third = execute(request);
+            List<Map<String, Object>> diagnostics = pivotDiagnostics(third);
+            assertEquals("cache_not_found", diagnosticEvent(diagnostics, "pivot.cache.miss").get("reason"));
+            assertFalse(hasDiagnosticEvent(diagnostics, "pivot.cache.hit"));
+            assertDiagnosticEvent(diagnostics, "pivot.execution_path");
+            assertDiagnosticEvent(diagnostics, "pivot.cache.store");
+        } finally {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
+        }
+    }
+
+    @Test
     @DisplayName("v9.2: E1b outer cache 不存储 warning 响应并输出 store_skipped")
     void testOuterCacheSkipsWarningResponsesE1b() {
         PivotPipeline pipeline = outerCachePipeline(60_000L);

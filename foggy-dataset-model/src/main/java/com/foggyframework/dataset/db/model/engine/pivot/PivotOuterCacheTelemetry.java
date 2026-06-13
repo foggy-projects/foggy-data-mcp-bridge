@@ -62,10 +62,23 @@ final class PivotOuterCacheTelemetry {
                                boolean treeMode,
                                boolean cascadeRequest,
                                String eligibilityStage) {
+        return evaluate(model, queryModel, request, context, treeMode, cascadeRequest, eligibilityStage,
+                ModelIdentity.empty());
+    }
+
+    static Evaluation evaluate(String model,
+                               QueryModel queryModel,
+                               SemanticQueryRequest request,
+                               SemanticRequestContext context,
+                               boolean treeMode,
+                               boolean cascadeRequest,
+                               String eligibilityStage,
+                               ModelIdentity modelIdentity) {
         PivotRequest pivot = request != null ? request.getPivot() : null;
         String shapeClass = shapeClass(pivot, treeMode, cascadeRequest);
         String reason = refusalReason(request, pivot, treeMode, cascadeRequest);
-        String keyHash = keyHash(model, queryModel, request, context, shapeClass, eligibilityStage);
+        String keyHash = keyHash(model, queryModel, request, context, shapeClass, eligibilityStage,
+                modelIdentity);
         return new Evaluation(keyHash, shapeClass, reason);
     }
 
@@ -161,10 +174,13 @@ final class PivotOuterCacheTelemetry {
                                   SemanticQueryRequest request,
                                   SemanticRequestContext context,
                                   String shapeClass,
-                                  String eligibilityStage) {
+                                  String eligibilityStage,
+                                  ModelIdentity modelIdentity) {
+        ModelIdentity safeModelIdentity = ModelIdentity.normalize(modelIdentity);
         List<String> parts = new ArrayList<>();
         parts.add("stage=" + safe(eligibilityStage));
         parts.add("model=" + safe(model));
+        parts.add("modelIdentity=" + safeModelIdentity.stableValue());
         parts.add("queryModel=" + queryModelValue(queryModel));
         parts.add("shape=" + safe(shapeClass));
         parts.add("namespace=" + safe(context != null ? context.getNamespace() : null));
@@ -261,6 +277,33 @@ final class PivotOuterCacheTelemetry {
     record Evaluation(String keyHash, String shapeClass, String refusalReason) {
         boolean refused() {
             return refusalReason != null;
+        }
+    }
+
+    record ModelIdentity(String bundleFingerprint, String modelFreshnessToken) {
+        static ModelIdentity empty() {
+            return new ModelIdentity("", "");
+        }
+
+        static ModelIdentity of(String bundleFingerprint, String modelFreshnessToken) {
+            return new ModelIdentity(bundleFingerprint, modelFreshnessToken).normalized();
+        }
+
+        static ModelIdentity normalize(ModelIdentity modelIdentity) {
+            return modelIdentity == null ? empty() : modelIdentity.normalized();
+        }
+
+        ModelIdentity normalized() {
+            return new ModelIdentity(normalizeToken(bundleFingerprint), normalizeToken(modelFreshnessToken));
+        }
+
+        String stableValue() {
+            return "bundleFingerprint=" + safe(bundleFingerprint)
+                    + ",modelFreshnessToken=" + safe(modelFreshnessToken);
+        }
+
+        private static String normalizeToken(String value) {
+            return value == null ? "" : value.trim();
         }
     }
 }

@@ -89,6 +89,30 @@ class PivotOuterResponseCacheTest {
         assertEquals("stable", cache.lookup("shared", 200L).response().getItems().get(0).get("value"));
     }
 
+    @Test
+    @DisplayName("E1b local cache evicts by namespace and model")
+    void testEvictsByNamespaceAndModel() {
+        PivotOuterResponseCache cache = new PivotOuterResponseCache(
+                new PivotPipeline.OuterCacheOptions(true, 60_000L, 8));
+        cache.store("default-model-a", response("default-model-a"), 100L, "", "ModelA");
+        cache.store("ns-a-model-a", response("ns-a-model-a"), 101L, "ns-a", "ModelA");
+        cache.store("ns-a-model-b", response("ns-a-model-b"), 102L, "ns-a", "ModelB");
+        cache.store("ns-b-model-a", response("ns-b-model-a"), 103L, "ns-b", "ModelA");
+
+        assertEquals(1, cache.evict("ns-a", "ModelA"));
+        assertFalse(cache.lookup("ns-a-model-a", 104L).hit());
+        assertTrue(cache.lookup("ns-a-model-b", 104L).hit());
+        assertTrue(cache.lookup("ns-b-model-a", 104L).hit());
+
+        assertEquals(2, cache.evict(null, "ModelA"));
+        assertFalse(cache.lookup("default-model-a", 105L).hit());
+        assertFalse(cache.lookup("ns-b-model-a", 105L).hit());
+        assertTrue(cache.lookup("ns-a-model-b", 105L).hit());
+
+        assertEquals(1, cache.evict("ns-a", null));
+        assertFalse(cache.lookup("ns-a-model-b", 106L).hit());
+    }
+
     private SemanticQueryResponse response(String value) {
         SemanticQueryResponse response = new SemanticQueryResponse();
         Map<String, Object> row = new LinkedHashMap<>();

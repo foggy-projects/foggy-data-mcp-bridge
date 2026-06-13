@@ -129,7 +129,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions.disabled();
         }
         return new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions(
-                config.isEnabled(), config.getTtlMillis(), config.getMaximumSize());
+                config.isEnabled(), config.getTtlMillis(), config.getMaximumSize(),
+                config.getBundleFingerprint(), config.getModelFreshnessToken());
+    }
+
+    @Override
+    public int evictPivotOuterCache(String namespace, String model) {
+        return getPivotPipeline().evictOuterCache(namespace, model);
     }
 
     @Override
