@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,47 @@ class PivotOuterCacheInvalidationFanOutContractTest
         assertEquals(List.of("node-b publish failed"), result.errors());
     }
 
+    @Test
+    @DisplayName("fan-out broadcaster deduplicates repeated explicit event ids")
+    void fanOutDeduplicatesRepeatedExplicitEventIds() {
+        List<CacheNode> nodes = List.of(new CacheNode("node-a"), new CacheNode("node-b"));
+        nodes.forEach(this::seedCommonEntries);
+        PivotOuterCacheInvalidationBroadcaster broadcaster = deduplicatingFanOutBroadcaster("node-a", nodes);
+        PivotOuterCacheInvalidationEvent event =
+                PivotOuterCacheInvalidationEvent.of("ns-a", "ModelA")
+                        .withMetadata("evt-1", "node-x", 100L);
+
+        PivotOuterCacheInvalidationResult first = broadcaster.evict(event);
+        PivotOuterCacheInvalidationResult replay = broadcaster.evict(event.withMetadata("evt-1", "node-y", 101L));
+
+        assertEquals(2, first.removed());
+        assertEquals(2, first.attemptedNodes());
+        assertEquals(0, replay.removed());
+        assertEquals(0, replay.attemptedNodes());
+        assertEquals(0, replay.failedNodes());
+    }
+
+    @Test
+    @DisplayName("fan-out broadcaster skips local self-loop consumption")
+    void fanOutSkipsLocalSelfLoopConsumption() {
+        List<CacheNode> nodes = List.of(new CacheNode("node-a"), new CacheNode("node-b"));
+        nodes.forEach(this::seedCommonEntries);
+        PivotOuterCacheInvalidationBroadcaster broadcaster = deduplicatingFanOutBroadcaster("node-a", nodes);
+        PivotOuterCacheInvalidationEvent event =
+                PivotOuterCacheInvalidationEvent.of("ns-a", "ModelA")
+                        .withMetadata("evt-2", "node-a", 100L);
+
+        assertEquals(1, nodes.get(0).provider().evict("ns-a", "ModelA"));
+        PivotOuterCacheInvalidationResult result = broadcaster.evict(event);
+
+        assertEquals(1, result.removed());
+        assertEquals(1, result.attemptedNodes());
+        assertEquals(1, result.succeededNodes());
+        assertEquals(0, result.failedNodes());
+        assertFalse(nodes.get(0).hit("ns-a-model-a"), "source node should already have applied local eviction");
+        assertFalse(nodes.get(1).hit("ns-a-model-a"), "remote node should consume fan-out event");
+    }
+
     private PivotOuterCacheInvalidationBroadcaster fanOutBroadcaster(List<CacheNode> nodes) {
         return new PivotOuterCacheInvalidationBroadcaster() {
             @Override
@@ -63,6 +106,34 @@ class PivotOuterCacheInvalidationFanOutContractTest
                 PivotOuterCacheInvalidationEvent scoped =
                         event == null ? PivotOuterCacheInvalidationEvent.all() : event;
                 List<PivotOuterCacheInvalidationResult> results = nodes.stream()
+                        .map(node -> PivotOuterCacheInvalidationResult.local(
+                                node.provider().evict(scoped.namespace(), scoped.model())))
+                        .toList();
+                return PivotOuterCacheInvalidationResult.aggregate(results);
+            }
+        };
+    }
+
+    private PivotOuterCacheInvalidationBroadcaster deduplicatingFanOutBroadcaster(String localNodeId,
+                                                                                  List<CacheNode> nodes) {
+        return new PivotOuterCacheInvalidationBroadcaster() {
+            private final Set<String> seenReplayKeys = new HashSet<>();
+
+            @Override
+            public int evict(String namespace, String model) {
+                return evict(PivotOuterCacheInvalidationEvent.of(namespace, model)).removed();
+            }
+
+            @Override
+            public PivotOuterCacheInvalidationResult evict(PivotOuterCacheInvalidationEvent event) {
+                PivotOuterCacheInvalidationEvent scoped =
+                        event == null ? PivotOuterCacheInvalidationEvent.all() : event;
+                if (scoped.replayDeduplicationKey().isPresent()
+                        && !seenReplayKeys.add(scoped.replayDeduplicationKey().orElseThrow())) {
+                    return new PivotOuterCacheInvalidationResult(0, 0, 0, 0, List.of());
+                }
+                List<PivotOuterCacheInvalidationResult> results = nodes.stream()
+                        .filter(node -> !node.name().equals(scoped.sourceNodeId()))
                         .map(node -> PivotOuterCacheInvalidationResult.local(
                                 node.provider().evict(scoped.namespace(), scoped.model())))
                         .toList();

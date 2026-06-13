@@ -65,4 +65,27 @@ class PivotOuterCacheAdminControllerTest {
         assertEquals(List.of("node-c publish failed"), response.getBody().get("errors"));
         assertEquals("namespace/all-models", response.getBody().get("scope"));
     }
+
+    @Test
+    @DisplayName("admin evict endpoint returns failure payload when broadcaster throws")
+    void testAdminEvictReturnsFailurePayloadWhenBroadcasterThrows() {
+        PivotOuterCacheInvalidationBroadcaster broadcaster = new PivotOuterCacheInvalidationBroadcaster() {
+            @Override
+            public int evict(String namespace, String model) {
+                throw new IllegalStateException("publish unavailable");
+            }
+        };
+        PivotOuterCacheAdminController controller = new PivotOuterCacheAdminController(broadcaster);
+
+        ResponseEntity<Map<String, Object>> response = controller.evict(null, "SalesQM");
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(false, response.getBody().get("success"));
+        assertEquals(0, response.getBody().get("removed"));
+        assertEquals(1, response.getBody().get("attemptedNodes"));
+        assertEquals(0, response.getBody().get("succeededNodes"));
+        assertEquals(1, response.getBody().get("failedNodes"));
+        assertEquals(List.of("broadcaster failed: publish unavailable"), response.getBody().get("errors"));
+        assertEquals("all-namespaces/model", response.getBody().get("scope"));
+    }
 }

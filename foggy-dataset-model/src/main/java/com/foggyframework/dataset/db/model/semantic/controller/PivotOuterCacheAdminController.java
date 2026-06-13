@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,7 +35,15 @@ public class PivotOuterCacheAdminController {
             @RequestParam(value = "namespace", required = false) String namespace,
             @RequestParam(value = "model", required = false) String model) {
         PivotOuterCacheInvalidationEvent event = PivotOuterCacheInvalidationEvent.of(namespace, model);
-        PivotOuterCacheInvalidationResult result = pivotOuterCacheInvalidationBroadcaster.evict(event);
+        PivotOuterCacheInvalidationResult result;
+        try {
+            result = pivotOuterCacheInvalidationBroadcaster.evict(event);
+        } catch (Exception e) {
+            log.warn("Pivot outer-cache eviction failed: namespace={}, model={}, error={}",
+                    event.namespace(), event.model(), e.getMessage(), e);
+            result = new PivotOuterCacheInvalidationResult(
+                    0, 1, 0, 1, List.of("broadcaster failed: " + safeError(e)));
+        }
         log.info("Pivot outer-cache evicted: namespace={}, model={}, removed={}, attemptedNodes={}, failedNodes={}",
                 event.namespace(), event.model(), result.removed(), result.attemptedNodes(), result.failedNodes());
 
@@ -49,5 +58,13 @@ public class PivotOuterCacheAdminController {
         response.put("errors", result.errors());
         response.put("scope", event.scope());
         return ResponseEntity.ok(response);
+    }
+
+    private String safeError(Exception e) {
+        if (e == null) {
+            return "unknown";
+        }
+        String message = e.getMessage();
+        return message == null || message.isBlank() ? e.getClass().getSimpleName() : message;
     }
 }
