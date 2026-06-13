@@ -11,7 +11,7 @@ signed_off_at: 2026-06-07
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 40
+evidence_count: 43
 ---
 
 # Feature Acceptance
@@ -91,6 +91,9 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; full aggregate join SQLite regression after mixed OR, AND `in`/range predicate-boundary coverage, and the TMS-style composite-key fixture; Tests run: 50, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; aggregate relation `EXPLAIN` shows derived source `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, and `Using where` for pushed filters; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#tmsStyleAggregateRelationShouldPushCompositeKeyFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; local TMS-style composite-key aggregate relation executed with derived RHS filters on `order_id` and `store_key`; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
+| `mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters+tmsStyleAggregateRelationShouldPushCompositeKeyFilters+aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL profile; RHS aggregate filters, composite-key pushdown, left-side dimension ON, nested dimension path, and RHS dimension filter passed together; Tests run: 6, Failures: 0, Errors: 0, Skipped: 0. |
+| MySQL 2026-06-13 EXPLAIN evidence | Derived aggregate source `agg_src` used `uk_order_line`, `type=ref`, `rows=2`, `Using where`; generated SQL pushed `agg_src.order_id = ?` into the RHS derived relation before grouping. |
+| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=SemanticServiceV3Test#testMetadata_Json_ShouldExposeAggregateRelationMeasure+metadata_withModelFieldPermissions_filtersFields,AggregateJoinQueryModelTest#semanticResponseShouldExposeAggregateRelationDiagnostics'` | success; aggregate relation diagnostics and Java V3 JSON metadata aggregate-field contract remain valid; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Risks / Open Items
 

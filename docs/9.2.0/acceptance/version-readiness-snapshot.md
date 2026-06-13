@@ -29,7 +29,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 |---|---|---|---|
 | `workitems/query-model-aggregate-join.md` | accepted-with-risks | Feature slice is usable inside the documented boundary; residual risks remain active. | `acceptance/query-model-aggregate-join-acceptance.md`, `quality/query-model-aggregate-join-implementation-quality.md` |
 | `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` | upstream-verified | Java fix has upstream confirmation for RHS dimension fixed-filter shape. | Workitem evidence plus prior upstream feedback. |
-| `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` | local-verified | Java regression is covered locally; upstream issue #84 confirmation is still useful if TMS exercises the exact consumer model. | Targeted dataset-model integration run on 2026-06-06. |
+| `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` | upstream-verified | Java regression is covered locally and upstream #84 confirmed the real TMS left-dimension aggregate ON path. | Targeted dataset-model integration runs on 2026-06-06 and 2026-06-13; upstream #84 feedback. |
 | `workitems/BUG-formula-property-missing-column-error.md` | local-verified-awaiting-upstream | Engine error message is verified locally; TMS issue #85 still needs consumer confirmation. | Targeted dataset-model integration run on 2026-06-06. |
 | `workitems/BUG-qm-predefined-formula-slice-injection.md` | local-verified-awaiting-upstream | Engine injection path is verified locally; upstream `OrderStationStockProjectionQuery.availablePieceCount` still needs confirmation. | Targeted dataset-model integration run on 2026-06-06. |
 | `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` | implemented | Row-level scalar predefined formulas can be outer-aggregated; aggregate/window formulas still fail closed. | Unit and integration evidence recorded in the workitem. |
@@ -44,6 +44,9 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | Gate | Result | Notes |
 |---|---|---|
 | Java QueryModel targeted regression gate | pass | `Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`. |
+| 2026-06-13 targeted upstream-risk recheck | pass | #85 diagnostic, predefined formula slice-only injection, #84 left-side dimension ON, nested dimension path, and RHS dimension filter passed together: `Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`. |
+| 2026-06-13 MySQL aggregate join EXPLAIN gate | pass | Live MySQL profile passed 6 aggregate relation tests; EXPLAIN showed RHS derived `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, `Using where` for pushed filters. |
+| 2026-06-13 Java metadata contract gate | pass | Aggregate relation diagnostics and V3 JSON metadata aggregate-field exposure passed: `Tests run: 2, Failures: 0, Errors: 0, Skipped: 0`. |
 | Data Viewer direct-query smoke gate | pass | `DataViewerApiSmokeTest` passed; expected negative-case validation log observed. |
 | Odoo registry consumer gate | pass | `addons/foggy-odoo-bridge-java` reactor test passed and is recorded under 9.1.0 Odoo registry promotion evidence. |
 | Compose script snapshot producer gate | pass | `JavaComposeScriptSnapshotTest` passed and regenerated the tracked Python runtime fixture with 13 cases; `JavaComposeScriptToolErrorSnapshotTest` passed and regenerated the tracked MCP tool error fixture with 7 cases. Python replay passed for both fixtures. |
@@ -57,6 +60,6 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 
 Recommended next actions:
 
-- send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open and no standalone `availablePieceCount` issue;
+- send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open, no standalone `availablePieceCount` issue, and no local TMS/query-cloud-service checkout in this workspace;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
 - run the PostgreSQL Maven gate in an environment with a prepared PostgreSQL service before a release tag.

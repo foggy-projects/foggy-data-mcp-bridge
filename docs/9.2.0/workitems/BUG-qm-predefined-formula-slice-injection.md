@@ -10,7 +10,7 @@ test_strategy: integration-test
 automation_decision: required
 owner: foggy-dataset-model
 created_at: 2026-05-29
-updated_at: 2026-06-06
+updated_at: 2026-06-13
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
 ---
@@ -196,6 +196,18 @@ Result:
 
 - `Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`。
 - 2026-05-29 记录的 aggregate join fixture 阻断已由 2026-06-06 MySQL ecommerce aggregate fixture 修复消除；本次组合验证同时覆盖 `AggregateJoinQueryModelTest`。
+
+2026-06-13 当前源码复核：
+
+```bash
+mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=SemanticScaleFactorIntegrationTest#formulaPropertyMissingColumn_reportsFieldPathAndCarrierColumnRule,InlineExpressionPreprocessStepTest#injectsPredefinedCalculatedFieldReferencedOnlyBySliceWithoutColumns+injectsPredefinedCalculatedFieldReferencedByFieldReferenceValue,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField'
+```
+
+Result:
+
+- `Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`。
+- 覆盖 predefined formula slice-only 注入、`$field` 引用注入，以及 direct engine path。
+- 本地 workspace 没有 TMS/query-cloud-service 仓库，尚不能替代 `OrderStationStockProjectionQuery.availablePieceCount` 的真实 TMS 回执，因此状态保持 `local-verified-awaiting-upstream`。
 
 ## References
 

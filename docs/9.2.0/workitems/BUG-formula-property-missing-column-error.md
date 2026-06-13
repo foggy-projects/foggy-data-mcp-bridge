@@ -10,7 +10,7 @@ test_strategy: integration-test
 automation_decision: required
 owner: foggy-dataset-model
 created_at: 2026-05-27
-updated_at: 2026-06-06
+updated_at: 2026-06-13
 upstream_issue: foggy-projects/foggy-data-mcp-bridge#85
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
@@ -126,6 +126,17 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-datas
 
 - 组合验证通过；`Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`。
 - `SemanticScaleFactorIntegrationTest` 覆盖 formula-backed property missing-column 诊断路径。
+
+2026-06-13 当前源码复核已执行：
+
+```bash
+mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=SemanticScaleFactorIntegrationTest#formulaPropertyMissingColumn_reportsFieldPathAndCarrierColumnRule,InlineExpressionPreprocessStepTest#injectsPredefinedCalculatedFieldReferencedOnlyBySliceWithoutColumns+injectsPredefinedCalculatedFieldReferencedByFieldReferenceValue,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField'
+```
+
+结果：
+
+- 组合验证通过；`Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`。
+- `foggy-projects/foggy-data-mcp-bridge#85` 仍未收到 TMS pass/fail 回执，因此状态保持 `local-verified-awaiting-upstream`。
 
 ## References
 

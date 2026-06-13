@@ -28,6 +28,16 @@ The upstream verifier does not need to re-run the full Foggy Java test suite. Th
 - `foggy-projects/foggy-data-mcp-bridge#85` remains open. It has the Java engine fix comment for commit `1a39d711`, but no TMS pass/fail confirmation yet.
 - No standalone upstream issue was found for `OrderStationStockProjectionQuery.availablePieceCount`; keep this handoff as the tracking packet until a real TMS confirmation is returned.
 - Both items therefore remain `local-verified-awaiting-upstream`; do not mark them `upstream-verified` from local Java evidence alone.
+- Local workspace audit found no TMS/query-cloud-service checkout, so this repo can only provide Java engine evidence. Real consumer verification still needs the upstream TMS repo and model bundle.
+- #84 aggregate relation left-side dimension ON is no longer part of this pending handoff: upstream feedback confirmed the TMS real query path, while this handoff remains scoped to #85 and `availablePieceCount`.
+
+2026-06-13 local Java recheck:
+
+```bash
+mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=SemanticScaleFactorIntegrationTest#formulaPropertyMissingColumn_reportsFieldPathAndCarrierColumnRule,InlineExpressionPreprocessStepTest#injectsPredefinedCalculatedFieldReferencedOnlyBySliceWithoutColumns+injectsPredefinedCalculatedFieldReferencedByFieldReferenceValue,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField'
+```
+
+Result: `Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`.
 
 ## Engine Baseline
 

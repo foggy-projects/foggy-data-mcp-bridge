@@ -4,13 +4,13 @@ bug_source: upstream-feedback
 version: 9.2.0
 ticket: BUG-aggregate-relation-joined-dimension-left-key
 severity: major
-status: local-verified
+status: upstream-verified
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
 owner: foggy-dataset-model
 created_at: 2026-05-27
-updated_at: 2026-06-06
+updated_at: 2026-06-13
 upstream_issue: foggy-projects/foggy-data-mcp-bridge#84
 owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
@@ -173,6 +173,19 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-datas
 
 - 组合验证通过；`Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`。
 - 覆盖当前 aggregate relation left-key / RHS dimension filter / predefined formula / pivot formula 相关回归组合。
+
+2026-06-13 当前源码与上游反馈复核：
+
+```bash
+mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=SemanticScaleFactorIntegrationTest#formulaPropertyMissingColumn_reportsFieldPathAndCarrierColumnRule,InlineExpressionPreprocessStepTest#injectsPredefinedCalculatedFieldReferencedOnlyBySliceWithoutColumns+injectsPredefinedCalculatedFieldReferencedByFieldReferenceValue,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField'
+```
+
+结果：
+
+- 组合验证通过；`Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`。
+- 覆盖 #84 左侧已 join 维度字段、嵌套维度路径、RHS dimension fixed filter，以及 #85 / predefined formula slice-only 相关回归。
+- `foggy-projects/foggy-data-mcp-bridge#84` 上游反馈已确认 `OrderStationStockProjectionQuery` loader v2 真实 TMS 查询返回 `code=200`，`total=33`，并且 ON 条件包含左侧维度路径展开后的物理字段。
+- #84 当前仍保留一个边界：RHS dimension join with custom `onBuilder` 属于后续增强范围，不影响本 workitem 的左侧维度路径 aggregate ON 验收。
 
 ## Follow-Up
 
