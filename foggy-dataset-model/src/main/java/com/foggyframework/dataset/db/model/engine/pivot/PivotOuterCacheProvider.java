@@ -4,6 +4,12 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 
 /**
  * Provider boundary for Pivot outer response cache storage.
+ *
+ * <p>Implementations may be local or distributed, but they must preserve the
+ * same correctness contract: disabled providers never hit or store, successful
+ * lookups return response instances isolated from stored state, stores isolate
+ * cached state from caller-side mutation, TTL expiry is reported as expired and
+ * removes the stale entry, and eviction honors the namespace/model scope rules.
  */
 public interface PivotOuterCacheProvider {
 
