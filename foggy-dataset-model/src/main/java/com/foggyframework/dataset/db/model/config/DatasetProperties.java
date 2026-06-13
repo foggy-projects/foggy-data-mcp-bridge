@@ -206,5 +206,13 @@ public class DatasetProperties {
          * unless the host application opts in.
          */
         private boolean adminEndpointEnabled = false;
+
+        /**
+         * Whether an unavailable external cache provider should fail queries.
+         * <p>Default false keeps Redis/KV style providers optional: missing or
+         * unreachable external cache storage degrades to cache miss/no-op and
+         * must not block engine startup or query execution.</p>
+         */
+        private boolean failOnProviderUnavailable = false;
     }
 }

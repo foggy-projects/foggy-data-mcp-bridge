@@ -5,7 +5,7 @@ version: 9.2.0
 target: Java Pivot outer response cache
 status: e1b-provider-boundary-verified-default-off
 created_at: 2026-06-12
-updated_at: 2026-06-13
+updated_at: 2026-06-14
 ---
 
 # Pivot Outer Cache Design
@@ -66,7 +66,7 @@ E1a is implemented as telemetry-only cache evaluation:
 
 E1b is implemented as a conservative local response cache:
 
-- Added `foggy.dataset.pivot.outer-cache.enabled`, `ttl-millis`, `maximum-size`, `bundle-fingerprint`, and `model-freshness-token` configuration under `DatasetProperties`.
+- Added `foggy.dataset.pivot.outer-cache.enabled`, `ttl-millis`, `maximum-size`, `bundle-fingerprint`, `model-freshness-token`, and `fail-on-provider-unavailable` configuration under `DatasetProperties`.
 - The default remains `enabled=false`, preserving existing production behavior unless an application explicitly opts in.
 - Added `PivotOuterResponseCache`, a process-local in-memory cache for fully shaped Pivot responses.
 - Flat/grid successful responses with no warnings can be stored and returned by key.
@@ -80,6 +80,7 @@ E1b is implemented as a conservative local response cache:
 - Deployment-provided model identity is part of the key: `bundle-fingerprint` is intended for a signed registry version, bundle digest, release artifact hash, or git SHA; `model-freshness-token` is an operator-controlled bump token for model-file or datasource snapshot changes.
 - A default `PivotOuterCacheModelIdentityProvider` now computes a runtime bundle fingerprint from the loaded QM resource and its related TM resources. Explicit `bundle-fingerprint` / `model-freshness-token` configuration still takes precedence, so production deployments can replace the default provider with a signed registry or deployment manifest provider.
 - `PivotOuterCacheProvider` is the cache-provider boundary. The default implementation remains `PivotOuterResponseCache`, a local in-memory provider. Distributed providers such as Redis must implement the same lookup/store/evict/TTL/copy-isolation contract before being enabled.
+- `PivotOuterCacheSafeProvider` now wraps optional external providers when injected into `SemanticQueryServiceV3Impl`. With the default `fail-on-provider-unavailable=false`, provider runtime failures such as Redis/KV unavailability degrade to `miss`/no-op/zero-result behavior and must not block engine startup or query execution. Setting the flag to `true` is an explicit fail-fast mode for deployments that require distributed cache availability.
 - `PivotOuterCacheDistributedProviderContract` is a client-neutral descriptor for distributed provider implementers. It defines the default key prefix `foggy:pivot:outer`, JSON `v1` payload metadata, positive TTL requirement, absolute-expiry storage expectation, namespace/model index requirement, copy-isolation requirement, response key layout, namespace index layout, model index layout, and eviction scope mapping. It is not a Redis client, serializer module, or bundled distributed cache provider.
 - `PivotOuterCacheDistributedPayload`, `PivotOuterCacheDistributedPayloadCodec`, `PivotOuterCacheJsonPayloadCodec`, and `PivotOuterCacheDistributedProviderAdapter` provide the provider-module adapter skeleton for Redis/KV implementations. The adapter owns response-key construction, payload envelope metadata, JSON codec boundary, TTL expiry check, namespace/model index maintenance, safe corrupt-payload miss/removal, and lookup/store copy isolation while leaving actual storage primitives to subclasses.
 - `PivotOuterCacheProviderContractTest` is now the reusable provider contract fixture. Any external provider should extend it and prove disabled behavior, store/lookup copy isolation, TTL expiry, namespace/model scoped eviction, all-scope eviction, and payload byte estimation before being wired into production.
@@ -111,6 +112,7 @@ Current code touchpoints:
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentity.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentityProvider.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheProvider.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheSafeProvider.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetry.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterResponseCache.java`
 - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotDiagnosticCollector.java`
@@ -128,6 +130,7 @@ Current code touchpoints:
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheInvalidationFanOutContractTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheInvalidationReplayWindowTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheProviderContractTest.java`
+- `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheSafeProviderTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheOperationalSpiTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetryTest.java`
 - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterResponseCacheTest.java`
@@ -164,12 +167,15 @@ foggy:
         bundle-fingerprint: ${FOGGY_MODEL_BUNDLE_FINGERPRINT:}
         model-freshness-token: ${FOGGY_MODEL_FRESHNESS_TOKEN:}
         admin-endpoint-enabled: ${FOGGY_PIVOT_OUTER_CACHE_ADMIN_ENDPOINT_ENABLED:false}
+        fail-on-provider-unavailable: ${FOGGY_PIVOT_OUTER_CACHE_FAIL_ON_PROVIDER_UNAVAILABLE:false}
 ```
 
 Operational rules:
 
 - Keep `enabled=false` until the serving deployment can trust either the runtime bundle fingerprint, a signed `bundle-fingerprint`, an explicit `model-freshness-token`, or a custom `PivotOuterCacheModelIdentityProvider`.
 - If replacing the default provider, extend `PivotOuterCacheProviderContractTest` in the provider module and keep all provider-contract cases green.
+- Keep `fail-on-provider-unavailable=false` unless the deployment intentionally wants cache-provider failure to fail queries. Missing Redis or an unreachable external cache must not block startup or query execution by default.
+- External Redis/KV provider beans must avoid connecting or failing during bean construction; connection failures should happen inside provider operations where `PivotOuterCacheSafeProvider` can downgrade them.
 - If replacing the default provider with a distributed provider, preserve `PivotOuterCacheDistributedProviderContract`: stable key prefix, response/index key layout, JSON payload versioning, positive TTL, absolute expiry, namespace/model indexes, and lookup/store copy isolation. Prefer subclassing `PivotOuterCacheDistributedProviderAdapter` unless the provider needs a fundamentally different storage layout; in that case it must still pass the provider contract tests and preserve the documented key/payload semantics.
 - If replacing the default broadcaster, extend `PivotOuterCacheInvalidationBroadcasterContractTest` or an equivalent provider-module subclass and keep all fan-out contract cases green. Prefer `evict(PivotOuterCacheInvalidationEvent)` for new implementations and report aggregate `PivotOuterCacheInvalidationResult` counts, including partial failures. Use `eventId` as the replay deduplication source; do not derive a replay key from namespace/model scope alone. Event-bus-backed consumers can use `PivotOuterCacheInvalidationReplayWindow` for process-local replay and `sourceNodeId` self-loop filtering, but a real multi-process window still belongs to the event bus or distributed provider.
 - Use a short TTL first, then increase only after cache hit/miss diagnostics show stable key separation.
@@ -215,6 +221,8 @@ Minimum tests before E1b:
 - Tree, cascade, volatile formula, and unsupported warning shapes are refused.
 - Cache-hit response does not preserve the original pipeline `durationMs` as current execution time.
 - Concurrent identical requests do not corrupt the stored response or leak diagnostics between callers.
+- Unavailable external provider operations downgrade to cache miss/no-op by default.
+- Explicit `fail-on-provider-unavailable=true` rethrows provider unavailability for deployments that require distributed cache availability.
 
 ## Verification
 
@@ -238,11 +246,12 @@ Minimum tests before E1b:
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheDistributedProviderContractTest,PivotOuterCacheInvalidationEventTest,PivotOuterCacheInvalidationFanOutContractTest,PivotOuterCacheAdminControllerTest,BundleLifecycleListenerTest,PivotOuterCacheOperationalSpiTest,PivotOuterResponseCacheTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; distributed provider contract descriptor/key layout, explicit-event replay dedupe, source-node self-loop filtering simulation, admin broadcaster-exception failure payload, bundle lifecycle failure isolation, operational SPI, and provider behavior remain green together; Tests run: 37, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheDistributedProviderAdapterTest,PivotOuterCacheDistributedProviderContractTest,PivotOuterCacheInvalidationReplayWindowTest,PivotOuterCacheInvalidationFanOutContractTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; distributed provider adapter passes the reusable provider contract through an in-memory KV implementation, stores JSON payload envelopes under contract response/index keys, removes corrupt payloads as misses, and fan-out simulation now uses the replay window for explicit-event dedupe and source-node self-loop filtering; Tests run: 26, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheDistributedProviderAdapterTest,PivotOuterCacheDistributedProviderContractTest,PivotOuterCacheInvalidationReplayWindowTest,PivotOuterCacheInvalidationEventTest,PivotOuterCacheInvalidationFanOutContractTest,PivotOuterCacheAdminControllerTest,BundleLifecycleListenerTest,PivotOuterCacheOperationalSpiTest,PivotOuterResponseCacheTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; distributed adapter/codec skeleton, replay-window guard, invalidation event/result, fan-out simulation, admin failure payload, bundle lifecycle failure isolation, operational SPI, and local provider contract all remain green together; Tests run: 50, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheSafeProviderTest,PivotOuterCacheDistributedProviderAdapterTest,PivotOuterCacheDistributedProviderContractTest,PivotOuterCacheInvalidationReplayWindowTest,PivotOuterCacheInvalidationEventTest,PivotOuterCacheInvalidationFanOutContractTest,PivotOuterCacheAdminControllerTest,BundleLifecycleListenerTest,PivotOuterCacheOperationalSpiTest,PivotOuterResponseCacheTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; optional external provider failures now downgrade to miss/no-op by default, explicit fail-fast mode rethrows, `SemanticQueryServiceV3Impl` wraps injected providers before pipeline use, healthy providers still delegate, and distributed adapter/invalidation/admin/bundle lifecycle contracts remain green; Tests run: 55, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Remaining Boundary
 
-- E1b remains default-off. The default provider and broadcaster are still process-local; no Redis provider, MQ publisher, or cross-node coherency implementation is bundled.
+- E1b remains default-off. The default provider and broadcaster are still process-local; no Redis provider, MQ publisher, or cross-node coherency implementation is bundled. Redis absence or runtime unavailability must not block startup/use by default; a future Redis provider still needs lazy startup-safe bean construction.
 - The current `keyHash` includes the available `QueryModel` / `TableModel` fingerprint, runtime bundle resource fingerprint, and optional deployment-provided `bundle-fingerprint` / `model-freshness-token`; the engine does not verify a signed registry hash by itself.
 - Real registry model-file invalidation is supported through the runtime bundle fingerprint, external fingerprint/freshness token, manual service/admin hook, and replaceable invalidation broadcaster; automatic registry event fan-out is an SPI boundary, not a bundled event bus.
-- Permission isolation, warning skip, maximum-size eviction, provider contract behavior, distributed provider descriptor/key layout, distributed adapter/payload codec skeleton, process-local replay window, simulated two-node broadcaster fan-out semantics, replay deduplication key semantics, source-node self-loop filtering simulation, admin partial-failure and broadcaster-exception diagnostics, deep-copy isolation, concurrent-hit behavior, runtime fingerprint provider, local broadcaster, admin endpoint delegation, and bundle-removal cleanup with broadcaster-failure isolation now have local tests, but no Redis client, bundled distributed cache provider, real event bus, cross-process dedupe store/window, or cross-process race evidence exists.
+- Permission isolation, warning skip, maximum-size eviction, provider contract behavior, provider-unavailable safe downgrade, distributed provider descriptor/key layout, distributed adapter/payload codec skeleton, process-local replay window, simulated two-node broadcaster fan-out semantics, replay deduplication key semantics, source-node self-loop filtering simulation, admin partial-failure and broadcaster-exception diagnostics, deep-copy isolation, concurrent-hit behavior, runtime fingerprint provider, local broadcaster, admin endpoint delegation, and bundle-removal cleanup with broadcaster-failure isolation now have local tests, but no Redis client, bundled distributed cache provider, real event bus, cross-process dedupe store/window, or cross-process race evidence exists.
 - Tree and cascade cache eligibility remains blocked until their semantics and dialect evidence are separately signed.

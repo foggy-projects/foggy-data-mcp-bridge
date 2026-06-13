@@ -18,6 +18,7 @@ import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasPart
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheModelIdentityProvider;
 import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheProvider;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheSafeProvider;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationDiagnostic;
@@ -131,10 +132,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (pivotPipeline == null) {
             synchronized (this) {
                 if (pivotPipeline == null) {
+                    com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions outerCacheOptions =
+                            pivotOuterCacheOptions();
                     pivotPipeline = new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline(
                             this, new com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker(),
-                            queryModelLoader, queryFacade, pivotOuterCacheOptions(),
-                            pivotOuterCacheModelIdentityProvider, pivotOuterCacheProvider);
+                            queryModelLoader, queryFacade, outerCacheOptions,
+                            pivotOuterCacheModelIdentityProvider, safePivotOuterCacheProvider());
                 }
             }
         }
@@ -142,16 +145,30 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     }
 
     private com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions pivotOuterCacheOptions() {
-        DatasetProperties.OuterCacheConfig config = datasetProperties != null
-                && datasetProperties.getPivot() != null
-                ? datasetProperties.getPivot().getOuterCache()
-                : null;
+        DatasetProperties.OuterCacheConfig config = pivotOuterCacheConfig();
         if (config == null) {
             return com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions.disabled();
         }
         return new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline.OuterCacheOptions(
                 config.isEnabled(), config.getTtlMillis(), config.getMaximumSize(),
                 config.getBundleFingerprint(), config.getModelFreshnessToken());
+    }
+
+    private PivotOuterCacheProvider safePivotOuterCacheProvider() {
+        if (pivotOuterCacheProvider == null) {
+            return null;
+        }
+        DatasetProperties.OuterCacheConfig config = pivotOuterCacheConfig();
+        boolean failOnProviderUnavailable = config != null && config.isFailOnProviderUnavailable();
+        return PivotOuterCacheSafeProvider.wrap(pivotOuterCacheProvider, failOnProviderUnavailable);
+    }
+
+    private DatasetProperties.OuterCacheConfig pivotOuterCacheConfig() {
+        DatasetProperties.OuterCacheConfig config = datasetProperties != null
+                && datasetProperties.getPivot() != null
+                ? datasetProperties.getPivot().getOuterCache()
+                : null;
+        return config;
     }
 
     @Override
