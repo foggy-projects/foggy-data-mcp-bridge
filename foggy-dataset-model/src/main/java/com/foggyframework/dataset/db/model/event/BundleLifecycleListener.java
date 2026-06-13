@@ -57,7 +57,13 @@ public class BundleLifecycleListener {
             log.debug("开始清除QueryModel缓存: namespace={}", namespace);
             queryModelLoader.clearByNamespace(namespace);
 
-            int outerCacheRemoved = pivotOuterCacheInvalidationBroadcaster.evict(namespace, null);
+            int outerCacheRemoved = 0;
+            try {
+                outerCacheRemoved = pivotOuterCacheInvalidationBroadcaster.evict(namespace, null);
+            } catch (Exception e) {
+                log.warn("namespace=[{}] 的TM/QM缓存已清理，但Pivot outer-cache失效广播失败: {}",
+                        displayNamespace, e.getMessage(), e);
+            }
 
             log.info("已清除namespace=[{}] 的所有模型缓存，Pivot outer-cache removed={}",
                     displayNamespace, outerCacheRemoved);

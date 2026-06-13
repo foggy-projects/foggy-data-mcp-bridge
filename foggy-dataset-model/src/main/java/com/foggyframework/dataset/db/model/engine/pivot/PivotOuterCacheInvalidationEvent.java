@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
+import java.util.Optional;
+
 /**
  * Transport-safe event payload for Pivot outer-cache invalidation.
  *
@@ -36,6 +38,28 @@ public record PivotOuterCacheInvalidationEvent(String namespace,
                                                          String sourceNodeId,
                                                          long issuedAtMillis) {
         return new PivotOuterCacheInvalidationEvent(namespace, model, eventId, sourceNodeId, issuedAtMillis);
+    }
+
+    /**
+     * Stable replay-deduplication key for event-bus backed broadcasters.
+     *
+     * <p>Only explicit event ids are deduplicated. Scope-only invalidation is
+     * intentionally not treated as a replay key because repeated manual cleanup
+     * can be a legitimate operational action.</p>
+     */
+    public Optional<String> replayDeduplicationKey() {
+        if (eventId == null) {
+            return Optional.empty();
+        }
+        return Optional.of("pivot-outer-cache-invalidation:" + eventId);
+    }
+
+    public boolean sameReplayEvent(PivotOuterCacheInvalidationEvent other) {
+        if (other == null) {
+            return false;
+        }
+        Optional<String> thisKey = replayDeduplicationKey();
+        return thisKey.isPresent() && thisKey.equals(other.replayDeduplicationKey());
     }
 
     public boolean allNamespaces() {

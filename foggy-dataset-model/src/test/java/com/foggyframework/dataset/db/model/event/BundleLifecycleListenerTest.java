@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.event;
 
+import com.foggyframework.bundle.event.BundleRemovedEvent;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheInvalidationBroadcaster;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
@@ -9,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -98,5 +101,28 @@ class BundleLifecycleListenerTest {
                 "clearByNamespace should not throw for default namespace");
         assertDoesNotThrow(() -> queryModelLoader.clearByNamespace("nonexistent"),
                 "clearByNamespace should not throw for nonexistent namespace");
+    }
+
+    @Test
+    @DisplayName("BundleRemovedEvent 中 outer-cache broadcaster 异常不向外冒出")
+    void testBundleRemovedSwallowsOuterCacheBroadcasterFailure() {
+        PivotOuterCacheInvalidationBroadcaster original =
+                (PivotOuterCacheInvalidationBroadcaster) ReflectionTestUtils.getField(
+                        bundleLifecycleListener, "pivotOuterCacheInvalidationBroadcaster");
+        try {
+            ReflectionTestUtils.setField(bundleLifecycleListener, "pivotOuterCacheInvalidationBroadcaster",
+                    (PivotOuterCacheInvalidationBroadcaster) (namespace, model) -> {
+                        throw new IllegalStateException("publish failed");
+                    });
+
+            assertDoesNotThrow(() -> bundleLifecycleListener.onBundleRemoved(new BundleRemovedEvent(
+                    this,
+                    "foggy-framework-dataset-jdbc-model-test",
+                    "",
+                    null
+            )));
+        } finally {
+            ReflectionTestUtils.setField(bundleLifecycleListener, "pivotOuterCacheInvalidationBroadcaster", original);
+        }
     }
 }

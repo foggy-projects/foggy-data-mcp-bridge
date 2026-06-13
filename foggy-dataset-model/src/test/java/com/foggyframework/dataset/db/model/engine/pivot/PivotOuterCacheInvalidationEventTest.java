@@ -50,6 +50,27 @@ class PivotOuterCacheInvalidationEventTest {
     }
 
     @Test
+    @DisplayName("event replay deduplication requires explicit event id")
+    void testReplayDeduplicationRequiresExplicitEventId() {
+        PivotOuterCacheInvalidationEvent scoped =
+                PivotOuterCacheInvalidationEvent.of("ns-a", "SalesQM");
+        PivotOuterCacheInvalidationEvent replayA =
+                scoped.withMetadata("evt-1", "node-a", 123L);
+        PivotOuterCacheInvalidationEvent replayB =
+                PivotOuterCacheInvalidationEvent.of(null, null)
+                        .withMetadata("evt-1", "node-b", 456L);
+        PivotOuterCacheInvalidationEvent different =
+                scoped.withMetadata("evt-2", "node-a", 123L);
+
+        assertTrue(scoped.replayDeduplicationKey().isEmpty());
+        assertEquals("pivot-outer-cache-invalidation:evt-1",
+                replayA.replayDeduplicationKey().orElseThrow());
+        assertTrue(replayA.sameReplayEvent(replayB));
+        assertFalse(replayA.sameReplayEvent(different));
+        assertFalse(replayA.sameReplayEvent(scoped));
+    }
+
+    @Test
     @DisplayName("result aggregates node counts and protects error list")
     void testResultAggregatesAndProtectsErrors() {
         List<String> errors = new ArrayList<>();
