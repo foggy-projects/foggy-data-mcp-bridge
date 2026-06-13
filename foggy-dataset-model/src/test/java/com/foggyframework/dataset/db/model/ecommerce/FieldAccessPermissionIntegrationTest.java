@@ -1,13 +1,19 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionRuleDef;
+import com.foggyframework.dataset.db.model.def.permission.FieldPermissionsDef;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
+import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
@@ -256,6 +262,55 @@ class FieldAccessPermissionIntegrationTest extends EcommerceTestSupport {
         }
     }
 
+    // ==================== 模型权限与 deniedColumns 组合 ====================
+
+    @Nested
+    @DisplayName("模型字段权限与 deniedColumns 组合")
+    class ModelPermissionAndDeniedColumnsTests {
+
+        @Test
+        @DisplayName("TM/QM 允许字段但 deniedColumns 命中时仍拒绝")
+        void modelFieldPermissionsAllowedButDeniedColumnsRejected() {
+            JdbcQueryModel queryModel = getQueryModel(QUERY_MODEL);
+            QueryModelSupport qm = queryModel.getDecorate(QueryModelSupport.class);
+            TableModelSupport tm = queryModel.getJdbcModel().getDecorate(TableModelSupport.class);
+            assertNotNull(qm, "测试模型应支持 QM fieldPermissions");
+            assertNotNull(tm, "测试模型应支持 TM fieldPermissions");
+
+            FieldPermissionsDef originalQmPermissions = qm.getFieldPermissions();
+            FieldPermissionsDef originalTmPermissions = tm.getFieldPermissions();
+
+            try {
+                tm.setFieldPermissions(permissions(false,
+                        List.of(rule(null, "orderId", "salesAmount")), null));
+                qm.setFieldPermissions(permissions(false,
+                        List.of(rule(null, "orderId", "salesAmount")), null));
+
+                ModelResultContext allowedContext = buildContextWithPermissions(
+                        salesAmountRequest(),
+                        null,
+                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "profit_amount")));
+                DbQueryResult allowedResult = queryFacade.queryModelResult(allowedContext);
+                assertFalse(castItems(allowedResult.getPagingResult()).isEmpty(),
+                        "TM/QM 允许且 deniedColumns 未命中时查询应成功");
+
+                ModelResultContext deniedContext = buildContextWithPermissions(
+                        salesAmountRequest(),
+                        null,
+                        List.of(new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")));
+
+                RuntimeException ex = assertThrows(RuntimeException.class,
+                        () -> queryFacade.queryModelResult(deniedContext),
+                        "即使 TM/QM 允许 salesAmount，deniedColumns 命中物理列后仍应拒绝");
+                assertTrue(ex.getMessage().contains("salesAmount"),
+                        "异常消息应包含被 deniedColumns 收窄的 QM 字段 salesAmount，实际: " + ex.getMessage());
+            } finally {
+                qm.setFieldPermissions(originalQmPermissions);
+                tm.setFieldPermissions(originalTmPermissions);
+            }
+        }
+    }
+
     // ==================== 空集合边界测试 ====================
 
     @Nested
@@ -316,6 +371,43 @@ class FieldAccessPermissionIntegrationTest extends EcommerceTestSupport {
         ctx.setRequest(pagingRequest);
         ctx.setFieldAccess(fieldAccess);
         return ctx;
+    }
+
+    private ModelResultContext buildContextWithPermissions(DbQueryRequestDef request,
+                                                           Set<String> fieldAccess,
+                                                           List<DeniedPhysicalColumn> deniedColumns) {
+        ModelResultContext ctx = buildContextWithFieldAccess(request, fieldAccess);
+        ctx.setDeniedColumns(deniedColumns);
+        return ctx;
+    }
+
+    private DbQueryRequestDef salesAmountRequest() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel(QUERY_MODEL);
+        queryRequest.setColumns(List.of("orderId", "salesAmount"));
+
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("orderId");
+        order.setDir("ASC");
+        queryRequest.setOrderBy(List.of(order));
+        return queryRequest;
+    }
+
+    private FieldPermissionsDef permissions(Boolean defaultVisible,
+                                            List<FieldPermissionRuleDef> visibleFields,
+                                            List<FieldPermissionRuleDef> hiddenFields) {
+        FieldPermissionsDef def = new FieldPermissionsDef();
+        def.setDefaultVisible(defaultVisible);
+        def.setVisibleFields(visibleFields);
+        def.setHiddenFields(hiddenFields);
+        return def;
+    }
+
+    private FieldPermissionRuleDef rule(Map<String, Object> when, String... fields) {
+        FieldPermissionRuleDef rule = new FieldPermissionRuleDef();
+        rule.setWhen(when);
+        rule.setFields(List.of(fields));
+        return rule;
     }
 
     @SuppressWarnings("unchecked")

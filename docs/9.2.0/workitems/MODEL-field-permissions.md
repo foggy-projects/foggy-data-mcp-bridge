@@ -94,6 +94,19 @@ Result:
 - `Tests run: 138, Failures: 0, Errors: 0, Skipped: 1`.
 - Covered field permission resolver, runtime enforcement, semantic metadata filtering, and the concurrently changed Pivot cache surface.
 
+2026-06-13 deniedColumns precedence regression:
+
+```bash
+mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=FieldAccessPermissionIntegrationTest$ModelPermissionAndDeniedColumnsTests#modelFieldPermissionsAllowedButDeniedColumnsRejected'
+mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=FieldAccessPermissionIntegrationTest'
+```
+
+Result:
+
+- Targeted nested regression passed: `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`.
+- Full integration class passed: `Tests run: 9, Failures: 0, Errors: 0, Skipped: 0`.
+- Verified that TM/QM `fieldPermissions` can allow `salesAmount`, but runtime `deniedColumns` for `fact_sales.sales_amount` still removes the field from the effective allowlist and rejects the query.
+
 ## Remaining Boundary
 
 - This is field visibility and execution permission governance, not row-level access control.
