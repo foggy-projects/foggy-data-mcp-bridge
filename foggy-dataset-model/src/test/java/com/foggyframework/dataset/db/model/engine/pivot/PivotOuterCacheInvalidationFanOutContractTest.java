@@ -1,8 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -117,7 +117,10 @@ class PivotOuterCacheInvalidationFanOutContractTest
     private PivotOuterCacheInvalidationBroadcaster deduplicatingFanOutBroadcaster(String localNodeId,
                                                                                   List<CacheNode> nodes) {
         return new PivotOuterCacheInvalidationBroadcaster() {
-            private final Set<String> seenReplayKeys = new HashSet<>();
+            private final Map<String, PivotOuterCacheInvalidationReplayWindow> replayWindows = nodes.stream()
+                    .collect(Collectors.toMap(
+                            CacheNode::name,
+                            node -> new PivotOuterCacheInvalidationReplayWindow(60_000L, 1024)));
 
             @Override
             public int evict(String namespace, String model) {
@@ -128,12 +131,9 @@ class PivotOuterCacheInvalidationFanOutContractTest
             public PivotOuterCacheInvalidationResult evict(PivotOuterCacheInvalidationEvent event) {
                 PivotOuterCacheInvalidationEvent scoped =
                         event == null ? PivotOuterCacheInvalidationEvent.all() : event;
-                if (scoped.replayDeduplicationKey().isPresent()
-                        && !seenReplayKeys.add(scoped.replayDeduplicationKey().orElseThrow())) {
-                    return new PivotOuterCacheInvalidationResult(0, 0, 0, 0, List.of());
-                }
                 List<PivotOuterCacheInvalidationResult> results = nodes.stream()
-                        .filter(node -> !node.name().equals(scoped.sourceNodeId()))
+                        .filter(node -> replayWindows.get(node.name())
+                                .shouldConsume(scoped, node.name(), scoped.issuedAtMillis()))
                         .map(node -> PivotOuterCacheInvalidationResult.local(
                                 node.provider().evict(scoped.namespace(), scoped.model())))
                         .toList();
