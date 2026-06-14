@@ -292,38 +292,6 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
-    @DisplayName("v9.2: E1b external provider unavailable degrades to query execution with diagnostics")
-    void testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b() {
-        SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
-        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
-        try {
-            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(
-                    PivotOuterCacheSafeProvider.wrap(new UnavailableOuterCacheProvider(), false)));
-
-            SemanticQueryRequest request = new SemanticQueryRequest();
-            request.setPivot(basicSalesPivot());
-
-            SemanticQueryResponse response = execute(request);
-            assertFalse(response.getItems().isEmpty());
-            List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
-
-            Map<String, Object> unavailable =
-                    diagnosticEvent(diagnostics, "pivot.cache.provider_unavailable");
-            assertEquals("isEnabled", unavailable.get("operation"));
-            assertEquals("IllegalStateException", unavailable.get("reasonClass"));
-            assertEquals("redis unavailable", unavailable.get("reason"));
-
-            Map<String, Object> miss = diagnosticEvent(diagnostics, "pivot.cache.miss");
-            assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, miss.get("reason"));
-            Map<String, Object> storeSkipped = diagnosticEvent(diagnostics, "pivot.cache.store_skipped");
-            assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, storeSkipped.get("reason"));
-            assertDiagnosticEvent(diagnostics, "pivot.execution_path");
-        } finally {
-            ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
-        }
-    }
-
-    @Test
     @DisplayName("Pivot With Having - 对聚合成品进行过滤")
     void testPivotWithHaving() {
         PivotRequest pivot = new PivotRequest();
@@ -1924,12 +1892,6 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                 new PivotPipeline.OuterCacheOptions(true, ttlMillis, 16));
     }
 
-    private PivotPipeline outerCachePipeline(PivotOuterCacheProvider provider) {
-        return new PivotPipeline(semanticQueryServiceV3, new CardinalityBreaker(), queryModelLoader, null,
-                new PivotPipeline.OuterCacheOptions(true, 60_000L, 16),
-                PivotOuterCacheModelIdentityProvider.empty(), provider);
-    }
-
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
         return execute(TEST_MODEL, request);
     }
@@ -2196,46 +2158,5 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         f.setField(field);
         f.setHierarchyMode("tree");
         return f;
-    }
-
-    private static final class UnavailableOuterCacheProvider implements PivotOuterCacheProvider {
-        @Override
-        public String name() {
-            throw new IllegalStateException("redis unavailable");
-        }
-
-        @Override
-        public boolean isEnabled() {
-            throw new IllegalStateException("redis unavailable");
-        }
-
-        @Override
-        public long ttlMillis() {
-            throw new IllegalStateException("redis unavailable");
-        }
-
-        @Override
-        public LookupResult lookup(String keyHash, long nowMillis) {
-            throw new IllegalStateException("redis unavailable");
-        }
-
-        @Override
-        public void store(String keyHash,
-                          SemanticQueryResponse response,
-                          long nowMillis,
-                          String namespace,
-                          String model) {
-            throw new IllegalStateException("redis unavailable");
-        }
-
-        @Override
-        public int evict(String namespace, String model) {
-            throw new IllegalStateException("redis unavailable");
-        }
-
-        @Override
-        public int estimatePayloadBytes(SemanticQueryResponse response) {
-            throw new IllegalStateException("redis unavailable");
-        }
     }
 }

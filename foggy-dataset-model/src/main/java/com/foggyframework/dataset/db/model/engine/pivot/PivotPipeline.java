@@ -203,34 +203,22 @@ public class PivotPipeline {
         List<String> metrics = pivot.getSqlMetricNames();
         boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
 
-        boolean outerCacheEnabled = outerResponseCache.isEnabled();
-        Optional<PivotOuterCacheSafeProvider.UnavailableEvent> cacheEnabledUnavailable =
-                consumeOuterCacheProviderUnavailable();
-        String cacheEligibilityStage = outerCacheEnabled
+        String cacheEligibilityStage = outerResponseCache.isEnabled()
                 ? PivotOuterCacheTelemetry.CACHE_STAGE
                 : PivotOuterCacheTelemetry.TELEMETRY_STAGE;
         PivotOuterCacheTelemetry.Evaluation cacheEvaluation = PivotOuterCacheTelemetry.evaluate(
                 model, queryModel, request, context, hierarchyCtx.isTree(), cascadeRequest, cacheEligibilityStage,
                 resolveOuterCacheModelIdentity(context, model, queryModel));
         diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
-                cacheEnabledUnavailable);
         if (cacheEvaluation.refused()) {
             diagnostics.cacheRefused(cacheEvaluation.keyHash(), cacheEligibilityStage,
                     cacheEvaluation.refusalReason(), cacheEvaluation.shapeClass());
-        } else if (!outerCacheEnabled) {
+        } else if (!outerResponseCache.isEnabled()) {
             diagnostics.cacheMiss(cacheEvaluation.keyHash(), cacheEligibilityStage,
-                    cacheEnabledUnavailable.isPresent()
-                            ? PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON
-                            : PivotOuterCacheTelemetry.TELEMETRY_MISS_REASON,
-                    cacheEvaluation.shapeClass());
+                    PivotOuterCacheTelemetry.TELEMETRY_MISS_REASON, cacheEvaluation.shapeClass());
         } else {
             PivotOuterCacheProvider.LookupResult cacheLookup = outerResponseCache.lookup(
                     cacheEvaluation.keyHash(), System.currentTimeMillis());
-            Optional<PivotOuterCacheSafeProvider.UnavailableEvent> lookupUnavailable =
-                    consumeOuterCacheProviderUnavailable();
-            recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
-                    lookupUnavailable);
             if (cacheLookup.hit()) {
                 diagnostics.cacheHit(cacheEvaluation.keyHash(), cacheEligibilityStage,
                         cacheLookup.ageMs(), outerResponseCache.name(), cacheEvaluation.shapeClass());
@@ -240,16 +228,11 @@ public class PivotPipeline {
                 diagnostics.cacheEvicted(cacheEvaluation.keyHash(), cacheEligibilityStage,
                         PivotOuterCacheTelemetry.CACHE_EXPIRED_REASON, cacheEvaluation.shapeClass());
             }
-            String missReason;
-            if (lookupUnavailable.isPresent()) {
-                missReason = PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON;
-            } else if (cacheLookup.expired()) {
-                missReason = PivotOuterCacheTelemetry.CACHE_EXPIRED_REASON;
-            } else {
-                missReason = PivotOuterCacheTelemetry.CACHE_MISS_REASON;
-            }
             diagnostics.cacheMiss(cacheEvaluation.keyHash(), cacheEligibilityStage,
-                    missReason, cacheEvaluation.shapeClass());
+                    cacheLookup.expired()
+                            ? PivotOuterCacheTelemetry.CACHE_EXPIRED_REASON
+                            : PivotOuterCacheTelemetry.CACHE_MISS_REASON,
+                    cacheEvaluation.shapeClass());
         }
 
         // 如果有 tree hierarchy，确保 Phase 1 带出 $id 字段
@@ -2052,24 +2035,6 @@ public class PivotPipeline {
         return response;
     }
 
-    private Optional<PivotOuterCacheSafeProvider.UnavailableEvent> consumeOuterCacheProviderUnavailable() {
-        if (outerResponseCache instanceof PivotOuterCacheSafeProvider safeProvider) {
-            return safeProvider.consumeLastUnavailable();
-        }
-        return Optional.empty();
-    }
-
-    private void recordOuterCacheProviderUnavailable(PivotDiagnosticCollector diagnostics,
-                                                     PivotOuterCacheTelemetry.Evaluation cacheEvaluation,
-                                                     String cacheEligibilityStage,
-                                                     Optional<PivotOuterCacheSafeProvider.UnavailableEvent> unavailable) {
-        if (diagnostics == null || cacheEvaluation == null || unavailable == null || unavailable.isEmpty()) {
-            return;
-        }
-        diagnostics.cacheProviderUnavailable(cacheEvaluation.keyHash(), cacheEligibilityStage,
-                unavailable.get(), cacheEvaluation.shapeClass());
-    }
-
     SemanticQueryResponse storeOuterCacheIfEligible(PivotOuterCacheTelemetry.Evaluation cacheEvaluation,
                                                     String cacheEligibilityStage,
                                                     PivotDiagnosticCollector diagnostics,
@@ -2083,18 +2048,9 @@ public class PivotPipeline {
                                                     SemanticQueryResponse response,
                                                     String model,
                                                     SemanticRequestContext context) {
-        boolean outerCacheEnabled = outerResponseCache.isEnabled();
-        Optional<PivotOuterCacheSafeProvider.UnavailableEvent> enabledUnavailable =
-                consumeOuterCacheProviderUnavailable();
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage, enabledUnavailable);
-        if (!outerCacheEnabled
+        if (!outerResponseCache.isEnabled()
                 || cacheEvaluation == null
                 || cacheEvaluation.refused()) {
-            if (cacheEvaluation != null && enabledUnavailable.isPresent()) {
-                diagnostics.cacheStoreSkipped(cacheEvaluation.keyHash(), cacheEligibilityStage,
-                        PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, cacheEvaluation.shapeClass());
-                replacePivotDiagnostics(response, diagnostics.snapshot());
-            }
             return response;
         }
         if (hasWarnings(response)) {
@@ -2104,23 +2060,11 @@ public class PivotPipeline {
             return response;
         }
         int payloadBytes = outerResponseCache.estimatePayloadBytes(response);
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
-                consumeOuterCacheProviderUnavailable());
         diagnostics.cacheStore(cacheEvaluation.keyHash(), cacheEligibilityStage, payloadBytes,
                 outerResponseCache.ttlMillis(), cacheEvaluation.shapeClass());
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
-                consumeOuterCacheProviderUnavailable());
         replacePivotDiagnostics(response, diagnostics.snapshot());
         outerResponseCache.store(cacheEvaluation.keyHash(), response, System.currentTimeMillis(),
                 context != null ? context.getNamespace() : null, model);
-        Optional<PivotOuterCacheSafeProvider.UnavailableEvent> storeUnavailable =
-                consumeOuterCacheProviderUnavailable();
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage, storeUnavailable);
-        if (storeUnavailable.isPresent()) {
-            diagnostics.cacheStoreSkipped(cacheEvaluation.keyHash(), cacheEligibilityStage,
-                    PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, cacheEvaluation.shapeClass());
-            replacePivotDiagnostics(response, diagnostics.snapshot());
-        }
         return response;
     }
 

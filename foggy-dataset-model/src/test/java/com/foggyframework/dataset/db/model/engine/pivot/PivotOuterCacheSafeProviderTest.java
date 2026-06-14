@@ -10,7 +10,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,23 +48,6 @@ class PivotOuterCacheSafeProviderTest {
                 () -> provider.store("key-a", response, 100L, "ns-a", "SalesQM"));
         assertThrows(IllegalStateException.class, () -> provider.evict("ns-a", "SalesQM"));
         assertThrows(IllegalStateException.class, () -> provider.estimatePayloadBytes(response));
-    }
-
-    @Test
-    @DisplayName("safe provider exposes one-shot unavailable diagnostics in degrade mode")
-    void testSafeProviderExposesOneShotUnavailableDiagnostics() {
-        PivotOuterCacheSafeProvider provider =
-                (PivotOuterCacheSafeProvider) PivotOuterCacheSafeProvider.wrap(new FailingProvider(), false);
-
-        assertFalse(provider.isEnabled());
-
-        Optional<PivotOuterCacheSafeProvider.UnavailableEvent> event = provider.consumeLastUnavailable();
-        assertTrue(event.isPresent());
-        assertEquals("isEnabled", event.get().operation());
-        assertTrue(event.get().providerName().contains("FailingProvider"));
-        assertEquals("IllegalStateException", event.get().reasonClass());
-        assertEquals("redis unavailable", event.get().reason());
-        assertTrue(provider.consumeLastUnavailable().isEmpty());
     }
 
     @Test
