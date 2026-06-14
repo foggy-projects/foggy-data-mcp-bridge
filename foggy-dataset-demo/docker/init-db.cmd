@@ -5,10 +5,11 @@ REM Foggy Dataset Demo - 数据库初始化脚本 (Windows)
 REM ============================================
 REM
 REM 用法:
-REM   init-db.cmd [mysql|postgres|sqlserver|all]
+REM   init-db.cmd [mysql|mysql8|postgres|sqlserver|all]
 REM
 REM 示例:
-REM   init-db.cmd mysql      # 仅初始化 MySQL
+REM   init-db.cmd mysql      # 仅初始化 MySQL 5.7
+REM   init-db.cmd mysql8     # 仅初始化 MySQL 8.0
 REM   init-db.cmd all        # 初始化所有数据库
 REM   init-db.cmd            # 默认初始化 MySQL
 REM
@@ -22,6 +23,7 @@ set "TARGET=%~1"
 if "%TARGET%"=="" set "TARGET=mysql"
 
 if "%TARGET%"=="mysql" goto :init_mysql
+if "%TARGET%"=="mysql8" goto :init_mysql8
 if "%TARGET%"=="postgres" goto :init_postgres
 if "%TARGET%"=="sqlserver" goto :init_sqlserver
 if "%TARGET%"=="all" goto :init_all
@@ -67,6 +69,41 @@ echo   - 03-test-data.sql executed
 echo [INFO] MySQL initialization completed!
 goto :eof
 
+REM ==========================================
+REM MySQL 8.0 初始化
+REM ==========================================
+:init_mysql8
+echo [INFO] Initializing MySQL 8.0 database...
+
+REM 检查容器是否运行
+docker ps | findstr "foggy-demo-mysql8" >nul
+if errorlevel 1 goto :start_mysql8
+goto :exec_mysql8
+
+:start_mysql8
+echo [WARN] MySQL 8.0 container not running. Starting...
+docker-compose up -d mysql8
+echo [INFO] Waiting for MySQL 8.0 to be ready...
+timeout /t 30 /nobreak >nul
+
+:exec_mysql8
+echo [INFO] Executing MySQL 8.0 init scripts...
+
+docker exec -i foggy-demo-mysql8 mysql -ufoggy -pfoggy_test_123 foggy_test < mysql\init\01-schema.sql
+if errorlevel 1 goto :error_mysql8_schema
+echo   - 01-schema.sql executed
+
+docker exec -i foggy-demo-mysql8 mysql -ufoggy -pfoggy_test_123 foggy_test < mysql\init\02-dict-data.sql
+if errorlevel 1 goto :error_mysql8_dict
+echo   - 02-dict-data.sql executed
+
+docker exec -i foggy-demo-mysql8 mysql -ufoggy -pfoggy_test_123 foggy_test < mysql\init\03-test-data.sql
+if errorlevel 1 goto :error_mysql8_data
+echo   - 03-test-data.sql executed
+
+echo [INFO] MySQL 8.0 initialization completed!
+goto :eof
+
 :error_mysql_schema
 echo [ERROR] Failed to execute 01-schema.sql
 exit /b 1
@@ -76,6 +113,18 @@ echo [ERROR] Failed to execute 02-dict-data.sql
 exit /b 1
 
 :error_mysql_data
+echo [ERROR] Failed to execute 03-test-data.sql
+exit /b 1
+
+:error_mysql8_schema
+echo [ERROR] Failed to execute 01-schema.sql
+exit /b 1
+
+:error_mysql8_dict
+echo [ERROR] Failed to execute 02-dict-data.sql
+exit /b 1
+
+:error_mysql8_data
 echo [ERROR] Failed to execute 03-test-data.sql
 exit /b 1
 
@@ -181,6 +230,7 @@ REM 初始化所有数据库
 REM ==========================================
 :init_all
 call :init_mysql
+call :init_mysql8
 call :init_postgres
 call :init_sqlserver
 goto :eof
@@ -189,10 +239,11 @@ REM ==========================================
 REM 显示帮助
 REM ==========================================
 :show_help
-echo Usage: %~nx0 [mysql^|postgres^|sqlserver^|all]
+echo Usage: %~nx0 [mysql^|mysql8^|postgres^|sqlserver^|all]
 echo.
 echo Options:
-echo   mysql      Initialize MySQL database
+echo   mysql      Initialize MySQL 5.7 database
+echo   mysql8     Initialize MySQL 8.0 database
 echo   postgres   Initialize PostgreSQL database
 echo   sqlserver  Initialize SQL Server database
 echo   all        Initialize all databases

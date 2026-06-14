@@ -8,8 +8,14 @@
 # 启动所有服务
 docker-compose up -d
 
-# 仅启动 MySQL
+# 仅启动 MySQL 5.7
 docker-compose up -d mysql
+
+# 仅启动 MySQL 8.0
+docker-compose up -d mysql8
+
+# 启动 v3.10 字段权限 live 验证所需数据库
+docker-compose up -d mysql8 postgres
 
 # 查看服务状态
 docker-compose ps
@@ -22,7 +28,8 @@ docker-compose logs -f mysql
 
 | 数据库 | 端口 | 用户名 | 密码 | 数据库名 |
 |--------|------|--------|------|----------|
-| MySQL | 13306 | foggy | foggy_test_123 | foggy_test |
+| MySQL 5.7 | 13306 | foggy | foggy_test_123 | foggy_test |
+| MySQL 8.0 | 13308 | foggy | foggy_test_123 | foggy_test |
 | PostgreSQL | 15432 | foggy | foggy_test_123 | foggy_test |
 | SQL Server | 11433 | sa | Foggy_Test_123! | foggy_test |
 | Redis | 16379 | - | - | - |
@@ -43,7 +50,7 @@ SQL Server 容器不支持自动初始化，需要手动执行：
 
 ```bash
 # Linux/macOS
-./init-db.sh sqlserver
+bash init-db.sh sqlserver
 
 # Windows
 init-db.cmd sqlserver
@@ -55,11 +62,13 @@ init-db.cmd sqlserver
 
 ```bash
 # Linux/macOS
-./init-db.sh mysql        # 初始化 MySQL
-./init-db.sh all          # 初始化所有数据库
+bash init-db.sh mysql        # 初始化 MySQL
+bash init-db.sh mysql8       # 初始化 MySQL 8.0
+bash init-db.sh all          # 初始化所有数据库
 
 # Windows
 init-db.cmd mysql         # 初始化 MySQL
+init-db.cmd mysql8        # 初始化 MySQL 8.0
 init-db.cmd all           # 初始化所有数据库
 ```
 
@@ -128,6 +137,9 @@ docker-compose up -d --build --force-recreate
 
 # 进入 MySQL 命令行
 docker exec -it foggy-demo-mysql mysql -ufoggy -pfoggy_test_123 foggy_test
+
+# 进入 MySQL 8.0 命令行
+docker exec -it foggy-demo-mysql8 mysql -ufoggy -pfoggy_test_123 foggy_test
 
 # 进入 PostgreSQL 命令行
 docker exec -it foggy-demo-postgres psql -U foggy -d foggy_test
