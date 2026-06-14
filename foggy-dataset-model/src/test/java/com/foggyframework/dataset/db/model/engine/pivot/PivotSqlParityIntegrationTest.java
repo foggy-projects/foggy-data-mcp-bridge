@@ -593,11 +593,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         Exception ex = assertThrows(Exception.class, () -> execute(TEST_MODEL, request, ctx));
         // Verify fail closed access denied
         log.info("Exception message: {}, cause: {}", ex.getMessage(), ex.getCause() != null ? ex.getCause().getMessage() : "null");
-        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
-        assertTrue(msg != null && (msg.contains("denied") ||
-                   msg.toLowerCase().contains("permission") ||
-                   msg.contains("安全") || msg.contains("权限") ||
-                   msg.contains("Access") || msg.contains("受限")));
+        assertAccessDeniedFailure(ex);
     }
 
     // ========== S11: parentShare Parity Tests ==========
@@ -720,12 +716,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         SemanticRequestContext ctx = SemanticRequestContext.of(null, null, null, deniedColumns);
 
         Exception ex = assertThrows(Exception.class, () -> execute(TEST_MODEL, request, ctx));
-        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
-        assertTrue(msg != null && (msg.contains("denied") ||
-                   msg.toLowerCase().contains("permission") ||
-                   msg.contains("安全") || msg.contains("权限") ||
-                   msg.contains("Access") || msg.contains("受限")),
-                "Should fail-closed for denied column: " + msg);
+        assertAccessDeniedFailure(ex);
         log.info("S11: parentShare deniedColumns fail-closed 验证通过");
     }
 
@@ -836,10 +827,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         SemanticRequestContext ctx = SemanticRequestContext.of(null, null, null, deniedColumns);
 
         Exception ex = assertThrows(Exception.class, () -> execute(TEST_MODEL, request, ctx));
-        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
-        assertTrue(msg != null && (msg.contains("denied") || msg.toLowerCase().contains("permission") ||
-                   msg.contains("安全") || msg.contains("权限") || msg.contains("Access") || msg.contains("受限")),
-                "Should fail-closed for denied column: " + msg);
+        assertAccessDeniedFailure(ex);
         log.info("S12: baselineRatio deniedColumns fail-closed 验证通过");
     }
 
@@ -1098,6 +1086,17 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
             assertTrue(sqlMap.containsKey(entry.getKey()), "SQL oracle missing key present in Pivot: " + entry.getKey());
             assertEquals(sqlMap.get(entry.getKey()), entry.getValue(), 0.01, "Value mismatch for " + entry.getKey());
         }
+    }
+
+    private void assertAccessDeniedFailure(Exception ex) {
+        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+        String lowerMsg = msg != null ? msg.toLowerCase() : "";
+        assertTrue(msg != null && (lowerMsg.contains("denied") ||
+                   lowerMsg.contains("permission") ||
+                   msg.contains("安全") || msg.contains("权限") ||
+                   msg.contains("Access") || msg.contains("受限") ||
+                   msg.contains("拒绝")),
+                "Should fail-closed for denied column: " + msg);
     }
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
