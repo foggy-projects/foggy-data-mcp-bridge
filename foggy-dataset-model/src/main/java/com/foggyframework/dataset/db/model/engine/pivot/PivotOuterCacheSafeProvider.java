@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -19,6 +20,7 @@ public final class PivotOuterCacheSafeProvider implements PivotOuterCacheProvide
 
     private final PivotOuterCacheProvider delegate;
     private final boolean failOnProviderUnavailable;
+    private final ThreadLocal<UnavailableEvent> lastUnavailable = new ThreadLocal<>();
 
     private PivotOuterCacheSafeProvider(PivotOuterCacheProvider delegate, boolean failOnProviderUnavailable) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
@@ -72,6 +74,12 @@ public final class PivotOuterCacheSafeProvider implements PivotOuterCacheProvide
         return safe("estimatePayloadBytes", () -> delegate.estimatePayloadBytes(response), 0);
     }
 
+    public Optional<UnavailableEvent> consumeLastUnavailable() {
+        UnavailableEvent event = lastUnavailable.get();
+        lastUnavailable.remove();
+        return Optional.ofNullable(event);
+    }
+
     private <T> T safe(String operation, Supplier<T> action, T fallback) {
         try {
             return action.get();
@@ -79,6 +87,7 @@ public final class PivotOuterCacheSafeProvider implements PivotOuterCacheProvide
             if (failOnProviderUnavailable) {
                 throw unavailable(operation, ex);
             }
+            lastUnavailable.set(unavailableEvent(operation, ex));
             return fallback;
         }
     }
@@ -90,6 +99,7 @@ public final class PivotOuterCacheSafeProvider implements PivotOuterCacheProvide
             if (failOnProviderUnavailable) {
                 throw unavailable(operation, ex);
             }
+            lastUnavailable.set(unavailableEvent(operation, ex));
         }
     }
 
@@ -106,5 +116,24 @@ public final class PivotOuterCacheSafeProvider implements PivotOuterCacheProvide
         } catch (RuntimeException ex) {
             return delegate.getClass().getName();
         }
+    }
+
+    private UnavailableEvent unavailableEvent(String operation, RuntimeException cause) {
+        return new UnavailableEvent(operation, providerLabel(), cause.getClass().getSimpleName(), safeReason(cause));
+    }
+
+    private String safeReason(RuntimeException cause) {
+        String message = cause.getMessage();
+        if (message == null || message.isBlank()) {
+            return cause.getClass().getSimpleName();
+        }
+        String normalized = message.replace('\n', ' ').replace('\r', ' ').trim();
+        if (normalized.length() > 240) {
+            return normalized.substring(0, 240) + "...";
+        }
+        return normalized;
+    }
+
+    public record UnavailableEvent(String operation, String providerName, String reasonClass, String reason) {
     }
 }

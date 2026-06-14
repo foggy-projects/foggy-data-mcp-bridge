@@ -10,7 +10,6 @@ import com.foggyframework.bundle.loader.BundleLoader;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.core.utils.ThreadUtils;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
@@ -213,23 +212,18 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
             name2BundleDefinition.put(bundleDefinition.getName(), bundleDefinition);
         }
 
-        log.debug("注册完毕，开始加载模块(异步)");
-        ThreadUtils.run((obj) -> {
-            try {
-                load();
-                log.debug("加载完毕");
-                loadCompleted = true;
-                //发出事件~~~
-                SystemBundlesContextRefreshedEvent event = new SystemBundlesContextRefreshedEvent(SystemBundlesContextImpl.this);
+        log.debug("注册完毕，开始加载模块");
+        try {
+            load();
+            log.debug("加载完毕");
+            loadCompleted = true;
+            //发出事件~~~
+            SystemBundlesContextRefreshedEvent event = new SystemBundlesContextRefreshedEvent(SystemBundlesContextImpl.this);
 
-                appCtx.publishEvent(event);
-
-                return obj;
-            } catch (Throwable t) {
-                t.printStackTrace();
-                throw new RuntimeException(t);
-            }
-        });
+            appCtx.publishEvent(event);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
 
     }
 

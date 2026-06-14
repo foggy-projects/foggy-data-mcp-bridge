@@ -30,6 +30,7 @@ final class PivotOuterCacheTelemetry {
     static final String TELEMETRY_MISS_REASON = "telemetry_only";
     static final String CACHE_MISS_REASON = "cache_not_found";
     static final String CACHE_EXPIRED_REASON = "ttl_expired";
+    static final String CACHE_PROVIDER_UNAVAILABLE_REASON = "provider_unavailable";
     static final String CACHE_STORE_SKIPPED_WARNING_REASON = "response_warning";
 
     private static final List<String> VOLATILE_EXPR_MARKERS = List.of(

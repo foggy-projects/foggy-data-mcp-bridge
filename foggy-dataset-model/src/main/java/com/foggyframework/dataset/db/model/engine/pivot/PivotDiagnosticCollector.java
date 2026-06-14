@@ -99,6 +99,24 @@ final class PivotDiagnosticCollector {
         diagnostics.add(item);
     }
 
+    void cacheProviderUnavailable(String keyHash,
+                                  String eligibilityStage,
+                                  PivotOuterCacheSafeProvider.UnavailableEvent unavailable,
+                                  String shapeClass) {
+        if (unavailable == null) {
+            return;
+        }
+        Map<String, Object> item = event("pivot.cache.provider_unavailable", "degraded");
+        item.put("keyHash", keyHash);
+        item.put("eligibilityStage", eligibilityStage);
+        item.put("operation", unavailable.operation());
+        item.put("providerName", unavailable.providerName());
+        item.put("reasonClass", unavailable.reasonClass());
+        item.put("reason", unavailable.reason());
+        item.put("shapeClass", shapeClass);
+        diagnostics.add(item);
+    }
+
     void cacheStore(String keyHash, String eligibilityStage, int payloadBytes, long ttlMs, String shapeClass) {
         Map<String, Object> item = event("pivot.cache.store", "stored");
         item.put("keyHash", keyHash);

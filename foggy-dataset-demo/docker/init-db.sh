@@ -4,10 +4,11 @@
 # ============================================
 #
 # 用法:
-#   ./init-db.sh [mysql|postgres|sqlserver|all]
+#   ./init-db.sh [mysql|mysql8|postgres|sqlserver|all]
 #
 # 示例:
-#   ./init-db.sh mysql      # 仅初始化 MySQL
+#   ./init-db.sh mysql      # 仅初始化 MySQL 5.7
+#   ./init-db.sh mysql8     # 仅初始化 MySQL 8.0
 #   ./init-db.sh all        # 初始化所有数据库
 #   ./init-db.sh            # 默认初始化 MySQL
 #
@@ -42,30 +43,42 @@ log_error() {
 }
 
 # MySQL 初始化
-init_mysql() {
-    log_info "Initializing MySQL database..."
+init_mysql_service() {
+    local service="$1"
+    local container="$2"
+    local label="$3"
+
+    log_info "Initializing ${label} database..."
 
     # 检查容器是否运行
-    if ! docker ps | grep -q foggy-demo-mysql; then
-        log_warn "MySQL container not running. Starting..."
-        docker-compose up -d mysql
-        log_info "Waiting for MySQL to be ready..."
+    if ! docker ps | grep -q "$container"; then
+        log_warn "${label} container not running. Starting..."
+        docker-compose up -d "$service"
+        log_info "Waiting for ${label} to be ready..."
         sleep 30
     fi
 
     # 执行初始化脚本
-    log_info "Executing MySQL init scripts..."
+    log_info "Executing ${label} init scripts..."
 
-    docker exec -i foggy-demo-mysql mysql -ufoggy -pfoggy_test_123 foggy_test < mysql/init/01-schema.sql
+    docker exec -i "$container" mysql -ufoggy -pfoggy_test_123 foggy_test < mysql/init/01-schema.sql
     log_info "  - 01-schema.sql executed"
 
-    docker exec -i foggy-demo-mysql mysql -ufoggy -pfoggy_test_123 foggy_test < mysql/init/02-dict-data.sql
+    docker exec -i "$container" mysql -ufoggy -pfoggy_test_123 foggy_test < mysql/init/02-dict-data.sql
     log_info "  - 02-dict-data.sql executed"
 
-    docker exec -i foggy-demo-mysql mysql -ufoggy -pfoggy_test_123 foggy_test < mysql/init/03-test-data.sql
+    docker exec -i "$container" mysql -ufoggy -pfoggy_test_123 foggy_test < mysql/init/03-test-data.sql
     log_info "  - 03-test-data.sql executed"
 
-    log_info "MySQL initialization completed!"
+    log_info "${label} initialization completed!"
+}
+
+init_mysql() {
+    init_mysql_service mysql foggy-demo-mysql "MySQL 5.7"
+}
+
+init_mysql8() {
+    init_mysql_service mysql8 foggy-demo-mysql8 "MySQL 8.0"
 }
 
 # PostgreSQL 初始化
@@ -136,10 +149,11 @@ init_sqlserver() {
 
 # 显示帮助
 show_help() {
-    echo "Usage: $0 [mysql|postgres|sqlserver|all]"
+    echo "Usage: $0 [mysql|mysql8|postgres|sqlserver|all]"
     echo ""
     echo "Options:"
-    echo "  mysql      Initialize MySQL database"
+    echo "  mysql      Initialize MySQL 5.7 database"
+    echo "  mysql8     Initialize MySQL 8.0 database"
     echo "  postgres   Initialize PostgreSQL database"
     echo "  sqlserver  Initialize SQL Server database"
     echo "  all        Initialize all databases"
@@ -155,6 +169,9 @@ main() {
         mysql)
             init_mysql
             ;;
+        mysql8)
+            init_mysql8
+            ;;
         postgres)
             init_postgres
             ;;
@@ -163,6 +180,7 @@ main() {
             ;;
         all)
             init_mysql
+            init_mysql8
             init_postgres
             init_sqlserver
             ;;
