@@ -1,2 +1,3 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-  com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration
+  com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration,\
+  com.foggyframework.dataset.db.model.cache.config.PivotOuterCacheRedisAutoConfiguration

@@ -1,20 +1,22 @@
 ---
 doc_role: workitem
-doc_purpose: Define the startup-safe boundary for a future Redis/KV Pivot outer-cache provider module.
+doc_purpose: Define the startup-safe boundary for Redis/KV Pivot outer-cache provider modules.
 version: 9.2.0
 target: Java Pivot outer-cache distributed provider boundary
-status: planned-contract
+status: addon-fixture-local-verified
 created_at: 2026-06-14
-updated_at: 2026-06-14
+updated_at: 2026-06-16
 ---
 
 # Pivot Outer Cache Redis Provider Boundary
 
 ## Scope
 
-The Java engine now has a cache-provider SPI, a safe-provider wrapper, a distributed-provider contract descriptor, and a distributed adapter skeleton. This workitem records the acceptance boundary for a future Redis/KV provider implementation.
+The Java engine now has a cache-provider SPI, a safe-provider wrapper, a distributed-provider contract descriptor, and a distributed adapter skeleton. This workitem records the acceptance boundary for Redis/KV provider implementations.
 
 This is a provider-module contract. It must not move a Redis client, Redis auto-configuration, or Redis startup requirement into the core `foggy-dataset-model` engine module.
+
+The optional `addons/foggy-dataset-model-cache` module now contains a first Redis provider fixture. This fixture is local-verified with mock/in-memory storage and is not yet a full live Redis production signoff.
 
 ## Required Behavior
 
@@ -43,6 +45,19 @@ A Redis/KV provider is not accepted until all gates below are green:
 | Distributed contract | The provider preserves `PivotOuterCacheDistributedProviderContract` key prefix, response/index layouts, JSON payload version, positive TTL, absolute expiry, and namespace/model index semantics. |
 | Response diagnostics | Real Pivot execution with an unavailable provider returns normal query results and emits `pivot.cache.provider_unavailable` plus `provider_unavailable` miss/store-skip diagnostics. |
 | No false store diagnostics | Provider failures during payload estimation, TTL lookup, or store do not emit `pivot.cache.store`; they emit `pivot.cache.provider_unavailable` plus `pivot.cache.store_skipped(reason=provider_unavailable)`. |
+
+## Current Provider Fixture
+
+- Module: `addons/foggy-dataset-model-cache`.
+- Provider: `RedisPivotOuterCacheProvider`.
+- Storage adapter: `StringRedisTemplatePivotOuterCacheStore`.
+- Auto-configuration: `PivotOuterCacheRedisAutoConfiguration`, registered through addon `spring.factories`; Redis provider bean creation is isolated behind nested `StringRedisTemplate` class/bean conditions.
+- Opt-in property: `foggy.dataset.pivot.outer-cache.redis.enabled=true`.
+- Core dependency boundary: `foggy-dataset-model` still has no Redis dependency, Redis client, or Redis auto-configuration requirement.
+- Payload storage: Base64-encoded distributed JSON payload bytes in Redis string values.
+- Index storage: Redis sets keyed by the distributed provider contract namespace/model index layout.
+- Verified locally: constructor has no Redis interaction, disabled provider does not touch storage, `estimatePayloadBytes` does not touch storage, copy isolation holds, TTL expiry removes stale payloads, namespace/model eviction follows adapter indexes, invalid Base64 payloads are removed as misses, and auto-config covers opt-in/backoff plus no Redis data-operation interaction during provider construction.
+- Still required for production promotion: live Redis invalid-endpoint startup safety, unavailable Redis operation downgrade through `PivotOuterCacheSafeProvider`, explicit fail-fast operation behavior, and cross-process race/replay evidence.
 
 ## Test Skeleton
 
@@ -102,6 +117,9 @@ The concrete Redis client can be Lettuce, Redisson, Jedis, or a host-provided ad
 |---|---|
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotDiagnosticCollectorTest,PivotOuterCacheStartupSafetyTest,PivotOuterCacheSafeProviderTest,PivotIntegrationTest#testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b+testOuterCacheHitFlatPivotE1b+testOuterCacheSkipsWarningResponsesE1b' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false clean test` | success; provider-unavailable diagnostic contract, no-Redis startup safety, safe-provider one-shot unavailable event, real Pivot unavailable-provider downgrade, E1b cache hit, and warning store-skip behavior pass together; Tests run: 11, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheStartupSafetyTest,PivotOuterCacheSafeProviderTest,PivotIntegrationTest#testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b+testOuterCacheStoreUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCacheHitFlatPivotE1b+testOuterCacheSkipsWarningResponsesE1b,PivotOuterCacheDistributedProviderAdapterTest,PivotOuterCacheDistributedProviderContractTest,PivotOuterCacheInvalidationReplayWindowTest,PivotOuterCacheInvalidationEventTest,PivotOuterCacheInvalidationFanOutContractTest,PivotOuterCacheAdminControllerTest,BundleLifecycleListenerTest,PivotOuterCacheOperationalSpiTest,PivotOuterResponseCacheTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; no-Redis startup safety, safe-provider downgrade, store-stage provider failure no-false-store diagnostics, distributed adapter contract, invalidation/admin/bundle lifecycle, operational SPI, and local provider contracts pass together; Tests run: 60, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotIntegrationTest#testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b+testOuterCacheStoreUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCachePayloadEstimateUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCacheTtlUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCacheHitFlatPivotE1b+testOuterCacheSkipsWarningResponsesE1b,PivotOuterCacheSafeProviderTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; provider unavailable, store failure, payload-estimate failure, TTL failure, cache hit, warning store-skip, and safe-provider one-shot unavailable behavior pass together; Tests run: 12, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl addons/foggy-dataset-model-cache -am -Dtest='RedisPivotOuterCacheProviderTest,PivotOuterCacheRedisAutoConfigurationTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; optional addon Redis provider fixture verifies no constructor I/O, disabled-state no store access, response copy isolation, TTL expiry, namespace/model eviction, invalid Base64 cleanup, payload byte estimation without store access, and auto-config opt-in/backoff with no Redis data operations during provider construction; Tests run: 10, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model,addons/foggy-dataset-model-cache -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheStartupSafetyTest,PivotOuterCacheSafeProviderTest,PivotIntegrationTest#testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b+testOuterCacheStoreUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCachePayloadEstimateUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCacheTtlUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCacheHitFlatPivotE1b+testOuterCacheSkipsWarningResponsesE1b,PivotOuterCacheDistributedProviderAdapterTest,PivotOuterCacheDistributedProviderContractTest,PivotOuterCacheInvalidationReplayWindowTest,PivotOuterCacheInvalidationEventTest,PivotOuterCacheInvalidationFanOutContractTest,PivotOuterCacheAdminControllerTest,BundleLifecycleListenerTest,PivotOuterCacheOperationalSpiTest,PivotOuterResponseCacheTest,RedisPivotOuterCacheProviderTest,PivotOuterCacheRedisAutoConfigurationTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; core no-Redis startup/safe-provider/diagnostic/contract suites and addon Redis provider fixture pass together without requiring a live Redis service; Core tests run: 62, Addon tests run: 10, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Links
 

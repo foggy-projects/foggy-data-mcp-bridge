@@ -327,11 +327,35 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("v9.2: E1b external provider store failure does not emit stored diagnostics")
     void testOuterCacheStoreUnavailableDoesNotEmitStoredDiagnosticsE1b() {
+        assertOuterCacheStoreFailureDegrades(new StoreOperationFailingOuterCacheProvider(
+                        "store", "redis store unavailable"),
+                "store", "redis store unavailable");
+    }
+
+    @Test
+    @DisplayName("v9.2: E1b external provider payload estimation failure does not emit stored diagnostics")
+    void testOuterCachePayloadEstimateUnavailableDoesNotEmitStoredDiagnosticsE1b() {
+        assertOuterCacheStoreFailureDegrades(new StoreOperationFailingOuterCacheProvider(
+                        "estimatePayloadBytes", "redis estimate unavailable"),
+                "estimatePayloadBytes", "redis estimate unavailable");
+    }
+
+    @Test
+    @DisplayName("v9.2: E1b external provider TTL failure does not emit stored diagnostics")
+    void testOuterCacheTtlUnavailableDoesNotEmitStoredDiagnosticsE1b() {
+        assertOuterCacheStoreFailureDegrades(new StoreOperationFailingOuterCacheProvider(
+                        "ttlMillis", "redis ttl unavailable"),
+                "ttlMillis", "redis ttl unavailable");
+    }
+
+    private void assertOuterCacheStoreFailureDegrades(PivotOuterCacheProvider provider,
+                                                      String expectedOperation,
+                                                      String expectedReason) {
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
         PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
         try {
             ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(
-                    PivotOuterCacheSafeProvider.wrap(new StoreFailingOuterCacheProvider(), false)));
+                    PivotOuterCacheSafeProvider.wrap(provider, false)));
 
             SemanticQueryRequest request = new SemanticQueryRequest();
             request.setPivot(basicSalesPivot());
@@ -342,9 +366,9 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
             Map<String, Object> unavailable =
                     diagnosticEvent(diagnostics, "pivot.cache.provider_unavailable");
-            assertEquals("store", unavailable.get("operation"));
+            assertEquals(expectedOperation, unavailable.get("operation"));
             assertEquals("IllegalStateException", unavailable.get("reasonClass"));
-            assertEquals("redis store unavailable", unavailable.get("reason"));
+            assertEquals(expectedReason, unavailable.get("reason"));
 
             Map<String, Object> storeSkipped = diagnosticEvent(diagnostics, "pivot.cache.store_skipped");
             assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, storeSkipped.get("reason"));
@@ -2230,10 +2254,18 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         return f;
     }
 
-    private static final class StoreFailingOuterCacheProvider implements PivotOuterCacheProvider {
+    private static final class StoreOperationFailingOuterCacheProvider implements PivotOuterCacheProvider {
+        private final String failingOperation;
+        private final String reason;
+
+        private StoreOperationFailingOuterCacheProvider(String failingOperation, String reason) {
+            this.failingOperation = failingOperation;
+            this.reason = reason;
+        }
+
         @Override
         public String name() {
-            return "store-failing-cache";
+            return "store-operation-failing-cache";
         }
 
         @Override
@@ -2243,6 +2275,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
         @Override
         public long ttlMillis() {
+            failIfOperation("ttlMillis");
             return 60_000L;
         }
 
@@ -2257,7 +2290,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                           long nowMillis,
                           String namespace,
                           String model) {
-            throw new IllegalStateException("redis store unavailable");
+            failIfOperation("store");
         }
 
         @Override
@@ -2267,7 +2300,14 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
         @Override
         public int estimatePayloadBytes(SemanticQueryResponse response) {
+            failIfOperation("estimatePayloadBytes");
             return 42;
+        }
+
+        private void failIfOperation(String operation) {
+            if (operation.equals(failingOperation)) {
+                throw new IllegalStateException(reason);
+            }
         }
     }
 
