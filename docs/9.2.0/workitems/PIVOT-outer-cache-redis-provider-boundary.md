@@ -42,6 +42,7 @@ A Redis/KV provider is not accepted until all gates below are green:
 | Provider contract | The provider extends `PivotOuterCacheProviderContractTest` or an equivalent subclass and proves copy isolation, TTL expiry, namespace/model eviction, all-scope eviction, and byte estimation. |
 | Distributed contract | The provider preserves `PivotOuterCacheDistributedProviderContract` key prefix, response/index layouts, JSON payload version, positive TTL, absolute expiry, and namespace/model index semantics. |
 | Response diagnostics | Real Pivot execution with an unavailable provider returns normal query results and emits `pivot.cache.provider_unavailable` plus `provider_unavailable` miss/store-skip diagnostics. |
+| No false store diagnostics | Provider failures during payload estimation, TTL lookup, or store do not emit `pivot.cache.store`; they emit `pivot.cache.provider_unavailable` plus `pivot.cache.store_skipped(reason=provider_unavailable)`. |
 
 ## Test Skeleton
 
@@ -100,6 +101,7 @@ The concrete Redis client can be Lettuce, Redisson, Jedis, or a host-provided ad
 | Command | Result |
 |---|---|
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotDiagnosticCollectorTest,PivotOuterCacheStartupSafetyTest,PivotOuterCacheSafeProviderTest,PivotIntegrationTest#testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b+testOuterCacheHitFlatPivotE1b+testOuterCacheSkipsWarningResponsesE1b' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false clean test` | success; provider-unavailable diagnostic contract, no-Redis startup safety, safe-provider one-shot unavailable event, real Pivot unavailable-provider downgrade, E1b cache hit, and warning store-skip behavior pass together; Tests run: 11, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='PivotOuterCacheStartupSafetyTest,PivotOuterCacheSafeProviderTest,PivotIntegrationTest#testOuterCacheProviderUnavailableDegradesWithDiagnosticsE1b+testOuterCacheStoreUnavailableDoesNotEmitStoredDiagnosticsE1b+testOuterCacheHitFlatPivotE1b+testOuterCacheSkipsWarningResponsesE1b,PivotOuterCacheDistributedProviderAdapterTest,PivotOuterCacheDistributedProviderContractTest,PivotOuterCacheInvalidationReplayWindowTest,PivotOuterCacheInvalidationEventTest,PivotOuterCacheInvalidationFanOutContractTest,PivotOuterCacheAdminControllerTest,BundleLifecycleListenerTest,PivotOuterCacheOperationalSpiTest,PivotOuterResponseCacheTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; no-Redis startup safety, safe-provider downgrade, store-stage provider failure no-false-store diagnostics, distributed adapter contract, invalidation/admin/bundle lifecycle, operational SPI, and local provider contracts pass together; Tests run: 60, Failures: 0, Errors: 0, Skipped: 0. |
 
 ## Links
 

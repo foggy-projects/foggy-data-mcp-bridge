@@ -317,6 +317,38 @@ class PivotIntegrationTest extends EcommerceTestSupport {
             assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, miss.get("reason"));
             Map<String, Object> storeSkipped = diagnosticEvent(diagnostics, "pivot.cache.store_skipped");
             assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, storeSkipped.get("reason"));
+            assertFalse(hasDiagnosticEvent(diagnostics, "pivot.cache.store"));
+            assertDiagnosticEvent(diagnostics, "pivot.execution_path");
+        } finally {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
+        }
+    }
+
+    @Test
+    @DisplayName("v9.2: E1b external provider store failure does not emit stored diagnostics")
+    void testOuterCacheStoreUnavailableDoesNotEmitStoredDiagnosticsE1b() {
+        SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
+        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+        try {
+            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(
+                    PivotOuterCacheSafeProvider.wrap(new StoreFailingOuterCacheProvider(), false)));
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setPivot(basicSalesPivot());
+
+            SemanticQueryResponse response = execute(request);
+            assertFalse(response.getItems().isEmpty());
+            List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
+
+            Map<String, Object> unavailable =
+                    diagnosticEvent(diagnostics, "pivot.cache.provider_unavailable");
+            assertEquals("store", unavailable.get("operation"));
+            assertEquals("IllegalStateException", unavailable.get("reasonClass"));
+            assertEquals("redis store unavailable", unavailable.get("reason"));
+
+            Map<String, Object> storeSkipped = diagnosticEvent(diagnostics, "pivot.cache.store_skipped");
+            assertEquals(PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, storeSkipped.get("reason"));
+            assertFalse(hasDiagnosticEvent(diagnostics, "pivot.cache.store"));
             assertDiagnosticEvent(diagnostics, "pivot.execution_path");
         } finally {
             ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
@@ -2196,6 +2228,47 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         f.setField(field);
         f.setHierarchyMode("tree");
         return f;
+    }
+
+    private static final class StoreFailingOuterCacheProvider implements PivotOuterCacheProvider {
+        @Override
+        public String name() {
+            return "store-failing-cache";
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return true;
+        }
+
+        @Override
+        public long ttlMillis() {
+            return 60_000L;
+        }
+
+        @Override
+        public LookupResult lookup(String keyHash, long nowMillis) {
+            return LookupResult.miss();
+        }
+
+        @Override
+        public void store(String keyHash,
+                          SemanticQueryResponse response,
+                          long nowMillis,
+                          String namespace,
+                          String model) {
+            throw new IllegalStateException("redis store unavailable");
+        }
+
+        @Override
+        public int evict(String namespace, String model) {
+            return 0;
+        }
+
+        @Override
+        public int estimatePayloadBytes(SemanticQueryResponse response) {
+            return 42;
+        }
     }
 
     private static final class UnavailableOuterCacheProvider implements PivotOuterCacheProvider {

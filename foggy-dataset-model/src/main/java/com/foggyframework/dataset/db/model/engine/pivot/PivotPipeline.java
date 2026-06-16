@@ -2104,24 +2104,46 @@ public class PivotPipeline {
             return response;
         }
         int payloadBytes = outerResponseCache.estimatePayloadBytes(response);
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
-                consumeOuterCacheProviderUnavailable());
-        diagnostics.cacheStore(cacheEvaluation.keyHash(), cacheEligibilityStage, payloadBytes,
-                outerResponseCache.ttlMillis(), cacheEvaluation.shapeClass());
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
-                consumeOuterCacheProviderUnavailable());
-        replacePivotDiagnostics(response, diagnostics.snapshot());
+        Optional<PivotOuterCacheSafeProvider.UnavailableEvent> estimateUnavailable =
+                consumeOuterCacheProviderUnavailable();
+        if (recordOuterCacheStoreUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
+                estimateUnavailable, response)) {
+            return response;
+        }
+        long ttlMillis = outerResponseCache.ttlMillis();
+        Optional<PivotOuterCacheSafeProvider.UnavailableEvent> ttlUnavailable =
+                consumeOuterCacheProviderUnavailable();
+        if (recordOuterCacheStoreUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
+                ttlUnavailable, response)) {
+            return response;
+        }
         outerResponseCache.store(cacheEvaluation.keyHash(), response, System.currentTimeMillis(),
                 context != null ? context.getNamespace() : null, model);
         Optional<PivotOuterCacheSafeProvider.UnavailableEvent> storeUnavailable =
                 consumeOuterCacheProviderUnavailable();
-        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage, storeUnavailable);
-        if (storeUnavailable.isPresent()) {
-            diagnostics.cacheStoreSkipped(cacheEvaluation.keyHash(), cacheEligibilityStage,
-                    PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, cacheEvaluation.shapeClass());
-            replacePivotDiagnostics(response, diagnostics.snapshot());
+        if (recordOuterCacheStoreUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
+                storeUnavailable, response)) {
+            return response;
         }
+        diagnostics.cacheStore(cacheEvaluation.keyHash(), cacheEligibilityStage, payloadBytes,
+                ttlMillis, cacheEvaluation.shapeClass());
+        replacePivotDiagnostics(response, diagnostics.snapshot());
         return response;
+    }
+
+    private boolean recordOuterCacheStoreUnavailable(PivotDiagnosticCollector diagnostics,
+                                                     PivotOuterCacheTelemetry.Evaluation cacheEvaluation,
+                                                     String cacheEligibilityStage,
+                                                     Optional<PivotOuterCacheSafeProvider.UnavailableEvent> unavailable,
+                                                     SemanticQueryResponse response) {
+        recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage, unavailable);
+        if (unavailable == null || unavailable.isEmpty()) {
+            return false;
+        }
+        diagnostics.cacheStoreSkipped(cacheEvaluation.keyHash(), cacheEligibilityStage,
+                PivotOuterCacheTelemetry.CACHE_PROVIDER_UNAVAILABLE_REASON, cacheEvaluation.shapeClass());
+        replacePivotDiagnostics(response, diagnostics.snapshot());
+        return true;
     }
 
     public int evictOuterCache(String namespace, String model) {
