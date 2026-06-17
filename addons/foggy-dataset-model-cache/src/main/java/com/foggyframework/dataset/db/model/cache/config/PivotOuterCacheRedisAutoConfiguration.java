@@ -37,12 +37,12 @@ public class PivotOuterCacheRedisAutoConfiguration {
                 PivotOuterCacheRedisProperties redisProperties) {
             DatasetProperties.OuterCacheConfig outerCache = datasetProperties.getPivot().getOuterCache();
             log.info("Initializing Redis Pivot outer-cache provider, enabled={}, ttlMillis={}, keyPrefix={}",
-                    outerCache.isEnabled(), outerCache.getTtlMillis(), redisProperties.getKeyPrefix());
+                    outerCache.isEnabled(), outerCache.getTtlMillis(), redisProperties.resolvedKeyPrefix());
             return new RedisPivotOuterCacheProvider(
                     redisTemplate,
                     outerCache.isEnabled(),
                     outerCache.getTtlMillis(),
-                    redisProperties.getKeyPrefix());
+                    redisProperties.resolvedKeyPrefix());
         }
     }
 }
