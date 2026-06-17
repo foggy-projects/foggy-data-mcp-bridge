@@ -45,6 +45,21 @@ public class PivotOuterCacheRedisProperties {
      */
     private int replayWindowMaximumEntries = 1024;
 
+    /**
+     * Whether to auto-wire a Redis Pub/Sub listener container for invalidation events.
+     */
+    private boolean invalidationListenerEnabled = true;
+
+    /**
+     * Whether the auto-wired Redis invalidation listener container starts with the Spring context.
+     */
+    private boolean invalidationListenerAutoStartup = true;
+
+    /**
+     * Recovery interval for the Redis invalidation listener container after subscription failures.
+     */
+    private long invalidationListenerRecoveryIntervalMillis = 5_000L;
+
     public String resolvedKeyPrefix() {
         return keyPrefix == null || keyPrefix.isBlank()
                 ? PivotOuterCacheDistributedProviderContract.DEFAULT_KEY_PREFIX
@@ -68,5 +83,11 @@ public class PivotOuterCacheRedisProperties {
 
     public int resolvedReplayWindowMaximumEntries() {
         return replayWindowMaximumEntries <= 0 ? 1024 : replayWindowMaximumEntries;
+    }
+
+    public long resolvedInvalidationListenerRecoveryIntervalMillis() {
+        return invalidationListenerRecoveryIntervalMillis <= 0L
+                ? 5_000L
+                : invalidationListenerRecoveryIntervalMillis;
     }
 }
