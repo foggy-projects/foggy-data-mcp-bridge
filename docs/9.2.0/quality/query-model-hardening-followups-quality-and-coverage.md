@@ -154,7 +154,7 @@ Coverage:
 - local TMS-style order+site composite-key fixture verifies RHS `order_id` and `store_key` pushdown plus aggregate-measure `HAVING` while matching native aggregate SQL;
 - live MySQL 5.7 `EXPLAIN` shows derived source `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, and `Using where` for pushed filters;
 - live PostgreSQL `postgres:15-alpine` targeted evidence now covers aggregate relation EXPLAIN/pushdown, composite-key pushdown, joined-dimension left-key, nested dimension path, and RHS dimension fixed-filter cases;
-- SQL Server remains environment-blocked locally because no SQL Server service is reachable on `11433` / `1433` and `sqlcmd` is unavailable.
+- SQL Server remains environment-blocked locally because no SQL Server service is reachable on `11433` / `1433` and `sqlcmd` is unavailable; this blocks only SQL Server-specific prepared-service or cascade claims.
 
 ### Odoo Registry Consumer Gate
 
@@ -230,4 +230,4 @@ Regression notes:
 
 ## Decision
 
-The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as final release acceptance until upstream TMS confirmations and any required SQL Server prepared-service gate are complete.
+The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as risk-free final release acceptance until upstream TMS confirmations are complete. SQL Server prepared-service evidence remains required before any SQL Server-specific support claim, not before the default MySQL/PostgreSQL/SQLite engine boundary.

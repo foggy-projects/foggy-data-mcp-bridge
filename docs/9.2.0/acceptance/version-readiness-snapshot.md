@@ -58,15 +58,15 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | 2026-06-18 Pivot outer-cache Redis live addon gate | pass | Local `redis:7-alpine` on `127.0.0.1:16379`; provider, Pub/Sub invalidation, auto-configuration, and independent publisher/listener JVM delivery passed together: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`. |
 | 2026-06-18 PostgreSQL regression recheck | pass | Self-alias aggregate relation projection, CTE running-sum post-slice, monthly YoY, and quarterly YoY regressions passed together: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`. |
 | PostgreSQL full prepared gate | pass | After refreshing local artifacts and compiling tests, `mvn -pl foggy-dataset-model test-compile surefire:test@test-postgres -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3162, Failures: 0, Errors: 0, Skipped: 3`. |
-| Default full multi-db gate | partially claimed | MySQL and PostgreSQL full prepared-service evidence are recorded. SQL Server remains environment-gated before any SQL Server release claim. |
+| Default Java engine prepared-service gate | pass-with-sqlserver-unclaimed | MySQL and PostgreSQL full prepared-service evidence are recorded. SQL Server is not a default release blocker unless the release explicitly claims SQL Server prepared-service parity or SQL Server Pivot C2 cascade support. |
 
 ## Decision
 
-9.2.0 is ready for the next hardening cycle with known follow-ups. It is not yet a risk-free release signoff because upstream TMS confirmation and SQL Server environment-backed evidence remain open.
+9.2.0 is ready for the next hardening cycle with known follow-ups. It is not yet a risk-free release signoff because upstream TMS confirmation remains open. SQL Server environment-backed evidence remains open as a SQL Server-specific promotion gate, not as a blocker for the default MySQL/PostgreSQL/SQLite Java engine boundary.
 
 Recommended next actions:
 
 - send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open, no standalone `availablePieceCount` issue, and no local TMS/query-cloud-service checkout in this workspace;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
 - treat the Pivot Redis line as engine-local closed for now; production Redis rollout, durable replay/fan-out, subscription-loss recovery, and race-window evidence belong to deployment/ops hardening rather than the next Java engine loop;
-- decide whether SQL Server prepared-service evidence is required before the next release tag, because MySQL and PostgreSQL full gates now have local prepared-service evidence.
+- keep SQL Server prepared-service evidence as an explicit promotion gate before any SQL Server cascade or SQL Server full prepared-service claim; do not block the current default engine hardening tag solely on absent SQL Server service.

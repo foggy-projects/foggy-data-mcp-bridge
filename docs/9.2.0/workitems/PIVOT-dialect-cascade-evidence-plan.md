@@ -3,9 +3,9 @@ doc_role: workitem
 doc_purpose: Plan dialect-specific evidence for Pivot cascade and large-domain transport in 9.2.0.
 version: 9.2.0
 target: Java Pivot dialect cascade evidence
-status: planned-env-gated
+status: sqlserver-promotion-gate-env-gated
 created_at: 2026-06-12
-updated_at: 2026-06-12
+updated_at: 2026-06-18
 ---
 
 # Pivot Dialect Cascade Evidence Plan
@@ -23,7 +23,17 @@ updated_at: 2026-06-12
 |---|---|---|
 | SQLite | Local C2 cascade and Pivot integration parity tests pass. | Acts as the lightweight baseline, not as proof for other dialect renderers. |
 | MySQL 5.7 | Live large-domain axis-domain transport and cascade fail-closed refusal evidence exist on the local docker profile. | No C2 cascade enablement because the dialect has no window-function path for the accepted implementation. |
-| SQL Server | `application-sqlserver.yml` and SQL Server CTE domain renderer exist. | Local service is unavailable in this shell, so live cascade oracle and transport evidence remain blocked by environment. |
+| SQL Server | `application-sqlserver.yml`, compose service wiring, SQL Server CTE domain renderer, and no-service renderer/capability unit evidence exist. | Live service evidence is unavailable in this shell, so SQL Server cascade oracle and transport execution remain blocked by environment. |
+
+## Release Gate Boundary
+
+2026-06-18 decision:
+
+- SQL Server is not part of the default 9.2 Java engine release blocker unless the release explicitly claims SQL Server prepared-service parity or SQL Server Pivot C2 cascade support.
+- The current default Java engine evidence can rely on SQLite targeted checks plus prepared MySQL and PostgreSQL full gates.
+- SQL Server remains a promotion gate for `PIVOT-92-F1`: no SQL Server cascade support, no SQL Server full prepared-service claim, and no SQL Server transport execution claim can be signed until live SQL Server evidence passes.
+- Missing SQL Server service is therefore an environment-gated capability gap, not a regression in the already claimed default MySQL/PostgreSQL/SQLite engine boundary.
+- Memory fallback or renderer-only evidence must not be used as a substitute for live SQL Server cascade parity.
 
 ## SQL Server Plan
 
@@ -59,6 +69,17 @@ MySQL 5.7 can be accepted as "large-domain transport supported, cascade refused"
 | MySQL 5.7 large-domain and cascade refusal | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=docker -Dtest='PivotSqlParityIntegrationTest+PivotCascadeGenerateSqlParityIntegrationTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | available when local MySQL 5.7 docker service is running |
 | SQL Server cascade parity | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlserver -Dtest=PivotCascadeGenerateSqlParityIntegrationTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | env-gated |
 | SQL Server full Pivot smoke | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -P'!multi-db' -Dspring.profiles.active=sqlserver -Dtest='PivotIntegrationTest+PivotSqlParityIntegrationTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | env-gated |
+| SQL Server no-service renderer/capability subset | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -Dtest='DomainRelationRendererTest#testSqlServerCteRenderer_TupleField,RelationModelTest#sqlServerWithCte' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | pass on 2026-06-18 |
+
+## 2026-06-18 Local Environment Evidence
+
+| Check | Result |
+|---|---|
+| `docker ps --format '{{.Names}} {{.Image}} {{.Ports}}'` | MySQL 8 and PostgreSQL containers are running; no `foggy-demo-sqlserver` container is running. |
+| `docker images --format '{{.Repository}}:{{.Tag}}' \| rg 'mcr.microsoft.com/mssql\|postgres\|mysql\|redis'` | Local images include `mysql:8.0`, `postgres:15-alpine`, and `redis:7-alpine`; no `mcr.microsoft.com/mssql/server` image is present. |
+| `command -v sqlcmd` | No local `sqlcmd` client is available. |
+| `nc -z 127.0.0.1 11433`; `nc -z 127.0.0.1 1433` | Both probes return exit code `1`; SQL Server is not reachable on the configured test ports. |
+| No-service SQL Server renderer/capability subset | Passed with `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0` under each configured Surefire execution in the module run. |
 
 ## Acceptance Boundary
 
@@ -68,6 +89,8 @@ SQL Server can be promoted only when live results prove:
 - Result rows, ordering, and totals match the baseline oracle.
 - CTE domain transport is applied or refused with stable diagnostics.
 - Unsupported shapes still fail closed.
+
+Until that evidence exists, SQL Server-specific Pivot cascade and prepared-service parity remain unclaimed. This does not block the default Java engine gate unless a release note or tag explicitly includes SQL Server support in its claimed scope.
 
 MySQL 5.7 can be signed only as:
 
