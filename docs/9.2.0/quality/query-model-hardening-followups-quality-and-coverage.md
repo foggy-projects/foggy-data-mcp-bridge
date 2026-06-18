@@ -42,7 +42,7 @@ The upstream verification packet is recorded at `../workitems/upstream-verificat
 | `BUG-aggregate-relation-joined-dimension-left-key` | local-verified | Aggregate relation dependency planning for ON left fields. | Targeted Java integration evidence. | Upstream confirmation when TMS exercises issue #84 consumer shape. |
 | `BUG-aggregate-relation-rhs-dimension-filter` | upstream-verified | RHS aggregate derived-table dimension joins before filter/grouping. | Workitem and upstream evidence. | None recorded. |
 | `BUG-formula-property-missing-column-error` | local-verified-awaiting-upstream | TM validation error reporting. | Targeted Java integration evidence. | TMS issue #85 confirmation. |
-| `BUG-qm-predefined-formula-slice-injection` | local-verified-awaiting-upstream | Trusted predefined calculated field injection for `slice`, `having`, `postSlice`, `orderBy`, `groupBy`, and `$field`. | Targeted Java integration evidence. | Upstream `OrderStationStockProjectionQuery.availablePieceCount` confirmation. |
+| `BUG-qm-predefined-formula-slice-injection` | local-verified-awaiting-upstream | Trusted predefined calculated field injection for `slice`, `having`, `postSlice`, `orderBy`, `groupBy`, and `$field`. | Targeted Java integration evidence. | Upstream issue #96 `OrderStationStockProjectionQuery.availablePieceCount` confirmation. |
 | `OPT-qm-predefined-scalar-formula-outer-aggregate` | implemented | Final projection aggregation over row-level scalar predefined formulas. | Unit and integration evidence. | Preserve fail-closed behavior for aggregate/window formulas. |
 | `OPT-qm-v2-tablemodel-multi-alias` | implemented | Explicit aliases for repeated ordinary `TableModel` use. | Unit and integration evidence. | Do not introduce implicit alias inference. |
 | `BUG-data-viewer-direct-extdata-runtime-filter` | current-source-verified | Data Viewer direct endpoint parameter conversion. | Launcher smoke test evidence. | Keep expected negative-case validation log documented. |
@@ -224,7 +224,7 @@ Regression notes:
 ## Known Gaps
 
 - `BUG-formula-property-missing-column-error` still requires upstream TMS issue #85 verification.
-- `BUG-qm-predefined-formula-slice-injection` still requires upstream verification with `OrderStationStockProjectionQuery.availablePieceCount`.
+- `BUG-qm-predefined-formula-slice-injection` still requires upstream issue #96 verification with `OrderStationStockProjectionQuery.availablePieceCount`.
 - The handoff packet for both checks is available at `../workitems/upstream-verification-handoff-20260606.md`.
 - Aggregate join residual risks remain governed by `acceptance/query-model-aggregate-join-acceptance.md`.
 

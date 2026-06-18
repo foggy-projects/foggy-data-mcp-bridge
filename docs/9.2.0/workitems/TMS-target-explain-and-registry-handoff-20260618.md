@@ -29,7 +29,7 @@ through `foggy-model-registry`.
 |---|---|---|
 | TMS workspace | No local TMS/query-cloud-service checkout exists under `/Users/fengjianguang/foggy-projects`. | This repo cannot run the real `OrderSettlementCandidateQuery`, `FactOrderSettlementModel`, or `OrderStationStockProjectionQuery` scenarios. |
 | GitHub #85 | `gh issue view 85 -R foggy-projects/foggy-data-mcp-bridge` shows issue #85 still `OPEN`, updated at `2026-06-13T04:41:07Z`. | Keep `BUG-formula-property-missing-column-error` as `local-verified-awaiting-upstream`. |
-| `availablePieceCount` issue search | `gh issue list --search 'availablePieceCount OR OrderStationStockProjectionQuery OR predefined formula slice'` returned #85 and #84 only; no standalone `availablePieceCount` issue was found. | Keep `BUG-qm-predefined-formula-slice-injection` tracked through `upstream-verification-handoff-20260606.md`. |
+| `availablePieceCount` upstream tracker | Initial search returned #85 and #84 only; issue #96 was created on 2026-06-18 as the dedicated `OrderStationStockProjectionQuery.availablePieceCount` tracker. | Keep `BUG-qm-predefined-formula-slice-injection` as `local-verified-awaiting-upstream` until #96 receives real TMS pass/fail confirmation. |
 | Registry repo | `/Users/fengjianguang/foggy-projects/foggy-model-registry` is present, clean before update, and `git pull --ff-only` reported already up to date. | Registry can record a promotion gate, but cannot publish without authority TMS model artifacts. |
 | Registry promotion gate | `foggy-model-registry` commit `881912a docs: refresh tms promotion gate evidence` updates the TMS promotion gate with PostgreSQL evidence and SQL Server non-blocking boundary. | Status remains `gate-defined-not-published`. |
 | SQL Server | SQL Server remains service-gated and unclaimed. | This blocks only SQL Server-specific support claims, not the default MySQL/PostgreSQL/SQLite engine boundary. |
@@ -44,7 +44,7 @@ Before TMS production optimizer confidence or registry package publication:
    faithful local branch that removes one carrier `column` for verification.
 3. TMS consumer confirms `OrderStationStockProjectionQuery.availablePieceCount`
    can be referenced from filter-like clauses without being selected in
-   `columns`.
+   `columns`; tracked by https://github.com/foggy-projects/foggy-data-mcp-bridge/issues/96.
 4. Target TMS database query execution passes for the representative aggregate
    relation shape.
 5. Generated SQL and `EXPLAIN` or equivalent plan evidence proves the RHS

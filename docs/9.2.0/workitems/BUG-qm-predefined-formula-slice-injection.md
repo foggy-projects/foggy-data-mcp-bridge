@@ -211,9 +211,10 @@ Result:
 
 2026-06-18 upstream audit:
 
-- `gh issue list -R foggy-projects/foggy-data-mcp-bridge --state all --search 'availablePieceCount OR OrderStationStockProjectionQuery OR predefined formula slice'` returned #85 and #84 only.
-- No standalone `availablePieceCount` issue was found, so the confirmation still
-  belongs to `upstream-verification-handoff-20260606.md`.
+- `gh issue list -R foggy-projects/foggy-data-mcp-bridge --state all --search 'availablePieceCount OR OrderStationStockProjectionQuery OR predefined formula slice'` initially returned #85 and #84 only.
+- Created upstream issue #96 as the dedicated
+  `OrderStationStockProjectionQuery.availablePieceCount` confirmation tracker:
+  https://github.com/foggy-projects/foggy-data-mcp-bridge/issues/96.
 - Local workspace still has no TMS/query-cloud-service checkout. Keep this
   workitem as `local-verified-awaiting-upstream` until the real
   `OrderStationStockProjectionQuery.availablePieceCount` scenario returns a
@@ -222,5 +223,6 @@ Result:
 ## References
 
 - Upstream report: QM predefined formula field referenced only in `slice` raises `未能找到列[...]`.
+- Upstream tracker: foggy-projects/foggy-data-mcp-bridge#96.
 - Related runtime stack: `JdbcModelQueryEngine.buildSingleCondition` -> `buildSlice` -> `analysisQueryRequest`.
 - Upstream verification handoff: `upstream-verification-handoff-20260606.md`

@@ -28,8 +28,10 @@ The upstream verifier does not need to re-run the full Foggy Java test suite. Th
 - `gh issue view 85 -R foggy-projects/foggy-data-mcp-bridge` still reports
   issue #85 as `OPEN`, updated at `2026-06-13T04:41:07Z`.
 - `gh issue list --search 'availablePieceCount OR OrderStationStockProjectionQuery OR predefined formula slice'`
-  returned #85 and #84 only; no standalone `availablePieceCount` issue was
-  found.
+  initially returned #85 and #84 only, so issue #96 was created as the
+  dedicated `OrderStationStockProjectionQuery.availablePieceCount` tracker.
+- `gh issue view 96 -R foggy-projects/foggy-data-mcp-bridge` reports issue
+  #96 as `OPEN`, updated at `2026-06-18T04:52:55Z`.
 - Local workspace audit still finds no TMS/query-cloud-service checkout under
   `/Users/fengjianguang/foggy-projects`.
 - The target TMS EXPLAIN and registry promotion boundary is now recorded in
@@ -40,7 +42,7 @@ The upstream verifier does not need to re-run the full Foggy Java test suite. Th
 2026-06-13 audit result:
 
 - `foggy-projects/foggy-data-mcp-bridge#85` remains open. It has the Java engine fix comment for commit `1a39d711`, but no TMS pass/fail confirmation yet.
-- No standalone upstream issue was found for `OrderStationStockProjectionQuery.availablePieceCount`; keep this handoff as the tracking packet until a real TMS confirmation is returned.
+- Superseded by the 2026-06-18 audit: issue #96 now tracks `OrderStationStockProjectionQuery.availablePieceCount`; keep this handoff as the verification packet until a real TMS confirmation is returned.
 - Both items therefore remain `local-verified-awaiting-upstream`; do not mark them `upstream-verified` from local Java evidence alone.
 - Local workspace audit found no TMS/query-cloud-service checkout, so this repo can only provide Java engine evidence. Real consumer verification still needs the upstream TMS repo and model bundle.
 - #84 aggregate relation left-side dimension ON is no longer part of this pending handoff: upstream feedback confirmed the TMS real query path, while this handoff remains scoped to #85 and `availablePieceCount`.
@@ -113,6 +115,7 @@ If TMS has already added carrier columns to all affected fields, this can be ver
 Source workitem:
 
 - `docs/9.2.0/workitems/BUG-qm-predefined-formula-slice-injection.md`
+- Upstream tracker: https://github.com/foggy-projects/foggy-data-mcp-bridge/issues/96
 
 ### What To Verify
 
