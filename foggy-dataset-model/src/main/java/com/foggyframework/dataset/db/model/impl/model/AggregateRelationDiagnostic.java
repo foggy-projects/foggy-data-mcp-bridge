@@ -19,6 +19,10 @@ public record AggregateRelationDiagnostic(
         return new AggregateRelationDiagnostic("retained", reasonCode, field, op, "outer", null);
     }
 
+    public static AggregateRelationDiagnostic projectionRetained(String reasonCode) {
+        return new AggregateRelationDiagnostic("retained", reasonCode, null, "projection", "projection", null);
+    }
+
     public static AggregateRelationDiagnostic refused(String field, String op, String reasonCode) {
         return new AggregateRelationDiagnostic("refused", reasonCode, field, op, null, null);
     }

@@ -75,7 +75,7 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 - Aggregate relation group-key request slice is now covered through an explicit `salesOrderId` QM alias for `fsByOrder.orderId`; the SQL keeps both RHS source-key pushdown and the outer filter.
 - QM external alias handling is now stricter about ownership: external `name` is used for the public QueryModel field, while dimension owner resolution follows the selected source column to avoid regressions in alias-heavy O615 paths.
 - Aggregate relation runtime schema now carries business captions and type semantics from TM measures; Java V3 JSON metadata now exports QM-only aggregate relation measures and structured lineage. The remaining schema risk is query-cloud/data-viewer consumption/display, not the Java core schema export.
-- The previous default-measure projection-width gap is closed for tracked structured references: aggregate relation RHS projection is pruned to required group keys and referenced outputs. Raw SQL conditions intentionally disable this pruning because alias usage is not inferred from raw SQL text.
+- The previous default-measure projection-width gap is closed for tracked structured references: aggregate relation RHS projection is pruned to required group keys and referenced outputs. Raw SQL conditions intentionally disable this pruning because alias usage is not inferred from raw SQL text, and the retained full projection now emits `RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED` for planner/debug visibility.
 - Aggregate relation output `orderBy` and QueryFacade `returnTotal` are no longer incidental coverage: both have targeted SQL-shape and execution assertions against the relation-level DSL fixture.
 - Request-side dynamic `calculatedFields` that reference aggregate relation outputs are covered for source physical-column `deniedColumns`, including a transitive calculated-field chain; QM predefined calculated fields are also covered through QueryModel physical-column mapping. Positive QM predefined formula execution is also covered, so the permission mapping is checked for both allowed and denied paths. No implementation change was needed for the request-side path because `FieldAccessPermissionStep` already expands calculated-field dependencies before checking denied QM fields.
 
@@ -86,11 +86,11 @@ This quality gate reviews the Java engine initial cut for QueryModel aggregate j
 - Keep OR/complex predicate pushdown disabled unless a future boolean-normalization design proves semantic equivalence; current OR join-key and OR aggregate-measure boundaries are covered as outer-only regressions.
 - Add real target TMS database SQL/EXPLAIN evidence when authority TMS models and a target database are available.
 - Keep derived relation body-parameter ordering covered as more derived table carriers are added; aggregate relation now uses `QueryObject.getBodyParameters()` for RHS fixed/runtime filters and duplicated pushdown fragments.
-- Keep relation-level projection pruning covered when new query-reference sources are added; structured references are pruned today, while raw SQL predicates retain full RHS projection by design.
+- Keep relation-level projection pruning covered when new query-reference sources are added; structured references are pruned today, while raw SQL predicates retain full RHS projection by design and must keep the retained projection diagnostic visible.
 - Keep ETL / pre-aggregated promotion out of this delivery; reopen it as a separate modeling/optimization work item after the runtime aggregate path is stable.
 
 ## Decision
 
 Decision: ready-for-acceptance-with-risks.
 
-The implementation is suitable for accepted-with-risks signoff for the Java engine cut. Remaining risks are explicitly scoped to target TMS explain evidence, future expansion of complex predicate pushdown beyond the covered OR outer-only boundary, implicit tenant/raw SQL guard boundaries, explicit tenant-key fixtures, and upstream product consumption of the Java metadata export.
+The implementation is suitable for accepted-with-risks signoff for the Java engine cut. Remaining risks are explicitly scoped to target TMS explain evidence, future expansion of complex predicate pushdown beyond the covered OR outer-only boundary, implicit tenant/raw SQL guard boundaries, explicit tenant-key fixtures, and upstream product consumption of the Java metadata export. Raw SQL projection-pruning fallback is now documented through structured diagnostics, but remains intentionally non-pushed/non-inferred behavior.

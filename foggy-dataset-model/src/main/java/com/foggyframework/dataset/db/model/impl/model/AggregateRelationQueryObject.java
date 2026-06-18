@@ -15,6 +15,7 @@ public interface AggregateRelationQueryObject {
     String REASON_NULL_VALUE_UNSUPPORTED = "NULL_VALUE_UNSUPPORTED";
     String REASON_NO_AGGREGATE_EXPRESSION = "NO_AGGREGATE_EXPRESSION";
     String REASON_NO_JOIN_KEY_MAPPING = "NO_JOIN_KEY_MAPPING";
+    String REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED = "RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED";
 
     void clearAggregateRelationPushdowns();
 
@@ -31,6 +32,8 @@ public interface AggregateRelationQueryObject {
     boolean pushAggregateRelationJoinKeyCondition(String leftFieldName, String op, Object value);
 
     void recordAggregateRelationRetainedCondition(String fieldName, String op, String reasonCode);
+
+    void recordAggregateRelationProjectionRetained(String reasonCode);
 
     List<AggregateRelationDiagnostic> getAggregateRelationDiagnostics();
 }

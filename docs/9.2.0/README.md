@@ -97,7 +97,7 @@ The current readiness boundary is:
 
 ## Primary Workitems
 
-- `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, local TMS-style composite-key fixture, SQLite evidence, MySQL 5.7 real database evidence, Java aggregate-join parity snapshot v3 producer, coverage audit, and accepted-with-risks signoff recorded.
+- `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, raw SQL projection-retained diagnostics, local TMS-style composite-key fixture, SQLite evidence, MySQL 5.7 real database evidence, Java aggregate-join parity snapshot v3 producer, coverage audit, and accepted-with-risks signoff recorded.
 - `workitems/java-engine-hardening-1-7-20260611.md` - 2026-06-11 Java engine hardening pass for aggregate join predicate boundaries, direct Data Viewer `extData` fail-closed cases, local dialect evidence boundaries, and Pivot MySQL 5.7 large-domain/cascade refusal evidence.
 - `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` - Follow-up fix for aggregate relation ON left keys that reference already-joined dimension fields or nested dimension paths; ensures ON dependencies join before the aggregate derived table.
 - `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` - Follow-up fix for aggregate relation RHS fixed filters that reference right-side dimension fields; ensures the derived table joins RHS dimensions before filtering and grouping.

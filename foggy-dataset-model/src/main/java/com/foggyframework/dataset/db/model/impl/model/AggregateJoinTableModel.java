@@ -1012,6 +1012,11 @@ public class AggregateJoinTableModel extends TableModelSupport {
         }
 
         @Override
+        public void recordAggregateRelationProjectionRetained(String reasonCode) {
+            pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.projectionRetained(reasonCode));
+        }
+
+        @Override
         public List<AggregateRelationDiagnostic> getAggregateRelationDiagnostics() {
             PushdownState state = pushdownState.get();
             if (!state.diagnostics.isEmpty()) {

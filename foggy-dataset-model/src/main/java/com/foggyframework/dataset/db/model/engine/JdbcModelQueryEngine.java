@@ -519,6 +519,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         for (AggregateRelationQueryObject queryObject : queryObjects) {
             queryObject.resetAggregateRelationProjection();
             queryObject.setAggregateRelationProjectionPruningEnabled(pruningEnabled);
+            if (!pruningEnabled && jdbcQuery != null && jdbcQuery.isRawSqlConditionAdded()) {
+                queryObject.recordAggregateRelationProjectionRetained(
+                        AggregateRelationQueryObject.REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED);
+            }
         }
         if (!pruningEnabled || jdbcQuery == null) {
             return;

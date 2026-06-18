@@ -1072,6 +1072,14 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "raw SQL accessBuilder 存在时应退回全量 RHS projection，避免误裁未知 raw SQL 引用");
         assertTrue(queryEngine.getValues().contains(orderId),
                 "外层 WHERE 应保留 raw SQL accessBuilder 参数化条件");
+        List<AggregateRelationDiagnostic> diagnostics = aggregateRelationDiagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED
+                                        .equals(diagnostic.reasonCode())
+                                && "projection".equals(diagnostic.op())
+                                && "projection".equals(diagnostic.target())),
+                "raw SQL accessBuilder 关闭 RHS projection pruning 时应暴露明确诊断");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 queryEngine.getSql(),

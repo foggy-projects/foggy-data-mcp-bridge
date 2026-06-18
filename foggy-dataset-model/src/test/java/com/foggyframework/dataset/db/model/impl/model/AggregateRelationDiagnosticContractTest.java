@@ -64,6 +64,16 @@ class AggregateRelationDiagnosticContractTest {
         assertEquals("outer", retained.target());
         assertNull(retained.expression());
 
+        AggregateRelationDiagnostic projectionRetained = AggregateRelationDiagnostic.projectionRetained(
+                AggregateRelationQueryObject.REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED);
+        assertEquals("retained", projectionRetained.decision());
+        assertEquals(AggregateRelationQueryObject.REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED,
+                projectionRetained.reasonCode());
+        assertNull(projectionRetained.field());
+        assertEquals("projection", projectionRetained.op());
+        assertEquals("projection", projectionRetained.target());
+        assertNull(projectionRetained.expression());
+
         AggregateRelationDiagnostic refused = AggregateRelationDiagnostic.refused(
                 "salesAmount", "between", AggregateRelationQueryObject.REASON_INVALID_RANGE_VALUE);
         assertEquals("refused", refused.decision());
@@ -85,7 +95,8 @@ class AggregateRelationDiagnosticContractTest {
                 AggregateRelationQueryObject.REASON_INVALID_RANGE_VALUE,
                 AggregateRelationQueryObject.REASON_NULL_VALUE_UNSUPPORTED,
                 AggregateRelationQueryObject.REASON_NO_AGGREGATE_EXPRESSION,
-                AggregateRelationQueryObject.REASON_NO_JOIN_KEY_MAPPING);
+                AggregateRelationQueryObject.REASON_NO_JOIN_KEY_MAPPING,
+                AggregateRelationQueryObject.REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED);
 
         assertEquals(List.of(
                 "OR_CONDITION_OUTER_ONLY",
@@ -95,7 +106,8 @@ class AggregateRelationDiagnosticContractTest {
                 "INVALID_RANGE_VALUE",
                 "NULL_VALUE_UNSUPPORTED",
                 "NO_AGGREGATE_EXPRESSION",
-                "NO_JOIN_KEY_MAPPING"), reasonCodes);
+                "NO_JOIN_KEY_MAPPING",
+                "RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED"), reasonCodes);
         assertEquals(reasonCodes.size(), new LinkedHashSet<>(reasonCodes).size(),
                 "aggregate relation diagnostic reason codes must be unique");
     }
