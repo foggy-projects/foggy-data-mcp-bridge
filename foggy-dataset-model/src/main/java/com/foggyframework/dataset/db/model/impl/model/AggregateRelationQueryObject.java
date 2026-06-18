@@ -18,6 +18,8 @@ public interface AggregateRelationQueryObject {
 
     void clearAggregateRelationPushdowns();
 
+    void resetAggregateRelationProjection();
+
     void setAggregateRelationProjectionPruningEnabled(boolean enabled);
 
     void markAggregateRelationOutput(AggregateRelationOutputColumn column);

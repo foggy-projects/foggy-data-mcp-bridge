@@ -932,6 +932,11 @@ public class AggregateJoinTableModel extends TableModelSupport {
         }
 
         @Override
+        public void resetAggregateRelationProjection() {
+            pushdownState.get().requiredOutputAliases.clear();
+        }
+
+        @Override
         public void setAggregateRelationProjectionPruningEnabled(boolean enabled) {
             pushdownState.get().projectionPruningEnabled = enabled;
         }
@@ -949,7 +954,12 @@ public class AggregateJoinTableModel extends TableModelSupport {
             if (alias == null || alias.isBlank()) {
                 return;
             }
-            pushdownState.get().requiredOutputAliases.add(alias);
+            PushdownState state = pushdownState.get();
+            state.requiredOutputAliases.add(alias);
+            int dotIndex = alias.lastIndexOf('.');
+            if (dotIndex >= 0 && dotIndex < alias.length() - 1) {
+                state.requiredOutputAliases.add(alias.substring(dotIndex + 1));
+            }
         }
 
         @Override

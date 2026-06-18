@@ -288,6 +288,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         request.setColumns(new ArrayList<>(List.of("orderId", "salesAmount", "runningSalesAmount")));
         request.setGroupBy(buildGroupBy("orderId"));
         request.setSlice(new ArrayList<>(List.of(new SliceRequestDef("orderStatus", "=", "COMPLETED"))));
+        int runningSalesAmountThreshold = 150000;
 
         CalculatedFieldDef runningSalesAmount = new CalculatedFieldDef();
         runningSalesAmount.setName("runningSalesAmount");
@@ -299,7 +300,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         )));
         runningSalesAmount.setWindowFrame("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW");
         request.setCalculatedFields(new ArrayList<>(List.of(runningSalesAmount)));
-        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("runningSalesAmount", "<=", 15000))));
+        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("runningSalesAmount", "<=", runningSalesAmountThreshold))));
         request.setOrderBy(new ArrayList<>(List.of(
                 orderDesc("salesAmount"),
                 orderAsc("orderId")
@@ -314,11 +315,11 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertTrue(normalizedSql.toUpperCase().contains("SUM("), sql);
         assertTrue(normalizedSql.toUpperCase().contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"), sql);
         assertTrue(engine.getValues().contains("COMPLETED"), "ordinary slice value should be bound");
-        assertTrue(engine.getValues().contains(15000), "postSlice threshold should be bound");
+        assertTrue(engine.getValues().contains(runningSalesAmountThreshold), "postSlice threshold should be bound");
 
         List<Map<String, Object>> actual = jdbcTemplate.queryForList(
                 sql, engine.getValues().toArray(new Object[0]));
-        List<Map<String, Object>> expected = executeQuery(handWrittenRunningSumSql(15000));
+        List<Map<String, Object>> expected = executeQuery(handWrittenRunningSumSql(runningSalesAmountThreshold));
 
         assertRowsEqualInOrder(expected, actual, sql);
     }

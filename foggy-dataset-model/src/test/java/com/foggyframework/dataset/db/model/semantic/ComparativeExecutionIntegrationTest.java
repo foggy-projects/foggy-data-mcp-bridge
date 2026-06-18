@@ -65,9 +65,6 @@ public class ComparativeExecutionIntegrationTest extends EcommerceTestSupport {
         );
         request.setTimeWindow(timeWindow);
         
-        // Ensure some limit
-        request.setLimit(50);
-
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
                 TEST_MODEL, request, "execute", SemanticRequestContext.empty()
         );
@@ -154,7 +151,6 @@ public class ComparativeExecutionIntegrationTest extends EcommerceTestSupport {
                 "comparison", "yoy",
                 "targetMetrics", List.of("salesAmount")
         ));
-        request.setLimit(50);
 
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
                 TEST_MODEL, request, "execute", SemanticRequestContext.empty()

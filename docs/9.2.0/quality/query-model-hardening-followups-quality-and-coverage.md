@@ -200,16 +200,34 @@ Environment note:
 
 - MySQL was reachable on `127.0.0.1:13306`.
 - Supplemental 2026-06-18 PostgreSQL targeted aggregate-join evidence passed against local Docker `postgres:15-alpine` on `127.0.0.1:15432`.
-- The full PostgreSQL module gate was not rerun in this review.
+
+### Prepared PostgreSQL Dataset-Model Gate
+
+Command:
+
+```bash
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model test-compile surefire:test@test-postgres -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+Result:
+
+```text
+Tests run: 3162, Failures: 0, Errors: 0, Skipped: 3
+```
+
+Regression notes:
+
+- Initial full PostgreSQL run reproduced three failures, tracked and closed in `../workitems/BUG-postgres-full-gate-regressions.md`.
+- Targeted PostgreSQL recheck passed for aggregate relation self-alias projection pruning, CTE running-sum post-slice, monthly YoY, and quarterly YoY: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`.
+- Full PostgreSQL prepared-service gate now passes against the local PostgreSQL service after the fixes.
 
 ## Known Gaps
 
 - `BUG-formula-property-missing-column-error` still requires upstream TMS issue #85 verification.
 - `BUG-qm-predefined-formula-slice-injection` still requires upstream verification with `OrderStationStockProjectionQuery.availablePieceCount`.
 - The handoff packet for both checks is available at `../workitems/upstream-verification-handoff-20260606.md`.
-- The full PostgreSQL Maven gate should be rerun with the prepared PostgreSQL service before release signoff.
 - Aggregate join residual risks remain governed by `acceptance/query-model-aggregate-join-acceptance.md`.
 
 ## Decision
 
-The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as final release acceptance until upstream TMS confirmations and the full PostgreSQL prepared-service gate are complete.
+The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as final release acceptance until upstream TMS confirmations and any required SQL Server prepared-service gate are complete.

@@ -21,7 +21,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 - follow-up QueryModel hardening work has targeted Java evidence;
 - local-only fixes are separated from upstream TMS confirmation;
 - a compact upstream verification handoff exists for the two local-only consumer checks;
-- environment-dependent full multi-db gates are not represented as completed.
+- environment-dependent full multi-db gates are represented only where prepared-service evidence exists.
 
 ## Signoff Matrix
 
@@ -34,6 +34,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | `workitems/BUG-qm-predefined-formula-slice-injection.md` | local-verified-awaiting-upstream | Engine injection path is verified locally; upstream `OrderStationStockProjectionQuery.availablePieceCount` still needs confirmation. | Targeted dataset-model integration run on 2026-06-06. |
 | `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` | implemented | Row-level scalar predefined formulas can be outer-aggregated; aggregate/window formulas still fail closed. | Unit and integration evidence recorded in the workitem. |
 | `workitems/OPT-qm-v2-tablemodel-multi-alias.md` | implemented | Explicit ordinary `TableModel` aliases are supported across joins, projections, filters, and ordering. | Unit and integration evidence recorded in the workitem. |
+| `workitems/BUG-postgres-full-gate-regressions.md` | closed | PostgreSQL full-gate regressions in aggregate relation self-alias projection pruning, CTE running-sum fixture boundary, and YoY oracle limits are fixed and covered by the full prepared PostgreSQL gate. | Targeted PostgreSQL recheck plus full dataset-model PostgreSQL gate on 2026-06-18. |
 | `workitems/BUG-data-viewer-direct-extdata-runtime-filter.md` | current-source-verified | Current source preserves direct-query `extData` runtime context; the expected negative-case validation log does not indicate a regression. | `DataViewerApiSmokeTest` run on 2026-06-06. |
 | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | implemented | SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values. | Targeted unit regression plus prepared MySQL gate on 2026-06-06. |
 | `workitems/MODEL-field-permissions.md` | local-verified | Declarative TM/QM field visibility rules are resolved together with runtime `fieldAccess` and physical-column `deniedColumns` for query enforcement and semantic metadata. | Targeted dataset-model unit and integration gate on 2026-06-13. |
@@ -55,16 +56,17 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | Compose script snapshot producer gate | pass | `JavaComposeScriptSnapshotTest` passed and regenerated the tracked Python runtime fixture with 13 cases; `JavaComposeScriptToolErrorSnapshotTest` passed and regenerated the tracked MCP tool error fixture with 7 cases. Python replay passed for both fixtures. |
 | Prepared MySQL dataset-model gate | pass | After refreshing local `foggy-dataset` and `foggy-dataset-demo` artifacts, `mvn -pl foggy-dataset-model surefire:test@test-mysql -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3040, Failures: 0, Errors: 0, Skipped: 51`. |
 | 2026-06-18 Pivot outer-cache Redis live addon gate | pass | Local `redis:7-alpine` on `127.0.0.1:16379`; provider, Pub/Sub invalidation, auto-configuration, and independent publisher/listener JVM delivery passed together: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`. |
-| PostgreSQL full prepared gate | pending-full-run | Targeted aggregate-join evidence is now recorded on a prepared local PostgreSQL service, but the full dataset-model PostgreSQL gate has not been rerun. |
-| Default full multi-db gate | partially claimed | MySQL full evidence is recorded; PostgreSQL has targeted aggregate-join evidence, but the full PostgreSQL module gate still requires a prepared-service run before release signoff. |
+| 2026-06-18 PostgreSQL regression recheck | pass | Self-alias aggregate relation projection, CTE running-sum post-slice, monthly YoY, and quarterly YoY regressions passed together: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`. |
+| PostgreSQL full prepared gate | pass | After refreshing local artifacts and compiling tests, `mvn -pl foggy-dataset-model test-compile surefire:test@test-postgres -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3162, Failures: 0, Errors: 0, Skipped: 3`. |
+| Default full multi-db gate | partially claimed | MySQL and PostgreSQL full prepared-service evidence are recorded. SQL Server remains environment-gated before any SQL Server release claim. |
 
 ## Decision
 
-9.2.0 is ready for the next hardening cycle with known follow-ups. It is not yet a risk-free release signoff because upstream TMS confirmation and full environment-backed multi-db evidence remain open.
+9.2.0 is ready for the next hardening cycle with known follow-ups. It is not yet a risk-free release signoff because upstream TMS confirmation and SQL Server environment-backed evidence remain open.
 
 Recommended next actions:
 
 - send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open, no standalone `availablePieceCount` issue, and no local TMS/query-cloud-service checkout in this workspace;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
 - treat the Pivot Redis line as engine-local closed for now; production Redis rollout, durable replay/fan-out, subscription-loss recovery, and race-window evidence belong to deployment/ops hardening rather than the next Java engine loop;
-- run the full PostgreSQL Maven gate with the prepared PostgreSQL service before a release tag.
+- decide whether SQL Server prepared-service evidence is required before the next release tag, because MySQL and PostgreSQL full gates now have local prepared-service evidence.
