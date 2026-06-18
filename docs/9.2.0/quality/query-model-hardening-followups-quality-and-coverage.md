@@ -133,6 +133,7 @@ JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-datas
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest=AggregateJoinQueryModelTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#tmsStyleAggregateRelationShouldPushCompositeKeyFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
+JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=postgres -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters+tmsStyleAggregateRelationShouldPushCompositeKeyFilters+aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 Result:
@@ -143,6 +144,7 @@ Targeted SQLite TMS-style composite-key fixture: Tests run: 1, Failures: 0, Erro
 Full AggregateJoinQueryModelTest SQLite suite: Tests run: 50, Failures: 0, Errors: 0, Skipped: 0
 MySQL 5.7 live aggregate-join gate: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
 MySQL 5.7 live TMS-style composite-key fixture: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+PostgreSQL 15 targeted aggregate-join gate: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
 ```
 
 Coverage:
@@ -151,7 +153,8 @@ Coverage:
 - AND `in`/range request slices duplicate safely to RHS source-key `WHERE` and aggregate-measure `HAVING` while retaining the outer filters;
 - local TMS-style order+site composite-key fixture verifies RHS `order_id` and `store_key` pushdown plus aggregate-measure `HAVING` while matching native aggregate SQL;
 - live MySQL 5.7 `EXPLAIN` shows derived source `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, and `Using where` for pushed filters;
-- PostgreSQL and SQL Server remain environment-blocked locally because `docker` is unavailable and ports `15432` / `11433` are closed.
+- live PostgreSQL `postgres:15-alpine` targeted evidence now covers aggregate relation EXPLAIN/pushdown, composite-key pushdown, joined-dimension left-key, nested dimension path, and RHS dimension fixed-filter cases;
+- SQL Server remains environment-blocked locally because no SQL Server service is reachable on `11433` / `1433` and `sqlcmd` is unavailable.
 
 ### Odoo Registry Consumer Gate
 
@@ -196,17 +199,17 @@ Tests run: 3040, Failures: 0, Errors: 0, Skipped: 51
 Environment note:
 
 - MySQL was reachable on `127.0.0.1:13306`.
-- PostgreSQL was not reachable on `127.0.0.1:15432`.
-- `docker` / `podman` were unavailable in this local shell, so PostgreSQL gate remains environment-blocked rather than failed.
+- Supplemental 2026-06-18 PostgreSQL targeted aggregate-join evidence passed against local Docker `postgres:15-alpine` on `127.0.0.1:15432`.
+- The full PostgreSQL module gate was not rerun in this review.
 
 ## Known Gaps
 
 - `BUG-formula-property-missing-column-error` still requires upstream TMS issue #85 verification.
 - `BUG-qm-predefined-formula-slice-injection` still requires upstream verification with `OrderStationStockProjectionQuery.availablePieceCount`.
 - The handoff packet for both checks is available at `../workitems/upstream-verification-handoff-20260606.md`.
-- PostgreSQL Maven execution is environment-dependent and should be rerun with a prepared PostgreSQL service before release signoff.
+- The full PostgreSQL Maven gate should be rerun with the prepared PostgreSQL service before release signoff.
 - Aggregate join residual risks remain governed by `acceptance/query-model-aggregate-join-acceptance.md`.
 
 ## Decision
 
-The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as final release acceptance until upstream TMS confirmations and the PostgreSQL prepared-environment gate are complete.
+The non aggregate-join hardening bundle is ready to feed the 9.2.0 readiness snapshot with follow-ups. It should not be treated as final release acceptance until upstream TMS confirmations and the full PostgreSQL prepared-service gate are complete.

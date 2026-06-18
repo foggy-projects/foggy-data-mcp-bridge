@@ -48,14 +48,15 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | Java QueryModel targeted regression gate | pass | `Tests run: 68, Failures: 0, Errors: 0, Skipped: 0`. |
 | 2026-06-13 targeted upstream-risk recheck | pass | #85 diagnostic, predefined formula slice-only injection, #84 left-side dimension ON, nested dimension path, and RHS dimension filter passed together: `Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`. |
 | 2026-06-13 MySQL aggregate join EXPLAIN gate | pass | Live MySQL profile passed 6 aggregate relation tests; EXPLAIN showed RHS derived `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, `Using where` for pushed filters. |
+| 2026-06-18 PostgreSQL aggregate join targeted gate | pass | Local Docker `postgres:15-alpine` container `foggy-demo-postgres` on `127.0.0.1:15432`; aggregate relation EXPLAIN/pushdown, composite-key, joined-dimension left-key, nested dimension path, and RHS dimension fixed-filter subset passed: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`. |
 | 2026-06-13 Java metadata contract gate | pass | Aggregate relation diagnostics and V3 JSON metadata aggregate-field exposure passed: `Tests run: 2, Failures: 0, Errors: 0, Skipped: 0`. |
 | Data Viewer direct-query smoke gate | pass | `DataViewerApiSmokeTest` passed; expected negative-case validation log observed. |
 | Odoo registry consumer gate | pass | `addons/foggy-odoo-bridge-java` reactor test passed and is recorded under 9.1.0 Odoo registry promotion evidence. |
 | Compose script snapshot producer gate | pass | `JavaComposeScriptSnapshotTest` passed and regenerated the tracked Python runtime fixture with 13 cases; `JavaComposeScriptToolErrorSnapshotTest` passed and regenerated the tracked MCP tool error fixture with 7 cases. Python replay passed for both fixtures. |
 | Prepared MySQL dataset-model gate | pass | After refreshing local `foggy-dataset` and `foggy-dataset-demo` artifacts, `mvn -pl foggy-dataset-model surefire:test@test-mysql -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3040, Failures: 0, Errors: 0, Skipped: 51`. |
 | 2026-06-18 Pivot outer-cache Redis live addon gate | pass | Local `redis:7-alpine` on `127.0.0.1:16379`; provider, Pub/Sub invalidation, auto-configuration, and independent publisher/listener JVM delivery passed together: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`. |
-| PostgreSQL prepared gate | blocked-by-environment | `docker` / `podman` unavailable locally and `127.0.0.1:15432` is not accepting connections. |
-| Default full multi-db gate | partially claimed | MySQL evidence is now recorded; PostgreSQL still requires a prepared service before release signoff. |
+| PostgreSQL full prepared gate | pending-full-run | Targeted aggregate-join evidence is now recorded on a prepared local PostgreSQL service, but the full dataset-model PostgreSQL gate has not been rerun. |
+| Default full multi-db gate | partially claimed | MySQL full evidence is recorded; PostgreSQL has targeted aggregate-join evidence, but the full PostgreSQL module gate still requires a prepared-service run before release signoff. |
 
 ## Decision
 
@@ -66,4 +67,4 @@ Recommended next actions:
 - send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open, no standalone `availablePieceCount` issue, and no local TMS/query-cloud-service checkout in this workspace;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
 - treat the Pivot Redis line as engine-local closed for now; production Redis rollout, durable replay/fan-out, subscription-loss recovery, and race-window evidence belong to deployment/ops hardening rather than the next Java engine loop;
-- run the PostgreSQL Maven gate in an environment with a prepared PostgreSQL service before a release tag.
+- run the full PostgreSQL Maven gate with the prepared PostgreSQL service before a release tag.

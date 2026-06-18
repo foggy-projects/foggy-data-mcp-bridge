@@ -7,7 +7,7 @@ status: partially-verified
 priority: P0/P1
 owner_module: foggy-dataset-model, foggy-mcp-launcher
 created_at: 2026-06-11
-updated_at: 2026-06-11
+updated_at: 2026-06-18
 ---
 
 # Java Engine Hardening 1-7
@@ -22,19 +22,21 @@ or cross-language alignment.
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| 1 | Aggregate Join PostgreSQL evidence | blocked-by-local-env | `application-postgres.yml` and the compose PostgreSQL service both target `15432`, but `docker`, `podman`, and `psql` are not available in this shell, and local PostgreSQL ports `15432`/`5432` are closed. This is an environment block, not a failed engine result. |
+| 1 | Aggregate Join PostgreSQL evidence | targeted-postgres-verified | On 2026-06-18 local Docker `postgres:15-alpine` container `foggy-demo-postgres` exposed `127.0.0.1:15432` and passed the selected 6-test aggregate join PostgreSQL gate. The full PostgreSQL module gate has not been rerun. |
 | 2 | Aggregate Join target TMS-style representative fixture | verified-local-gate-defined | Added a local TMS-style order+site composite-key aggregate relation fixture and verified RHS source-key `WHERE` plus measure `HAVING` pushdown on SQLite and live MySQL 5.7. Registry promotion gate is defined in `foggy-model-registry` commit `4e97d73`, but no TMS package is published before real authority models and target DB evidence exist. |
 | 3 | Complex predicate pushdown boundary hardening | verified-local | Added coverage for mixed OR staying outer-only and AND `in`/range being pushed to RHS `WHERE` / `HAVING` while retaining the outer filters. Aggregate relation pushdown now also records structured pushed/retained/refused diagnostics with stable reason codes and exposes them in semantic response `debug.extra` when present. Java MCP natural-language capture and the real `dataset.query_model` callback preserve these diagnostics when normalizing successful `SemanticQueryResponse` results. The diagnostics record/JSON/reason-code contract is pinned by unit coverage, and the aggregate join parity snapshot exporter is opt-in via `-Dfoggy.parity.snapshot=true`. |
 | 4 | Tenant/access guard edge cases | maintained | Existing system-slice, accessBuilder, deniedColumns, and predefined calculated-field tests continue to guard the hardening boundary. No new engine code was required in this pass. |
 | 5 | Data Viewer direct `extData` runtime filter negative cases | verified-local | Added fail-closed coverage for blank top-level `extData.orderId` and for nested `param.extData` being ignored by the direct endpoint. |
-| 6 | Pivot SQL Server cascade oracle | blocked-by-local-env | `application-sqlserver.yml` and the compose SQL Server service both target `11433`, but `docker`, `podman`, and `sqlcmd` are not available in this shell, and local SQL Server ports `11433`/`1433` are closed. No SQL Server cascade enablement is claimed. |
+| 6 | Pivot SQL Server cascade oracle | blocked-by-local-env | `application-sqlserver.yml` and the compose SQL Server service both target `11433`, but no SQL Server service is reachable on `11433`/`1433` and `sqlcmd` is not available in this shell. No SQL Server cascade enablement is claimed. |
 | 7 | Pivot MySQL 5.7 live large-domain/cascade evidence | verified-live-refusal-and-large-domain | MySQL 5.7 is reachable on `127.0.0.1:13306`. Pivot live evidence now covers large-domain axis-domain TopN/start pushdown, domain transport planning, and rows-cascade fail-closed refusal with `PIVOT_CASCADE_SQL_REQUIRED`. No MySQL 5.7 cascade enablement is claimed. |
 
 ## Verification
 
 | Command | Result |
 |---|---|
-| `command -v docker`, `command -v podman`, `command -v psql`, `command -v sqlcmd`, `command -v mysql`, `nc -z 127.0.0.1 15432`, `nc -z 127.0.0.1 5432`, `nc -z 127.0.0.1 11433`, `nc -z 127.0.0.1 1433`, `nc -z 127.0.0.1 13306` | Only `/usr/local/bin/mysql` exists. MySQL 5.7 port `13306` is reachable. PostgreSQL `15432`/`5432` and SQL Server `11433`/`1433` are closed. `docker`, `podman`, `psql`, and `sqlcmd` are unavailable in this shell. |
+| `docker ps --format '{{.Names}} {{.Image}} {{.Ports}}' \| rg 'foggy-demo-postgres|foggy-demo-mysql8'` | Local Docker services are running: `foggy-demo-postgres postgres:15-alpine` exposes `15432:5432`, and `foggy-demo-mysql8 mysql:8.0` exposes `13308:3306`. |
+| `docker exec foggy-demo-postgres pg_isready -U foggy -d foggy_test` | success; `/var/run/postgresql:5432 - accepting connections`. |
+| `command -v sqlcmd`, `nc -z 127.0.0.1 11433`, `nc -z 127.0.0.1 1433` | SQL Server client/service is still unavailable locally; no SQL Server cascade enablement is claimed. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationMixedOrSliceShouldStayOuterOnly+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; new complex-predicate aggregate relation coverage, including structured `OR_CONDITION_OUTER_ONLY` retained diagnostics and pushed `where` / `having` diagnostics; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#aggregateRelationPushdownRefusalShouldRecordReasonCodes+aggregateRelationOutputNullSliceShouldStayOuterWhere+aggregateRelationOutputNotNullSliceShouldStayOuterWhere' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate relation diagnostics refusal and null-check outer-only reason-code coverage; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=sqlite -Dtest='AggregateJoinQueryModelTest#semanticResponseShouldExposeAggregateRelationDiagnostics' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; semantic response `debug.extra.aggregateRelationDiagnostics` exposes pushed `where` / `having` aggregate relation planner evidence; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
@@ -46,6 +48,7 @@ or cross-language alignment.
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. The aggregate relation `EXPLAIN` shows derived source `agg_src` using `uk_order_line`, `type=ref`, `rows=2`, and `Using where` for pushed filters. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#tmsStyleAggregateRelationShouldPushCompositeKeyFilters' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; local TMS-style composite-key aggregate relation executed with derived RHS filters on `order_id` and `store_key`; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=docker -Dtest='AggregateJoinQueryModelTest#semanticResponseShouldExposeAggregateRelationDiagnostics' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live MySQL 5.7; semantic response `debug.extra.aggregateRelationDiagnostics` exposes aggregate relation pushed `where` / `having` planner evidence through the MySQL quoting and `limit 100` path; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dspring.profiles.active=postgres -Dtest='AggregateJoinQueryModelTest#aggregateRelationShouldRunExplainWithPushedRightSideFilters+aggregateRelationAndInRangeSlicesShouldPushRightFilters+tmsStyleAggregateRelationShouldPushCompositeKeyFilters+aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField+aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath+aggregateRelationRhsFixedFilterShouldSupportRightDimensionField' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success on live PostgreSQL `postgres:15-alpine`; aggregate relation EXPLAIN/pushdown, composite-key pushdown, joined-dimension left-key, nested dimension path, and RHS dimension fixed-filter subset passed; Tests run: 6, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-mcp -am -P'!multi-db' -Dtest='QueryExpertServiceRoutingCalibrationTest#captureQueryResult_shouldNormalizeRxSemanticQueryResponse' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; Java MCP natural-language capture preserves `SemanticQueryResponse.debug.extra.aggregateRelationDiagnostics` while retaining normalized query result fields; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-mcp -am -P'!multi-db' -Dtest='McpToolCallbackFactoryTest#queryModelSuccessRx_shouldCaptureDebugExtraDiagnostics' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; real `dataset.query_model` callback captures successful `RX<SemanticQueryResponse>` results and preserves `debug.extra.aggregateRelationDiagnostics` in `QueryExpertService.LAST_QUERY_RESULT`; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -P'!multi-db' -Dtest='AggregateRelationDiagnosticContractTest' -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test` | success; aggregate relation diagnostics contract pins record component order, JSON keys, pushed/retained/refused factory semantics, and the eight reason codes; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. |
@@ -58,13 +61,12 @@ or cross-language alignment.
 
 ## Follow-Up Boundary
 
-- PostgreSQL aggregate join `EXPLAIN` must be rerun with a prepared PostgreSQL
-  service, `psql`, and a reachable local port. The local profile and compose
-  service exist, but they were not runnable from this shell.
+- PostgreSQL aggregate join targeted `EXPLAIN` evidence now passes on local
+  Docker `postgres:15-alpine`. The full PostgreSQL module gate remains a
+  release-signoff prerequisite.
 - SQL Server Pivot cascade oracle still needs a prepared SQL Server service,
-  `sqlcmd`, and an explicit dialect oracle. The local profile and compose
-  service exist, but they were not runnable from this shell. This pass does not
-  change SQL Server support.
+  `sqlcmd`, and an explicit dialect oracle. This pass does not change SQL
+  Server support.
 - MySQL 5.7 Pivot evidence now covers live large-domain axis-domain pushdown,
   domain transport planning, and live cascade fail-closed refusal. Enabling
   cascade on MySQL 5.7 remains out of scope unless a future non-window staged

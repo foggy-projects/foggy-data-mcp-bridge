@@ -24,7 +24,7 @@ This snapshot is not a final release signoff. It records the current readiness b
 
 | Area | Current Status | Evidence / Record | Remaining Boundary |
 |---|---|---|---|
-| QueryModel aggregate join | accepted-with-risks | `acceptance/query-model-aggregate-join-acceptance.md` | Complex predicate boundary now has SQLite and MySQL 5.7 evidence for mixed OR and AND `in`/range cases, and Java exposes structured pushed/retained/refused diagnostics for aggregate relation pushdown decisions. Java parity snapshot producer now emits `querymodel-aggregate-join-3` with 29 cases for Python replay. Local TMS-style order+site composite-key fixture is verified and registry promotion gate is defined. PostgreSQL/SQL Server profiles and compose services exist, but local services are unavailable in this shell; broader DB EXPLAIN, real target TMS package publication, Python replay consumption, and ETL promotion remain follow-up. |
+| QueryModel aggregate join | accepted-with-risks | `acceptance/query-model-aggregate-join-acceptance.md` | Complex predicate boundary now has SQLite and MySQL 5.7 evidence for mixed OR and AND `in`/range cases, and Java exposes structured pushed/retained/refused diagnostics for aggregate relation pushdown decisions. Java parity snapshot producer now emits `querymodel-aggregate-join-3` with 29 cases for Python replay. Local TMS-style order+site composite-key fixture is verified and registry promotion gate is defined. PostgreSQL targeted aggregate-join evidence now passes on local `postgres:15-alpine`; SQL Server remains service-gated. Full PostgreSQL module gate, SQL Server evidence, real target TMS package publication, Python replay consumption, and ETL promotion remain follow-up. |
 | Aggregate relation joined left key | local-verified | `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` | Await upstream issue #84 consumer confirmation where applicable. |
 | Aggregate relation RHS dimension filter | upstream-verified | `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` | No extra engine action recorded. |
 | Formula TM property missing column error | local-verified-awaiting-upstream | `workitems/BUG-formula-property-missing-column-error.md` | Needs upstream TMS issue #85 verification. |
@@ -90,7 +90,7 @@ The current readiness boundary is:
 - No 9.2.0 workitem remains in `ready-for-verification`.
 - Two workitems are local-verified but still need upstream TMS confirmation.
 - A compact upstream verification handoff is available at `workitems/upstream-verification-handoff-20260606.md`.
-- Prepared MySQL dataset-model gate is recorded as passing, including Pivot large-domain live evidence and MySQL 5.7 cascade fail-closed refusal; PostgreSQL and SQL Server evidence still depend on external prepared services in this local environment, despite existing `application-postgres.yml`, `application-sqlserver.yml`, and compose service definitions.
+- Prepared MySQL dataset-model gate is recorded as passing, including Pivot large-domain live evidence and MySQL 5.7 cascade fail-closed refusal; PostgreSQL targeted aggregate-join evidence is now recorded on local Docker `postgres:15-alpine`, but the full PostgreSQL module gate and SQL Server evidence still require prepared-service runs.
 - Aggregate join release readiness remains accepted-with-risks, not risk-free.
 
 ## Primary Workitems
