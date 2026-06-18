@@ -138,6 +138,14 @@ mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '
 - 组合验证通过；`Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`。
 - `foggy-projects/foggy-data-mcp-bridge#85` 仍未收到 TMS pass/fail 回执，因此状态保持 `local-verified-awaiting-upstream`。
 
+2026-06-18 upstream audit:
+
+- `gh issue view 85 -R foggy-projects/foggy-data-mcp-bridge` still reports
+  #85 as `OPEN`, updated at `2026-06-13T04:41:07Z`.
+- Local workspace still has no TMS/query-cloud-service checkout, so this repo
+  cannot replace the required real TMS pass/fail confirmation.
+- Keep this workitem as `local-verified-awaiting-upstream`.
+
 ## References
 
 - GitHub issue: `foggy-projects/foggy-data-mcp-bridge#85`

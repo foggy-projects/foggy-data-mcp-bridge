@@ -209,6 +209,16 @@ Result:
 - 覆盖 predefined formula slice-only 注入、`$field` 引用注入，以及 direct engine path。
 - 本地 workspace 没有 TMS/query-cloud-service 仓库，尚不能替代 `OrderStationStockProjectionQuery.availablePieceCount` 的真实 TMS 回执，因此状态保持 `local-verified-awaiting-upstream`。
 
+2026-06-18 upstream audit:
+
+- `gh issue list -R foggy-projects/foggy-data-mcp-bridge --state all --search 'availablePieceCount OR OrderStationStockProjectionQuery OR predefined formula slice'` returned #85 and #84 only.
+- No standalone `availablePieceCount` issue was found, so the confirmation still
+  belongs to `upstream-verification-handoff-20260606.md`.
+- Local workspace still has no TMS/query-cloud-service checkout. Keep this
+  workitem as `local-verified-awaiting-upstream` until the real
+  `OrderStationStockProjectionQuery.availablePieceCount` scenario returns a
+  pass/fail result.
+
 ## References
 
 - Upstream report: QM predefined formula field referenced only in `slice` raises `未能找到列[...]`.

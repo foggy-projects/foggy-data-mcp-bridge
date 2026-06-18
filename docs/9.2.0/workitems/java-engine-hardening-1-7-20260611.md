@@ -23,7 +23,7 @@ or cross-language alignment.
 | ID | Item | Status | Notes |
 |---|---|---|---|
 | 1 | Aggregate Join PostgreSQL evidence | full-postgres-verified | On 2026-06-18 local Docker `postgres:15-alpine` container `foggy-demo-postgres` exposed `127.0.0.1:15432`, passed the selected 6-test aggregate join PostgreSQL gate, and then passed the full dataset-model PostgreSQL prepared-service gate after closing the regressions tracked in `BUG-postgres-full-gate-regressions.md`. |
-| 2 | Aggregate Join target TMS-style representative fixture | verified-local-gate-defined | Added a local TMS-style order+site composite-key aggregate relation fixture and verified RHS source-key `WHERE` plus measure `HAVING` pushdown on SQLite and live MySQL 5.7. Registry promotion gate is defined in `foggy-model-registry` commit `4e97d73`, but no TMS package is published before real authority models and target DB evidence exist. |
+| 2 | Aggregate Join target TMS-style representative fixture | verified-local-gate-defined | Added a local TMS-style order+site composite-key aggregate relation fixture and verified RHS source-key `WHERE` plus measure `HAVING` pushdown on SQLite, live MySQL 5.7, and PostgreSQL targeted evidence, with full PostgreSQL module evidence also recorded. Registry promotion gate is refreshed in `foggy-model-registry` commit `881912a`, but no TMS package is published before real authority models and target DB evidence exist. |
 | 3 | Complex predicate pushdown boundary hardening | verified-local | Added coverage for mixed OR staying outer-only and AND `in`/range being pushed to RHS `WHERE` / `HAVING` while retaining the outer filters. Aggregate relation pushdown now also records structured pushed/retained/refused diagnostics with stable reason codes and exposes them in semantic response `debug.extra` when present. Java MCP natural-language capture and the real `dataset.query_model` callback preserve these diagnostics when normalizing successful `SemanticQueryResponse` results. The diagnostics record/JSON/reason-code contract is pinned by unit coverage, and the aggregate join parity snapshot exporter is opt-in via `-Dfoggy.parity.snapshot=true`. |
 | 4 | Tenant/access guard edge cases | maintained | Existing system-slice, accessBuilder, deniedColumns, and predefined calculated-field tests continue to guard the hardening boundary. No new engine code was required in this pass. |
 | 5 | Data Viewer direct `extData` runtime filter negative cases | verified-local | Added fail-closed coverage for blank top-level `extData.orderId` and for nested `param.extData` being ignored by the direct endpoint. |
@@ -74,6 +74,6 @@ or cross-language alignment.
   oracle exists.
 - Target TMS model promotion gate is now recorded in
   `/Users/fengjianguang/foggy-projects/foggy-model-registry/docs/v1.0/P2-tms-aggregate-relation-promotion-gate.md`
-  at registry commit `4e97d73`. It intentionally does not publish the local
+  at registry commit `881912a`. It intentionally does not publish the local
   ecommerce-style test fixture as a registry bundle; publication waits for real
   authority TMS models and target database evidence.

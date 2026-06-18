@@ -3,8 +3,8 @@ doc_role: version_readiness_snapshot
 doc_purpose: Summarize the 9.2.0 Java engine workitem signoff state without replacing feature-level acceptance records.
 version: 9.2.0
 target: Java Engine 9.2.0 Readiness Snapshot
-status: readiness-with-upstream-followups
-decision: ready-for-next-hardening-cycle
+status: default-engine-ready-with-upstream-followups
+decision: default-engine-boundary-ready-tms-followups-open
 created_at: 2026-06-06
 updated_at: 2026-06-18
 ---
@@ -32,6 +32,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` | upstream-verified | Java regression is covered locally and upstream #84 confirmed the real TMS left-dimension aggregate ON path. | Targeted dataset-model integration runs on 2026-06-06 and 2026-06-13; upstream #84 feedback. |
 | `workitems/BUG-formula-property-missing-column-error.md` | local-verified-awaiting-upstream | Engine error message is verified locally; TMS issue #85 still needs consumer confirmation. | Targeted dataset-model integration run on 2026-06-06. |
 | `workitems/BUG-qm-predefined-formula-slice-injection.md` | local-verified-awaiting-upstream | Engine injection path is verified locally; upstream `OrderStationStockProjectionQuery.availablePieceCount` still needs confirmation. | Targeted dataset-model integration run on 2026-06-06. |
+| `workitems/TMS-target-explain-and-registry-handoff-20260618.md` | blocked-awaiting-authority-tms | Default engine evidence is separated from TMS production optimizer confidence and registry publication. | GitHub issue audit, workspace audit, and registry gate refresh on 2026-06-18. |
 | `workitems/OPT-qm-predefined-scalar-formula-outer-aggregate.md` | implemented | Row-level scalar predefined formulas can be outer-aggregated; aggregate/window formulas still fail closed. | Unit and integration evidence recorded in the workitem. |
 | `workitems/OPT-qm-v2-tablemodel-multi-alias.md` | implemented | Explicit ordinary `TableModel` aliases are supported across joins, projections, filters, and ordering. | Unit and integration evidence recorded in the workitem. |
 | `workitems/BUG-postgres-full-gate-regressions.md` | closed | PostgreSQL full-gate regressions in aggregate relation self-alias projection pruning, CTE running-sum fixture boundary, and YoY oracle limits are fixed and covered by the full prepared PostgreSQL gate. | Targeted PostgreSQL recheck plus full dataset-model PostgreSQL gate on 2026-06-18. |
@@ -59,14 +60,15 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | 2026-06-18 PostgreSQL regression recheck | pass | Self-alias aggregate relation projection, CTE running-sum post-slice, monthly YoY, and quarterly YoY regressions passed together: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`. |
 | PostgreSQL full prepared gate | pass | After refreshing local artifacts and compiling tests, `mvn -pl foggy-dataset-model test-compile surefire:test@test-postgres -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3162, Failures: 0, Errors: 0, Skipped: 3`. |
 | Default Java engine prepared-service gate | pass-with-sqlserver-unclaimed | MySQL and PostgreSQL full prepared-service evidence are recorded. SQL Server is not a default release blocker unless the release explicitly claims SQL Server prepared-service parity or SQL Server Pivot C2 cascade support. |
+| 2026-06-18 TMS upstream and registry audit | blocked-awaiting-authority-tms | #85 is still open; no standalone `availablePieceCount` issue was found; no local TMS/query-cloud-service checkout exists; registry promotion gate was refreshed at `foggy-model-registry` commit `881912a` and remains not published. |
 
 ## Decision
 
-9.2.0 is ready for the next hardening cycle with known follow-ups. It is not yet a risk-free release signoff because upstream TMS confirmation remains open. SQL Server environment-backed evidence remains open as a SQL Server-specific promotion gate, not as a blocker for the default MySQL/PostgreSQL/SQLite Java engine boundary.
+9.2.0 is ready inside the default Java engine boundary with known follow-ups. It is not yet a risk-free release signoff because upstream TMS confirmation remains open. SQL Server environment-backed evidence remains open as a SQL Server-specific promotion gate, not as a blocker for the default MySQL/PostgreSQL/SQLite Java engine boundary.
 
 Recommended next actions:
 
-- send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open, no standalone `availablePieceCount` issue, and no local TMS/query-cloud-service checkout in this workspace;
+- send or re-send `workitems/upstream-verification-handoff-20260606.md` and `workitems/TMS-target-explain-and-registry-handoff-20260618.md` to upstream and collect confirmation for TMS issue #85, `OrderStationStockProjectionQuery.availablePieceCount`, and the target TMS aggregate relation `EXPLAIN` gate; 2026-06-18 audit found #85 still open, no standalone `availablePieceCount` issue, and no local TMS/query-cloud-service checkout in this workspace;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
 - treat the Pivot Redis line as engine-local closed for now; production Redis rollout, durable replay/fan-out, subscription-loss recovery, and race-window evidence belong to deployment/ops hardening rather than the next Java engine loop;
 - keep SQL Server prepared-service evidence as an explicit promotion gate before any SQL Server cascade or SQL Server full prepared-service claim; do not block the current default engine hardening tag solely on absent SQL Server service.
