@@ -6,7 +6,7 @@ target: Java Engine 9.2.0 Readiness Snapshot
 status: readiness-with-upstream-followups
 decision: ready-for-next-hardening-cycle
 created_at: 2026-06-06
-updated_at: 2026-06-13
+updated_at: 2026-06-18
 ---
 
 # Java Engine 9.2.0 Readiness Snapshot
@@ -38,6 +38,8 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | `workitems/BUG-formula-sql-logical-operator-reference-extraction.md` | implemented | SQL-expression formulas using string-external `and` / `or` can be parsed for dependency extraction without rewriting quoted values. | Targeted unit regression plus prepared MySQL gate on 2026-06-06. |
 | `workitems/MODEL-field-permissions.md` | local-verified | Declarative TM/QM field visibility rules are resolved together with runtime `fieldAccess` and physical-column `deniedColumns` for query enforcement and semantic metadata. | Targeted dataset-model unit and integration gate on 2026-06-13. |
 | `workitems/COMPOSE-python-script-snapshot-parity.md` | local-verified | Java compose script snapshot producers cover runtime markers, base/derived/union/join preview SQL and execute rows envelopes, security refusal, and MCP tool error payloads for Python replay. | `JavaComposeScriptSnapshotTest`, `JavaComposeScriptToolErrorSnapshotTest`, and Python replay tests run on 2026-06-07. |
+| `workitems/PIVOT-outer-cache-design.md` | e1b-provider-cross-process-local-verified-default-off | Pivot outer-cache E1b remains default-off, but Java engine/addon cache provider/invalidation contracts are locally verified through default-off, live Redis, auto-configuration, and cross-JVM evidence. | Workitem evidence plus addon live Redis runs on 2026-06-18. |
+| `workitems/PIVOT-outer-cache-redis-provider-boundary.md` | redis-provider-cross-process-local-verified | Redis stays outside core; addon provider and invalidation primitive are locally verified, including cross-JVM Pub/Sub delivery. Production rollout, race-window, and subscription-loss recovery evidence remain outside this signoff. | Workitem evidence plus live Redis cross-process run on 2026-06-18. |
 
 ## Gate Snapshot
 
@@ -51,6 +53,7 @@ The goal is to keep the current 9.2.0 state clear before the next engine-hardeni
 | Odoo registry consumer gate | pass | `addons/foggy-odoo-bridge-java` reactor test passed and is recorded under 9.1.0 Odoo registry promotion evidence. |
 | Compose script snapshot producer gate | pass | `JavaComposeScriptSnapshotTest` passed and regenerated the tracked Python runtime fixture with 13 cases; `JavaComposeScriptToolErrorSnapshotTest` passed and regenerated the tracked MCP tool error fixture with 7 cases. Python replay passed for both fixtures. |
 | Prepared MySQL dataset-model gate | pass | After refreshing local `foggy-dataset` and `foggy-dataset-demo` artifacts, `mvn -pl foggy-dataset-model surefire:test@test-mysql -Dsurefire.failIfNoSpecifiedTests=false` passed: `Tests run: 3040, Failures: 0, Errors: 0, Skipped: 51`. |
+| 2026-06-18 Pivot outer-cache Redis live addon gate | pass | Local `redis:7-alpine` on `127.0.0.1:16379`; provider, Pub/Sub invalidation, auto-configuration, and independent publisher/listener JVM delivery passed together: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`. |
 | PostgreSQL prepared gate | blocked-by-environment | `docker` / `podman` unavailable locally and `127.0.0.1:15432` is not accepting connections. |
 | Default full multi-db gate | partially claimed | MySQL evidence is now recorded; PostgreSQL still requires a prepared service before release signoff. |
 
@@ -62,4 +65,5 @@ Recommended next actions:
 
 - send or re-send `workitems/upstream-verification-handoff-20260606.md` to upstream and collect confirmation for TMS issue #85 and `OrderStationStockProjectionQuery.availablePieceCount`; 2026-06-13 audit found #85 still open, no standalone `availablePieceCount` issue, and no local TMS/query-cloud-service checkout in this workspace;
 - keep aggregate-join residual risks in the aggregate-join acceptance record until separately closed;
+- treat the Pivot Redis line as engine-local closed for now; production Redis rollout, durable replay/fan-out, subscription-loss recovery, and race-window evidence belong to deployment/ops hardening rather than the next Java engine loop;
 - run the PostgreSQL Maven gate in an environment with a prepared PostgreSQL service before a release tag.
