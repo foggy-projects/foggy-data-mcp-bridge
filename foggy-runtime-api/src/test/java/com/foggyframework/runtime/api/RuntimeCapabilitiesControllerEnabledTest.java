@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -25,6 +26,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.sql.DataSource;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -46,6 +49,7 @@ import static org.mockito.Mockito.when;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "foggy.runtime-api.enabled=true",
+                "foggy.runtime-api.bundle-registry.path=target/runtime-api-test-bundles-${random.uuid}.json",
                 "spring.autoconfigure.exclude=com.foggyframework.dataset.db.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
@@ -98,6 +102,10 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("models.describe").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("models.refresh").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("models.validate").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.list").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.add").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.update").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.remove").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.execute").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("tables.inspect").asText()).isEqualTo("supported");
@@ -398,6 +406,72 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("error").path("safeToAutoRepair").asBoolean()).isFalse();
         verify(semanticQueryServiceV3, never()).generateSql(any(), any(), any());
         verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldListConfiguredBundleAsReadOnly() {
+        when(systemBundlesContext.listExternalBundles()).thenReturn(List.of(
+                new ExternalBundleDefinition("configured-demo", "dev", ".", false)
+        ));
+
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode bundle = body.path("data").path("bundles").get(0);
+        assertThat(bundle.path("name").asText()).isEqualTo("configured-demo");
+        assertThat(bundle.path("source").asText()).isEqualTo("config");
+        assertThat(bundle.path("managedByRuntimeApi").asBoolean()).isFalse();
+        assertThat(bundle.path("canRemove").asBoolean()).isFalse();
+    }
+
+    @Test
+    void shouldAddRuntimeManagedBundle() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-bundle-test");
+        when(systemBundlesContext.addExternalBundle("runtime-demo", "dev", modelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-demo",
+                        "namespace", "dev",
+                        "path", modelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("bundle").path("name").asText()).isEqualTo("runtime-demo");
+        assertThat(body.path("data").path("bundle").path("source").asText()).isEqualTo("runtime-registry");
+        assertThat(body.path("data").path("bundle").path("managedByRuntimeApi").asBoolean()).isTrue();
+        verify(systemBundlesContext).addExternalBundle("runtime-demo", "dev", modelsDir.toString(), true);
+    }
+
+    @Test
+    void shouldRejectRemovingConfiguredBundle() {
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/bundles/configured-demo",
+                org.springframework.http.HttpMethod.DELETE,
+                null,
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("BUNDLE_NOT_MANAGED");
+        verify(systemBundlesContext, never()).removeBundle("configured-demo");
     }
 
     @Test

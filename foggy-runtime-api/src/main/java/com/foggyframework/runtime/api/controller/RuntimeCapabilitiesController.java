@@ -37,6 +37,10 @@ public class RuntimeCapabilitiesController {
         capabilities.put("models.describe", "supported");
         capabilities.put("models.validate", "supported");
         capabilities.put("models.refresh", "supported");
+        capabilities.put("bundles.list", "supported");
+        capabilities.put("bundles.add", "supported");
+        capabilities.put("bundles.update", "supported");
+        capabilities.put("bundles.remove", "supported");
         capabilities.put("query.validate", "supported");
         capabilities.put("query.execute", "supported");
         capabilities.put("tables.inspect", dataSourceProvider.getIfAvailable() != null ? "supported" : "unsupported");
