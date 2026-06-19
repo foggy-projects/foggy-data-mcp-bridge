@@ -11,6 +11,8 @@ public class FoggyRuntimeApiProperties {
     private String runtimeApiVersion = "foggy-runtime-api/v1";
     private String schemaVersion = "2026-06-06";
     private String securityMode = "none-dev-test-only";
+    private BundleRegistry bundleRegistry = new BundleRegistry();
+    private DatasourceRegistry datasourceRegistry = new DatasourceRegistry();
 
     public boolean isEnabled() {
         return enabled;
@@ -42,5 +44,63 @@ public class FoggyRuntimeApiProperties {
 
     public void setSecurityMode(String securityMode) {
         this.securityMode = securityMode;
+    }
+
+    public BundleRegistry getBundleRegistry() {
+        return bundleRegistry;
+    }
+
+    public void setBundleRegistry(BundleRegistry bundleRegistry) {
+        this.bundleRegistry = bundleRegistry;
+    }
+
+    public DatasourceRegistry getDatasourceRegistry() {
+        return datasourceRegistry;
+    }
+
+    public void setDatasourceRegistry(DatasourceRegistry datasourceRegistry) {
+        this.datasourceRegistry = datasourceRegistry;
+    }
+
+    public static class BundleRegistry {
+        private boolean enabled = true;
+        private String path = ".foggy-runtime/runtime-bundles.json";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+    }
+
+    public static class DatasourceRegistry {
+        private boolean enabled = true;
+        private String path = ".foggy-runtime/runtime-datasources.json";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
     }
 }

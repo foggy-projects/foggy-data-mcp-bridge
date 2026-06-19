@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -25,8 +26,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.sql.DataSource;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +50,8 @@ import static org.mockito.Mockito.when;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "foggy.runtime-api.enabled=true",
+                "foggy.runtime-api.bundle-registry.path=target/runtime-api-test-bundles-${random.uuid}.json",
+                "foggy.runtime-api.datasource-registry.path=target/runtime-api-test-datasources-${random.uuid}.json",
                 "spring.autoconfigure.exclude=com.foggyframework.dataset.db.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
@@ -98,8 +104,22 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("models.describe").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("models.refresh").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("models.validate").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.list").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.add").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.update").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("bundles.remove").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("resources.export").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("resources.save").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.list").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.add").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.update").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.remove").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.test").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.bind").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.execute").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("sql.query").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("tables.list").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("tables.inspect").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("compose.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("compose.preview").asText()).isEqualTo("supported");
@@ -181,6 +201,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("namespace").asText()).isEqualTo("dev");
         assertThat(body.path("data").path("totalFiles").asInt()).isEqualTo(2);
         assertThat(body.path("data").path("errors").isArray()).isTrue();
+        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
     }
 
     @Test
@@ -210,6 +231,30 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .isFalse();
         assertThat(body.path("diagnostics").path("attributes").path("validation").path("errors").get(0)
                 .path("message").asText()).isEqualTo("Unknown table model: Order");
+        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+    }
+
+    @Test
+    void shouldKeepValidationBundleWhenClearExistingIsFalse() {
+        Bundle bundle = mock(Bundle.class);
+        BundleResource qmResource = bundleResource("OrderModel.qm");
+        when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
+        when(systemBundlesContext.getBundleByName("runtime-validation-dev")).thenReturn(bundle);
+        when(bundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[0]);
+        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{qmResource});
+        when(queryModelLoader.loadJdbcQueryModel(qmResource)).thenReturn(mock(QueryModel.class));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/models/validate",
+                Map.of("path", ".", "namespace", "dev", "clearExisting", false),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        verify(systemBundlesContext, never()).removeBundle("runtime-validation-dev");
     }
 
     @Test
@@ -398,6 +443,367 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("error").path("safeToAutoRepair").asBoolean()).isFalse();
         verify(semanticQueryServiceV3, never()).generateSql(any(), any(), any());
         verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldListConfiguredBundleAsReadOnly() {
+        when(systemBundlesContext.listExternalBundles()).thenReturn(List.of(
+                new ExternalBundleDefinition("configured-demo", "dev", ".", false)
+        ));
+
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode bundle = body.path("data").path("bundles").get(0);
+        assertThat(bundle.path("name").asText()).isEqualTo("configured-demo");
+        assertThat(bundle.path("source").asText()).isEqualTo("config");
+        assertThat(bundle.path("managedByRuntimeApi").asBoolean()).isFalse();
+        assertThat(bundle.path("canRemove").asBoolean()).isFalse();
+    }
+
+    @Test
+    void shouldAddRuntimeManagedBundle() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-bundle-test");
+        when(systemBundlesContext.addExternalBundle("runtime-demo", "dev", modelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-demo",
+                        "namespace", "dev",
+                        "path", modelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("bundle").path("name").asText()).isEqualTo("runtime-demo");
+        assertThat(body.path("data").path("bundle").path("source").asText()).isEqualTo("runtime-registry");
+        assertThat(body.path("data").path("bundle").path("managedByRuntimeApi").asBoolean()).isTrue();
+        verify(systemBundlesContext).addExternalBundle("runtime-demo", "dev", modelsDir.toString(), true);
+    }
+
+    @Test
+    void shouldExportRuntimeManagedBundleResources() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-resources-export-test");
+        Files.createDirectories(modelsDir.resolve("model"));
+        Files.createDirectories(modelsDir.resolve("query"));
+        Files.writeString(modelsDir.resolve("model").resolve("Order.tm"), "table_model Order {}\n");
+        Files.writeString(modelsDir.resolve("query").resolve("OrderModel.qm"), "query_model OrderModel {}\n");
+        Files.writeString(modelsDir.resolve("notes.txt"), "ignored\n");
+        when(systemBundlesContext.addExternalBundle("runtime-resource-export", "dev", modelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-resource-export",
+                        "namespace", "dev",
+                        "path", modelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/resources/export",
+                Map.of(
+                        "bundle", "runtime-resource-export",
+                        "namespace", "dev"
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode resources = body.path("data").path("resources");
+        assertThat(resources).hasSize(2);
+        assertThat(resources.get(0).path("path").asText()).isEqualTo("model/Order.tm");
+        assertThat(resources.get(0).path("content").asText()).contains("table_model Order");
+        assertThat(resources.get(0).path("writable").asBoolean()).isTrue();
+        assertThat(resources.get(0).path("sha256").asText()).isNotBlank();
+        assertThat(resources.get(1).path("path").asText()).isEqualTo("query/OrderModel.qm");
+    }
+
+    @Test
+    void shouldSaveRuntimeManagedBundleResources() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-resources-save-test");
+        when(systemBundlesContext.addExternalBundle("runtime-resource-save", "dev", modelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-resource-save",
+                        "namespace", "dev",
+                        "path", modelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/resources/save",
+                Map.of(
+                        "bundle", "runtime-resource-save",
+                        "namespace", "dev",
+                        "validate", true,
+                        "refresh", true,
+                        "files", List.of(Map.of(
+                                "path", "model/NewOrder.tm",
+                                "content", "table_model NewOrder {}\n"
+                        ))
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("savedCount").asInt()).isEqualTo(1);
+        assertThat(body.path("data").path("warnings")).hasSize(2);
+        assertThat(body.path("data").path("savedResources").get(0).path("path").asText()).isEqualTo("model/NewOrder.tm");
+        assertThat(Files.readString(modelsDir.resolve("model").resolve("NewOrder.tm")))
+                .isEqualTo("table_model NewOrder {}\n");
+    }
+
+    @Test
+    void shouldRejectSavingConfiguredBundleResources() {
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/resources/save",
+                Map.of(
+                        "bundle", "configured-demo",
+                        "files", List.of(Map.of(
+                                "path", "model/NewOrder.tm",
+                                "content", "table_model NewOrder {}\n"
+                        ))
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("RESOURCE_BUNDLE_NOT_WRITABLE");
+    }
+
+    @Test
+    void shouldRejectRemovingConfiguredBundle() {
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/bundles/configured-demo",
+                org.springframework.http.HttpMethod.DELETE,
+                null,
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("BUNDLE_NOT_MANAGED");
+        verify(systemBundlesContext, never()).removeBundle("configured-demo");
+    }
+
+    @Test
+    void shouldListConfiguredDefaultDatasourceAsReadOnly() {
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode datasource = body.path("data").path("datasources").get(0);
+        assertThat(datasource.path("name").asText()).isEqualTo("default");
+        assertThat(datasource.path("source").asText()).isEqualTo("config");
+        assertThat(datasource.path("managedByRuntimeApi").asBoolean()).isFalse();
+        assertThat(datasource.path("canRemove").asBoolean()).isFalse();
+        assertThat(datasource.path("canTest").asBoolean()).isTrue();
+    }
+
+    @Test
+    void shouldAddTestBindAndInspectRuntimeManagedSqliteDatasource() throws Exception {
+        Path db = Files.createTempFile("runtime-api-datasource-test", ".db");
+        String jdbcUrl = "jdbc:sqlite:" + db.toAbsolutePath();
+        try (Connection connection = DriverManager.getConnection(jdbcUrl);
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE sales_drop_daily (
+                        id INTEGER PRIMARY KEY,
+                        sales_date TEXT NOT NULL,
+                        sales_amount REAL
+                    )
+                    """);
+        }
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", "sales-sqlite",
+                        "type", "sqlite",
+                        "jdbcUrl", jdbcUrl
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(addResponse.getBody().path("data").path("datasource").path("managedByRuntimeApi").asBoolean())
+                .isTrue();
+
+        ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources/sales-sqlite/test",
+                null,
+                JsonNode.class
+        );
+        assertThat(testResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(testResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(testResponse.getBody().path("data").path("connected").asBoolean()).isTrue();
+        assertThat(testResponse.getBody().path("data").path("productName").asText()).containsIgnoringCase("sqlite");
+
+        ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/namespaces/dev/datasource",
+                org.springframework.http.HttpMethod.PUT,
+                new org.springframework.http.HttpEntity<>(Map.of(
+                        "namespace", "dev",
+                        "dataSource", "sales-sqlite"
+                )),
+                JsonNode.class
+        );
+        assertThat(bindResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(bindResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(bindResponse.getBody().path("data").path("dataSource").asText()).isEqualTo("sales-sqlite");
+
+        ResponseEntity<JsonNode> inspectResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/tables/inspect",
+                Map.of(
+                        "dataSource", "sales-sqlite",
+                        "table", "sales_drop_daily",
+                        "includeIndexes", true
+                ),
+                JsonNode.class
+        );
+        assertThat(inspectResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode inspectBody = inspectResponse.getBody();
+        assertThat(inspectBody).isNotNull();
+        assertThat(inspectBody.path("success").asBoolean()).isTrue();
+        assertThat(inspectBody.path("data").path("dataSource").asText()).isEqualTo("sales-sqlite");
+        assertThat(inspectBody.path("data").path("columns").get(0).path("name").asText()).isEqualTo("id");
+        assertThat(inspectBody.path("data").path("columns").get(2).path("name").asText()).isEqualTo("sales_amount");
+    }
+
+    @Test
+    void shouldRejectRemovingDefaultDatasource() {
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/datasources/default",
+                org.springframework.http.HttpMethod.DELETE,
+                null,
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("DATASOURCE_NOT_MANAGED");
+    }
+
+    @Test
+    void shouldListTablesAndRunReadOnlySqlOnRuntimeManagedSqliteDatasource() throws Exception {
+        Path db = Files.createTempFile("runtime-api-sql-query-test", ".db");
+        String jdbcUrl = "jdbc:sqlite:" + db.toAbsolutePath();
+        try (Connection connection = DriverManager.getConnection(jdbcUrl);
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE sales_probe_daily (
+                        id INTEGER PRIMARY KEY,
+                        region TEXT NOT NULL,
+                        sales_amount REAL
+                    )
+                    """);
+            statement.execute("INSERT INTO sales_probe_daily(region, sales_amount) VALUES ('East', 120.5)");
+            statement.execute("INSERT INTO sales_probe_daily(region, sales_amount) VALUES ('West', 80.0)");
+        }
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", "probe-sqlite",
+                        "type", "sqlite",
+                        "jdbcUrl", jdbcUrl
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> listResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/tables/list",
+                Map.of("dataSource", "probe-sqlite"),
+                JsonNode.class
+        );
+        assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode listBody = listResponse.getBody();
+        assertThat(listBody).isNotNull();
+        assertThat(listBody.path("success").asBoolean()).isTrue();
+        assertThat(listBody.path("data").path("dataSource").asText()).isEqualTo("probe-sqlite");
+        boolean foundTable = false;
+        for (JsonNode table : listBody.path("data").path("tables")) {
+            foundTable = foundTable || table.path("name").asText().equals("sales_probe_daily");
+        }
+        assertThat(foundTable).isTrue();
+
+        ResponseEntity<JsonNode> queryResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/sql/query",
+                Map.of(
+                        "dataSource", "probe-sqlite",
+                        "sql", "select region, sales_amount from sales_probe_daily order by id",
+                        "maxRows", 1
+                ),
+                JsonNode.class
+        );
+        assertThat(queryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode queryBody = queryResponse.getBody();
+        assertThat(queryBody).isNotNull();
+        assertThat(queryBody.path("success").asBoolean()).isTrue();
+        assertThat(queryBody.path("data").path("dataSource").asText()).isEqualTo("probe-sqlite");
+        assertThat(queryBody.path("data").path("columns").get(0).path("name").asText()).isEqualTo("region");
+        assertThat(queryBody.path("data").path("rows").get(0).path("region").asText()).isEqualTo("East");
+        assertThat(queryBody.path("data").path("rowCount").asInt()).isEqualTo(1);
+        assertThat(queryBody.path("data").path("truncated").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> rejectedResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/sql/query",
+                Map.of(
+                        "dataSource", "probe-sqlite",
+                        "sql", "delete from sales_probe_daily"
+                ),
+                JsonNode.class
+        );
+        assertThat(rejectedResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode rejectedBody = rejectedResponse.getBody();
+        assertThat(rejectedBody).isNotNull();
+        assertThat(rejectedBody.path("success").asBoolean()).isFalse();
+        assertThat(rejectedBody.path("error").path("code").asText()).isEqualTo("SQL_QUERY_REJECTED");
+        assertThat(rejectedBody.path("error").path("phase").asText()).isEqualTo("sql.query");
     }
 
     @Test
