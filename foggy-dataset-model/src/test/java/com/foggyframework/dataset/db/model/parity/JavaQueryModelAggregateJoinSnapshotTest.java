@@ -116,13 +116,19 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
                 runtimeFilterUnsafeCharacterRefusalCase(),
                 leftDimensionKeyCase(),
                 rhsDimensionFixedFilterCase(),
+                o615NoColumnsWithAccessCase(),
+                o615ExplicitJoinNoColumnsCase(),
+                o615TenantGuardNoLeakCase(),
+                o615DimensionIdSliceCase(),
+                o615RhsDimensionFilterCase(),
+                o615RhsJoinDimensionFilterCase(),
                 metadataLineageCase());
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("schemaVersion", 1);
         snapshot.put("feature", "queryModelAggregateJoin");
         snapshot.put("source", "JavaQueryModelAggregateJoinSnapshotTest");
-        snapshot.put("contractVersion", "querymodel-aggregate-join-3");
+        snapshot.put("contractVersion", "querymodel-aggregate-join-4");
         snapshot.put("generatedAt", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date()));
         snapshot.put("dialect", getDialectKey());
         snapshot.put("cases", cases);
@@ -133,7 +139,7 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
         mapper.writeValue(target.toFile(), snapshot);
 
         assertTrue(Files.exists(target), "snapshot file must be written");
-        assertEquals(29, cases.size(), "expected aggregate join contract case count");
+        assertEquals(35, cases.size(), "expected aggregate join contract case count");
     }
 
     private Map<String, Object> leftMeasureNonMultiplicationCase(String orderId) {
@@ -622,11 +628,7 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
 
     private Map<String, Object> predefinedCalculatedFieldDeniedSourceRefusalCase(String orderId) {
         DbQueryRequestDef queryRequest = aggregateRelationRequest();
-        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountPredefinedTax"));
-        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
-                "salesAmountPredefinedTax",
-                "predefined tax-compatible sales amount",
-                "salesAmount * 1.1")));
+        queryRequest.setColumns(new ArrayList<>(List.of("orderId", "amount", "salesAmountPredefinedTax")));
         queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
 
         RuntimeException exception = deniedSalesAmountException(queryRequest);
@@ -649,11 +651,7 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
 
     private Map<String, Object> predefinedCalculatedFieldAllowedExecCase(String orderId) {
         DbQueryRequestDef queryRequest = aggregateRelationRequest();
-        queryRequest.setColumns(List.of("orderId", "amount", "salesAmountPredefinedTax"));
-        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
-                "salesAmountPredefinedTax",
-                "predefined tax-compatible sales amount",
-                "salesAmount * 1.1")));
+        queryRequest.setColumns(new ArrayList<>(List.of("orderId", "amount", "salesAmountPredefinedTax")));
         queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
 
         DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
@@ -1025,6 +1023,319 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
                 expected);
     }
 
+    private Map<String, Object> o615NoColumnsWithAccessCase() {
+        Map<String, Object> stockOrder = findO615StockOrder();
+        String orderId = String.valueOf(stockOrder.get("orderId"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+        List<SliceRequestDef> slices = List.of(
+                slice("orderId", "=", orderId),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ProbeQueryModel");
+        queryRequest.setSlice(slices);
+
+        DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("plannedByOrder"));
+        assertTrue(normalizedSql.contains("left join dim_store"));
+        assertTrue(normalizedSql.contains("where"));
+        assertEquals(1, rows(result).size());
+        assertEquals(orderId, rows(result).get(0).get("orderId"));
+
+        Map<String, Object> request = requestMap("OrderStationStockProjectionO615ProbeQueryModel",
+                List.of(),
+                List.of(
+                        sliceMap("orderId", "=", orderId),
+                        sliceMap("srcId", "=", srcId),
+                        sliceMap("useType", "=", useType),
+                        sliceMap("number", ">", 0)));
+        Map<String, Object> expected = o615Expected(queryEngine, result, request,
+                List.of("plannedByOrder", "left join dim_store", "where", "group by"),
+                List.of("internalAlias"),
+                List.of("orderId"),
+                List.of());
+        expected.put("defaultProjection", true);
+
+        return caseMap(
+                "aggregate-join-o615-no-columns-with-access",
+                "result",
+                "OrderStationStockProjectionO615ProbeQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> o615ExplicitJoinNoColumnsCase() {
+        Map<String, Object> stockOrder = findO615StockOrder();
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+        List<SliceRequestDef> slices = List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ExpressJoinProbeQueryModel");
+        queryRequest.setSlice(slices);
+
+        DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("plannedByOrder"));
+        assertTrue(normalizedSql.contains("left join fact_order"));
+        assertTrue(normalizedSql.contains("left join dim_store"));
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"));
+        assertTrue(normalizedSql.contains("group by agg_src.store_key"));
+        assertTrue(queryEngine.getValues().contains(20240101));
+        assertEquals(1, rows(result).size());
+        assertEquals(orderNo, rows(result).get(0).get("orderNo"));
+
+        Map<String, Object> request = requestMap("OrderStationStockProjectionO615ExpressJoinProbeQueryModel",
+                List.of(),
+                List.of(
+                        sliceMap("orderNo", "=", orderNo),
+                        sliceMap("srcId", "=", srcId),
+                        sliceMap("useType", "=", useType),
+                        sliceMap("number", ">", 0)));
+        Map<String, Object> expected = o615Expected(queryEngine, result, request,
+                List.of("plannedByOrder", "left join fact_order", "left join dim_store",
+                        "agg_src.store_key = ?", "group by agg_src.store_key"),
+                List.of("internalAlias"),
+                List.of("orderNo"),
+                List.of());
+        expected.put("defaultProjection", true);
+
+        return caseMap(
+                "aggregate-join-o615-explicit-join-no-columns",
+                "result",
+                "OrderStationStockProjectionO615ExpressJoinProbeQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> o615TenantGuardNoLeakCase() {
+        Map<String, Object> stockOrder = findO615StockOrder();
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+        List<String> columns = List.of("orderNo", "srcId", "useType", "number", "plannedPieceCount");
+        List<SliceRequestDef> slices = List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ExpressJoinProbeQueryModel");
+        queryRequest.setColumns(columns);
+        queryRequest.setSlice(slices);
+
+        ModelResultContext context = queryFacadeContext(queryRequest);
+        context.setFieldAccess(Set.of("orderNo", "srcId", "useType", "number", "plannedPieceCount"));
+        context.setSystemSlice(List.of(slice("tenantId", "=", 20240101)));
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("agg_src.store_key = ?"));
+        assertTrue(normalizedSql.contains("plannedByOrder"));
+        assertEquals(1, rows(result).size());
+        assertEquals(orderNo, rows(result).get(0).get("orderNo"));
+        assertFalse(rows(result).get(0).containsKey("tenantId"));
+
+        Map<String, Object> request = requestMap("OrderStationStockProjectionO615ExpressJoinProbeQueryModel",
+                columns,
+                List.of(
+                        sliceMap("orderNo", "=", orderNo),
+                        sliceMap("srcId", "=", srcId),
+                        sliceMap("useType", "=", useType),
+                        sliceMap("number", ">", 0)));
+        Map<String, Object> expected = o615Expected(queryEngine, result, request,
+                List.of("plannedByOrder", "agg_src.store_key = ?", "group by agg_src.store_key"),
+                List.of("internalAlias"),
+                List.of("orderNo", "srcId", "useType", "number", "plannedPieceCount"),
+                List.of("tenantId"));
+        expected.put("fieldAccess", columns);
+        expected.put("systemSlice", List.of(sliceMap("tenantId", "=", 20240101)));
+
+        return caseMap(
+                "aggregate-join-o615-tenant-guard-no-leak",
+                "sql",
+                "OrderStationStockProjectionO615ExpressJoinProbeQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> o615DimensionIdSliceCase() {
+        Map<String, Object> stockOrder = findO615StockOrder();
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+        Object destinationServiceAreaId = stockOrder.get("destinationServiceAreaId");
+        List<String> columns = List.of("orderNo", "srcId", "useType", "number");
+        List<SliceRequestDef> slices = List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0),
+                slice("destinationServiceArea$id", "in", List.of(destinationServiceAreaId)));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615ExpressJoinProbeQueryModel");
+        queryRequest.setColumns(columns);
+        queryRequest.setSlice(slices);
+
+        DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("left join fact_order"));
+        assertTrue(normalizedSql.contains("destinationServiceArea") || normalizedSql.contains("store_key"));
+        assertEquals(1, rows(result).size());
+        assertEquals(orderNo, rows(result).get(0).get("orderNo"));
+
+        Map<String, Object> request = requestMap("OrderStationStockProjectionO615ExpressJoinProbeQueryModel",
+                columns,
+                List.of(
+                        sliceMap("orderNo", "=", orderNo),
+                        sliceMap("srcId", "=", srcId),
+                        sliceMap("useType", "=", useType),
+                        sliceMap("number", ">", 0),
+                        sliceMap("destinationServiceArea$id", "in", List.of(destinationServiceAreaId))));
+        Map<String, Object> expected = o615Expected(queryEngine, result, request,
+                List.of("left join fact_order", "store_key", "group by"),
+                List.of("internalAlias"),
+                List.of("orderNo", "srcId", "useType", "number"),
+                List.of("tenantId"));
+        expected.put("selectedDimensionId", destinationServiceAreaId);
+
+        return caseMap(
+                "aggregate-join-o615-dimension-id-slice",
+                "result",
+                "OrderStationStockProjectionO615ExpressJoinProbeQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> o615RhsDimensionFilterCase() {
+        Map<String, Object> stockOrder = findO615StockOrder();
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+        List<SliceRequestDef> slices = List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615RhsDimensionProbeQueryModel");
+        queryRequest.setSlice(slices);
+
+        DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("plannedByOrder"));
+        assertTrue(normalizedSql.contains("agg_src"));
+        assertTrue(normalizedSql.contains("status = ?") || normalizedSql.contains("status=?"));
+        assertTrue(queryEngine.getValues().contains("ACTIVE"));
+        assertEquals(1, rows(result).size());
+        assertEquals(orderNo, rows(result).get(0).get("orderNo"));
+
+        Map<String, Object> request = requestMap("OrderStationStockProjectionO615RhsDimensionProbeQueryModel",
+                List.of(),
+                List.of(
+                        sliceMap("orderNo", "=", orderNo),
+                        sliceMap("srcId", "=", srcId),
+                        sliceMap("useType", "=", useType),
+                        sliceMap("number", ">", 0)));
+        Map<String, Object> expected = o615Expected(queryEngine, result, request,
+                List.of("plannedByOrder", "agg_src", "status = ?", "group by"),
+                List.of("internalAlias"),
+                List.of("orderNo"),
+                List.of());
+        expected.put("rhsDimensionFilter", Map.of("planSheet$planStatus", "ACTIVE"));
+
+        return caseMap(
+                "aggregate-join-o615-rhs-dimension-filter",
+                "result",
+                "OrderStationStockProjectionO615RhsDimensionProbeQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> o615RhsJoinDimensionFilterCase() {
+        Map<String, Object> stockOrder = findO615StockOrder();
+        String orderNo = String.valueOf(stockOrder.get("orderNo"));
+        String srcId = String.valueOf(stockOrder.get("srcId"));
+        String useType = String.valueOf(stockOrder.get("useType"));
+        List<SliceRequestDef> slices = List.of(
+                slice("orderNo", "=", orderNo),
+                slice("srcId", "=", srcId),
+                slice("useType", "=", useType),
+                slice("number", ">", 0));
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionO615RhsJoinDimensionProbeQueryModel");
+        queryRequest.setSlice(slices);
+
+        DbQueryResult result = queryFacade.queryModelResult(queryFacadeContext(queryRequest));
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("plannedByOrder"));
+        assertTrue(normalizedSql.contains("left join dim_store"));
+        assertTrue(normalizedSql.contains("status = ?") || normalizedSql.contains("status=?"));
+        assertTrue(queryEngine.getValues().contains("ACTIVE"));
+        assertEquals(1, rows(result).size());
+        assertEquals(orderNo, rows(result).get(0).get("orderNo"));
+
+        Map<String, Object> request = requestMap("OrderStationStockProjectionO615RhsJoinDimensionProbeQueryModel",
+                List.of(),
+                List.of(
+                        sliceMap("orderNo", "=", orderNo),
+                        sliceMap("srcId", "=", srcId),
+                        sliceMap("useType", "=", useType),
+                        sliceMap("number", ">", 0)));
+        Map<String, Object> expected = o615Expected(queryEngine, result, request,
+                List.of("plannedByOrder", "left join dim_store", "status = ?", "group by"),
+                List.of("internalAlias"),
+                List.of("orderNo"),
+                List.of());
+        expected.put("rhsInternalDimensionJoin", "planSheet");
+
+        return caseMap(
+                "aggregate-join-o615-rhs-join-dimension-filter",
+                "result",
+                "OrderStationStockProjectionO615RhsJoinDimensionProbeQueryModel",
+                request,
+                expected);
+    }
+
+    private Map<String, Object> o615Expected(
+            JdbcModelQueryEngine queryEngine,
+            DbQueryResult result,
+            Map<String, Object> request,
+            List<String> sqlMarkers,
+            List<String> forbiddenSqlMarkers,
+            List<String> rowsRequiredFields,
+            List<String> rowsForbiddenFields) {
+        Map<String, Object> expected = new LinkedHashMap<>();
+        expected.put("normalizedRequest", request);
+        expected.put("sql", queryEngine.getSql());
+        expected.put("normalizedSql", normalizeSql(queryEngine.getSql()));
+        expected.put("params", queryEngine.getValues());
+        expected.put("rows", rows(result));
+        expected.put("sqlMarkers", sqlMarkers);
+        expected.put("forbiddenSqlMarkers", forbiddenSqlMarkers);
+        expected.put("rowsRequiredFields", rowsRequiredFields);
+        expected.put("rowsForbiddenFields", rowsForbiddenFields);
+        return expected;
+    }
+
     private JdbcModelQueryEngine buildAggregateJoinQuery(String orderId) {
         JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateJoinQueryModel");
         assertNotNull(queryModel, "query model should load");
@@ -1284,6 +1595,24 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
                 """, String.class);
         assertFalse(orderIds.isEmpty(), "fixture should contain an order with completed electronics sales");
         return orderIds.get(0);
+    }
+
+    private Map<String, Object> findO615StockOrder() {
+        Map<String, Object> stockOrder = jdbcTemplate.queryForMap("""
+                select fo.order_id orderId,
+                       fo.order_id orderNo,
+                       ds.store_id srcId,
+                       ds.store_type useType,
+                       ds.store_key destinationServiceAreaId
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.date_key = 20240101
+                  and fo.total_quantity > 0
+                order by fo.order_id
+                limit 1
+                """);
+        assertFalse(stockOrder.isEmpty(), "fixture should contain an O615 stock order");
+        return stockOrder;
     }
 
     private SliceRequestDef slice(String field, String op, Object value) {

@@ -26,7 +26,16 @@ class AggregateRelationDiagnosticContractTest {
                 .map(RecordComponent::getName)
                 .toList();
 
-        List<String> expectedKeys = List.of("decision", "reasonCode", "field", "op", "target", "expression");
+        List<String> expectedKeys = List.of(
+                "decision",
+                "reasonCode",
+                "field",
+                "op",
+                "target",
+                "expression",
+                "relationAlias",
+                "relationModel",
+                "joinPath");
         assertEquals(expectedKeys, componentNames);
 
         AggregateRelationDiagnostic diagnostic = AggregateRelationDiagnostic.pushed(
@@ -41,6 +50,9 @@ class AggregateRelationDiagnosticContractTest {
         assertEquals(">", json.get("op"));
         assertEquals("having", json.get("target"));
         assertEquals("sum(agg_src.sales_amount) > ?", json.get("expression"));
+        assertNull(json.get("relationAlias"));
+        assertNull(json.get("relationModel"));
+        assertNull(json.get("joinPath"));
     }
 
     @Test
@@ -54,6 +66,9 @@ class AggregateRelationDiagnosticContractTest {
         assertEquals(">", pushed.op());
         assertEquals("where", pushed.target());
         assertEquals("agg_src.sales_amount > ?", pushed.expression());
+        assertNull(pushed.relationAlias());
+        assertNull(pushed.relationModel());
+        assertNull(pushed.joinPath());
 
         AggregateRelationDiagnostic retained = AggregateRelationDiagnostic.retained(
                 "salesAmount", "or", AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY);
@@ -63,6 +78,17 @@ class AggregateRelationDiagnosticContractTest {
         assertEquals("or", retained.op());
         assertEquals("outer", retained.target());
         assertNull(retained.expression());
+
+        AggregateRelationDiagnostic attributedRetained = retained.withRelation(
+                "fsByOrder",
+                "FactSalesModel",
+                "FactOrderModel.orderId = fsByOrder.orderId");
+        assertEquals("fsByOrder", attributedRetained.relationAlias());
+        assertEquals("FactSalesModel", attributedRetained.relationModel());
+        assertEquals("FactOrderModel.orderId = fsByOrder.orderId", attributedRetained.joinPath());
+        assertEquals(retained.decision(), attributedRetained.decision());
+        assertEquals(retained.reasonCode(), attributedRetained.reasonCode());
+        assertEquals(retained.field(), attributedRetained.field());
 
         AggregateRelationDiagnostic projectionRetained = AggregateRelationDiagnostic.projectionRetained(
                 AggregateRelationQueryObject.REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED);

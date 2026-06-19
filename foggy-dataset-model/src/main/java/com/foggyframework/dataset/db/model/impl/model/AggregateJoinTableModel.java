@@ -292,7 +292,42 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 input.filters(),
                 sourceSqlContext,
                 groupByParts,
-                buildJoinKeyPushdownMappings(input, sourceSqlContext));
+                buildJoinKeyPushdownMappings(input, sourceSqlContext),
+                input.right().getEffectiveAlias(),
+                input.right().getModelName(),
+                joinPath(input.conditions()));
+    }
+
+    private String joinPath(List<JoinCondition> conditions) {
+        if (conditions == null || conditions.isEmpty()) {
+            return null;
+        }
+        return conditions.stream()
+                .map(this::joinPathPart)
+                .collect(Collectors.joining(" && "));
+    }
+
+    private String joinPathPart(JoinCondition condition) {
+        if (condition == null) {
+            return "";
+        }
+        String left = columnRefDisplay(condition.getLeft(), false);
+        ColumnRef rightRef = condition.getRightAsColumnRef();
+        String right = rightRef == null ? "?" : columnRefDisplay(rightRef, true);
+        String op = condition.getOperator() == null ? "=" : condition.getOperator();
+        return left + " " + op + " " + right;
+    }
+
+    private String columnRefDisplay(ColumnRef columnRef, boolean preferAlias) {
+        if (columnRef == null) {
+            return "";
+        }
+        String qualifier = preferAlias ? columnRef.getTableAlias() : null;
+        if (qualifier == null || qualifier.isBlank()) {
+            qualifier = columnRef.getModelName();
+        }
+        String ref = columnRef.getFullRef();
+        return qualifier == null || qualifier.isBlank() ? ref : qualifier + "." + ref;
     }
 
     private AggregateSourceSqlContext buildSourceSqlContext(AggregateRelationInput input) {
@@ -833,6 +868,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private final AggregateSourceSqlContext sourceSqlContext;
         private final List<String> groupByParts;
         private final List<JoinKeyPushdownMapping> joinKeyPushdownMappings;
+        private final String relationAlias;
+        private final String relationModel;
+        private final String joinPath;
         private final ThreadLocal<PushdownState> pushdownState = ThreadLocal.withInitial(PushdownState::new);
         private volatile List<AggregateRelationDiagnostic> lastDiagnostics = List.of();
 
@@ -843,7 +881,10 @@ public class AggregateJoinTableModel extends TableModelSupport {
                                               List<AggregateJoinBuilder.AggregateFilter> baseFilters,
                                               AggregateSourceSqlContext sourceSqlContext,
                                               List<String> groupByParts,
-                                              List<JoinKeyPushdownMapping> joinKeyPushdownMappings) {
+                                              List<JoinKeyPushdownMapping> joinKeyPushdownMappings,
+                                              String relationAlias,
+                                              String relationModel,
+                                              String joinPath) {
             super("", sqlTable);
             this.outputColumns = List.copyOf(outputColumns);
             this.sourceBody = sourceBody;
@@ -852,6 +893,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
             this.sourceSqlContext = sourceSqlContext;
             this.groupByParts = List.copyOf(groupByParts);
             this.joinKeyPushdownMappings = List.copyOf(joinKeyPushdownMappings);
+            this.relationAlias = relationAlias;
+            this.relationModel = relationModel;
+            this.joinPath = joinPath;
         }
 
         @Override
@@ -965,8 +1009,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
         @Override
         public boolean pushAggregateRelationCondition(AggregateRelationOutputColumn column, String op, Object value) {
             if (column == null) {
-                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
-                        null, op, REASON_NO_AGGREGATE_EXPRESSION));
+                pushdownState.get().diagnostics.add(diagnostic(AggregateRelationDiagnostic.refused(
+                        null, op, REASON_NO_AGGREGATE_EXPRESSION)));
                 return false;
             }
             markAggregateRelationOutput(column);
@@ -974,8 +1018,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                     ? column.getAggregateRelationAggregateExpression()
                     : column.getAggregateRelationSourceExpression();
             if (expression == null || expression.isBlank()) {
-                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
-                        column.getAggregateRelationSourceExpression(), op, REASON_NO_AGGREGATE_EXPRESSION));
+                pushdownState.get().diagnostics.add(diagnostic(AggregateRelationDiagnostic.refused(
+                        column.getAggregateRelationSourceExpression(), op, REASON_NO_AGGREGATE_EXPRESSION)));
                 return false;
             }
             return pushCondition(column.isAggregateRelationMeasure(),
@@ -1000,20 +1044,22 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 pushed = pushCondition(false, leftFieldName, mapping.rightExpression(), op, value) || pushed;
             }
             if (!pushed) {
-                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
-                        leftFieldName, op, REASON_NO_JOIN_KEY_MAPPING));
+                pushdownState.get().diagnostics.add(diagnostic(AggregateRelationDiagnostic.refused(
+                        leftFieldName, op, REASON_NO_JOIN_KEY_MAPPING)));
             }
             return pushed;
         }
 
         @Override
         public void recordAggregateRelationRetainedCondition(String fieldName, String op, String reasonCode) {
-            pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.retained(fieldName, op, reasonCode));
+            pushdownState.get().diagnostics.add(diagnostic(
+                    AggregateRelationDiagnostic.retained(fieldName, op, reasonCode)));
         }
 
         @Override
         public void recordAggregateRelationProjectionRetained(String reasonCode) {
-            pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.projectionRetained(reasonCode));
+            pushdownState.get().diagnostics.add(diagnostic(
+                    AggregateRelationDiagnostic.projectionRetained(reasonCode)));
         }
 
         @Override
@@ -1028,8 +1074,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private boolean pushCondition(boolean having, String fieldName, String expression, String op, Object value) {
             RenderedConditionFragments rendered = renderConditionFragments(expression, op, value);
             if (rendered.fragments().isEmpty()) {
-                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
-                        fieldName, op, rendered.reasonCode()));
+                pushdownState.get().diagnostics.add(diagnostic(AggregateRelationDiagnostic.refused(
+                        fieldName, op, rendered.reasonCode())));
                 return false;
             }
             PushdownState state = pushdownState.get();
@@ -1038,11 +1084,15 @@ public class AggregateJoinTableModel extends TableModelSupport {
             for (SqlFragment fragment : rendered.fragments()) {
                 if (!target.contains(fragment)) {
                     target.add(fragment);
-                    state.diagnostics.add(AggregateRelationDiagnostic.pushed(
-                            fieldName, op, targetName, fragment.sql()));
+                    state.diagnostics.add(diagnostic(AggregateRelationDiagnostic.pushed(
+                            fieldName, op, targetName, fragment.sql())));
                 }
             }
             return true;
+        }
+
+        private AggregateRelationDiagnostic diagnostic(AggregateRelationDiagnostic diagnostic) {
+            return diagnostic.withRelation(relationAlias, relationModel, joinPath);
         }
 
         private RenderedConditionFragments renderConditionFragments(String expression, String op, Object value) {

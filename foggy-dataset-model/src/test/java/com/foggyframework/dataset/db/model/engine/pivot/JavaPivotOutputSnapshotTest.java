@@ -12,6 +12,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +47,11 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @AfterEach
+    void cleanupAfterEach() {
+        cleanupAlignmentRows();
+    }
 
     @Test
     @DisplayName("writes java_pivot_output_snapshot_parity.json for Python replay")

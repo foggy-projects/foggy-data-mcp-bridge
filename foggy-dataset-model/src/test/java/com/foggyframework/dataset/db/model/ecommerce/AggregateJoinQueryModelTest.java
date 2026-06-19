@@ -255,7 +255,8 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 "请求侧 aggregate relation group key alias 条件应复制到 RHS 聚合前 WHERE");
         assertTrue(normalizedSql.contains("fsByOrder.orderId =?") || normalizedSql.contains("fsByOrder.orderId = ?"),
                 "外层 WHERE 应保留 group key alias 条件以保持 LEFT JOIN 语义");
-        assertTrue(normalizedSql.contains("fsByOrder.orderId \"salesOrderId\""),
+        assertTrue(normalizedSql.contains("fsByOrder.orderId \"salesOrderId\"")
+                        || normalizedSql.contains("fsByOrder.orderId `salesOrderId`"),
                 "RHS group key 应按 QM alias 返回，避免与左侧 orderId 冲突");
         assertEquals(List.of("COMPLETED", orderId, orderId), queryEngine.getValues(),
                 "RHS fixed filter、RHS group key pushdown、outer WHERE 参数顺序应稳定");
@@ -447,6 +448,7 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
 
         @SuppressWarnings("unchecked")
         List<AggregateRelationDiagnostic> diagnostics = (List<AggregateRelationDiagnostic>) rawDiagnostics;
+        assertOrderSalesRelationAttribution(diagnostics, "fsByOrder");
         assertTrue(diagnostics.stream().anyMatch(diagnostic ->
                         "pushed".equals(diagnostic.decision())
                                 && "where".equals(diagnostic.target())
@@ -480,6 +482,7 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 SemanticRequestContext.empty());
 
         List<AggregateRelationDiagnostic> diagnostics = semanticAggregateRelationDiagnostics(response);
+        assertOrderSalesRelationAttribution(diagnostics, "fsByOrder");
         assertTrue(diagnostics.stream().anyMatch(diagnostic ->
                         "retained".equals(diagnostic.decision())
                                 && AggregateRelationQueryObject.REASON_OR_CONDITION_OUTER_ONLY.equals(diagnostic.reasonCode())
@@ -496,6 +499,70 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                                 && "salesAmount".equals(diagnostic.field())
                                 && "[]".equals(diagnostic.op())),
                 "semantic debug.extra 应包含 invalid range refused 诊断");
+    }
+
+    @Test
+    @DisplayName("semantic response debug.extra 应暴露 raw SQL projection-retained diagnostics")
+    void semanticResponseShouldExposeRawSqlProjectionRetainedDiagnostics() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        request.setLimit(100);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                "OrderSalesAggregateRelationRawAccessQueryModel",
+                request,
+                "execute",
+                SemanticRequestContext.empty());
+
+        List<AggregateRelationDiagnostic> diagnostics = semanticAggregateRelationDiagnostics(response);
+        assertOrderSalesRelationAttribution(diagnostics, "fsByOrderRawAccess");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "retained".equals(diagnostic.decision())
+                                && AggregateRelationQueryObject.REASON_RAW_SQL_CONDITION_PROJECTION_PRUNING_DISABLED
+                                        .equals(diagnostic.reasonCode())
+                                && diagnostic.field() == null
+                                && "projection".equals(diagnostic.op())
+                                && "projection".equals(diagnostic.target())),
+                "semantic debug.extra 应暴露 raw SQL 关闭 RHS projection pruning 的 retained 诊断");
+    }
+
+    @Test
+    @DisplayName("semantic response debug.extra 在 orderBy 和 returnTotal 下应保留 aggregate relation diagnostics")
+    void semanticResponseShouldKeepAggregateRelationDiagnosticsForOrderByAndReturnTotal() {
+        String orderId = findOrderIdWithCompletedSales();
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+        request.setSlice(List.of(
+                semanticSlice("orderId", "=", orderId),
+                semanticSlice("salesAmount", ">", BigDecimal.ZERO)));
+        SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
+        orderItem.setField("salesAmount");
+        orderItem.setDir("desc");
+        request.setOrderBy(List.of(orderItem));
+        request.setReturnTotal(true);
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                "OrderSalesAggregateRelationQueryModel",
+                request,
+                "execute",
+                SemanticRequestContext.empty());
+
+        List<AggregateRelationDiagnostic> diagnostics = semanticAggregateRelationDiagnostics(response);
+        assertOrderSalesRelationAttribution(diagnostics, "fsByOrder");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "pushed".equals(diagnostic.decision())
+                                && "where".equals(diagnostic.target())
+                                && "orderId".equals(diagnostic.field())),
+                "semantic orderBy/returnTotal 场景应保留 join-key WHERE pushdown 诊断");
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "pushed".equals(diagnostic.decision())
+                                && "having".equals(diagnostic.target())
+                                && "salesAmount".equals(diagnostic.field())),
+                "semantic orderBy/returnTotal 场景应保留 measure HAVING pushdown 诊断");
+        assertNotNull(response.getPagination(), "returnTotal=true 应返回 pagination 信息");
+        assertEquals(1L, response.getPagination().getTotalCount(), "returnTotal 应返回过滤后的总数");
     }
 
     @Test
@@ -1973,6 +2040,16 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         Object rawDiagnostics = response.getDebug().getExtra().get("aggregateRelationDiagnostics");
         assertTrue(rawDiagnostics instanceof List<?>, "debug.extra 应暴露 aggregateRelationDiagnostics 列表");
         return (List<AggregateRelationDiagnostic>) rawDiagnostics;
+    }
+
+    private void assertOrderSalesRelationAttribution(List<AggregateRelationDiagnostic> diagnostics, String relationAlias) {
+        assertFalse(diagnostics.isEmpty(), "aggregate relation diagnostics 不应为空");
+        for (AggregateRelationDiagnostic diagnostic : diagnostics) {
+            assertEquals(relationAlias, diagnostic.relationAlias(), "diagnostic 应包含 relation alias");
+            assertEquals("FactSalesModel", diagnostic.relationModel(), "diagnostic 应包含 RHS model");
+            assertEquals("FactOrderModel.orderId = " + relationAlias + ".orderId",
+                    diagnostic.joinPath(), "diagnostic 应包含 join path");
+        }
     }
 
     private CondRequestDef condition(String field, String op, Object value) {

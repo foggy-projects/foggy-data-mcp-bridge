@@ -288,8 +288,15 @@ class JavaSemanticScaleSnapshotTest extends EcommerceTestSupport {
 
     private static List<String> paramStrings(List<?> params) {
         return params.stream()
-                .map(String::valueOf)
+                .map(JavaSemanticScaleSnapshotTest::paramString)
                 .toList();
+    }
+
+    private static String paramString(Object param) {
+        if (param instanceof Number) {
+            return new BigDecimal(String.valueOf(param)).stripTrailingZeros().toPlainString();
+        }
+        return String.valueOf(param);
     }
 
     private static Map<String, Object> ordered() {

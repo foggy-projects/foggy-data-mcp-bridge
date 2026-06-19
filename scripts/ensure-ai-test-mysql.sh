@@ -221,6 +221,7 @@ try_local_mysql() {
 
   log "Starting local mysqld on $MYSQL_HOST:$MYSQL_PORT"
   "$mysqld_bin" \
+    --no-defaults \
     --datadir="$LOCAL_DATA_DIR" \
     --socket="$LOCAL_SOCKET" \
     --pid-file="$LOCAL_PID_FILE" \
@@ -230,7 +231,11 @@ try_local_mysql() {
     --skip-name-resolve \
     --character-set-server=utf8mb4 \
     --collation-server=utf8mb4_unicode_ci \
-    >/dev/null 2>&1 &
+    --default-time-zone=+08:00 \
+    --lower-case-table-names=1 \
+    --max-connections=200 \
+    --explicit_defaults_for_timestamp=ON \
+    --daemonize
 
   wait_for_root_socket "$mysql_bin" || fail "Local mysqld did not become ready; see $LOCAL_RUN_DIR/mysql.err"
   setup_local_users "$mysql_bin"
