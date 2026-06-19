@@ -106,6 +106,8 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("bundles.add").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("bundles.update").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("bundles.remove").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("resources.export").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("resources.save").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.execute").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("tables.inspect").asText()).isEqualTo("supported");
@@ -455,6 +457,116 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("bundle").path("source").asText()).isEqualTo("runtime-registry");
         assertThat(body.path("data").path("bundle").path("managedByRuntimeApi").asBoolean()).isTrue();
         verify(systemBundlesContext).addExternalBundle("runtime-demo", "dev", modelsDir.toString(), true);
+    }
+
+    @Test
+    void shouldExportRuntimeManagedBundleResources() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-resources-export-test");
+        Files.createDirectories(modelsDir.resolve("model"));
+        Files.createDirectories(modelsDir.resolve("query"));
+        Files.writeString(modelsDir.resolve("model").resolve("Order.tm"), "table_model Order {}\n");
+        Files.writeString(modelsDir.resolve("query").resolve("OrderModel.qm"), "query_model OrderModel {}\n");
+        Files.writeString(modelsDir.resolve("notes.txt"), "ignored\n");
+        when(systemBundlesContext.addExternalBundle("runtime-resource-export", "dev", modelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-resource-export",
+                        "namespace", "dev",
+                        "path", modelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/resources/export",
+                Map.of(
+                        "bundle", "runtime-resource-export",
+                        "namespace", "dev"
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode resources = body.path("data").path("resources");
+        assertThat(resources).hasSize(2);
+        assertThat(resources.get(0).path("path").asText()).isEqualTo("model/Order.tm");
+        assertThat(resources.get(0).path("content").asText()).contains("table_model Order");
+        assertThat(resources.get(0).path("writable").asBoolean()).isTrue();
+        assertThat(resources.get(0).path("sha256").asText()).isNotBlank();
+        assertThat(resources.get(1).path("path").asText()).isEqualTo("query/OrderModel.qm");
+    }
+
+    @Test
+    void shouldSaveRuntimeManagedBundleResources() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-resources-save-test");
+        when(systemBundlesContext.addExternalBundle("runtime-resource-save", "dev", modelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-resource-save",
+                        "namespace", "dev",
+                        "path", modelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/resources/save",
+                Map.of(
+                        "bundle", "runtime-resource-save",
+                        "namespace", "dev",
+                        "validate", true,
+                        "refresh", true,
+                        "files", List.of(Map.of(
+                                "path", "model/NewOrder.tm",
+                                "content", "table_model NewOrder {}\n"
+                        ))
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("savedCount").asInt()).isEqualTo(1);
+        assertThat(body.path("data").path("warnings")).hasSize(2);
+        assertThat(body.path("data").path("savedResources").get(0).path("path").asText()).isEqualTo("model/NewOrder.tm");
+        assertThat(Files.readString(modelsDir.resolve("model").resolve("NewOrder.tm")))
+                .isEqualTo("table_model NewOrder {}\n");
+    }
+
+    @Test
+    void shouldRejectSavingConfiguredBundleResources() {
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/resources/save",
+                Map.of(
+                        "bundle", "configured-demo",
+                        "files", List.of(Map.of(
+                                "path", "model/NewOrder.tm",
+                                "content", "table_model NewOrder {}\n"
+                        ))
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("RESOURCE_BUNDLE_NOT_WRITABLE");
     }
 
     @Test
