@@ -303,58 +303,69 @@ public class RuntimeModelsController {
     ) {
         Instant startedAt = Instant.now();
         String bundleName = validationBundleName(namespace);
-        if (clearExisting && systemBundlesContext.containBundle(bundleName)) {
-            systemBundlesContext.removeBundle(bundleName);
-        }
-        boolean registered = systemBundlesContext.addExternalBundle(bundleName, namespace, path, watch);
-        if (!registered) {
-            throw new IllegalStateException("Bundle registration failed: " + bundleName);
-        }
+        boolean registered = false;
+        try {
+            if (clearExisting && systemBundlesContext.containBundle(bundleName)) {
+                systemBundlesContext.removeBundle(bundleName);
+            }
+            registered = systemBundlesContext.addExternalBundle(bundleName, namespace, path, watch);
+            if (!registered) {
+                throw new IllegalStateException("Bundle registration failed: " + bundleName);
+            }
 
-        Bundle bundle = systemBundlesContext.getBundleByName(bundleName);
-        if (bundle == null) {
-            throw new IllegalStateException("Registered bundle was not found: " + bundleName);
-        }
+            Bundle bundle = systemBundlesContext.getBundleByName(bundleName);
+            if (bundle == null) {
+                throw new IllegalStateException("Registered bundle was not found: " + bundleName);
+            }
 
-        List<ModelValidateIssue> errors = new ArrayList<>();
-        Set<String> failedTmNames = new HashSet<>();
-        int totalFiles = 0;
+            List<ModelValidateIssue> errors = new ArrayList<>();
+            Set<String> failedTmNames = new HashSet<>();
+            int totalFiles = 0;
 
-        BundleResource[] tmResources = findBundleResources(bundle, "**/*.tm");
-        totalFiles += tmResources.length;
-        for (BundleResource tmResource : tmResources) {
-            int beforeSize = errors.size();
-            validateTmResource(tmResource, namespace, includeStackTrace, errors);
-            if (errors.size() > beforeSize) {
-                failedTmNames.add(extractModelName(relativePath(tmResource)));
+            BundleResource[] tmResources = findBundleResources(bundle, "**/*.tm");
+            totalFiles += tmResources.length;
+            for (BundleResource tmResource : tmResources) {
+                int beforeSize = errors.size();
+                validateTmResource(tmResource, namespace, includeStackTrace, errors);
+                if (errors.size() > beforeSize) {
+                    failedTmNames.add(extractModelName(relativePath(tmResource)));
+                }
+            }
+
+            BundleResource[] qmResources = findBundleResources(bundle, "**/*.qm");
+            totalFiles += qmResources.length;
+            for (BundleResource qmResource : qmResources) {
+                int beforeSize = errors.size();
+                validateQmResource(qmResource, includeStackTrace, errors);
+                if (errors.size() > beforeSize && !failedTmNames.isEmpty()) {
+                    markCascadingErrors(errors, beforeSize, failedTmNames);
+                }
+            }
+
+            int cascadingErrors = (int) errors.stream()
+                    .filter(issue -> "CASCADING".equals(issue.category()))
+                    .count();
+            return new ModelValidateResponse(
+                    errors.isEmpty(),
+                    namespace,
+                    path,
+                    totalFiles,
+                    totalFiles - errors.size(),
+                    errors.size(),
+                    cascadingErrors,
+                    Duration.between(startedAt, Instant.now()).toMillis(),
+                    List.copyOf(errors),
+                    List.of()
+            );
+        } finally {
+            if (clearExisting && registered) {
+                try {
+                    systemBundlesContext.removeBundle(bundleName);
+                } catch (Exception ignored) {
+                    // Validation must report model issues; cleanup failure should not mask that result.
+                }
             }
         }
-
-        BundleResource[] qmResources = findBundleResources(bundle, "**/*.qm");
-        totalFiles += qmResources.length;
-        for (BundleResource qmResource : qmResources) {
-            int beforeSize = errors.size();
-            validateQmResource(qmResource, includeStackTrace, errors);
-            if (errors.size() > beforeSize && !failedTmNames.isEmpty()) {
-                markCascadingErrors(errors, beforeSize, failedTmNames);
-            }
-        }
-
-        int cascadingErrors = (int) errors.stream()
-                .filter(issue -> "CASCADING".equals(issue.category()))
-                .count();
-        return new ModelValidateResponse(
-                errors.isEmpty(),
-                namespace,
-                path,
-                totalFiles,
-                totalFiles - errors.size(),
-                errors.size(),
-                cascadingErrors,
-                Duration.between(startedAt, Instant.now()).toMillis(),
-                List.copyOf(errors),
-                List.of()
-        );
     }
 
     private void validateTmResource(

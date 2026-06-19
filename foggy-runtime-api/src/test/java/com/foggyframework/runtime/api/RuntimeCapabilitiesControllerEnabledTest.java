@@ -201,6 +201,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("namespace").asText()).isEqualTo("dev");
         assertThat(body.path("data").path("totalFiles").asInt()).isEqualTo(2);
         assertThat(body.path("data").path("errors").isArray()).isTrue();
+        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
     }
 
     @Test
@@ -230,6 +231,30 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .isFalse();
         assertThat(body.path("diagnostics").path("attributes").path("validation").path("errors").get(0)
                 .path("message").asText()).isEqualTo("Unknown table model: Order");
+        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+    }
+
+    @Test
+    void shouldKeepValidationBundleWhenClearExistingIsFalse() {
+        Bundle bundle = mock(Bundle.class);
+        BundleResource qmResource = bundleResource("OrderModel.qm");
+        when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
+        when(systemBundlesContext.getBundleByName("runtime-validation-dev")).thenReturn(bundle);
+        when(bundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[0]);
+        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{qmResource});
+        when(queryModelLoader.loadJdbcQueryModel(qmResource)).thenReturn(mock(QueryModel.class));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/models/validate",
+                Map.of("path", ".", "namespace", "dev", "clearExisting", false),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        verify(systemBundlesContext, never()).removeBundle("runtime-validation-dev");
     }
 
     @Test
