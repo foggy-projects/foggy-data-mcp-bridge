@@ -3,13 +3,12 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.CapabilitiesResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import org.springframework.beans.factory.ObjectProvider;
+import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.sql.DataSource;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,11 +21,14 @@ public class RuntimeCapabilitiesController {
     private static final String ENGINE = "java";
 
     private final FoggyRuntimeApiProperties properties;
-    private final ObjectProvider<DataSource> dataSourceProvider;
+    private final RuntimeDatasourceRegistryService datasourceRegistryService;
 
-    public RuntimeCapabilitiesController(FoggyRuntimeApiProperties properties, ObjectProvider<DataSource> dataSourceProvider) {
+    public RuntimeCapabilitiesController(
+            FoggyRuntimeApiProperties properties,
+            RuntimeDatasourceRegistryService datasourceRegistryService
+    ) {
         this.properties = properties;
-        this.dataSourceProvider = dataSourceProvider;
+        this.datasourceRegistryService = datasourceRegistryService;
     }
 
     @GetMapping("/capabilities")
@@ -43,9 +45,15 @@ public class RuntimeCapabilitiesController {
         capabilities.put("bundles.remove", "supported");
         capabilities.put("resources.export", "supported");
         capabilities.put("resources.save", "supported");
+        capabilities.put("datasources.list", "supported");
+        capabilities.put("datasources.add", "supported");
+        capabilities.put("datasources.update", "supported");
+        capabilities.put("datasources.remove", "supported");
+        capabilities.put("datasources.test", "supported");
+        capabilities.put("datasources.bind", "supported");
         capabilities.put("query.validate", "supported");
         capabilities.put("query.execute", "supported");
-        capabilities.put("tables.inspect", dataSourceProvider.getIfAvailable() != null ? "supported" : "unsupported");
+        capabilities.put("tables.inspect", "supported");
         capabilities.put("compose.validate", "supported");
         capabilities.put("compose.preview", "supported");
         capabilities.put("compose.execute", "supported");

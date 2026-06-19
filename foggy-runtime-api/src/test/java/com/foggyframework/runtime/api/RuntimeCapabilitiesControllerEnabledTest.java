@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ import static org.mockito.Mockito.when;
         properties = {
                 "foggy.runtime-api.enabled=true",
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-test-bundles-${random.uuid}.json",
+                "foggy.runtime-api.datasource-registry.path=target/runtime-api-test-datasources-${random.uuid}.json",
                 "spring.autoconfigure.exclude=com.foggyframework.dataset.db.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
@@ -108,6 +110,12 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("bundles.remove").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("resources.export").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("resources.save").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.list").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.add").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.update").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.remove").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.test").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.bind").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.execute").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("tables.inspect").asText()).isEqualTo("supported");
@@ -584,6 +592,111 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("success").asBoolean()).isFalse();
         assertThat(body.path("error").path("code").asText()).isEqualTo("BUNDLE_NOT_MANAGED");
         verify(systemBundlesContext, never()).removeBundle("configured-demo");
+    }
+
+    @Test
+    void shouldListConfiguredDefaultDatasourceAsReadOnly() {
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode datasource = body.path("data").path("datasources").get(0);
+        assertThat(datasource.path("name").asText()).isEqualTo("default");
+        assertThat(datasource.path("source").asText()).isEqualTo("config");
+        assertThat(datasource.path("managedByRuntimeApi").asBoolean()).isFalse();
+        assertThat(datasource.path("canRemove").asBoolean()).isFalse();
+        assertThat(datasource.path("canTest").asBoolean()).isTrue();
+    }
+
+    @Test
+    void shouldAddTestBindAndInspectRuntimeManagedSqliteDatasource() throws Exception {
+        Path db = Files.createTempFile("runtime-api-datasource-test", ".db");
+        String jdbcUrl = "jdbc:sqlite:" + db.toAbsolutePath();
+        try (Connection connection = DriverManager.getConnection(jdbcUrl);
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE sales_drop_daily (
+                        id INTEGER PRIMARY KEY,
+                        sales_date TEXT NOT NULL,
+                        sales_amount REAL
+                    )
+                    """);
+        }
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", "sales-sqlite",
+                        "type", "sqlite",
+                        "jdbcUrl", jdbcUrl
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(addResponse.getBody().path("data").path("datasource").path("managedByRuntimeApi").asBoolean())
+                .isTrue();
+
+        ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources/sales-sqlite/test",
+                null,
+                JsonNode.class
+        );
+        assertThat(testResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(testResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(testResponse.getBody().path("data").path("connected").asBoolean()).isTrue();
+        assertThat(testResponse.getBody().path("data").path("productName").asText()).containsIgnoringCase("sqlite");
+
+        ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/namespaces/dev/datasource",
+                org.springframework.http.HttpMethod.PUT,
+                new org.springframework.http.HttpEntity<>(Map.of(
+                        "namespace", "dev",
+                        "dataSource", "sales-sqlite"
+                )),
+                JsonNode.class
+        );
+        assertThat(bindResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(bindResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(bindResponse.getBody().path("data").path("dataSource").asText()).isEqualTo("sales-sqlite");
+
+        ResponseEntity<JsonNode> inspectResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/tables/inspect",
+                Map.of(
+                        "dataSource", "sales-sqlite",
+                        "table", "sales_drop_daily",
+                        "includeIndexes", true
+                ),
+                JsonNode.class
+        );
+        assertThat(inspectResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode inspectBody = inspectResponse.getBody();
+        assertThat(inspectBody).isNotNull();
+        assertThat(inspectBody.path("success").asBoolean()).isTrue();
+        assertThat(inspectBody.path("data").path("dataSource").asText()).isEqualTo("sales-sqlite");
+        assertThat(inspectBody.path("data").path("columns").get(0).path("name").asText()).isEqualTo("id");
+        assertThat(inspectBody.path("data").path("columns").get(2).path("name").asText()).isEqualTo("sales_amount");
+    }
+
+    @Test
+    void shouldRejectRemovingDefaultDatasource() {
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/datasources/default",
+                org.springframework.http.HttpMethod.DELETE,
+                null,
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("DATASOURCE_NOT_MANAGED");
     }
 
     @Test

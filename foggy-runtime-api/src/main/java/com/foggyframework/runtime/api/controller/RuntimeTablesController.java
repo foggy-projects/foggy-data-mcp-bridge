@@ -10,14 +10,14 @@ import com.foggyframework.runtime.api.dto.TableIndexInfo;
 import com.foggyframework.runtime.api.dto.TableInspectRequest;
 import com.foggyframework.runtime.api.dto.TableInspectResponse;
 import com.foggyframework.runtime.api.dto.TablePrimaryKeyInfo;
-import org.springframework.beans.factory.ObjectProvider;
+import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
+import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -35,14 +35,14 @@ public class RuntimeTablesController {
     private static final String ENGINE = "java";
 
     private final FoggyRuntimeApiProperties runtimeApiProperties;
-    private final ObjectProvider<DataSource> dataSourceProvider;
+    private final RuntimeDatasourceRegistryService datasourceRegistryService;
 
     public RuntimeTablesController(
             FoggyRuntimeApiProperties runtimeApiProperties,
-            ObjectProvider<DataSource> dataSourceProvider
+            RuntimeDatasourceRegistryService datasourceRegistryService
     ) {
         this.runtimeApiProperties = runtimeApiProperties;
-        this.dataSourceProvider = dataSourceProvider;
+        this.datasourceRegistryService = datasourceRegistryService;
     }
 
     @PostMapping("/tables/inspect")
@@ -53,21 +53,15 @@ public class RuntimeTablesController {
                     null, "Provide a database table name.", false);
         }
 
-        String requestedDataSource = blankToNull(request != null ? request.dataSource() : null);
-        if (requestedDataSource != null && !"default".equals(requestedDataSource)) {
-            return fail("INVALID_REQUEST", "tables.inspect",
-                    "Named dataSource is not supported by foggy-runtime-api yet: " + requestedDataSource,
-                    null, "Use the default Spring DataSource or add a runtime dataSource selector.", false);
-        }
-
-        DataSource dataSource = dataSourceProvider.getIfAvailable();
-        if (dataSource == null) {
-            return fail("TABLE_INSPECT_FAILED", "tables.inspect", "No Spring DataSource bean is available.",
-                    null, "Start the engine with a configured DataSource.", false);
+        String requestedDataSource = stringOr(request != null ? request.dataSource() : null, RuntimeDatasourceRegistryService.DEFAULT_DATASOURCE_NAME);
+        ResolvedDatasource resolved = datasourceRegistryService.resolve(requestedDataSource).orElse(null);
+        if (resolved == null) {
+            return fail("DATASOURCE_NOT_FOUND", "tables.inspect", "DataSource not found or disabled: " + requestedDataSource,
+                    null, "Start the engine with a configured default DataSource or add a runtime-managed dataSource.", false);
         }
 
         String schema = blankToNull(request != null ? request.schema() : null);
-        try (Connection connection = dataSource.getConnection()) {
+        try (Connection connection = resolved.dataSource().getConnection()) {
             DatabaseMetaData meta = connection.getMetaData();
             String catalog = connection.getCatalog();
             String tableType = findTableType(meta, catalog, schema, table);
@@ -81,7 +75,7 @@ public class RuntimeTablesController {
                     : List.of();
 
             TableInspectResponse response = new TableInspectResponse(
-                    requestedDataSource != null ? requestedDataSource : "default",
+                    resolved.name(),
                     schema,
                     table,
                     tableType,
