@@ -118,6 +118,8 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("datasources.bind").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.execute").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("sql.query").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("tables.list").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("tables.inspect").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("compose.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("compose.preview").asText()).isEqualTo("supported");
@@ -697,6 +699,86 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body).isNotNull();
         assertThat(body.path("success").asBoolean()).isFalse();
         assertThat(body.path("error").path("code").asText()).isEqualTo("DATASOURCE_NOT_MANAGED");
+    }
+
+    @Test
+    void shouldListTablesAndRunReadOnlySqlOnRuntimeManagedSqliteDatasource() throws Exception {
+        Path db = Files.createTempFile("runtime-api-sql-query-test", ".db");
+        String jdbcUrl = "jdbc:sqlite:" + db.toAbsolutePath();
+        try (Connection connection = DriverManager.getConnection(jdbcUrl);
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE sales_probe_daily (
+                        id INTEGER PRIMARY KEY,
+                        region TEXT NOT NULL,
+                        sales_amount REAL
+                    )
+                    """);
+            statement.execute("INSERT INTO sales_probe_daily(region, sales_amount) VALUES ('East', 120.5)");
+            statement.execute("INSERT INTO sales_probe_daily(region, sales_amount) VALUES ('West', 80.0)");
+        }
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", "probe-sqlite",
+                        "type", "sqlite",
+                        "jdbcUrl", jdbcUrl
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> listResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/tables/list",
+                Map.of("dataSource", "probe-sqlite"),
+                JsonNode.class
+        );
+        assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode listBody = listResponse.getBody();
+        assertThat(listBody).isNotNull();
+        assertThat(listBody.path("success").asBoolean()).isTrue();
+        assertThat(listBody.path("data").path("dataSource").asText()).isEqualTo("probe-sqlite");
+        boolean foundTable = false;
+        for (JsonNode table : listBody.path("data").path("tables")) {
+            foundTable = foundTable || table.path("name").asText().equals("sales_probe_daily");
+        }
+        assertThat(foundTable).isTrue();
+
+        ResponseEntity<JsonNode> queryResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/sql/query",
+                Map.of(
+                        "dataSource", "probe-sqlite",
+                        "sql", "select region, sales_amount from sales_probe_daily order by id",
+                        "maxRows", 1
+                ),
+                JsonNode.class
+        );
+        assertThat(queryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode queryBody = queryResponse.getBody();
+        assertThat(queryBody).isNotNull();
+        assertThat(queryBody.path("success").asBoolean()).isTrue();
+        assertThat(queryBody.path("data").path("dataSource").asText()).isEqualTo("probe-sqlite");
+        assertThat(queryBody.path("data").path("columns").get(0).path("name").asText()).isEqualTo("region");
+        assertThat(queryBody.path("data").path("rows").get(0).path("region").asText()).isEqualTo("East");
+        assertThat(queryBody.path("data").path("rowCount").asInt()).isEqualTo(1);
+        assertThat(queryBody.path("data").path("truncated").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> rejectedResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/sql/query",
+                Map.of(
+                        "dataSource", "probe-sqlite",
+                        "sql", "delete from sales_probe_daily"
+                ),
+                JsonNode.class
+        );
+        assertThat(rejectedResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode rejectedBody = rejectedResponse.getBody();
+        assertThat(rejectedBody).isNotNull();
+        assertThat(rejectedBody.path("success").asBoolean()).isFalse();
+        assertThat(rejectedBody.path("error").path("code").asText()).isEqualTo("SQL_QUERY_REJECTED");
+        assertThat(rejectedBody.path("error").path("phase").asText()).isEqualTo("sql.query");
     }
 
     @Test
