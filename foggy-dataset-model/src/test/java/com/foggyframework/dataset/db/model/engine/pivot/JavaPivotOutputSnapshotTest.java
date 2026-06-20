@@ -12,8 +12,12 @@ import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -37,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * full ecommerce seed.</p>
  */
 @DisplayName("JavaPivotOutputSnapshotTest - Python alignment P0-8")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -47,7 +52,13 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
 
+    @AfterEach
+    void tearDown() {
+        cleanupAlignmentRows();
+    }
+
     @Test
+    @Order(1)
     @DisplayName("writes java_pivot_output_snapshot_parity.json for Python replay")
     void shouldProducePivotOutputSnapshot() throws Exception {
         seedAlignmentRows();
@@ -76,6 +87,31 @@ class JavaPivotOutputSnapshotTest extends EcommerceTestSupport {
         MAPPER.writeValue(localCopy.toFile(), snapshot);
         assertTrue(Files.exists(pythonTarget),
                 "snapshot was not written: " + pythonTarget.toAbsolutePath());
+    }
+
+    @Test
+    @Order(2)
+    @DisplayName("cleans python alignment fixture rows after snapshot generation")
+    void shouldCleanAlignmentRowsAfterSnapshot() {
+        Integer factRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM fact_sales WHERE order_status = ?",
+                Integer.class,
+                STATUS);
+        Integer productRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM dim_product WHERE product_key IN (?, ?, ?)",
+                Integer.class,
+                990001,
+                990002,
+                990003);
+        Integer dateRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM dim_date WHERE date_key IN (?, ?)",
+                Integer.class,
+                20990101,
+                20980101);
+
+        assertEquals(0, factRows);
+        assertEquals(0, productRows);
+        assertEquals(0, dateRows);
     }
 
     private List<Map<String, Object>> cases() {

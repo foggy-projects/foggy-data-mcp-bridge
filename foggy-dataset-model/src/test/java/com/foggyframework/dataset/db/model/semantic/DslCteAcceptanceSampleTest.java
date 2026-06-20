@@ -1204,6 +1204,77 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model join_align hoists structured base CTE stages")
+    void generateSqlCrossModelJoinAlignHoistsStructuredBaseCteStages() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", \"leadCount\" "
+                                        + "FROM stage1 WHERE \"leadCount\" >= ?",
+                                List.of(1),
+                                null,
+                                List.of(new SqlGenerationResult.CteStage(
+                                        "stage1",
+                                        "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                                + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                                + "WHERE created_at >= ? "
+                                                + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                        List.of("2026-05-01")))),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"matchedOrderCount\" "
+                                        + "FROM stage1 WHERE \"matchedOrderCount\" >= ?",
+                                List.of(1),
+                                null,
+                                List.of(new SqlGenerationResult.CteStage(
+                                        "stage1",
+                                        "SELECT \"orderId\", COUNT(order_id) AS \"matchedOrderCount\" "
+                                                + "FROM fact_order WHERE order_status = ? GROUP BY \"orderId\"",
+                                        List.of("COMPLETED")))));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderJoinAlignBridge());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_join_left_stage1 AS"), result.getSql());
+        assertTrue(result.getSql().contains("FROM dsl_cte_join_left_stage1"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_join_right_stage1 AS"), result.getSql());
+        assertTrue(result.getSql().contains("FROM dsl_cte_join_right_stage1"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_join_left AS"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_join_right AS"), result.getSql());
+        assertFalse(result.getSql().contains("WITH stage1 AS"), result.getSql());
+        assertEquals(List.of("2026-05-01", 1, "COMPLETED", 1), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model join_align rejects raw base WITH SQL")
+    void generateSqlCrossModelJoinAlignRejectsRawWithBaseSql() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "WITH stage1 AS (SELECT 1 AS \"leadSource\") SELECT * FROM stage1",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", COUNT(order_id) AS \"matchedOrderCount\" "
+                                        + "FROM fact_order GROUP BY \"orderId\"",
+                                List.of(),
+                                null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderJoinAlignBridge());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.generateSql("CrmLead", request, SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("DSL_CTE_JOIN_ALIGN_LEFT_BASE_WITH_UNSUPPORTED"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model source-rate marks runtime-guarded bridge-ready")
     void validationShowsBridgeReadyForSignedCrossModelFunnelSourceRate() {
         SemanticQueryResponse response = service.validateQuery(
@@ -1373,6 +1444,65 @@ class DslCteAcceptanceSampleTest {
         assertTrue(result.getSql().contains("date(r.\"orderDate$caption\") < date(l.\"createdAt\", '+' || ? || ' days')"),
                 result.getSql());
         assertEquals(List.of(30), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model time-attribution hoists structured base CTE stages")
+    void generateSqlCrossModelTimeAttributionHoistsStructuredBaseCteStages() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"totalLeadCount\" "
+                                        + "FROM stage1 WHERE \"totalLeadCount\" >= ?",
+                                List.of(10),
+                                null,
+                                List.of(new SqlGenerationResult.CteStage(
+                                        "stage1",
+                                        "SELECT \"leadSource\", COUNT(lead_id) AS \"totalLeadCount\" "
+                                                + "FROM crm_lead WHERE created_at >= ? GROUP BY \"leadSource\"",
+                                        List.of("2026-05-01")))),
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", \"leadCount\" "
+                                        + "FROM stage1 WHERE \"leadCount\" >= ?",
+                                List.of(1),
+                                null,
+                                List.of(new SqlGenerationResult.CteStage(
+                                        "stage1",
+                                        "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                                + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                                + "WHERE created_at >= ? "
+                                                + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                        List.of("2026-05-01")))),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"orderDate$caption\", \"matchedOrderCount\" "
+                                        + "FROM stage1 WHERE \"matchedOrderCount\" >= ?",
+                                List.of(1),
+                                null,
+                                List.of(new SqlGenerationResult.CteStage(
+                                        "stage1",
+                                        "SELECT \"orderId\", \"orderDate$caption\", "
+                                                + "COUNT(order_id) AS \"matchedOrderCount\" "
+                                                + "FROM fact_order WHERE order_status = ? "
+                                                + "GROUP BY \"orderId\", \"orderDate$caption\"",
+                                        List.of("COMPLETED")))));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderTimeAttributionContract());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_funnel_denominator_stage1 AS"), result.getSql());
+        assertTrue(result.getSql().contains("FROM dsl_cte_funnel_denominator_stage1"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_join_left_stage1 AS"), result.getSql());
+        assertTrue(result.getSql().contains("FROM dsl_cte_join_left_stage1"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_join_right_stage1 AS"), result.getSql());
+        assertTrue(result.getSql().contains("FROM dsl_cte_join_right_stage1"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_window_matched"), result.getSql());
+        assertFalse(result.getSql().contains("WITH stage1 AS"), result.getSql());
+        assertEquals(List.of("2026-05-01", 10, "2026-05-01", 1, "COMPLETED", 1, 30),
+                result.getParams());
     }
 
     @Test

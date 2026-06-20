@@ -267,15 +267,10 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setColumns(Arrays.asList("amount", "nonExistentField$id"));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(TEST_MODEL, request, SemanticRequestContext.empty());
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> semanticQueryServiceV3.validateQuery(TEST_MODEL, request, SemanticRequestContext.empty()));
 
-        assertNotNull(response, "响应不应为空");
-        assertNotNull(response.getWarnings(), "应有警告信息");
-
-        String warningsStr = String.join(", ", response.getWarnings());
-        log.info("验证警告: {}", warningsStr);
-
-        assertTrue(warningsStr.contains("nonExistentField"), "应警告不存在的字段");
+        assertTrue(ex.getMessage().contains("nonExistentField"), "应拒绝不存在的字段");
     }
 
     @Test
@@ -290,16 +285,11 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setGroupBy(Collections.singletonList(groupByItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(TEST_MODEL, request, SemanticRequestContext.empty());
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> semanticQueryServiceV3.validateQuery(TEST_MODEL, request, SemanticRequestContext.empty()));
 
-        assertNotNull(response, "响应不应为空");
-        assertNotNull(response.getWarnings(), "应有警告信息");
-
-        String warningsStr = String.join(", ", response.getWarnings());
-        log.info("验证警告: {}", warningsStr);
-
-        assertTrue(warningsStr.contains("customer$id") && warningsStr.contains("columns"),
-                "应警告 groupBy 字段未在 columns 中");
+        assertTrue(ex.getMessage().contains("customer$id") && ex.getMessage().contains("columns"),
+                "应拒绝 groupBy 字段未在 columns 中");
     }
 
     // ==========================================

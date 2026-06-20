@@ -1976,7 +1976,7 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     private String normalizeSql(String sql) {
-        return sql.replaceAll("\\s+", " ").trim();
+        return sql.replace('`', '"').replaceAll("\\s+", " ").trim();
     }
 
     private long countBigDecimalValues(List<Object> values, BigDecimal expected) {

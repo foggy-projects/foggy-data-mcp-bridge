@@ -36,10 +36,11 @@ import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridValidat
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.support.DslCteDslRequestMapper;
-import com.foggyframework.dataset.db.model.semantic.support.DslCtePlanValidator;
+import com.foggyframework.dataset.db.model.semantic.support.DslCtePlanningService;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlDslRequestMapper;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlToDslMapper;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticRequestNormalizer;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
@@ -212,9 +213,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                       SemanticRequestContext reqContext) {
         ModelResultContext.SecurityContext securityContext = reqContext.getSecurityContext();
         String namespace = reqContext.getNamespace();
-        Set<String> fieldAccess = reqContext.getFieldAccess();
         if ("validate".equals(mode)) {
-            return validateQueryInternal(model, request, namespace);
+            return validateQueryInternal(model, request, reqContext);
         }
 
         // === 9.0.0 Pivot Pipeline 路由 ===
@@ -237,53 +237,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 2. 构建初始JDBC请求
         PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context, namespace);
 
-        // 3. 处理 slice 中的 $caption 值转换（如果需要）
-        // 注意：这里在 beforeQuery 之前处理，因为需要先转换好 slice
-        if (request.getSlice() != null) {
-            List<SliceRequestDef> processedSlice = processSliceValues(model, request.getSlice(), request, context);
-            jdbcRequest.getParam().setSlice(processedSlice);
-        }
-        if (request.getHaving() != null) {
-            List<SliceRequestDef> processedHaving = processSliceValues(model, request.getHaving(), request, context);
-            jdbcRequest.getParam().setHaving(processedHaving);
-        }
+        // 3. 创建ModelResultContext，标记为语义查询，设置SecurityContext、Namespace和列权限
+        ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, reqContext);
 
-        // 4. 创建ModelResultContext，标记为语义查询，设置SecurityContext、Namespace和列权限
-        ModelResultContext resultContext = new ModelResultContext();
-        resultContext.setRequest(jdbcRequest);
-        resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
-        resultContext.setSecurityContext(securityContext);
-        resultContext.setNamespace(namespace);
-        resultContext.setFieldAccess(fieldAccess);
-        resultContext.setDeniedColumns(reqContext.getDeniedColumns());
-        resultContext.setSystemSlice(reqContext.getSystemSlice());
-
-        // 将请求中的 hints 和 timeWindow 传递到 extData
-        Map<String, Object> extData = new HashMap<>();
-        if (request.getHints() != null && !request.getHints().isEmpty()) {
-            extData.putAll(request.getHints());
-        }
-        if (request.getExtData() != null && !request.getExtData().isEmpty()) {
-            extData.putAll(request.getExtData());
-        }
-        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
-            extData.put("timeWindow", request.getTimeWindow());
-            if (request.getLimit() != null) {
-                extData.put("timeWindowLimit", request.getLimit());
-            }
-            if (request.getStart() != null && request.getStart() > 0) {
-                extData.put("timeWindowStart", request.getStart());
-            }
-        }
-        if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
-            extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
-        }
-        putDomainTransportPlans(extData, reqContext);
-        if (!extData.isEmpty()) {
-            resultContext.setExtData(extData);
-        }
-
-        // 5. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
+        // 4. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
         DbQueryResult dbQueryResult = queryFacade.queryModelResult(resultContext);
         PagingResultImpl queryResult = resultContext.getPagingResult();
         context.extData = resultContext.getExtData();
@@ -360,7 +317,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (dslCtePlan != null) {
             return dslCtePlan;
         }
-        return validateQueryInternal(model, request, context.getNamespace());
+        return validateQueryInternal(model, request, context);
     }
 
     @Override
@@ -388,106 +345,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             throw RX.throwB("MEMORY_GRID_EXECUTION_NOT_IMPLEMENTED: Memory Grid guardrail passed, but in-memory execution is not part of P0.");
         }
         if (isDslCtePlan(request)) {
-            dslCteValidation(request);
+            DslCtePlanningService.DslCtePlan dslCtePlan = DslCtePlanningService.plan(model, request);
             if (dslCteCompileToDslEnabled(request)) {
-                DslCteDslRequestMapper.BridgeResult bridge =
-                        DslCteDslRequestMapper.toDslRequest(model, request.getExecutablePlan());
-                if (bridge.ready()) {
-                    SemanticQueryRequest dslRequest = bridge.request();
-                    dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SqlGenerationResult baseSql = generateSql(bridge.model(), dslRequest, context);
-                    return DslCteDslRequestMapper.applyTopLevelLimitIfDeclared(
-                            baseSql, request.getExecutablePlan());
-                }
-                DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge =
-                        DslCteDslRequestMapper.toResultStageWindowBridge(model, request.getExecutablePlan());
-                if (resultStageBridge.ready()) {
-                    SemanticQueryRequest baseRequest = resultStageBridge.baseRequest();
-                    baseRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SqlGenerationResult baseSql = generateSql(resultStageBridge.model(), baseRequest, context);
-                    return resultStageBridge.wrap(baseSql);
-                }
-                DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge =
-                        DslCteDslRequestMapper.toResultStageMetricRatioBridge(model, request.getExecutablePlan());
-                if (metricRatioBridge.ready()) {
-                    SemanticQueryRequest baseRequest = metricRatioBridge.baseRequest();
-                    baseRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SqlGenerationResult baseSql = generateSql(metricRatioBridge.model(), baseRequest, context);
-                    return metricRatioBridge.wrap(baseSql);
-                }
-                DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge =
-                        DslCteDslRequestMapper.toCrossModelFunnelMoneyAttributionBridge(
-                                model, request.getExecutablePlan());
-                if (moneyAttributionBridge.ready()) {
-                    SqlGenerationResult denominatorSql = null;
-                    if (moneyAttributionBridge.denominatorRequest() != null) {
-                        SemanticQueryRequest denominatorRequest = moneyAttributionBridge.denominatorRequest();
-                        denominatorRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                        denominatorSql = generateSql(
-                                moneyAttributionBridge.denominatorModel(), denominatorRequest, context);
-                    }
-                    SemanticQueryRequest leftRequest = moneyAttributionBridge.leftRequest();
-                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SemanticQueryRequest rightRequest = moneyAttributionBridge.rightRequest();
-                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SqlGenerationResult leftSql = generateSql(moneyAttributionBridge.leftModel(), leftRequest, context);
-                    SqlGenerationResult rightSql = generateSql(moneyAttributionBridge.rightModel(), rightRequest, context);
-                    if (denominatorSql != null) {
-                        return moneyAttributionBridge.wrap(denominatorSql, leftSql, rightSql);
-                    }
-                    return moneyAttributionBridge.wrap(leftSql, rightSql);
-                }
-                if (moneyAttributionBridge.relevant()) {
-                    throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + moneyAttributionBridge.unsupported());
-                }
-                DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge =
-                        DslCteDslRequestMapper.toCrossModelFunnelTimeAttributionBridge(
-                                model, request.getExecutablePlan());
-                if (timeAttributionBridge.ready()) {
-                    SemanticQueryRequest denominatorRequest = timeAttributionBridge.denominatorRequest();
-                    denominatorRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SemanticQueryRequest leftRequest = timeAttributionBridge.leftRequest();
-                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SemanticQueryRequest rightRequest = timeAttributionBridge.rightRequest();
-                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SqlGenerationResult denominatorSql = generateSql(
-                            timeAttributionBridge.denominatorModel(), denominatorRequest, context);
-                    SqlGenerationResult leftSql = generateSql(timeAttributionBridge.leftModel(), leftRequest, context);
-                    SqlGenerationResult rightSql = generateSql(timeAttributionBridge.rightModel(), rightRequest, context);
-                    return timeAttributionBridge.wrap(denominatorSql, leftSql, rightSql);
-                }
-                if (timeAttributionBridge.relevant()) {
-                    throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + timeAttributionBridge.unsupported());
-                }
-                DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge =
-                        DslCteDslRequestMapper.toCrossModelFunnelSourceRateBridge(model, request.getExecutablePlan());
-                if (funnelSourceRateBridge.ready()) {
-                    SemanticQueryRequest denominatorRequest = funnelSourceRateBridge.denominatorRequest();
-                    denominatorRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SemanticQueryRequest leftRequest = funnelSourceRateBridge.leftRequest();
-                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SemanticQueryRequest rightRequest = funnelSourceRateBridge.rightRequest();
-                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SqlGenerationResult denominatorSql = generateSql(
-                            funnelSourceRateBridge.denominatorModel(), denominatorRequest, context);
-                    SqlGenerationResult leftSql = generateSql(funnelSourceRateBridge.leftModel(), leftRequest, context);
-                    SqlGenerationResult rightSql = generateSql(funnelSourceRateBridge.rightModel(), rightRequest, context);
-                    return funnelSourceRateBridge.wrap(denominatorSql, leftSql, rightSql);
-                }
-                DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge =
-                        DslCteDslRequestMapper.toCrossModelJoinAlignBridge(model, request.getExecutablePlan());
-                if (joinAlignBridge.ready()) {
-                    SemanticQueryRequest leftRequest = joinAlignBridge.leftRequest();
-                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SemanticQueryRequest rightRequest = joinAlignBridge.rightRequest();
-                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    SqlGenerationResult leftSql = generateSql(joinAlignBridge.leftModel(), leftRequest, context);
-                    SqlGenerationResult rightSql = generateSql(joinAlignBridge.rightModel(), rightRequest, context);
-                    return joinAlignBridge.wrap(leftSql, rightSql);
-                }
-                throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: "
-                        + combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge,
-                        moneyAttributionBridge, timeAttributionBridge, funnelSourceRateBridge, joinAlignBridge));
+                return generateDslCteSqlFromPlan(dslCtePlan, request, context);
             }
             throw RX.throwB("DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged SQL execution is not part of P0.");
         }
@@ -497,8 +357,6 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         validateTimeWindowResultStageBoundary(request);
 
         String namespace = context.getNamespace();
-        ModelResultContext.SecurityContext securityContext = context.getSecurityContext();
-
         // 1. 构建上下文（复用现有逻辑）
         QueryContextV3 qctx = new QueryContextV3();
         qctx.model = model;
@@ -507,47 +365,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 2. 构建初始JDBC请求
         PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, qctx, namespace);
 
-        // 3. 处理 slice 中的 $caption 值转换
-        if (request.getSlice() != null) {
-            List<SliceRequestDef> processedSlice = processSliceValues(model, request.getSlice(), request, qctx);
-            jdbcRequest.getParam().setSlice(processedSlice);
-        }
-
-        // 4. 创建ModelResultContext（含列权限）
-        ModelResultContext resultContext = new ModelResultContext();
-        resultContext.setRequest(jdbcRequest);
-        resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
-        resultContext.setSecurityContext(securityContext);
-        resultContext.setNamespace(namespace);
-        resultContext.setFieldAccess(context.getFieldAccess());
-        resultContext.setDeniedColumns(context.getDeniedColumns());
-        resultContext.setSystemSlice(context.getSystemSlice());
-
-        Map<String, Object> extData = new HashMap<>();
-        if (request.getHints() != null && !request.getHints().isEmpty()) {
-            extData.putAll(request.getHints());
-        }
-        if (request.getExtData() != null && !request.getExtData().isEmpty()) {
-            extData.putAll(request.getExtData());
-        }
-        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
-            extData.put("timeWindow", request.getTimeWindow());
-            if (request.getLimit() != null) {
-                extData.put("timeWindowLimit", request.getLimit());
-            }
-            if (request.getStart() != null && request.getStart() > 0) {
-                extData.put("timeWindowStart", request.getStart());
-            }
-        }
-        // Stage 5: pass calculatedFields to extData so TimeWindowInterceptor
-        // can build the outer post-calc projection wrapper.
-        if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
-            extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
-        }
-        putDomainTransportPlans(extData, context);
-        if (!extData.isEmpty()) {
-            resultContext.setExtData(extData);
-        }
+        // 3. 创建ModelResultContext（含列权限）
+        ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, context);
 
         // 5. 走 beforeQuery pipeline 然后截取 SQL（不执行）
         SqlGenerationResult result = queryFacade.buildSqlOnly(resultContext);
@@ -601,6 +420,52 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 && !context.getDomainTransportPlans().isEmpty()) {
             extData.put(DomainTransportPlan.EXT_DATA_KEY, new ArrayList<>(context.getDomainTransportPlans()));
         }
+    }
+
+    private ModelResultContext buildSemanticResultContext(PagingRequest<DbQueryRequestDef> jdbcRequest,
+                                                          SemanticQueryRequest request,
+                                                          SemanticRequestContext context) {
+        ModelResultContext resultContext = new ModelResultContext();
+        resultContext.setRequest(jdbcRequest);
+        resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
+        if (context != null) {
+            resultContext.setSecurityContext(context.getSecurityContext());
+            resultContext.setNamespace(context.getNamespace());
+            resultContext.setFieldAccess(context.getFieldAccess());
+            resultContext.setDeniedColumns(context.getDeniedColumns());
+            resultContext.setSystemSlice(context.getSystemSlice());
+        }
+
+        Map<String, Object> extData = buildSemanticExtData(request, context);
+        if (!extData.isEmpty()) {
+            resultContext.setExtData(extData);
+        }
+        return resultContext;
+    }
+
+    private Map<String, Object> buildSemanticExtData(SemanticQueryRequest request,
+                                                     SemanticRequestContext context) {
+        Map<String, Object> extData = new HashMap<>();
+        if (request.getHints() != null && !request.getHints().isEmpty()) {
+            extData.putAll(request.getHints());
+        }
+        if (request.getExtData() != null && !request.getExtData().isEmpty()) {
+            extData.putAll(request.getExtData());
+        }
+        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
+            extData.put("timeWindow", request.getTimeWindow());
+            if (request.getLimit() != null) {
+                extData.put("timeWindowLimit", request.getLimit());
+            }
+            if (request.getStart() != null && request.getStart() > 0) {
+                extData.put("timeWindowStart", request.getStart());
+            }
+        }
+        if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
+            extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
+        }
+        putDomainTransportPlans(extData, context);
+        return extData;
     }
 
     private SemanticQueryResponse terminalResponseIfAny(SemanticQueryRequest request) {
@@ -862,112 +727,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (!isDslCtePlan(request)) {
             return null;
         }
-        Map<String, Object> validation = dslCteValidation(request);
-        DslCteDslRequestMapper.BridgeResult bridge =
-                DslCteDslRequestMapper.toDslRequest(null, request.getExecutablePlan());
-        if (bridge.ready()) {
-            validation.put("dsl_bridge_status", bridge.status());
-            validation.put("dsl_bridge_model", bridge.model());
-            validation.put("dsl_request", bridge.request());
-        } else {
-            DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge =
-                    DslCteDslRequestMapper.toResultStageWindowBridge(null, request.getExecutablePlan());
-            if (resultStageBridge.ready()) {
-                validation.put("dsl_bridge_status", resultStageBridge.status());
-                validation.put("dsl_bridge_model", resultStageBridge.model());
-                validation.put("dsl_request", resultStageBridge.baseRequest());
-                validation.put("dsl_result_stage_window", resultStageBridge.summary());
-            } else {
-                DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge =
-                        DslCteDslRequestMapper.toResultStageMetricRatioBridge(null, request.getExecutablePlan());
-                if (metricRatioBridge.ready()) {
-                    validation.put("dsl_bridge_status", metricRatioBridge.status());
-                    validation.put("dsl_bridge_model", metricRatioBridge.model());
-                    validation.put("dsl_request", metricRatioBridge.baseRequest());
-                    validation.put("dsl_result_stage_metric_ratio", metricRatioBridge.summary());
-                } else {
-                    DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge =
-                            DslCteDslRequestMapper.toCrossModelFunnelMoneyAttributionBridge(
-                                    null, request.getExecutablePlan());
-                    if (moneyAttributionBridge.ready()) {
-                        validation.put("dsl_bridge_status", moneyAttributionBridge.status());
-                        Map<String, Object> models = new LinkedHashMap<>();
-                        if (moneyAttributionBridge.denominatorModel() != null) {
-                            models.put("denominator", moneyAttributionBridge.denominatorModel());
-                        }
-                        models.put("left", moneyAttributionBridge.leftModel());
-                        models.put("right", moneyAttributionBridge.rightModel());
-                        validation.put("dsl_bridge_models", models);
-                        if (moneyAttributionBridge.denominatorRequest() != null) {
-                            validation.put("dsl_denominator_request", moneyAttributionBridge.denominatorRequest());
-                        }
-                        validation.put("dsl_left_request", moneyAttributionBridge.leftRequest());
-                        validation.put("dsl_right_request", moneyAttributionBridge.rightRequest());
-                        validation.put("dsl_cross_model_funnel_money_attribution",
-                                moneyAttributionBridge.summary());
-                    } else if (moneyAttributionBridge.relevant()) {
-                        validation.put("dsl_bridge_status", moneyAttributionBridge.status());
-                        validation.put("dsl_bridge_unsupported", moneyAttributionBridge.unsupported());
-                    } else {
-                        DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge =
-                                DslCteDslRequestMapper.toCrossModelFunnelTimeAttributionBridge(
-                                        null, request.getExecutablePlan());
-                        if (timeAttributionBridge.ready()) {
-                            validation.put("dsl_bridge_status", timeAttributionBridge.status());
-                            Map<String, Object> models = new LinkedHashMap<>();
-                            models.put("denominator", timeAttributionBridge.denominatorModel());
-                            models.put("left", timeAttributionBridge.leftModel());
-                            models.put("right", timeAttributionBridge.rightModel());
-                            validation.put("dsl_bridge_models", models);
-                            validation.put("dsl_denominator_request", timeAttributionBridge.denominatorRequest());
-                            validation.put("dsl_left_request", timeAttributionBridge.leftRequest());
-                            validation.put("dsl_right_request", timeAttributionBridge.rightRequest());
-                            validation.put("dsl_cross_model_funnel_time_attribution",
-                                    timeAttributionBridge.summary());
-                        } else if (timeAttributionBridge.relevant()) {
-                            validation.put("dsl_bridge_status", timeAttributionBridge.status());
-                            validation.put("dsl_bridge_unsupported", timeAttributionBridge.unsupported());
-                        } else {
-                            DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge =
-                                    DslCteDslRequestMapper.toCrossModelFunnelSourceRateBridge(
-                                            null, request.getExecutablePlan());
-                            if (funnelSourceRateBridge.ready()) {
-                                validation.put("dsl_bridge_status", funnelSourceRateBridge.status());
-                                Map<String, Object> models = new LinkedHashMap<>();
-                                models.put("denominator", funnelSourceRateBridge.denominatorModel());
-                                models.put("left", funnelSourceRateBridge.leftModel());
-                                models.put("right", funnelSourceRateBridge.rightModel());
-                                validation.put("dsl_bridge_models", models);
-                                validation.put("dsl_denominator_request", funnelSourceRateBridge.denominatorRequest());
-                                validation.put("dsl_left_request", funnelSourceRateBridge.leftRequest());
-                                validation.put("dsl_right_request", funnelSourceRateBridge.rightRequest());
-                                validation.put("dsl_cross_model_funnel_source_rate", funnelSourceRateBridge.summary());
-                            } else {
-                                DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge =
-                                        DslCteDslRequestMapper.toCrossModelJoinAlignBridge(
-                                                null, request.getExecutablePlan());
-                                validation.put("dsl_bridge_status",
-                                        joinAlignBridge.ready() ? joinAlignBridge.status() : bridge.status());
-                                if (joinAlignBridge.ready()) {
-                                    Map<String, Object> models = new LinkedHashMap<>();
-                                    models.put("left", joinAlignBridge.leftModel());
-                                    models.put("right", joinAlignBridge.rightModel());
-                                    validation.put("dsl_bridge_models", models);
-                                    validation.put("dsl_left_request", joinAlignBridge.leftRequest());
-                                    validation.put("dsl_right_request", joinAlignBridge.rightRequest());
-                                    validation.put("dsl_cross_model_join_align", joinAlignBridge.summary());
-                                } else {
-                                    validation.put("dsl_bridge_unsupported",
-                                            combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge,
-                                                    moneyAttributionBridge, timeAttributionBridge,
-                                                    funnelSourceRateBridge, joinAlignBridge));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        DslCtePlanningService.DslCtePlan dslCtePlan = DslCtePlanningService.plan(null, request);
+        Map<String, Object> validation = dslCtePlan.validationEvidence();
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(List.of());
         response.setWarnings(List.of());
@@ -987,8 +748,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private SemanticQueryResponse executeCompiledDslCte(String model, SemanticQueryRequest request,
                                                        SemanticRequestContext context) {
-        Map<String, Object> validation = dslCteValidation(request);
-        SqlGenerationResult compiled = generateSql(model, request, context);
+        DslCtePlanningService.DslCtePlan dslCtePlan = DslCtePlanningService.plan(model, request);
+        SqlGenerationResult compiled = generateDslCteSqlFromPlan(dslCtePlan, request, context);
         String executableSql = compiled.getAssembledSql();
         List<Object> executableParams = compiled.getAssembledParams();
         List<Map<String, Object>> rows = executeSql(executableSql, executableParams, model);
@@ -1015,7 +776,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
         execution.setClarifyingQuestions(List.of());
         execution.setExecutablePlan(request.getExecutablePlan());
-        execution.setDslCteValidation(validation);
+        execution.setDslCteValidation(dslCtePlan.validationEvidence());
         execution.setErrorCode(null);
         response.setExecution(execution);
 
@@ -1030,71 +791,126 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         return response;
     }
 
-    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
-                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge) {
-        return combinedDslCteUnsupported(bridge, resultStageBridge, null);
+    private SqlGenerationResult generateDslCteSqlFromPlan(DslCtePlanningService.DslCtePlan plan,
+                                                          SemanticQueryRequest request,
+                                                          SemanticRequestContext context) {
+        return switch (plan.kind()) {
+            case SIMPLE_DSL -> generateSimpleDslCteSql(plan.simpleBridge(), request, context);
+            case RESULT_STAGE_WINDOW -> generateResultStageWindowDslCteSql(plan.resultStageBridge(), request, context);
+            case RESULT_STAGE_METRIC_RATIO -> generateResultStageMetricRatioDslCteSql(
+                    plan.metricRatioBridge(), request, context);
+            case CROSS_MODEL_FUNNEL_MONEY_ATTRIBUTION -> generateMoneyAttributionDslCteSql(
+                    plan.moneyAttributionBridge(), request, context);
+            case CROSS_MODEL_FUNNEL_TIME_ATTRIBUTION -> generateTimeAttributionDslCteSql(
+                    plan.timeAttributionBridge(), request, context);
+            case CROSS_MODEL_FUNNEL_SOURCE_RATE -> generateSourceRateDslCteSql(
+                    plan.funnelSourceRateBridge(), request, context);
+            case CROSS_MODEL_JOIN_ALIGN -> generateJoinAlignDslCteSql(plan.joinAlignBridge(), request, context);
+            case UNSUPPORTED -> throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + plan.unsupported());
+        };
     }
 
-    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
-                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
-                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge) {
-        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null);
+    private SqlGenerationResult generateSimpleDslCteSql(DslCteDslRequestMapper.BridgeResult bridge,
+                                                        SemanticQueryRequest request,
+                                                        SemanticRequestContext context) {
+        SemanticQueryRequest dslRequest = bridge.request();
+        copyHints(dslRequest, request);
+        SqlGenerationResult baseSql = generateSql(bridge.model(), dslRequest, context);
+        return DslCteDslRequestMapper.applyTopLevelLimitIfDeclared(baseSql, request.getExecutablePlan());
     }
 
-    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
-                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
-                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
-                                                   DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
-        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null, null, null,
-                joinAlignBridge);
+    private SqlGenerationResult generateResultStageWindowDslCteSql(
+            DslCteDslRequestMapper.ResultStageWindowBridgeResult bridge,
+            SemanticQueryRequest request,
+            SemanticRequestContext context) {
+        SemanticQueryRequest baseRequest = bridge.baseRequest();
+        copyHints(baseRequest, request);
+        SqlGenerationResult baseSql = generateSql(bridge.model(), baseRequest, context);
+        return bridge.wrap(baseSql);
     }
 
-    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
-                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
-                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
-                                                   DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge,
-                                                   DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
-        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null, null,
-                funnelSourceRateBridge, joinAlignBridge);
+    private SqlGenerationResult generateResultStageMetricRatioDslCteSql(
+            DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult bridge,
+            SemanticQueryRequest request,
+            SemanticRequestContext context) {
+        SemanticQueryRequest baseRequest = bridge.baseRequest();
+        copyHints(baseRequest, request);
+        SqlGenerationResult baseSql = generateSql(bridge.model(), baseRequest, context);
+        return bridge.wrap(baseSql);
     }
 
-    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
-                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
-                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
-                                                   DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge,
-                                                   DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge,
-                                                   DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge,
-                                                   DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
-        Set<String> unsupported = new LinkedHashSet<>();
-        if (bridge != null && bridge.unsupported() != null) {
-            unsupported.addAll(bridge.unsupported());
+    private SqlGenerationResult generateMoneyAttributionDslCteSql(
+            DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult bridge,
+            SemanticQueryRequest request,
+            SemanticRequestContext context) {
+        SqlGenerationResult denominatorSql = null;
+        if (bridge.denominatorRequest() != null) {
+            SemanticQueryRequest denominatorRequest = bridge.denominatorRequest();
+            copyHints(denominatorRequest, request);
+            denominatorSql = generateSql(bridge.denominatorModel(), denominatorRequest, context);
         }
-        if (resultStageBridge != null && resultStageBridge.unsupported() != null) {
-            unsupported.addAll(resultStageBridge.unsupported());
+        SemanticQueryRequest leftRequest = bridge.leftRequest();
+        copyHints(leftRequest, request);
+        SemanticQueryRequest rightRequest = bridge.rightRequest();
+        copyHints(rightRequest, request);
+        SqlGenerationResult leftSql = generateSql(bridge.leftModel(), leftRequest, context);
+        SqlGenerationResult rightSql = generateSql(bridge.rightModel(), rightRequest, context);
+        if (denominatorSql != null) {
+            return bridge.wrap(denominatorSql, leftSql, rightSql);
         }
-        if (metricRatioBridge != null && metricRatioBridge.unsupported() != null) {
-            unsupported.addAll(metricRatioBridge.unsupported());
-        }
-        if (moneyAttributionBridge != null && moneyAttributionBridge.unsupported() != null) {
-            unsupported.addAll(moneyAttributionBridge.unsupported());
-        }
-        if (timeAttributionBridge != null && timeAttributionBridge.unsupported() != null) {
-            unsupported.addAll(timeAttributionBridge.unsupported());
-        }
-        if (funnelSourceRateBridge != null && funnelSourceRateBridge.unsupported() != null) {
-            unsupported.addAll(funnelSourceRateBridge.unsupported());
-        }
-        if (joinAlignBridge != null && joinAlignBridge.unsupported() != null) {
-            unsupported.addAll(joinAlignBridge.unsupported());
-        }
-        return List.copyOf(unsupported);
+        return bridge.wrap(leftSql, rightSql);
     }
 
-    private Map<String, Object> dslCteValidation(SemanticQueryRequest request) {
-        if (request == null || request.getExecutablePlan() == null) {
-            throw RX.throwB("DSL_CTE_PLAN_NOT_DECLARED: executable_plan.cte_plan must be provided for DSL_CTE route.");
+    private SqlGenerationResult generateTimeAttributionDslCteSql(
+            DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult bridge,
+            SemanticQueryRequest request,
+            SemanticRequestContext context) {
+        SemanticQueryRequest denominatorRequest = bridge.denominatorRequest();
+        copyHints(denominatorRequest, request);
+        SemanticQueryRequest leftRequest = bridge.leftRequest();
+        copyHints(leftRequest, request);
+        SemanticQueryRequest rightRequest = bridge.rightRequest();
+        copyHints(rightRequest, request);
+        SqlGenerationResult denominatorSql = generateSql(bridge.denominatorModel(), denominatorRequest, context);
+        SqlGenerationResult leftSql = generateSql(bridge.leftModel(), leftRequest, context);
+        SqlGenerationResult rightSql = generateSql(bridge.rightModel(), rightRequest, context);
+        return bridge.wrap(denominatorSql, leftSql, rightSql);
+    }
+
+    private SqlGenerationResult generateSourceRateDslCteSql(
+            DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult bridge,
+            SemanticQueryRequest request,
+            SemanticRequestContext context) {
+        SemanticQueryRequest denominatorRequest = bridge.denominatorRequest();
+        copyHints(denominatorRequest, request);
+        SemanticQueryRequest leftRequest = bridge.leftRequest();
+        copyHints(leftRequest, request);
+        SemanticQueryRequest rightRequest = bridge.rightRequest();
+        copyHints(rightRequest, request);
+        SqlGenerationResult denominatorSql = generateSql(bridge.denominatorModel(), denominatorRequest, context);
+        SqlGenerationResult leftSql = generateSql(bridge.leftModel(), leftRequest, context);
+        SqlGenerationResult rightSql = generateSql(bridge.rightModel(), rightRequest, context);
+        return bridge.wrap(denominatorSql, leftSql, rightSql);
+    }
+
+    private SqlGenerationResult generateJoinAlignDslCteSql(
+            DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult bridge,
+            SemanticQueryRequest request,
+            SemanticRequestContext context) {
+        SemanticQueryRequest leftRequest = bridge.leftRequest();
+        copyHints(leftRequest, request);
+        SemanticQueryRequest rightRequest = bridge.rightRequest();
+        copyHints(rightRequest, request);
+        SqlGenerationResult leftSql = generateSql(bridge.leftModel(), leftRequest, context);
+        SqlGenerationResult rightSql = generateSql(bridge.rightModel(), rightRequest, context);
+        return bridge.wrap(leftSql, rightSql);
+    }
+
+    private void copyHints(SemanticQueryRequest target, SemanticQueryRequest source) {
+        if (target == null) {
+            return;
         }
-        return DslCtePlanValidator.validate(request.getExecutablePlan());
+        target.setHints(source == null || source.getHints() == null ? null : new HashMap<>(source.getHints()));
     }
 
     private boolean dslCteCompileToDslEnabled(SemanticQueryRequest request) {
@@ -1174,10 +990,49 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         .build());
     }
 
+    private SemanticQueryResponse validateQueryInternal(String model, SemanticQueryRequest request,
+                                                        SemanticRequestContext requestContext) {
+        String namespace = requestContext != null ? requestContext.getNamespace() : null;
+        if (queryFacade == null) {
+            return validateQueryInternalLegacy(model, request, namespace);
+        }
+        if (request.getColumns() == null || request.getColumns().isEmpty()) {
+            throw RX.throwB("请指定查询字段");
+        }
+        validateTimeWindowResultStageBoundary(request);
+
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
+        if (queryModel == null) {
+            throw RX.throwB("模型不存在: " + model);
+        }
+
+        QueryContextV3 context = new QueryContextV3();
+        context.model = model;
+        context.originalRequest = request;
+
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context, namespace);
+        ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, requestContext);
+        queryFacade.buildSqlOnly(resultContext);
+
+        if (resultContext.getExtData() != null && resultContext.getExtData().containsKey("engineWarnings")) {
+            @SuppressWarnings("unchecked")
+            List<String> engineWarnings = (List<String>) resultContext.getExtData().get("engineWarnings");
+            context.warnings.addAll(engineWarnings);
+        }
+
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setWarnings(context.warnings.isEmpty() ? null : context.warnings);
+        return response;
+    }
+
     /**
-     * 带命名空间的验证查询（内部方法）
+     * 带命名空间的轻量验证查询。
+     *
+     * <p>仅用于没有注入 QueryFacade 的单元测试构造；生产路径走 validateQueryInternal
+     * 并复用 beforeQuery + SQL 生成前置链路。</p>
      */
-    private SemanticQueryResponse validateQueryInternal(String model, SemanticQueryRequest request, String namespace) {
+    private SemanticQueryResponse validateQueryInternalLegacy(String model, SemanticQueryRequest request,
+                                                             String namespace) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // V3 的验证主要检查字段是否存在
@@ -1340,22 +1195,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         // 转换过滤条件（V3：字段名直接使用）
         if (request.getSlice() != null) {
-            List<SliceRequestDef> jdbcSlice = request.getSlice().stream()
-                    .map(this::convertToJdbcSlice)
-                    .collect(Collectors.toList());
-            queryDef.setSlice(jdbcSlice);
+            queryDef.setSlice(SemanticRequestNormalizer.toJdbcSlices(request.getSlice()));
         }
         if (request.getHaving() != null) {
-            List<SliceRequestDef> jdbcHaving = request.getHaving().stream()
-                    .map(this::convertToJdbcSlice)
-                    .collect(Collectors.toList());
-            queryDef.setHaving(jdbcHaving);
+            queryDef.setHaving(SemanticRequestNormalizer.toJdbcSlices(request.getHaving()));
         }
         if (request.getPostSlice() != null) {
-            List<SliceRequestDef> jdbcPostSlice = request.getPostSlice().stream()
-                    .map(this::convertToJdbcSlice)
-                    .collect(Collectors.toList());
-            queryDef.setPostSlice(jdbcPostSlice);
+            queryDef.setPostSlice(SemanticRequestNormalizer.toJdbcSlices(request.getPostSlice()));
         }
 
         // 转换分组（V3：字段名直接使用）
@@ -1396,59 +1242,6 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
 
         return pagingRequest;
-    }
-
-    /**
-     * 处理 slice 中的值转换
-     *
-     * <p>V3 仍然需要处理的场景：</p>
-     * <ul>
-     *   <li>当 slice 使用 $caption 字段且传入的是 caption 值时，需要转换为 id 值</li>
-     *   <li>例如：slice 使用 customer$caption = "张三"，需要转为对应的 customer_id</li>
-     * </ul>
-     */
-    private List<SliceRequestDef> processSliceValues(String model, List<SemanticQueryRequest.SliceItem> slice,
-                                                     SemanticQueryRequest request, QueryContextV3 context) {
-        List<SliceRequestDef> processed = new ArrayList<>();
-
-        for (SemanticQueryRequest.SliceItem item : slice) {
-            // $or/$and 逻辑组：递归转换子条件
-            if (item._isLogicalGroup()) {
-                processed.add(convertToJdbcSlice(item));
-                continue;
-            }
-
-            SliceRequestDef sliceDef = new SliceRequestDef();
-            sliceDef.setField(item.getField());
-            sliceDef.setOp(item.getOp());
-            sliceDef.setValue(item.getValue());
-            processed.add(sliceDef);
-        }
-
-        return processed;
-    }
-
-    private SliceRequestDef convertToJdbcSlice(SemanticQueryRequest.SliceItem item) {
-        // $or/$and 逻辑组：递归转换子条件
-        if (item._isLogicalGroup()) {
-            SliceRequestDef groupDef = new SliceRequestDef();
-            List<CondRequestDef> children = new ArrayList<>();
-            for (SemanticQueryRequest.SliceItem child : item._getGroupChildren()) {
-                children.add(convertToJdbcSlice(child));
-            }
-            if (item._isOrGroup()) {
-                groupDef.setOr(children);
-            } else {
-                groupDef.setAnd(children);
-            }
-            return groupDef;
-        }
-
-        SliceRequestDef slice = new SliceRequestDef();
-        slice.setField(item.getField());
-        slice.setOp(item.getOp());
-        slice.setValue(item.getValue());
-        return slice;
     }
 
     /**

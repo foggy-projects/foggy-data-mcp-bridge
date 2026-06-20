@@ -544,7 +544,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (column == null) {
             return;
         }
-        if (column instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
+        AggregateRelationOutputColumn aggregateRelationColumn = column.getDecorate(AggregateRelationOutputColumn.class);
+        if (aggregateRelationColumn != null) {
             AggregateRelationQueryObject queryObject = resolveAggregateRelationQueryObject(column.getQueryObject());
             if (queryObject != null) {
                 queryObject.markAggregateRelationOutput(aggregateRelationColumn);

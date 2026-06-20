@@ -3911,6 +3911,13 @@ public final class DslCteDslRequestMapper {
                 if (result != null && result.getSql() != null) {
                     combined.append(result.getSql()).append('\n');
                 }
+                if (result != null && result.hasCteStages()) {
+                    for (SqlGenerationResult.CteStage stage : result.getCteStages()) {
+                        if (stage.sql() != null) {
+                            combined.append(stage.sql()).append('\n');
+                        }
+                    }
+                }
             }
         }
         String sql = combined.toString().toUpperCase(Locale.ROOT);
@@ -4652,23 +4659,18 @@ public final class DslCteDslRequestMapper {
         }
 
         SqlGenerationResult wrap(SqlGenerationResult leftBase, SqlGenerationResult rightBase) {
-            validateBaseSql(leftBase, "LEFT");
-            validateBaseSql(rightBase, "RIGHT");
-
-            String leftSql = leftBase.getSql().trim();
-            String rightSql = rightBase.getSql().trim();
-            List<Object> params = new ArrayList<>();
-            params.addAll(leftBase.getParams());
-            params.addAll(rightBase.getParams());
-
             String leftAlias = "dsl_cte_join_left";
             String rightAlias = "dsl_cte_join_right";
             String guardAlias = "dsl_cte_join_guard";
             String joinAlias = "dsl_cte_join_align";
 
+            List<Object> params = new ArrayList<>();
             StringBuilder sql = new StringBuilder("WITH ");
-            sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
-            sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
+            DslCteAssemblySupport.CrossModelBaseCteWriter baseWriter =
+                    new DslCteAssemblySupport.CrossModelBaseCteWriter(sql, params);
+            baseWriter.appendBase(leftAlias, leftBase, "DSL_CTE_JOIN_ALIGN_LEFT");
+            baseWriter.appendBase(rightAlias, rightBase, "DSL_CTE_JOIN_ALIGN_RIGHT");
+            sql.append(",\n");
             sql.append(guardAlias).append(" AS (\n");
             sql.append("SELECT ");
             sql.append("(SELECT COUNT(*) FROM ").append(rightAlias)
@@ -4721,16 +4723,6 @@ public final class DslCteDslRequestMapper {
                 sql.append("\nORDER BY ").append(String.join(", ", orderBy));
             }
             return new SqlGenerationResult(sql.toString(), params, null);
-        }
-
-        private static void validateBaseSql(SqlGenerationResult base, String side) {
-            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
-                throw RX.throwB("DSL_CTE_JOIN_ALIGN_" + side + "_BASE_SQL_MISSING");
-            }
-            String sql = base.getSql().trim();
-            if (base.hasCteStages() || sql.regionMatches(true, 0, "WITH ", 0, 5)) {
-                throw RX.throwB("DSL_CTE_JOIN_ALIGN_" + side + "_BASE_WITH_UNSUPPORTED");
-            }
         }
 
         private String qualifiedField(String field) {
@@ -4786,18 +4778,6 @@ public final class DslCteDslRequestMapper {
         SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
                                  SqlGenerationResult leftBase,
                                  SqlGenerationResult rightBase) {
-            validateBaseSql(denominatorBase, "DENOMINATOR");
-            validateBaseSql(leftBase, "LEFT");
-            validateBaseSql(rightBase, "RIGHT");
-
-            String denominatorSql = denominatorBase.getSql().trim();
-            String leftSql = leftBase.getSql().trim();
-            String rightSql = rightBase.getSql().trim();
-            List<Object> params = new ArrayList<>();
-            params.addAll(denominatorBase.getParams());
-            params.addAll(leftBase.getParams());
-            params.addAll(rightBase.getParams());
-
             String denominatorAlias = "dsl_cte_funnel_denominator";
             String leftAlias = "dsl_cte_join_left";
             String rightAlias = "dsl_cte_join_right";
@@ -4806,10 +4786,14 @@ public final class DslCteDslRequestMapper {
             String matchedAlias = "dsl_cte_funnel_matched";
             String rateAliasName = "dsl_cte_funnel_rate";
 
+            List<Object> params = new ArrayList<>();
             StringBuilder sql = new StringBuilder("WITH ");
-            sql.append(denominatorAlias).append(" AS (\n").append(denominatorSql).append("\n),\n");
-            sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
-            sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
+            DslCteAssemblySupport.CrossModelBaseCteWriter baseWriter =
+                    new DslCteAssemblySupport.CrossModelBaseCteWriter(sql, params);
+            baseWriter.appendBase(denominatorAlias, denominatorBase, "DSL_CTE_FUNNEL_SOURCE_RATE_DENOMINATOR");
+            baseWriter.appendBase(leftAlias, leftBase, "DSL_CTE_FUNNEL_SOURCE_RATE_LEFT");
+            baseWriter.appendBase(rightAlias, rightBase, "DSL_CTE_FUNNEL_SOURCE_RATE_RIGHT");
+            sql.append(",\n");
             appendGuardCte(sql, leftAlias, rightAlias, guardAlias);
             sql.append(",\n");
             appendJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias);
@@ -4905,16 +4889,6 @@ public final class DslCteDslRequestMapper {
             }
             throw RX.throwB("DSL_CTE_FUNNEL_SOURCE_RATE_UNAVAILABLE_FIELD: " + field);
         }
-
-        private static void validateBaseSql(SqlGenerationResult base, String side) {
-            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
-                throw RX.throwB("DSL_CTE_FUNNEL_SOURCE_RATE_" + side + "_BASE_SQL_MISSING");
-            }
-            String sql = base.getSql().trim();
-            if (base.hasCteStages() || sql.regionMatches(true, 0, "WITH ", 0, 5)) {
-                throw RX.throwB("DSL_CTE_FUNNEL_SOURCE_RATE_" + side + "_BASE_WITH_UNSUPPORTED");
-            }
-        }
     }
 
     public record CrossModelFunnelMoneyAttributionBridgePlan(List<String> output,
@@ -5005,24 +4979,7 @@ public final class DslCteDslRequestMapper {
         SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
                                  SqlGenerationResult leftBase,
                                  SqlGenerationResult rightBase) {
-            if (amountPerLeadContract.declared()) {
-                validateBaseSql(denominatorBase, "DENOMINATOR");
-            }
-            validateBaseSql(leftBase, "LEFT");
-            validateBaseSql(rightBase, "RIGHT");
-
-            String denominatorSql = amountPerLeadContract.declared()
-                    ? denominatorBase.getSql().trim()
-                    : null;
-            String leftSql = leftBase.getSql().trim();
-            String rightSql = rightBase.getSql().trim();
             BridgeSqlDialect dialect = detectBridgeSqlDialect(denominatorBase, leftBase, rightBase);
-            List<Object> params = new ArrayList<>();
-            if (amountPerLeadContract.declared()) {
-                params.addAll(denominatorBase.getParams());
-            }
-            params.addAll(leftBase.getParams());
-            params.addAll(rightBase.getParams());
 
             String denominatorAlias = "dsl_cte_source_denominator";
             String leftAlias = "dsl_cte_join_left";
@@ -5034,12 +4991,17 @@ public final class DslCteDslRequestMapper {
             String convertedAmountAlias = "dsl_cte_funnel_converted_amount";
             String finalAlias = convertedAmountAlias;
 
+            List<Object> params = new ArrayList<>();
             StringBuilder sql = new StringBuilder("WITH ");
+            DslCteAssemblySupport.CrossModelBaseCteWriter baseWriter =
+                    new DslCteAssemblySupport.CrossModelBaseCteWriter(sql, params);
             if (amountPerLeadContract.declared()) {
-                sql.append(denominatorAlias).append(" AS (\n").append(denominatorSql).append("\n),\n");
+                baseWriter.appendBase(denominatorAlias, denominatorBase,
+                        "DSL_CTE_FUNNEL_MONEY_ATTRIBUTION_DENOMINATOR");
             }
-            sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
-            sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
+            baseWriter.appendBase(leftAlias, leftBase, "DSL_CTE_FUNNEL_MONEY_ATTRIBUTION_LEFT");
+            baseWriter.appendBase(rightAlias, rightBase, "DSL_CTE_FUNNEL_MONEY_ATTRIBUTION_RIGHT");
+            sql.append(",\n");
             appendGuardCte(sql, leftAlias, rightAlias, guardAlias, dialect);
             sql.append(",\n");
             appendWindowJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias, dialect);
@@ -5257,16 +5219,6 @@ public final class DslCteDslRequestMapper {
             }
             throw RX.throwB("DSL_CTE_FUNNEL_MONEY_ATTRIBUTION_UNAVAILABLE_FIELD: " + field);
         }
-
-        private static void validateBaseSql(SqlGenerationResult base, String side) {
-            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
-                throw RX.throwB("DSL_CTE_FUNNEL_MONEY_ATTRIBUTION_" + side + "_BASE_SQL_MISSING");
-            }
-            String sql = base.getSql().trim();
-            if (base.hasCteStages() || sql.regionMatches(true, 0, "WITH ", 0, 5)) {
-                throw RX.throwB("DSL_CTE_FUNNEL_MONEY_ATTRIBUTION_" + side + "_BASE_WITH_UNSUPPORTED");
-            }
-        }
     }
 
     public record CrossModelFunnelTimeAttributionBridgePlan(List<String> output,
@@ -5367,18 +5319,7 @@ public final class DslCteDslRequestMapper {
         SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
                                  SqlGenerationResult leftBase,
                                  SqlGenerationResult rightBase) {
-            validateBaseSql(denominatorBase, "DENOMINATOR");
-            validateBaseSql(leftBase, "LEFT");
-            validateBaseSql(rightBase, "RIGHT");
-
-            String denominatorSql = denominatorBase.getSql().trim();
-            String leftSql = leftBase.getSql().trim();
-            String rightSql = rightBase.getSql().trim();
             BridgeSqlDialect dialect = detectBridgeSqlDialect(denominatorBase, leftBase, rightBase);
-            List<Object> params = new ArrayList<>();
-            params.addAll(denominatorBase.getParams());
-            params.addAll(leftBase.getParams());
-            params.addAll(rightBase.getParams());
 
             String denominatorAlias = "dsl_cte_funnel_denominator";
             String leftAlias = "dsl_cte_join_left";
@@ -5392,10 +5333,14 @@ public final class DslCteDslRequestMapper {
                     ? "dsl_cte_funnel_zero_fill_rate"
                     : "dsl_cte_funnel_rate";
 
+            List<Object> params = new ArrayList<>();
             StringBuilder sql = new StringBuilder("WITH ");
-            sql.append(denominatorAlias).append(" AS (\n").append(denominatorSql).append("\n),\n");
-            sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
-            sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
+            DslCteAssemblySupport.CrossModelBaseCteWriter baseWriter =
+                    new DslCteAssemblySupport.CrossModelBaseCteWriter(sql, params);
+            baseWriter.appendBase(denominatorAlias, denominatorBase, "DSL_CTE_FUNNEL_TIME_ATTRIBUTION_DENOMINATOR");
+            baseWriter.appendBase(leftAlias, leftBase, "DSL_CTE_FUNNEL_TIME_ATTRIBUTION_LEFT");
+            baseWriter.appendBase(rightAlias, rightBase, "DSL_CTE_FUNNEL_TIME_ATTRIBUTION_RIGHT");
+            sql.append(",\n");
             appendGuardCte(sql, leftAlias, rightAlias, guardAlias, dialect);
             sql.append(",\n");
             appendWindowJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias, dialect);
@@ -5625,16 +5570,6 @@ public final class DslCteDslRequestMapper {
                 return "r." + quoteAlias(field);
             }
             throw RX.throwB("DSL_CTE_FUNNEL_TIME_ATTRIBUTION_UNAVAILABLE_FIELD: " + field);
-        }
-
-        private static void validateBaseSql(SqlGenerationResult base, String side) {
-            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
-                throw RX.throwB("DSL_CTE_FUNNEL_TIME_ATTRIBUTION_" + side + "_BASE_SQL_MISSING");
-            }
-            String sql = base.getSql().trim();
-            if (base.hasCteStages() || sql.regionMatches(true, 0, "WITH ", 0, 5)) {
-                throw RX.throwB("DSL_CTE_FUNNEL_TIME_ATTRIBUTION_" + side + "_BASE_WITH_UNSUPPORTED");
-            }
         }
     }
 

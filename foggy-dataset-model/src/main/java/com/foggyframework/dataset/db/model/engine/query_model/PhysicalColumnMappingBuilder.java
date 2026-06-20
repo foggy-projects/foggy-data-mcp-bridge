@@ -83,7 +83,10 @@ public final class PhysicalColumnMappingBuilder {
             return;
         }
         for (DbQueryColumn queryColumn : queryColumns) {
-            if (queryColumn == null || !(queryColumn.getSelectColumn() instanceof AggregateRelationOutputColumn outputColumn)) {
+            AggregateRelationOutputColumn outputColumn = queryColumn == null
+                    ? null
+                    : queryColumn.getDecorate(AggregateRelationOutputColumn.class);
+            if (outputColumn == null) {
                 continue;
             }
             DbColumn sourceColumn = outputColumn.getAggregateRelationSourceColumn();
