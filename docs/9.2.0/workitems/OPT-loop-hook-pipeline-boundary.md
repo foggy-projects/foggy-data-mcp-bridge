@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Record and evaluate an optional before-execute pipeline loop hook for bounded convergence-only engine sub-pipelines.
 version: 9.2.0
 target: Java engine pipeline extension boundary
-status: loop-hook-infrastructure-local-verified
+status: plan-normalize-pipeline-local-verified
 priority: medium
 owner: foggy-dataset-model
 created_at: 2026-06-20
@@ -167,11 +167,11 @@ PlanNormalizePipeline
 
 PreAgg should be revisited separately as a `RewriteStrategyChain` before deciding whether it actually needs the shared loop hook.
 
-## PlanNormalizePipeline Next Plan
+## PlanNormalizePipeline Plan
 
-`PlanNormalizePipeline` should be implemented as an independent compose-plan normalization pipeline, not as a `QueryExecutionStep`.
+`PlanNormalizePipeline` is implemented as an independent compose-plan normalization pipeline, not as a `QueryExecutionStep`.
 
-Recommended package boundary:
+Package boundary:
 
 ```text
 engine.compose.normalization
@@ -181,7 +181,7 @@ engine.compose.normalization
 -> PlanNormalizeResult
 ```
 
-Recommended API shape:
+API shape:
 
 ```java
 public final class PlanNormalizePipeline {
@@ -205,9 +205,12 @@ Default boundary:
 - It should run before `ComposeSqlCompiler` / `ComposeRelationCompiler` lower the plan into SQL.
 - It must not perform authority resolution, permission validation, request normalization, raw SQL parsing, or pre-aggregation rewrite.
 
-First rule candidates:
+First implemented rule:
 
 - Remove empty `DerivedQueryPlan` wrappers when no columns, slice, groupBy, orderBy, limit, start, or distinct state exists.
+
+Deferred rule candidates:
+
 - Merge adjacent `DerivedQueryPlan` wrappers only when final controls and projection semantics remain equivalent.
 - Normalize structured CTE carriage before relation rendering, preserving `RelationSql.flattenParams()` order.
 - Validate alias normalization idempotency so repeated passes do not rewrite the same alias twice.
@@ -220,6 +223,13 @@ Required tests before enabling as a compile pre-phase:
 - Alias rewrite is idempotent across repeated loop attempts.
 - A deliberately toggling rule fails closed at `maxLoopCount`.
 - Compiled SQL before/after normalization remains equivalent for the safe-wrapper cases.
+
+Implementation boundary:
+
+- `PlanNormalizePipeline.defaults()` currently enables only `RemoveEmptyDerivedQueryPlanRule`.
+- It is not connected to `ComposeSqlCompiler` or `ComposeRelationCompiler` by default.
+- It can be invoked explicitly by future compile pre-phase work.
+- `RemoveEmptyDerivedQueryPlanRule` is deliberately conservative: it does not rebuild a non-empty `DerivedQueryPlan` just to normalize its source, because plan-qualified column visibility is identity-based. This avoids breaking references that were validated against the original source chain.
 
 ## Test Strategy
 
@@ -235,7 +245,7 @@ Required unit tests for the first consumer:
 - after-execute does not run loop hooks.
 - stale loop stop state is cleared before `supportsLoop` is checked.
 
-Required regression tests for `PlanNormalizePipeline` if implemented:
+Required regression tests for future compile pre-phase enablement:
 
 - nested structured CTE stages hoist once and do not duplicate.
 - adjacent `DerivedQueryPlan` wrappers merge without changing parameter order.
@@ -270,9 +280,42 @@ Implemented scope:
 Not implemented in this slice:
 
 - No `DataSetResultStep` loop hook.
-- No `PlanNormalizePipeline` consumer yet.
+- No `PlanNormalizePipeline` compiler pre-phase integration in this slice.
 - No PreAgg strategy-chain migration.
 - No existing business step opts into loop behavior.
+
+## PlanNormalizePipeline Check-In
+
+2026-06-20: the first compose-plan normalization consumer is implemented, but not wired into the compile main path.
+
+Implemented scope:
+
+- Added `engine.compose.normalization.PlanNormalizePipeline`.
+- Added `PlanNormalizeContext`, `PlanNormalizeOptions`, `PlanNormalizeResult`, and `PlanNormalizeRule`.
+- Reused shared `LoopDecision` / `LoopTraceEntry` for bounded convergence diagnostics.
+- Added `RemoveEmptyDerivedQueryPlanRule` as the first default rule.
+- Kept default max loop count at 4 for explicit plan normalization.
+- Kept compile/render/permission/request paths unchanged; no compiler entrypoint invokes the normalizer yet.
+
+Covered behavior:
+
+- Empty rule list returns original plan without loop.
+- `maxLoopCount = 0` disables normalization rules.
+- Unchanged rule stops after one pass.
+- Changed-then-unchanged rule stops with trace.
+- Explicit stop records reason.
+- Fail decision fails closed.
+- Always-changing rule fails closed at `maxLoopCount`.
+- Empty root `DerivedQueryPlan` wrappers are removed.
+- Non-empty `DerivedQueryPlan` wrappers are preserved.
+- Empty wrappers inside `JoinPlan` / `UnionPlan` branches are removed while preserving branch plans.
+
+Still not implemented:
+
+- No adjacent non-empty derived merge.
+- No structured CTE hoist normalization.
+- No alias rewrite rule.
+- No default compiler pre-phase wiring.
 
 ## Verification
 
@@ -280,12 +323,16 @@ Passed on 2026-06-20:
 
 ```powershell
 mvn -pl foggy-dataset-model "-Dtest=QueryExecutionStepExecutorPhaseTest,QueryExecutionStepExecutorLoopHookTest" test
+mvn -pl foggy-dataset-model "-Dtest=PlanNormalizePipelineTest" test
+mvn -pl foggy-dataset-model "-Dtest=PlanNormalizePipelineTest,QueryExecutionStepExecutorPhaseTest,QueryExecutionStepExecutorLoopHookTest,DerivedLoweringTest,ComposeSqlCompilerTest,ComposeRelationCompilerTest" test
 ```
 
 Result:
 
 - Default, MySQL, and PostgreSQL surefire executions passed.
 - Each execution ran 8 loop-hook tests plus the phase tests, 0 failures, 0 errors.
+- `PlanNormalizePipelineTest` ran 10 tests in each surefire execution, 0 failures, 0 errors.
+- The compose/compiler regression command ran 101 tests in each surefire execution, 0 failures, 0 errors.
 
 Covered behavior:
 
