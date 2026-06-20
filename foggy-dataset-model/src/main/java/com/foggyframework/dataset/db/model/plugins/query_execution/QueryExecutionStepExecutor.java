@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.plugins.query_execution;
 
+import com.foggyframework.dataset.db.model.plugins.pipeline.LoopDecision;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class QueryExecutionStepExecutor {
                 throw e;
             }
         }
-        return QueryExecutionStep.CONTINUE;
+        return executeBeforeLoopHooks(phase, ctx);
     }
 
     /**
@@ -120,5 +121,61 @@ public class QueryExecutionStepExecutor {
      */
     public int size() {
         return steps.size();
+    }
+
+    private int executeBeforeLoopHooks(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        if (ctx == null || ctx.getMaxLoopCount() <= 0) {
+            return QueryExecutionStep.CONTINUE;
+        }
+
+        ctx.clearLoopStop();
+        if (!hasLoopStep(phase, ctx)) {
+            return QueryExecutionStep.CONTINUE;
+        }
+
+        for (int i = 0; i < ctx.getMaxLoopCount(); i++) {
+            ctx.setLoopIndex(i);
+            ctx.clearLoopChanged();
+
+            for (QueryExecutionStep step : steps) {
+                if (!step.supportsLoop(phase, ctx)) {
+                    continue;
+                }
+
+                LoopDecision decision = step.runLoop(phase, ctx);
+                if (decision == null) {
+                    decision = LoopDecision.unchanged("null decision");
+                }
+                ctx.addLoopTrace(step.getClass().getSimpleName(), decision);
+
+                if (decision.isChanged()) {
+                    ctx.markLoopChanged();
+                }
+                if (decision.isFail()) {
+                    throw new IllegalStateException("Pipeline loop hook failed at step "
+                            + step.getClass().getSimpleName() + ": " + decision.getReason());
+                }
+                if (decision.isStop()) {
+                    ctx.requestLoopStop(decision.getReason());
+                    return QueryExecutionStep.CONTINUE;
+                }
+            }
+
+            if (!ctx.isLoopChanged()) {
+                return QueryExecutionStep.CONTINUE;
+            }
+        }
+
+        throw new IllegalStateException("Pipeline loop hook exceeded maxLoopCount="
+                + ctx.getMaxLoopCount() + " for phase=" + phase);
+    }
+
+    private boolean hasLoopStep(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        for (QueryExecutionStep step : steps) {
+            if (step.supportsLoop(phase, ctx)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

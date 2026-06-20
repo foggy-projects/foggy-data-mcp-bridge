@@ -2,11 +2,15 @@ package com.foggyframework.dataset.db.model.plugins.query_execution;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.plugins.pipeline.LoopDecision;
+import com.foggyframework.dataset.db.model.plugins.pipeline.LoopTraceEntry;
+import com.foggyframework.dataset.db.model.plugins.pipeline.LoopablePipelineContext;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.Data;
 
 import javax.sql.DataSource;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +26,7 @@ import java.util.Map;
  * @since 8.2.0
  */
 @Data
-public class QueryExecutionContext {
+public class QueryExecutionContext implements LoopablePipelineContext {
 
     /**
      * 系统上下文
@@ -104,6 +108,38 @@ public class QueryExecutionContext {
      */
     private PagingResultImpl cachedResult;
 
+    // ==================== Optional loop hook state ====================
+
+    /**
+     * Current loop iteration. A value of 0 is the first loop pass.
+     */
+    private int loopIndex;
+
+    /**
+     * Maximum loop passes. Default 0 disables before-execute loop hooks.
+     */
+    private int maxLoopCount;
+
+    /**
+     * Whether a loop-capable step requested stop.
+     */
+    private boolean loopStopRequested;
+
+    /**
+     * Stop reason reported by a loop-capable step.
+     */
+    private String loopStopReason;
+
+    /**
+     * Whether the current loop pass changed the context.
+     */
+    private boolean loopChanged;
+
+    /**
+     * Per-step loop diagnostics, isolated from normal extData.
+     */
+    private List<LoopTraceEntry> loopTrace = new ArrayList<>();
+
     // ==================== 执行结果 ====================
 
     /**
@@ -136,6 +172,41 @@ public class QueryExecutionContext {
      */
     public void setExtData(String key, Object value) {
         extData.put(key, value);
+    }
+
+    @Override
+    public void requestLoopStop(String reason) {
+        this.loopStopRequested = true;
+        this.loopStopReason = reason;
+    }
+
+    @Override
+    public void clearLoopStop() {
+        this.loopStopRequested = false;
+        this.loopStopReason = null;
+    }
+
+    @Override
+    public void markLoopChanged() {
+        this.loopChanged = true;
+    }
+
+    @Override
+    public void clearLoopChanged() {
+        this.loopChanged = false;
+    }
+
+    @Override
+    public void addLoopTrace(String stepName, LoopDecision decision) {
+        if (decision == null) {
+            return;
+        }
+        loopTrace.add(new LoopTraceEntry(
+                loopIndex,
+                stepName,
+                decision.getAction(),
+                decision.isChanged(),
+                decision.getReason()));
     }
 
     /**

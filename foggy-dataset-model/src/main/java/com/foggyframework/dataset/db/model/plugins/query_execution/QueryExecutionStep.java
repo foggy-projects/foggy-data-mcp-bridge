@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.plugins.query_execution;
 
 import com.foggyframework.core.filter.FoggyStep;
+import com.foggyframework.dataset.db.model.plugins.pipeline.LoopDecision;
 
 /**
  * 查询执行步骤接口
@@ -94,6 +95,24 @@ public interface QueryExecutionStep extends FoggyStep<QueryExecutionContext> {
      */
     default int afterExecute(QueryExecutionContext ctx) {
         return CONTINUE;
+    }
+
+    /**
+     * Whether this step opts in to the bounded before-execute loop hook.
+     * <p>
+     * Default false keeps all existing steps one-way and deterministic.
+     */
+    default boolean supportsLoop(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        return false;
+    }
+
+    /**
+     * Optional loop hook executed only after beforeExecute completes.
+     * <p>
+     * Implementations must not re-enter the main pipeline or execute SQL.
+     */
+    default LoopDecision runLoop(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        return LoopDecision.stop("loop not supported");
     }
 
     /**
