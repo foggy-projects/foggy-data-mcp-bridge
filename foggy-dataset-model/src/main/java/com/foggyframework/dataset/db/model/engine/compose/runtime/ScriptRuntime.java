@@ -129,6 +129,20 @@ public final class ScriptRuntime {
             CapabilityRegistry capabilityRegistry,
             CapabilityPolicy capabilityPolicy,
             SuspensionManager suspensionManager) {
+        return runScript(script, ctx, semanticService, dialect, previewMode,
+                capabilityRegistry, capabilityPolicy, suspensionManager, false);
+    }
+
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy,
+            SuspensionManager suspensionManager,
+            boolean normalizePlan) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
         if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
 
@@ -143,7 +157,7 @@ public final class ScriptRuntime {
 
         try {
             return doRunScript(script, ctx, semanticService, dialect,
-                    previewMode, capabilityRegistry, capabilityPolicy, suspensionManager);
+                    previewMode, capabilityRegistry, capabilityPolicy, suspensionManager, normalizePlan);
         } finally {
             if (suspensionManager != null) {
                 ComposePause.CURRENT_MANAGER.remove();
@@ -183,7 +197,8 @@ public final class ScriptRuntime {
             boolean previewMode,
             CapabilityRegistry capabilityRegistry,
             CapabilityPolicy capabilityPolicy,
-            SuspensionManager suspensionManager) {
+            SuspensionManager suspensionManager,
+            boolean normalizePlan) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
         if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
 
@@ -192,6 +207,7 @@ public final class ScriptRuntime {
                 .ctx(ctx)
                 .semanticService(semanticService)
                 .dialect(effectiveDialect)
+                .normalizePlan(normalizePlan)
                 .build();
         ComposeRuntimeHolder.Token token = ComposeRuntimeHolder.setBundle(bundle);
         try {

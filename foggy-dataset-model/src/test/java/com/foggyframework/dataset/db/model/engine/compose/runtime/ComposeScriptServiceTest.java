@@ -34,6 +34,12 @@ class ComposeScriptServiceTest {
             return { plans: { summary: base }, metadata: { title: 'orders' } };
             """;
 
+    private static final String EMPTY_WRAPPER_PLAN_SCRIPT = """
+            let base = dsl({model: 'SaleOrderQM', columns: ['amount']});
+            let wrapped = base.query({columns: []});
+            return { plans: { summary: wrapped }, metadata: { title: 'orders' } };
+            """;
+
     @Test
     @DisplayName("validate runs through restricted preview path without executing SQL")
     void validate_usesPreviewPathWithoutSqlExecution() {
@@ -67,6 +73,32 @@ class ComposeScriptServiceTest {
         Map<String, Object> plans = (Map<String, Object>) value.get("plans");
         ComposedSql sql = assertInstanceOf(ComposedSql.class, plans.get("summary"));
         assertTrue(sql.getSql().contains("SELECT amount FROM sale_order"));
+    }
+
+    @Test
+    @DisplayName("preview normalizePlan=true removes empty script wrapper with SQL/params equivalence")
+    void previewNormalizePlanOptInRemovesEmptyScriptWrapper() {
+        CountingSemanticService baseService = new CountingSemanticService();
+        ComposeScriptService.ComposeScriptResult baseResult = ComposeScriptService.preview(
+                PLAN_SCRIPT, ctx(), baseService, "sqlite");
+
+        CountingSemanticService normalizedService = new CountingSemanticService();
+        ComposeScriptService.ComposeScriptResult normalizedResult = ComposeScriptService.run(
+                ComposeScriptService.ComposeScriptRequest.builder()
+                        .mode(ComposeScriptService.Mode.PREVIEW)
+                        .script(EMPTY_WRAPPER_PLAN_SCRIPT)
+                        .ctx(ctx())
+                        .semanticService(normalizedService)
+                        .dialect("sqlite")
+                        .normalizePlan(true)
+                        .build());
+
+        ComposedSql baseSql = summarySql(baseResult);
+        ComposedSql normalizedSql = summarySql(normalizedResult);
+        assertEquals(baseSql.getSql(), normalizedSql.getSql());
+        assertEquals(baseSql.getParams(), normalizedSql.getParams());
+        assertEquals(1, normalizedService.generateSqlCount.get());
+        assertEquals(0, normalizedService.executeSqlCount.get());
     }
 
     @Test
@@ -124,6 +156,14 @@ class ComposeScriptServiceTest {
                 .build();
     }
 
+    private static ComposedSql summarySql(ComposeScriptService.ComposeScriptResult result) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> value = (Map<String, Object>) result.value();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> plans = (Map<String, Object>) value.get("plans");
+        return assertInstanceOf(ComposedSql.class, plans.get("summary"));
+    }
+
     private static final class CountingSemanticService implements SemanticQueryServiceV3 {
         private final AtomicInteger generateSqlCount = new AtomicInteger();
         private final AtomicInteger executeSqlCount = new AtomicInteger();
@@ -149,9 +189,12 @@ class ComposeScriptServiceTest {
         public SqlGenerationResult generateSql(
                 String model,
                 SemanticQueryRequest req,
-                SemanticRequestContext ctx) {
+            SemanticRequestContext ctx) {
             generateSqlCount.incrementAndGet();
-            return new SqlGenerationResult("SELECT amount FROM sale_order", List.of(), null);
+            return new SqlGenerationResult(
+                    "SELECT amount FROM sale_order WHERE status = ?",
+                    List.of("paid"),
+                    null);
         }
 
         @Override

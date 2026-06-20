@@ -16,6 +16,8 @@ import java.util.Objects;
  *   <li>{@code semanticService} — the semantic-query service that provides
  *       {@code generateSql} and {@code executeSql}</li>
  *   <li>{@code dialect} — SQL dialect (default {@code "mysql"})</li>
+ *   <li>{@code normalizePlan} — optional compile pre-normalization
+ *       (default {@code false})</li>
  * </ul>
  *
  * <p>Cross-repo invariant: mirrors Python
@@ -29,6 +31,7 @@ public final class ComposeRuntimeBundle {
     private final ComposeQueryContext ctx;
     private final SemanticQueryServiceV3 semanticService;
     private final String dialect;
+    private final boolean normalizePlan;
 
     private ComposeRuntimeBundle(Builder b) {
         this.ctx = Objects.requireNonNull(b.ctx,
@@ -36,11 +39,13 @@ public final class ComposeRuntimeBundle {
         this.semanticService = Objects.requireNonNull(b.semanticService,
                 "ComposeRuntimeBundle.semanticService is required");
         this.dialect = b.dialect == null ? "mysql" : b.dialect;
+        this.normalizePlan = b.normalizePlan;
     }
 
     public ComposeQueryContext ctx() { return ctx; }
     public SemanticQueryServiceV3 semanticService() { return semanticService; }
     public String dialect() { return dialect; }
+    public boolean normalizePlan() { return normalizePlan; }
 
     public static Builder builder() { return new Builder(); }
 
@@ -48,10 +53,12 @@ public final class ComposeRuntimeBundle {
         private ComposeQueryContext ctx;
         private SemanticQueryServiceV3 semanticService;
         private String dialect;
+        private boolean normalizePlan;
 
         public Builder ctx(ComposeQueryContext v) { this.ctx = v; return this; }
         public Builder semanticService(SemanticQueryServiceV3 v) { this.semanticService = v; return this; }
         public Builder dialect(String v) { this.dialect = v; return this; }
+        public Builder normalizePlan(boolean v) { this.normalizePlan = v; return this; }
 
         public ComposeRuntimeBundle build() { return new ComposeRuntimeBundle(this); }
     }
@@ -60,6 +67,7 @@ public final class ComposeRuntimeBundle {
     public String toString() {
         return "ComposeRuntimeBundle{ctx=" + ctx
                 + ", semanticService=" + semanticService.getClass().getSimpleName()
-                + ", dialect=" + dialect + '}';
+                + ", dialect=" + dialect
+                + ", normalizePlan=" + normalizePlan + '}';
     }
 }

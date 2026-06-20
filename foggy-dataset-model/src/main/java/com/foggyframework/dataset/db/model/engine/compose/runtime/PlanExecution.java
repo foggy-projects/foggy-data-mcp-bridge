@@ -41,10 +41,20 @@ public final class PlanExecution {
             ComposeQueryContext ctx,
             SemanticQueryServiceV3 semanticService,
             String dialect) {
+        return executePlan(plan, ctx, semanticService, dialect, false);
+    }
+
+    public static List<Map<String, Object>> executePlan(
+            QueryPlan plan,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean normalizePlan) {
         ComposedSql composed = ComposeSqlCompiler.compilePlanToSql(plan, ctx,
                 ComposeSqlCompiler.CompileOptions.builder()
                         .semanticService(semanticService)
                         .dialect(dialect)
+                        .normalizePlan(normalizePlan)
                         .build());
         String routeModel = pickRouteModel(plan);
         try {

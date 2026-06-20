@@ -76,6 +76,70 @@ class ComposeRelationCompilerTest {
         assertFalse(rel.relationSql().bodySql().isEmpty());
     }
 
+    @Test
+    @DisplayName("RelationCompileOptions normalizePlan defaults false and can be enabled")
+    void relationNormalizePlanOptionReadback() {
+        FakeSemanticService svc = svc();
+
+        RelationCompileOptions defaults = opts(svc, "sqlite").build();
+        RelationCompileOptions enabled = opts(svc, "sqlite")
+                .normalizePlan(true)
+                .build();
+
+        assertFalse(defaults.normalizePlan());
+        assertTrue(enabled.normalizePlan());
+    }
+
+    @Test
+    @DisplayName("normalizePlan=true · empty wrapper relation matches base SQL/params/schema")
+    void normalizePlanOptInKeepsRelationEquivalentForEmptyWrapper() {
+        QueryPlan base = basePlan();
+        QueryPlan wrapped = DerivedQueryPlan.builder().source(base).build();
+
+        FakeSemanticService baseSvc = svc();
+        CompiledRelation baseRel = ComposeRelationCompiler.compileToRelation(
+                base,
+                ctx(bindings()),
+                opts(baseSvc, "postgres").build());
+
+        FakeSemanticService wrappedSvc = svc();
+        CompiledRelation normalizedRel = ComposeRelationCompiler.compileToRelation(
+                wrapped,
+                ctx(bindings()),
+                opts(wrappedSvc, "postgres")
+                        .normalizePlan(true)
+                        .build());
+
+        assertEquals(baseRel.relationSql().bodySql(), normalizedRel.relationSql().bodySql());
+        assertEquals(baseRel.params(), normalizedRel.params());
+        assertEquals(baseRel.outputSchema().names(), normalizedRel.outputSchema().names());
+    }
+
+    @Test
+    @DisplayName("normalizePlan=false · relation compiler keeps empty wrapper in depth guard path")
+    void normalizePlanDefaultFalseKeepsRelationDepthGuardShape() {
+        QueryPlan root = basePlan();
+        for (int i = 0; i < PlanHash.MAX_PLAN_DEPTH; i++) {
+            root = DerivedQueryPlan.builder().source(root).build();
+        }
+        final QueryPlan deep = root;
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> ComposeRelationCompiler.compileToRelation(
+                        deep,
+                        ctx(bindings()),
+                        opts(svc(), "postgres").build()));
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+
+        CompiledRelation normalized = ComposeRelationCompiler.compileToRelation(
+                deep,
+                ctx(bindings()),
+                opts(svc(), "postgres")
+                        .normalizePlan(true)
+                        .build());
+        assertFalse(normalized.relationSql().bodySql().isBlank());
+    }
+
     // ------------------------------------------------------------------
     // 2. Derived plan → CompiledRelation
     // ------------------------------------------------------------------

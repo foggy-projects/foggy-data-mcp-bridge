@@ -84,7 +84,8 @@ public final class ComposeScriptService {
                 previewMode,
                 request.capabilityRegistry(),
                 request.capabilityPolicy(),
-                request.suspensionManager());
+                request.suspensionManager(),
+                request.normalizePlan());
         return ComposeScriptResult.builder()
                 .mode(mode)
                 .valid(true)
@@ -102,6 +103,7 @@ public final class ComposeScriptService {
         private final CapabilityRegistry capabilityRegistry;
         private final CapabilityPolicy capabilityPolicy;
         private final SuspensionManager suspensionManager;
+        private final boolean normalizePlan;
 
         private ComposeScriptRequest(Builder b) {
             this.mode = b.mode == null ? Mode.EXECUTE : b.mode;
@@ -112,6 +114,7 @@ public final class ComposeScriptService {
             this.capabilityRegistry = b.capabilityRegistry;
             this.capabilityPolicy = b.capabilityPolicy;
             this.suspensionManager = b.suspensionManager;
+            this.normalizePlan = b.normalizePlan;
         }
 
         public Mode mode() { return mode; }
@@ -122,6 +125,7 @@ public final class ComposeScriptService {
         public CapabilityRegistry capabilityRegistry() { return capabilityRegistry; }
         public CapabilityPolicy capabilityPolicy() { return capabilityPolicy; }
         public SuspensionManager suspensionManager() { return suspensionManager; }
+        public boolean normalizePlan() { return normalizePlan; }
 
         public static Builder builder() { return new Builder(); }
 
@@ -134,6 +138,7 @@ public final class ComposeScriptService {
             private CapabilityRegistry capabilityRegistry;
             private CapabilityPolicy capabilityPolicy;
             private SuspensionManager suspensionManager;
+            private boolean normalizePlan;
 
             public Builder mode(Mode v) { this.mode = v; return this; }
             public Builder script(String v) { this.script = v; return this; }
@@ -143,6 +148,7 @@ public final class ComposeScriptService {
             public Builder capabilityRegistry(CapabilityRegistry v) { this.capabilityRegistry = v; return this; }
             public Builder capabilityPolicy(CapabilityPolicy v) { this.capabilityPolicy = v; return this; }
             public Builder suspensionManager(SuspensionManager v) { this.suspensionManager = v; return this; }
+            public Builder normalizePlan(boolean v) { this.normalizePlan = v; return this; }
 
             public ComposeScriptRequest build() { return new ComposeScriptRequest(this); }
         }

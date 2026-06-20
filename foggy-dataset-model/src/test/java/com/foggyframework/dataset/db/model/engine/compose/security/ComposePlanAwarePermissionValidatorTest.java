@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.security;
 
 import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
+import com.foggyframework.dataset.db.model.engine.compose.normalization.PlanNormalizePipeline;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
@@ -183,6 +184,38 @@ class ComposePlanAwarePermissionValidatorTest {
             assertDoesNotThrow(() -> ComposePlanAwarePermissionValidator.validate(
                     derived, schema, ctx),
                     "strip $id 后基础字段在白名单中 → 通过");
+        }
+
+        @Test
+        @DisplayName("normalization 不重写非空 source wrapper，保留 plan-qualified 权限身份")
+        void normalizationPreservesPlanQualifiedWrapperIdentity() {
+            ComposeFeatureFlags.overrideG10Enabled(true);
+            QueryPlan order = basePlan("OrderQM", List.of("orderId"));
+            QueryPlan sourceWrapper = DerivedQueryPlan.builder()
+                    .source(order)
+                    .columns(List.of("orderId"))
+                    .build();
+            PlanColumnRef ref = new PlanColumnRef(sourceWrapper, "orderId");
+            QueryPlan derived = DerivedQueryPlan.builder()
+                    .source(sourceWrapper)
+                    .columns(List.of(ref))
+                    .build();
+
+            QueryPlan normalized = PlanNormalizePipeline.defaults()
+                    .normalize(derived)
+                    .normalizedPlan();
+            assertSame(derived, normalized);
+
+            ModelBinding binding = ModelBinding.builder()
+                    .fieldAccess(List.of("orderId"))
+                    .build();
+            PlanFieldAccessContext ctx = PlanFieldAccessContext.builder()
+                    .bind(sourceWrapper, binding)
+                    .build();
+            OutputSchema schema = SchemaDerivation.derive(normalized);
+
+            assertDoesNotThrow(() -> ComposePlanAwarePermissionValidator.validate(
+                    normalized, schema, ctx));
         }
     }
 

@@ -30,6 +30,7 @@ public final class RelationCompileOptions {
     private final String dialect;
     private final String relationAlias;
     private final String permissionState;
+    private final boolean normalizePlan;
 
     // TimeWindow enrichment hints — when provided, OutputSchema is
     // enriched with semantic metadata from TimeWindowExpander.
@@ -47,6 +48,7 @@ public final class RelationCompileOptions {
         this.permissionState = b.permissionState == null
                 ? RelationPermissionState.UNKNOWN
                 : b.permissionState;
+        this.normalizePlan = b.normalizePlan;
         this.timeWindowDef = b.timeWindowDef;
         this.dimensionFields = b.dimensionFields;
         this.measureFields = b.measureFields;
@@ -59,6 +61,7 @@ public final class RelationCompileOptions {
     public String dialect() { return dialect; }
     public String relationAlias() { return relationAlias; }
     public String permissionState() { return permissionState; }
+    public boolean normalizePlan() { return normalizePlan; }
     public TimeWindowDef timeWindowDef() { return timeWindowDef; }
     public List<String> dimensionFields() { return dimensionFields; }
     public Set<String> measureFields() { return measureFields; }
@@ -73,6 +76,7 @@ public final class RelationCompileOptions {
         private String dialect;
         private String relationAlias;
         private String permissionState;
+        private boolean normalizePlan;
         private TimeWindowDef timeWindowDef;
         private List<String> dimensionFields;
         private Set<String> measureFields;
@@ -84,6 +88,7 @@ public final class RelationCompileOptions {
         public Builder dialect(String v) { this.dialect = v; return this; }
         public Builder relationAlias(String v) { this.relationAlias = v; return this; }
         public Builder permissionState(String v) { this.permissionState = v; return this; }
+        public Builder normalizePlan(boolean v) { this.normalizePlan = v; return this; }
         public Builder timeWindowDef(TimeWindowDef v) { this.timeWindowDef = v; return this; }
         public Builder dimensionFields(List<String> v) { this.dimensionFields = v; return this; }
         public Builder measureFields(Set<String> v) { this.measureFields = v; return this; }

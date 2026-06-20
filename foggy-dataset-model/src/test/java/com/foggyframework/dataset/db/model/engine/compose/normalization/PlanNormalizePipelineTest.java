@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinType;
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
 import com.foggyframework.dataset.db.model.plugins.pipeline.LoopDecision;
@@ -150,6 +151,24 @@ class PlanNormalizePipelineTest {
         assertSame(wrapped, result.normalizedPlan());
         assertFalse(result.changed());
         assertEquals(1, result.loopCount());
+    }
+
+    @Test
+    void nonEmptyDerivedSourceWrapperIsPreservedForPlanQualifiedIdentity() {
+        QueryPlan base = base("Order");
+        QueryPlan sourceWrapper = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id"))
+                .build();
+        QueryPlan planQualifiedOuter = DerivedQueryPlan.builder()
+                .source(sourceWrapper)
+                .columns(List.of(new PlanColumnRef(sourceWrapper, "id")))
+                .build();
+
+        PlanNormalizeResult result = PlanNormalizePipeline.defaults().normalize(planQualifiedOuter);
+
+        assertSame(planQualifiedOuter, result.normalizedPlan());
+        assertFalse(result.changed());
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.authority.AuthorityResolutionPipeline;
 import com.foggyframework.dataset.db.model.engine.compose.authority.DatasourceIdCollector;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.engine.compose.normalization.PlanNormalizePipeline;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.PlanId;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
@@ -87,6 +88,9 @@ public final class ComposeRelationCompiler {
         }
 
         String dialect = opts.dialect();
+        QueryPlan effectivePlan = opts.normalizePlan()
+                ? PlanNormalizePipeline.defaults().normalize(plan).normalizedPlan()
+                : plan;
 
         // ---- 2. Resolve bindings (mirrors ComposeSqlCompiler) ----
         Map<String, ModelBinding> bindings = opts.bindings();
@@ -97,7 +101,7 @@ public final class ComposeRelationCompiler {
                                 + "are not pre-supplied");
             }
             bindings = AuthorityResolutionPipeline.resolve(
-                    plan, context, opts.modelInfoProvider());
+                    effectivePlan, context, opts.modelInfoProvider());
         }
 
         // ---- 3. Collect datasource IDs ----
@@ -105,16 +109,16 @@ public final class ComposeRelationCompiler {
         if (datasourceIds == null && opts.modelInfoProvider() != null) {
             String ns = context == null ? "" : context.namespace();
             datasourceIds = DatasourceIdCollector.collect(
-                    plan, opts.modelInfoProvider(), ns != null ? ns : "");
+                    effectivePlan, opts.modelInfoProvider(), ns != null ? ns : "");
         }
 
         // ---- 4. Resolve datasource identity for the relation ----
-        String datasourceId = resolveDatasourceId(plan, datasourceIds);
+        String datasourceId = resolveDatasourceId(effectivePlan, datasourceIds);
 
         // ---- 5. Compile plan to ComposedSql ----
         String namespace = context == null ? null : context.namespace();
         ComposedSql composedSql = ComposePlanner.compileToComposedSql(
-                plan, bindings, opts.semanticService(), namespace, dialect,
+                effectivePlan, bindings, opts.semanticService(), namespace, dialect,
                 datasourceIds);
 
         String sql = composedSql.getSql();
@@ -144,7 +148,7 @@ public final class ComposeRelationCompiler {
         assertNoFromWith(sql, dialect);
 
         // ---- 9. Derive OutputSchema ----
-        OutputSchema outputSchema = deriveOutputSchema(plan, opts);
+        OutputSchema outputSchema = deriveOutputSchema(effectivePlan, opts);
 
         // ---- 10. Build RelationSql ----
         String alias = opts.relationAlias();
@@ -163,7 +167,7 @@ public final class ComposeRelationCompiler {
                 .datasourceId(datasourceId)
                 .dialect(dialect)
                 .capabilities(capabilities)
-                .sourcePlanId(PlanId.of(plan))
+                .sourcePlanId(PlanId.of(effectivePlan))
                 .permissionState(opts.permissionState())
                 .build();
     }

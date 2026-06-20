@@ -418,7 +418,8 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
         }
         ComposeQueryContext effectiveCtx = explicitCtx != null ? explicitCtx : bundle.ctx();
         return PlanExecution.executePlan(
-                this, effectiveCtx, bundle.semanticService(), bundle.dialect());
+                this, effectiveCtx, bundle.semanticService(), bundle.dialect(),
+                bundle.normalizePlan());
     }
 
     /**
@@ -493,6 +494,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                 ComposeSqlCompiler.CompileOptions.builder()
                         .semanticService(effectiveSvc)
                         .dialect(effectiveDialect)
+                        .normalizePlan(bundle != null && bundle.normalizePlan())
                         .build());
     }
 

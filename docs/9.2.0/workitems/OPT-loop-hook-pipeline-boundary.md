@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Record and evaluate an optional before-execute pipeline loop hook for bounded convergence-only engine sub-pipelines.
 version: 9.2.0
 target: Java engine pipeline extension boundary
-status: plan-normalize-compile-opt-in-local-verified
+status: plan-normalize-runtime-opt-in-local-verified
 priority: medium
 owner: foggy-dataset-model
 created_at: 2026-06-20
@@ -337,10 +337,39 @@ Covered behavior:
 - With opt-in normalization, redundant empty wrappers can be removed before depth-sensitive lowering.
 - Non-empty `DerivedQueryPlan` wrappers are preserved under opt-in normalization.
 
+## Runtime / Relation Opt-In Check-In
+
+2026-06-20: the explicit opt-in path is extended to relation compilation and compose runtime entrypoints.
+
+Implemented scope:
+
+- Added `RelationCompileOptions.normalizePlan`, defaulting to `false`.
+- Added `ComposeRuntimeBundle.normalizePlan`, defaulting to `false`.
+- Added `ComposeScriptService.ComposeScriptRequest.normalizePlan`, defaulting to `false`.
+- Updated `QueryPlan.toSql()` and `QueryPlan.execute()` to forward the ambient runtime bundle's `normalizePlan` value.
+- Updated `PlanExecution.executePlan(...)` with a normalize-aware overload while preserving the existing default-off overload.
+- Updated `ScriptRuntime` with a normalize-aware overload used by `ComposeScriptService.run(...)`.
+
+Covered behavior:
+
+- `ComposeScriptService` preview can opt in and normalize an empty `base.query({columns: []})` wrapper while preserving SQL/params equivalence.
+- `ComposeRelationCompiler` can opt in and normalize empty wrappers while preserving relation SQL, params, and output schema names.
+- `ComposeRelationCompiler` default path still keeps empty wrappers in the historical depth-guard path.
+- Plan-qualified permission validation confirms non-empty source wrappers are not rewritten, preserving plan identity used by `PlanFieldAccessContext`.
+- `PlanNormalizePipeline` now has an explicit regression for non-empty source wrapper identity preservation.
+
+Rule-expansion review:
+
+- Do not add a second default normalization rule yet.
+- Adjacent non-empty derived merge is not safe without expression/projection equivalence tests and plan-qualified identity snapshots.
+- Structured CTE hoist is higher risk because parameter flattening order and dialect-specific CTE placement must be proven.
+- Alias rewrite should remain deferred until idempotency and permission/schema provenance are covered.
+- The current default rule remains limited to semantically empty `DerivedQueryPlan` wrappers.
+
 Default-enablement review:
 
 - Do not enable normalization by default yet.
-- Current evidence proves the conservative empty-wrapper rule and the explicit compiler path, but it does not yet cover all real composeScript/QM entrypoint snapshots, relation compiler callers, plan-qualified identity edge cases, structured CTE hoisting, or alias rewrite scenarios.
+- Current evidence proves the conservative empty-wrapper rule and explicit SQL compiler / relation compiler / runtime request opt-in paths, but it does not yet cover all real composeScript/QM snapshot fixtures, structured CTE hoisting, alias rewrite scenarios, or broader production dialect SQL-shape comparisons.
 - Default enablement should require snapshot coverage across composeScript runtime payloads, relation compiler paths, permission/schema derivation with normalized identity, and dialect-specific SQL/params comparisons.
 
 ## Verification
@@ -353,6 +382,7 @@ mvn -pl foggy-dataset-model "-Dtest=PlanNormalizePipelineTest" test
 mvn -pl foggy-dataset-model "-Dtest=PlanNormalizePipelineTest,QueryExecutionStepExecutorPhaseTest,QueryExecutionStepExecutorLoopHookTest,DerivedLoweringTest,ComposeSqlCompilerTest,ComposeRelationCompilerTest" test
 mvn -pl foggy-dataset-model "-Dtest=ComposeSqlCompilerTest" test
 mvn -pl foggy-dataset-model "-Dtest=PlanNormalizePipelineTest,ComposeSqlCompilerTest,DerivedLoweringTest,ComposeRelationCompilerTest,QueryExecutionStepExecutorPhaseTest,QueryExecutionStepExecutorLoopHookTest,ComposePlanAwarePermissionValidatorTest,SchemaDerivationTest" test
+mvn -pl foggy-dataset-model "-Dtest=ComposeScriptServiceTest,ComposeRelationCompilerTest,PlanNormalizePipelineTest,ComposePlanAwarePermissionValidatorTest" test
 ```
 
 Result:
@@ -363,6 +393,7 @@ Result:
 - The compose/compiler regression command ran 101 tests in each surefire execution, 0 failures, 0 errors.
 - `ComposeSqlCompilerTest` now runs 16 tests in each surefire execution, 0 failures, 0 errors.
 - The expanded opt-in regression command ran 160 tests in each surefire execution, 0 failures, 0 errors.
+- The runtime/relation opt-in regression command ran 72 tests in each surefire execution, 0 failures, 0 errors.
 
 Covered behavior:
 
