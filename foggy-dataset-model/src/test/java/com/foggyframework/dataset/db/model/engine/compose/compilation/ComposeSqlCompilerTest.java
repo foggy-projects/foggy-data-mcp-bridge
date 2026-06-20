@@ -149,11 +149,133 @@ class ComposeSqlCompilerTest {
                 .bindings(bindings)
                 .datasourceIds(datasourceIds)
                 .dialect("postgres")
+                .normalizePlan(true)
                 .build();
         assertEquals(svc, opts.semanticService());
         assertEquals(bindings, opts.bindings());
         assertEquals(datasourceIds, opts.datasourceIds());
         assertEquals("postgres", opts.dialect());
+        assertTrue(opts.normalizePlan());
+    }
+
+    @Test
+    @DisplayName("CompileOptions.Builder 默认不启用 plan normalization")
+    void builderNormalizePlanDefaultsFalse() {
+        FakeSemanticService svc = new FakeSemanticService();
+        ComposeSqlCompiler.CompileOptions opts = ComposeSqlCompiler.CompileOptions.builder()
+                .semanticService(svc)
+                .build();
+        assertFalse(opts.normalizePlan());
+    }
+
+    @Test
+    @DisplayName("normalizePlan=true · 空 derived wrapper 输出与 base plan SQL/params 等价")
+    void normalizePlanOptInKeepsSqlAndParamsEquivalentForEmptyWrapper() {
+        for (String dialect : List.of("mysql", "sqlite", "postgres")) {
+            QueryPlan base = CompileTestHelpers.base("M", "id");
+            QueryPlan wrapped = DerivedQueryPlan.builder().source(base).build();
+            Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+            FakeSemanticService baseSvc = new FakeSemanticService();
+            baseSvc.stub("M", "SELECT id FROM t WHERE status = ?", "paid");
+            ComposedSql baseSql = ComposeSqlCompiler.compilePlanToSql(
+                    base,
+                    CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                    ComposeSqlCompiler.CompileOptions.builder()
+                            .semanticService(baseSvc)
+                            .bindings(bindings)
+                            .dialect(dialect)
+                            .build());
+
+            FakeSemanticService wrappedSvc = new FakeSemanticService();
+            wrappedSvc.stub("M", "SELECT id FROM t WHERE status = ?", "paid");
+            ComposedSql normalizedSql = ComposeSqlCompiler.compilePlanToSql(
+                    wrapped,
+                    CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                    ComposeSqlCompiler.CompileOptions.builder()
+                            .semanticService(wrappedSvc)
+                            .bindings(bindings)
+                            .dialect(dialect)
+                            .normalizePlan(true)
+                            .build());
+
+            assertEquals(baseSql.getSql(), normalizedSql.getSql(), dialect);
+            assertEquals(baseSql.getParams(), normalizedSql.getParams(), dialect);
+        }
+    }
+
+    @Test
+    @DisplayName("normalizePlan=false · 空 wrapper 仍走历史 plan shape，超深 plan 触发深度保护")
+    void normalizePlanDefaultFalseKeepsDepthGuardShape() {
+        QueryPlan root = CompileTestHelpers.base("M", "id");
+        for (int i = 0; i < PlanHash.MAX_PLAN_DEPTH; i++) {
+            root = DerivedQueryPlan.builder().source(root).build();
+        }
+        final QueryPlan deep = root;
+        Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+        FakeSemanticService defaultSvc = new FakeSemanticService();
+        defaultSvc.stub("M", "SELECT id FROM t");
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> ComposeSqlCompiler.compilePlanToSql(
+                        deep,
+                        CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                        ComposeSqlCompiler.CompileOptions.builder()
+                                .semanticService(defaultSvc)
+                                .bindings(bindings)
+                                .dialect("sqlite")
+                                .build()));
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+
+        FakeSemanticService normalizedSvc = new FakeSemanticService();
+        normalizedSvc.stub("M", "SELECT id FROM t");
+        ComposedSql sql = ComposeSqlCompiler.compilePlanToSql(
+                deep,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(normalizedSvc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .normalizePlan(true)
+                        .build());
+        assertNotNull(sql.getSql());
+    }
+
+    @Test
+    @DisplayName("normalizePlan=true · 非空 derived wrapper 不被误删")
+    void normalizePlanOptInKeepsNonEmptyDerivedWrapper() {
+        QueryPlan base = CompileTestHelpers.base("M", "id", "amount");
+        QueryPlan wrapped = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id"))
+                .build();
+        Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+        FakeSemanticService defaultSvc = new FakeSemanticService();
+        defaultSvc.stub("M", "SELECT id, amount FROM t", 10);
+        ComposedSql defaultSql = ComposeSqlCompiler.compilePlanToSql(
+                wrapped,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(defaultSvc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .build());
+
+        FakeSemanticService normalizedSvc = new FakeSemanticService();
+        normalizedSvc.stub("M", "SELECT id, amount FROM t", 10);
+        ComposedSql normalizedSql = ComposeSqlCompiler.compilePlanToSql(
+                wrapped,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(normalizedSvc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .normalizePlan(true)
+                        .build());
+
+        assertEquals(defaultSql.getSql(), normalizedSql.getSql());
+        assertEquals(defaultSql.getParams(), normalizedSql.getParams());
     }
 
     @Test

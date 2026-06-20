@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.engine.compose.authority.AuthorityRes
 import com.foggyframework.dataset.db.model.engine.compose.authority.DatasourceIdCollector;
 import com.foggyframework.dataset.db.model.engine.compose.authority.ModelInfoProvider;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.engine.compose.normalization.PlanNormalizePipeline;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
@@ -72,7 +73,10 @@ public final class ComposeSqlCompiler {
         if (opts.semanticService == null) {
             throw new IllegalArgumentException("CompileOptions.semanticService is required");
         }
-        QueryPlan.validatePlanSliceValues(plan);
+        QueryPlan effectivePlan = opts.normalizePlan
+                ? PlanNormalizePipeline.defaults().normalize(plan).normalizedPlan()
+                : plan;
+        QueryPlan.validatePlanSliceValues(effectivePlan);
 
         Map<String, ModelBinding> bindings = opts.bindings;
         if (bindings == null) {
@@ -81,7 +85,7 @@ public final class ComposeSqlCompiler {
                         "compilePlanToSql: context is required on the internal-resolve path; "
                                 + "either pass a ComposeQueryContext or pre-supply bindings via opts");
             }
-            bindings = AuthorityResolutionPipeline.resolve(plan, context, opts.modelInfoProvider);
+            bindings = AuthorityResolutionPipeline.resolve(effectivePlan, context, opts.modelInfoProvider);
         }
 
         // F-7 datasource identity resolution
@@ -89,12 +93,12 @@ public final class ComposeSqlCompiler {
         if (datasourceIds == null && opts.modelInfoProvider != null) {
             String ns = context == null ? null : context.namespace();
             datasourceIds = DatasourceIdCollector.collect(
-                    plan, opts.modelInfoProvider, ns != null ? ns : "");
+                    effectivePlan, opts.modelInfoProvider, ns != null ? ns : "");
         }
 
         String namespace = context == null ? null : context.namespace();
         return ComposePlanner.compileToComposedSql(
-                plan, bindings, opts.semanticService, namespace, opts.dialect,
+                effectivePlan, bindings, opts.semanticService, namespace, opts.dialect,
                 datasourceIds);
     }
 
@@ -116,7 +120,7 @@ public final class ComposeSqlCompiler {
     /** Immutable bag of compile-time options passed to
      *  {@link #compilePlanToSql(QueryPlan, ComposeQueryContext, CompileOptions)}.
      *  Shape mirrors Python's kw-only parameters:
-     *  {@code semantic_service / bindings / model_info_provider / datasource_ids / dialect}. */
+     *  {@code semantic_service / bindings / model_info_provider / datasource_ids / dialect / normalize_plan}. */
     public static final class CompileOptions {
 
         /** Required — the v1.3 semantic-query service that owns the
@@ -141,12 +145,17 @@ public final class ComposeSqlCompiler {
          *  {@code "mysql8"} to enable CTE emission on modern MySQL. */
         private final String dialect;
 
+        /** Optional plan normalization before authority resolution and SQL lower.
+         *  Default false preserves the historical compiler path. */
+        private final boolean normalizePlan;
+
         private CompileOptions(Builder b) {
             this.semanticService = b.semanticService;
             this.bindings = b.bindings;
             this.modelInfoProvider = b.modelInfoProvider;
             this.datasourceIds = b.datasourceIds;
             this.dialect = b.dialect == null ? "mysql" : b.dialect;
+            this.normalizePlan = b.normalizePlan;
         }
 
         public SemanticQueryServiceV3 semanticService() { return semanticService; }
@@ -154,6 +163,7 @@ public final class ComposeSqlCompiler {
         public ModelInfoProvider modelInfoProvider() { return modelInfoProvider; }
         public Map<String, Optional<String>> datasourceIds() { return datasourceIds; }
         public String dialect() { return dialect; }
+        public boolean normalizePlan() { return normalizePlan; }
 
         public static Builder builder() { return new Builder(); }
 
@@ -163,6 +173,7 @@ public final class ComposeSqlCompiler {
             private ModelInfoProvider modelInfoProvider;
             private Map<String, Optional<String>> datasourceIds;
             private String dialect;
+            private boolean normalizePlan;
 
             public Builder semanticService(SemanticQueryServiceV3 v) {
                 this.semanticService = v;
@@ -186,6 +197,11 @@ public final class ComposeSqlCompiler {
 
             public Builder dialect(String v) {
                 this.dialect = v;
+                return this;
+            }
+
+            public Builder normalizePlan(boolean v) {
+                this.normalizePlan = v;
                 return this;
             }
 
