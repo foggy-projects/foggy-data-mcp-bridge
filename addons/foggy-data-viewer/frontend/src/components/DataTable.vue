@@ -1757,6 +1757,76 @@ provide('dataTableContext', {
 
 <style>
 /*
+ * Core DataTable layout is intentionally non-scoped. Host apps may combine JS
+ * and CSS through dependency caches or remote bundles, and a scope-id mismatch
+ * must not collapse the table height chain.
+ */
+.data-table {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #fff;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.data-table .data-table-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e4e7ed;
+  background: #fafafa;
+  gap: 16px;
+}
+
+.data-table.data-table--compact .data-table-toolbar {
+  padding: 6px 12px;
+}
+
+.data-table .toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.data-table .toolbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  gap: 8px;
+}
+
+.data-table .table-wrapper {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.data-table .table-wrapper > .vxe-grid,
+.data-table .table-wrapper > .vxe-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.data-table .table-wrapper .vxe-table {
+  min-height: 0;
+}
+
+.data-table .data-table-footer {
+  flex: 0 0 auto;
+}
+
+/*
  * Header slot content is rendered inside vxe-grid. In some host apps Vue scoped
  * attributes are not preserved on that slot subtree, so these styles must not
  * rely on DataTable.vue's scoped data-v attribute.

@@ -979,3 +979,44 @@ defineExpose({
   flex-direction: column;
 }
 </style>
+
+<style>
+/*
+ * Keep the height chain independent from Vue scoped attributes. In host apps
+ * with dependency cache/version skew, scoped CSS can miss while class names are
+ * still stable.
+ */
+.data-table-with-search {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.data-table-with-search > .query-panel-wrapper,
+.data-table-with-search > .search-toolbar-wrapper {
+  flex: 0 0 auto;
+}
+
+.data-table-with-search > .query-panel-wrapper .placeholder-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.data-table-with-search > .data-table-wrapper {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.data-table-with-search > .data-table-wrapper > .data-table {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+</style>
