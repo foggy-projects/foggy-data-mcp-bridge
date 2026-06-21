@@ -1661,7 +1661,7 @@ provide('dataTableContext', {
 }
 
 /* 过滤器组件通用样式 */
-.column-filter :deep(input),
+.column-filter :deep(input:not(.el-range-input):not(.el-input__inner)),
 .column-filter :deep(select) {
   width: 100%;
   height: 24px;
@@ -1672,14 +1672,14 @@ provide('dataTableContext', {
   background: #fff;
 }
 
-.data-table--compact .column-filter :deep(input),
+.data-table--compact .column-filter :deep(input:not(.el-range-input):not(.el-input__inner)),
 .data-table--compact .column-filter :deep(select) {
   height: 22px;
   padding: 0 5px;
   font-size: 12px;
 }
 
-.column-filter :deep(input:focus),
+.column-filter :deep(input:not(.el-range-input):not(.el-input__inner):focus),
 .column-filter :deep(select:focus) {
   border-color: #409eff;
   outline: none;
@@ -1752,5 +1752,222 @@ provide('dataTableContext', {
   100% {
     transform: translateX(350%);
   }
+}
+</style>
+
+<style>
+/*
+ * Header slot content is rendered inside vxe-grid. In some host apps Vue scoped
+ * attributes are not preserved on that slot subtree, so these styles must not
+ * rely on DataTable.vue's scoped data-v attribute.
+ */
+.data-table .column-filter {
+  width: 100%;
+  min-height: 26px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.data-table.data-table--compact .column-filter {
+  min-height: 22px;
+}
+
+.data-table .column-filter input:not(.el-range-input):not(.el-input__inner),
+.data-table .column-filter select {
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 3px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.data-table.data-table--compact .column-filter input:not(.el-range-input):not(.el-input__inner),
+.data-table.data-table--compact .column-filter select {
+  height: 22px;
+  padding: 0 5px;
+  font-size: 12px;
+}
+
+.data-table .column-filter input:not(.el-range-input):not(.el-input__inner):focus,
+.data-table .column-filter select:focus {
+  border-color: #409eff;
+  outline: none;
+}
+
+.data-table .column-filter .filter-text,
+.data-table .column-filter .filter-select,
+.data-table .column-filter .filter-date-range {
+  width: 100%;
+  min-width: 0;
+}
+
+.data-table .column-filter .input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.data-table .column-filter .input-wrapper input {
+  padding-right: 24px;
+}
+
+.data-table .column-filter .filter-number-range,
+.data-table .column-filter .filter-bool {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.data-table .column-filter .filter-number-range {
+  position: relative;
+}
+
+.data-table .column-filter .filter-number-range input {
+  flex: 1;
+  min-width: 0;
+  width: 50px;
+  text-align: right;
+}
+
+.data-table .column-filter .filter-number-range .separator {
+  flex-shrink: 0;
+  color: #909399;
+  font-size: 12px;
+}
+
+.data-table .column-filter .filter-bool button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 3px;
+  background: #fff;
+  font-size: 11px;
+  color: #606266;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.data-table.data-table--compact .column-filter .filter-bool button {
+  height: 22px;
+}
+
+.data-table .column-filter .filter-bool button:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.data-table .column-filter .filter-bool button.active {
+  background: #409eff;
+  border-color: #409eff;
+  color: #fff;
+}
+
+.data-table .column-filter .select-input {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.data-table.data-table--compact .column-filter .select-input {
+  height: 22px;
+  padding: 0 5px;
+}
+
+.data-table .column-filter .select-input:hover {
+  border-color: #c0c4cc;
+}
+
+.data-table .column-filter .placeholder-text,
+.data-table .column-filter .selected-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table .column-filter .placeholder-text {
+  color: #c0c4cc;
+}
+
+.data-table .column-filter .selected-text {
+  color: #606266;
+}
+
+.data-table .column-filter .toggle-multi {
+  padding: 1px 4px;
+  font-size: 9px;
+  color: #fff;
+  background: #409eff;
+  border-radius: 2px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.data-table .column-filter .clear-btn {
+  color: #c0c4cc;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.data-table .column-filter .clear-btn:hover {
+  color: #909399;
+}
+
+.data-table .column-filter .input-wrapper .clear-btn {
+  position: absolute;
+  right: 6px;
+  font-size: 14px;
+}
+
+.data-table .column-filter .filter-number-range .clear-btn {
+  position: absolute;
+  right: -16px;
+  font-size: 14px;
+}
+
+.data-table .column-filter .filter-date-range .el-date-editor {
+  width: 100% !important;
+  max-width: 100%;
+  height: 24px;
+}
+
+.data-table.data-table--compact .column-filter .filter-date-range .el-date-editor {
+  height: 22px;
+}
+
+.data-table .column-filter .filter-date-range .el-input__wrapper {
+  height: 24px;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+.data-table.data-table--compact .column-filter .filter-date-range .el-input__wrapper {
+  height: 22px;
+}
+
+.data-table .column-filter .filter-date-range .el-range-input,
+.data-table .column-filter .filter-date-range .el-range-separator {
+  font-size: 11px;
+}
+
+.data-table .column-filter .filter-date-range .el-range-separator {
+  flex-shrink: 0;
+  padding: 0 2px;
+  line-height: 22px;
 }
 </style>
