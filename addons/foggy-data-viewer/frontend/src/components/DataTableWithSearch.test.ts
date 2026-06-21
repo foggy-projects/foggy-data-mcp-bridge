@@ -629,7 +629,7 @@ describe('DataTableWithSearch', () => {
       await flushPromises()
 
       expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
-        orderBy: [{ field: 'name', order: 'desc' }]
+        orderBy: [{ field: 'name', dir: 'desc' }]
       }))
     })
 
@@ -1184,7 +1184,7 @@ describe('DataTableWithSearch', () => {
           { name: 'name', visible: true, minWidth: 220, order: 2 }
         ],
         slice,
-        orderBy: [{ field: 'amount', order: 'desc' }],
+        orderBy: [{ field: 'amount', dir: 'desc' }],
         pageSize: 100
       })
       await wrapper.vm.$nextTick()
@@ -1200,7 +1200,7 @@ describe('DataTableWithSearch', () => {
       expect(dataTable.props('pageSize')).toBe(100)
       expect(dataTable.props('initialSlice')).toEqual(slice)
       expect(state.slice).toEqual(slice)
-      expect(state.orderBy).toEqual([{ field: 'amount', order: 'desc' }])
+      expect(state.orderBy).toEqual([{ field: 'amount', dir: 'desc' }])
     })
 
     it('should ignore unknown list view columns without blanking the table', async () => {
@@ -1242,7 +1242,7 @@ describe('DataTableWithSearch', () => {
       vm.applyListViewState({
         columns: ['amount'],
         slice: [{ field: 'amount', op: '>=', value: 100 }],
-        orderBy: [{ field: 'amount', order: 'asc' }],
+        orderBy: [{ field: 'amount', dir: 'asc' }],
         pageSize: 100
       })
       await wrapper.vm.$nextTick()

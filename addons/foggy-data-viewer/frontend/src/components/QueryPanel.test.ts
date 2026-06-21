@@ -109,4 +109,36 @@ describe('QueryPanel', () => {
     expect(select.props('field')).toBe('customer$caption')
     expect(select.props('selectionField')).toBe('customer$id')
   })
+
+  it('places actions after query fields and does not render collapse control', () => {
+    const wrapper = mount(QueryPanel, {
+      props: {
+        schema: {
+          fields: [
+            {
+              key: 'profileCode',
+              label: '能力档案编码',
+              sourceField: 'profileCode',
+              placement: 'form',
+              component: 'text'
+            }
+          ],
+          collapsible: true,
+          defaultExpanded: true,
+          layout: {
+            columns: { lg: 5 },
+            labelWidth: 88,
+            actionAlign: 'right'
+          }
+        }
+      }
+    })
+
+    const queryFields = wrapper.find('.query-fields')
+    const children = Array.from(queryFields.element.children)
+    expect(children.at(-1)?.classList.contains('query-actions')).toBe(true)
+    expect(wrapper.find('.btn-link').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('收起')
+    expect(wrapper.text()).not.toContain('展开')
+  })
 })

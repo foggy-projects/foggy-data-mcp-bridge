@@ -23,6 +23,31 @@ type HookFnMap = {
   onQueryError: ErrorQueryHookFn
 }
 
+function normalizeOrderBy(orderBy: OrderRequestDef[]): OrderRequestDef[] {
+  return orderBy.flatMap(item => {
+    const rawDir = item.dir ?? item.order
+    const dir = typeof rawDir === 'string' ? rawDir.toLowerCase() : rawDir
+
+    if (!item.field || (dir !== 'asc' && dir !== 'desc')) {
+      return []
+    }
+
+    const normalized: OrderRequestDef = {
+      field: item.field,
+      dir
+    }
+
+    if (item.nullFirst) {
+      normalized.nullFirst = true
+    }
+    if (item.nullLast) {
+      normalized.nullLast = true
+    }
+
+    return [normalized]
+  })
+}
+
 export interface UseTableQueryOptions {
   /** 初始每页大小 */
   pageSize?: number
@@ -177,7 +202,7 @@ export function useTableQuery(
   }
 
   function setSort(orderBy: OrderRequestDef[]): void {
-    currentOrderBy.value = orderBy
+    currentOrderBy.value = normalizeOrderBy(orderBy)
   }
 
   function setSlice(slice: SliceRequestDef[]): void {

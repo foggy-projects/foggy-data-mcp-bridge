@@ -201,6 +201,34 @@ class SyntheticMemberPermissionIntegrationTest extends EcommerceTestSupport {
             // extData 中不应有 effective permission
             assertNull(ctx.getExtData().get(SyntheticMemberInternalPatchStep.EFFECTIVE_PERMISSION_KEY));
         }
+
+        @Test
+        @DisplayName("forcedSlice 可使用未声明为维度属性的内部物理字段")
+        void hiddenPhysicalFieldForcedSliceApplied() {
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactSalesHiddenMemberPermQueryModel#product");
+            queryRequest.setColumns(List.of("id", "caption", "brand"));
+
+            ModelResultContext ctx = new ModelResultContext(
+                    PagingRequest.buildPagingRequest(queryRequest, 20), null
+            );
+            SqlGenerationResult sqlResult = queryFacade.buildSqlOnly(ctx);
+
+            String sql = sqlResult.getSql();
+            assertNotNull(sql);
+            assertTrue(sql.toLowerCase().contains("status"),
+                    "SQL 应包含隐藏物理字段 status 的内部权限条件: " + sql);
+
+            PagingResultImpl result = queryFacade.queryModelData(
+                    PagingRequest.buildPagingRequest(queryRequest, 100)
+            );
+            List<Map<String, Object>> items = castItems(result);
+            assertFalse(items.isEmpty(), "隐藏物理字段 forcedSlice 不应阻断成员查询");
+            for (Map<String, Object> row : items) {
+                assertEquals(List.of("id", "caption", "brand"), new ArrayList<>(row.keySet()),
+                        "未请求内部字段时不应额外返回 status");
+            }
+        }
     }
 
     // ==================== 合并规则端到端验证 ====================

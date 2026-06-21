@@ -47,9 +47,16 @@ export interface SliceRequestDef {
 /**
  * DSL 排序条件 (OrderRequestDef)
  */
+export type SortDirection = 'asc' | 'desc'
+
 export interface OrderRequestDef {
   field: string
-  order: 'asc' | 'desc'
+  /** 后端 DSL 识别的排序方向字段 */
+  dir?: SortDirection
+  /** 兼容旧版前端状态，发送请求前会被规范化为 dir */
+  order?: SortDirection
+  nullLast?: boolean
+  nullFirst?: boolean
 }
 
 /**
@@ -124,7 +131,7 @@ export interface PaginationState {
  */
 export interface SortState {
   field: string | null
-  order: 'asc' | 'desc' | null
+  order: SortDirection | null
 }
 
 /**
@@ -451,7 +458,7 @@ export interface DefaultsMeta {
   pageSize?: number
   /** 生成到 TableSchema.queryMode，优先级高于生成组件的 queryMode prop */
   queryMode?: QueryMode
-  orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>
+  orderBy?: OrderRequestDef[]
 }
 
 /** 模型级能力声明 */

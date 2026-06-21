@@ -102,7 +102,7 @@ function handlePageChange(page: number, size: number) {
 
 function handleSortChange(field: string | null, order: 'asc' | 'desc' | null) {
   if (field && order) {
-    queryParams.value.orderBy = [{ field, order }]
+    queryParams.value.orderBy = [{ field, dir: order }]
   } else {
     queryParams.value.orderBy = []
   }

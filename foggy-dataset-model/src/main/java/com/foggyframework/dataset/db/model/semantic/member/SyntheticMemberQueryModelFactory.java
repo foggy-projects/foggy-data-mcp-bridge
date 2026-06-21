@@ -202,8 +202,12 @@ public class SyntheticMemberQueryModelFactory {
     private DbColumn buildPropertyColumn(String exposedName, DbDimension dimension) {
         DbProperty property = resolveProperty(dimension, exposedName);
         QueryObject queryObject = dimension.getQueryObject();
-        if (property == null || property.getPropertyDbColumn() == null || queryObject == null) {
+        if (queryObject == null) {
             return null;
+        }
+
+        if (property == null || property.getPropertyDbColumn() == null) {
+            return buildPhysicalFieldColumn(exposedName, queryObject);
         }
 
         DbColumn delegate = new SyntheticMemberPlainFieldColumn(
@@ -214,6 +218,36 @@ public class SyntheticMemberQueryModelFactory {
                 property.getType()
         );
         return new SyntheticMemberPropertyFieldColumn(exposedName, delegate, property);
+    }
+
+    private DbColumn buildPhysicalFieldColumn(String exposedName, QueryObject queryObject) {
+        String fieldName = leafFieldName(exposedName);
+        SqlColumn sqlColumn = resolvePhysicalSqlColumn(queryObject, fieldName);
+        if (sqlColumn == null) {
+            return null;
+        }
+        return new SyntheticMemberPlainFieldColumn(
+                exposedName,
+                StringUtils.isNotEmpty(sqlColumn.getCaption()) ? sqlColumn.getCaption() : exposedName,
+                queryObject,
+                sqlColumn,
+                DbColumnType.fromJdbcType(sqlColumn.getJdbcType())
+        );
+    }
+
+    private SqlColumn resolvePhysicalSqlColumn(QueryObject queryObject, String fieldName) {
+        if (queryObject == null || StringUtils.isEmpty(fieldName)) {
+            return null;
+        }
+        SqlColumn direct = queryObject.getSqlColumn(fieldName, false);
+        if (direct != null) {
+            return direct;
+        }
+        String snakeCase = StringUtils.to_sm_string(fieldName);
+        if (StringUtils.equals(snakeCase, fieldName)) {
+            return null;
+        }
+        return queryObject.getSqlColumn(snakeCase, false);
     }
 
     private DbColumn buildParentIdColumn(String exposedName, DbDimension dimension) {
@@ -242,12 +276,17 @@ public class SyntheticMemberQueryModelFactory {
     }
 
     private DbProperty resolveProperty(DbDimension dimension, String fieldName) {
+        String propertyName = leafFieldName(fieldName);
+        return dimension.findPropertyByName(propertyName);
+    }
+
+    private String leafFieldName(String fieldName) {
         String propertyName = fieldName;
         int idx = fieldName.lastIndexOf(SyntheticMemberQueryModelResolver.FIELD_SEPARATOR);
         if (idx >= 0) {
             propertyName = fieldName.substring(idx + 1);
         }
-        return dimension.findPropertyByName(propertyName);
+        return propertyName;
     }
 
     private DbDimension resolveRootDimension(TableModel tableModel, String dimFieldBase) {

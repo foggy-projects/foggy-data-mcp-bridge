@@ -75,17 +75,26 @@ describe('foggy-gen QueryTable template', () => {
 
       const tableVue = readFileSync(join(outputDir, 'FactOrderTable.vue'), 'utf-8')
       const tableSchema = readFileSync(join(outputDir, 'FactOrder.table.schema.ts'), 'utf-8')
+      const querySchema = readFileSync(join(outputDir, 'FactOrder.query.schema.ts'), 'utf-8')
 
       expect(tableVue).toContain(
-        "import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode } from 'foggy-data-viewer'"
+        "import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema } from 'foggy-data-viewer'"
       )
       expect(tableVue).toContain('queryMode?: QueryMode')
+      expect(tableVue).toContain('querySchemaOverride?: QuerySchema')
       expect(tableVue).toContain('showQueryPanel?: boolean')
       expect(tableVue).toContain(':query-mode="queryMode"')
+      expect(tableVue).toContain(':query-schema="props.querySchemaOverride ?? querySchema"')
       expect(tableVue).toContain(':show-query-panel="showQueryPanel"')
       expect(tableSchema).toContain("queryMode: 'column'")
       expect(tableSchema).toContain('showFilters: true')
       expect(tableSchema).not.toContain('showSearchToolbar')
+      expect(querySchema).toContain('export const defaultFormFieldKeys = ["orderNo"]')
+      expect(querySchema).toContain('fields: defaultFormFieldKeys')
+      expect(tableSchema).toContain('memberLookup')
+      expect(tableSchema).toContain("selectionFieldName: 'serviceAreaId'")
+      expect(tableSchema).toContain("displayFieldName: 'serviceArea'")
+      expect(tableSchema).toContain('defaultLimit: 20')
     } finally {
       rmSync(tempRoot, { recursive: true, force: true })
     }

@@ -631,7 +631,7 @@ function handleSortChange(field: string | null, order: 'asc' | 'desc' | null) {
   // Schema 模式下，更新排序并重新加载
   if (isSchemaMode.value) {
     if (field && order) {
-      query.setSort([{ field, order }])
+      query.setSort([{ field, dir: order }])
     } else {
       query.setSort([])
     }

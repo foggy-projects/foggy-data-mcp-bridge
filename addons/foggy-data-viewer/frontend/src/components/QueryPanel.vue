@@ -7,7 +7,7 @@ import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilte
  * QueryPanel - 传统查询区组件
  *
  * 根据 QuerySchema 渲染表格上方的查询表单区域。
- * 支持响应式 grid 布局、折叠/展开、查询/重置。
+ * 支持响应式 grid 布局、查询/重置。
  * 只处理 placement='form' 的查询字段。
  */
 
@@ -73,7 +73,6 @@ const emit = defineEmits<{
 }>()
 
 // ── 状态 ──
-const expanded = ref(props.schema.defaultExpanded !== false)
 const fieldValues = ref<Record<string, SliceRequestDef[] | null>>({})
 
 // 只处理 placement = 'form' 的字段
@@ -86,23 +85,11 @@ const formFields = computed(() => {
 // 布局配置
 const layout = computed(() => props.schema.layout ?? {})
 const gridColumns = computed(() => layout.value.columns ?? { xs: 1, sm: 2, md: 3, lg: 4, xl: 4 })
-const collapsedRows = computed(() => layout.value.collapsedRows ?? 1)
 const labelWidth = computed(() => layout.value.labelWidth ?? 100)
 const gutter = computed(() => layout.value.gutter ?? 16)
 
-// 折叠时显示的字段数
-const visibleFieldCount = computed(() => {
-  if (expanded.value || !props.schema.collapsible) return formFields.value.length
-  // 折叠行数 × 当前列数（用 lg 作为默认）
-  return collapsedRows.value * (gridColumns.value.lg ?? 4)
-})
-
 const visibleFields = computed(() => {
-  return formFields.value.slice(0, visibleFieldCount.value)
-})
-
-const canCollapse = computed(() => {
-  return props.schema.collapsible !== false && formFields.value.length > visibleFieldCount.value
+  return formFields.value
 })
 
 // ── 从 modelValue 初始化 ──
@@ -206,10 +193,6 @@ function handleReset() {
   emit('reset')
 }
 
-function toggleExpand() {
-  expanded.value = !expanded.value
-}
-
 defineExpose({
   search: handleSearch,
   reset: handleReset,
@@ -249,19 +232,10 @@ defineExpose({
           />
         </div>
       </div>
-    </div>
-
-    <div class="query-actions" :class="`align-${layout.actionAlign || 'right'}`">
-      <button class="btn btn-primary" @click="handleSearch">查询</button>
-      <button class="btn btn-default" @click="handleReset">重置</button>
-      <button
-        v-if="canCollapse || expanded"
-        class="btn btn-link"
-        @click="toggleExpand"
-      >
-        {{ expanded ? '收起' : '展开' }}
-        <span class="expand-icon">{{ expanded ? '▲' : '▼' }}</span>
-      </button>
+      <div class="query-actions">
+        <button class="btn btn-primary" @click="handleSearch">查询</button>
+        <button class="btn btn-default" @click="handleReset">重置</button>
+      </div>
     </div>
   </div>
 </template>
@@ -296,17 +270,10 @@ defineExpose({
 
 .query-actions {
   display: flex;
+  align-items: center;
+  align-self: center;
   gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #e4e7ed;
-}
-
-.query-actions.align-right {
-  justify-content: flex-end;
-}
-
-.query-actions.align-left {
+  min-width: max-content;
   justify-content: flex-start;
 }
 
@@ -344,21 +311,6 @@ defineExpose({
   color: #409eff;
   border-color: #c6e2ff;
   background: #ecf5ff;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: #409eff;
-  padding: 8px 4px;
-}
-
-.btn-link:hover {
-  color: #66b1ff;
-}
-
-.expand-icon {
-  font-size: 10px;
 }
 
 /* 响应式 */

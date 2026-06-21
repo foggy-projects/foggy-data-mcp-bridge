@@ -60,7 +60,7 @@ const examples = [
           { field: 'salesDate$caption', op: '>=', value: '2024-12-01' },
           { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
         ],
-        orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+        orderBy: [{ field: 'salesDate$caption', dir: 'desc' }]
       }
     }
   },
@@ -76,7 +76,7 @@ const examples = [
           { field: 'orderDate$caption', op: '>=', value: '2024-12-01' },
           { field: 'orderDate$caption', op: '<', value: '2024-12-31' }
         ],
-        orderBy: [{ field: 'orderTime', order: 'desc' }]
+        orderBy: [{ field: 'orderTime', dir: 'desc' }]
       }
     }
   },
@@ -91,7 +91,7 @@ const examples = [
         slice: [
           { field: 'status', op: '=', value: '正常' }
         ],
-        orderBy: [{ field: 'productName', order: 'asc' }]
+        orderBy: [{ field: 'productName', dir: 'asc' }]
       }
     }
   },
@@ -106,7 +106,7 @@ const examples = [
         slice: [
           { field: 'memberLevel', op: '=', value: 'VIP' }
         ],
-        orderBy: [{ field: 'customerName', order: 'asc' }]
+        orderBy: [{ field: 'customerName', dir: 'asc' }]
       }
     }
   },
@@ -123,7 +123,7 @@ const examples = [
           { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
         ],
         groupBy: [{ field: 'store$id' }],
-        orderBy: [{ field: 'salesAmount', order: 'desc' }]
+        orderBy: [{ field: 'salesAmount', dir: 'desc' }]
       }
     }
   }

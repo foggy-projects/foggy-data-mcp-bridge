@@ -3,6 +3,10 @@ package com.foggyframework.dataset.db.model.semantic.member;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.MemberPermissionDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.MemberPermissionPatchDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.MemberPermissionSliceDef;
 import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.DbProperty;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
@@ -154,6 +158,8 @@ public class SyntheticMemberQueryModelResolver {
                         state);
             }
 
+            addPermissionPatchFields(dimension, fields, exposedFieldNames, "", state.rootBase, hierarchy, state);
+
             if (hierarchy) {
                 addHierarchyFields(fields, exposedFieldNames, "", state.rootBase, state);
             }
@@ -188,6 +194,8 @@ public class SyntheticMemberQueryModelResolver {
                         state);
             }
 
+            addPermissionPatchFields(dimension, fields, exposedFieldNames, relativePath, relativePath, hierarchy, state);
+
             if (hierarchy) {
                 addHierarchyFields(fields, exposedFieldNames, relativePath, relativePath, state);
             }
@@ -212,6 +220,60 @@ public class SyntheticMemberQueryModelResolver {
 
         registerNode(state, node, relativePath, root, effectiveName);
         return node;
+    }
+
+    private void addPermissionPatchFields(DbDimension dimension,
+                                          List<SyntheticMemberFieldSchema> fields,
+                                          Set<String> exposedFieldNames,
+                                          String nodePath,
+                                          String sourcePath,
+                                          boolean hierarchy,
+                                          SchemaBuildState state) {
+        for (String fieldName : collectPermissionPatchFields(dimension)) {
+            String normalized = normalizeFieldName(fieldName);
+            if (StringUtils.isEmpty(normalized)) {
+                continue;
+            }
+            String exposedName = StringUtils.isEmpty(nodePath)
+                    ? normalized
+                    : nodePath + FIELD_SEPARATOR + normalized;
+            if (state.fieldIndex.containsKey(exposedName)) {
+                continue;
+            }
+            addField(fields, exposedFieldNames, exposedName,
+                    sourceRef(sourcePath, normalized),
+                    nodePath,
+                    SyntheticMemberFieldKind.PROPERTY,
+                    true,
+                    hierarchy,
+                    state);
+        }
+    }
+
+    private Set<String> collectPermissionPatchFields(DbDimension dimension) {
+        if (!(dimension instanceof DbDimensionSupport support)
+                || support.getMemberPermission() == null
+                || support.getMemberPermission().getPatch() == null) {
+            return Set.of();
+        }
+        MemberPermissionDef permission = support.getMemberPermission();
+        MemberPermissionPatchDef patch = permission.getPatch();
+        LinkedHashSet<String> fields = new LinkedHashSet<>();
+        if (patch.getForcedSlice() != null) {
+            for (MemberPermissionSliceDef slice : patch.getForcedSlice()) {
+                if (slice != null && StringUtils.isNotEmpty(slice.getField())) {
+                    fields.add(slice.getField());
+                }
+            }
+        }
+        if (patch.getForcedOrderBy() != null) {
+            for (OrderRequestDef order : patch.getForcedOrderBy()) {
+                if (order != null && StringUtils.isNotEmpty(order.getField())) {
+                    fields.add(order.getField());
+                }
+            }
+        }
+        return fields;
     }
 
     private void addHierarchyFields(List<SyntheticMemberFieldSchema> fields,

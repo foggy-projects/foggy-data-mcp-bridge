@@ -167,7 +167,7 @@ describe('useTableQuery', () => {
       const query = useTableQuery(mockFetch)
 
       query.setSlice([{ field: 'name', op: 'like', value: 'test' }])
-      query.setSort([{ field: 'id', order: 'desc' }])
+      query.setSort([{ field: 'id', dir: 'desc' }])
       query.setPage(3, 25)
 
       await query.loadData()
@@ -176,7 +176,7 @@ describe('useTableQuery', () => {
         page: 3,
         pageSize: 25,
         slice: [{ field: 'name', op: 'like', value: 'test' }],
-        orderBy: [{ field: 'id', order: 'desc' }]
+        orderBy: [{ field: 'id', dir: 'desc' }]
       })
     })
   })
@@ -222,11 +222,18 @@ describe('useTableQuery', () => {
       expect(query.currentPageSize.value).toBe(100)
     })
 
-    it('setSort should update orderBy', () => {
+    it('setSort should update orderBy with backend dir format', () => {
       const query = useTableQuery(createMockFetch())
 
-      query.setSort([{ field: 'name', order: 'asc' }])
-      expect(query.currentOrderBy.value).toEqual([{ field: 'name', order: 'asc' }])
+      query.setSort([{ field: 'name', dir: 'asc' }])
+      expect(query.currentOrderBy.value).toEqual([{ field: 'name', dir: 'asc' }])
+    })
+
+    it('setSort should normalize legacy order format to backend dir format', () => {
+      const query = useTableQuery(createMockFetch())
+
+      query.setSort([{ field: 'name', order: 'desc' }])
+      expect(query.currentOrderBy.value).toEqual([{ field: 'name', dir: 'desc' }])
     })
 
     it('setSlice should update slice', () => {

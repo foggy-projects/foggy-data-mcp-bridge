@@ -169,6 +169,19 @@ function genQuerySchema(meta) {
     !f.calculated &&
     !(f.measure && !f.dictId)
   )
+  const explicitFormFields = Array.isArray(meta.defaults?.queryPanelFields)
+    ? meta.defaults.queryPanelFields
+    : Array.isArray(meta.defaults?.formFields)
+      ? meta.defaults.formFields
+      : Array.isArray(meta.defaults?.queryFields)
+        ? meta.defaults.queryFields
+        : []
+  const defaultSearchFields = Array.isArray(meta.defaults?.searchFields) ? meta.defaults.searchFields : []
+  const defaultFormFieldKeys = explicitFormFields.length > 0
+    ? explicitFormFields
+    : defaultSearchFields.slice(0, 1)
+  const queryFieldNames = new Set(queryFields.map(f => f.name))
+  const resolvedDefaultFormFieldKeys = defaultFormFieldKeys.filter(key => queryFieldNames.has(key))
 
   const lines = [
     `/**`,
@@ -217,9 +230,15 @@ function genQuerySchema(meta) {
   }
 
   lines.push(`]`, ``)
+  lines.push(`/** 默认顶部查询字段；未显式配置时只保留一个主查询键，其余字段走列头筛选 */`)
+  lines.push(`export const defaultFormFieldKeys = ${JSON.stringify(resolvedDefaultFormFieldKeys)}`)
+  lines.push(``)
   lines.push(`/** 查询 Schema */`)
   lines.push(`export const querySchema = {`)
-  lines.push(`  fields: queryFields.filter(f => f.placement === 'form'),`)
+  lines.push(`  fields: defaultFormFieldKeys`)
+  lines.push(`    .map(key => queryFields.find(field => field.key === key))`)
+  lines.push(`    .filter((field): field is (typeof queryFields)[number] => Boolean(field))`)
+  lines.push(`    .map((field, index) => ({ ...field, placement: 'form' as const, order: index + 1, span: field.span ?? 1 })),`)
   lines.push(`  submitMode: 'manual' as const,`)
   lines.push(`  collapsible: true,`)
   lines.push(`  defaultExpanded: true,`)
@@ -283,7 +302,7 @@ function genVue(meta) {
 <script setup lang="ts">
 import { computed } from 'vue'
 import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
-import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode } from 'foggy-data-viewer'
+import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
 import { querySchema } from './${prefix}.query.schema'
 import { query${prefix} } from './${prefix}.api'
@@ -302,6 +321,7 @@ const props = withDefaults(defineProps<{
   columnOverrides?: Record<string, BusinessColumnOverride>
   queryHooks?: QueryHooks
   queryMode?: QueryMode
+  querySchemaOverride?: QuerySchema
   showQueryPanel?: boolean
 }>(), { showQueryPanel: false })
 
@@ -327,7 +347,7 @@ const mergedSchema = computed(() => {
   <DataTableWithSearch
     :schema="mergedSchema"
     :fetch-data="query${prefix}"
-    :query-schema="querySchema"
+    :query-schema="props.querySchemaOverride ?? querySchema"
     :query-mode="queryMode"
     :show-query-panel="showQueryPanel"
     :qm-model="${constName}"

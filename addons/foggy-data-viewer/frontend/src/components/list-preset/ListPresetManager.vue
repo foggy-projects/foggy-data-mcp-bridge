@@ -259,7 +259,7 @@ const conditionSummary = computed(() => {
 })
 const orderSummary = computed(() => {
   if (!form.value.saveQueryConditions) return []
-  return currentState.value.orderBy.slice(0, 3).map(order => `${order.field} ${order.order}`)
+  return currentState.value.orderBy.slice(0, 3).map(order => `${order.field} ${order.dir ?? order.order}`)
 })
 const filteredPresets = computed(() => {
   const kw = keyword.value.trim().toLowerCase()

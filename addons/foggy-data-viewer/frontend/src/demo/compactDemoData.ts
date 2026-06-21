@@ -88,9 +88,10 @@ function compareCompactSortValues(leftValue: unknown, rightValue: unknown, field
 
 export function sortCompactDemoRows(orderBy: OrderRequestDef[] = []): Record<string, unknown>[] {
   const sortDef = orderBy[0]
+  const sortDir = sortDef?.dir ?? sortDef?.order
   let items = [...compactDemoRows]
 
-  if (sortDef?.field && sortDef.order) {
+  if (sortDef?.field && sortDir) {
     items = items
       .map((row, index) => ({ row, index }))
       .sort((left, right) => {
@@ -105,7 +106,7 @@ export function sortCompactDemoRows(orderBy: OrderRequestDef[] = []): Record<str
         }
 
         const result = compareCompactSortValues(leftValue, rightValue, sortDef.field)
-        const orderedResult = sortDef.order === 'asc' ? result : -result
+        const orderedResult = sortDir === 'asc' ? result : -result
         return orderedResult || left.index - right.index
       })
       .map(item => item.row)

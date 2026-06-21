@@ -43,6 +43,18 @@ class SyntheticMemberQueryModelResolverTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("内部权限字段未声明为属性时仍进入 reserved schema")
+    void resolveHiddenPermissionFieldSchema() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesHiddenMemberPermQueryModel");
+
+        SyntheticMemberQueryModelDescriptor descriptor = resolver.resolve(queryModel,
+                "product$brand", null);
+
+        SyntheticMemberQueryModelSchema schema = descriptor.schema();
+        assertField(schema, "status", "product$status", SyntheticMemberFieldKind.PROPERTY, true, false);
+    }
+
+    @Test
     @DisplayName("嵌套维度可按根维度子树展开")
     void resolveNestedDimensionSchema() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesNestedDimQueryModel");

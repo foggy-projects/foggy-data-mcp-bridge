@@ -7,7 +7,8 @@ import type {
   ColumnSchema,
   FrontendMeta,
   MemberQueryRequest,
-  MemberQueryResponse
+  MemberQueryResponse,
+  OrderRequestDef
 } from '@/types'
 
 const apiClient = axios.create({
@@ -26,7 +27,7 @@ export interface QueryPayload {
   extData?: Record<string, unknown>
   slice: Array<{ field: string; op: string; value?: unknown }>
   groupBy?: Array<{ field: string; agg?: string }>
-  orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>
+  orderBy?: OrderRequestDef[]
   calculatedFields?: Array<{ name: string; expression: string; agg?: string }>
 }
 
