@@ -49,7 +49,7 @@ jobs:
           echo "tag_name=${TAG_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Runtime API targeted tests
-        run: mvn -pl foggy-runtime-api -Dtest=RuntimeCapabilitiesControllerEnabledTest test
+        run: mvn -pl foggy-runtime-api -am -Dtest=RuntimeCapabilitiesControllerEnabledTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 
       - name: Package Runtime API launcher
         run: |

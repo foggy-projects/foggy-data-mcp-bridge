@@ -63,7 +63,7 @@ if (-not $SkipTests) {
     Invoke-RepoCommand `
         -Name "Runtime API targeted tests" `
         -Command "mvn" `
-        -Arguments @("-pl", "foggy-runtime-api", "-Dtest=RuntimeCapabilitiesControllerEnabledTest", "test")
+        -Arguments @("-pl", "foggy-runtime-api", "-am", "-Dtest=RuntimeCapabilitiesControllerEnabledTest", "-DfailIfNoTests=false", "-Dsurefire.failIfNoSpecifiedTests=false", "test")
 }
 
 if (-not $SkipBuild) {

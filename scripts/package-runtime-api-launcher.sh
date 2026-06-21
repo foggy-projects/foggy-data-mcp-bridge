@@ -80,7 +80,7 @@ fi
 
 if [[ "$SKIP_TESTS" -eq 0 ]]; then
   echo "==> Runtime API targeted tests"
-  mvn -pl foggy-runtime-api -Dtest=RuntimeCapabilitiesControllerEnabledTest test
+  mvn -pl foggy-runtime-api -am -Dtest=RuntimeCapabilitiesControllerEnabledTest -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false test
 fi
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
