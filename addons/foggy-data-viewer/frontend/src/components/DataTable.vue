@@ -1827,6 +1827,172 @@ provide('dataTableContext', {
 }
 
 /*
+ * Header and body slot content is rendered inside vxe-grid. Keep the visual
+ * contract available without scoped attributes so cached host CSS/JS skew does
+ * not break headers, sort arrows, or hover copy controls.
+ */
+.data-table .data-table-cell-text {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table .vxe-body-cell--wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+.data-table .data-table-copyable-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-right: 24px;
+}
+
+.data-table .cell-copy-button {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  height: 18px;
+  padding: 0;
+  line-height: 1;
+  color: #b8bcc4;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  outline: none;
+  box-sizing: border-box;
+  opacity: 0.78;
+  transform: translateY(-50%);
+  transition:
+    color 120ms ease,
+    opacity 120ms ease,
+    background-color 120ms ease;
+}
+
+.data-table .cell-copy-button:hover {
+  color: #8d939d;
+  background: rgba(144, 147, 153, 0.08);
+  opacity: 1;
+}
+
+.data-table .cell-copy-button:active {
+  color: #6b7280;
+  background: rgba(144, 147, 153, 0.12);
+}
+
+.data-table .cell-copy-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  pointer-events: none;
+}
+
+.data-table .column-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 60px;
+  max-height: 60px;
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+.data-table .column-title {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 18px;
+  box-sizing: border-box;
+  gap: 3px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table.data-table--compact .column-header-wrapper {
+  height: 48px;
+  max-height: 48px;
+  padding: 2px 0;
+}
+
+.data-table.data-table--compact .column-title {
+  min-height: 16px;
+  margin-bottom: 3px;
+}
+
+.data-table .column-title:hover {
+  color: #409eff;
+}
+
+.data-table .title-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table .column-help-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  line-height: 1;
+  cursor: help;
+}
+
+.data-table .column-help-svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.data-table .sort-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 16px;
+  margin-left: auto;
+  line-height: 1;
+}
+
+.data-table .sort-icon-svg {
+  display: block;
+  width: 24px;
+  height: 14px;
+  overflow: visible;
+}
+
+.data-table .column-title:hover .sort-arrow:not(.active) {
+  fill: #606266;
+}
+
+/*
  * Header slot content is rendered inside vxe-grid. In some host apps Vue scoped
  * attributes are not preserved on that slot subtree, so these styles must not
  * rely on DataTable.vue's scoped data-v attribute.
