@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import type { PropType } from 'vue'
 import DataTable from './DataTable.vue'
-import type { EnhancedColumnSchema, SliceRequestDef } from '@/types'
+import type { CellRenderContext, EnhancedColumnSchema, SliceRequestDef } from '@/types'
 
 const elMessageWarning = vi.hoisted(() => vi.fn())
 
@@ -324,8 +324,8 @@ describe('DataTable', () => {
       expect(wrapper.exists()).toBe(true)
     })
 
-    it('should handle custom render', () => {
-      const render = ({ value }: { value: unknown }) => h('span', { class: 'custom' }, String(value))
+    it('should handle custom render with row, value and column context', () => {
+      const render = vi.fn(({ value, column }: CellRenderContext) => h('span', { class: 'custom' }, `${column.name}:${String(value)}`))
       const columnsWithRender: EnhancedColumnSchema[] = [
         {
           name: 'status',
@@ -342,10 +342,15 @@ describe('DataTable', () => {
           total: 1,
           loading: false
         },
-        ...globalConfig
+        ...renderGridConfig
       })
 
-      expect(wrapper.exists()).toBe(true)
+      expect(wrapper.find('.custom').text()).toBe('status:active')
+      expect(render).toHaveBeenCalledWith(expect.objectContaining({
+        row: { status: 'active' },
+        value: 'active',
+        column: expect.objectContaining({ name: 'status' })
+      }))
     })
   })
 

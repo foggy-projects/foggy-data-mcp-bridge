@@ -5,7 +5,7 @@
 ### 1. 核心功能实现
 
 ✅ **类型定义** (`src/types/index.ts`)
-- `ColumnCustomization` - 列定制配置
+- `ColumnCustomization` / `CellRenderContext` - 列定制与单元格渲染上下文
 - `EnhancedColumnSchema` - 增强列配置
 - `TableConfig` - 表格配置
 
@@ -17,7 +17,7 @@
 ✅ **DataTable 组件增强** (`src/components/DataTable.vue`)
 - 支持 `width`, `minWidth`, `fixed` 列配置
 - 支持 `customFormatter` - 用于导出
-- 支持 `customRender` - 用于显示
+- 支持 `customRender` / `column-*` 插槽 - 用于显示与业务交互型单元格
 - 支持 `customFilterComponent` - 自定义过滤器
 
 ### 2. 文档
@@ -193,7 +193,7 @@ onMounted(async () => {
 | 属性 | 用途 | 返回值 | 影响范围 | 修改原始数据 |
 |------|------|--------|----------|------------|
 | **formatter** | 数据格式化 | `string` | 显示 + 导出 | ❌ 否 |
-| **render** | 自定义渲染 | `VNode \| string` | 仅显示 | ❌ 否 |
+| **render** | 自定义渲染 | 渲染结果 | 仅显示 | ❌ 否 |
 
 ### 关键规则
 

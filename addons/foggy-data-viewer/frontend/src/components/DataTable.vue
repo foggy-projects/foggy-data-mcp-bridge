@@ -1103,7 +1103,7 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
       colConfig.slots = {
         ...colConfig.slots as object,
         default: ({ row }: { row: Record<string, unknown> }) => {
-          return col.customRender!({ row, value: row[col.name] })
+          return col.customRender!({ row, value: row[col.name], column: col })
         }
       }
     } else {

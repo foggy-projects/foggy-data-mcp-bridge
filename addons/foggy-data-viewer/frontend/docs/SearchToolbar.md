@@ -284,7 +284,7 @@ DataTableWithSearch 支持透传所有 vxe-table 的属性和事件：
 
 ### 插槽透传
 
-DataTableWithSearch 会透传所有插槽到 DataTable：
+DataTableWithSearch 会透传标准插槽，以及 `column-*` / `filter-*` 动态插槽到底层 DataTable：
 
 ```vue
 <DataTableWithSearch
@@ -294,8 +294,10 @@ DataTableWithSearch 会透传所有插槽到 DataTable：
   :loading="loading"
 >
   <!-- 自定义列内容 -->
-  <template #column-status="{ row, value }">
-    <span :class="`status-${value}`">{{ value }}</span>
+  <template #column-status="{ row, value, column }">
+    <button type="button" class="status-link" @click.stop="openStatus(row, column)">
+      {{ value || '-' }}
+    </button>
   </template>
 
   <!-- 自定义过滤器 -->
@@ -308,6 +310,23 @@ DataTableWithSearch 会透传所有插槽到 DataTable：
     <div class="custom-empty">暂无数据</div>
   </template>
 </DataTableWithSearch>
+```
+
+插槽规则：
+- `column-{field}`：覆盖指定字段的单元格内容，参数为 `{ row, value, column }`。
+- `filter-{field}`：覆盖指定字段的表头筛选器，参数包含 `{ column, field, modelValue, onChange, onCommit }`。
+- `toolbar`、`toolbar-right`、`footer`、`empty`、`row-actions` 为标准插槽，其中 `row-actions` 会映射为固定在右侧的操作列。
+
+`foggy-gen` 生成的 QueryTable wrapper 也会透传 `column-*` / `filter-*` 动态插槽。业务页使用生成组件时，可以直接写：
+
+```vue
+<OrderQueryTable>
+  <template #column-orderNo="{ row, value }">
+    <button type="button" class="link-cell" @click.stop="openOrder(row)">
+      {{ value || '-' }}
+    </button>
+  </template>
+</OrderQueryTable>
 ```
 
 ---

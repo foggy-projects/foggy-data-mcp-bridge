@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { h } from 'vue'
 import DataTableWithSearch from './DataTableWithSearch.vue'
 import type { EnhancedColumnSchema, SliceRequestDef, ListViewState } from '@/types'
 
@@ -52,7 +53,7 @@ vi.mock('./QueryPanel.vue', () => ({
 vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
-    template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="toolbar-right" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot /></div>',
+    template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="toolbar-right" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot name="column-name" :row="{ name: \'Test 1\' }" :column="{ name: \'name\' }" value="Test 1" /><slot /></div>',
     props: ['columns', 'data', 'total', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'density'],
     emits: ['page-change', 'sort-change', 'filter-change', 'filter-commit', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
@@ -1390,6 +1391,18 @@ describe('DataTableWithSearch', () => {
 
       expect(wrapper.exists()).toBe(true)
       expect(wrapper.find('.custom-footer').exists()).toBe(true)
+    })
+
+    it('should pass dynamic column slots through to DataTable', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps,
+        slots: {
+          'column-name': ({ value }: { value: unknown }) => h('button', { class: 'name-link-cell' }, String(value))
+        }
+      })
+
+      expect(wrapper.find('.name-link-cell').exists()).toBe(true)
+      expect(wrapper.find('.name-link-cell').text()).toBe('Test 1')
     })
   })
 

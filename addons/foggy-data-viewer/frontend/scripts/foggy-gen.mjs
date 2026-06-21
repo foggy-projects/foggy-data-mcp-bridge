@@ -300,7 +300,7 @@ function genVue(meta) {
   ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改
 -->
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useSlots } from 'vue'
 import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
 import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
@@ -311,8 +311,20 @@ import { ${constName} } from './${prefix}.types'
 interface BusinessColumnOverride {
   title?: string; width?: number | string; hidden?: boolean
   order?: number; formatter?: (value: unknown) => string
+  render?: EnhancedColumnSchema['customRender']
   uiConfig?: Record<string, unknown>
 }
+
+const slots = useSlots()
+const dynamicSlots = computed(() => {
+  const result: Record<string, unknown> = {}
+  for (const name of Object.keys(slots)) {
+    if (name.startsWith('column-') || name.startsWith('filter-')) {
+      result[name] = slots[name]
+    }
+  }
+  return result
+})
 
 const props = withDefaults(defineProps<{
   globalParams?: Record<string, unknown>
@@ -335,6 +347,7 @@ const mergedSchema = computed(() => {
         if (ov.hidden) return null
         return { ...col, ...(ov.title && { title: ov.title }), ...(ov.width && { width: ov.width }),
           ...(ov.formatter && { customFormatter: ov.formatter }),
+          ...(ov.render && { customRender: ov.render }),
           ...(ov.uiConfig && { uiConfig: { ...col.uiConfig, ...ov.uiConfig } }) }
       })
       .filter(Boolean) as EnhancedColumnSchema[]
@@ -360,6 +373,9 @@ const mergedSchema = computed(() => {
     </template>
     <template v-if="$slots['row-actions']" #row-actions="scope">
       <slot name="row-actions" v-bind="scope" />
+    </template>
+    <template v-for="(_, name) in dynamicSlots" :key="name" #[name]="scope">
+      <slot :name="name" v-bind="scope || {}" />
     </template>
   </DataTableWithSearch>
 </template>

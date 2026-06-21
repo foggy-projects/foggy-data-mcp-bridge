@@ -142,10 +142,18 @@ export interface ColumnCustomization {
   width?: number
   minWidth?: number
   fixed?: 'left' | 'right'
-  render?: (params: { row: Record<string, unknown>; value: unknown }) => unknown
+  render?: CellRenderFn
   filterComponent?: unknown
   formatter?: (value: unknown) => string
 }
+
+export interface CellRenderContext {
+  row: Record<string, unknown>
+  value: unknown
+  column: EnhancedColumnSchema
+}
+
+export type CellRenderFn = (params: CellRenderContext) => unknown
 
 /**
  * 增强的列配置（合并 QM schema 和前端定制）
@@ -154,7 +162,7 @@ export interface EnhancedColumnSchema extends ColumnSchema {
   width?: number
   minWidth?: number
   fixed?: 'left' | 'right'
-  customRender?: (params: { row: Record<string, unknown>; value: unknown }) => unknown
+  customRender?: CellRenderFn
   customFilterComponent?: unknown
   customFormatter?: (value: unknown) => string
 }

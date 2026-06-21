@@ -11,7 +11,7 @@
   - **不会修改原始数据**
 
 - **render**: 用于自定义渲染，仅影响**前端显示**
-  - 返回值：`VNode | string`
+  - 返回值：渲染结果（通常是 `VNode` 或字符串）
   - 使用场景：添加图标、颜色、特殊样式等
   - 示例：`render: ({ value }) => h('span', { style: { color: 'red' } }, value)`
   - **不会修改原始数据**
@@ -136,5 +136,5 @@ const columns = buildTableColumns(qmSchema, config)
 | minWidth | number | 最小列宽 |
 | fixed | 'left' \| 'right' | 固定列 |
 | formatter | (value) => string | 格式化函数（用于导出） |
-| render | ({ row, value }) => VNode \| string | 渲染函数（用于显示） |
+| render | ({ row, value, column }) => unknown | 渲染函数（用于显示） |
 | filterComponent | Component | 自定义过滤器组件 |

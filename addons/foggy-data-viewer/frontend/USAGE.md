@@ -320,7 +320,89 @@ mvn test -pl addons/foggy-data-viewer -Dtest=MongoListPresetStoreIntegrationTest
 - 如果你的列配置中已包含 `_actions` 列，不会重复注入，使用你的配置
 - 已有的 `column-actions` 用法（裸 DataTable 自定义列）仍然兼容
 
-## 七、选中行 API
+## 七、列内容自定义
+
+### 7.1 使用 `column-*` 插槽渲染可点击单元格
+
+业务页面需要把某一列渲染成“看起来像链接，并由业务页决定点击行为”时，推荐使用 `#column-{field}` 插槽。插槽参数为 `{ row, value, column }`。
+
+```vue
+<script setup lang="ts">
+function openOrder(row: Record<string, unknown>) {
+  // 可在这里打开详情弹窗、路由跳转，或调用上游业务逻辑
+}
+</script>
+
+<template>
+  <DataTableWithSearch
+    :columns="columns"
+    :data="data"
+    :total="total"
+    :loading="loading"
+  >
+    <template #column-orderNo="{ row, value }">
+      <button type="button" class="table-link-cell" @click.stop="openOrder(row)">
+        {{ value || '-' }}
+      </button>
+    </template>
+  </DataTableWithSearch>
+</template>
+
+<style scoped>
+.table-link-cell {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2f7d5f;
+  font: inherit;
+  cursor: pointer;
+}
+
+.table-link-cell:hover {
+  color: #1f9d6a;
+  text-decoration: underline;
+}
+</style>
+```
+
+### 7.2 生成 QueryTable wrapper 的用法
+
+`foggy-gen` 生成的 QueryTable wrapper 会继续透传 `column-*` / `filter-*` 动态插槽，所以业务页可以直接在生成组件上定制列内容：
+
+```vue
+<VehicleCapacityProfileManagementQueryTable
+  :global-params="globalParams"
+  :custom-params="customParams"
+>
+  <template #column-profileName="{ row, value }">
+    <button type="button" class="table-link-cell" @click.stop="openProfile(row)">
+      {{ value || '-' }}
+    </button>
+  </template>
+</VehicleCapacityProfileManagementQueryTable>
+```
+
+### 7.3 使用 `render` 做纯展示渲染
+
+如果只是加颜色、图标或标签，不需要把点击行为暴露给业务页，可以使用 `ColumnCustomization.render`，或在生成组件的 `columnOverrides[field].render` 中配置：
+
+```typescript
+import { h } from 'vue'
+
+const columnOverrides = {
+  status: {
+    render: ({ value, column }) => h(
+      'span',
+      { class: value === 'enabled' ? 'status-ok' : 'status-muted' },
+      `${column.title}: ${String(value ?? '-')}`
+    )
+  }
+}
+```
+
+选择原则：交互型单元格优先用 `column-*` 插槽；纯展示型单元格可以用 `render`。
+
+## 八、选中行 API
 
 `DataTable` 和 `DataTableWithSearch` 都提供以下方法（通过组件 ref 调用）：
 
@@ -354,11 +436,11 @@ function handleBatchDelete() {
 | `getSelectedCount()` | `number` | 当前选中行数量 |
 | `clearSelection()` | `void` | 清空所有选中行 |
 
-## 八、表格高度设置
+## 九、表格高度设置
 
 DataTable 默认使用 `height: '100%'`，要求**父容器有明确的高度约束**。以下是两种常见场景的推荐写法。
 
-### 8.1 固定像素高度
+### 9.1 固定像素高度
 
 最简单的方式，直接给容器设固定高度：
 
@@ -376,7 +458,7 @@ DataTable 默认使用 `height: '100%'`，要求**父容器有明确的高度约
 <DataTable :columns="columns" :data="data" :total="total" :loading="loading" :height="500" />
 ```
 
-### 8.2 填满剩余空间（flex 布局）
+### 9.2 填满剩余空间（flex 布局）
 
 当表格位于页面主内容区、需要自动填满剩余高度时，需要保证**从页面根到表格容器的完整 flex 高度链路**：
 
@@ -401,6 +483,6 @@ DataTable 默认使用 `height: '100%'`，要求**父容器有明确的高度约
 - 百分比高度 `height: 100%` 依赖所有祖先节点都有明确高度，否则不会生效
 - 组件**不承诺**在无高度约束的容器中自动铺满
 
-## 九、完整示例
+## 十、完整示例
 
 参考 `addons/foggy-data-viewer/verification-app/src/App.vue`

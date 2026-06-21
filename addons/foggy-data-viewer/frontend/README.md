@@ -8,7 +8,7 @@
 - 📊 **动态列配置** - 基于 QM Schema + TableConfig 的灵活列配置
 - 🔍 **高级筛选** - 支持多种数据类型的筛选器（表头过滤 + 独立搜索工具栏）
 - 📈 **汇总行** - 自动计算选中行和全量汇总
-- 🎨 **自定义渲染** - 支持自定义格式化和渲染函数
+- 🎨 **自定义渲染** - 支持 `column-*` 插槽、自定义格式化和渲染函数
 - 🔧 **组合组件** - 提供 SearchToolbar + DataTable 的组合组件
 - ✅ **高测试覆盖** - 核心组件覆盖率 90%+
 - 📦 **按需引入** - ES Module 支持
@@ -187,23 +187,99 @@ function buildTableColumns(
 **返回：**
 - `EnhancedColumnSchema[]` - 增强的列配置数组
 
+## 列内容自定义
+
+### `column-*` 插槽（推荐用于交互）
+
+当业务列需要渲染成链接、按钮，或点击后交给上游页面打开详情、编辑弹窗时，推荐使用 `#column-{field}` 插槽。插槽参数为 `{ row, value, column }`。
+
+```vue
+<script setup lang="ts">
+function openDetail(row: Record<string, unknown>) {
+  // 由业务系统决定跳转、弹窗或其他处理方式
+}
+</script>
+
+<template>
+  <DataTableWithSearch
+    :columns="columns"
+    :data="data"
+    :total="total"
+    :loading="loading"
+  >
+    <template #column-name="{ row, value }">
+      <button type="button" class="link-cell" @click.stop="openDetail(row)">
+        {{ value || '-' }}
+      </button>
+    </template>
+  </DataTableWithSearch>
+</template>
+```
+
+`foggy-gen` 生成的 QueryTable wrapper 也会透传 `column-*` / `filter-*` 动态插槽，因此业务页可以直接在生成组件上写同样的插槽：
+
+```vue
+<VehicleCapacityProfileManagementQueryTable>
+  <template #column-profileName="{ row, value }">
+    <button type="button" class="link-cell" @click.stop="openProfile(row)">
+      {{ value || '-' }}
+    </button>
+  </template>
+</VehicleCapacityProfileManagementQueryTable>
+```
+
+### `render` 函数（适合纯展示）
+
+如果只是添加颜色、图标、标签等展示效果，也可以通过 `ColumnCustomization.render` 或生成组件的 `columnOverrides[field].render` 配置渲染函数：
+
+```typescript
+import { h } from 'vue'
+import { buildTableColumns } from 'foggy-data-viewer'
+
+const columns = buildTableColumns(qmSchema, {
+  visibleColumns: ['name', 'status'],
+  customizations: [
+    {
+      name: 'status',
+      render: ({ value, column }) => h(
+        'span',
+        { class: value === 'active' ? 'status-ok' : 'status-muted' },
+        `${column.title}: ${String(value ?? '-')}`
+      )
+    }
+  ]
+})
+```
+
+选择原则：需要绑定业务事件时优先用 `column-*` 插槽；只改显示内容时使用 `render` 更轻。
+
 ## 类型定义
 
 ```typescript
+import type { Component } from 'vue'
+
 interface ColumnSchema {
   name: string
   type: string
   title: string
 }
 
+interface CellRenderContext {
+  row: Record<string, unknown>
+  value: unknown
+  column: EnhancedColumnSchema
+}
+
+type CellRenderFn = (params: CellRenderContext) => unknown
+
 interface ColumnCustomization {
   name: string
   width?: number
   minWidth?: number
   fixed?: 'left' | 'right'
-  formatter?: (value: any) => string
-  render?: (params: any) => VNode
-  filterComponent?: Component
+  formatter?: (value: unknown) => string
+  render?: CellRenderFn
+  filterComponent?: Component | unknown
 }
 
 interface TableConfig {
@@ -216,9 +292,9 @@ interface EnhancedColumnSchema extends ColumnSchema {
   width?: number
   minWidth?: number
   fixed?: 'left' | 'right'
-  customFormatter?: (value: any) => string
-  customRender?: (params: any) => VNode
-  customFilterComponent?: Component
+  customFormatter?: (value: unknown) => string
+  customRender?: CellRenderFn
+  customFilterComponent?: Component | unknown
 }
 ```
 

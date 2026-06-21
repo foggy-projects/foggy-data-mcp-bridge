@@ -197,7 +197,7 @@ interface ColumnCustomization {
   minWidth?: number         // 最小列宽
   fixed?: 'left' | 'right'  // 固定列
   formatter?: (value: unknown) => string  // 格式化器（用于导出）
-  render?: (params: { row: Record<string, unknown>; value: unknown }) => VNode | string  // 渲染器（用于显示）
+  render?: (params: { row: Record<string, unknown>; value: unknown; column: EnhancedColumnSchema }) => unknown  // 渲染器（用于显示）
   filterComponent?: Component  // 自定义过滤器组件
 }
 ```
@@ -207,7 +207,7 @@ interface ColumnCustomization {
 | 属性 | 用途 | 返回值 | 影响范围 | 修改原始数据 |
 |------|------|--------|----------|------------|
 | **formatter** | 数据格式化 | `string` | 显示 + 导出 | ❌ 否 |
-| **render** | 自定义渲染 | `VNode \| string` | 仅显示 | ❌ 否 |
+| **render** | 自定义渲染 | `unknown` | 仅显示 | ❌ 否 |
 
 **关键点**：
 - formatter 和 render **都不会修改原始数据**

@@ -110,6 +110,8 @@ export type {
   EnhancedColumnSchema,
   TableConfig,
   TableSchema,
+  CellRenderContext,
+  CellRenderFn,
   CellCopyConfig,
   QueryMode,
   ColumnCustomization,

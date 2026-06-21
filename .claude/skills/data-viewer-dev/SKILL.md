@@ -54,6 +54,14 @@ description: 开发和维护 foggy-data-viewer Vue 3 组件库（DataTable、Com
 ```
 用户手动管理所有状态。
 
+### 列内容扩展点
+
+业务方有两种方式定制单元格显示：
+- `#column-{field}` 插槽：推荐用于可点击链接、按钮、跳转、弹窗等交互型单元格；插槽参数为 `{ row, value, column }`。
+- `ColumnCustomization.render` / 生成组件 `columnOverrides[field].render`：适合纯展示型 VNode 渲染；函数参数同样为 `{ row, value, column }`。
+
+`DataTableWithSearch` 和 `foggy-gen` 生成的 QueryTable wrapper 必须透传 `column-*` / `filter-*` 动态插槽。修改这一链路时，需要同步更新 `scripts/foggy-gen.mjs`、`scripts/foggy-gen.test.ts`、`DataTableWithSearch.test.ts`，并在至少一个上游生成组件中验证业务 slot 没有被 wrapper 截断。
+
 ## 执行流程
 
 1. **分析需求** - 读取相关组件代码，确定修改范围
@@ -119,6 +127,7 @@ app.use(ElementPlus, { locale: zhCn })
 - 添加新 Composable → 在 `composables/` 创建，在 `index.ts` 导出
 - 添加新类型 → 在 `types/index.ts` 定义，在 `index.ts` 导出
 - 修改 Props/Events → 更新对应测试和 README
+- 修改列渲染/插槽扩展点 → 同步更新 README、USAGE、SearchToolbar 文档和生成器模板测试
 - verification-app 报错 → 先执行 `npm run build:lib` 重新构建
 
 ## 已知陷阱
@@ -137,6 +146,9 @@ app.use(ElementPlus, { locale: zhCn })
 
 ### 构建后生效
 修改 frontend 代码后，**必须 `npm run build:lib`** 才能在 verification-app 生效。
+
+### 生成 wrapper 截断动态插槽
+业务页面写了 `#column-name` / `#filter-name` 但没有生效时，优先检查生成的 QueryTable wrapper 是否通过 `useSlots()` 透传了 `column-*` / `filter-*` 动态插槽。`DataTableWithSearch` 本身支持动态透传，问题通常出在上层生成组件。
 
 ## Composables 清单
 
@@ -166,6 +178,6 @@ app.use(ElementPlus, { locale: zhCn })
 - `FetchDataParams`, `FetchDataResult`, `FetchDataFn`
 - `SliceRequestDef`, `OrderRequestDef`
 - `PaginationState`, `SortState`
-- `TableConfig`, `ColumnCustomization`
+- `TableConfig`, `ColumnCustomization`, `CellRenderContext`, `CellRenderFn`
 - `QueryHooks`, `QueryHookContext`, `QueryTrigger`, `QueryHookName`
 - `BeforeQueryHookFn`, `AfterQueryHookFn`, `ErrorQueryHookFn`
