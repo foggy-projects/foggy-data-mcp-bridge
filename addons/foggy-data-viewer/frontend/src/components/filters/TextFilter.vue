@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: SliceRequestDef[] | null): void
+  (e: 'commit', value: SliceRequestDef[] | null): void
 }>()
 
 const inputValue = ref('')
@@ -22,6 +23,7 @@ const containerRef = ref<HTMLElement>()
 const inputWrapperRef = ref<HTMLElement>()
 const dropdownRef = ref<HTMLElement>()
 const highlightIndex = ref(0)
+const isComposing = ref(false)
 
 // 下拉框位置（Teleport 到 body）
 const dropdownStyle = ref<Record<string, string>>({})
@@ -59,17 +61,38 @@ const operatorOptions = computed(() => {
   if (!val) return []
 
   return [
-    { op: '=', label: `等于：${val}` },
     { op: 'right_like', label: `左匹配：${val}***` },
+    { op: '=', label: `等于：${val}` },
     { op: 'in', label: `批量查找：${val}` }
   ]
 })
+
+function buildSlice(op: string): SliceRequestDef | null {
+  const val = inputValue.value.trim()
+  if (!val) return null
+
+  if (op === 'in') {
+    const values = val.split(/[,，\s]+/).filter(v => v.trim())
+    if (values.length === 1) {
+      return { field: props.field, op: '=', value: values[0] }
+    }
+    return { field: props.field, op: 'in', value: values }
+  }
+
+  return { field: props.field, op, value: val }
+}
+
+function emitDraft() {
+  const slice = buildSlice('right_like')
+  emit('update:modelValue', slice ? [slice] : null)
+}
 
 function onInput() {
   if (inputValue.value.trim()) {
     updateDropdownPosition()
     showDropdown.value = true
     highlightIndex.value = 0
+    emitDraft()
   } else {
     showDropdown.value = false
     emit('update:modelValue', null)
@@ -77,34 +100,23 @@ function onInput() {
 }
 
 function selectOperator(op: string) {
-  const val = inputValue.value.trim()
-  if (!val) return
-
-  let slice: SliceRequestDef
-
-  if (op === 'in') {
-    // 批量查找：按分隔符分割
-    const values = val.split(/[,，\s]+/).filter(v => v.trim())
-    if (values.length === 1) {
-      // 只有一个值，改用 =
-      slice = { field: props.field, op: '=', value: values[0] }
-    } else {
-      slice = { field: props.field, op: 'in', value: values }
-    }
-  } else {
-    slice = { field: props.field, op, value: val }
-  }
+  const slice = buildSlice(op)
+  if (!slice) return
 
   emit('update:modelValue', [slice])
+  emit('commit', [slice])
   showDropdown.value = false
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (isComposing.value || e.isComposing) {
+    return
+  }
+
   if (!showDropdown.value || operatorOptions.value.length === 0) {
     if (e.key === 'Enter' && inputValue.value.trim()) {
-      updateDropdownPosition()
-      showDropdown.value = true
-      highlightIndex.value = 0
+      e.preventDefault()
+      selectOperator('right_like')
     }
     return
   }
@@ -132,6 +144,16 @@ function clear() {
   inputValue.value = ''
   showDropdown.value = false
   emit('update:modelValue', null)
+  emit('commit', null)
+}
+
+function handleCompositionStart() {
+  isComposing.value = true
+}
+
+function handleCompositionEnd() {
+  isComposing.value = false
+  onInput()
 }
 
 // 点击外部关闭下拉
@@ -162,6 +184,8 @@ onUnmounted(() => {
         :placeholder="placeholder"
         @input="onInput"
         @keydown="onKeydown"
+        @compositionstart="handleCompositionStart"
+        @compositionend="handleCompositionEnd"
         @focus="() => { if (inputValue.trim()) { updateDropdownPosition(); showDropdown = true } }"
       />
       <span v-if="inputValue" class="clear-btn" @click.stop="clear">×</span>

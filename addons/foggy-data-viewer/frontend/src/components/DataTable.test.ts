@@ -1,21 +1,29 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import type { PropType } from 'vue'
 import DataTable from './DataTable.vue'
-import type { EnhancedColumnSchema } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef } from '@/types'
 
 const elMessageWarning = vi.hoisted(() => vi.fn())
 
 vi.mock('element-plus', () => ({
   ElMessage: {
     warning: elMessageWarning
+  },
+  ElTooltip: {
+    name: 'ElTooltip',
+    props: ['content', 'placement', 'showAfter', 'teleported'],
+    render(this: { $slots: { default?: () => unknown } }) {
+      return this.$slots.default?.()
+    }
   }
 }))
 
 interface TestGridColumn {
   field?: string
   slots?: {
+    header?: () => unknown
     default?: (params: { row: Record<string, unknown>; column: TestGridColumn; cellValue: unknown }) => unknown
   }
 }
@@ -30,12 +38,23 @@ const VxeGridRenderStub = defineComponent({
     data: {
       type: Array as PropType<Record<string, unknown>[]>,
       default: () => []
+    },
+    size: {
+      type: String,
+      default: undefined
     }
   },
   emits: ['cellClick'],
   setup(props, { emit }) {
-    return () => h('div', { class: 'vxe-grid-render-stub' }, props.data.map((row, rowIndex) =>
-      h('div', { class: 'stub-row', 'data-row-index': String(rowIndex) }, props.columns
+    return () => h('div', { class: 'vxe-grid-render-stub' }, [
+      h('div', { class: 'stub-header' }, props.columns
+        .filter(column => column.field)
+        .map(column => h('div', {
+          class: ['stub-header-cell', `stub-header-cell-${String(column.field)}`]
+        }, column.slots?.header ? column.slots.header() : String(column.field ?? '')))
+      ),
+      ...props.data.map((row, rowIndex) =>
+        h('div', { class: 'stub-row', 'data-row-index': String(rowIndex) }, props.columns
         .filter(column => column.field)
         .map(column => h('div', {
           class: ['stub-cell', `stub-cell-${String(column.field)}`],
@@ -45,7 +64,8 @@ const VxeGridRenderStub = defineComponent({
           : String(row[column.field as string] ?? '')
         ))
       )
-    ))
+      )
+    ])
   }
 })
 
@@ -99,12 +119,18 @@ describe('DataTable', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    document.body.innerHTML = ''
     Object.defineProperty(navigator, 'clipboard', {
       value: {
         writeText: vi.fn().mockResolvedValue(undefined)
       },
       configurable: true
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
   })
 
   describe('Basic Rendering', () => {
@@ -138,6 +164,57 @@ describe('DataTable', () => {
       // vxe-table 会显示 loading 状态
     })
 
+    it('should show background loading status next to pager after delay', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          backgroundLoading: true,
+          backgroundLoadingText: '正在筛选...'
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.find('.data-table-query-status').exists()).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(150)
+      await vi.advanceTimersByTimeAsync(1)
+      await wrapper.vm.$nextTick()
+
+      const status = wrapper.find('.data-table-query-status')
+      expect(status.exists()).toBe(true)
+      expect(status.classes()).toContain('is-visible')
+      expect(status.text()).toContain('正在筛选...')
+      expect(wrapper.find('.data-table-progress-line').classes()).toContain('is-visible')
+    })
+
+    it('should avoid pager-side status when pager is hidden and no toolbar anchor exists', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          showPager: false,
+          backgroundLoading: true,
+          backgroundLoadingText: '正在刷新...'
+        },
+        ...globalConfig
+      })
+
+      await vi.advanceTimersByTimeAsync(150)
+      await vi.advanceTimersByTimeAsync(1)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.data-table-query-status').exists()).toBe(false)
+      expect(wrapper.find('.data-table-progress-line').exists()).toBe(true)
+      expect(wrapper.find('.data-table-progress-line').classes()).toContain('is-visible')
+    })
+
     it('should render with empty data', () => {
       const wrapper = mount(DataTable, {
         props: {
@@ -150,6 +227,45 @@ describe('DataTable', () => {
       })
 
       expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should default vxe-grid to small size', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.findComponent(VxeGridRenderStub).props('size')).toBe('small')
+    })
+
+    it('should render column description help icon and sort arrows', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            { ...mockColumns[1], description: '字段说明内容' }
+          ],
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      const helpIcon = wrapper.find('.stub-header-cell-name .column-help-icon')
+      expect(helpIcon.exists()).toBe(true)
+      expect(helpIcon.find('.column-help-svg').exists()).toBe(true)
+      expect(helpIcon.text()).toBe('')
+      expect(helpIcon.attributes('title')).toBe('字段说明内容')
+      expect(helpIcon.attributes('aria-label')).toBe('字段说明内容')
+      expect(wrapper.find('.stub-header-cell-name .sort-icon-horizontal').exists()).toBe(true)
+      expect(wrapper.find('.stub-header-cell-name .sort-icon-svg').attributes('viewBox')).toBe('0 0 24 14')
+      expect(wrapper.find('.stub-header-cell-name .sort-arrow-asc').exists()).toBe(true)
+      expect(wrapper.find('.stub-header-cell-name .sort-arrow-desc').exists()).toBe(true)
     })
   })
 
@@ -284,36 +400,64 @@ describe('DataTable', () => {
   })
 
   describe('Sorting', () => {
-    it('should emit sort-change event when sorting', async () => {
+    it('should emit order from dedicated sort arrows without sorting local rows', async () => {
+      const data = [
+        { name: 'Gamma' },
+        { name: 'Alpha' },
+        { name: 'Beta' }
+      ]
+
       const wrapper = mount(DataTable, {
         props: {
-          columns: mockColumns,
-          data: mockData,
+          columns: [mockColumns[1]],
+          data,
           total: 3,
           loading: false
         },
-        ...globalConfig
+        ...renderGridConfig
       })
 
-      await wrapper.vm.$emit('sort-change', 'name', 'asc')
-      expect(wrapper.emitted('sort-change')).toBeTruthy()
+      expect(wrapper.findAll('.stub-cell-name').map(cell => cell.text())).toEqual(['Gamma', 'Alpha', 'Beta'])
+
+      await wrapper.find('.stub-header-cell-name .sort-arrow-control-asc').trigger('click')
+      await flushPromises()
+
       expect(wrapper.emitted('sort-change')?.[0]).toEqual(['name', 'asc'])
+      expect(wrapper.find('.stub-header-cell-name .sort-arrow-asc.active').exists()).toBe(true)
+      expect(wrapper.findAll('.stub-cell-name').map(cell => cell.text())).toEqual(['Gamma', 'Alpha', 'Beta'])
+
+      await wrapper.find('.stub-header-cell-name .sort-arrow-control-desc').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.emitted('sort-change')?.[1]).toEqual(['name', 'desc'])
+      expect(wrapper.find('.stub-header-cell-name .sort-arrow-desc.active').exists()).toBe(true)
+      expect(wrapper.findAll('.stub-cell-name').map(cell => cell.text())).toEqual(['Gamma', 'Alpha', 'Beta'])
     })
 
-    it('should emit sort-change with null when clearing sort', async () => {
+    it('should clear sort when clicking the active arrow again', async () => {
+      const data = [
+        { name: 'Gamma' },
+        { name: 'Alpha' },
+        { name: 'Beta' }
+      ]
+
       const wrapper = mount(DataTable, {
         props: {
-          columns: mockColumns,
-          data: mockData,
+          columns: [mockColumns[1]],
+          data,
           total: 3,
           loading: false
         },
-        ...globalConfig
+        ...renderGridConfig
       })
 
-      await wrapper.vm.$emit('sort-change', null, null)
-      expect(wrapper.emitted('sort-change')).toBeTruthy()
-      expect(wrapper.emitted('sort-change')?.[0]).toEqual([null, null])
+      await wrapper.find('.stub-header-cell-name .sort-arrow-control-desc').trigger('click')
+      await flushPromises()
+      await wrapper.find('.stub-header-cell-name .sort-arrow-control-desc').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.emitted('sort-change')?.[1]).toEqual([null, null])
+      expect(wrapper.findAll('.stub-cell-name').map(cell => cell.text())).toEqual(['Gamma', 'Alpha', 'Beta'])
     })
   })
 
@@ -363,6 +507,30 @@ describe('DataTable', () => {
       await wrapper.vm.$emit('filter-change', slices)
       expect(wrapper.emitted('filter-change')).toBeTruthy()
       expect(wrapper.emitted('filter-change')?.[0]).toEqual([slices])
+    })
+
+    it('should apply filter changes to current page data locally', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      const vm = wrapper.vm as unknown as {
+        setFilter: (columnName: string, value: SliceRequestDef[] | null) => void
+      }
+
+      vm.setFilter('name', [{ field: 'name', op: 'right_like', value: 'Test 2' }])
+      await wrapper.vm.$nextTick()
+
+      const rows = wrapper.findAll('.stub-row')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].text()).toContain('Test 2')
+      expect(rows[0].text()).not.toContain('Test 1')
     })
 
     it('should apply initial slice', () => {
@@ -526,6 +694,61 @@ describe('DataTable', () => {
 
       expect(wrapper.exists()).toBe(true)
       // 实际使用中会调用 mockLoader
+    })
+
+    it('should load dimension members remotely and emit selection field filters', async () => {
+      const memberLoader = vi.fn().mockResolvedValue({
+        selectionFieldName: 'ownerOrg$id',
+        displayFieldName: 'ownerOrg$caption',
+        items: [{ value: 88810, label: 'Vitest Org 88810' }],
+        total: 1,
+        hasMore: false
+      })
+
+      const wrapper = mount(DataTable, {
+        attachTo: document.body,
+        props: {
+          columns: [{
+            name: 'ownerOrg$caption',
+            type: 'TEXT',
+            title: '所属机构',
+            filterType: 'dimension',
+            memberLookup: {
+              enabled: true,
+              selectionFieldName: 'ownerOrg$id',
+              displayFieldName: 'ownerOrg$caption'
+            }
+          }],
+          data: [{ 'ownerOrg$caption': 'Vitest Org 88810' }],
+          total: 1,
+          loading: false,
+          filterMemberLoader: memberLoader,
+          qmModel: 'vehicleCapacityProfile'
+        },
+        ...renderGridConfig
+      })
+
+      await wrapper.find('.select-input').trigger('click')
+      await flushPromises()
+
+      expect(memberLoader).toHaveBeenCalledWith(expect.objectContaining({
+        qmModel: 'vehicleCapacityProfile',
+        fieldName: 'ownerOrg$caption',
+        start: 0,
+        limit: 100
+      }))
+
+      const option = document.body.querySelector('.filter-option') as HTMLElement
+      expect(option?.textContent).toContain('Vitest Org 88810')
+      option.click()
+      await flushPromises()
+
+      const emitted = wrapper.emitted('filter-change') || []
+      expect(emitted[emitted.length - 1]?.[0]).toEqual([{
+        field: 'ownerOrg$id',
+        op: '=',
+        value: 88810
+      }])
     })
   })
 
@@ -704,7 +927,11 @@ describe('DataTable', () => {
 
       await wrapper.find('.data-table-copyable-cell').trigger('mouseenter')
 
-      expect(wrapper.find('.cell-copy-button').exists()).toBe(true)
+      const copyButton = wrapper.find('.cell-copy-button')
+      expect(copyButton.exists()).toBe(true)
+      expect((copyButton.element as HTMLElement).style.right).toBe('2px')
+      expect((copyButton.element as HTMLElement).style.width).toBe('18px')
+      expect(wrapper.find('.cell-copy-icon').exists()).toBe(true)
     })
 
     it('should copy the complete raw cell value when clicking copy button', async () => {
@@ -729,6 +956,35 @@ describe('DataTable', () => {
       await wrapper.find('.cell-copy-button').trigger('click')
 
       expect(writeText).toHaveBeenCalledWith(fullValue)
+    })
+
+    it('should fall back to textarea copy when clipboard api is unavailable', async () => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: undefined,
+        configurable: true
+      })
+      const execCommand = vi.fn().mockReturnValue(true)
+      Object.defineProperty(document, 'execCommand', {
+        value: execCommand,
+        configurable: true
+      })
+
+      const fullValue = 'HTTP 环境下也可复制'
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: fullValue }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      await wrapper.find('.data-table-copyable-cell').trigger('mouseenter')
+      await wrapper.find('.cell-copy-button').trigger('click')
+
+      expect(execCommand).toHaveBeenCalledWith('copy')
+      expect(document.querySelector('textarea')).toBeNull()
     })
 
     it('should stop copy button click from bubbling to row-click', async () => {

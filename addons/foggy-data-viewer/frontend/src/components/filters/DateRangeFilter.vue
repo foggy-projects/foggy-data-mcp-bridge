@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: SliceRequestDef[] | null): void
+  (e: 'commit', value: SliceRequestDef[] | null): void
 }>()
 
 // 日期范围值 [开始, 结束]
@@ -86,6 +87,7 @@ function formatDate(date: Date): string {
 function handleChange(val: [Date, Date] | null) {
   if (!val || val.length !== 2) {
     emit('update:modelValue', null)
+    emit('commit', null)
     return
   }
 
@@ -103,11 +105,13 @@ function handleChange(val: [Date, Date] | null) {
   }
 
   // 生成 DSL slice: { field, op: "[)", value: [start, end] }
-  emit('update:modelValue', [{
+  const value: SliceRequestDef[] = [{
     field: props.field,
     op: '[)',
     value: [startVal, endVal]
-  }])
+  }]
+  emit('update:modelValue', value)
+  emit('commit', value)
 }
 </script>
 

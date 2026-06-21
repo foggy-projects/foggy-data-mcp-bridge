@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: SliceRequestDef[] | null): void
+  (e: 'commit', value: SliceRequestDef[] | null): void
 }>()
 
 const minValue = ref<string>('')
@@ -50,6 +51,7 @@ function emitChange() {
 
   if (!min && !max) {
     emit('update:modelValue', null)
+    emit('commit', null)
     return
   }
 
@@ -63,25 +65,31 @@ function emitChange() {
   // 生成 DSL slice
   if (minNum !== null && maxNum !== null) {
     // 两个都有值：使用 [] 闭区间
-    emit('update:modelValue', [{
+    const value: SliceRequestDef[] = [{
       field: props.field,
       op: '[]',
       value: [minNum, maxNum]
-    }])
+    }]
+    emit('update:modelValue', value)
+    emit('commit', value)
   } else if (minNum !== null) {
     // 只有最小值：>=
-    emit('update:modelValue', [{
+    const value: SliceRequestDef[] = [{
       field: props.field,
       op: '>=',
       value: minNum
-    }])
+    }]
+    emit('update:modelValue', value)
+    emit('commit', value)
   } else if (maxNum !== null) {
     // 只有最大值：<=
-    emit('update:modelValue', [{
+    const value: SliceRequestDef[] = [{
       field: props.field,
       op: '<=',
       value: maxNum
-    }])
+    }]
+    emit('update:modelValue', value)
+    emit('commit', value)
   }
 }
 
@@ -89,6 +97,7 @@ function clear() {
   minValue.value = ''
   maxValue.value = ''
   emit('update:modelValue', null)
+  emit('commit', null)
 }
 </script>
 

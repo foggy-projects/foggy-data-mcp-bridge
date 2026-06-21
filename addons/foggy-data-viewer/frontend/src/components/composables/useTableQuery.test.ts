@@ -23,6 +23,8 @@ describe('useTableQuery', () => {
       expect(query.data.value).toEqual([])
       expect(query.total.value).toBe(0)
       expect(query.loading.value).toBe(false)
+      expect(query.activeTrigger.value).toBeNull()
+      expect(query.lastError.value).toBeNull()
       expect(query.serverSummary.value).toBeNull()
       expect(query.currentPage.value).toBe(1)
       expect(query.currentPageSize.value).toBe(50)
@@ -98,6 +100,7 @@ describe('useTableQuery', () => {
       await loadPromise
 
       expect(query.loading.value).toBe(false)
+      expect(query.activeTrigger.value).toBeNull()
     })
 
     it('should set loading to false even on error', async () => {
@@ -106,6 +109,44 @@ describe('useTableQuery', () => {
 
       await expect(query.loadData()).rejects.toThrow('fail')
       expect(query.loading.value).toBe(false)
+      expect(query.activeTrigger.value).toBeNull()
+      expect(query.lastError.value?.message).toBe('fail')
+    })
+
+    it('should expose active trigger during fetch and clear it afterwards', async () => {
+      let resolvePromise: (value: FetchDataResult) => void
+      const mockFetch = vi.fn<[FetchDataParams], Promise<FetchDataResult>>().mockImplementation(
+        () => new Promise(resolve => { resolvePromise = resolve })
+      )
+      const query = useTableQuery(mockFetch)
+
+      const loadPromise = query.loadData('page')
+      await new Promise(r => setTimeout(r, 0))
+
+      expect(query.activeTrigger.value).toBe('page')
+
+      resolvePromise!({ items: [], total: 0 })
+      await loadPromise
+
+      expect(query.activeTrigger.value).toBeNull()
+    })
+
+    it('should clear last error when a new fetch starts', async () => {
+      let resolveSecond: (value: FetchDataResult) => void
+      const mockFetch = vi.fn<[FetchDataParams], Promise<FetchDataResult>>()
+        .mockRejectedValueOnce(new Error('first fail'))
+        .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve }))
+      const query = useTableQuery(mockFetch)
+
+      await expect(query.loadData()).rejects.toThrow('first fail')
+      expect(query.lastError.value?.message).toBe('first fail')
+
+      const loadPromise = query.loadData('refresh')
+      await new Promise(r => setTimeout(r, 0))
+
+      expect(query.lastError.value).toBeNull()
+      resolveSecond!({ items: [], total: 0 })
+      await loadPromise
     })
 
     it('should pass trigger to hook context', async () => {

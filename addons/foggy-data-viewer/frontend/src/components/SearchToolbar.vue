@@ -166,7 +166,7 @@ function getFilterProps(col: EnhancedColumnSchema) {
     case 'dimension': {
       // 优先使用远程成员加载器
       const hasMemberLoader = !!props.filterMemberLoader && !!props.qmModel
-      const memberLookup = (col as any).memberLookup
+      const memberLookup = col.memberLookup
       const selectionField = memberLookup?.selectionFieldName
 
       if (hasMemberLoader && memberLookup?.enabled) {

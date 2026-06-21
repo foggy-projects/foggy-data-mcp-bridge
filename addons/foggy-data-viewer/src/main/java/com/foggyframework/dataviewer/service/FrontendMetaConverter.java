@@ -41,7 +41,7 @@ public class FrontendMetaConverter {
             Map<String, Object> modelInfo = getMap(modelsMap, modelName);
             if (modelInfo != null) {
                 caption = getString(modelInfo, "name");
-                description = getString(modelInfo, "purpose");
+                description = getFirstString(modelInfo, "purpose", "description", "desc", "describe");
             }
         }
 
@@ -91,6 +91,7 @@ public class FrontendMetaConverter {
                                    Set<String> allFieldNames, String modelName) {
         String name = getString(fieldData, "fieldName", fieldKey);
         String title = getString(fieldData, "name");
+        String description = getFirstString(fieldData, "description", "desc", "descrip", "describe", "comment", "remark", "purpose");
         String type = getString(fieldData, "type");
         String filterType = getString(fieldData, "filterType");
         Boolean filterable = getBoolean(fieldData, "filterable");
@@ -127,6 +128,7 @@ public class FrontendMetaConverter {
         return FieldMeta.builder()
                 .name(name)
                 .title(title)
+                .description(description)
                 .type(type)
                 .category(category)
                 .filterType(filterType)
@@ -298,6 +300,19 @@ public class FrontendMetaConverter {
     private String getString(Map<String, Object> map, String key, String defaultVal) {
         String val = getString(map, key);
         return val != null ? val : defaultVal;
+    }
+
+    private String getFirstString(Map<String, Object> map, String... keys) {
+        if (map == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String val = getString(map, key);
+            if (val != null && !val.isBlank()) {
+                return val;
+            }
+        }
+        return null;
     }
 
     private Boolean getBoolean(Map<String, Object> map, String key) {

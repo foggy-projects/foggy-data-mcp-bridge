@@ -123,6 +123,7 @@ function genTableSchema(meta) {
 
   for (const f of meta.fields) {
     const props = [`    name: '${f.name}'`, `    title: '${f.title}'`, `    type: '${f.type}'`]
+    if (f.description) props.push(`    description: ${JSON.stringify(f.description)}`)
     if (f.filterType) props.push(`    filterType: '${f.filterType}'`)
     if (f.filterable != null) props.push(`    filterable: ${f.filterable}`)
     if (f.measure) props.push(`    measure: true`)

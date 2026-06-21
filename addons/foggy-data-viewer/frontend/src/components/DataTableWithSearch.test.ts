@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import DataTableWithSearch from './DataTableWithSearch.vue'
 import type { EnhancedColumnSchema, SliceRequestDef, ListViewState } from '@/types'
 
@@ -8,7 +8,7 @@ vi.mock('./SearchToolbar.vue', () => ({
   default: {
     name: 'SearchToolbar',
     template: '<div class="search-toolbar-mock"><slot /></div>',
-    props: ['columns', 'searchableFields', 'layout', 'showActions', 'modelValue'],
+    props: ['columns', 'searchableFields', 'layout', 'showActions', 'modelValue', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel'],
     emits: ['update:modelValue', 'search', 'reset'],
     methods: {
       clearFilters() {
@@ -53,14 +53,15 @@ vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
     template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="toolbar-right" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot /></div>',
-    props: ['columns', 'data', 'total', 'loading', 'pageSize', 'showFilters', 'initialSlice', 'serverSummary', 'cellCopy'],
-    emits: ['page-change', 'sort-change', 'filter-change', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
+    props: ['columns', 'data', 'total', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'density'],
+    emits: ['page-change', 'sort-change', 'filter-change', 'filter-commit', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
       resetPagination() {
         // mock
       },
       clearFilters() {
         this.$emit('filter-change', [])
+        this.$emit('filter-commit', [])
       },
       getGridInstance() {
         return null
@@ -360,6 +361,40 @@ describe('DataTableWithSearch', () => {
       const dataTable = wrapper.findComponent({ name: 'DataTable' })
       expect(dataTable.props('cellCopy')).toEqual(cellCopy)
     })
+
+    it('should pass density and member loader props to DataTable', () => {
+      const filterMemberLoader = vi.fn()
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          density: 'compact',
+          filterMemberLoader,
+          qmModel: 'vehicleCapacityProfile'
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('density')).toBe('compact')
+      expect(dataTable.props('filterMemberLoader')).toBe(filterMemberLoader)
+      expect(dataTable.props('qmModel')).toBe('vehicleCapacityProfile')
+    })
+
+    it('should prefer schema density in schema mode', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            density: 'compact'
+          },
+          fetchData: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+          density: 'default'
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('density')).toBe('compact')
+    })
   })
 
   describe('Query Mode', () => {
@@ -572,6 +607,165 @@ describe('DataTableWithSearch', () => {
 
       expect(wrapper.emitted('sort-change')).toBeTruthy()
       expect(wrapper.emitted('sort-change')![0]).toEqual(['name', 'asc'])
+    })
+
+    it('should pass sort order to fetchData in schema mode', async () => {
+      const fetchData = vi.fn().mockResolvedValue({ items: mockData, total: mockData.length })
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+      fetchData.mockClear()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('sort-change', 'name', 'desc')
+      await flushPromises()
+
+      expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
+        orderBy: [{ field: 'name', order: 'desc' }]
+      }))
+    })
+
+    it('should not fetch backend on table filter draft until filter commit in schema mode', async () => {
+      const fetchData = vi.fn().mockResolvedValue({ items: mockData, total: mockData.length })
+      const tableSlices: SliceRequestDef[] = [
+        { field: 'name', op: 'right_like', value: 'Test' }
+      ]
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            queryMode: 'column'
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+      fetchData.mockClear()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('filter-change', tableSlices)
+      await flushPromises()
+
+      expect(fetchData).not.toHaveBeenCalled()
+
+      await dataTable.vm.$emit('filter-commit', tableSlices)
+      await flushPromises()
+
+      expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
+        slice: tableSlices
+      }))
+    })
+
+    it('should keep existing rows visible without table loading overlay during background reload', async () => {
+      let resolveSecondLoad: ((value: { items: typeof mockData; total: number }) => void) | undefined
+      const fetchData = vi.fn()
+        .mockResolvedValueOnce({ items: mockData, total: mockData.length })
+        .mockImplementationOnce(() => new Promise(resolve => {
+          resolveSecondLoad = resolve
+        }))
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            queryMode: 'column'
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('data')).toEqual(mockData)
+
+      await dataTable.vm.$emit('filter-commit', [
+        { field: 'name', op: 'right_like', value: 'Test' }
+      ])
+      await flushPromises()
+
+      expect(dataTable.props('data')).toEqual(mockData)
+      expect(dataTable.props('loading')).toBe(false)
+      expect(dataTable.props('backgroundLoading')).toBe(true)
+      expect(dataTable.props('backgroundLoadingText')).toBe('正在筛选...')
+
+      resolveSecondLoad?.({ items: [mockData[0]], total: 1 })
+      await flushPromises()
+
+      expect(fetchData).toHaveBeenCalledTimes(2)
+      expect(dataTable.props('backgroundLoading')).toBe(false)
+    })
+
+    it('should describe page background loading with the target page when pager is enabled', async () => {
+      let resolveSecondLoad: ((value: { items: typeof mockData; total: number }) => void) | undefined
+      const fetchData = vi.fn()
+        .mockResolvedValueOnce({ items: mockData, total: mockData.length })
+        .mockImplementationOnce(() => new Promise(resolve => {
+          resolveSecondLoad = resolve
+        }))
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            showPager: true
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('page-change', 2, 50)
+      await flushPromises()
+
+      expect(dataTable.props('backgroundLoading')).toBe(true)
+      expect(dataTable.props('backgroundLoadingText')).toBe('正在加载第 2 页...')
+
+      resolveSecondLoad?.({ items: [mockData[0]], total: 1 })
+      await flushPromises()
+    })
+
+    it('should avoid page-specific background text when pager is hidden', async () => {
+      let resolveSecondLoad: ((value: { items: typeof mockData; total: number }) => void) | undefined
+      const fetchData = vi.fn()
+        .mockResolvedValueOnce({ items: mockData, total: mockData.length })
+        .mockImplementationOnce(() => new Promise(resolve => {
+          resolveSecondLoad = resolve
+        }))
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            showPager: false
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('page-change', 2, 50)
+      await flushPromises()
+
+      expect(dataTable.props('backgroundLoading')).toBe(true)
+      expect(dataTable.props('backgroundLoadingText')).toBe('正在刷新...')
+
+      resolveSecondLoad?.({ items: [mockData[0]], total: 1 })
+      await flushPromises()
     })
 
     it('should emit row-click event from DataTable', async () => {

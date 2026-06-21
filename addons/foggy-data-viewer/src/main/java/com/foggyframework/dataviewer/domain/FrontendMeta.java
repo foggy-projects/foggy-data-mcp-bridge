@@ -56,6 +56,8 @@ public class FrontendMeta {
         private String name;
         /** 显示名称（对应 V3 name） */
         private String title;
+        /** 字段说明（对应 TM/QM description/desc 等说明字段） */
+        private String description;
         /** 数据类型 */
         private String type;
         /** 字段分类 */

@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: SliceRequestDef[] | null): void
+  (e: 'commit', value: SliceRequestDef[] | null): void
 }>()
 
 const selectedValue = ref<boolean | null>(null)
@@ -39,12 +40,15 @@ function select(val: boolean | null) {
   selectedValue.value = val
   if (val === null) {
     emit('update:modelValue', null)
+    emit('commit', null)
   } else {
-    emit('update:modelValue', [{
+    const value: SliceRequestDef[] = [{
       field: props.field,
       op: '=',
       value: val
-    }])
+    }]
+    emit('update:modelValue', value)
+    emit('commit', value)
   }
 }
 </script>

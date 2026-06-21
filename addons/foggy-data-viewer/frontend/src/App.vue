@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import DataViewer from './components/DataViewer.vue'
+import DataTableWithSearch from './components/DataTableWithSearch.vue'
 import { createQuery, type CreateQueryRequest } from './api/viewer'
+import { compactDemoSchema } from './demo/compactDemoData'
+import type { FetchDataParams, FetchDataResult } from './types'
 
 // 从 URL 中获取 model 和 queryId
 const urlParams = computed(() => {
@@ -13,11 +16,35 @@ const urlParams = computed(() => {
 
 const queryId = computed(() => urlParams.value?.queryId ?? null)
 const model = computed(() => urlParams.value?.model ?? null)
+const isCompactDemo = computed(() => window.location.pathname.includes('/data-viewer/demo/compact'))
+const compactDemoShowPager = computed(() => {
+  return new URLSearchParams(window.location.search).get('pager') === '1'
+})
+const compactDemoEffectiveSchema = computed(() => ({
+  ...compactDemoSchema,
+  showPager: compactDemoShowPager.value
+}))
 
 // DSL 输入相关状态
 const dslInput = ref('')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+
+async function fetchCompactDemoData(params: FetchDataParams): Promise<FetchDataResult> {
+  const response = await fetch('/data-viewer/api/demo/compact', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(params)
+  })
+
+  if (!response.ok) {
+    throw new Error(`Compact demo request failed: ${response.status}`)
+  }
+
+  return await response.json() as FetchDataResult
+}
 
 // 示例 DSL 查询
 const examples = [
@@ -151,7 +178,16 @@ async function submitQuery() {
 
 <template>
   <div id="app">
-    <DataViewer v-if="queryId && model" :query-id="queryId" :model="model" />
+    <div v-if="isCompactDemo" class="compact-demo-page">
+      <DataTableWithSearch
+        :schema="compactDemoEffectiveSchema"
+        :fetch-data="fetchCompactDemoData"
+        :show-pager="compactDemoShowPager"
+        :show-search-actions="false"
+        density="compact"
+      />
+    </div>
+    <DataViewer v-else-if="queryId && model" :query-id="queryId" :model="model" />
     <div v-else class="landing-page">
       <div class="hero">
         <h1>Foggy Data Viewer</h1>
@@ -286,6 +322,13 @@ html, body, #app {
   min-height: 100%;
   padding: 40px 20px;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.compact-demo-page {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  background: #f5f7fa;
 }
 
 .hero {

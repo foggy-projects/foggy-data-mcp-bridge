@@ -36,6 +36,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: SliceRequestDef[] | null): void
+  (e: 'commit', value: SliceRequestDef[] | null): void
 }>()
 
 // ── 状态 ──
@@ -251,23 +252,27 @@ function confirmMultiSelect() {
 function emitChange() {
   if (selectedValues.value.size === 0) {
     emit('update:modelValue', null)
+    emit('commit', null)
     return
   }
 
   // DSL slice 使用 sliceField（维度成员场景下为 $id 字段）
+  let value: SliceRequestDef[]
   if (isMulti.value || selectedValues.value.size > 1) {
-    emit('update:modelValue', [{
+    value = [{
       field: sliceField.value,
       op: 'in',
       value: Array.from(selectedValues.value)
-    }])
+    }]
   } else {
-    emit('update:modelValue', [{
+    value = [{
       field: sliceField.value,
       op: '=',
       value: selectedValues.value.values().next().value
-    }])
+    }]
   }
+  emit('update:modelValue', value)
+  emit('commit', value)
 }
 
 function clear() {
@@ -275,6 +280,7 @@ function clear() {
   searchText.value = ''
   showDropdown.value = false
   emit('update:modelValue', null)
+  emit('commit', null)
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -401,6 +407,7 @@ onUnmounted(() => {
 .select-input {
   display: flex;
   align-items: center;
+  min-width: 0;
   padding: 0 8px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
@@ -427,6 +434,10 @@ onUnmounted(() => {
   flex: 1;
   font-size: 12px;
   color: #c0c4cc;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .toggle-multi {

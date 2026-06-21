@@ -13,6 +13,8 @@ export interface ColumnSchema {
   name: string
   type: string
   title?: string
+  /** 字段说明，来自 TM/QM description，用于表头帮助提示 */
+  description?: string
   width?: number
   filterable?: boolean
   aggregatable?: boolean
@@ -24,6 +26,7 @@ export interface ColumnSchema {
   dictId?: string
   dictItems?: DictItem[]
   dimensionRef?: string
+  memberLookup?: MemberLookupMeta
   format?: string
   measure?: boolean
   uiConfig?: Record<string, unknown>
@@ -167,6 +170,9 @@ export interface CellCopyConfig {
  */
 export type QueryMode = 'panel' | 'column' | 'combined' | 'none'
 
+/** 表格视觉密度 */
+export type TableDensity = 'default' | 'compact'
+
 /**
  * 表格配置
  */
@@ -191,6 +197,8 @@ export interface TableSchema {
   cellCopy?: CellCopyConfig
   /** 内置查询入口模式；设置后优先于 showFilters 等旧开关 */
   queryMode?: QueryMode
+  /** 表格视觉密度 */
+  density?: TableDensity
   /** 搜索工具栏显示的字段（不指定则从 columns 中筛选 uiConfig.showInToolbar=true 的列） */
   searchableFields?: string[]
   /** 每页大小 */
@@ -397,6 +405,7 @@ export type FieldCategory =
 export interface FieldMeta {
   name: string
   title: string
+  description?: string
   type: string
   category: FieldCategory
   filterType?: string

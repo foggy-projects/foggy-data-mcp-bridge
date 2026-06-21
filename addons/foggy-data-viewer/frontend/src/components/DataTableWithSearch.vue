@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
@@ -58,6 +58,8 @@ interface Props {
   cellCopy?: CellCopyConfig
   /** 内置查询入口模式；设置后优先于 showQueryPanel/showFilters */
   queryMode?: QueryMode
+  /** 表格视觉密度 */
+  density?: TableDensity
 
   // ========== SearchToolbar Props ==========
   /** 搜索工具栏可搜索字段 */
@@ -109,6 +111,7 @@ const emit = defineEmits<{
   (e: 'page-change', page: number, size: number): void
   (e: 'sort-change', field: string | null, order: 'asc' | 'desc' | null): void
   (e: 'filter-change', slices: SliceRequestDef[]): void
+  (e: 'filter-commit', slices: SliceRequestDef[]): void
   (e: 'row-click', row: Record<string, unknown>, column: EnhancedColumnSchema): void
   (e: 'row-dblclick', row: Record<string, unknown>, column: EnhancedColumnSchema): void
   (e: 'checkbox-change', rows: Record<string, unknown>[]): void
@@ -249,9 +252,39 @@ const effectiveTotal = computed(() => {
 
 const effectiveLoading = computed(() => {
   if (isSchemaMode.value) {
-    return query.loading.value
+    return query.loading.value && query.data.value.length === 0
   }
   return props.loading || false
+})
+
+const effectiveBackgroundLoading = computed(() => {
+  if (!isSchemaMode.value) return false
+  return query.loading.value && query.data.value.length > 0
+})
+
+function getBackgroundLoadingText(trigger: QueryTrigger | null): string {
+  if (trigger === 'filter') {
+    return '正在筛选...'
+  }
+  if (trigger === 'sort') {
+    return '正在排序...'
+  }
+  if (trigger === 'page') {
+    return effectiveShowPager.value ? `正在加载第 ${query.currentPage.value} 页...` : '正在刷新...'
+  }
+  return '正在刷新...'
+}
+
+const effectiveBackgroundLoadingText = computed(() => {
+  if (!effectiveBackgroundLoading.value) return ''
+  return getBackgroundLoadingText(query.activeTrigger.value)
+})
+
+const effectiveBackgroundLoadingError = computed(() => {
+  if (!isSchemaMode.value || query.loading.value || query.data.value.length === 0) {
+    return null
+  }
+  return query.lastError.value ? '查询失败' : null
 })
 
 const effectiveServerSummary = computed(() => {
@@ -320,6 +353,13 @@ const effectiveCellCopy = computed(() => {
     return props.schema.cellCopy
   }
   return props.cellCopy
+})
+
+const effectiveDensity = computed<TableDensity>(() => {
+  if (isSchemaMode.value && props.schema?.density) {
+    return props.schema.density
+  }
+  return props.density ?? 'default'
 })
 
 const effectiveInitialSlice = computed(() => {
@@ -551,6 +591,13 @@ function handleReset() {
 // 处理表头筛选变化
 function handleTableFilterChange(slices: SliceRequestDef[]) {
   tableSlices.value = slices
+  emit('filter-change', mergedSlices.value)
+}
+
+// 处理表头筛选提交
+function handleTableFilterCommit(slices: SliceRequestDef[]) {
+  tableSlices.value = slices
+  emit('filter-commit', mergedSlices.value)
   handleFilterChange()
 }
 
@@ -671,14 +718,20 @@ const dataTableProps = computed(() => {
     data: effectiveData.value,
     total: effectiveTotal.value,
     loading: effectiveLoading.value,
+    backgroundLoading: effectiveBackgroundLoading.value,
+    backgroundLoadingText: effectiveBackgroundLoadingText.value,
+    backgroundLoadingError: effectiveBackgroundLoadingError.value,
     pageSize: effectivePageSize.value,
     showFilters: effectiveShowFilters.value,
     showPager: effectiveShowPager.value,
     initialSlice: effectiveInitialSlice.value,
     serverSummary: effectiveServerSummary.value,
     filterOptionsLoader: props.filterOptionsLoader,
+    filterMemberLoader: props.filterMemberLoader,
+    qmModel: props.qmModel,
     customFilterComponents: props.customFilterComponents,
     cellCopy: effectiveCellCopy.value,
+    density: effectiveDensity.value,
     ...userProps
   }
 })
@@ -706,6 +759,7 @@ const dataTableEvents = computed(() => {
       }
     },
     'filter-change': handleTableFilterChange,
+    'filter-commit': handleTableFilterCommit,
     'row-click': (...args: unknown[]) => {
       emit('row-click', ...args as [Record<string, unknown>, EnhancedColumnSchema])
       if (userEvents['rowClick']) {

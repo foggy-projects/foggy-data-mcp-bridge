@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import type {
   FetchDataParams,
   FetchDataResult,
@@ -35,6 +35,8 @@ export interface UseTableQueryReturn {
   data: ReturnType<typeof ref<Record<string, unknown>[]>>
   total: ReturnType<typeof ref<number>>
   loading: ReturnType<typeof ref<boolean>>
+  activeTrigger: ReturnType<typeof ref<QueryTrigger | null>>
+  lastError: ReturnType<typeof ref<Error | null>>
   serverSummary: ReturnType<typeof ref<Record<string, unknown> | null>>
   currentPage: ReturnType<typeof ref<number>>
   currentPageSize: ReturnType<typeof ref<number>>
@@ -75,6 +77,8 @@ export function useTableQuery(
   const data = ref<Record<string, unknown>[]>([])
   const total = ref(0)
   const loading = ref(false)
+  const activeTrigger = ref<QueryTrigger | null>(null)
+  const lastError = ref<Error | null>(null)
   const serverSummary = ref<Record<string, unknown> | null>(null)
   const currentPage = ref(1)
   const currentPageSize = ref(options.pageSize ?? 50)
@@ -123,6 +127,8 @@ export function useTableQuery(
 
     // ---- Fetch ----
     loading.value = true
+    activeTrigger.value = trigger
+    lastError.value = null
     try {
       let result = await fetchData(ctx.params)
 
@@ -136,6 +142,7 @@ export function useTableQuery(
       serverSummary.value = result.totalData ?? null
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
+      lastError.value = error
 
       // ---- Error hooks: instance → props → global ----
       const instanceHandled = await instanceRegistry.runError(ctx, error)
@@ -148,6 +155,7 @@ export function useTableQuery(
       }
     } finally {
       loading.value = false
+      activeTrigger.value = null
     }
   }
 
@@ -189,6 +197,8 @@ export function useTableQuery(
     data,
     total,
     loading,
+    activeTrigger,
+    lastError,
     serverSummary,
     currentPage,
     currentPageSize,
