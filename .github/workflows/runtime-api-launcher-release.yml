@@ -1,0 +1,98 @@
+name: Runtime API Launcher Release
+
+on:
+  push:
+    tags:
+      - "runtime-api-launcher-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Launcher release version, without the runtime-api-launcher-v prefix"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish Runtime API launcher
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Resolve release version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            TAG_NAME="runtime-api-launcher-v${VERSION}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+            VERSION="${TAG_NAME#runtime-api-launcher-v}"
+          fi
+          if [[ -z "${VERSION}" || "${VERSION}" == "${TAG_NAME}" ]]; then
+            echo "Invalid runtime launcher version: ${VERSION}" >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag_name=${TAG_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Runtime API targeted tests
+        run: mvn -pl foggy-runtime-api -Dtest=RuntimeCapabilitiesControllerEnabledTest test
+
+      - name: Package Runtime API launcher
+        run: |
+          bash scripts/package-runtime-api-launcher.sh \
+            --release-version "${{ steps.release.outputs.version }}" \
+            --out-dir dist/runtime-api-launcher \
+            --skip-tests \
+            --clean
+
+      - name: Verify package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/runtime-api-launcher/runtime-launcher-manifest.json
+          test -f dist/runtime-api-launcher/SHA256SUMS
+          grep -q '"runtimeApiProfile": true' dist/runtime-api-launcher/runtime-launcher-manifest.json
+          (cd dist/runtime-api-launcher && sha256sum -c SHA256SUMS)
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-api-launcher-${{ steps.release.outputs.version }}
+          path: dist/runtime-api-launcher/*
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag_name }}
+          name: Foggy Runtime API Launcher ${{ steps.release.outputs.version }}
+          prerelease: true
+          files: dist/runtime-api-launcher/*
+          body: |
+            Foggy Runtime API launcher package for local development and AI-assisted analysis demos.
+
+            Security boundary: this launcher enables the lite runtime and Runtime API profile for dev/test use only. Production authentication, authorization, RBAC, audit hardening, and tenant governance are intentionally deferred.
+
+            Quick start:
+
+            ```powershell
+            .\start-foggy-runtime.ps1 -Port 18066
+            ```
+
+            ```bash
+            chmod +x ./start-foggy-runtime.sh
+            ./start-foggy-runtime.sh
+            ```
