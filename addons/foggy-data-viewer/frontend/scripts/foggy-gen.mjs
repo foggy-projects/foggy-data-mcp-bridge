@@ -300,7 +300,7 @@ function genVue(meta) {
   ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改
 -->
 <script setup lang="ts">
-import { computed, useSlots } from 'vue'
+import { computed, ref, useSlots } from 'vue'
 import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
 import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
@@ -315,7 +315,16 @@ interface BusinessColumnOverride {
   uiConfig?: Record<string, unknown>
 }
 
+interface DataTableWithSearchExpose {
+  refresh?: () => void | Promise<void>
+  reload?: () => void | Promise<void>
+  clearSelection?: () => void
+  getSelectedRows?: () => Record<string, unknown>[]
+  getSelectedCount?: () => number
+}
+
 const slots = useSlots()
+const tableRef = ref<DataTableWithSearchExpose>()
 const dynamicSlots = computed(() => {
   const result: Record<string, unknown> = {}
   for (const name of Object.keys(slots)) {
@@ -354,10 +363,19 @@ const mergedSchema = computed(() => {
   }
   return { ...tableSchema, columns }
 })
+
+defineExpose({
+  refresh: () => tableRef.value?.refresh?.(),
+  reload: () => tableRef.value?.reload?.(),
+  clearSelection: () => tableRef.value?.clearSelection?.(),
+  getSelectedRows: () => tableRef.value?.getSelectedRows?.() ?? [],
+  getSelectedCount: () => tableRef.value?.getSelectedCount?.() ?? 0
+})
 </script>
 
 <template>
   <DataTableWithSearch
+    ref="tableRef"
     :schema="mergedSchema"
     :fetch-data="query${prefix}"
     :query-schema="props.querySchemaOverride ?? querySchema"

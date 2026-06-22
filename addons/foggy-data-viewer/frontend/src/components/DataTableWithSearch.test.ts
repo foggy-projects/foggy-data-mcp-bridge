@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import DataTableWithSearch from './DataTableWithSearch.vue'
 import type { EnhancedColumnSchema, SliceRequestDef, ListViewState } from '@/types'
+
+const dataTableClearSelectionSpy = vi.hoisted(() => vi.fn())
 
 // Mock child components
 vi.mock('./SearchToolbar.vue', () => ({
@@ -73,8 +75,9 @@ vi.mock('./DataTable.vue', () => ({
       getSelectedCount() {
         return 1
       },
-      clearSelection() {
-        // mock
+      clearSelection(options?: { emitChange?: boolean }) {
+        dataTableClearSelectionSpy(options)
+        this.$emit('checkbox-change', [])
       }
     }
   }
@@ -93,6 +96,10 @@ vi.mock('@/api/listPreset', () => ({
 }))
 
 describe('DataTableWithSearch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   const mockColumns: EnhancedColumnSchema[] = [
     { name: 'id', type: 'INTEGER', title: 'ID', filterable: true },
     { name: 'name', type: 'TEXT', title: '名称', filterable: true },
@@ -665,6 +672,35 @@ describe('DataTableWithSearch', () => {
       expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
         slice: tableSlices
       }))
+    })
+
+    it('should clear selection before schema mode filter reload', async () => {
+      const fetchData = vi.fn().mockResolvedValue({ items: mockData, total: mockData.length })
+      const tableSlices: SliceRequestDef[] = [
+        { field: 'name', op: 'right_like', value: 'Test' }
+      ]
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            queryMode: 'column'
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+      dataTableClearSelectionSpy.mockClear()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('filter-commit', tableSlices)
+      await flushPromises()
+
+      expect(dataTableClearSelectionSpy).toHaveBeenCalledTimes(1)
+
+      const checkboxEvents = wrapper.emitted('checkbox-change') || []
+      expect(checkboxEvents[checkboxEvents.length - 1]).toEqual([[]])
     })
 
     it('should keep existing rows visible without table loading overlay during background reload', async () => {

@@ -107,6 +107,15 @@ const slots = defineSlots<{
   [key: `filter-${string}`]: (props: { column: EnhancedColumnSchema; field: string; modelValue: SliceRequestDef[] | null; onChange: (val: SliceRequestDef[] | null) => void; onCommit: (val: SliceRequestDef[] | null) => void }) => unknown
 }>()
 
+interface ClearSelectionOptions {
+  emitChange?: boolean
+}
+
+interface CheckboxClearableGrid {
+  clearCheckboxRow?: () => void
+  clearCheckboxReserve?: () => void
+}
+
 const gridRef = ref<VxeGridInstance>()
 
 const hoveredCopyCell = ref<{ row: Record<string, unknown>; field: string } | null>(null)
@@ -246,12 +255,31 @@ const footerData = computed(() => {
     field: col.field as string | undefined,
     type: props.columns.find(c => c.name === col.field)?.type
   })) || []
-  return generateFooterData(visibleCols, selectedSummary)
+  return generateFooterData(visibleCols, selectedSummary, props.total)
 })
+
+function clearTableSelection(options: ClearSelectionOptions = {}) {
+  const hadSelection = selectedRows.value.length > 0
+  clearSelection()
+
+  const grid = gridRef.value as (VxeGridInstance & CheckboxClearableGrid) | undefined
+  grid?.clearCheckboxRow?.()
+  grid?.clearCheckboxReserve?.()
+
+  if (options.emitChange !== false && hadSelection) {
+    emit('checkbox-change', [])
+  }
+}
 
 // 监听 total 变化
 watch(() => props.total, (newTotal) => {
   pagination.value.total = newTotal
+})
+
+watch(() => props.data, (newData, oldData) => {
+  if (oldData && newData !== oldData && selectedRows.value.length > 0) {
+    clearTableSelection()
+  }
 })
 
 // 监听 pageSize 变化，用于应用自定义列表或外部配置时同步分页器
@@ -1285,7 +1313,7 @@ defineExpose({
   /** 获取当前选中行数量 */
   getSelectedCount: (): number => getSelectedCount(),
   /** 清空选中行 */
-  clearSelection
+  clearSelection: clearTableSelection
 })
 
 // 提供上下文给子组件

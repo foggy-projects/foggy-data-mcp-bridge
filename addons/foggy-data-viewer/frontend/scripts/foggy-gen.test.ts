@@ -77,14 +77,19 @@ describe('foggy-gen QueryTable template', () => {
       const tableSchema = readFileSync(join(outputDir, 'FactOrder.table.schema.ts'), 'utf-8')
       const querySchema = readFileSync(join(outputDir, 'FactOrder.query.schema.ts'), 'utf-8')
 
-      expect(tableVue).toContain("import { computed, useSlots } from 'vue'")
+      expect(tableVue).toContain("import { computed, ref, useSlots } from 'vue'")
       expect(tableVue).toContain(
         "import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema } from 'foggy-data-viewer'"
       )
       expect(tableVue).toContain("render?: EnhancedColumnSchema['customRender']")
       expect(tableVue).toContain('const slots = useSlots()')
+      expect(tableVue).toContain('const tableRef = ref<DataTableWithSearchExpose>()')
       expect(tableVue).toContain("name.startsWith('column-') || name.startsWith('filter-')")
       expect(tableVue).toContain('...(ov.render && { customRender: ov.render })')
+      expect(tableVue).toContain('defineExpose({')
+      expect(tableVue).toContain('clearSelection: () => tableRef.value?.clearSelection?.(),')
+      expect(tableVue).toContain('getSelectedCount: () => tableRef.value?.getSelectedCount?.() ?? 0')
+      expect(tableVue).toContain('ref="tableRef"')
       expect(tableVue).toContain('<template v-for="(_, name) in dynamicSlots" :key="name" #[name]="scope">')
       expect(tableVue).toContain('queryMode?: QueryMode')
       expect(tableVue).toContain('querySchemaOverride?: QuerySchema')

@@ -439,13 +439,17 @@ interface SearchToolbarExpose {
   getFilters: () => SliceRequestDef[]
 }
 
+interface ClearSelectionOptions {
+  emitChange?: boolean
+}
+
 interface DataTableExpose {
   resetPagination: () => void
   clearFilters: () => void
   getGridInstance: () => unknown
   getSelectedRows: () => Record<string, unknown>[]
   getSelectedCount: () => number
-  clearSelection: () => void
+  clearSelection: (options?: ClearSelectionOptions) => void
 }
 
 const searchToolbarRef = ref<SearchToolbarExpose>()
@@ -489,9 +493,17 @@ const mergedSlices = computed(() => {
   return allSlices
 })
 
+function clearSelectionState(options: ClearSelectionOptions = {}) {
+  dataTableRef.value?.clearSelection?.(options)
+}
+
 // ========== Schema 模式的数据加载 ==========
-async function loadData(trigger: 'mount' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload' = 'refresh') {
+async function loadData(trigger: QueryTrigger = 'refresh') {
   if (!isSchemaMode.value || !props.fetchData) return
+
+  if (trigger !== 'mount') {
+    clearSelectionState()
+  }
 
   // 同步 slice 到 query 对象
   query.setSlice(mergedSlices.value)
@@ -817,15 +829,17 @@ defineExpose({
   /** 刷新数据（仅 Schema 模式） */
   refresh: () => {
     if (isSchemaMode.value) {
-      loadData('refresh')
+      return loadData('refresh')
     }
+    return undefined
   },
   /** 重新加载（重置分页后刷新，仅 Schema 模式） */
   reload: () => {
     if (isSchemaMode.value) {
       query.currentPage.value = 1
-      loadData('reload')
+      return loadData('reload')
     }
+    return undefined
   },
   /** 注册查询钩子（运行时） */
   addQueryHook: query.addHook,
@@ -836,7 +850,7 @@ defineExpose({
   /** 获取当前选中行数量（代理 DataTable） */
   getSelectedCount: (): number => dataTableRef.value?.getSelectedCount?.() ?? 0,
   /** 清空选中行（代理 DataTable） */
-  clearSelection: () => dataTableRef.value?.clearSelection?.(),
+  clearSelection: clearSelectionState,
   /** 获取 useTableQuery 实例（高级用法） */
   getQuery: () => query,
 

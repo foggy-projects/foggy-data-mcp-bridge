@@ -4,6 +4,27 @@ import type { ColumnSchema } from '@/types'
 /** 度量类型列表 */
 const MEASURE_TYPES = ['NUMBER', 'MONEY', 'BIGDECIMAL', 'INTEGER', 'BIGINT', 'LONG']
 
+function isNumericMeasureType(type?: string): boolean {
+  return MEASURE_TYPES.includes(type?.toUpperCase() || '')
+}
+
+function isSummaryColumn(col: ColumnSchema | undefined): col is ColumnSchema {
+  return !!col && (col.measure === true || col.aggregatable === true) && isNumericMeasureType(col.type)
+}
+
+function readCountValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
 /**
  * 表格汇总数据计算逻辑
  */
@@ -13,9 +34,7 @@ export function useTableSummary(columns: Ref<ColumnSchema[]>) {
 
   /** 度量列（用于汇总计算） */
   const measureColumns = computed(() => {
-    return columns.value.filter(col =>
-      MEASURE_TYPES.includes(col.type?.toUpperCase() || '')
-    )
+    return columns.value.filter(isSummaryColumn)
   })
 
   /**
@@ -26,6 +45,10 @@ export function useTableSummary(columns: Ref<ColumnSchema[]>) {
   ): Record<string, unknown> {
     const summary: Record<string, unknown> = {
       _count: selectedRows.length
+    }
+
+    if (selectedRows.length === 0) {
+      return summary
     }
 
     for (const col of measureColumns.value) {
@@ -63,7 +86,8 @@ export function useTableSummary(columns: Ref<ColumnSchema[]>) {
    */
   function generateFooterData(
     visibleColumns: { field?: string; type?: string }[],
-    selectedSummary: Record<string, unknown>
+    selectedSummary: Record<string, unknown>,
+    fallbackTotal = 0
   ): (string | number | null)[][] {
     const row1: (string | number | null)[] = []  // 选中汇总
     const row2: (string | number | null)[] = []  // 全量汇总
@@ -81,8 +105,10 @@ export function useTableSummary(columns: Ref<ColumnSchema[]>) {
 
       // 第二列显示记录数
       if (i === 1) {
-        const selectedCount = selectedSummary._count as number || 0
-        const totalCount = serverSummary.value?.total as number || 0
+        const selectedCount = readCountValue(selectedSummary._count) ?? 0
+        const totalCount = readCountValue(serverSummary.value?.total)
+          ?? readCountValue(serverSummary.value?._count)
+          ?? fallbackTotal
         row1.push(`${selectedCount} 条`)
         row2.push(`${totalCount} 条`)
         continue
@@ -91,9 +117,8 @@ export function useTableSummary(columns: Ref<ColumnSchema[]>) {
       // 其他列：如果是度量列则显示汇总值
       if (field) {
         const colSchema = columns.value.find(c => c.name === field)
-        const isMeasure = colSchema && MEASURE_TYPES.includes(colSchema.type?.toUpperCase() || '')
 
-        if (isMeasure) {
+        if (isSummaryColumn(colSchema)) {
           const selectedVal = selectedSummary[field]
           const serverVal = serverSummary.value?.[field]
           row1.push(formatValue(selectedVal, colSchema?.type))

@@ -7,47 +7,46 @@ describe('useTableSummary', () => {
   const mockColumns = ref<ColumnSchema[]>([
     { name: 'id', type: 'INTEGER', title: 'ID' },
     { name: 'name', type: 'TEXT', title: '名称' },
-    { name: 'amount', type: 'MONEY', title: '金额' },
-    { name: 'count', type: 'NUMBER', title: '数量' },
+    { name: 'amount', type: 'MONEY', title: '金额', measure: true, aggregatable: true },
+    { name: 'count', type: 'NUMBER', title: '数量', aggregatable: true },
+    { name: 'capacity', type: 'NUMBER', title: '容量' },
     { name: 'status', type: 'TEXT', title: '状态' }
   ])
 
   describe('measureColumns', () => {
-    it('should identify measure columns correctly', () => {
+    it('should only identify explicit numeric summary columns', () => {
       const { measureColumns } = useTableSummary(mockColumns)
 
-      expect(measureColumns.value).toHaveLength(3)  // id, amount, count
-      expect(measureColumns.value[0].name).toBe('id')
-      expect(measureColumns.value[1].name).toBe('amount')
-      expect(measureColumns.value[2].name).toBe('count')
+      expect(measureColumns.value).toHaveLength(2)
+      expect(measureColumns.value.map(c => c.name)).toEqual(['amount', 'count'])
     })
 
-    it('should handle columns without type', () => {
-      const columnsWithoutType = ref<ColumnSchema[]>([
-        { name: 'col1', type: '', title: 'Column 1' },
-        { name: 'col2', type: 'MONEY', title: 'Column 2' }
+    it('should ignore numeric columns without measure or aggregatable flags', () => {
+      const columns = ref<ColumnSchema[]>([
+        { name: 'moneyAttr', type: 'MONEY', title: '金额属性' },
+        { name: 'numberAttr', type: 'NUMBER', title: '数值属性' },
+        { name: 'textSummary', type: 'TEXT', title: '文本', aggregatable: true },
+        { name: 'amount', type: 'MONEY', title: '金额', measure: true }
       ])
 
-      const { measureColumns } = useTableSummary(columnsWithoutType)
+      const { measureColumns } = useTableSummary(columns)
 
-      expect(measureColumns.value).toHaveLength(1)
-      expect(measureColumns.value[0].name).toBe('col2')
+      expect(measureColumns.value.map(c => c.name)).toEqual(['amount'])
     })
 
-    it('should recognize all measure types', () => {
+    it('should recognize all supported numeric summary types when flagged', () => {
       const measureTypeColumns = ref<ColumnSchema[]>([
-        { name: 'col1', type: 'NUMBER', title: 'Number' },
-        { name: 'col2', type: 'MONEY', title: 'Money' },
-        { name: 'col3', type: 'BIGDECIMAL', title: 'BigDecimal' },
-        { name: 'col4', type: 'INTEGER', title: 'Integer' },
-        { name: 'col5', type: 'BIGINT', title: 'BigInt' },
-        { name: 'col6', type: 'LONG', title: 'Long' },
-        { name: 'col7', type: 'TEXT', title: 'Text' }
+        { name: 'col1', type: 'NUMBER', title: 'Number', aggregatable: true },
+        { name: 'col2', type: 'MONEY', title: 'Money', aggregatable: true },
+        { name: 'col3', type: 'BIGDECIMAL', title: 'BigDecimal', aggregatable: true },
+        { name: 'col4', type: 'INTEGER', title: 'Integer', aggregatable: true },
+        { name: 'col5', type: 'BIGINT', title: 'BigInt', aggregatable: true },
+        { name: 'col6', type: 'LONG', title: 'Long', aggregatable: true },
+        { name: 'col7', type: 'TEXT', title: 'Text', aggregatable: true }
       ])
 
       const { measureColumns } = useTableSummary(measureTypeColumns)
 
-      expect(measureColumns.value).toHaveLength(6)
       expect(measureColumns.value.map(c => c.name)).toEqual([
         'col1', 'col2', 'col3', 'col4', 'col5', 'col6'
       ])
@@ -59,17 +58,18 @@ describe('useTableSummary', () => {
       const { calculateSelectedSummary } = useTableSummary(mockColumns)
 
       const selectedRows = [
-        { id: 1, name: 'Test 1', amount: 100, count: 5 },
-        { id: 2, name: 'Test 2', amount: 200, count: 10 },
-        { id: 3, name: 'Test 3', amount: 300, count: 15 }
+        { id: 1, name: 'Test 1', amount: 100, count: 5, capacity: 2 },
+        { id: 2, name: 'Test 2', amount: 200, count: 10, capacity: 3 },
+        { id: 3, name: 'Test 3', amount: 300, count: 15, capacity: 4 }
       ]
 
       const summary = calculateSelectedSummary(selectedRows)
 
       expect(summary._count).toBe(3)
-      expect(summary.id).toBe(6)  // 1 + 2 + 3
+      expect(summary.id).toBeUndefined()
       expect(summary.amount).toBe(600)
       expect(summary.count).toBe(30)
+      expect(summary.capacity).toBeUndefined()
     })
 
     it('should handle empty selection', () => {
@@ -78,9 +78,9 @@ describe('useTableSummary', () => {
       const summary = calculateSelectedSummary([])
 
       expect(summary._count).toBe(0)
-      expect(summary.id).toBe(0)
-      expect(summary.amount).toBe(0)
-      expect(summary.count).toBe(0)
+      expect(summary.id).toBeUndefined()
+      expect(summary.amount).toBeUndefined()
+      expect(summary.count).toBeUndefined()
     })
 
     it('should handle null/undefined values', () => {
@@ -95,7 +95,6 @@ describe('useTableSummary', () => {
       const summary = calculateSelectedSummary(selectedRows)
 
       expect(summary._count).toBe(3)
-      expect(summary.id).toBe(6)
       expect(summary.amount).toBe(100)
       expect(summary.count).toBe(15)
     })
@@ -111,143 +110,141 @@ describe('useTableSummary', () => {
       const summary = calculateSelectedSummary(selectedRows)
 
       expect(summary._count).toBe(2)
-      expect(summary.id).toBe(3)
       expect(summary.amount).toBe(100)
       expect(summary.count).toBe(5)
     })
   })
 
   describe('formatValue', () => {
-    it('should format MONEY type', () => {
+    it('should format decimal numeric types', () => {
       const { formatValue } = useTableSummary(mockColumns)
 
       expect(formatValue(1234.5, 'MONEY')).toBe('1,234.50')
-      expect(formatValue(1000000, 'MONEY')).toBe('1,000,000.00')
-    })
-
-    it('should format NUMBER type', () => {
-      const { formatValue } = useTableSummary(mockColumns)
-
       expect(formatValue(1234.567, 'NUMBER')).toBe('1,234.57')
-    })
-
-    it('should format BIGDECIMAL type', () => {
-      const { formatValue } = useTableSummary(mockColumns)
-
       expect(formatValue(9999.99, 'BIGDECIMAL')).toBe('9,999.99')
     })
 
-    it('should format INTEGER type without decimals', () => {
+    it('should format integer types without decimals', () => {
       const { formatValue } = useTableSummary(mockColumns)
 
       expect(formatValue(1234, 'INTEGER')).toBe('1,234')
+      expect(formatValue(0, 'INTEGER')).toBe('0')
     })
 
-    it('should handle null/undefined values', () => {
+    it('should handle empty and non-numeric values', () => {
       const { formatValue } = useTableSummary(mockColumns)
 
       expect(formatValue(null, 'MONEY')).toBe('')
       expect(formatValue(undefined, 'MONEY')).toBe('')
-    })
-
-    it('should handle non-numeric values', () => {
-      const { formatValue } = useTableSummary(mockColumns)
-
       expect(formatValue('text', 'MONEY')).toBe('text')
-    })
-
-    it('should format zero correctly', () => {
-      const { formatValue } = useTableSummary(mockColumns)
-
       expect(formatValue(0, 'MONEY')).toBe('0.00')
-      expect(formatValue(0, 'INTEGER')).toBe('0')
     })
   })
 
   describe('generateFooterData', () => {
-    it('should generate footer data with two rows', () => {
+    it('should generate footer data with labels, counts and summary columns', () => {
       const { generateFooterData, setServerSummary } = useTableSummary(mockColumns)
+
+      setServerSummary({ _count: 100, amount: 10000, count: 500 })
+
+      const visibleColumns = [
+        { field: undefined },
+        { field: 'id', type: 'INTEGER' },
+        { field: 'amount', type: 'MONEY' },
+        { field: 'count', type: 'NUMBER' },
+        { field: 'capacity', type: 'NUMBER' }
+      ]
+
+      const selectedSummary = { _count: 3, amount: 600, count: 30 }
+      const footerData = generateFooterData(visibleColumns, selectedSummary)
+
+      expect(footerData).toHaveLength(2)
+      expect(footerData[0]).toEqual(['选中', '3 条', '600.00', '30.00', null])
+      expect(footerData[1]).toEqual(['合计', '100 条', '10,000.00', '500.00', null])
+    })
+
+    it('should keep selected summary cells empty when no rows are selected', () => {
+      const { calculateSelectedSummary, generateFooterData, setServerSummary } = useTableSummary(mockColumns)
 
       setServerSummary({ total: 100, amount: 10000, count: 500 })
 
       const visibleColumns = [
-        { field: undefined },  // checkbox column
+        { field: undefined },
+        { field: 'id', type: 'INTEGER' },
+        { field: 'amount', type: 'MONEY' },
+        { field: 'count', type: 'NUMBER' },
+        { field: 'capacity', type: 'NUMBER' }
+      ]
+
+      const footerData = generateFooterData(visibleColumns, calculateSelectedSummary([]))
+
+      expect(footerData[0]).toEqual(['选中', '0 条', '', '', null])
+      expect(footerData[1]).toEqual(['合计', '100 条', '10,000.00', '500.00', null])
+    })
+
+    it('should still show zero totals when selected rows sum to zero', () => {
+      const { calculateSelectedSummary, generateFooterData, setServerSummary } = useTableSummary(mockColumns)
+
+      setServerSummary({ total: 1, amount: 0, count: 0 })
+
+      const visibleColumns = [
+        { field: undefined },
         { field: 'id', type: 'INTEGER' },
         { field: 'amount', type: 'MONEY' },
         { field: 'count', type: 'NUMBER' }
       ]
 
-      const selectedSummary = { _count: 3, amount: 600, count: 30 }
+      const footerData = generateFooterData(
+        visibleColumns,
+        calculateSelectedSummary([{ id: 1, amount: 0, count: 0 }])
+      )
 
-      const footerData = generateFooterData(visibleColumns, selectedSummary)
-
-      expect(footerData).toHaveLength(2)
-      expect(footerData[0]).toHaveLength(4)  // 选中行
-      expect(footerData[1]).toHaveLength(4)  // 全量汇总
+      expect(footerData[0]).toEqual(['选中', '1 条', '0.00', '0.00'])
+      expect(footerData[1]).toEqual(['合计', '1 条', '0.00', '0.00'])
     })
 
-    it('should show labels in first column', () => {
+    it('should prefer server total over fallback total', () => {
       const { generateFooterData, setServerSummary } = useTableSummary(mockColumns)
 
       setServerSummary({ total: 100 })
 
-      const visibleColumns = [{ field: undefined }]
-      const selectedSummary = { _count: 3 }
-
-      const footerData = generateFooterData(visibleColumns, selectedSummary)
-
-      expect(footerData[0][0]).toBe('选中')
-      expect(footerData[1][0]).toBe('合计')
-    })
-
-    it('should show count in second column', () => {
-      const { generateFooterData, setServerSummary } = useTableSummary(mockColumns)
-
-      setServerSummary({ total: 100 })
-
-      const visibleColumns = [
-        { field: undefined },
-        { field: 'id', type: 'INTEGER' }
-      ]
-      const selectedSummary = { _count: 5 }
-
-      const footerData = generateFooterData(visibleColumns, selectedSummary)
+      const footerData = generateFooterData(
+        [{ field: undefined }, { field: 'id', type: 'INTEGER' }],
+        { _count: 5 },
+        200
+      )
 
       expect(footerData[0][1]).toBe('5 条')
       expect(footerData[1][1]).toBe('100 条')
     })
 
-    it('should show measure values in other columns', () => {
+    it('should fall back to table total when server summary has no count', () => {
       const { generateFooterData, setServerSummary } = useTableSummary(mockColumns)
 
-      setServerSummary({ total: 100, amount: 10000 })
+      setServerSummary(null)
 
-      const visibleColumns = [
-        { field: undefined },
-        { field: 'id', type: 'INTEGER' },
-        { field: 'amount', type: 'MONEY' }
-      ]
-      const selectedSummary = { _count: 3, amount: 600 }
+      const footerData = generateFooterData(
+        [{ field: undefined }, { field: 'id', type: 'INTEGER' }],
+        { _count: 5 },
+        123
+      )
 
-      const footerData = generateFooterData(visibleColumns, selectedSummary)
-
-      expect(footerData[0][2]).toBe('600.00')
-      expect(footerData[1][2]).toBe('10,000.00')
+      expect(footerData[1][1]).toBe('123 条')
     })
 
-    it('should show null for non-measure columns', () => {
+    it('should show null for non-summary columns', () => {
       const { generateFooterData, setServerSummary } = useTableSummary(mockColumns)
 
       setServerSummary({ total: 100 })
 
-      const visibleColumns = [
-        { field: undefined },
-        { field: 'id', type: 'INTEGER' },
-        { field: 'name', type: 'TEXT' }  // non-measure
-      ]
-      const selectedSummary = { _count: 3 }
-
-      const footerData = generateFooterData(visibleColumns, selectedSummary)
+      const footerData = generateFooterData(
+        [
+          { field: undefined },
+          { field: 'id', type: 'INTEGER' },
+          { field: 'name', type: 'TEXT' }
+        ],
+        { _count: 3 }
+      )
 
       expect(footerData[0][2]).toBeNull()
       expect(footerData[1][2]).toBeNull()
@@ -258,13 +255,10 @@ describe('useTableSummary', () => {
 
       setServerSummary({ total: 0 })
 
-      const visibleColumns = [
-        { field: undefined },
-        { field: 'id', type: 'INTEGER' }
-      ]
-      const selectedSummary = { _count: 0 }
-
-      const footerData = generateFooterData(visibleColumns, selectedSummary)
+      const footerData = generateFooterData(
+        [{ field: undefined }, { field: 'id', type: 'INTEGER' }],
+        { _count: 0 }
+      )
 
       expect(footerData[0][1]).toBe('0 条')
       expect(footerData[1][1]).toBe('0 条')
@@ -297,45 +291,6 @@ describe('useTableSummary', () => {
 
       setServerSummary({ total: 100 })
       expect(serverSummary.value?.total).toBe(100)
-    })
-  })
-
-  describe('Integration', () => {
-    it('should work together for complete workflow', () => {
-      const {
-        measureColumns,
-        calculateSelectedSummary,
-        generateFooterData,
-        setServerSummary
-      } = useTableSummary(mockColumns)
-
-      // 1. 识别度量列
-      expect(measureColumns.value).toHaveLength(3)  // id, amount, count
-
-      // 2. 设置服务端汇总
-      setServerSummary({ total: 100, amount: 50000, count: 1000 })
-
-      // 3. 计算选中行汇总
-      const selectedRows = [
-        { id: 1, amount: 100, count: 5 },
-        { id: 2, amount: 200, count: 10 }
-      ]
-      const selectedSummary = calculateSelectedSummary(selectedRows)
-
-      expect(selectedSummary._count).toBe(2)
-      expect(selectedSummary.amount).toBe(300)
-
-      // 4. 生成 footer 数据
-      const visibleColumns = [
-        { field: undefined },
-        { field: 'id', type: 'INTEGER' },
-        { field: 'amount', type: 'MONEY' }
-      ]
-      const footerData = generateFooterData(visibleColumns, selectedSummary)
-
-      expect(footerData).toHaveLength(2)
-      expect(footerData[0][1]).toBe('2 条')
-      expect(footerData[1][1]).toBe('100 条')
     })
   })
 })

@@ -6,6 +6,8 @@ import DataTable from './DataTable.vue'
 import type { CellRenderContext, EnhancedColumnSchema, SliceRequestDef } from '@/types'
 
 const elMessageWarning = vi.hoisted(() => vi.fn())
+const clearCheckboxRowSpy = vi.hoisted(() => vi.fn())
+const clearCheckboxReserveSpy = vi.hoisted(() => vi.fn())
 
 vi.mock('element-plus', () => ({
   ElMessage: {
@@ -44,8 +46,13 @@ const VxeGridRenderStub = defineComponent({
       default: undefined
     }
   },
-  emits: ['cellClick'],
-  setup(props, { emit }) {
+  emits: ['cellClick', 'checkboxChange', 'checkboxAll'],
+  setup(props, { emit, expose }) {
+    expose({
+      clearCheckboxRow: clearCheckboxRowSpy,
+      clearCheckboxReserve: clearCheckboxReserveSpy
+    })
+
     return () => h('div', { class: 'vxe-grid-render-stub' }, [
       h('div', { class: 'stub-header' }, props.columns
         .filter(column => column.field)
@@ -873,6 +880,33 @@ describe('DataTable', () => {
 
       expect(wrapper.vm.clearSelection).toBeDefined()
       expect(() => wrapper.vm.clearSelection()).not.toThrow()
+    })
+
+    it('should clear internal and vxe checkbox selection state', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      const grid = wrapper.findComponent(VxeGridRenderStub)
+      await grid.vm.$emit('checkboxChange', { records: [mockData[0]] })
+
+      expect(wrapper.vm.getSelectedCount()).toBe(1)
+
+      wrapper.vm.clearSelection()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.getSelectedCount()).toBe(0)
+      expect(clearCheckboxRowSpy).toHaveBeenCalled()
+      expect(clearCheckboxReserveSpy).toHaveBeenCalled()
+
+      const events = wrapper.emitted('checkbox-change') || []
+      expect(events[events.length - 1]).toEqual([[]])
     })
   })
 
