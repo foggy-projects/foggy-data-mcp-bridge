@@ -159,6 +159,8 @@ if ([string]::IsNullOrWhiteSpace(\$BundleRegistryPath)) {
 if ([string]::IsNullOrWhiteSpace(\$DatasourceRegistryPath)) {
     \$DatasourceRegistryPath = Join-Path \$WorkDir "runtime-datasource-registry.json"
 }
+\$LegacyDatasourceConfigDir = Join-Path \$WorkDir "legacy-datasources"
+New-Item -ItemType Directory -Force -Path \$LegacyDatasourceConfigDir | Out-Null
 
 \$jar = Join-Path \$PSScriptRoot "$RELEASE_JAR_NAME"
 if (-not (Test-Path -LiteralPath \$jar)) {
@@ -175,12 +177,17 @@ if (-not (Test-Path -LiteralPath \$jar)) {
     "--foggy.runtime-api.enabled=true",
     "--foggy.runtime-api.bundle-registry.path=\$BundleRegistryPath",
     "--foggy.runtime-api.datasource-registry.path=\$DatasourceRegistryPath",
+    "--foggy.datasource.config.dir=\$LegacyDatasourceConfigDir",
     "--foggy.data-viewer.enabled=false",
     "--foggy.mcp.audit.enabled=false",
+    "--foggy.demo.enabled=false",
+    "--spring.autoconfigure.exclude=com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration",
     "--spring.datasource.url=jdbc:sqlite:\$SqlitePath",
     "--spring.ai.openai.api-key=sk-runtime-demo",
     "--spring.ai.openai.base-url=http://127.0.0.1:9",
-    "--spring.ai.openai.chat.options.model=runtime-demo"
+    "--spring.ai.openai.chat.options.model=runtime-demo",
+    "--logging.level.org.springframework.ai=INFO",
+    "--logging.level.com.foggyframework.core.spring.proxy=WARN"
 )
 
 \$process = Start-Process \`
@@ -199,6 +206,7 @@ if (-not (Test-Path -LiteralPath \$jar)) {
     sqlitePath = \$SqlitePath
     bundleRegistryPath = \$BundleRegistryPath
     datasourceRegistryPath = \$DatasourceRegistryPath
+    legacyDatasourceConfigDir = \$LegacyDatasourceConfigDir
     stdoutLog = \$stdoutLog
     stderrLog = \$stderrLog
     securityMode = "none-dev-test-only"
@@ -215,6 +223,7 @@ WORK_DIR="\${WORK_DIR:-"\$SCRIPT_DIR/.foggy-runtime"}"
 SQLITE_PATH="\${SQLITE_PATH:-"\$WORK_DIR/foggy-runtime.sqlite"}"
 BUNDLE_REGISTRY_PATH="\${BUNDLE_REGISTRY_PATH:-"\$WORK_DIR/runtime-bundle-registry.json"}"
 DATASOURCE_REGISTRY_PATH="\${DATASOURCE_REGISTRY_PATH:-"\$WORK_DIR/runtime-datasource-registry.json"}"
+LEGACY_DATASOURCE_CONFIG_DIR="\${LEGACY_DATASOURCE_CONFIG_DIR:-"\$WORK_DIR/legacy-datasources"}"
 JAVA_EXE="\${JAVA_EXE:-java}"
 JAR="\$SCRIPT_DIR/$RELEASE_JAR_NAME"
 
@@ -224,6 +233,7 @@ if [[ ! -f "\$JAR" ]]; then
 fi
 
 mkdir -p "\$WORK_DIR"
+mkdir -p "\$LEGACY_DATASOURCE_CONFIG_DIR"
 STDOUT_LOG="\$WORK_DIR/runtime.out.log"
 STDERR_LOG="\$WORK_DIR/runtime.err.log"
 
@@ -235,12 +245,17 @@ nohup "\$JAVA_EXE" \\
   --foggy.runtime-api.enabled=true \\
   --foggy.runtime-api.bundle-registry.path="\$BUNDLE_REGISTRY_PATH" \\
   --foggy.runtime-api.datasource-registry.path="\$DATASOURCE_REGISTRY_PATH" \\
+  --foggy.datasource.config.dir="\$LEGACY_DATASOURCE_CONFIG_DIR" \\
   --foggy.data-viewer.enabled=false \\
   --foggy.mcp.audit.enabled=false \\
+  --foggy.demo.enabled=false \\
+  --spring.autoconfigure.exclude=com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration \\
   --spring.datasource.url="jdbc:sqlite:\$SQLITE_PATH" \\
   --spring.ai.openai.api-key=sk-runtime-demo \\
   --spring.ai.openai.base-url=http://127.0.0.1:9 \\
   --spring.ai.openai.chat.options.model=runtime-demo \\
+  --logging.level.org.springframework.ai=INFO \\
+  --logging.level.com.foggyframework.core.spring.proxy=WARN \\
   > "\$STDOUT_LOG" 2> "\$STDERR_LOG" &
 PID="\$!"
 
@@ -252,6 +267,7 @@ cat <<JSON
   "sqlitePath": "\$SQLITE_PATH",
   "bundleRegistryPath": "\$BUNDLE_REGISTRY_PATH",
   "datasourceRegistryPath": "\$DATASOURCE_REGISTRY_PATH",
+  "legacyDatasourceConfigDir": "\$LEGACY_DATASOURCE_CONFIG_DIR",
   "stdoutLog": "\$STDOUT_LOG",
   "stderrLog": "\$STDERR_LOG",
   "securityMode": "none-dev-test-only"
@@ -289,6 +305,9 @@ The default runtime URL is \`http://127.0.0.1:18066\`. Runtime state is written 
 - Default SQLite database: \`.foggy-runtime/foggy-runtime.sqlite\`
 - Bundle registry: \`.foggy-runtime/runtime-bundle-registry.json\`
 - Datasource registry: \`.foggy-runtime/runtime-datasource-registry.json\`
+- Legacy datasource config directory: \`.foggy-runtime/legacy-datasources\`
+- Built-in ecommerce demo bundle: disabled for public sales-drop onboarding
+- Odoo bridge auto-configuration: excluded for public sales-drop onboarding
 - Security mode: \`none-dev-test-only\`
 
 ## Release contents
