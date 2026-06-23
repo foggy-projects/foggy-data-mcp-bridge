@@ -1,6 +1,7 @@
 package com.foggyframework.dataviewer.controller;
 
 import com.foggyframework.core.ex.ExDefined;
+import com.foggyframework.core.ex.ExRuntimeExceptionImpl;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.MemberQueryRequest;
@@ -382,6 +383,27 @@ class ViewerApiControllerTest {
             verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
             DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
             assertNull(queryDef.getExtData());
+        }
+
+        @Test
+        @DisplayName("直连查询业务异常应保留业务错误码并返回错误数据")
+        void shouldReturnBusinessErrorForDirectQueryBusinessException() {
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
+                    .thenThrow(new ExRuntimeExceptionImpl(46001, "字段不存在: fleetName"));
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setStart(0);
+            request.setLimit(10);
+            request.setColumns(List.of("vehicleId", "fleetName"));
+
+            RX<ViewerDataResponse> response = controller.queryDirect("VehicleManagementQuery", null, null, request);
+
+            assertEquals(46001, response.getCode());
+            assertEquals("字段不存在: fleetName", response.getMsg());
+            assertNotNull(response.getData());
+            assertFalse(response.getData().isSuccess());
+            assertEquals("字段不存在: fleetName", response.getData().getError());
+            verify(queryFacade).queryModelData(any(PagingRequest.class), isNull(), isNull());
         }
     }
 

@@ -1,5 +1,6 @@
 package com.foggyframework.dataviewer.controller;
 
+import com.foggyframework.core.ex.ExRuntimeExceptionImpl;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
@@ -415,9 +416,14 @@ public class ViewerApiController {
                     pagingRequest.getStart(),
                     pagingRequest.getLimit()
             ));
+        } catch (ExRuntimeExceptionImpl e) {
+            String message = safeErrorMessage(e);
+            log.warn("Direct query business error for model {}: {}", qmModel, message);
+            return viewerDataBusinessError(e);
         } catch (Exception e) {
-            log.error("Error executing direct query for model: {}", qmModel, e);
-            return RX.failB(e.getMessage(), ViewerDataResponse.error(e.getMessage()));
+            String message = safeErrorMessage(e);
+            log.warn("Direct query failed for model {}: {}: {}", qmModel, e.getClass().getName(), message);
+            return RX.failB(message, ViewerDataResponse.error(message));
         }
     }
 
@@ -609,6 +615,16 @@ public class ViewerApiController {
 
     private String resolveNamespace(String headerNamespace, String bodyNamespace) {
         return DatasetRequestNamespaceResolver.resolve(datasetProperties, headerNamespace, bodyNamespace);
+    }
+
+    private RX<ViewerDataResponse> viewerDataBusinessError(ExRuntimeExceptionImpl e) {
+        String message = safeErrorMessage(e);
+        return new RX<>(e.getCode(), e.getExCode(), message, ViewerDataResponse.error(message));
+    }
+
+    private String safeErrorMessage(Throwable e) {
+        return firstNonBlank(e instanceof ExRuntimeExceptionImpl ex ? ex.getUserTip() : null,
+                e.getMessage(), e.getClass().getSimpleName());
     }
 
     private String firstNonBlank(String... values) {
