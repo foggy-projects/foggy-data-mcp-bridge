@@ -359,7 +359,7 @@ const effectiveDensity = computed<TableDensity>(() => {
   if (isSchemaMode.value && props.schema?.density) {
     return props.schema.density
   }
-  return props.density ?? 'default'
+  return props.density ?? 'compact'
 })
 
 const effectiveInitialSlice = computed(() => {

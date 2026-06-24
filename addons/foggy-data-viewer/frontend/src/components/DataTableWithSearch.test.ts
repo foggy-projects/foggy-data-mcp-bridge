@@ -388,6 +388,15 @@ describe('DataTableWithSearch', () => {
       expect(dataTable.props('qmModel')).toBe('vehicleCapacityProfile')
     })
 
+    it('should default density to compact', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('density')).toBe('compact')
+    })
+
     it('should prefer schema density in schema mode', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {

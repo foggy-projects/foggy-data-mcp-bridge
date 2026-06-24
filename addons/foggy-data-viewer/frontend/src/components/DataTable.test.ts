@@ -156,6 +156,35 @@ describe('DataTable', () => {
       // 组件已成功挂载
     })
 
+    it('should use compact density by default', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.find('.data-table').classes()).toContain('data-table--compact')
+    })
+
+    it('should allow default density explicitly', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          density: 'default'
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.find('.data-table').classes()).not.toContain('data-table--compact')
+    })
+
     it('should render with loading state', () => {
       const wrapper = mount(DataTable, {
         props: {

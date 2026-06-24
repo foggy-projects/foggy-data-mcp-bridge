@@ -71,7 +71,7 @@ const props = withDefaults(defineProps<Props>(), {
   backgroundLoading: false,
   backgroundLoadingText: '',
   backgroundLoadingError: null,
-  density: 'default'
+  density: 'compact'
 })
 
 const emit = defineEmits<{
