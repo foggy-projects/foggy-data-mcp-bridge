@@ -51,6 +51,20 @@ describe('component style contracts', () => {
     expect(css).toContain('.data-table .cell-copy-icon {')
   })
 
+  it('keeps DataTable header filter layout compact in unscoped styles', () => {
+    const css = getUnscopedCss('./DataTable.vue')
+
+    expect(css).toContain('height: 46px;')
+    expect(css).toContain('max-height: 46px;')
+    expect(css).toContain('height: 45px;')
+    expect(css).toContain('max-height: 45px;')
+    expect(css).toContain('height: 22px;')
+    expect(css).toContain('height: 25px;')
+    expect(css).toContain('min-height: 25px;')
+    expect(css).toContain('.data-table .header-with-filter .vxe-header--column {')
+    expect(css).toContain('padding: 3px 4px !important;')
+  })
+
   it('keeps DataTableWithSearch height chain available without scoped attributes', () => {
     const css = getUnscopedCss('./DataTableWithSearch.vue')
 

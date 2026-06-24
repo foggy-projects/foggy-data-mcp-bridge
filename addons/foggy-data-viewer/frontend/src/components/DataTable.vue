@@ -1046,9 +1046,9 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
               display: 'flex',
               flexDirection: 'column',
               width: '100%',
-              padding: props.density === 'compact' ? '2px 0' : '4px 0',
-              height: props.density === 'compact' ? '48px' : '60px',
-              maxHeight: props.density === 'compact' ? '48px' : '60px',
+              padding: props.density === 'compact' ? '1px 0' : '2px 0',
+              height: props.density === 'compact' ? '45px' : '46px',
+              maxHeight: props.density === 'compact' ? '45px' : '46px',
               overflow: 'hidden'
             }
           }, [
@@ -1060,11 +1060,11 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
                 width: '100%',
                 boxSizing: 'border-box',
                 fontWeight: '600',
-                marginBottom: props.density === 'compact' ? '3px' : '6px',
+                marginBottom: props.density === 'compact' ? '2px' : '3px',
                 cursor: 'default',
                 userSelect: 'none',
                 lineHeight: '1.2',
-                minHeight: props.density === 'compact' ? '16px' : '18px',
+                minHeight: props.density === 'compact' ? '15px' : '16px',
                 minWidth: '0',
                 gap: '3px'
               }
@@ -1593,9 +1593,9 @@ provide('dataTableContext', {
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 4px 0;
-  height: 60px;
-  max-height: 60px;
+  padding: 2px 0;
+  height: 46px;
+  max-height: 46px;
   overflow: hidden;
 }
 
@@ -1605,24 +1605,24 @@ provide('dataTableContext', {
   width: 100%;
   box-sizing: border-box;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
   cursor: pointer;
   user-select: none;
   line-height: 1.2;
-  min-height: 18px;
+  min-height: 16px;
   min-width: 0;
   gap: 3px;
 }
 
 .data-table--compact .column-header-wrapper {
-  padding: 2px 0;
-  height: 48px;
-  max-height: 48px;
+  padding: 1px 0;
+  height: 45px;
+  max-height: 45px;
 }
 
 .data-table--compact .column-title {
-  margin-bottom: 3px;
-  min-height: 16px;
+  margin-bottom: 2px;
+  min-height: 15px;
 }
 
 .column-title:hover {
@@ -1679,20 +1679,20 @@ provide('dataTableContext', {
 
 .column-filter {
   width: 100%;
-  min-height: 26px;
+  min-height: 22px;
   min-width: 0;
   overflow: hidden;
 }
 
 .data-table--compact .column-filter {
-  min-height: 22px;
+  min-height: 25px;
 }
 
 /* 过滤器组件通用样式 */
 .column-filter :deep(input:not(.el-range-input):not(.el-input__inner)),
 .column-filter :deep(select) {
   width: 100%;
-  height: 24px;
+  height: 22px;
   padding: 0 6px;
   font-size: 12px;
   border: 1px solid #dcdfe6;
@@ -1702,7 +1702,7 @@ provide('dataTableContext', {
 
 .data-table--compact .column-filter :deep(input:not(.el-range-input):not(.el-input__inner)),
 .data-table--compact .column-filter :deep(select) {
-  height: 22px;
+  height: 25px;
   padding: 0 5px;
   font-size: 12px;
 }
@@ -1740,12 +1740,12 @@ provide('dataTableContext', {
 }
 
 :deep(.header-with-filter .vxe-header--column) {
-  padding: 8px 4px !important;
+  padding: 3px 4px !important;
   vertical-align: top;
 }
 
 .data-table--compact :deep(.header-with-filter .vxe-header--column) {
-  padding: 5px 4px !important;
+  padding: 2px 4px !important;
 }
 
 :deep(.vxe-header--column .vxe-cell) {
@@ -1936,9 +1936,9 @@ provide('dataTableContext', {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 60px;
-  max-height: 60px;
-  padding: 4px 0;
+  height: 46px;
+  max-height: 46px;
+  padding: 2px 0;
   overflow: hidden;
 }
 
@@ -1947,10 +1947,10 @@ provide('dataTableContext', {
   align-items: center;
   width: 100%;
   min-width: 0;
-  min-height: 18px;
+  min-height: 16px;
   box-sizing: border-box;
   gap: 3px;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
@@ -1958,14 +1958,14 @@ provide('dataTableContext', {
 }
 
 .data-table.data-table--compact .column-header-wrapper {
-  height: 48px;
-  max-height: 48px;
-  padding: 2px 0;
+  height: 45px;
+  max-height: 45px;
+  padding: 1px 0;
 }
 
 .data-table.data-table--compact .column-title {
-  min-height: 16px;
-  margin-bottom: 3px;
+  min-height: 15px;
+  margin-bottom: 2px;
 }
 
 .data-table .column-title:hover {
@@ -2020,6 +2020,23 @@ provide('dataTableContext', {
   fill: #606266;
 }
 
+.data-table .header-with-filter {
+  height: auto !important;
+}
+
+.data-table .header-with-filter .vxe-header--column {
+  padding: 3px 4px !important;
+  vertical-align: top;
+}
+
+.data-table.data-table--compact .header-with-filter .vxe-header--column {
+  padding: 2px 4px !important;
+}
+
+.data-table .vxe-header--column .vxe-cell {
+  overflow: hidden !important;
+}
+
 /*
  * Header slot content is rendered inside vxe-grid. In some host apps Vue scoped
  * attributes are not preserved on that slot subtree, so these styles must not
@@ -2027,19 +2044,19 @@ provide('dataTableContext', {
  */
 .data-table .column-filter {
   width: 100%;
-  min-height: 26px;
+  min-height: 22px;
   min-width: 0;
   overflow: hidden;
 }
 
 .data-table.data-table--compact .column-filter {
-  min-height: 22px;
+  min-height: 25px;
 }
 
 .data-table .column-filter input:not(.el-range-input):not(.el-input__inner),
 .data-table .column-filter select {
   width: 100%;
-  height: 24px;
+  height: 22px;
   padding: 0 6px;
   font-size: 12px;
   border: 1px solid #dcdfe6;
@@ -2050,7 +2067,7 @@ provide('dataTableContext', {
 
 .data-table.data-table--compact .column-filter input:not(.el-range-input):not(.el-input__inner),
 .data-table.data-table--compact .column-filter select {
-  height: 22px;
+  height: 25px;
   padding: 0 5px;
   font-size: 12px;
 }
@@ -2104,7 +2121,7 @@ provide('dataTableContext', {
 }
 
 .data-table .column-filter .filter-bool button {
-  height: 24px;
+  height: 22px;
   padding: 0 8px;
   border: 1px solid #dcdfe6;
   border-radius: 3px;
@@ -2117,7 +2134,7 @@ provide('dataTableContext', {
 }
 
 .data-table.data-table--compact .column-filter .filter-bool button {
-  height: 22px;
+  height: 25px;
 }
 
 .data-table .column-filter .filter-bool button:hover {
@@ -2135,7 +2152,7 @@ provide('dataTableContext', {
   display: flex;
   align-items: center;
   min-width: 0;
-  height: 24px;
+  height: 22px;
   padding: 0 8px;
   border: 1px solid #dcdfe6;
   border-radius: 3px;
@@ -2146,7 +2163,7 @@ provide('dataTableContext', {
 }
 
 .data-table.data-table--compact .column-filter .select-input {
-  height: 22px;
+  height: 25px;
   padding: 0 5px;
 }
 
@@ -2207,21 +2224,21 @@ provide('dataTableContext', {
 .data-table .column-filter .filter-date-range .el-date-editor {
   width: 100% !important;
   max-width: 100%;
-  height: 24px;
-}
-
-.data-table.data-table--compact .column-filter .filter-date-range .el-date-editor {
   height: 22px;
 }
 
+.data-table.data-table--compact .column-filter .filter-date-range .el-date-editor {
+  height: 25px;
+}
+
 .data-table .column-filter .filter-date-range .el-input__wrapper {
-  height: 24px;
+  height: 22px;
   padding: 0 4px;
   box-sizing: border-box;
 }
 
 .data-table.data-table--compact .column-filter .filter-date-range .el-input__wrapper {
-  height: 22px;
+  height: 25px;
 }
 
 .data-table .column-filter .filter-date-range .el-range-input,
@@ -2232,6 +2249,6 @@ provide('dataTableContext', {
 .data-table .column-filter .filter-date-range .el-range-separator {
   flex-shrink: 0;
   padding: 0 2px;
-  line-height: 22px;
+  line-height: 25px;
 }
 </style>
