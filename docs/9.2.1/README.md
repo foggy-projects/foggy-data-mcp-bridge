@@ -21,16 +21,18 @@ This version keeps the existing root-level versioned documentation convention: w
 | Area | Workitem | Status | Owner Module | Boundary |
 |---|---|---|---|---|
 | FSScript runtime stability and resource boundary | `workitems/P1-fsscript-runtime-stability-resource-boundary.md` | signed-off | `foggy-fsscript` | Resource-boundary fixes, concurrency hardening, watcher cleanup, primary bundle load-failure handling, and runtime error-handling cleanup are signed off; excludes management endpoint exposure and authentication policy. |
+| Runtime API auth-code management gate | `workitems/P1-runtime-api-auth-code-management-gate.md` | signed-off | `foggy-runtime-api`, `foggy-fsscript` | Lightweight authorization-code gate for Runtime API management writes and default-off legacy FSScript bundle management endpoint. |
 
 ## Acceptance Status
 
 - acceptance_status: signed-off
-- acceptance_decision: accepted
+- acceptance_decision: accepted. FSScript stability/resource-boundary item and Runtime API auth-code management gate are both signed off.
 - signed_off_by: codex
 - signed_off_at: 2026-06-25
-- acceptance_record: docs/9.2.1/acceptance/P1-fsscript-runtime-stability-resource-boundary-acceptance.md
+- acceptance_record_fsscript: docs/9.2.1/acceptance/P1-fsscript-runtime-stability-resource-boundary-acceptance.md
+- acceptance_record_runtime_api: docs/9.2.1/acceptance/P1-runtime-api-auth-code-management-gate-acceptance.md
 - blocking_items: none
-- follow_up_required: yes
+- follow_up_required: no
 
 ## Guardrails
 

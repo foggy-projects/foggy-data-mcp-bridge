@@ -2,6 +2,7 @@ package com.foggyframework.runtime.api.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 @ConfigurationProperties(prefix = "foggy.runtime-api")
@@ -11,6 +12,7 @@ public class FoggyRuntimeApiProperties {
     private String runtimeApiVersion = "foggy-runtime-api/v1";
     private String schemaVersion = "2026-06-06";
     private String securityMode = "none-dev-test-only";
+    private String authCode;
     private BundleRegistry bundleRegistry = new BundleRegistry();
     private DatasourceRegistry datasourceRegistry = new DatasourceRegistry();
 
@@ -44,6 +46,26 @@ public class FoggyRuntimeApiProperties {
 
     public void setSecurityMode(String securityMode) {
         this.securityMode = securityMode;
+    }
+
+    public String getAuthCode() {
+        return authCode;
+    }
+
+    public void setAuthCode(String authCode) {
+        this.authCode = authCode;
+    }
+
+    public boolean isAuthCodeConfigured() {
+        return StringUtils.hasText(authCode);
+    }
+
+    public boolean isAuthCodeRequired() {
+        return "auth-code".equalsIgnoreCase(securityMode) || isAuthCodeConfigured();
+    }
+
+    public String getEffectiveSecurityMode() {
+        return isAuthCodeRequired() ? "auth-code" : securityMode;
     }
 
     public BundleRegistry getBundleRegistry() {

@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestController
 @RequestMapping("/api/bundles")
+@ConditionalOnProperty(prefix = "foggy.fsscript.bundle-management", name = "enabled", havingValue = "true")
 @Api(tags = "Bundle动态管理")
 public class BundleManagementController {
 

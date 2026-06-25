@@ -96,6 +96,17 @@ public class MyModelsConfig { }
 
 支持运行时动态添加/移除外部 Bundle，无需重启服务。
 
+注意：旧版 `foggy-fsscript` `/api/bundles/**` 管理接口默认不再装配。确需使用旧接口时需显式开启：
+
+```yaml
+foggy:
+  fsscript:
+    bundle-management:
+      enabled: true
+```
+
+新接入建议优先使用 `foggy-runtime-api` 的 `/api/v1/bundles`，并通过 `foggy.runtime-api.auth-code` 为管理写操作配置授权码。
+
 ### REST API
 
 | 端点 | 方法 | 说明 |

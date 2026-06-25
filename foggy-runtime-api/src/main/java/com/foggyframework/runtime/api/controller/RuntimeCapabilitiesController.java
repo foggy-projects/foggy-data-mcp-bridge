@@ -67,11 +67,21 @@ public class RuntimeCapabilitiesController {
                 properties.getRuntimeApiVersion(),
                 properties.getSchemaVersion(),
                 properties.isEnabled(),
-                properties.getSecurityMode(),
+                properties.getEffectiveSecurityMode(),
                 capabilities,
-                List.of("Runtime API is intended for development and testing only.")
+                warnings()
         );
 
         return RuntimeEnvelope.ok(ENGINE, properties.getRuntimeApiVersion(), response);
+    }
+
+    private List<String> warnings() {
+        if ("auth-code".equals(properties.getEffectiveSecurityMode()) && !properties.isAuthCodeConfigured()) {
+            return List.of("Runtime API auth-code mode is enabled, but no auth code is configured.");
+        }
+        if ("auth-code".equals(properties.getEffectiveSecurityMode())) {
+            return List.of("Runtime API mutating management operations require an auth code.");
+        }
+        return List.of("Runtime API is intended for development and testing only.");
     }
 }
