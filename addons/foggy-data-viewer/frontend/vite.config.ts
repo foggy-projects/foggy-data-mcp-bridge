@@ -13,7 +13,7 @@ type CompactDemoSlice = {
   value?: unknown
 }
 
-type CompactDemoRow = Record<string, string | number>
+type CompactDemoRow = Record<string, string | number | boolean>
 
 type CompactDemoApiRequest = {
   method?: string
@@ -37,23 +37,25 @@ type CompactDemoServer = {
 }
 
 const compactDemoRowsForApi: CompactDemoRow[] = [
-  ['432154486', '251125000012', '济南集配', '广州', '广州', '广州', '2026-06-15 13:33:37', 1],
-  ['432153784', 'YZ000000019', '青岛集配', '广州', '广州', '广州', '2026-06-09 16:21:25', 1000],
-  ['432154430', '', '青岛集配', '贵阳', '贵阳', '白云区', '2026-06-09 13:16:10', 2],
-  ['432154407', '', '青岛集配', '城阳区', '青岛集配', '城阳区', '2026-06-08 16:12:52', 2],
-  ['432154406', '', '青岛集配', '城阳区', '青岛集配', '城阳区', '2026-06-08 15:51:26', 2],
-  ['432154367', '', '济南集配', '广州', '广州', '白云区', '2026-06-08 10:03:08', 2],
-  ['432154339', '', '美里', '济南集配', '广州', '广州', '2026-06-05 11:28:55', 3],
-  ['432154336', '', '美里', '济南集配', '广州', '广州', '2026-06-05 11:28:17', 3],
-  ['432154335', '', '美里', '济南集配', '济南集配', '济南集配', '2026-06-05 11:27:18', 3],
-  ['432154333', '', '美里', '济南集配', '济南集配', '济南集配', '2026-06-05 11:26:51', 3]
-].map(([waybillNo, customerNo, openingSite, nextStation, arrivalSite, destination, stockInTime, stockInCount]) => ({
+  ['432154486', '251125000012', '济南集配', '广州', '广州', '广州', true, false, '2026-06-15 13:33:37', 1],
+  ['432153784', 'YZ000000019', '青岛集配', '广州', '广州', '广州', true, false, '2026-06-09 16:21:25', 1000],
+  ['432154430', '', '青岛集配', '贵阳', '贵阳', '白云区', false, true, '2026-06-09 13:16:10', 2],
+  ['432154407', '', '青岛集配', '城阳区', '青岛集配', '城阳区', false, true, '2026-06-08 16:12:52', 2],
+  ['432154406', '', '青岛集配', '城阳区', '青岛集配', '城阳区', false, true, '2026-06-08 15:51:26', 2],
+  ['432154367', '', '济南集配', '广州', '广州', '白云区', true, false, '2026-06-08 10:03:08', 2],
+  ['432154339', '', '美里', '济南集配', '广州', '广州', false, false, '2026-06-05 11:28:55', 3],
+  ['432154336', '', '美里', '济南集配', '广州', '广州', false, false, '2026-06-05 11:28:17', 3],
+  ['432154335', '', '美里', '济南集配', '济南集配', '济南集配', true, true, '2026-06-05 11:27:18', 3],
+  ['432154333', '', '美里', '济南集配', '济南集配', '济南集配', true, true, '2026-06-05 11:26:51', 3]
+].map(([waybillNo, customerNo, openingSite, nextStation, arrivalSite, destination, isBranchCompany, isTerminalOrg, stockInTime, stockInCount]) => ({
   waybillNo,
   customerNo,
   openingSite,
   nextStation,
   arrivalSite,
   destination,
+  isBranchCompany,
+  isTerminalOrg,
   stockInTime,
   stockInCount
 }))

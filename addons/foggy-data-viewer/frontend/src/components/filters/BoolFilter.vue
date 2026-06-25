@@ -57,9 +57,11 @@ function select(val: boolean | null) {
   <div class="filter-bool">
     <button
       :class="{ active: selectedValue === null }"
+      title="全部"
+      aria-label="全部"
       @click="select(null)"
     >
-      全部
+      全
     </button>
     <button
       :class="{ active: selectedValue === true }"
@@ -79,12 +81,14 @@ function select(val: boolean | null) {
 <style scoped>
 .filter-bool {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .filter-bool button {
   height: 26px;
-  padding: 0 8px;
+  min-width: 22px;
+  padding: 0 5px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   background: white;

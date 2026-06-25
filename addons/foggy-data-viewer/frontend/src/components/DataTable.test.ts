@@ -24,6 +24,8 @@ vi.mock('element-plus', () => ({
 
 interface TestGridColumn {
   field?: string
+  width?: number | string
+  minWidth?: number
   slots?: {
     header?: () => unknown
     default?: (params: { row: Record<string, unknown>; column: TestGridColumn; cellValue: unknown }) => unknown
@@ -319,6 +321,30 @@ describe('DataTable', () => {
 
       expect(wrapper.exists()).toBe(true)
       // vxe-table 会应用列宽配置
+    })
+
+    it('should provide compact min width for boolean filter columns', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            {
+              name: 'enabled',
+              type: 'BOOL',
+              title: '启用',
+              width: 60
+            }
+          ],
+          data: [{ enabled: true }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      const grid = wrapper.findComponent(VxeGridRenderStub)
+      const columns = grid.props('columns') as TestGridColumn[]
+      const enabledColumn = columns.find(column => column.field === 'enabled')
+      expect(enabledColumn?.minWidth).toBe(88)
     })
 
     it('should apply fixed columns', () => {

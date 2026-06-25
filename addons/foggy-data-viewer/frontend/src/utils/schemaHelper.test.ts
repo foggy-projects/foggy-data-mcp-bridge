@@ -73,6 +73,19 @@ describe('schemaHelper', () => {
       expect(result[1].minWidth).toBe(120) // default
     })
 
+    it('should use compact boolean width defaults for header bool filters', () => {
+      const config: TableConfig = {}
+      const result = buildTableColumns([
+        { name: 'isBranch', type: 'BOOL', title: '分公司' },
+        { name: 'enabled', type: 'BOOLEAN', title: '启用' }
+      ], config)
+
+      expect(result[0].width).toBeGreaterThanOrEqual(88)
+      expect(result[0].minWidth).toBe(88)
+      expect(result[1].width).toBeGreaterThanOrEqual(88)
+      expect(result[1].minWidth).toBe(88)
+    })
+
     it('should apply fixed column customization', () => {
       const config: TableConfig = {
         visibleColumns: ['id', 'name', 'amount'],

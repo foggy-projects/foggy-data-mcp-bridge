@@ -50,7 +50,8 @@ export function calculateColumnWidth(title: string, type: string): number {
     'DAY': 120,          // 日期
     'TEXT': 150,         // 文本
     'STRING': 150,       // 字符串
-    'BOOL': 80,          // 布尔值
+    'BOOL': 88,          // 布尔值，保证“全/是/否”过滤器可用
+    'BOOLEAN': 88,       // 布尔值，兼容后端 BOOLEAN 类型
     'DICT': 120          // 字典
   }
 
@@ -94,7 +95,7 @@ export function buildTableColumns(
       const result: EnhancedColumnSchema = {
         ...schema,
         width,
-        minWidth: custom?.minWidth ?? 120,
+        minWidth: custom?.minWidth ?? (['BOOL', 'BOOLEAN'].includes(schema.type?.toUpperCase()) ? 88 : 120),
         fixed: custom?.fixed,
         filterable: schema.filterable ?? true,  // 默认可筛选
         customRender: custom?.render,

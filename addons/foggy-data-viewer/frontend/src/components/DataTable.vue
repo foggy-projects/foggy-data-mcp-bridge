@@ -74,6 +74,8 @@ const props = withDefaults(defineProps<Props>(), {
   density: 'compact'
 })
 
+const BOOLEAN_FILTER_MIN_WIDTH = 88
+
 const emit = defineEmits<{
   (e: 'page-change', page: number, size: number): void
   (e: 'sort-change', field: string | null, order: 'asc' | 'desc' | null): void
@@ -495,6 +497,14 @@ function getAllFilterSlices(): SliceRequestDef[] {
     }
   }
   return allSlices
+}
+
+function getColumnMinWidth(col: EnhancedColumnSchema): number {
+  if (col.minWidth != null) {
+    return col.minWidth
+  }
+
+  return inferFilterType(col) === 'bool' ? BOOLEAN_FILTER_MIN_WIDTH : 120
 }
 
 function normalizeFilterValue(value: SliceRequestDef[] | null): SliceRequestDef[] | null {
@@ -1030,7 +1040,7 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
       field: col.name,
       title: col.title || col.name,
       width: col.width,
-      minWidth: col.minWidth ?? 120,
+      minWidth: getColumnMinWidth(col),
       fixed: col.fixed,
       sortable: false, // 禁用 vxe-table 内置排序，我们自己处理
       ...getColumnFormatter(col),
@@ -2100,7 +2110,8 @@ provide('dataTableContext', {
 .data-table .column-filter .filter-bool {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .data-table .column-filter .filter-number-range {
@@ -2122,7 +2133,8 @@ provide('dataTableContext', {
 
 .data-table .column-filter .filter-bool button {
   height: 22px;
-  padding: 0 8px;
+  min-width: 22px;
+  padding: 0 5px;
   border: 1px solid #dcdfe6;
   border-radius: 3px;
   background: #fff;
@@ -2134,7 +2146,7 @@ provide('dataTableContext', {
 }
 
 .data-table.data-table--compact .column-filter .filter-bool button {
-  height: 25px;
+  height: 22px;
 }
 
 .data-table .column-filter .filter-bool button:hover {
