@@ -964,14 +964,19 @@ function renderSortIcon(field: string, title: string, sortOrder: 'asc' | 'desc' 
 function renderDefaultCell(col: EnhancedColumnSchema, row: Record<string, unknown>) {
   const rawValue = row[col.name]
   const displayValue = formatCellDisplayValue(col, rawValue)
+  const cellTitle = displayValue || undefined
   const copyEnabled = isCellCopyEnabled(col, rawValue)
 
   if (!copyEnabled) {
-    return h('span', { class: 'data-table-cell-text' }, displayValue)
+    return h('span', {
+      class: 'data-table-cell-text',
+      title: cellTitle
+    }, displayValue)
   }
 
   return h('div', {
     class: 'data-table-copyable-cell',
+    title: cellTitle,
     style: {
       position: 'relative',
       display: 'flex',

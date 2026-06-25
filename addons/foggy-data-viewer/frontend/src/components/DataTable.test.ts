@@ -1028,6 +1028,35 @@ describe('DataTable', () => {
       expect(wrapper.find('.cell-copy-icon').exists()).toBe(true)
     })
 
+    it('should expose the complete display value as the cell hover title', () => {
+      const fullValue = '13915455958,18911897366,13974036619'
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'phone', type: 'TEXT', title: '联系人电话' }],
+          data: [{ phone: fullValue }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.data-table-copyable-cell').attributes('title')).toBe(fullValue)
+    })
+
+    it('should use formatted display value for non-copyable cell hover title', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'enabled', type: 'BOOLEAN', title: '是否启用', copyable: false }],
+          data: [{ enabled: true }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.data-table-cell-text').attributes('title')).toBe('是')
+    })
+
     it('should copy the complete raw cell value when clicking copy button', async () => {
       const writeText = vi.fn().mockResolvedValue(undefined)
       Object.defineProperty(navigator, 'clipboard', {
