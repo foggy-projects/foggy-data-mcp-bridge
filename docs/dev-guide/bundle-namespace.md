@@ -105,7 +105,7 @@ foggy:
       enabled: true
 ```
 
-新接入建议优先使用 `foggy-runtime-api` 的 `/api/v1/bundles`，并通过 `foggy.runtime-api.auth-code` 为管理写操作配置授权码。
+新接入建议优先使用 `foggy-runtime-api` 的 `/api/v1/bundles`，并通过 `foggy.runtime-api.auth-code` 为管理操作配置授权码。
 
 ### REST API
 

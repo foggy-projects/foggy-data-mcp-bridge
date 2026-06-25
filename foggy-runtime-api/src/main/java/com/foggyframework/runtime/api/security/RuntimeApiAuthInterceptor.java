@@ -91,6 +91,7 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
             case "/api/v1/bundles/{name}" -> "PUT".equals(method) || "DELETE".equals(method);
             case "/api/v1/datasources" -> "POST".equals(method);
             case "/api/v1/datasources/{name}" -> "PUT".equals(method) || "DELETE".equals(method);
+            case "/api/v1/datasources/{name}/test" -> "POST".equals(method);
             case "/api/v1/namespaces/{namespace}/datasource" -> "PUT".equals(method);
             case "/api/v1/resources/save", "/api/v1/models/validate", "/api/v1/models/refresh" -> "POST".equals(method);
             case "/api/bundles/add", "/api/bundles/remove/{bundleName}" -> "POST".equals(method) || "DELETE".equals(method);
@@ -119,6 +120,9 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
         }
         if (path.matches("^/api/v1/datasources/[^/]+$")) {
             return "PUT".equals(method) || "DELETE".equals(method);
+        }
+        if (path.matches("^/api/v1/datasources/[^/]+/test$")) {
+            return "POST".equals(method);
         }
         if (path.matches("^/api/v1/namespaces/[^/]+/datasource$")) {
             return "PUT".equals(method);

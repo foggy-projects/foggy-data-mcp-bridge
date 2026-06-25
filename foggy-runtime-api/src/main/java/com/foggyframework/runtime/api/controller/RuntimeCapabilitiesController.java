@@ -80,7 +80,7 @@ public class RuntimeCapabilitiesController {
             return List.of("Runtime API auth-code mode is enabled, but no auth code is configured.");
         }
         if ("auth-code".equals(properties.getEffectiveSecurityMode())) {
-            return List.of("Runtime API mutating management operations require an auth code.");
+            return List.of("Runtime API management operations require an auth code.");
         }
         return List.of("Runtime API is intended for development and testing only.");
     }

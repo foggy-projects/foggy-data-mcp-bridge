@@ -101,6 +101,20 @@ class RuntimeApiAuthCodeGateTest {
     }
 
     @Test
+    void shouldRejectDatasourceTestWithoutAuthCode() {
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                url("/api/v1/datasources/demo/test"),
+                Map.of(),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().path("success").asBoolean()).isFalse();
+        assertThat(response.getBody().path("error").path("code").asText()).isEqualTo("RUNTIME_AUTH_REQUIRED");
+    }
+
+    @Test
     void shouldRejectProtectedMutationWithWrongAuthCodeBeforeController() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -183,6 +197,43 @@ class RuntimeApiAuthCodeGateTest {
         assertThat(body.path("error").path("code").asText()).isEqualTo("RUNTIME_AUTH_CODE_NOT_CONFIGURED");
     }
 
+    @Test
+    void shouldRequireAuthCodeForRuntimeManagementOperationInventory() throws Exception {
+        assertRejectedByInterceptor("POST", "/api/v1/bundles");
+        assertRejectedByInterceptor("PUT", "/api/v1/bundles/demo");
+        assertRejectedByInterceptor("DELETE", "/api/v1/bundles/demo");
+        assertRejectedByInterceptor("POST", "/api/v1/datasources");
+        assertRejectedByInterceptor("PUT", "/api/v1/datasources/demo");
+        assertRejectedByInterceptor("DELETE", "/api/v1/datasources/demo");
+        assertRejectedByInterceptor("POST", "/api/v1/datasources/demo/test");
+        assertRejectedByInterceptor("PUT", "/api/v1/namespaces/dev/datasource");
+        assertRejectedByInterceptor("POST", "/api/v1/resources/save");
+        assertRejectedByInterceptor("POST", "/api/v1/models/validate");
+        assertRejectedByInterceptor("POST", "/api/v1/models/refresh");
+        assertRejectedByInterceptor("POST", "/api/bundles/add");
+        assertRejectedByInterceptor("DELETE", "/api/bundles/remove/demo");
+    }
+
+    @Test
+    void shouldLeaveReadAndExecutionEndpointsOutsideManagementAuthGate() throws Exception {
+        assertAllowedByInterceptor("GET", "/api/v1/capabilities");
+        assertAllowedByInterceptor("GET", "/api/v1/bundles");
+        assertAllowedByInterceptor("GET", "/api/v1/datasources");
+        assertAllowedByInterceptor("GET", "/api/v1/namespaces/dev/datasource");
+        assertAllowedByInterceptor("GET", "/api/v1/models");
+        assertAllowedByInterceptor("POST", "/api/v1/models/Order/describe");
+        assertAllowedByInterceptor("POST", "/api/v1/resources/export");
+        assertAllowedByInterceptor("POST", "/api/v1/query/Order/validate");
+        assertAllowedByInterceptor("POST", "/api/v1/query/Order/execute");
+        assertAllowedByInterceptor("POST", "/api/v1/tables/list");
+        assertAllowedByInterceptor("POST", "/api/v1/tables/inspect");
+        assertAllowedByInterceptor("POST", "/api/v1/sql/query");
+        assertAllowedByInterceptor("POST", "/api/v1/compose/validate");
+        assertAllowedByInterceptor("POST", "/api/v1/compose/preview");
+        assertAllowedByInterceptor("POST", "/api/v1/compose/execute");
+        assertAllowedByInterceptor("POST", "/api/v1/fsscript/execute");
+    }
+
     private String url(String path) {
         return "http://localhost:" + port + path;
     }
@@ -192,6 +243,36 @@ class RuntimeApiAuthCodeGateTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(headerName, value);
         return headers;
+    }
+
+    private static void assertRejectedByInterceptor(String method, String path) throws Exception {
+        RuntimeApiAuthInterceptor interceptor = authInterceptor("runtime-secret");
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(request, response, new Object());
+
+        assertThat(allowed).as(method + " " + path).isFalse();
+        assertThat(response.getStatus()).as(method + " " + path).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        JsonNode body = new ObjectMapper().readTree(response.getContentAsString());
+        assertThat(body.path("error").path("code").asText()).as(method + " " + path).isEqualTo("RUNTIME_AUTH_REQUIRED");
+    }
+
+    private static void assertAllowedByInterceptor(String method, String path) throws Exception {
+        RuntimeApiAuthInterceptor interceptor = authInterceptor("runtime-secret");
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(request, response, new Object());
+
+        assertThat(allowed).as(method + " " + path).isTrue();
+        assertThat(response.getStatus()).as(method + " " + path).isEqualTo(200);
+    }
+
+    private static RuntimeApiAuthInterceptor authInterceptor(String authCode) {
+        FoggyRuntimeApiProperties properties = new FoggyRuntimeApiProperties();
+        properties.setAuthCode(authCode);
+        return new RuntimeApiAuthInterceptor(properties, new ObjectMapper());
     }
 
     @SpringBootApplication(scanBasePackages = "com.foggyframework.runtime.api")
