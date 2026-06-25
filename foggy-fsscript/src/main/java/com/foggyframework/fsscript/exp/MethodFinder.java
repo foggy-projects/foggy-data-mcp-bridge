@@ -28,7 +28,11 @@ public class MethodFinder {
 
             int j = 0;
             for (Class<?> pt : m1.getParameterTypes()) {
-                if (args[j] == null) {
+                Object arg = args[j++];
+                if (arg == null) {
+                    if (pt.isPrimitive()) {
+                        continue X;
+                    }
                     matchScore = matchScore + 1;
                     continue;
                 }
@@ -36,15 +40,13 @@ public class MethodFinder {
                     pt = BeanInfoHelper.getPrimitiveClass(pt);
                 }
 
-                if (pt == args[j].getClass()) {
+                if (pt == arg.getClass()) {
                     matchScore = matchScore + 2;
-                } else if (!pt.isInstance(args[j])) {
+                } else if (!pt.isInstance(arg)) {
                     continue X;
                 } else {
                     matchScore = matchScore + 1;
                 }
-
-                j++;
             }
             if (lastScore < matchScore) {
                 m = m1;
@@ -74,7 +76,12 @@ public class MethodFinder {
 
             int j = 0;
             for (Class<?> pt : m1.getParameterTypes()) {
-                if (args[j] == null) {
+                int argIndex = j++;
+                Object arg = args[argIndex];
+                if (arg == null) {
+                    if (pt.isPrimitive()) {
+                        continue X;
+                    }
                     matchScore = matchScore + 1;
                     continue;
                 }
@@ -82,12 +89,12 @@ public class MethodFinder {
                     pt = BeanInfoHelper.getPrimitiveClass(pt);
                 }
 
-                if (pt == args[j].getClass()) {
+                if (pt == arg.getClass()) {
                     matchScore = matchScore + 2;
-                } else if (!pt.isInstance(args[j])) {
-                    if (args[j] instanceof Map && !BeanInfoHelper.isBaseClass(pt)) {
+                } else if (!pt.isInstance(arg)) {
+                    if (arg instanceof Map && !BeanInfoHelper.isBaseClass(pt)) {
                         // 尝试转换
-                        args[j] = Map2BeanUtils.fromMap((Map) args[j], pt);
+                        args[argIndex] = Map2BeanUtils.fromMap((Map) arg, pt);
                         matchScore = matchScore + 1;
                     } else {
                         continue X;
@@ -95,8 +102,6 @@ public class MethodFinder {
                 } else {
                     matchScore = matchScore + 1;
                 }
-
-                j++;
             }
             if (lastScore < matchScore) {
                 m = m1;
