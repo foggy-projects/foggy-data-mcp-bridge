@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.impl.model;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.trans.ObjectTransFormatter;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.impl.AiObject;
@@ -38,6 +39,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -262,6 +264,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
                     type,
                     outputColumn.groupKey(),
                     outputColumn.sourceColumn(),
+                    outputColumn.measure(),
                     outputColumn.sourceExpression(),
                     outputColumn.aggregateExpression());
             columns.add(dbColumn);
@@ -399,15 +402,25 @@ public class AggregateJoinTableModel extends TableModelSupport {
 
     private String renderAggregateExpression(AggregateJoinBuilder.AggregateMeasure measure,
                                              AggregateSourceSqlContext sourceSqlContext) {
+        String columnSql = measure.getColumn() == null ? null
+                : sourceColumnSql(resolveSourceColumn(measure.getColumn()), sourceSqlContext);
+        return renderAggregateExpression(measure, columnSql, FDialect.MYSQL_DIALECT);
+    }
+
+    private String renderAggregateExpression(AggregateJoinBuilder.AggregateMeasure measure,
+                                             String columnSql,
+                                             FDialect dialect) {
         AggregateJoinBuilder.AggregateFunction function = measure.getFunction();
         if (function == AggregateJoinBuilder.AggregateFunction.COUNT && measure.getColumn() == null) {
             return "count(*)";
         }
 
-        DbColumn sourceColumn = resolveSourceColumn(measure.getColumn());
-        String columnSql = sourceColumnSql(sourceColumn, sourceSqlContext);
         if (function == AggregateJoinBuilder.AggregateFunction.COUNT_DISTINCT) {
             return "count(distinct " + columnSql + ")";
+        }
+        if (function == AggregateJoinBuilder.AggregateFunction.GROUP_CONCAT) {
+            FDialect activeDialect = dialect == null ? FDialect.MYSQL_DIALECT : dialect;
+            return activeDialect.buildStringAggFunction(columnSql, ",");
         }
         return function.name().toLowerCase() + "(" + columnSql + ")";
     }
@@ -533,6 +546,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             DbColumn rightColumn = resolveSourceColumn(rightRef);
             mappings.add(new JoinKeyPushdownMapping(
                     leftJoinKeyPushdownKeys(condition.getLeft(), input),
+                    resolveVisibleLeftColumn(condition.getLeft(), input),
                     sourceColumnSql(rightColumn, sourceSqlContext)));
         }
         return mappings;
@@ -648,6 +662,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
         if (measure.getFunction() == AggregateJoinBuilder.AggregateFunction.AVG) {
             return new SqlColumn(alias, caption, Types.DECIMAL);
         }
+        if (measure.getFunction() == AggregateJoinBuilder.AggregateFunction.GROUP_CONCAT) {
+            return new SqlColumn(alias, caption, Types.VARCHAR);
+        }
         if (sourceColumn == null) {
             return new SqlColumn(alias, caption, Types.DECIMAL);
         }
@@ -669,6 +686,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
         if (function == AggregateJoinBuilder.AggregateFunction.COUNT
                 || function == AggregateJoinBuilder.AggregateFunction.COUNT_DISTINCT) {
             return DbColumnType.BIGINT;
+        }
+        if (function == AggregateJoinBuilder.AggregateFunction.GROUP_CONCAT) {
+            return DbColumnType.STRING;
         }
         if (function == AggregateJoinBuilder.AggregateFunction.AVG
                 && sourceColumn != null
@@ -726,6 +746,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             case MAX -> AggregateJoinBuilder.AggregateFunction.MAX;
             case COUNT -> AggregateJoinBuilder.AggregateFunction.COUNT;
             case COUNT_DISTINCT -> AggregateJoinBuilder.AggregateFunction.COUNT_DISTINCT;
+            case GROUP_CONCAT -> AggregateJoinBuilder.AggregateFunction.GROUP_CONCAT;
             default -> null;
         };
     }
@@ -738,6 +759,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             case MAX -> DbAggregation.MAX;
             case COUNT -> DbAggregation.COUNT;
             case COUNT_DISTINCT -> DbAggregation.COUNT_DISTINCT;
+            case GROUP_CONCAT -> DbAggregation.GROUP_CONCAT;
         };
     }
 
@@ -800,6 +822,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
 
     private record JoinKeyPushdownMapping(
             Set<String> leftFieldNames,
+            DbColumn leftColumn,
             String rightExpression) {
     }
 
@@ -834,6 +857,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private final List<String> groupByParts;
         private final List<JoinKeyPushdownMapping> joinKeyPushdownMappings;
         private final ThreadLocal<PushdownState> pushdownState = ThreadLocal.withInitial(PushdownState::new);
+        private final ThreadLocal<FDialect> dialectContext = ThreadLocal.withInitial(() -> FDialect.MYSQL_DIALECT);
         private volatile List<AggregateRelationDiagnostic> lastDiagnostics = List.of();
 
         GeneratedAggregateRelationQueryObject(SqlTable sqlTable,
@@ -905,6 +929,21 @@ public class AggregateJoinTableModel extends TableModelSupport {
             return pushdownState.get().lastBodyParameters;
         }
 
+        @Override
+        public void setAggregateRelationDialect(FDialect dialect) {
+            dialectContext.set(dialect == null ? FDialect.MYSQL_DIALECT : dialect);
+        }
+
+        @Override
+        public void clearAggregateRelationDialect() {
+            dialectContext.remove();
+        }
+
+        private FDialect currentDialect() {
+            FDialect dialect = dialectContext.get();
+            return dialect == null ? FDialect.MYSQL_DIALECT : dialect;
+        }
+
         private List<String> renderSelectParts(PushdownState state) {
             if (!state.projectionPruningEnabled || state.requiredOutputAliases.isEmpty()) {
                 return outputColumns.stream()
@@ -922,7 +961,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
             if (outputColumn.groupKey()) {
                 return outputColumn.sourceExpression() + " " + outputColumn.outputAlias();
             }
-            return outputColumn.aggregateExpression() + " " + outputColumn.outputAlias();
+            return renderAggregateExpression(outputColumn.measure(), outputColumn.sourceExpression(), currentDialect())
+                    + " "
+                    + outputColumn.outputAlias();
         }
 
         @Override
@@ -960,6 +1001,15 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 return false;
             }
             markAggregateRelationOutput(column);
+            if (isLikeOp(op) && !isStringColumn(column)) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        column.getAggregateRelationSourceColumn() == null
+                                ? column.getAggregateRelationSourceExpression()
+                                : column.getAggregateRelationSourceColumn().getName(),
+                        op,
+                        REASON_UNSUPPORTED_OPERATOR));
+                return false;
+            }
             String expression = column.isAggregateRelationMeasure()
                     ? column.getAggregateRelationAggregateExpression()
                     : column.getAggregateRelationSourceExpression();
@@ -994,6 +1044,100 @@ public class AggregateJoinTableModel extends TableModelSupport {
                         leftFieldName, op, REASON_NO_JOIN_KEY_MAPPING));
             }
             return pushed;
+        }
+
+        @Override
+        public Optional<AggregateRelationQueryObject.AggregateMemberFilterSql> buildAggregateRelationMemberFilter(
+                AggregateRelationOutputColumn column,
+                String op,
+                Object value,
+                AggregateRelationQueryObject.OuterColumnSqlRenderer outerColumnSqlRenderer) {
+            String normalizedOp = normalizeOp(op);
+            if (!"=".equals(normalizedOp) && !"in".equals(normalizedOp)) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        aggregateRelationFieldName(column), op, REASON_UNSUPPORTED_OPERATOR));
+                return Optional.empty();
+            }
+            if (!(column instanceof DbColumn dbColumn)
+                    || dbColumn.getAggregation() != DbAggregation.GROUP_CONCAT
+                    || !column.isAggregateRelationMeasure()) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        aggregateRelationFieldName(column), op, REASON_UNSUPPORTED_OPERATOR));
+                return Optional.empty();
+            }
+
+            String fieldName = aggregateRelationFieldName(column);
+            String sourceExpression = column.getAggregateRelationSourceExpression();
+            if ((sourceExpression == null || sourceExpression.isBlank())
+                    && column.getAggregateRelationSourceColumn() != null) {
+                sourceExpression = sourceColumnSql(column.getAggregateRelationSourceColumn(), sourceSqlContext);
+            }
+            if (sourceExpression == null || sourceExpression.isBlank()) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        fieldName, op, REASON_NO_AGGREGATE_EXPRESSION));
+                return Optional.empty();
+            }
+            if (joinKeyPushdownMappings.isEmpty()) {
+                pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                        fieldName, op, REASON_NO_JOIN_KEY_MAPPING));
+                return Optional.empty();
+            }
+
+            List<String> whereParts = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            for (SqlFragment fragment : renderFilterFragments(baseFilters, sourceSqlContext)) {
+                whereParts.add(fragment.sql());
+                values.addAll(fragment.values());
+            }
+            for (JoinKeyPushdownMapping mapping : joinKeyPushdownMappings) {
+                if (mapping.leftColumn() == null || outerColumnSqlRenderer == null) {
+                    pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                            fieldName, op, REASON_NO_JOIN_KEY_MAPPING));
+                    return Optional.empty();
+                }
+                String outerExpression = outerColumnSqlRenderer.render(mapping.leftColumn());
+                if (outerExpression == null || outerExpression.isBlank()) {
+                    pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                            fieldName, op, REASON_NO_JOIN_KEY_MAPPING));
+                    return Optional.empty();
+                }
+                whereParts.add(mapping.rightExpression() + " = " + outerExpression);
+            }
+
+            if ("=".equals(normalizedOp)) {
+                if (value == null) {
+                    pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                            fieldName, op, REASON_NULL_VALUE_UNSUPPORTED));
+                    return Optional.empty();
+                }
+                whereParts.add(sourceExpression + " = ?");
+                values.add(value);
+            } else {
+                Collection<?> items = value instanceof Collection<?> collection ? collection : List.of(value);
+                if (items.isEmpty()) {
+                    pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.refused(
+                            fieldName, op, REASON_EMPTY_IN_VALUES));
+                    return Optional.empty();
+                }
+                String placeholders = items.stream()
+                        .map(item -> "?")
+                        .collect(Collectors.joining(", "));
+                whereParts.add(sourceExpression + " in (" + placeholders + ")");
+                values.addAll(items);
+            }
+
+            StringBuilder sql = new StringBuilder();
+            sql.append("exists (select 1 from ")
+                    .append(sourceBody)
+                    .append(" ")
+                    .append(SOURCE_ALIAS);
+            if (!sourceJoinParts.isEmpty()) {
+                sql.append(String.join("", sourceJoinParts));
+            }
+            sql.append(" where ").append(String.join(" and ", whereParts)).append(")");
+            pushdownState.get().diagnostics.add(AggregateRelationDiagnostic.rewritten(
+                    fieldName, op, "member", sql.toString()));
+            return Optional.of(new AggregateRelationQueryObject.AggregateMemberFilterSql(sql.toString(), values));
         }
 
         @Override
@@ -1051,6 +1195,10 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 return RenderedConditionFragments.refused(REASON_NULL_VALUE_UNSUPPORTED);
             }
 
+            if (isLikeOp(normalizedOp)) {
+                return renderLikeConditionFragments(expression, normalizedOp, value);
+            }
+
             if ("in".equals(normalizedOp) || "not in".equals(normalizedOp)) {
                 Collection<?> values = value instanceof Collection<?> collection ? collection : List.of(value);
                 if (values.isEmpty()) {
@@ -1070,6 +1218,19 @@ public class AggregateJoinTableModel extends TableModelSupport {
             }
 
             return RenderedConditionFragments.refused(REASON_UNSUPPORTED_OPERATOR);
+        }
+
+        private RenderedConditionFragments renderLikeConditionFragments(String expression, String op, Object value) {
+            String text = String.valueOf(value);
+            String sqlOp = op.startsWith("not ") ? "not like" : "like";
+            String positiveOp = op.startsWith("not ") ? op.substring(4) : op;
+            String parameter = switch (positiveOp) {
+                case "left_like" -> "%" + text;
+                case "right_like" -> text + "%";
+                default -> "%" + text + "%";
+            };
+            return RenderedConditionFragments.pushed(List.of(
+                    new SqlFragment(expression + " " + sqlOp + " ?", List.of(parameter))));
         }
 
         private RenderedConditionFragments renderRangeConditionFragments(String expression, String op, Object value) {
@@ -1105,6 +1266,38 @@ public class AggregateJoinTableModel extends TableModelSupport {
                     || "!=".equals(op);
         }
 
+        private boolean isLikeOp(String op) {
+            if (op == null || op.isBlank()) {
+                return false;
+            }
+            String normalized = op.trim().toLowerCase(Locale.ROOT);
+            return "like".equals(normalized)
+                    || "left_like".equals(normalized)
+                    || "right_like".equals(normalized)
+                    || "not like".equals(normalized)
+                    || "not left_like".equals(normalized)
+                    || "not right_like".equals(normalized);
+        }
+
+        private boolean isStringColumn(AggregateRelationOutputColumn column) {
+            return column instanceof DbColumn dbColumn && dbColumn.getType() == DbColumnType.STRING;
+        }
+
+        private String aggregateRelationFieldName(AggregateRelationOutputColumn column) {
+            if (column instanceof DbColumn dbColumn) {
+                if (dbColumn.getName() != null && !dbColumn.getName().isBlank()) {
+                    return dbColumn.getName();
+                }
+                if (dbColumn.getAlias() != null && !dbColumn.getAlias().isBlank()) {
+                    return dbColumn.getAlias();
+                }
+            }
+            if (column == null || column.getAggregateRelationSourceColumn() == null) {
+                return null;
+            }
+            return column.getAggregateRelationSourceColumn().getName();
+        }
+
         private boolean isRangeOp(String op) {
             return "[]".equals(op) || "[)".equals(op) || "(]".equals(op) || "()".equals(op);
         }
@@ -1119,6 +1312,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 case "===" -> "=";
                 case "in" -> "in";
                 case "not in", "nin" -> "not in";
+                case "like", "left_like", "right_like",
+                        "not like", "not left_like", "not right_like" -> normalized;
                 case "isnull", "is null" -> "is null";
                 case "isnotnull", "is not null" -> "is not null";
                 default -> null;
@@ -1155,12 +1350,14 @@ public class AggregateJoinTableModel extends TableModelSupport {
         private final boolean groupKey;
         private final DbColumn sourceColumn;
         private final DbMeasure sourceMeasure;
+        private final AggregateJoinBuilder.AggregateMeasure aggregateMeasure;
         private final String sourceExpression;
         private final String aggregateExpression;
 
         AggregateOutputDbColumn(QueryObject queryObject, SqlColumn sqlColumn, String alias, String name,
                                 String caption, DbAggregation aggregation, DbColumnType type,
                                 boolean groupKey, DbColumn sourceColumn,
+                                AggregateJoinBuilder.AggregateMeasure aggregateMeasure,
                                 String sourceExpression, String aggregateExpression) {
             super(queryObject, sqlColumn, alias, name, caption);
             this.aggregation = aggregation;
@@ -1168,6 +1365,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             this.groupKey = groupKey;
             this.sourceColumn = sourceColumn;
             this.sourceMeasure = resolveSourceMeasure(sourceColumn);
+            this.aggregateMeasure = aggregateMeasure;
             this.sourceExpression = sourceExpression;
             this.aggregateExpression = aggregateExpression;
         }
@@ -1209,7 +1407,13 @@ public class AggregateJoinTableModel extends TableModelSupport {
 
         @Override
         public String getAggregateRelationAggregateExpression() {
-            return aggregateExpression;
+            if (aggregateMeasure == null) {
+                return aggregateExpression;
+            }
+            return renderAggregateExpression(aggregateMeasure, sourceExpression,
+                    getQueryObject() instanceof GeneratedAggregateRelationQueryObject aggregateQueryObject
+                            ? aggregateQueryObject.currentDialect()
+                            : FDialect.MYSQL_DIALECT);
         }
 
         @Override
@@ -1225,8 +1429,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
             if (sourceColumn != null && sourceColumn.getDescription() != null && !sourceColumn.getDescription().isBlank()) {
                 return sourceColumn.getDescription();
             }
-            if (aggregateExpression != null && !aggregateExpression.isBlank()) {
-                return "Aggregate relation output generated from " + aggregateExpression;
+            String currentAggregateExpression = getAggregateRelationAggregateExpression();
+            if (currentAggregateExpression != null && !currentAggregateExpression.isBlank()) {
+                return "Aggregate relation output generated from " + currentAggregateExpression;
             }
             return sourceColumn == null ? null : sourceColumn.getDescription();
         }
@@ -1261,7 +1466,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 aggregateRelation.put("semanticUnitLabel", sourceMeasure.getSemanticUnitLabel());
             }
             aggregateRelation.put("sourceExpression", sourceExpression);
-            aggregateRelation.put("aggregateExpression", aggregateExpression);
+            aggregateRelation.put("aggregateExpression", getAggregateRelationAggregateExpression());
             extData.put("aggregateRelation", aggregateRelation);
             return extData;
         }

@@ -138,6 +138,34 @@ class ColumnObjectNormalizerF5Test {
         }
 
         @Test
+        @DisplayName("F5 group_concat uppercased and allowed by aggregation whitelist")
+        void f5GroupConcatUppercased() {
+            QueryPlan sales = stubPlan("FactSalesQueryModel");
+            Map<String, Object> col = new LinkedHashMap<>();
+            col.put("plan", sales);
+            col.put("field", "paymentMethod");
+            col.put("agg", "group_concat");
+
+            Object out = ColumnObjectNormalizer.normalize(col, 0);
+            AggregateColumn agg = (AggregateColumn) out;
+            assertEquals("GROUP_CONCAT", agg.func());
+            assertEquals("paymentMethod", agg.ref().name());
+        }
+
+        @Test
+        @DisplayName("F4 group_concat map normalizes to GROUP_CONCAT(field) AS alias")
+        void f4GroupConcatAllowed() {
+            Map<String, Object> col = new LinkedHashMap<>();
+            col.put("field", "paymentMethod");
+            col.put("agg", "group_concat");
+            col.put("as", "paymentMethodList");
+
+            Object out = ColumnObjectNormalizer.normalize(col, 0);
+
+            assertEquals("GROUP_CONCAT(paymentMethod) AS paymentMethodList", out);
+        }
+
+        @Test
         @DisplayName("F5 in mixed array · F1 string + F4 map + F5 map all coexist")
         void f5MixedArray() {
             QueryPlan sales = stubPlan("FactSalesQueryModel");

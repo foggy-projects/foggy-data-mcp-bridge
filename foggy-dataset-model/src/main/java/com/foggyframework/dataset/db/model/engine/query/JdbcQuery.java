@@ -15,6 +15,7 @@ import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import com.foggyframework.dataset.db.model.proxy.JoinBuilderFunction;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryRequest;
+import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.TableModel;
@@ -237,7 +238,18 @@ public class JdbcQuery {
                         AggregateRelationQueryObject.REASON_NULL_CHECK_OUTER_ONLY);
                 return;
             }
-            aggregateRelationColumn.pushAggregateRelationCondition(op, value);
+            AggregateRelationQueryObject aggregateRelationQueryObject =
+                    resolveAggregateRelationQueryObject(dbColumn.getQueryObject());
+            if (aggregateRelationQueryObject != null) {
+                if (queryModel instanceof JdbcQueryModel jdbcQueryModel) {
+                    aggregateRelationQueryObject.setAggregateRelationDialect(jdbcQueryModel.getDialect());
+                }
+                try {
+                    aggregateRelationQueryObject.pushAggregateRelationCondition(aggregateRelationColumn, op, value);
+                } finally {
+                    aggregateRelationQueryObject.clearAggregateRelationDialect();
+                }
+            }
             return;
         }
         if (queryModel.getJdbcModelList() == null) {
@@ -250,8 +262,15 @@ public class JdbcQuery {
             if (aggregateRelationQueryObject == null) {
                 continue;
             }
-            for (String fieldName : fieldNames) {
-                aggregateRelationQueryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
+            if (queryModel instanceof JdbcQueryModel jdbcQueryModel) {
+                aggregateRelationQueryObject.setAggregateRelationDialect(jdbcQueryModel.getDialect());
+            }
+            try {
+                for (String fieldName : fieldNames) {
+                    aggregateRelationQueryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
+                }
+            } finally {
+                aggregateRelationQueryObject.clearAggregateRelationDialect();
             }
         }
     }

@@ -277,7 +277,11 @@ measures: [
 | `avg` | 平均值 |
 | `count` | 计数 |
 | `max` | 最大值 |
+| `min` | 最小值 |
+| `group_concat` | 字符串列表拼接 |
 | `none` | 不聚合 |
+
+> `group_concat` / `GROUP_CONCAT` 适用于联系电话、标签、支付方式等字符串列表聚合。通过 QM aggregate relation 暴露为别名后，查询 DSL 中对该别名使用 `=` 或 `in` 表示源表成员精确匹配；`like` 表示对拼接后的聚合字符串过滤。
 
 ### 1.5 数据类型 (type)
 
@@ -339,7 +343,42 @@ export const queryModel = {
 };
 ```
 
-### 2.3 列组定义 (columnGroups)
+### 2.3 聚合关系中的字符串列表
+
+一对多子表需要作为列表字段展示时，可以先在 QM 中把右侧表按主表键聚合，再暴露 `GROUP_CONCAT` 别名：
+
+```javascript
+const customer = loadTableModel('CustomerModel');
+const tel = loadTableModel('CustomerTelModel');
+
+const telAgg = tel
+    .groupBy(tel.customerId)
+    .groupConcat(tel.tel, 'linkmanTelList')
+    .as('telAgg');
+
+export const queryModel = {
+    name: 'CustomerQueryModel',
+    loader: 'v2',
+    model: customer,
+    joins: [
+        customer.leftJoin(telAgg).on(customer.customerId, telAgg.customerId)
+    ],
+    columnGroups: [
+        {
+            caption: '客户信息',
+            items: [
+                { ref: customer.customerId },
+                { ref: customer.customerName },
+                { ref: telAgg.linkmanTelList, caption: '联系电话列表' }
+            ]
+        }
+    ]
+};
+```
+
+调用方直接按 `linkmanTelList` 写 `slice`。`op: "="` 和 `op: "in"` 表示“电话表存在精确成员”，引擎会在 pipeline 中自动改写到右侧源字段，同时返回列仍是完整列表；`like` 表示对拼接字符串模糊匹配。`!=`、`not in` 和 OR 条件中的 alias 过滤保持普通聚合字符串语义。
+
+### 2.4 列组定义 (columnGroups)
 
 列组用于对查询字段进行分组，便于 UI 展示。
 
@@ -381,7 +420,7 @@ columnGroups: [
 | `ui.fixed` | string | 固定位置：`left` / `right` |
 | `ui.width` | number | 列宽度（像素） |
 
-### 2.4 字段引用格式
+### 2.5 字段引用格式
 
 | 格式 | 说明 | 示例 |
 |------|------|------|
@@ -391,7 +430,7 @@ columnGroups: [
 | `维度名$id` | 维度ID | `customer$id` |
 | `维度名$属性名` | 维度属性 | `customer$customerType`, `customer$province` |
 
-### 2.5 默认排序 (orders)
+### 2.6 默认排序 (orders)
 
 ```javascript
 orders: [
@@ -405,7 +444,7 @@ orders: [
 | `name` | string | 排序字段名 |
 | `order` | string | 排序方向：`asc` / `desc` |
 
-### 2.6 权限控制 (accesses)
+### 2.7 权限控制 (accesses)
 
 ```javascript
 accesses: [

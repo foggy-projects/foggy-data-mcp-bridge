@@ -1,0 +1,44 @@
+/**
+ * Order-sales aggregate relation string aggregation probe.
+ *
+ * @caption 订单销售聚合关系字符串聚合查询
+ * @description RHS aggregate relation exposes GROUP_CONCAT text measures through its alias.
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesStringAggModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .groupBy(sales.orderId)
+    .as('fsStringByOrder');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationStringAggQueryModel',
+    caption: '订单销售聚合关系字符串聚合查询',
+    description: '销售明细按订单聚合后暴露字符串聚合字段，支持标准 slice like',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细聚合',
+            items: [
+                { ref: fs.paymentMethodList, caption: '支付方式列表' }
+            ]
+        }
+    ],
+
+    accesses: []
+};

@@ -132,7 +132,12 @@ public class SqlColumnRefExp extends AbstractExp<String> {
         return switch (aggregation) {
             case COUNT -> "COUNT(*)";
             case COUNT_DISTINCT -> "COUNT(DISTINCT " + sqlDeclare + ")";
-            case GROUP_CONCAT -> "GROUP_CONCAT(" + sqlDeclare + " SEPARATOR ',')";
+            case GROUP_CONCAT -> {
+                if (ctx != null && ctx.getDialect() != null) {
+                    yield ctx.getDialect().buildStringAggFunction(sqlDeclare, ",");
+                }
+                yield "GROUP_CONCAT(" + sqlDeclare + " SEPARATOR ',')";
+            }
             case PK -> "MAX(" + sqlDeclare + ")";
             case STDDEV_POP, STDDEV_SAMP, VAR_POP, VAR_SAMP -> {
                 if (ctx != null && ctx.getDialect() != null) {

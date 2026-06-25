@@ -340,7 +340,7 @@ public class AggSqlOptimizer {
             case MIN:
                 return "min(" + colRef + ") " + q(alias);
             case GROUP_CONCAT:
-                return "group_concat(" + colRef + ") " + q(alias);
+                return dialect.buildStringAggFunction(colRef, ",") + " " + q(alias);
             case CUSTOM:
                 // CUSTOM 聚合：保守处理，使用 SUM
                 return "sum(" + colRef + ") " + q(alias);

@@ -57,6 +57,10 @@ public class AggregateJoinBuilder extends JoinBuilder {
                 addCountDistinct(args);
                 yield this;
             }
+            case "groupConcat", "group_concat", "stringAgg", "string_agg" -> {
+                addGroupConcat(args);
+                yield this;
+            }
             case "filterEq", "whereEq" -> {
                 addFilter(args, "=");
                 yield this;
@@ -146,6 +150,15 @@ public class AggregateJoinBuilder extends JoinBuilder {
         measures.add(new AggregateMeasure(AggregateFunction.COUNT_DISTINCT, column, alias));
     }
 
+    private void addGroupConcat(Object[] args) {
+        if (args == null || args.length == 0) {
+            throw RX.throwAUserTip("aggregate join groupConcat 至少需要一个字段");
+        }
+        ColumnRef column = toColumnRef(args[0]);
+        String alias = args.length > 1 ? toAlias(args[1]) : defaultMeasureAlias("groupConcat", column);
+        measures.add(new AggregateMeasure(AggregateFunction.GROUP_CONCAT, column, alias));
+    }
+
     private void addFilter(Object[] args, String operator) {
         if (args == null || args.length < 2) {
             throw RX.throwAUserTip("aggregate join filter 至少需要字段和值");
@@ -189,7 +202,16 @@ public class AggregateJoinBuilder extends JoinBuilder {
     }
 
     private static String defaultMeasureAlias(String functionName, ColumnRef column) {
-        return column.getAliasRef() + capitalize(functionName.toLowerCase(Locale.ROOT));
+        return column.getAliasRef() + measureAliasSuffix(functionName);
+    }
+
+    private static String measureAliasSuffix(String functionName) {
+        String normalized = functionName == null ? "" : functionName.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "countdistinct", "countd", "count_distinct" -> "CountDistinct";
+            case "groupconcat", "group_concat", "stringagg", "string_agg" -> "GroupConcat";
+            default -> capitalize(normalized);
+        };
     }
 
     private static String capitalize(String text) {
@@ -223,7 +245,8 @@ public class AggregateJoinBuilder extends JoinBuilder {
         MIN,
         MAX,
         COUNT,
-        COUNT_DISTINCT
+        COUNT_DISTINCT,
+        GROUP_CONCAT
     }
 
     @Getter

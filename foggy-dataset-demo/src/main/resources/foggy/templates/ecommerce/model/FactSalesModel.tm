@@ -232,6 +232,14 @@ export const model = {
             description: '去重客户数量（COUNT DISTINCT）',
             type: 'INTEGER',
             aggregation: 'COUNT_DISTINCT'
+        },
+        {
+            column: 'payment_method',
+            name: 'paymentMethodList',
+            caption: '支付方式列表',
+            description: '按当前聚合粒度拼接支付方式文本',
+            type: 'STRING',
+            aggregation: 'GROUP_CONCAT'
         }
     ]
 };

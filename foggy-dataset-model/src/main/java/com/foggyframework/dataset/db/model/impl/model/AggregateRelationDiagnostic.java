@@ -22,4 +22,8 @@ public record AggregateRelationDiagnostic(
     public static AggregateRelationDiagnostic refused(String field, String op, String reasonCode) {
         return new AggregateRelationDiagnostic("refused", reasonCode, field, op, null, null);
     }
+
+    public static AggregateRelationDiagnostic rewritten(String field, String op, String target, String expression) {
+        return new AggregateRelationDiagnostic("rewritten", null, field, op, target, expression);
+    }
 }

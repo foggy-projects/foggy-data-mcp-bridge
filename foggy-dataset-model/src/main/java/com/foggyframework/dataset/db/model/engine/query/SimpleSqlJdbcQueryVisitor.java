@@ -4,6 +4,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.proxy.JoinBuilderFunction;
@@ -141,9 +142,28 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
     }
 
     private String renderQueryObjectBody(QueryObject queryObject) {
-        String body = queryObject.getBody();
-        appendBodyParameters(queryObject);
-        return body;
+        AggregateRelationQueryObject aggregateRelationQueryObject = resolveAggregateRelationQueryObject(queryObject);
+        if (aggregateRelationQueryObject == null) {
+            String body = queryObject.getBody();
+            appendBodyParameters(queryObject);
+            return body;
+        }
+
+        aggregateRelationQueryObject.setAggregateRelationDialect(dialect);
+        try {
+            String body = queryObject.getBody();
+            appendBodyParameters(queryObject);
+            return body;
+        } finally {
+            aggregateRelationQueryObject.clearAggregateRelationDialect();
+        }
+    }
+
+    private AggregateRelationQueryObject resolveAggregateRelationQueryObject(QueryObject queryObject) {
+        if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
+            return aggregateRelationQueryObject;
+        }
+        return queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
     }
 
     private void appendBodyParameters(QueryObject queryObject) {

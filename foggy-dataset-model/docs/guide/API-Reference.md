@@ -170,6 +170,8 @@ POST /jdbc-model/query-model/v2/{model}
 | `(]` | 左开右闭 | array[2] | `{ "op": "(]", "value": [0, 100] }` |
 | `()` | 开区间 | array[2] | `{ "op": "()", "value": [0, 100] }` |
 
+> 当字段是 QM aggregate relation 暴露的 `GROUP_CONCAT` 别名（如 `linkmanTelList`）时，`=` 和 `in` 表示右侧源表存在精确成员，查询 pipeline 会自动改写到源字段条件；`like` 表示对拼接后的聚合字符串模糊匹配。负向操作符和 OR 条件中的该类别名过滤不做成员改写。
+
 ### 4.3 范围条件示例
 
 ```json

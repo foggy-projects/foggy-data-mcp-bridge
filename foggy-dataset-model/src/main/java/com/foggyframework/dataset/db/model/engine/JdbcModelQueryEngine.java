@@ -45,6 +45,8 @@ import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObje
 import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.impl.utils.SqlQueryObject;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.AggregateMemberFilterPlanner;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.AggregateMemberFilterPlanner.AggregateMemberFilterPlan;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
@@ -62,6 +64,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -299,6 +302,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         rejectWindowCalculatedFieldSlice(queryRequest);
+        AggregateMemberFilterPlanner.ensurePlanned(context, jdbcQueryModel);
 
         // 2. 加入切片条件。纯聚合 slice 视为聚合后过滤，自动写入 HAVING。
         boolean hasLiftedAggregateSlice = false;
@@ -313,13 +317,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     SliceConditionPhase phase = classifySliceConditionPhase(sliceDef);
                     if (phase == SliceConditionPhase.AGGREGATE) {
                         hasLiftedAggregateSlice = true;
-                        buildHaving(jdbcQueryModel, jdbcQuery, sliceDef);
+                        buildHaving(context, jdbcQueryModel, jdbcQuery, sliceDef);
                     } else {
-                        buildSlice(jdbcQueryModel, jdbcQuery, sliceDef);
+                        buildSlice(context, jdbcQueryModel, jdbcQuery, sliceDef);
                     }
                 } else {
                     rejectAggregateConditionInSlice(sliceDef);
-                    buildSlice(jdbcQueryModel, jdbcQuery, sliceDef);
+                    buildSlice(context, jdbcQueryModel, jdbcQuery, sliceDef);
                 }
             }
         }
@@ -335,7 +339,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: request.having is only supported for grouped aggregate queries. Add groupBy/aggregate columns or move row-level filters to slice.");
             }
             for (SliceRequestDef havingDef : innerHaving) {
-                buildHaving(jdbcQueryModel, jdbcQuery, havingDef);
+                buildHaving(context, jdbcQueryModel, jdbcQuery, havingDef);
             }
         }
 
@@ -1507,10 +1511,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         AggregationDbColumn aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), agg);
+        FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
 
         switch (agg) {
             case GROUP_CONCAT:
-                aggColumn.setDeclare("GROUP_CONCAT(" + declare + " SEPARATOR ',')");
+                aggColumn.setDeclare(dialect.buildStringAggFunction(declare, ","));
                 break;
             case MAX:
                 aggColumn.setDeclare("MAX(" + declare + ")");
@@ -1535,16 +1540,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 aggColumn.setDeclare("COUNT(DISTINCT " + declare + ")");
                 break;
             case STDDEV_POP:
-                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("STDDEV_POP", declare));
+                aggColumn.setDeclare(dialect.buildStatFunction("STDDEV_POP", declare));
                 break;
             case STDDEV_SAMP:
-                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("STDDEV_SAMP", declare));
+                aggColumn.setDeclare(dialect.buildStatFunction("STDDEV_SAMP", declare));
                 break;
             case VAR_POP:
-                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("VAR_POP", declare));
+                aggColumn.setDeclare(dialect.buildStatFunction("VAR_POP", declare));
                 break;
             case VAR_SAMP:
-                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("VAR_SAMP", declare));
+                aggColumn.setDeclare(dialect.buildStatFunction("VAR_SAMP", declare));
                 break;
             case WINDOW:
                 // 窗口函数：直接透传 declare，不包装聚合、不加入 GROUP BY
@@ -1692,19 +1697,22 @@ public class JdbcModelQueryEngine implements QueryEngine {
     }
 
 
-    private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
-        buildSlice(jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef, 0);
+    private void buildSlice(ModelResultContext context, JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
+        buildSlice(context, jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef, 0, "AND", true);
     }
 
-    private void buildHaving(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef havingDef) {
-        buildHaving(jdbcQueryModel, jdbcQuery, jdbcQuery.getHaving(), havingDef, 0, "AND");
+    private void buildHaving(ModelResultContext context, JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef havingDef) {
+        buildHaving(context, jdbcQueryModel, jdbcQuery, jdbcQuery.getHaving(), havingDef, 0, "AND", true);
     }
 
-    private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level) {
-        buildSlice(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, "AND");
+    private void buildSlice(ModelResultContext context, JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery,
+                            JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level) {
+        buildSlice(context, jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, "AND", true);
     }
 
-    private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level, String parentLink) {
+    private void buildSlice(ModelResultContext context, JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery,
+                            JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level, String parentLink,
+                            boolean aggregateRelationPushdownSafe) {
         // 处理 $expr 表达式条件
         if (sliceDef._isExpressionCondition()) {
             buildExpressionCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink);
@@ -1729,21 +1737,26 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
             // 第一层不加连接符，全部用 AND 连接到父条件
             JdbcQuery.JdbcGroupCond gc = listCond.newGroupCond(level > 0 ? parentLink : "");
+            boolean childAggregateRelationPushdownSafe =
+                    aggregateRelationPushdownSafe && isConjunctiveCondition(groupLink);
 
             for (CondRequestDef child : children) {
                 // 递归时传递当前组的连接类型
-                buildSlice(jdbcQueryModel, jdbcQuery, gc, child, level + 1, groupLink);
+                buildSlice(context, jdbcQueryModel, jdbcQuery, gc, child, level + 1, groupLink,
+                        childAggregateRelationPushdownSafe);
             }
 
             listCond.addCond(gc);
         } else {
             // 这是一个普通条件
-            buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink, false);
+            buildSingleCondition(context, jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink, false,
+                    aggregateRelationPushdownSafe);
         }
     }
 
-    private void buildHaving(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond,
-                             CondRequestDef havingDef, int level, String parentLink) {
+    private void buildHaving(ModelResultContext context, JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond,
+                             CondRequestDef havingDef, int level, String parentLink,
+                             boolean aggregateRelationPushdownSafe) {
         if (havingDef._isExpressionCondition()) {
             throw RX.throwAUserTip("UNSUPPORTED_HAVING_CONDITION: request.having supports field/op/value and $and/$or groups over aggregate fields; move row-level expressions to slice.");
         }
@@ -1766,8 +1779,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
             String groupLink = havingDef._getGroupLink();
             List<CondRequestDef> children = havingDef._getGroupChildren();
             JdbcQuery.JdbcGroupCond gc = listCond.newGroupCond(level > 0 ? parentLink : "");
+            boolean childAggregateRelationPushdownSafe =
+                    aggregateRelationPushdownSafe && isConjunctiveCondition(groupLink);
             for (CondRequestDef child : children) {
-                buildHaving(jdbcQueryModel, jdbcQuery, gc, child, level + 1, groupLink);
+                buildHaving(context, jdbcQueryModel, jdbcQuery, gc, child, level + 1, groupLink,
+                        childAggregateRelationPushdownSafe);
             }
             listCond.addCond(gc);
             return;
@@ -1777,19 +1793,22 @@ public class JdbcModelQueryEngine implements QueryEngine {
             throw RX.throwAUserTip("HAVING_REQUIRES_AGGREGATE_FIELD: request.having field '" + havingDef.getField()
                     + "' is not an aggregate measure. Use slice for row-level filters.");
         }
-        buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, havingDef, level, parentLink, true);
+        buildSingleCondition(context, jdbcQueryModel, jdbcQuery, listCond, havingDef, level, parentLink, true,
+                aggregateRelationPushdownSafe);
     }
 
     /**
      * 构建单个条件（非逻辑组合）
      */
     private void buildSingleCondition(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level, String parentLink) {
-        buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink, false);
+        buildSingleCondition(null, jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink, false,
+                isConjunctiveCondition(parentLink));
     }
 
-    private void buildSingleCondition(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond,
+    private void buildSingleCondition(ModelResultContext context, JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond,
                                       CondRequestDef sliceDef, int level, String parentLink,
-                                      boolean forceCurrentListCondForAggregate) {
+                                      boolean forceCurrentListCondForAggregate,
+                                      boolean aggregateRelationPushdownSafe) {
         DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), false, true);
 
         // 如果在模型中找不到，尝试从计算字段中查找
@@ -1874,7 +1893,15 @@ public class JdbcModelQueryEngine implements QueryEngine {
             sliceDef.setOp(CondType.BIT_IN.getCode());
         }
 
-        pushAggregateRelationFilterIfSafe(jdbcQueryModel, jdbcColumn, sliceDef, parentLink);
+        if (!forceCurrentListCondForAggregate
+                && tryApplyAggregateMemberFilterRewrite(
+                context, jdbcQueryModel, jdbcQuery, listCond, jdbcColumn, sliceDef, parentLink,
+                aggregateRelationPushdownSafe)) {
+            return;
+        }
+
+        pushAggregateRelationFilterIfSafe(jdbcQueryModel, jdbcColumn, sliceDef, parentLink,
+                aggregateRelationPushdownSafe);
 
         // 聚合条件需要添加到HAVING，否则添加到WHERE
         if (isAggregateCondition) {
@@ -1885,10 +1912,62 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
     }
 
+    private boolean tryApplyAggregateMemberFilterRewrite(ModelResultContext context,
+                                                         JdbcQueryModel jdbcQueryModel,
+                                                         JdbcQuery jdbcQuery,
+                                                         JdbcQuery.JdbcListCond listCond,
+                                                         DbColumn jdbcColumn,
+                                                         CondRequestDef sliceDef,
+                                                         String parentLink,
+                                                         boolean aggregateRelationPushdownSafe) {
+        AggregateMemberFilterPlan plan = AggregateMemberFilterPlanner.getPlan(context, sliceDef);
+        if (plan == null || !aggregateRelationPushdownSafe) {
+            return false;
+        }
+        AggregateRelationOutputColumn aggregateRelationColumn =
+                jdbcColumn == null ? null : jdbcColumn.getDecorate(AggregateRelationOutputColumn.class);
+        if (aggregateRelationColumn == null) {
+            return false;
+        }
+        AggregateRelationQueryObject queryObject =
+                resolveAggregateRelationQueryObject(jdbcColumn.getQueryObject());
+        if (queryObject == null) {
+            return false;
+        }
+        queryObject.setAggregateRelationDialect(jdbcQueryModel.getDialect());
+        try {
+            Optional<AggregateRelationQueryObject.AggregateMemberFilterSql> memberFilter =
+                    queryObject.buildAggregateRelationMemberFilter(
+                            aggregateRelationColumn,
+                            plan.op(),
+                            plan.value(),
+                            column -> buildOuterAggregateMemberFilterColumnSql(jdbcQueryModel, jdbcQuery, column));
+            memberFilter.ifPresent(sql -> listCond.listLink(sql.sql(), sql.values(), parentLink));
+            return memberFilter.isPresent();
+        } finally {
+            queryObject.clearAggregateRelationDialect();
+        }
+    }
+
+    private String buildOuterAggregateMemberFilterColumnSql(JdbcQueryModel jdbcQueryModel,
+                                                            JdbcQuery jdbcQuery,
+                                                            DbColumn column) {
+        if (column == null) {
+            return null;
+        }
+        if (column.getQueryObject() != null
+                && !(jdbcQuery.getFrom().getFromObject().isRootEqual(column.getQueryObject()))) {
+            jdbcQuery.join(column.getQueryObject());
+        }
+        String alias = jdbcQueryModel.getAlias(column.getQueryObject());
+        return column.getDeclare(null, alias);
+    }
+
     private void pushAggregateRelationFilterIfSafe(JdbcQueryModel jdbcQueryModel, DbColumn jdbcColumn,
-                                                   CondRequestDef sliceDef, String parentLink) {
-        if (!isConjunctiveCondition(parentLink) || sliceDef == null || jdbcColumn == null) {
-            recordAggregateRelationRetainedFilter(jdbcQueryModel, jdbcColumn, sliceDef, parentLink);
+                                                   CondRequestDef sliceDef, String parentLink,
+                                                   boolean aggregateRelationPushdownSafe) {
+        if (!aggregateRelationPushdownSafe || sliceDef == null || jdbcColumn == null) {
+            recordAggregateRelationRetainedFilter(jdbcQueryModel, jdbcColumn, sliceDef, aggregateRelationPushdownSafe);
             return;
         }
         if (jdbcColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
@@ -1897,7 +1976,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
                         AggregateRelationQueryObject.REASON_NULL_CHECK_OUTER_ONLY);
                 return;
             }
-            aggregateRelationColumn.pushAggregateRelationCondition(sliceDef.getOp(), sliceDef.getValue());
+            AggregateRelationQueryObject queryObject =
+                    resolveAggregateRelationQueryObject(jdbcColumn.getQueryObject());
+            if (queryObject != null) {
+                queryObject.setAggregateRelationDialect(jdbcQueryModel.getDialect());
+                try {
+                    queryObject.pushAggregateRelationCondition(aggregateRelationColumn, sliceDef.getOp(), sliceDef.getValue());
+                } finally {
+                    queryObject.clearAggregateRelationDialect();
+                }
+            }
             return;
         }
         pushAggregateRelationJoinKeyFilters(jdbcQueryModel, sliceDef.getField(), sliceDef.getOp(), sliceDef.getValue());
@@ -1908,13 +1996,19 @@ public class JdbcModelQueryEngine implements QueryEngine {
             return;
         }
         for (AggregateRelationQueryObject queryObject : collectAggregateRelationQueryObjects(jdbcQueryModel)) {
-            queryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
+            queryObject.setAggregateRelationDialect(jdbcQueryModel.getDialect());
+            try {
+                queryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
+            } finally {
+                queryObject.clearAggregateRelationDialect();
+            }
         }
     }
 
     private void recordAggregateRelationRetainedFilter(JdbcQueryModel jdbcQueryModel, DbColumn jdbcColumn,
-                                                       CondRequestDef sliceDef, String parentLink) {
-        if (sliceDef == null || jdbcColumn == null || isConjunctiveCondition(parentLink)) {
+                                                       CondRequestDef sliceDef,
+                                                       boolean aggregateRelationPushdownSafe) {
+        if (sliceDef == null || jdbcColumn == null || aggregateRelationPushdownSafe) {
             return;
         }
         if (jdbcColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {

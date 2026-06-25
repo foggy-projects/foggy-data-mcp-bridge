@@ -71,7 +71,7 @@ public final class ColumnObjectNormalizer {
      * (those are different concepts; see G5 spec v2-patch §2.3).</p>
      */
     public static final Set<String> ALLOWED_AGG = Set.of(
-        "sum", "avg", "count", "max", "min", "count_distinct"
+        "sum", "avg", "count", "max", "min", "count_distinct", "group_concat"
     );
 
     /**
@@ -260,7 +260,7 @@ public final class ColumnObjectNormalizer {
                 throw new IllegalArgumentException(
                     "COLUMN_AGG_NOT_SUPPORTED: columns[" + index + "] agg '" + aggObj
                     + "' is not in the whitelist " + ALLOWED_AGG
-                    + ". (Note: 'count_distinct' is supported and lowers to COUNT(DISTINCT field).)");
+                    + ". (Note: 'count_distinct' and 'group_concat' are supported aggregate tokens.)");
             }
             agg = aggLower;
         }
