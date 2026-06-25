@@ -72,6 +72,7 @@ application-local.properties
 # ====================
 tmp/
 temp/
+.foggy-runtime/
 *.tmp
 *.bak
 *.backup
