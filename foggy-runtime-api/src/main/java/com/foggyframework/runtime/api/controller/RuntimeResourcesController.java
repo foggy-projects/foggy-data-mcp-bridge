@@ -149,7 +149,7 @@ public class RuntimeResourcesController {
         Path root = Path.of(record.path()).toAbsolutePath().normalize();
         List<ResourceFileInfo> saved = new ArrayList<>();
         try {
-            Files.createDirectories(root);
+            List<ValidatedResourceSaveFile> validatedFiles = new ArrayList<>();
             for (ResourceSaveFile file : request.files()) {
                 if (file == null || !StringUtils.hasText(file.path()) || file.content() == null) {
                     return fail("INVALID_REQUEST", "resources.save", "Each file requires path and content.",
@@ -168,8 +168,12 @@ public class RuntimeResourcesController {
                                 "Pull the resource again, merge changes, then retry save.", true, file.path());
                     }
                 }
-                writeUtf8Atomically(target, file.content());
-                saved.add(fileInfo(root, target, false, true));
+                validatedFiles.add(new ValidatedResourceSaveFile(file, target));
+            }
+            Files.createDirectories(root);
+            for (ValidatedResourceSaveFile validatedFile : validatedFiles) {
+                writeUtf8Atomically(validatedFile.target(), validatedFile.file().content());
+                saved.add(fileInfo(root, validatedFile.target(), false, true));
             }
         } catch (IllegalArgumentException e) {
             return fail("INVALID_RESOURCE_PATH", "resources.save", e.getMessage(),
@@ -346,5 +350,8 @@ public class RuntimeResourcesController {
     }
 
     private record BundleLocation(String namespace, Path root, boolean writable) {
+    }
+
+    private record ValidatedResourceSaveFile(ResourceSaveFile file, Path target) {
     }
 }

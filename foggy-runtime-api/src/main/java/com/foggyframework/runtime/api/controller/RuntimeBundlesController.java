@@ -154,10 +154,14 @@ public class RuntimeBundlesController {
             return fail("BUNDLE_ALREADY_EXISTS", "bundles.add", "Runtime-managed bundle already exists: " + name,
                     "Use replace=true or bundles update.", true);
         }
-        if (existsInRuntime && !systemBundlesContext.removeBundle(name)) {
-            return fail("BUNDLE_REMOVE_FAILED", update ? "bundles.update" : "bundles.add",
-                    "Existing runtime-managed bundle could not be removed: " + name,
-                    "Inspect bundle state and retry.", false);
+        boolean removedExisting = false;
+        if (existsInRuntime) {
+            if (!systemBundlesContext.removeBundle(name)) {
+                return fail("BUNDLE_REMOVE_FAILED", update ? "bundles.update" : "bundles.add",
+                        "Existing runtime-managed bundle could not be removed: " + name,
+                        "Inspect bundle state and retry.", false);
+            }
+            removedExisting = true;
         }
 
         String namespace = stringOr(
@@ -168,6 +172,7 @@ public class RuntimeBundlesController {
         boolean enabled = booleanOr(request != null ? request.enabled() : null, true);
         boolean registered = !enabled || systemBundlesContext.addExternalBundle(name, namespace, path, watch);
         if (!registered) {
+            restoreRemovedExistingBundle(removedExisting, existingRecord);
             return fail("BUNDLE_ADD_FAILED", update ? "bundles.update" : "bundles.add",
                     "Bundle registration failed: " + name,
                     "Check path readability and bundle name, then retry.", false);
@@ -188,6 +193,21 @@ public class RuntimeBundlesController {
                 runtimeApiProperties.getRuntimeApiVersion(),
                 new BundleMutationResponse(info, warnings)
         );
+    }
+
+    private void restoreRemovedExistingBundle(boolean removedExisting, RuntimeBundleRecord existingRecord) {
+        if (!removedExisting || existingRecord == null) {
+            return;
+        }
+        try {
+            systemBundlesContext.addExternalBundle(
+                    existingRecord.name(),
+                    existingRecord.namespace(),
+                    existingRecord.path(),
+                    existingRecord.watch()
+            );
+        } catch (Exception ignored) {
+        }
     }
 
     private BundleInfo infoFromDefinition(BundleDefinition definition, boolean managed, String status, String message) {

@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -520,6 +521,68 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldRestoreExistingRuntimeManagedBundleWhenUpdateRegistrationFails() throws Exception {
+        Path oldModelsDir = Files.createTempDirectory("runtime-api-bundle-rollback-old");
+        Path newModelsDir = Files.createTempDirectory("runtime-api-bundle-rollback-new");
+        when(systemBundlesContext.addExternalBundle("runtime-rollback", "dev", oldModelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-rollback",
+                        "namespace", "dev",
+                        "path", oldModelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        when(systemBundlesContext.containBundle("runtime-rollback")).thenReturn(true);
+        when(systemBundlesContext.removeBundle("runtime-rollback")).thenReturn(true);
+        when(systemBundlesContext.addExternalBundle("runtime-rollback", "dev", newModelsDir.toString(), true))
+                .thenReturn(false);
+
+        ResponseEntity<JsonNode> updateResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/bundles/runtime-rollback",
+                org.springframework.http.HttpMethod.PUT,
+                new org.springframework.http.HttpEntity<>(Map.of(
+                        "namespace", "dev",
+                        "path", newModelsDir.toString(),
+                        "watch", true
+                )),
+                JsonNode.class
+        );
+
+        assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode updateBody = updateResponse.getBody();
+        assertThat(updateBody).isNotNull();
+        assertThat(updateBody.path("success").asBoolean()).isFalse();
+        assertThat(updateBody.path("error").path("code").asText()).isEqualTo("BUNDLE_ADD_FAILED");
+        verify(systemBundlesContext).removeBundle("runtime-rollback");
+        verify(systemBundlesContext).addExternalBundle("runtime-rollback", "dev", newModelsDir.toString(), true);
+        verify(systemBundlesContext, times(2))
+                .addExternalBundle("runtime-rollback", "dev", oldModelsDir.toString(), true);
+
+        ResponseEntity<JsonNode> listResponse = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                JsonNode.class
+        );
+        assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode restoredBundle = null;
+        for (JsonNode candidate : listResponse.getBody().path("data").path("bundles")) {
+            if ("runtime-rollback".equals(candidate.path("name").asText())) {
+                restoredBundle = candidate;
+                break;
+            }
+        }
+        assertThat(restoredBundle).isNotNull();
+        assertThat(restoredBundle.path("path").asText()).isEqualTo(oldModelsDir.toString());
+    }
+
+    @Test
     void shouldExportRuntimeManagedBundleResources() throws Exception {
         Path modelsDir = Files.createTempDirectory("runtime-api-resources-export-test");
         Files.createDirectories(modelsDir.resolve("model"));
@@ -606,6 +669,51 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("savedResources").get(0).path("path").asText()).isEqualTo("model/NewOrder.tm");
         assertThat(Files.readString(modelsDir.resolve("model").resolve("NewOrder.tm")))
                 .isEqualTo("table_model NewOrder {}\n");
+    }
+
+    @Test
+    void shouldRejectInvalidResourceSaveBatchWithoutPartialWrites() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-resources-batch-test");
+        when(systemBundlesContext.addExternalBundle("runtime-resource-batch", "dev", modelsDir.toString(), true))
+                .thenReturn(true);
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-resource-batch",
+                        "namespace", "dev",
+                        "path", modelsDir.toString(),
+                        "watch", true
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/resources/save",
+                Map.of(
+                        "bundle", "runtime-resource-batch",
+                        "namespace", "dev",
+                        "files", List.of(
+                                Map.of(
+                                        "path", "model/Partial.tm",
+                                        "content", "table_model Partial {}\n"
+                                ),
+                                Map.of(
+                                        "path", "notes.txt",
+                                        "content", "not a managed model resource\n"
+                                )
+                        )
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("RESOURCE_TYPE_NOT_ALLOWED");
+        assertThat(Files.exists(modelsDir.resolve("model").resolve("Partial.tm"))).isFalse();
     }
 
     @Test
