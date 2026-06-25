@@ -3,7 +3,7 @@ doc_role: risk_evaluation
 doc_purpose: Record Runtime API auth-code technical security boundary evaluation.
 version: 9.2.5
 target: P1-runtime-api-auth-code-security-boundary-evaluation
-status: evaluated
+status: signed-off
 created_at: 2026-06-25
 updated_at: 2026-06-25
 owner_modules:
@@ -96,3 +96,13 @@ Live evidence:
 - Keep the current auth-code boundary as-is.
 - Do not start a security layering or permission-model redesign in this iteration.
 - Prefer operational documentation over new code for the residual risks above.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-25
+- acceptance_record: docs/9.2.5/acceptance/version-signoff.md
+- blocking_items: none
+- follow_up_required: no

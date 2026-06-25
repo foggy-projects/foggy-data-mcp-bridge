@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Track Runtime CLI auth-code release closure.
 version: 9.2.5
 target: P1-runtime-cli-auth-code-release-closure
-status: released
+status: signed-off
 created_at: 2026-06-25
 updated_at: 2026-06-25
 owner_modules:
@@ -121,3 +121,13 @@ Evidence directory:
 - No server-side Runtime API auth-code contract change.
 - No RBAC, per-user permission, audit logging, credential rotation, or security layering.
 - No expansion of auth-code protection into query/read/script execution endpoints.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-25
+- acceptance_record: docs/9.2.5/acceptance/version-signoff.md
+- blocking_items: none
+- follow_up_required: no

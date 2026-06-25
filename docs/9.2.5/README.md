@@ -3,7 +3,7 @@ doc_role: version_followup_plan
 doc_purpose: Track 9.2.5 Runtime CLI release closure and Runtime API auth-code technical boundary evaluation.
 version: 9.2.5
 target: Runtime API Auth-Code CLI Release and Boundary Evaluation
-status: released
+status: signed-off
 created_at: 2026-06-25
 updated_at: 2026-06-25
 ---
@@ -18,8 +18,8 @@ updated_at: 2026-06-25
 
 | Area | Workitem | Status | Owner Module | Boundary |
 |---|---|---|---|---|
-| CLI release closure | `workitems/P1-runtime-cli-auth-code-release-closure.md` | released | `foggy-runtime-cli` | CLI `0.1.6` released with auth-code support and live Runtime API evidence. |
-| Auth-code boundary evaluation | `workitems/P1-runtime-api-auth-code-security-boundary-evaluation.md` | evaluated | `foggy-runtime-api`, `foggy-runtime-cli` | Shared auth code is acceptable for the current non-customer-facing management gate; no RBAC, audit, rotation, or security layering is introduced. |
+| CLI release closure | `workitems/P1-runtime-cli-auth-code-release-closure.md` | signed-off | `foggy-runtime-cli` | CLI `0.1.6` released with auth-code support and live Runtime API evidence. |
+| Auth-code boundary evaluation | `workitems/P1-runtime-api-auth-code-security-boundary-evaluation.md` | signed-off | `foggy-runtime-api`, `foggy-runtime-cli` | Shared auth code is acceptable for the current non-customer-facing management gate; no RBAC, audit, rotation, or security layering is introduced. |
 
 ## Verification Summary
 
@@ -35,6 +35,7 @@ updated_at: 2026-06-25
 - implementation_quality: `quality/P1-runtime-cli-auth-code-release-closure-implementation-quality.md`
 - coverage_audit: `coverage/P1-runtime-cli-auth-code-release-closure-coverage-audit.md`
 - boundary_evaluation: `workitems/P1-runtime-api-auth-code-security-boundary-evaluation.md`
+- acceptance_record: `acceptance/version-signoff.md`
 
 ## Customer Impact
 
@@ -50,3 +51,13 @@ updated_at: 2026-06-25
 - Do not add RBAC, per-user permission, audit, credential rotation, or security layering.
 - Prefer `FOGGY_RUNTIME_API_AUTH_CODE` for automation to reduce command-line exposure.
 - Treat auth-code as sufficient only for the current internal technical interface, not as a public/customer security model.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-25
+- acceptance_record: docs/9.2.5/acceptance/version-signoff.md
+- blocking_items: none
+- follow_up_required: no
