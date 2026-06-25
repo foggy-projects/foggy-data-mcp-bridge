@@ -10,14 +10,18 @@ import com.foggyframework.bundle.loader.BundleLoader;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.fsscript.loadder.FsscriptFileChangeHandler;
+import com.foggyframework.fsscript.loadder.RootFsscriptLoader;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 
 import jakarta.annotation.Resource;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Data
 @Slf4j
@@ -29,6 +33,8 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
     List<Bundle> bundleList = new ArrayList<>();
 
     Map<String, BundleDefinition> name2BundleDefinition;
+
+    private final ReentrantReadWriteLock bundleLock = new ReentrantReadWriteLock();
 
     @Resource
     ApplicationContext appCtx;
@@ -51,7 +57,12 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
      * @return
      */
     public BundleDefinition getBundleDefinitionByName(String name) {
-        return name2BundleDefinition.get(name);
+        bundleLock.readLock().lock();
+        try {
+            return name2BundleDefinition == null ? null : name2BundleDefinition.get(name);
+        } finally {
+            bundleLock.readLock().unlock();
+        }
     }
 
     private BundleDefinition resolveBundleDefinition(Bundle bundle) {
@@ -66,27 +77,37 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         if (definition == null) {
             return;
         }
-        if (name2BundleDefinition == null) {
-            name2BundleDefinition = new HashMap<>();
-        }
-        name2BundleDefinition.put(definition.getName(), definition);
+        bundleLock.writeLock().lock();
+        try {
+            if (name2BundleDefinition == null) {
+                name2BundleDefinition = new HashMap<>();
+            }
+            name2BundleDefinition.put(definition.getName(), definition);
 
-        if (bundleDefinitions == null) {
-            bundleDefinitions = new ArrayList<>();
-        }
-        boolean exists = bundleDefinitions.stream()
-                .anyMatch(existing -> StringUtils.equals(existing.getName(), definition.getName()));
-        if (!exists) {
-            bundleDefinitions.add(definition);
+            if (bundleDefinitions == null) {
+                bundleDefinitions = new ArrayList<>();
+            }
+            boolean exists = bundleDefinitions.stream()
+                    .anyMatch(existing -> StringUtils.equals(existing.getName(), definition.getName()));
+            if (!exists) {
+                bundleDefinitions.add(definition);
+            }
+        } finally {
+            bundleLock.writeLock().unlock();
         }
     }
 
     private void removeBundleDefinition(String bundleName) {
-        if (name2BundleDefinition != null) {
-            name2BundleDefinition.remove(bundleName);
-        }
-        if (bundleDefinitions != null) {
-            bundleDefinitions.removeIf(definition -> StringUtils.equals(definition.getName(), bundleName));
+        bundleLock.writeLock().lock();
+        try {
+            if (name2BundleDefinition != null) {
+                name2BundleDefinition.remove(bundleName);
+            }
+            if (bundleDefinitions != null) {
+                bundleDefinitions.removeIf(definition -> StringUtils.equals(definition.getName(), bundleName));
+            }
+        } finally {
+            bundleLock.writeLock().unlock();
         }
     }
 
@@ -112,25 +133,42 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
     @Override
     public Bundle getBundleByPackageName(String packageName, boolean errorIfNotFound) {
-        BundleDefinition def = getBundleDefinitionByPackageName(packageName);
-        if (def == null) {
+        bundleLock.readLock().lock();
+        try {
+            BundleDefinition def = getBundleDefinitionByPackageNameLocked(packageName);
+            if (def == null) {
+                if (errorIfNotFound) {
+                    throw RX.throwB("未能通过 packageName[" + packageName + "]找到模块定义");
+                }
+                return null;
+            }
+            for (Bundle bundle : bundleList) {
+                if (StringUtils.equals(def.getName(), bundle.getName())) {
+                    return bundle;
+                }
+            }
             if (errorIfNotFound) {
-                throw RX.throwB("未能通过 packageName[" + packageName + "]找到模块定义");
+                throw RX.throwB("未能通过 packageName[" + packageName + "]找到Bundle");
             }
             return null;
+        } finally {
+            bundleLock.readLock().unlock();
         }
-        for (Bundle bundle : bundleList) {
-            if (StringUtils.equals(def.getName(), bundle.getName())) {
-                return bundle;
-            }
-        }
-        if (errorIfNotFound) {
-            throw RX.throwB("未能通过 packageName[" + packageName + "]找到Bundle");
-        }
-        return null;
     }
 
     public BundleDefinition getBundleDefinitionByPackageName(String packageName) {
+        bundleLock.readLock().lock();
+        try {
+            return getBundleDefinitionByPackageNameLocked(packageName);
+        } finally {
+            bundleLock.readLock().unlock();
+        }
+    }
+
+    private BundleDefinition getBundleDefinitionByPackageNameLocked(String packageName) {
+        if (bundleDefinitions == null) {
+            return null;
+        }
         for (BundleDefinition b : bundleDefinitions) {
             if (packageName.startsWith(b.getPackageName())) {
                 return b;
@@ -153,17 +191,18 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
     public Bundle getBundleByResource(org.springframework.core.io.Resource resource) {
         try {
             String path = resource.getURL().toString();
+            List<Bundle> bundles = getBundleList();
             if (resource.isFile()) {
                 if (path.indexOf("/WEB-INF/") >= 0) {
                     //情况1，根据包判断即可
-                    for (Bundle bundle : bundleList) {
+                    for (Bundle bundle : bundles) {
                         if (path.indexOf("/" + bundle.getPackageName() + "/") >= 0) {
                             return bundle;
                         }
                     }
                 } else {
                     //情况2：处于开发环境
-                    for (Bundle bundle : bundleList) {
+                    for (Bundle bundle : bundles) {
                         if (path.indexOf(bundle.getRootPath()) >= 0) {
                             return bundle;
                         }
@@ -172,7 +211,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
             } else {
                 //我们认为是jar?
-                for (Bundle bundle : bundleList) {
+                for (Bundle bundle : bundles) {
                     if (path.indexOf(bundle.getRootPath()) >= 0) {
                         return bundle;
                     }
@@ -213,17 +252,13 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         }
 
         log.debug("注册完毕，开始加载模块");
-        try {
-            load();
-            log.debug("加载完毕");
-            loadCompleted = true;
-            //发出事件~~~
-            SystemBundlesContextRefreshedEvent event = new SystemBundlesContextRefreshedEvent(SystemBundlesContextImpl.this);
+        load();
+        log.debug("加载完毕");
+        loadCompleted = true;
+        //发出事件~~~
+        SystemBundlesContextRefreshedEvent event = new SystemBundlesContextRefreshedEvent(SystemBundlesContextImpl.this);
 
-            appCtx.publishEvent(event);
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        appCtx.publishEvent(event);
 
     }
 
@@ -278,13 +313,17 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
     @Override
     public void regBundle(Bundle bundle) {
-
-        for (Bundle bundle1 : bundleList) {
-            if (StringUtils.equals(bundle1.getName(), bundle.getName())) {
-                throw RX.throwB("模块: " + bundle.getName() + "已经注册过了，请不要重复注册");
+        bundleLock.writeLock().lock();
+        try {
+            for (Bundle bundle1 : bundleList) {
+                if (StringUtils.equals(bundle1.getName(), bundle.getName())) {
+                    throw RX.throwB("模块: " + bundle.getName() + "已经注册过了，请不要重复注册");
+                }
             }
+            bundleList.add(bundle);
+        } finally {
+            bundleLock.writeLock().unlock();
         }
-        bundleList.add(bundle);
     }
 
     @Override
@@ -294,15 +333,20 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
     @Override
     public Bundle getBundleByName(String name, boolean throwError) {
-        for (Bundle bundle : bundleList) {
-            if (StringUtils.equals(name, bundle.getName())) {
-                return bundle;
+        bundleLock.readLock().lock();
+        try {
+            for (Bundle bundle : bundleList) {
+                if (StringUtils.equals(name, bundle.getName())) {
+                    return bundle;
+                }
             }
+            if(throwError){
+                throw RX.throwB("未能找到模块: "+name);
+            }
+            return null;
+        } finally {
+            bundleLock.readLock().unlock();
         }
-        if(throwError){
-            throw RX.throwB("未能找到模块: "+name);
-        }
-        return null;
     }
     @Override
     public Bundle getBundleByName(String name) {
@@ -317,7 +361,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
      */
     public BundleResource findResourceByName(String name, boolean errorIfNotFound) {
         List<BundleResource> finds = new ArrayList<>(1);
-        for (Bundle bundle : bundleList) {
+        for (Bundle bundle : getBundleList()) {
             org.springframework.core.io.Resource[] resources = bundle.findResources("**/" + name);
 
             for (org.springframework.core.io.Resource resource : resources) {
@@ -345,7 +389,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         String normalizedNs = (namespace == null || namespace.trim().isEmpty()) ? "" : namespace.trim();
 
         List<BundleResource> finds = new ArrayList<>(1);
-        for (Bundle bundle : bundleList) {
+        for (Bundle bundle : getBundleList()) {
             // 获取bundle的namespace
             BundleDefinition bundleDef = resolveBundleDefinition(bundle);
             if (bundleDef == null) {
@@ -386,7 +430,12 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
     @Override
     public boolean containBundle(String bundle) {
-        return this.bundleList.stream().anyMatch(b -> StringUtils.equals(bundle, b.getName()));
+        bundleLock.readLock().lock();
+        try {
+            return this.bundleList.stream().anyMatch(b -> StringUtils.equals(bundle, b.getName()));
+        } finally {
+            bundleLock.readLock().unlock();
+        }
     }
 
     @Override
@@ -445,11 +494,16 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
         // 查找Bundle
         Bundle targetBundle = null;
-        for (Bundle bundle : bundleList) {
-            if (StringUtils.equals(bundle.getName(), bundleName)) {
-                targetBundle = bundle;
-                break;
+        bundleLock.readLock().lock();
+        try {
+            for (Bundle bundle : bundleList) {
+                if (StringUtils.equals(bundle.getName(), bundleName)) {
+                    targetBundle = bundle;
+                    break;
+                }
             }
+        } finally {
+            bundleLock.readLock().unlock();
         }
 
         if (targetBundle == null) {
@@ -475,18 +529,83 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         appCtx.publishEvent(event);
         log.debug("发布BundleRemovedEvent: bundleName={}, namespace={}", bundleName, namespace);
 
+        // 清理Bundle内部资源索引和已加载FSScript，避免移除后仍可命中旧脚本。
+        targetBundle.clearCache();
+        clearLoadedFsscripts(targetBundle);
+        clearFileWatchers(targetBundle);
+
         // 移除Bundle
-        bundleList.remove(targetBundle);
-        removeBundleDefinition(bundleName);
+        bundleLock.writeLock().lock();
+        try {
+            bundleList.remove(targetBundle);
+            removeBundleDefinition(bundleName);
+        } finally {
+            bundleLock.writeLock().unlock();
+        }
         log.info("移除外部Bundle成功: {}", bundleName);
         return true;
     }
 
     @Override
     public List<BundleDefinition> listExternalBundles() {
-        return bundleList.stream()
+        return getBundleList().stream()
                 .filter(b -> b instanceof ExternalFileBundle)
                 .map(Bundle::getDefinition)
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public List<Bundle> getBundleList() {
+        bundleLock.readLock().lock();
+        try {
+            return new ArrayList<>(bundleList);
+        } finally {
+            bundleLock.readLock().unlock();
+        }
+    }
+
+    public void setBundleList(List<Bundle> bundleList) {
+        bundleLock.writeLock().lock();
+        try {
+            this.bundleList = bundleList == null ? new ArrayList<>() : bundleList;
+        } finally {
+            bundleLock.writeLock().unlock();
+        }
+    }
+
+    private void clearLoadedFsscripts(Bundle bundle) {
+        if (bundle == null || StringUtils.isEmpty(bundle.getRootPath()) || appCtx == null) {
+            return;
+        }
+        try {
+            RootFsscriptLoader rootFsscriptLoader = appCtx.getBean(RootFsscriptLoader.class);
+            if (rootFsscriptLoader == null) {
+                return;
+            }
+            int removedCount = rootFsscriptLoader.removeByRootPath(bundle.getRootPath()).size();
+            if (removedCount > 0) {
+                log.debug("清理Bundle[{}]下已加载FSScript缓存: {}", bundle.getName(), removedCount);
+            }
+        } catch (NoSuchBeanDefinitionException e) {
+            log.debug("未找到RootFsscriptLoader，跳过Bundle[{}]的FSScript缓存清理", bundle.getName());
+        }
+    }
+
+    private void clearFileWatchers(Bundle bundle) {
+        if (bundle == null || StringUtils.isEmpty(bundle.getRootPath()) || appCtx == null) {
+            return;
+        }
+        try {
+            FsscriptFileChangeHandler changeHandler = appCtx.getBean(FsscriptFileChangeHandler.class);
+            if (changeHandler == null) {
+                return;
+            }
+            int removedCount = changeHandler.removeFilesUnderRoot(bundle.getRootPath());
+            if (removedCount > 0) {
+                log.debug("清理Bundle[{}]下FSScript文件监听: {}", bundle.getName(), removedCount);
+            }
+        } catch (NoSuchBeanDefinitionException e) {
+            log.debug("未找到FsscriptFileChangeHandler，跳过Bundle[{}]的文件监听清理", bundle.getName());
+        }
     }
 }

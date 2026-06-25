@@ -1,7 +1,10 @@
 package com.foggyframework.bundle.dynamic;
 
 import com.foggyframework.bundle.SystemBundlesContextImpl;
+import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
+import com.foggyframework.bundle.external.ExternalBundleDefinition;
+import com.foggyframework.bundle.external.ExternalFileBundle;
 import com.foggyframework.core.bundle.BundleDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +17,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -233,6 +243,62 @@ public class DynamicBundleManagementTest {
     }
 
     @Test
+    public void testGetBundleListReturnsSnapshot() throws IOException {
+        Path bundlePath = tempDir.resolve("snapshot-bundle");
+        Files.createDirectories(bundlePath);
+
+        assertTrue(context.addExternalBundle("snapshot-bundle", "dev", bundlePath.toString(), false));
+
+        List<Bundle> bundleSnapshot = context.getBundleList();
+        bundleSnapshot.clear();
+
+        assertTrue(context.containBundle("snapshot-bundle"),
+                "调用方修改getBundleList返回值不应破坏SystemBundlesContext内部状态");
+        assertEquals(1, context.listExternalBundles().size());
+    }
+
+    @Test
+    public void testListExternalBundlesDuringRemoveShouldNotFailFast() throws Exception {
+        Path bundlePath = tempDir.resolve("blocking-bundle");
+        Files.createDirectories(bundlePath);
+
+        CountDownLatch definitionReadStarted = new CountDownLatch(1);
+        CountDownLatch allowDefinitionReturn = new CountDownLatch(1);
+        BlockingExternalFileBundle bundle = new BlockingExternalFileBundle(
+                context, definitionReadStarted, allowDefinitionReturn);
+        bundle.setName("blocking-bundle");
+        bundle.setBasePath(bundlePath.toString());
+        bundle.setRootPath(bundlePath.toString());
+        bundle.setBundleDefinition(new ExternalBundleDefinition("blocking-bundle", "dev", bundlePath.toString(), false));
+        context.regBundle(bundle);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<List<BundleDefinition>> listing = executor.submit(() -> context.listExternalBundles());
+            assertTrue(definitionReadStarted.await(2, TimeUnit.SECONDS), "listExternalBundles should start reading bundle definitions");
+
+            Future<Boolean> removing = executor.submit(() -> context.removeBundle("blocking-bundle"));
+            Thread.sleep(100);
+            allowDefinitionReturn.countDown();
+
+            List<BundleDefinition> listedBundles;
+            try {
+                listedBundles = listing.get(2, TimeUnit.SECONDS);
+            } catch (ExecutionException e) {
+                fail("listExternalBundles must tolerate concurrent remove without fail-fast iteration", e.getCause());
+                return;
+            }
+
+            assertNotNull(listedBundles);
+            assertTrue(removing.get(2, TimeUnit.SECONDS));
+            assertFalse(context.containBundle("blocking-bundle"));
+        } finally {
+            allowDefinitionReturn.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     public void testAddAndRemoveMultipleBundles() throws IOException {
         // 测试添加和移除多个bundle的组合操作
         Path bundle1Path = tempDir.resolve("multi-bundle1");
@@ -301,5 +367,34 @@ public class DynamicBundleManagementTest {
         // 验证所有bundle都已添加
         List<BundleDefinition> bundles = context.listExternalBundles();
         assertEquals(threadCount, bundles.size());
+    }
+
+    private static class BlockingExternalFileBundle extends ExternalFileBundle {
+
+        private final CountDownLatch definitionReadStarted;
+        private final CountDownLatch allowDefinitionReturn;
+        private final AtomicBoolean blockOnce = new AtomicBoolean(true);
+
+        BlockingExternalFileBundle(SystemBundlesContextImpl context,
+                                   CountDownLatch definitionReadStarted,
+                                   CountDownLatch allowDefinitionReturn) {
+            super(context);
+            this.definitionReadStarted = definitionReadStarted;
+            this.allowDefinitionReturn = allowDefinitionReturn;
+        }
+
+        @Override
+        public BundleDefinition getDefinition() {
+            if (blockOnce.compareAndSet(true, false)) {
+                definitionReadStarted.countDown();
+                try {
+                    allowDefinitionReturn.await(2, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            }
+            return super.getDefinition();
+        }
     }
 }

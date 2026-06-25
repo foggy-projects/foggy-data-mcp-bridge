@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -197,6 +199,32 @@ public class WatchServiceFileTracer {
     }
 
     /**
+     * 移除指定根目录下所有文件监听。
+     *
+     * @return 被移除的文件监听数量
+     */
+    public int unwatchFilesUnderRoot(File root) {
+        if (root == null) {
+            return 0;
+        }
+
+        Path rootPath = root.toPath().toAbsolutePath().normalize();
+        List<Path> removedFiles = new ArrayList<>();
+        for (Path filePath : fileListeners.keySet()) {
+            if (filePath.startsWith(rootPath) && fileListeners.remove(filePath) != null) {
+                removedFiles.add(filePath);
+            }
+        }
+
+        cleanupWatchedDirectoriesUnderRoot(rootPath);
+
+        if (!removedFiles.isEmpty()) {
+            log.debug("已移除根目录下文件监听: root={}, count={}", rootPath, removedFiles.size());
+        }
+        return removedFiles.size();
+    }
+
+    /**
      * 移除目录监听
      */
     public void unwatchDirectory(File directory) {
@@ -206,9 +234,7 @@ public class WatchServiceFileTracer {
         directoryExtensionFilters.remove(dirPath);
 
         // 如果该目录下没有其他文件监听，则取消监听
-        boolean hasFileListeners = fileListeners.keySet().stream()
-                .anyMatch(p -> p.getParent().equals(dirPath));
-        if (!hasFileListeners) {
+        if (!hasListenerForDirectory(dirPath)) {
             WatchKey key = watchedDirs.remove(dirPath);
             if (key != null) {
                 key.cancel();
@@ -217,6 +243,28 @@ public class WatchServiceFileTracer {
         }
 
         log.debug("已移除目录监听: {}", dirPath);
+    }
+
+    private void cleanupWatchedDirectoriesUnderRoot(Path rootPath) {
+        for (Path dirPath : new ArrayList<>(watchedDirs.keySet())) {
+            if (!dirPath.startsWith(rootPath) || hasListenerForDirectory(dirPath)) {
+                continue;
+            }
+            WatchKey key = watchedDirs.remove(dirPath);
+            if (key != null) {
+                key.cancel();
+                keyToDirMap.remove(key);
+            }
+        }
+    }
+
+    private boolean hasListenerForDirectory(Path dirPath) {
+        if (directoryListeners.containsKey(dirPath)) {
+            return true;
+        }
+        return fileListeners.keySet().stream()
+                .map(Path::getParent)
+                .anyMatch(dirPath::equals);
     }
 
     /**

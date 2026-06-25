@@ -43,7 +43,7 @@ abstract class ConversionUtils {
 		catch (ConversionFailedException ex) {
 			throw ex;
 		}
-		catch (Throwable ex) {
+		catch (RuntimeException ex) {
 			throw new ConversionFailedException(sourceType, targetType, source, ex);
 		}
 	}

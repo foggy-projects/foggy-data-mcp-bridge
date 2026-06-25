@@ -56,9 +56,9 @@ public class FsscriptImpl implements Fsscript {
     public Object eval(ExpEvaluator ee) {
         try {
             return exp.evalValue(ee);
-        }catch (Throwable t){
-            log.error("执行fsscript异常: "+fsscriptClosureDefinition);
-            throw ErrorUtils.toRuntimeException(t);
+        } catch (RuntimeException e) {
+            log.error("执行fsscript异常: {}", fsscriptClosureDefinition, e);
+            throw ErrorUtils.toRuntimeException(e);
         }
     }
 

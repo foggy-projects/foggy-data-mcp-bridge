@@ -120,13 +120,15 @@ public class ImportBeanExp implements ImportExp {
         Object v;
         try {
             v = method.invoke(bean, objects);
-        } catch (Throwable e) {
-            String msg = getMsg(e);
-            log.error("BeanMethodFunction ["+method+"] error: " + msg);
-            if (log.isDebugEnabled()) {
-                e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            Throwable target = e.getTargetException() == null ? e : e.getTargetException();
+            log.error("BeanMethodFunction [{}] error: {}", method, getMsg(target), target);
+            if (target instanceof Error) {
+                throw (Error) target;
             }
-//            throw RX.throwB(method + "," + msg, null, e);
+            throw ErrorUtils.toRuntimeException(target);
+        } catch (IllegalAccessException e) {
+            log.error("BeanMethodFunction [{}] access error: {}", method, e.getMessage(), e);
             throw ErrorUtils.toRuntimeException(e);
         }
         return v;
@@ -149,10 +151,6 @@ public class ImportBeanExp implements ImportExp {
         while (times > 0 && ex instanceof InvocationTargetException) {
             ex = ((InvocationTargetException) ex).getTargetException();
             times--;
-            if (log.isDebugEnabled()) {
-                ex.printStackTrace();
-                ;
-            }
         }
 
         if (ex != null) {

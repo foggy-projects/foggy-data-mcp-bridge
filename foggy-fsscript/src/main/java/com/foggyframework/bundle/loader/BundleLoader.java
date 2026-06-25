@@ -62,47 +62,11 @@ public abstract class BundleLoader<T extends BundleDefinition> {
 
             return true;
         } catch (IOException e) {
-            log.error("无法解压: "+e.getMessage());
-            //异常，不处理
-            if(log.isDebugEnabled()) {
-                e.printStackTrace();
-            }
+            log.error("无法解压: {}", e.getMessage(), e);
             return false;
         }
     }
 
-
-//    private void delBackup(ApplicationContext appCtx) {
-//        try {
-//            Resource webRootRes = appCtx.getResource(this.base);
-//            File tmp = new File(webRootRes.getFile().getParentFile(), this.getBundleName() + ".backup");
-//            FileUtils.deleteFolder(tmp);
-//        } catch (Throwable e) {
-//            //异常，不处理
-//            e.printStackTrace();
-//            return;
-//        }
-//    }
-
-//     void rebapckOld(ApplicationContext appCtx,BundleImpl bundle) {
-//        try {
-//            Resource webRootRes = appCtx.getResource("/");
-//            File baseFile = new File(webRootRes.getFile(), bundle.getBastPath());
-//            File tmp = new File(webRootRes.getFile(), "WEB-INF/" + bundle.getName() + ".backup");
-//
-//            if (tmp.exists()) {
-//                FileUtils.deleteFolder(tmp);
-//            }
-//            if (baseFile.exists()) {
-//                baseFile.renameTo(tmp);
-//            }
-//
-//        } catch (Throwable e) {
-//            //异常，不处理
-//            e.printStackTrace();
-//            return;
-//        }
-//    }
 
     public static boolean copyJarResourceFile(String fileDir, String desDir, String rootPath) {
 
@@ -139,19 +103,19 @@ public abstract class BundleLoader<T extends BundleDefinition> {
                         continue;
                     }
                     //                    String filePath =
-                    InputStream stream = src.getInputStream();
-
                     File ttfFile = new File(targetFilePath);
-                    Files.copy(stream, ttfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    try (InputStream stream = src.getInputStream()) {
+                        Files.copy(stream, ttfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    }
 
 
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log.warn("复制Jar资源失败: source={}, targetDir={}", src, desDir, e);
                 }
             }
             return true;
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("读取Jar资源失败: fileDir={}", fileDir, e);
         }
         return false;
     }

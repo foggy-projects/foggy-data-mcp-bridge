@@ -26,7 +26,7 @@ public class SleepFunDef implements FunDef {
 			Thread.sleep(sleep);
 			return null;
 		} catch (InterruptedException | IllegalArgumentException  e) {
-			throw ErrorUtils.toRuntimeException(e);// .printStackTrace();
+			throw ErrorUtils.toRuntimeException(e);
 		}
 
 	}

@@ -15,6 +15,7 @@ import com.foggyframework.fsscript.exp.ExportExp;
 import com.foggyframework.fsscript.parser.spi.*;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import java.util.Stack;
  */
 @Getter
 @Setter
+@Slf4j
 public class DefaultExpEvaluator implements ExpEvaluator {
 
     @Override
@@ -223,8 +225,8 @@ public class DefaultExpEvaluator implements ExpEvaluator {
             if (StringUtils.equals(d, "debug")) {
                 return stack.push(fScriptClosure);
             }
-        } catch (Throwable t) {
-            t.printStackTrace();
+        } catch (SecurityException e) {
+            log.debug("读取fsscript_debug系统属性失败，继续使用默认闭包继承逻辑", e);
         }
         //下面三段语句,还是要拿掉!
         FsscriptClosure fc = getCurrentFsscriptClosure();

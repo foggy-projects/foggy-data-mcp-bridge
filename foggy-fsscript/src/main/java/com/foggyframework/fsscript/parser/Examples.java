@@ -37,17 +37,6 @@ public class Examples {
 	//
 	// final DataSetExpParser p = new DataSetExpParser((ExpFactory) null);
 	//
-	// try {
-	// final Exp o = (Exp)
-	// p.compile("ds1.sum(THISCREDITBALA,BCHCD='10001' and CURRNO='01')");
-	// // Systemx.out.println(o);
-	// // Systemx.out.println("value :"+o.evalResult(new DefaultExpEvaluator()));
-	//
-	// } catch (final Exception e) {
-	// // TODO Auto-generated catch block
-	// e.printStackTrace();
-	// }
-	// }
 	// public static void main(String[] args) {
 	// final DataSetExpParser p = new DataSetExpParser((ExpFactory) null);
 	// }

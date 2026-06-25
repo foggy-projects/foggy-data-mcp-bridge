@@ -107,8 +107,8 @@ public class ImportFsscriptExp implements ImportExp {
             }
 
             return importedFsscript;
-        } catch (Throwable t) {
-            throw RX.throwB("导入" + fsscript.getPath() + "出现异常", null, t);
+        } catch (RuntimeException e) {
+            throw RX.throwB("导入" + fsscript.getPath() + "出现异常", null, e);
         }
     }
 

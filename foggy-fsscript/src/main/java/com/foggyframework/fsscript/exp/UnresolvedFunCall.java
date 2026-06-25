@@ -72,15 +72,6 @@ public class UnresolvedFunCall extends AbstractExp<String> {
 	}
 
 	private void readObject(ObjectInputStream in) {
-//		try {
-//			in.defaultReadObject();
-//			expFactory = ExpFactory.DEFAULT; // TODO
-//												// expFactory应使用某种方式，使之与writeObject时一致，不过目前系统中只有一个ExpFactory
-//			// // Systemx.out.println(in.readObject());
-//		} catch (ClassNotFoundException | IOException e) {
-//			e.printStackTrace();
-//		}
-
 	}
 
 	public void setArgs(List<Exp> args) {

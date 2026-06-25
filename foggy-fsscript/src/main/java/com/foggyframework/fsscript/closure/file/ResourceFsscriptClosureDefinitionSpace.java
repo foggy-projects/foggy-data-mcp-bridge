@@ -2,21 +2,23 @@ package com.foggyframework.fsscript.closure.file;
 
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
-import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.resource.DefaultResourceFinder;
 import com.foggyframework.core.utils.resource.ResourceFinder;
 import com.foggyframework.fsscript.closure.AbstractFsscriptClosureDefinitionSpace;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
-import com.foggyframework.fsscript.parser.spi.ExpFactory;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class ResourceFsscriptClosureDefinitionSpace extends AbstractFsscriptClosureDefinitionSpace {
 
@@ -56,16 +58,10 @@ public class ResourceFsscriptClosureDefinitionSpace extends AbstractFsscriptClos
 
     public static String getResourcePath(Resource resource) {
         try {
-//            String path = resource.getURI().getPath();
-//            if(StringUtils.isEmpty(path)){
-//            resource.getURI().getPath();
-            if(resource instanceof FileSystemResource){
-                return resource.getFile().getCanonicalPath();
-            }else if(resource instanceof ClassPathResource){
+            if(resource.isFile()){
                 return resource.getFile().getCanonicalPath();
             }
-            return resource.getURL().getPath();
-//            }
+            return resource.getURL().toExternalForm();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -94,8 +90,62 @@ public class ResourceFsscriptClosureDefinitionSpace extends AbstractFsscriptClos
         ResourceFinder finder = new DefaultResourceFinder(ee.getApplicationContext());
 
         Resource res = finder.findByResource(bundleResource.getResource(), location);
+        assertRelativeImportWithinBundleRoot(location, res);
         return res;
     }
 
+    private void assertRelativeImportWithinBundleRoot(String location, Resource resolvedResource) {
+        Bundle bundle = bundleResource.getBundle();
+        if (bundle == null || StringUtils.isEmpty(bundle.getRootPath()) || !isRelativeLocation(location)) {
+            return;
+        }
+
+        try {
+            if (!resolvedResource.isFile()) {
+                return;
+            }
+
+            Path rootPath = toRootPath(bundle.getRootPath());
+            if (rootPath == null) {
+                return;
+            }
+            Path resolvedPath = toComparablePath(resolvedResource.getFile().toPath());
+            if (!resolvedPath.startsWith(rootPath)) {
+                throw RX.throwB(String.format("FSScript相对导入[%s]不能越过Bundle根目录[%s]", location, bundle.getRootPath()));
+            }
+        } catch (IOException e) {
+            throw RX.throwB(e);
+        }
+    }
+
+    private static boolean isRelativeLocation(String location) {
+        if (StringUtils.isEmpty(location)) {
+            return false;
+        }
+        try {
+            return !Paths.get(location).isAbsolute() && !location.contains(":");
+        } catch (InvalidPathException e) {
+            return false;
+        }
+    }
+
+    private static Path toRootPath(String rootPath) throws IOException {
+        try {
+            if (rootPath.startsWith("file:")) {
+                return toComparablePath(Paths.get(URI.create(rootPath)));
+            }
+            return toComparablePath(Paths.get(rootPath));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static Path toComparablePath(Path path) throws IOException {
+        Path absolutePath = path.toAbsolutePath().normalize();
+        if (Files.exists(absolutePath)) {
+            return absolutePath.toRealPath();
+        }
+        return absolutePath;
+    }
 
 }

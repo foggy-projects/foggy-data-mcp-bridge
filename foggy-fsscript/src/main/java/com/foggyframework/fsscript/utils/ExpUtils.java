@@ -144,16 +144,16 @@ public class ExpUtils {
     public static final Object eval(ExpEvaluator ee, Exp exp) {
         try {
             return exp.evalResult(ee);
-        } catch (Throwable t) {
-            throw new RuntimeException("eval expression : [" + exp + "] has error!", t);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("eval expression : [" + exp + "] has error!", e);
         }
     }
 
     public static final Object safeEval(ExpEvaluator ee, Exp exp) {
         try {
             return exp.evalResult(ee);
-        } catch (Throwable t) {
-            throw new RuntimeException("eval expression : [" + exp + "] has error!", t);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("eval expression : [" + exp + "] has error!", e);
         }
     }
 

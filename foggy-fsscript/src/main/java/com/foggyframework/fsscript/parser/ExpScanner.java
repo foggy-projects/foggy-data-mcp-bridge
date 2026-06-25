@@ -47,10 +47,6 @@ public class ExpScanner extends ElExpScanner {
 			// p.compile("func(${d+fun()})");
 			// // Systemx.out.println(o);
 //			System.out.println(to1);
-//		} catch (final Exception e) {
-//
-//			e.printStackTrace();
-//		}
 	}
 
 

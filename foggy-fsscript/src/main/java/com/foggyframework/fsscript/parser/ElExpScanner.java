@@ -191,8 +191,7 @@ public class ElExpScanner implements BaseScanner {
 
 
         } catch (final Exception e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            throw ErrorUtils.toRuntimeException(e);
         }
     }
 

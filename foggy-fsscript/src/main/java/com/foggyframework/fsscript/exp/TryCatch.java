@@ -28,7 +28,7 @@ public class TryCatch implements Exp, Serializable {
     public Object evalValue(ExpEvaluator ee) {
         try {
             return tryExp.evalValue(ee);
-        } catch (Throwable t) {
+        } catch (RuntimeException t) {
             if (catchExp != null) {
                 Object tmp = ee.getVar(catchArgName);
                 try {

@@ -19,9 +19,9 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 外部资源Bundle实现
@@ -79,9 +79,7 @@ public class ExternalFileBundle implements Bundle {
     /**
      * 文件名到路径的缓存
      */
-    private Map<String, String> name2Path = new HashMap<>();
-
-    private final Object KEY = new Object();
+    private Map<String, String> name2Path = new ConcurrentHashMap<>();
 
     public ExternalFileBundle(SystemBundlesContext systemBundlesContext) {
         this.systemBundlesContext = systemBundlesContext;
@@ -94,9 +92,7 @@ public class ExternalFileBundle implements Bundle {
 
     @Override
     public void clearCache() {
-        synchronized (KEY) {
-            name2Path.clear();
-        }
+        name2Path.clear();
     }
 
     @Override
@@ -228,40 +224,48 @@ public class ExternalFileBundle implements Bundle {
     @Override
     public Fsscript loadFsscript(String name, FsscriptLoader loader, boolean errorIfNotFound) {
         String path = name2Path.get(name);
-        if (path == null) {
-            BundleResource bundleResource = findBundleResource(name, errorIfNotFound);
-            if (bundleResource != null) {
-                path = ResourceFsscriptClosureDefinitionSpace.getResourcePath(bundleResource.getResource());
-                Fsscript fsscript = null;
-                try {
-                    fsscript = loader.findLoadFsscript(bundleResource.getResource().getURL());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                if (fsscript != null) {
-                    synchronized (KEY) {
-                        name2Path.put(name, path);
-                    }
-                    return fsscript;
-                }
-            }
-        } else {
-            try {
-                Fsscript fsscript = loader.findLoadFsscript(path);
-                return fsscript;
-            } catch (Throwable t) {
-                synchronized (KEY) {
-                    name2Path.remove(name);
-                }
-                log.error("加载外部Fsscript失败: {}", t.getMessage());
-                if (log.isDebugEnabled()) {
-                    t.printStackTrace();
-                }
-                // 发生错误，移除缓存，重新加载
-                return loadFsscript(name, loader, errorIfNotFound);
+        if (path != null) {
+            Fsscript cachedFsscript = findCachedFsscript(name, path, loader);
+            if (cachedFsscript != null) {
+                return cachedFsscript;
             }
         }
 
+        return loadFromBundleResource(name, loader, errorIfNotFound);
+    }
+
+    private Fsscript findCachedFsscript(String scriptName, String path, FsscriptLoader loader) {
+        try {
+            Fsscript fsscript = loader.findLoadFsscript(path);
+            if (fsscript != null) {
+                return fsscript;
+            }
+            log.debug("已缓存外部FSScript路径未命中加载器，准备重新查找资源: bundle={}, script={}, path={}",
+                    name, scriptName, path);
+        } catch (RuntimeException e) {
+            log.warn("加载已缓存外部FSScript路径失败，准备清理路径缓存并重新查找资源: bundle={}, script={}, path={}",
+                    name, scriptName, path, e);
+        }
+        name2Path.remove(scriptName);
+        return null;
+    }
+
+    private Fsscript loadFromBundleResource(String scriptName, FsscriptLoader loader, boolean errorIfNotFound) {
+        BundleResource bundleResource = findBundleResource(scriptName, errorIfNotFound);
+        if (bundleResource != null) {
+            String path = ResourceFsscriptClosureDefinitionSpace.getResourcePath(bundleResource.getResource());
+            Fsscript fsscript;
+            try {
+                fsscript = loader.findLoadFsscript(bundleResource.getResource().getURL());
+            } catch (IOException e) {
+                throw new RuntimeException("加载外部FSScript资源URL失败: bundle="
+                        + name + ", script=" + scriptName + ", path=" + path, e);
+            }
+            if (fsscript != null) {
+                name2Path.put(scriptName, path);
+                return fsscript;
+            }
+        }
         return null;
     }
 

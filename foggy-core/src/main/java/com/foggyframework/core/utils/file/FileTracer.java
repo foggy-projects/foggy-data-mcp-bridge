@@ -11,10 +11,13 @@ package com.foggyframework.core.utils.file;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.function.Predicate;
 
 /**
  * 
@@ -85,6 +88,54 @@ public class FileTracer {
 				files.add(fl);
 			}
 			// }
+		}
+
+		public int removeFile(FileTracer tracer, File file) {
+			if (file == null) {
+				return 0;
+			}
+			Path targetPath = toComparablePath(file);
+			synchronized (lock) {
+				return removeMatching(files, tracer, listener -> samePath(listener.file, targetPath))
+						+ removeMatching(tmpFiles, tracer, listener -> samePath(listener.file, targetPath));
+			}
+		}
+
+		public int removeFilesUnderRoot(FileTracer tracer, File root) {
+			if (root == null) {
+				return 0;
+			}
+			Path rootPath = toComparablePath(root);
+			synchronized (lock) {
+				return removeMatching(files, tracer, listener -> isUnderRoot(listener.file, rootPath))
+						+ removeMatching(tmpFiles, tracer, listener -> isUnderRoot(listener.file, rootPath));
+			}
+		}
+
+		private int removeMatching(List<FileListener> source,
+								   FileTracer tracer,
+								   Predicate<FileListener> matcher) {
+			int before = source.size();
+			source.removeIf(listener -> listener != null
+					&& listener.tracer == tracer
+					&& matcher.test(listener));
+			return before - source.size();
+		}
+
+		private boolean samePath(File file, Path expectedPath) {
+			return file != null && toComparablePath(file).equals(expectedPath);
+		}
+
+		private boolean isUnderRoot(File file, Path rootPath) {
+			return file != null && toComparablePath(file).startsWith(rootPath);
+		}
+
+		private Path toComparablePath(File file) {
+			try {
+				return file.toPath().toRealPath();
+			} catch (IOException e) {
+				return file.toPath().toAbsolutePath().normalize();
+			}
 		}
 
 		@Override
@@ -178,6 +229,14 @@ public class FileTracer {
 
 	public void addFile(File f) {
 		scaner.addFile(this, f);
+	}
+
+	public int removeFile(File f) {
+		return scaner.removeFile(this, f);
+	}
+
+	public int removeFilesUnderRoot(File root) {
+		return scaner.removeFilesUnderRoot(this, root);
 	}
 
 	public void addFile(String f) {

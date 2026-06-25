@@ -55,12 +55,12 @@ public class NCountExp extends AbstractExp<List<Exp>> implements Exp {
                 }
 
             }
-        } catch (Throwable t) {
+        } catch (RuntimeException e) {
             // throw new RuntimeException("执行表达式\n" + this + "\n失败", t);
             if (log.isWarnEnabled()) {
-                log.warn("执行表达式\n" + this + "\n失败 : " + t.getMessage());
+                log.warn("执行表达式\n" + this + "\n失败 : " + e.getMessage());
             }
-            throw ErrorUtils.toRuntimeException(t);
+            throw ErrorUtils.toRuntimeException(e);
         }
         // return last
         return result;
