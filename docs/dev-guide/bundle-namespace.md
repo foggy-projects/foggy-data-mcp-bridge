@@ -107,6 +107,35 @@ foggy:
 
 新接入建议优先使用 `foggy-runtime-api` 的 `/api/v1/bundles`，并通过 `foggy.runtime-api.auth-code` 为管理操作配置授权码。
 
+### Runtime API 授权码边界
+
+`foggy-runtime-api` 是内部运行时管理面，不是面向客户的权限系统。只要部署环境会把管理操作暴露到可信本机以外的访问范围，应配置授权码：
+
+```yaml
+foggy:
+  runtime-api:
+    enabled: true
+    security-mode: auth-code
+    auth-code: ${FOGGY_RUNTIME_API_AUTH_CODE}
+```
+
+请求侧支持 `X-Foggy-Runtime-Code: <code>`，也兼容 `Authorization: Bearer <code>`。使用 `foggy-runtime-cli` 自动化调用时，建议优先通过 `FOGGY_RUNTIME_API_AUTH_CODE` 环境变量传递，避免把授权码直接写入 shell history 或脚本参数。
+
+授权码只保护 Runtime API 管理操作，例如：
+
+- Bundle 添加、更新、移除
+- Datasource 添加、更新、移除、连通性测试
+- Namespace 与 Datasource 绑定管理
+- 资源保存、模型校验、模型刷新等管理探测入口
+
+以下能力不在授权码管理面内，仍按原有部署边界控制：
+
+- 查询、读取、SQL、compose、fsscript 执行入口
+- 模型资源读取类接口
+- 客户级权限、用户身份、审计、授权码轮换等治理能力
+
+如果 standalone `foggy-fsscript` 应用显式开启旧版 `/api/bundles/**` Controller，且没有接入 `foggy-runtime-api` 拦截器，部署侧需要自行保护该旧入口的网络访问边界。
+
 ### REST API
 
 | 端点 | 方法 | 说明 |
