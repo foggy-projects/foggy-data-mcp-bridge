@@ -358,7 +358,7 @@ public class RuntimeModelsController {
                     List.of()
             );
         } finally {
-            if (clearExisting && registered) {
+            if (registered) {
                 try {
                     systemBundlesContext.removeBundle(bundleName);
                 } catch (Exception ignored) {

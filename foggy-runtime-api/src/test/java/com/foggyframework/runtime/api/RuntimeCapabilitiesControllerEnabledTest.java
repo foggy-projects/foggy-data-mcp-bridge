@@ -235,7 +235,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
-    void shouldKeepValidationBundleWhenClearExistingIsFalse() {
+    void shouldCleanupValidationBundleWhenClearExistingIsFalse() {
         Bundle bundle = mock(Bundle.class);
         BundleResource qmResource = bundleResource("OrderModel.qm");
         when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
@@ -254,7 +254,32 @@ class RuntimeCapabilitiesControllerEnabledTest {
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.path("success").asBoolean()).isTrue();
-        verify(systemBundlesContext, never()).removeBundle("runtime-validation-dev");
+        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+    }
+
+    @Test
+    void shouldCleanupValidationBundleWhenClearExistingIsFalseAndValidationFails() {
+        Bundle bundle = mock(Bundle.class);
+        BundleResource qmResource = bundleResource("OrderModel.qm");
+        when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
+        when(systemBundlesContext.getBundleByName("runtime-validation-dev")).thenReturn(bundle);
+        when(bundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[0]);
+        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{qmResource});
+        when(queryModelLoader.loadJdbcQueryModel(qmResource))
+                .thenThrow(new IllegalArgumentException("Unknown table model: Order"));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/models/validate",
+                Map.of("path", ".", "namespace", "dev", "clearExisting", false),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("MODEL_VALIDATE_FAILED");
+        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
     }
 
     @Test
