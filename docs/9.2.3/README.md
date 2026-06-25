@@ -3,7 +3,7 @@ doc_role: version_followup_plan
 doc_purpose: Track 9.2.3 Runtime API mutation failure consistency work.
 version: 9.2.3
 target: Java Engine 9.2.3 Follow-Up Roadmap
-status: ready-for-acceptance
+status: signed-off
 created_at: 2026-06-25
 updated_at: 2026-06-25
 ---
@@ -20,12 +20,15 @@ This version uses the root-level versioned documentation convention: workitems l
 
 | Area | Workitem | Status | Owner Module | Boundary |
 |---|---|---|---|---|
-| Runtime API mutation failure consistency | `workitems/P1-runtime-api-mutation-failure-consistency.md` | ready-for-acceptance | `foggy-runtime-api` | Keep failed bundle updates and failed resource save batches from leaving partial runtime/filesystem state; does not change auth-code, RBAC, audit, or customer-facing security policy. |
+| Runtime API mutation failure consistency | `workitems/P1-runtime-api-mutation-failure-consistency.md` | signed-off | `foggy-runtime-api` | Keep failed bundle updates and failed resource save batches from leaving partial runtime/filesystem state; does not change auth-code, RBAC, audit, or customer-facing security policy. |
 
 ## Acceptance Status
 
-- acceptance_status: ready-for-acceptance
-- acceptance_decision: pending formal signoff
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-25
+- acceptance_record: docs/9.2.3/acceptance/version-signoff.md
 - blocking_items: none
 - follow_up_required: no
 

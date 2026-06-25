@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Track P1 Runtime API mutation failure consistency fixes.
 version: 9.2.3
 target: P1-runtime-api-mutation-failure-consistency
-status: ready-for-acceptance
+status: signed-off
 created_at: 2026-06-25
 updated_at: 2026-06-25
 owner_modules:
@@ -90,7 +90,17 @@ This is a code correctness and lifecycle consistency issue, not a security layer
 
 - quality_record: `docs/9.2.3/quality/P1-runtime-api-mutation-failure-consistency-implementation-quality.md`
 - coverage_record: `docs/9.2.3/coverage/P1-runtime-api-mutation-failure-consistency-coverage-audit.md`
-- readiness: ready-for-acceptance
+- readiness: signed-off
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-25
+- acceptance_record: docs/9.2.3/acceptance/version-signoff.md
+- blocking_items: none
+- follow_up_required: no
 
 ## Non-Goals
 
