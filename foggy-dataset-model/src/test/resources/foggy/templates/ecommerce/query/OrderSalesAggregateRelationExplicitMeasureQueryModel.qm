@@ -1,0 +1,47 @@
+/**
+ * Order-sales aggregate relation explicit measure probe.
+ *
+ * @caption 订单销售显式聚合关系查询
+ * @description RHS aggregate relation declares count and GROUP_CONCAT output aliases directly on table.groupBy().as().
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesStringAggModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .groupBy(sales.orderId)
+    .count('salesLineCount')
+    .groupConcat(sales.paymentMethod, 'paymentMethodList')
+    .as('fsExplicitByOrder');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationExplicitMeasureQueryModel',
+    caption: '订单销售显式聚合关系查询',
+    description: '销售明细按订单显式声明 count 和 groupConcat 输出',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细显式聚合',
+            items: [
+                { ref: fs.salesLineCount, caption: '销售明细行数' },
+                { ref: fs.paymentMethodList, caption: '支付方式列表' }
+            ]
+        }
+    ],
+
+    accesses: []
+};

@@ -123,7 +123,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 joinBuilder.getJoinType(),
                 joinBuilder.getConditions(),
                 relationProxy.getGroupByColumns(),
-                buildDefaultMeasures(sourceModel),
+                resolveRelationMeasures(sourceModel, relationProxy),
                 relationProxy.getFilters(),
                 buildLeftJoinScopes(joinBuilder.getLeft(), visibleLeftModels),
                 List.copyOf(visibleLeftModels)));
@@ -723,6 +723,16 @@ public class AggregateJoinTableModel extends TableModelSupport {
                     alias));
         }
         return measures;
+    }
+
+    private static List<AggregateJoinBuilder.AggregateMeasure> resolveRelationMeasures(
+            TableModel sourceModel,
+            AggregateRelationProxy relationProxy) {
+        List<AggregateJoinBuilder.AggregateMeasure> explicitMeasures = relationProxy.getMeasures();
+        if (!explicitMeasures.isEmpty()) {
+            return explicitMeasures;
+        }
+        return buildDefaultMeasures(sourceModel);
     }
 
     private static String defaultOutputAlias(DbColumn dbColumn) {

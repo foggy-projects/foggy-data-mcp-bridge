@@ -278,6 +278,119 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation 显式 measure 应暴露声明 alias 并替代默认 measure")
+    void aggregateRelationExplicitMeasuresShouldExposeAliases() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationExplicitMeasureQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        DbColumn salesLineCountColumn = queryModel.findJdbcColumnForCond("salesLineCount", true, true);
+        assertNotNull(salesLineCountColumn, "显式 count alias 应注册为可筛选列");
+        assertTrue(salesLineCountColumn instanceof AggregateRelationOutputColumn,
+                "salesLineCount 应来自 aggregate relation 输出列");
+        assertEquals(DbColumnType.BIGINT, salesLineCountColumn.getType(),
+                "COUNT 输出应暴露为 BIGINT");
+        assertEquals("COUNT", salesLineCountColumn.getAggregation().name(),
+                "显式 count alias 应保留 COUNT 聚合元数据");
+
+        DbColumn paymentMethodListColumn = queryModel.findJdbcColumnForCond("paymentMethodList", true, true);
+        assertNotNull(paymentMethodListColumn, "显式 groupConcat alias 应注册为可筛选列");
+        assertTrue(paymentMethodListColumn instanceof AggregateRelationOutputColumn,
+                "paymentMethodList 应来自 aggregate relation 输出列");
+        assertEquals(DbColumnType.STRING, paymentMethodListColumn.getType(),
+                "GROUP_CONCAT 输出应暴露为 STRING");
+        assertEquals("GROUP_CONCAT", paymentMethodListColumn.getAggregation().name(),
+                "显式 groupConcat alias 应保留 GROUP_CONCAT 聚合元数据");
+
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationExplicitMeasureQuery();
+        String normalizedSql = normalizeSql(queryEngine.getSql()).toLowerCase();
+        String aggregateExpression = expectedPaymentMethodListAggregateSql("agg_src.payment_method");
+        assertTrue(normalizedSql.contains("count(*) saleslinecount"),
+                "显式 count alias 应进入 RHS SELECT");
+        assertTrue(normalizedSql.contains(aggregateExpression + " paymentmethodlist"),
+                "显式 GROUP_CONCAT alias 应进入 RHS SELECT");
+        assertFalse(normalizedSql.contains("sum(agg_src.sales_amount) salesamount"),
+                "显式声明 measure 后不应继续暴露 TM 默认 measure");
+        assertTrue(normalizedSql.contains("fsexplicitbyorder"),
+                "aggregate relation 应保留显式 relation alias");
+        assertTrue(queryEngine.getValues().contains("COMPLETED"),
+                "RHS 固定过滤参数应进入查询参数");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 显式 GROUP_CONCAT like slice 应保留聚合字符串过滤")
+    void aggregateRelationExplicitGroupConcatLikeShouldStayAggregateString() {
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationExplicitMeasureQuery("like", "WECHAT");
+
+        String normalizedSql = normalizeSql(queryEngine.getSql()).toLowerCase();
+        String aggregateExpression = expectedPaymentMethodListAggregateSql("agg_src.payment_method");
+        assertTrue(normalizedSql.contains("having " + aggregateExpression + " like ?"),
+                "显式 GROUP_CONCAT 的 like slice 应下推到 RHS HAVING");
+        assertTrue(normalizedSql.contains("fsexplicitbyorder.paymentmethodlist like ?"),
+                "显式 GROUP_CONCAT 的 like slice 应保留外层聚合字符串过滤");
+        assertTrue(queryEngine.getValues().stream().filter("%WECHAT%"::equals).count() >= 2,
+                "like 参数应同时用于 RHS HAVING 和外层 WHERE");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 显式 GROUP_CONCAT 等值 slice 应按源成员 EXISTS 过滤")
+    void aggregateRelationExplicitGroupConcatEqualsShouldRewriteToMemberExists() {
+        PaymentMemberFixture fixture = findPaymentMemberFixture();
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationExplicitMeasureQuery("=", fixture.member());
+
+        String normalizedSql = normalizeSql(queryEngine.getSql()).toLowerCase();
+        assertTrue(normalizedSql.contains("exists (select 1 from fact_sales agg_src"),
+                "显式 GROUP_CONCAT 等值 slice 应改写为 RHS 成员相关 EXISTS");
+        assertTrue(normalizedSql.contains("agg_src.order_status = ?"),
+                "EXISTS 应继承 aggregate relation 固定过滤");
+        assertTrue(normalizedSql.contains("agg_src.payment_method = ?"),
+                "EXISTS 应把 alias 等值条件落到源字段");
+        assertFalse(normalizedSql.contains("fsexplicitbyorder.paymentmethodlist = ?"),
+                "外层 WHERE 不应再按聚合字符串做等值过滤");
+        assertTrue(queryEngine.getValues().contains(fixture.member()),
+                "源字段等值参数应进入查询参数列表");
+
+        List<AggregateRelationDiagnostic> diagnostics = aggregateRelationDiagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "rewritten".equals(diagnostic.decision())
+                                && "member".equals(diagnostic.target())
+                                && "paymentMethodList".equals(diagnostic.field())
+                                && diagnostic.expression().contains("exists")),
+                "成员过滤改写应记录 rewritten 诊断");
+    }
+
+    @Test
+    @DisplayName("aggregate relation 显式 GROUP_CONCAT IN slice 应按源成员 EXISTS 过滤")
+    void aggregateRelationExplicitGroupConcatInShouldRewriteToMemberExists() {
+        PaymentMemberFixture fixture = findPaymentMemberFixture();
+        List<String> memberValues = findCompletedPaymentMethods(fixture.member(), 2);
+        assertTrue(memberValues.contains(fixture.member()), "IN 测试值应包含动态样本订单中的支付方式");
+
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationExplicitMeasureQuery(
+                "in",
+                memberValues);
+
+        String normalizedSql = normalizeSql(queryEngine.getSql()).toLowerCase();
+        assertTrue(normalizedSql.contains("exists (select 1 from fact_sales agg_src"),
+                "显式 GROUP_CONCAT IN slice 应改写为 RHS 成员相关 EXISTS");
+        assertTrue(normalizedSql.contains("agg_src.payment_method in (" + placeholders(memberValues.size()) + ")"),
+                "EXISTS 应把 alias IN 条件落到源字段并保持参数化");
+        assertFalse(normalizedSql.contains("fsexplicitbyorder.paymentmethodlist in"),
+                "外层 WHERE 不应再按聚合字符串做 IN 过滤");
+        for (String memberValue : memberValues) {
+            assertTrue(queryEngine.getValues().contains(memberValue),
+                    "源字段 IN 参数应进入查询参数列表");
+        }
+
+        List<AggregateRelationDiagnostic> diagnostics = aggregateRelationDiagnostics(queryEngine);
+        assertTrue(diagnostics.stream().anyMatch(diagnostic ->
+                        "rewritten".equals(diagnostic.decision())
+                                && "member".equals(diagnostic.target())
+                                && "paymentMethodList".equals(diagnostic.field())
+                                && diagnostic.expression().contains(" in ")),
+                "成员 IN 过滤改写应记录 rewritten 诊断");
+    }
+
+    @Test
     @DisplayName("aggregate relation GROUP_CONCAT 等值 slice 应按源成员 EXISTS 过滤")
     void aggregateRelationGroupConcatMeasureEqualsShouldRewriteToMemberExists() {
         PaymentMemberFixture fixture = findPaymentMemberFixture();
@@ -2014,6 +2127,35 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         queryRequest.setQueryModel("OrderSalesAggregateRelationStringAggQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "paymentMethodList"));
         queryRequest.setSlice(slices);
+        return queryRequest;
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationExplicitMeasureQuery() {
+        return buildOrderSalesAggregateRelationExplicitMeasureQuery(List.of());
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationExplicitMeasureQuery(String op, Object value) {
+        return buildOrderSalesAggregateRelationExplicitMeasureQuery(List.of(slice("paymentMethodList", op, value)));
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationExplicitMeasureQuery(List<SliceRequestDef> slices) {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationExplicitMeasureQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        DbQueryRequestDef queryRequest = buildOrderSalesAggregateRelationExplicitMeasureRequest(slices);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
+    private DbQueryRequestDef buildOrderSalesAggregateRelationExplicitMeasureRequest(List<SliceRequestDef> slices) {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationExplicitMeasureQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "salesLineCount", "paymentMethodList"));
+        if (slices != null && !slices.isEmpty()) {
+            queryRequest.setSlice(slices);
+        }
         return queryRequest;
     }
 
