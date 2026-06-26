@@ -4,7 +4,7 @@ bug_source: code-review
 version: 9.2.6
 ticket: P1-fsscript-methodfinder-null-argument-matching
 severity: major
-status: ready-for-acceptance
+status: signed-off
 reproduction_status: confirmed-by-code-review
 reproduction_evidence: confirmed-by-red-unit-test
 test_strategy: unit-test
@@ -12,7 +12,7 @@ automation_decision: required
 owner: foggy-fsscript
 owner_module: foggy-fsscript
 created_at: 2026-06-25
-updated_at: 2026-06-25
+updated_at: 2026-06-26
 ---
 
 # P1 FSScript MethodFinder Null-Argument Matching
@@ -113,6 +113,16 @@ Result: failed as expected, 5 tests run with 4 failures. The failures covered nu
 
 ## Acceptance Readiness
 
-status: ready-for-acceptance
+status: signed-off
 
-Reason: Required unit reproduction, implementation fix, related regression, and full `foggy-fsscript` module regression are complete. This item is ready for quality/coverage review and signoff.
+Reason: Required unit reproduction, implementation fix, related regression, full `foggy-fsscript` module regression, implementation quality review, coverage audit, and version acceptance are complete.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-26
+- acceptance_record: docs/9.2.6/acceptance/version-signoff.md
+- blocking_items: none
+- follow_up_required: no
