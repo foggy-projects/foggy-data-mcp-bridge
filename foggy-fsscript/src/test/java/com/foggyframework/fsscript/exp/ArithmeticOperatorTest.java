@@ -38,6 +38,29 @@ class ArithmeticOperatorTest {
         assertTrue(Double.isNaN((Double) eval("return 2 / 'x';")));
     }
 
+    @Test
+    void bitwiseAndShouldKeepNumericBehavior() {
+        assertEquals(2L, eval("return 6 & 3;"));
+        assertEquals(0L, eval("return 4 & 1;"));
+    }
+
+    @Test
+    void bitwiseAndShouldKeepExistingNullBehavior() {
+        assertEquals(0, eval("return null & 1;"));
+        assertEquals(0, eval("return 1 & null;"));
+        assertEquals(0, eval("return null & null;"));
+    }
+
+    @Test
+    void bitwiseAndShouldTreatNonNumberLeftOperandLikeMissingOperand() {
+        assertEquals(0, eval("return 'x' & 1;"));
+    }
+
+    @Test
+    void bitwiseAndShouldTreatNonNumberRightOperandLikeMissingOperand() {
+        assertEquals(0, eval("return 1 & 'x';"));
+    }
+
     private Object eval(String expStr) {
         Exp exp = new ExpParser().compileEl(expStr);
         return exp.evalResult(DefaultExpEvaluator.newInstance());
