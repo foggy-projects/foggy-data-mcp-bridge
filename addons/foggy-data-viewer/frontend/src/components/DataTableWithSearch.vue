@@ -48,6 +48,11 @@ interface Props {
   showPager?: boolean
   /** 初始筛选条件 */
   initialSlice?: SliceRequestDef[]
+  /**
+   * 是否把 DataTable 表头过滤条件应用到当前页 data。
+   * schema + fetchData 模式默认 false，避免后端过滤后再被前端二次裁剪。
+   */
+  localFilter?: boolean
   /** 服务端汇总数据 */
   serverSummary?: Record<string, unknown> | null
   /** 过滤选项加载器 */
@@ -103,7 +108,8 @@ const props = withDefaults(defineProps<Props>(), {
   searchLayout: 'horizontal',
   showSearchActions: true,
   filterMergeMode: 'merge',
-  showQueryPanel: false
+  showQueryPanel: false,
+  localFilter: undefined
 })
 
 const emit = defineEmits<{
@@ -367,6 +373,16 @@ const effectiveInitialSlice = computed(() => {
     return activeListViewState.value.slice || []
   }
   return props.initialSlice
+})
+
+const effectiveLocalFilter = computed(() => {
+  if (props.localFilter !== undefined) {
+    return props.localFilter
+  }
+  if (isSchemaMode.value) {
+    return props.schema?.localFilter ?? false
+  }
+  return true
 })
 
 const effectiveSearchLayout = computed(() => {
@@ -737,6 +753,7 @@ const dataTableProps = computed(() => {
     showFilters: effectiveShowFilters.value,
     showPager: effectiveShowPager.value,
     initialSlice: effectiveInitialSlice.value,
+    localFilter: effectiveLocalFilter.value,
     serverSummary: effectiveServerSummary.value,
     filterOptionsLoader: props.filterOptionsLoader,
     filterMemberLoader: props.filterMemberLoader,

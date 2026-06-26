@@ -142,9 +142,12 @@ function handlePageChange(page: number, pageSize: number) {
 | loading | `boolean` | `false` | 加载状态 |
 | pageSize | `number` | `50` | 每页显示数量 |
 | showFilters | `boolean` | `true` | 是否显示筛选器 |
+| localFilter | `boolean` | `true` | 是否把列头筛选条件应用到当前 `data` |
 | serverSummary | `object \| null` | `null` | 服务端汇总数据 |
 | initialSlice | `SliceCondition[]` | - | 初始筛选条件 |
 | filterOptionsLoader | `Function` | - | 筛选选项加载器 |
+
+`DataTableWithSearch` 在 `schema + fetchData` 服务端查询模式下默认 `localFilter=false`：列头筛选仍会提交给 `fetchData`，但返回数据不会再被前端二次过滤，避免聚合字段、派生字段、字典展示字段被简单本地比较误删。需要纯前端过滤时，可显式设置 `localFilter=true` 或 `schema.localFilter=true`。
 
 ### DataTable Events
 

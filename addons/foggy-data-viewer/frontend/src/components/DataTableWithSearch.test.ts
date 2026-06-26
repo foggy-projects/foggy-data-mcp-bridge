@@ -56,7 +56,7 @@ vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
     template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="toolbar-right" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot name="column-name" :row="{ name: \'Test 1\' }" :column="{ name: \'name\' }" value="Test 1" /><slot /></div>',
-    props: ['columns', 'data', 'total', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'density'],
+    props: ['columns', 'data', 'total', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'localFilter', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'density'],
     emits: ['page-change', 'sort-change', 'filter-change', 'filter-commit', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
       resetPagination() {
@@ -411,6 +411,57 @@ describe('DataTableWithSearch', () => {
 
       const dataTable = wrapper.findComponent({ name: 'DataTable' })
       expect(dataTable.props('density')).toBe('compact')
+    })
+
+    it('should disable local filtering by default in schema fetchData mode', async () => {
+      const fetchData = vi.fn().mockResolvedValue({
+        items: [{ id: 1, name: 'Lin Ze', amount: 100 }],
+        total: 1
+      })
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            showFilters: true
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('localFilter')).toBe(false)
+    })
+
+    it('should allow schema fetchData mode to opt into local filtering', async () => {
+      const fetchData = vi.fn().mockResolvedValue({
+        items: [{ id: 1, name: 'Lin Ze', amount: 100 }],
+        total: 1
+      })
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            localFilter: true
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('localFilter')).toBe(true)
+    })
+
+    it('should keep local filtering enabled by default in controlled mode', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('localFilter')).toBe(true)
     })
   })
 

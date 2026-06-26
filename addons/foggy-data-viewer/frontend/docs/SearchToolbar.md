@@ -183,6 +183,7 @@ DataTableWithSearch 继承了 DataTable 的所有 Props，并在 `queryMode` 需
 | searchLayout | `'horizontal' \| 'vertical'` | `'horizontal'` | 搜索工具栏布局 |
 | showSearchActions | `boolean` | `true` | 是否显示搜索按钮 |
 | filterMergeMode | `'replace' \| 'merge'` | `'merge'` | 筛选条件合并模式 |
+| localFilter | `boolean` | `schema + fetchData: false；受控模式: true` | 是否把列头筛选条件应用到当前页 `data` |
 
 ### 查询入口模式
 
@@ -198,6 +199,8 @@ DataTableWithSearch 继承了 DataTable 的所有 Props，并在 `queryMode` 需
 当传入 `querySchema` 时，`panel`/`combined` 使用 `QueryPanel` 作为面板查询入口；未传 `querySchema` 时使用 `SearchToolbar` 作为面板查询入口。
 
 未设置 `queryMode` 时不显示 SearchToolbar；旧的 `showQueryPanel` 仍只控制 `QueryPanel`，`showFilters` 仍只控制列头筛选。Schema 模式下 `schema.queryMode` 优先于 `queryMode` prop，`schema.showFilters` 优先于同名 prop。
+
+在 `schema + fetchData` 服务端查询模式下，列头筛选默认只作为后端查询条件，不会再对当前页 `data` 做本地二次过滤。这样可以避免 `groupConcat` 聚合列、派生列、字典展示列等字段因为前端简单比较而隐藏后端已经返回的有效行。需要兼容纯前端筛选时，可显式传入 `localFilter=true`，或在 schema 上配置 `localFilter: true`。
 
 **筛选条件合并模式说明：**
 - `merge`：合并搜索工具栏和表头过滤器的条件（默认）

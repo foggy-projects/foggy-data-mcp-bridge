@@ -220,6 +220,11 @@ export interface TableSchema {
   pageSize?: number
   /** 是否显示表头过滤器 */
   showFilters?: boolean
+  /**
+   * 是否把表头过滤条件应用到当前 data。
+   * DataTableWithSearch 的 schema + fetchData 模式默认 false，避免服务端过滤结果被前端二次过滤。
+   */
+  localFilter?: boolean
   /** 是否显示分页栏（默认 true） */
   showPager?: boolean
   /** 搜索工具栏布局 */

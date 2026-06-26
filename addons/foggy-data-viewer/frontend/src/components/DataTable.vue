@@ -48,6 +48,8 @@ interface Props {
   showPager?: boolean
   /** 初始过滤条件（来自后端缓存） */
   initialSlice?: SliceRequestDef[]
+  /** 是否把表头过滤条件应用到当前 data；服务端查询模式通常应关闭 */
+  localFilter?: boolean
   /** 后端返回的全量汇总数据 */
   serverSummary?: Record<string, unknown> | null
   /** 过滤选项加载器（用于维度列） */
@@ -68,6 +70,7 @@ const props = withDefaults(defineProps<Props>(), {
   pageSize: 50,
   showFilters: true,
   showPager: true,
+  localFilter: true,
   backgroundLoading: false,
   backgroundLoadingText: '',
   backgroundLoadingError: null,
@@ -679,6 +682,10 @@ function matchesFilterSlice(row: Record<string, unknown>, slice: SliceRequestDef
 }
 
 const filteredData = computed(() => {
+  if (!props.localFilter) {
+    return props.data
+  }
+
   const slices = getAllFilterSlices()
   if (slices.length === 0) {
     return props.data

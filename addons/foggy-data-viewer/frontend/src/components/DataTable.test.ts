@@ -600,6 +600,38 @@ describe('DataTable', () => {
       expect(rows[0].text()).not.toContain('Test 1')
     })
 
+    it('should keep server-filtered rows when local filtering is disabled', async () => {
+      const serverFilteredData = [
+        { id: 1, name: 'Lin Ze', phoneList: '13915455958,18911897352' }
+      ]
+      const columns: EnhancedColumnSchema[] = [
+        { name: 'id', type: 'INTEGER', title: 'ID' },
+        { name: 'name', type: 'TEXT', title: '名称' },
+        { name: 'phoneList', type: 'TEXT', title: '联系电话' }
+      ]
+      const wrapper = mount(DataTable, {
+        props: {
+          columns,
+          data: serverFilteredData,
+          total: 1,
+          loading: false,
+          localFilter: false
+        },
+        ...renderGridConfig
+      })
+
+      const vm = wrapper.vm as unknown as {
+        setFilter: (columnName: string, value: SliceRequestDef[] | null) => void
+      }
+
+      vm.setFilter('phoneList', [{ field: 'phoneList', op: '=', value: '18911897352' }])
+      await wrapper.vm.$nextTick()
+
+      const rows = wrapper.findAll('.stub-row')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].text()).toContain('13915455958,18911897352')
+    })
+
     it('should apply initial slice', () => {
       const initialSlice = [{ field: 'status', op: '=', value: 'active' }]
       const wrapper = mount(DataTable, {
