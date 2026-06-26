@@ -61,6 +61,32 @@ class ArithmeticOperatorTest {
         assertEquals(0, eval("return 1 & 'x';"));
     }
 
+    @Test
+    void percentShouldKeepNumericBehavior() {
+        assertEquals(1, eval("return 5 % 2;"));
+    }
+
+    @Test
+    void percentShouldKeepExistingLeftFallbackBehavior() {
+        assertEquals(0, eval("return null % 2;"));
+        assertEquals(0, eval("return 'x' % 2;"));
+    }
+
+    @Test
+    void percentShouldTreatNullRightOperandLikeInvalidDenominator() {
+        assertEquals(0, eval("return 5 % null;"));
+    }
+
+    @Test
+    void percentShouldTreatNonNumberRightOperandLikeInvalidDenominator() {
+        assertEquals(0, eval("return 5 % 'x';"));
+    }
+
+    @Test
+    void percentShouldTreatZeroRightOperandLikeInvalidDenominator() {
+        assertEquals(0, eval("return 5 % 0;"));
+    }
+
     private Object eval(String expStr) {
         Exp exp = new ExpParser().compileEl(expStr);
         return exp.evalResult(DefaultExpEvaluator.newInstance());
