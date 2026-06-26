@@ -15,22 +15,31 @@ package com.foggyframework.fsscript.fun;
 import com.foggyframework.fsscript.parser.FunDef;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
-import org.springframework.stereotype.Component;
 
 public class LT_equal implements FunDef {
 
 	@Override
 	public Object execute(ExpEvaluator evaluator, Exp[] args)
 			{
-		Number v1 = (Number) args[0].evalResult(evaluator);
-		Number v2 = (Number) args[1].evalResult(evaluator);
-		if (v1 == null) {
-			v1 = 0;
+		Object obj1 = args[0].evalResult(evaluator);
+		Object obj2 = args[1].evalResult(evaluator);
+		return LTE(obj1, obj2);
+	}
+
+	public static final boolean LTE(Object obj1, Object obj2) {
+		if (obj1 == obj2) {
+			return true;
 		}
-		if (v2 == null) {
-			v2 = 0;
+		if (LT.isNumberOrNull(obj1) && LT.isNumberOrNull(obj2)) {
+			return LT.doubleValueOrZero(obj1) <= LT.doubleValueOrZero(obj2);
 		}
-		return v1.doubleValue() <= v2.doubleValue();
+		if (obj1 == null) {
+			return true;
+		}
+		if (obj2 == null) {
+			return false;
+		}
+		return obj1.toString().compareTo(obj2.toString()) <= 0;
 	}
 
 	@Override

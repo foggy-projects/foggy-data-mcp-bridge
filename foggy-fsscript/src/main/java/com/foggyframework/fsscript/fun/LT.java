@@ -15,22 +15,42 @@ package com.foggyframework.fsscript.fun;
 import com.foggyframework.fsscript.parser.FunDef;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
-import org.springframework.stereotype.Component;
 
 public class LT implements FunDef {
 
 	@Override
 	public Object execute(ExpEvaluator evaluator, Exp[] args)
 			{
-		Number v1 = (Number) args[0].evalResult(evaluator);
-		Number v2 = (Number) args[1].evalResult(evaluator);
-		if (v1 == null) {
-			v1 = 0;
+		Object obj1 = args[0].evalResult(evaluator);
+		Object obj2 = args[1].evalResult(evaluator);
+		return LT(obj1, obj2);
+	}
+
+	public static final boolean LT(Object obj1, Object obj2) {
+		if (obj1 == obj2) {
+			return false;
 		}
-		if (v2 == null) {
-			v2 = 0;
+		if (isNumberOrNull(obj1) && isNumberOrNull(obj2)) {
+			return doubleValueOrZero(obj1) < doubleValueOrZero(obj2);
 		}
-		return v1.doubleValue() < v2.doubleValue();
+		if (obj1 == null) {
+			return true;
+		}
+		if (obj2 == null) {
+			return false;
+		}
+		return obj1.toString().compareTo(obj2.toString()) < 0;
+	}
+
+	static boolean isNumberOrNull(Object obj) {
+		return obj == null || obj instanceof Number;
+	}
+
+	static double doubleValueOrZero(Object obj) {
+		if (obj == null) {
+			return 0D;
+		}
+		return ((Number) obj).doubleValue();
 	}
 
 	@Override
