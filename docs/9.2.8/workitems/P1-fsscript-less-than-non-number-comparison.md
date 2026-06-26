@@ -4,7 +4,7 @@ bug_source: code-review
 version: 9.2.8
 ticket: P1-fsscript-less-than-non-number-comparison
 severity: major
-status: ready-for-verification
+status: signed-off
 reproduction_status: confirmed-by-code-review
 reproduction_evidence: confirmed-by-red-unit-test
 test_strategy: unit-test
@@ -72,6 +72,9 @@ This creates a deterministic runtime correctness bug in FSScript scripts that us
 | Red test | done | `ComparisonOperatorTest` fails before the fix for string/date-string `<` and `<=`. |
 | Implementation | done | `LT` and `LT_equal` now preserve numeric/null comparison behavior and add non-number fallback comparison. |
 | Verification | done | Focused, related, and full `foggy-fsscript` regressions passed after the fix. |
+| Quality | done | Implementation quality gate reviewed with no blocking item. |
+| Coverage | done | Coverage audit found no blocking evidence gap. |
+| Acceptance | done | 9.2.8 version acceptance signed off. |
 
 ## Experience Progress
 
@@ -93,9 +96,9 @@ Reason: Backend/runtime-only comparison operator fix; no UI or manual workflow c
 
 ## Acceptance Readiness
 
-status: ready-for-quality-gate
+status: signed-off
 
-Reason: Red-test evidence, implementation, focused regression, related regression, and full `foggy-fsscript` regression are complete. Quality review, coverage audit, and acceptance signoff remain pending.
+Reason: Required red-test evidence, implementation fix, focused regression, related regression, full `foggy-fsscript` regression, implementation quality review, coverage audit, and version acceptance are complete.
 
 ## Execution Check-In
 
@@ -134,4 +137,14 @@ Result: failed as expected, 4 tests run with 2 errors. The failing tests were:
 - self_check: passed; change is local to comparison operators and tests map to the failing behavior.
 - test_status: pass.
 - remaining_risks: no blocking implementation risk found before quality review.
-- acceptance_readiness: ready for implementation quality gate.
+- acceptance_readiness: signed-off.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-26
+- acceptance_record: docs/9.2.8/acceptance/version-signoff.md
+- blocking_items: none
+- follow_up_required: no

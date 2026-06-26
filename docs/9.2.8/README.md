@@ -2,7 +2,7 @@
 doc_role: version_followup_plan
 doc_purpose: Track 9.2.8 FSScript comparison-operator correctness follow-up.
 version: 9.2.8
-status: ready-for-verification
+status: signed-off
 created_at: 2026-06-26
 updated_at: 2026-06-26
 ---
@@ -23,7 +23,7 @@ updated_at: 2026-06-26
 
 | Item | Doc | Status | Owner Module | Summary |
 |---|---|---|---|---|
-| Less-than non-number comparison | `workitems/P1-fsscript-less-than-non-number-comparison.md` | ready-for-verification | `foggy-fsscript` | Align `<` and `<=` with `>` and `>=` for non-number string/date-string comparisons. |
+| Less-than non-number comparison | `workitems/P1-fsscript-less-than-non-number-comparison.md` | signed-off | `foggy-fsscript` | Align `<` and `<=` with `>` and `>=` for non-number string/date-string comparisons. |
 
 ## Guardrails
 
@@ -36,9 +36,9 @@ updated_at: 2026-06-26
 
 - development: completed
 - testing: completed
-- quality: pending
-- coverage: pending
-- acceptance: pending
+- quality: completed
+- coverage: completed
+- acceptance: signed-off
 - experience: N/A, backend/runtime-only work.
 
 ## Verification Summary
@@ -49,3 +49,21 @@ updated_at: 2026-06-26
 | Focused test after fix | `mvn -pl foggy-fsscript -Dtest=ComparisonOperatorTest test` | Passed: 4 tests run, 0 failures, 0 errors. |
 | Related expression tests | `mvn -pl foggy-fsscript "-Dtest=ComparisonOperatorTest,OperatorPrecedenceTest,InNotInExpTest" test` | Passed: 52 tests run, 0 failures, 0 errors. |
 | Full module regression | `mvn -pl foggy-fsscript test` | Passed: 371 tests run, 0 failures, 0 errors, 0 skipped. |
+
+## Signoff Records
+
+| Record | Path | Status |
+|---|---|---|
+| Implementation quality gate | `quality/P1-fsscript-less-than-non-number-comparison-implementation-quality.md` | reviewed, ready-for-coverage-audit |
+| Test coverage audit | `coverage/P1-fsscript-less-than-non-number-comparison-coverage-audit.md` | reviewed, ready-for-acceptance |
+| Version acceptance | `acceptance/version-signoff.md` | signed-off, accepted |
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-06-26
+- acceptance_record: docs/9.2.8/acceptance/version-signoff.md
+- blocking_items: none
+- follow_up_required: no
