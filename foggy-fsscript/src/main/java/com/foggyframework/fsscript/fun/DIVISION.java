@@ -14,8 +14,8 @@ public class DIVISION  implements FunDef {
 
 	@Override
 	public Object execute(ExpEvaluator ee, Exp[] args){
-		Number n = (Number) args[0].evalResult(ee);
-		Number n1 = (Number) args[1].evalResult(ee);
+		Number n = asNumber(args[0].evalResult(ee));
+		Number n1 = asNumber(args[1].evalResult(ee));
 		if (n == null) {
 			return 0.0;
 		}
@@ -24,6 +24,10 @@ public class DIVISION  implements FunDef {
 		}
 
 		return n.doubleValue() / n1.doubleValue();
+	}
+
+	private Number asNumber(Object value) {
+		return value instanceof Number ? (Number) value : null;
 	}
 
 	@Override
