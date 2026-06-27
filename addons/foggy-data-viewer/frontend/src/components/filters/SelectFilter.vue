@@ -369,7 +369,7 @@ onUnmounted(() => {
                 v-if="isMulti"
                 type="checkbox"
                 :checked="isSelected(opt)"
-                @click.stop
+                @click.stop="selectItem(opt)"
               />
               <span class="option-label">{{ opt.label }}</span>
             </div>
