@@ -271,9 +271,18 @@ import type { ${prefix}Row } from './${prefix}.types'
 import { ${constName} } from './${prefix}.types'
 
 export async function query${prefix}(params: FetchDataParams): Promise<FetchDataResult<${prefix}Row>> {
+  const columns = params.columns
+    .map(column => column.trim())
+    .filter(column => column && column !== '_actions')
+
+  if (columns.length === 0) {
+    throw new Error('query${prefix} requires params.columns for direct query')
+  }
+
   return fetchQueryDataDirect(${constName}, {
     start: (params.page - 1) * params.pageSize,
     limit: params.pageSize,
+    columns,
     slice: params.slice,
     orderBy: params.orderBy,
   })

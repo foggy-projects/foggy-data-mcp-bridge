@@ -4,7 +4,7 @@ import type { QueryHookContext, FetchDataResult } from '@/types'
 
 function createCtx(overrides?: Partial<QueryHookContext>): QueryHookContext {
   return {
-    params: { page: 1, pageSize: 50, slice: [], orderBy: [] },
+    params: { page: 1, pageSize: 50, columns: [], slice: [], orderBy: [] },
     trigger: 'refresh',
     ...overrides
   }
@@ -94,7 +94,7 @@ describe('HookRegistry', () => {
 
     it('should replace params when hook returns FetchDataParams', async () => {
       const reg = new HookRegistry()
-      const newParams = { page: 2, pageSize: 100, slice: [], orderBy: [] }
+      const newParams = { page: 2, pageSize: 100, columns: ['name'], slice: [], orderBy: [] }
 
       reg.add('onBeforeQuery', async () => newParams)
 

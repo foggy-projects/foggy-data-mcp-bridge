@@ -77,6 +77,8 @@ export interface QueryMetaResponse {
 export interface ViewerQueryRequest {
   start?: number
   limit?: number
+  /** 查询列；直连查询必须显式提供非空列集合 */
+  columns?: string[]
   /** 运行时扩展参数，仅透传到后端 DbQueryRequestDef.extData */
   extData?: Record<string, unknown>
   /** 过滤条件 (DSL slice 格式) */
@@ -237,6 +239,8 @@ export interface TableSchema {
 export interface FetchDataParams {
   page: number
   pageSize: number
+  /** 当前显示/激活的业务列，不包含操作列等纯前端列 */
+  columns: string[]
   slice: SliceRequestDef[]
   orderBy: OrderRequestDef[]
 }

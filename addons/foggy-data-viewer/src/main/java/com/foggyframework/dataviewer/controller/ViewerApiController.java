@@ -382,16 +382,24 @@ public class ViewerApiController {
             @RequestHeader(value = "X-NS", required = false) String headerNamespace,
             @RequestBody ViewerQueryRequest request) {
         try {
+            if (request == null) {
+                request = new ViewerQueryRequest();
+            }
+
+            List<String> columns = normalizeExplicitColumns(request.getColumns());
+            if (columns.isEmpty()) {
+                String message = "columns 不能为空，直连查询必须显式指定输出列";
+                return RX.failB(message, ViewerDataResponse.error(message));
+            }
+
             String namespace = resolveNamespace(headerNamespace, request.getNamespace());
             DbQueryRequestDef queryDef = new DbQueryRequestDef();
             queryDef.setQueryModel(qmModel);
             queryDef.setReturnTotal(true);
             queryDef.setExtData(request.getExtData());
+            queryDef.setColumns(columns);
 
             // 直接使用前端传入的 slice / orderBy / groupBy
-            if (request.getColumns() != null) {
-                queryDef.setColumns(request.getColumns());
-            }
             if (request.getSlice() != null) {
                 queryDef.setSlice(request.getSlice());
             }
@@ -615,6 +623,23 @@ public class ViewerApiController {
 
     private String resolveNamespace(String headerNamespace, String bodyNamespace) {
         return DatasetRequestNamespaceResolver.resolve(datasetProperties, headerNamespace, bodyNamespace);
+    }
+
+    private List<String> normalizeExplicitColumns(List<String> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return List.of();
+        }
+        List<String> normalized = new ArrayList<>();
+        for (String column : columns) {
+            if (column == null) {
+                continue;
+            }
+            String trimmed = column.trim();
+            if (!trimmed.isEmpty()) {
+                normalized.add(trimmed);
+            }
+        }
+        return normalized;
     }
 
     private RX<ViewerDataResponse> viewerDataBusinessError(ExRuntimeExceptionImpl e) {

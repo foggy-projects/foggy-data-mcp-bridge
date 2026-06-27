@@ -58,6 +58,7 @@ declare module 'foggy-data-viewer' {
   export type FetchDataParams = {
     page: number
     pageSize: number
+    columns: string[]
     slice: SliceRequestDef[]
     orderBy: OrderRequestDef[]
   }
@@ -94,6 +95,7 @@ declare module 'foggy-data-viewer' {
   export type ViewerQueryRequest = {
     start?: number
     limit?: number
+    columns?: string[]
     extData?: Record<string, unknown>
     slice?: SliceRequestDef[]
     orderBy?: OrderRequestDef[]

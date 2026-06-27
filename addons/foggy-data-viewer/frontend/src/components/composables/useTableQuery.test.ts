@@ -30,6 +30,7 @@ describe('useTableQuery', () => {
       expect(query.currentPageSize.value).toBe(50)
       expect(query.currentOrderBy.value).toEqual([])
       expect(query.currentSlice.value).toEqual([])
+      expect(query.currentColumns.value).toEqual([])
     })
 
     it('should use custom pageSize from options', () => {
@@ -48,6 +49,7 @@ describe('useTableQuery', () => {
       expect(mockFetch).toHaveBeenCalledWith({
         page: 1,
         pageSize: 50,
+        columns: [],
         slice: [],
         orderBy: []
       })
@@ -175,6 +177,7 @@ describe('useTableQuery', () => {
       expect(mockFetch).toHaveBeenCalledWith({
         page: 3,
         pageSize: 25,
+        columns: [],
         slice: [{ field: 'name', op: 'like', value: 'test' }],
         orderBy: [{ field: 'id', dir: 'desc' }]
       })
@@ -209,7 +212,7 @@ describe('useTableQuery', () => {
     })
   })
 
-  describe('setPage / setSort / setSlice', () => {
+  describe('setPage / setSort / setSlice / setColumns', () => {
     it('setPage should update page and optionally pageSize', () => {
       const query = useTableQuery(createMockFetch())
 
@@ -241,6 +244,20 @@ describe('useTableQuery', () => {
 
       query.setSlice([{ field: 'status', op: '=', value: 'active' }])
       expect(query.currentSlice.value).toEqual([{ field: 'status', op: '=', value: 'active' }])
+    })
+
+    it('setColumns should update normalized columns', async () => {
+      const mockFetch = createMockFetch()
+      const query = useTableQuery(mockFetch)
+
+      query.setColumns([' id ', '', 'name'])
+      expect(query.currentColumns.value).toEqual(['id', 'name'])
+
+      await query.loadData()
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.objectContaining({ columns: ['id', 'name'] })
+      )
     })
   })
 
@@ -284,6 +301,7 @@ describe('useTableQuery', () => {
           onBeforeQuery: async () => ({
             page: 99,
             pageSize: 10,
+            columns: ['name'],
             slice: [{ field: 'injected', op: '=', value: true }],
             orderBy: []
           })

@@ -48,6 +48,13 @@ function normalizeOrderBy(orderBy: OrderRequestDef[]): OrderRequestDef[] {
   })
 }
 
+function normalizeColumns(columns: string[]): string[] {
+  return columns.flatMap(column => {
+    const trimmed = column.trim()
+    return trimmed ? [trimmed] : []
+  })
+}
+
 export interface UseTableQueryOptions {
   /** 初始每页大小 */
   pageSize?: number
@@ -67,6 +74,7 @@ export interface UseTableQueryReturn {
   currentPageSize: ReturnType<typeof ref<number>>
   currentOrderBy: ReturnType<typeof ref<OrderRequestDef[]>>
   currentSlice: ReturnType<typeof ref<SliceRequestDef[]>>
+  currentColumns: ReturnType<typeof ref<string[]>>
 
   // 查询方法
   loadData: (trigger?: QueryTrigger) => Promise<void>
@@ -75,6 +83,7 @@ export interface UseTableQueryReturn {
   setPage: (page: number, pageSize?: number) => void
   setSort: (orderBy: OrderRequestDef[]) => void
   setSlice: (slice: SliceRequestDef[]) => void
+  setColumns: (columns: string[]) => void
 
   // 钩子管理
   addHook: <N extends QueryHookName>(name: N, fn: HookFnMap[N]) => () => void
@@ -109,6 +118,7 @@ export function useTableQuery(
   const currentPageSize = ref(options.pageSize ?? 50)
   const currentOrderBy = ref<OrderRequestDef[]>([])
   const currentSlice = ref<SliceRequestDef[]>([])
+  const currentColumns = ref<string[]>([])
 
   // ========== 实例级钩子注册表 ==========
   const instanceRegistry = new HookRegistry()
@@ -132,6 +142,7 @@ export function useTableQuery(
       params: {
         page: currentPage.value,
         pageSize: currentPageSize.value,
+        columns: [...currentColumns.value],
         slice: [...currentSlice.value],
         orderBy: [...currentOrderBy.value]
       },
@@ -209,6 +220,10 @@ export function useTableQuery(
     currentSlice.value = slice
   }
 
+  function setColumns(columns: string[]): void {
+    currentColumns.value = normalizeColumns(columns)
+  }
+
   // ========== 钩子管理 API ==========
   function addHook<N extends QueryHookName>(name: N, fn: HookFnMap[N]): () => void {
     return instanceRegistry.add(name, fn)
@@ -229,12 +244,14 @@ export function useTableQuery(
     currentPageSize,
     currentOrderBy,
     currentSlice,
+    currentColumns,
     loadData,
     refresh,
     reload,
     setPage,
     setSort,
     setSlice,
+    setColumns,
     addHook,
     removeHook
   }

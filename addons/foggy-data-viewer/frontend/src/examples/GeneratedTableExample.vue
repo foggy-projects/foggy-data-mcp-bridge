@@ -122,6 +122,7 @@ async function queryOrders(params: FetchDataParams): Promise<FetchDataResult> {
   const response = await fetchQueryDataDirect(QM_MODEL, {
     start: (params.page - 1) * params.pageSize,
     limit: params.pageSize,
+    columns: params.columns,
     slice: params.slice,
     orderBy: params.orderBy,
   })

@@ -162,19 +162,32 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
 
 // ========== Direct Query (无需 queryId) ==========
 
+function normalizeDirectQueryColumns(columns?: string[]): string[] {
+  if (!columns) return []
+  return columns.flatMap(column => {
+    const trimmed = column.trim()
+    return trimmed ? [trimmed] : []
+  })
+}
+
 /**
  * 直连查询数据（无需提前创建 queryId）
  *
- * 适用于生成组件的标准用法：只需 qmModel + 分页/筛选/排序即可查询。
+ * 适用于生成组件的标准用法：只需 qmModel + 分页/筛选/排序/列集合即可查询。
  * 现有 fetchQueryData(model, queryId, request) 保留给 DataViewer / SavedQuery 场景。
  */
 export async function fetchQueryDataDirect(
   qmModel: string,
   request: ViewerQueryRequest
 ): Promise<ViewerDataResponse> {
+  const columns = normalizeDirectQueryColumns(request.columns)
+  if (columns.length === 0) {
+    throw new Error('columns 不能为空，直连查询必须显式指定输出列')
+  }
+
   const response = await apiClient.post<any>(
     `/query/direct/${encodeURIComponent(qmModel)}`,
-    request
+    { ...request, columns }
   )
 
   if (!response.data || response.data.code !== 200) {

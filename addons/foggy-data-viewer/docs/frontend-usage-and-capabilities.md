@@ -482,11 +482,14 @@ interface OrderRequestDef {
 interface ViewerQueryRequest {
   start?: number
   limit?: number
+  columns?: string[]
   extData?: Record<string, unknown>
   slice?: SliceRequestDef[]
   orderBy?: OrderRequestDef[]
 }
 ```
+
+`/query/direct/{qmModel}` 必须显式传入非空 `columns`，生成组件会从当前显示列自动带上；`queryId` 查询可继续使用创建查询时缓存的列。
 
 这意味着组件的分页、排序、过滤都天然偏向服务端查询，而不是本地一次性加载全部数据。
 

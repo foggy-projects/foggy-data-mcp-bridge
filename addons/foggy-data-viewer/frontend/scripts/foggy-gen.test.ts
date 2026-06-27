@@ -76,6 +76,7 @@ describe('foggy-gen QueryTable template', () => {
       const tableVue = readFileSync(join(outputDir, 'FactOrderTable.vue'), 'utf-8')
       const tableSchema = readFileSync(join(outputDir, 'FactOrder.table.schema.ts'), 'utf-8')
       const querySchema = readFileSync(join(outputDir, 'FactOrder.query.schema.ts'), 'utf-8')
+      const apiTs = readFileSync(join(outputDir, 'FactOrder.api.ts'), 'utf-8')
 
       expect(tableVue).toContain("import { computed, ref, useSlots } from 'vue'")
       expect(tableVue).toContain(
@@ -106,6 +107,10 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableSchema).toContain("selectionFieldName: 'serviceAreaId'")
       expect(tableSchema).toContain("displayFieldName: 'serviceArea'")
       expect(tableSchema).toContain('defaultLimit: 20')
+      expect(apiTs).toContain('const columns = params.columns')
+      expect(apiTs).toContain(".filter(column => column && column !== '_actions')")
+      expect(apiTs).toContain("throw new Error('queryFactOrder requires params.columns for direct query')")
+      expect(apiTs).toContain('columns,')
     } finally {
       rmSync(tempRoot, { recursive: true, force: true })
     }

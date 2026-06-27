@@ -41,7 +41,9 @@ public class ViewerQueryRequest {
     private Integer limit = 50;
 
     /**
-     * 查询列。为空时由底层查询模型使用默认列。
+     * 查询列。
+     * <p>
+     * 直连查询必须显式传入非空列集合；queryId 模式可继续使用缓存上下文中的列。
      */
     private List<String> columns;
 

@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -375,6 +376,7 @@ class ViewerApiControllerTest {
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(0);
             request.setLimit(10);
+            request.setColumns(List.of("orderId"));
 
             RX response = controller.queryDirect("orders", null, null, request);
 
@@ -383,6 +385,70 @@ class ViewerApiControllerTest {
             verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
             DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
             assertNull(queryDef.getExtData());
+        }
+
+        @Test
+        @DisplayName("直连查询缺少columns时应返回明确错误")
+        void shouldRejectDirectQueryWithoutColumns() {
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setStart(0);
+            request.setLimit(10);
+
+            RX<ViewerDataResponse> response = controller.queryDirect("orders", null, null, request);
+
+            assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
+            assertEquals("columns 不能为空，直连查询必须显式指定输出列", response.getMsg());
+            assertNotNull(response.getData());
+            assertFalse(response.getData().isSuccess());
+            assertEquals("columns 不能为空，直连查询必须显式指定输出列", response.getData().getError());
+            verify(queryFacade, never()).queryModelData(any(PagingRequest.class), any(), any());
+        }
+
+        @Test
+        @DisplayName("直连查询columns为空集合时应返回明确错误")
+        void shouldRejectDirectQueryWithEmptyColumns() {
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setColumns(List.of());
+
+            RX<ViewerDataResponse> response = controller.queryDirect("orders", null, null, request);
+
+            assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
+            assertEquals("columns 不能为空，直连查询必须显式指定输出列", response.getMsg());
+            verify(queryFacade, never()).queryModelData(any(PagingRequest.class), any(), any());
+        }
+
+        @Test
+        @DisplayName("直连查询columns仅包含空白列名时应返回明确错误")
+        void shouldRejectDirectQueryWithBlankColumns() {
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setColumns(List.of(" ", "\t"));
+
+            RX<ViewerDataResponse> response = controller.queryDirect("orders", null, null, request);
+
+            assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
+            assertEquals("columns 不能为空，直连查询必须显式指定输出列", response.getMsg());
+            verify(queryFacade, never()).queryModelData(any(PagingRequest.class), any(), any());
+        }
+
+        @Test
+        @DisplayName("直连查询应忽略空白列名并传入规范化列")
+        void shouldNormalizeDirectQueryColumns() {
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(1));
+            mockResult.setTotal(1);
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
+                    .thenReturn(mockResult);
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setColumns(List.of(" orderId ", "", "salesAmountYuan"));
+
+            RX response = controller.queryDirect("orders", null, null, request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
+            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
+            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
+            assertEquals(List.of("orderId", "salesAmountYuan"), queryDef.getColumns());
         }
 
         @Test

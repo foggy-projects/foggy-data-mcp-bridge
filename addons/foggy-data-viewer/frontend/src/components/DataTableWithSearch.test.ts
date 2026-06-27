@@ -455,6 +455,52 @@ describe('DataTableWithSearch', () => {
       expect(dataTable.props('localFilter')).toBe(true)
     })
 
+    it('should send active displayed business columns to schema fetchData', async () => {
+      const fetchData = vi.fn().mockResolvedValue({
+        items: [],
+        total: 0
+      })
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns
+          },
+          fetchData
+        },
+        slots: {
+          'row-actions': '<button>Edit</button>'
+        }
+      })
+
+      await flushPromises()
+
+      expect(fetchData).toHaveBeenLastCalledWith(
+        expect.objectContaining({ columns: ['id', 'name', 'amount'] })
+      )
+      expect(fetchData.mock.calls[fetchData.mock.calls.length - 1]?.[0].columns).not.toContain('_actions')
+
+      fetchData.mockClear()
+
+      const vm = wrapper.vm as unknown as {
+        applyListViewState: (state: ListViewState, options?: { reload?: boolean }) => void
+      }
+      vm.applyListViewState({
+        columns: ['amount', 'name'],
+        columnSettings: [
+          { name: 'amount', visible: true, order: 0 },
+          { name: 'name', visible: true, order: 1 }
+        ],
+        slice: [],
+        orderBy: []
+      }, { reload: true })
+      await flushPromises()
+
+      expect(fetchData).toHaveBeenCalledWith(
+        expect.objectContaining({ columns: ['amount', 'name'] })
+      )
+      expect(fetchData.mock.calls[fetchData.mock.calls.length - 1]?.[0].columns).not.toContain('_actions')
+    })
+
     it('should keep local filtering enabled by default in controlled mode', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: defaultProps

@@ -242,6 +242,18 @@ const effectiveColumns = computed(() => {
   return cols
 })
 
+const activeQueryColumns = computed(() => {
+  const seen = new Set<string>()
+  return effectiveColumns.value.flatMap(col => {
+    const name = col.name.trim()
+    if (!name || name === '_actions' || seen.has(name)) {
+      return []
+    }
+    seen.add(name)
+    return [name]
+  })
+})
+
 const effectiveData = computed(() => {
   if (isSchemaMode.value) {
     return query.data.value
@@ -522,6 +534,7 @@ async function loadData(trigger: QueryTrigger = 'refresh') {
   }
 
   // 同步 slice 到 query 对象
+  query.setColumns(activeQueryColumns.value)
   query.setSlice(mergedSlices.value)
 
   try {

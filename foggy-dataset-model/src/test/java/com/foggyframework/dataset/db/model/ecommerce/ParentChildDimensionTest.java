@@ -1202,6 +1202,44 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
     @Test
     @Order(64)
+    @DisplayName("层级操作符 - 显式业务列不返回层级输出列且不重复业务行")
+    void testHierarchyOp_ExplicitBusinessColumns_NoHierarchyOutputDuplication() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactTeamSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("team$id");
+        slice.setOp("selfAndDescendantsOf");
+        slice.setValue("T001");
+        queryRequest.setSlice(List.of(slice));
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        groups.add(createGroup("team$id"));
+        groups.add(createGroup("team$caption"));
+        queryRequest.setGroupBy(groups);
+
+        queryRequest.setOrderBy(List.of(createOrder("team$caption", "ASC")));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+        log.info("显式业务列 selfAndDescendantsOf T001 查询结果: {} 个", items.size());
+        printResults(items, 10);
+
+        assertEquals(9, items.size(), "T001 及所有后代应有9个业务团队");
+        long distinctTeamCount = items.stream()
+                .map(item -> item.get("team$id"))
+                .distinct()
+                .count();
+        assertEquals(items.size(), distinctTeamCount, "显式业务列查询不应因层级输出 join 复制业务行");
+        assertTrue(items.stream().allMatch(item -> item.keySet().stream().noneMatch(key -> key.contains("$hierarchy"))),
+                "显式业务列查询不应返回 team$hierarchy 等层级输出列");
+    }
+
+    @Test
+    @Order(65)
     @DisplayName("层级操作符 - childrenOf T002 + maxDepth=2")
     void testHierarchyOp_ChildrenOf_T002_WithMaxDepth() {
         // 文档 5.4.4 示例2：查询 T002 的 2 级以内子节点
