@@ -164,9 +164,12 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
 
 function normalizeDirectQueryColumns(columns?: string[]): string[] {
   if (!columns) return []
+  const seen = new Set<string>()
   return columns.flatMap(column => {
     const trimmed = column.trim()
-    return trimmed ? [trimmed] : []
+    if (!trimmed || trimmed === '_actions' || seen.has(trimmed)) return []
+    seen.add(trimmed)
+    return [trimmed]
   })
 }
 
@@ -182,7 +185,7 @@ export async function fetchQueryDataDirect(
 ): Promise<ViewerDataResponse> {
   const columns = normalizeDirectQueryColumns(request.columns)
   if (columns.length === 0) {
-    throw new Error('columns 不能为空，直连查询必须显式指定输出列')
+    throw new Error(`${qmModel} direct query requires non-empty business columns`)
   }
 
   const response = await apiClient.post<any>(

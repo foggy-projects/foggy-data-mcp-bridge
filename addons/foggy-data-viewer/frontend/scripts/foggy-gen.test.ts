@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 const currentDir = dirname(fileURLToPath(import.meta.url))
 const generatorPath = resolve(currentDir, 'foggy-gen.mjs')
 
-function createFrontendMeta(queryMode: string) {
+function createFrontendMeta(queryMode: string, visibleColumns = ['orderNo', 'serviceArea']) {
   return {
     metaVersion: 'v1',
     model: 'FactOrderQueryModel',
@@ -48,7 +48,7 @@ function createFrontendMeta(queryMode: string) {
       }
     ],
     defaults: {
-      visibleColumns: ['orderNo', 'serviceArea'],
+      visibleColumns,
       searchFields: ['orderNo'],
       pageSize: 20,
       queryMode
@@ -88,6 +88,9 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableVue).toContain("name.startsWith('column-') || name.startsWith('filter-')")
       expect(tableVue).toContain('...(ov.render && { customRender: ov.render })')
       expect(tableVue).toContain('defineExpose({')
+      const exposeBlock = tableVue.match(/defineExpose\(\{[\s\S]*?\n\}\)/)?.[0] ?? ''
+      expect(exposeBlock).toContain('reload: () => tableRef.value?.reload?.(),')
+      expect(exposeBlock).not.toMatch(/reload:[\s\S]*refresh/)
       expect(tableVue).toContain('clearSelection: () => tableRef.value?.clearSelection?.(),')
       expect(tableVue).toContain('getSelectedCount: () => tableRef.value?.getSelectedCount?.() ?? 0')
       expect(tableVue).toContain('ref="tableRef"')
@@ -107,10 +110,35 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableSchema).toContain("selectionFieldName: 'serviceAreaId'")
       expect(tableSchema).toContain("displayFieldName: 'serviceArea'")
       expect(tableSchema).toContain('defaultLimit: 20')
-      expect(apiTs).toContain('const columns = params.columns')
+      expect(apiTs).toContain('const columns = (params.columns ?? [])')
       expect(apiTs).toContain(".filter(column => column && column !== '_actions')")
-      expect(apiTs).toContain("throw new Error('queryFactOrder requires params.columns for direct query')")
+      expect(apiTs).toContain("throw new Error(FACT_ORDER_QM_MODEL + ' direct query requires non-empty business columns')")
       expect(apiTs).toContain('columns,')
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to default visible business columns when visibleColumns is empty', () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), 'foggy-gen-'))
+    const metaPath = join(tempRoot, 'meta.json')
+    const outputDir = join(tempRoot, 'generated')
+
+    try {
+      writeFileSync(metaPath, JSON.stringify(createFrontendMeta('column', []), null, 2))
+
+      execFileSync(process.execPath, [
+        generatorPath,
+        '--file',
+        metaPath,
+        '--output',
+        outputDir
+      ], { cwd: resolve(currentDir, '..'), stdio: 'pipe' })
+
+      const tableSchema = readFileSync(join(outputDir, 'FactOrder.table.schema.ts'), 'utf-8')
+
+      expect(tableSchema).not.toContain('export const defaultVisibleColumns = []')
+      expect(tableSchema).toContain('export const defaultVisibleColumns = [\n  "orderNo",\n  "serviceArea"\n]')
     } finally {
       rmSync(tempRoot, { recursive: true, force: true })
     }

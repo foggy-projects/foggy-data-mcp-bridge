@@ -102,7 +102,11 @@ function genTypes(meta) {
 
 function genTableSchema(meta) {
   const prefix = toCamelCase(meta.model)
-  const visibleCols = meta.defaults?.visibleColumns || meta.fields.filter(f => f.uiHints?.visible !== false).map(f => f.name)
+  const defaultVisibleCols = meta.fields.filter(f => f.uiHints?.visible !== false).map(f => f.name)
+  const configuredVisibleCols = meta.defaults?.visibleColumns
+  const visibleCols = Array.isArray(configuredVisibleCols) && configuredVisibleCols.length > 0
+    ? configuredVisibleCols
+    : defaultVisibleCols
   const searchFields = meta.defaults?.searchFields || []
   const pageSize = meta.defaults?.pageSize || 50
   const queryMode = ['panel', 'column', 'combined', 'none'].includes(meta.defaults?.queryMode)
@@ -271,12 +275,12 @@ import type { ${prefix}Row } from './${prefix}.types'
 import { ${constName} } from './${prefix}.types'
 
 export async function query${prefix}(params: FetchDataParams): Promise<FetchDataResult<${prefix}Row>> {
-  const columns = params.columns
+  const columns = (params.columns ?? [])
     .map(column => column.trim())
     .filter(column => column && column !== '_actions')
 
   if (columns.length === 0) {
-    throw new Error('query${prefix} requires params.columns for direct query')
+    throw new Error(${constName} + ' direct query requires non-empty business columns')
   }
 
   return fetchQueryDataDirect(${constName}, {
