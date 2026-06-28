@@ -923,6 +923,10 @@ public class JdbcQuery {
             return this;
         }
 
+        public JdbcListCond and(Object fieldRef, Object value) {
+            return fieldRefEq(fieldRef, value, "and");
+        }
+
         public JdbcListCond link(String sqlFragment, Object value, String link) {
             if ("OR".equalsIgnoreCase(link)) {
                 return or(sqlFragment, value);
@@ -943,6 +947,19 @@ public class JdbcQuery {
 
         public JdbcListCond or(String sqlFragment, Object value) {
             ValueCond c = new ValueCond("or", sqlFragment, value);
+            conds.add(c);
+            return this;
+        }
+
+        public JdbcListCond or(Object fieldRef, Object value) {
+            return fieldRefEq(fieldRef, value, "or");
+        }
+
+        private JdbcListCond fieldRefEq(Object fieldRef, Object value, String link) {
+            ColumnRef columnRef = toColumnRef(fieldRef);
+            DbColumn dbColumn = resolveDbColumn(columnRef);
+            String sqlFragment = resolveColumnRef(dbColumn) + " = ?";
+            ValueCond c = new ValueCond(link, sqlFragment, value);
             conds.add(c);
             return this;
         }

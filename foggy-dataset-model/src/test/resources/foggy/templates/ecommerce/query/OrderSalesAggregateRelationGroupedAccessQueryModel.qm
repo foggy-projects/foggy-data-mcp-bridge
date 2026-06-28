@@ -1,0 +1,56 @@
+/**
+ * 订单-销售明细聚合关系查询模型（grouped accessBuilder 字段引用 OR 回归样例）
+ *
+ * @caption 订单销售聚合关系分组权限查询
+ * @description accessBuilder 在 JdbcGroupCond 中使用字段引用 OR 条件
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .groupBy(sales.orderId)
+    .as('fsByOrderGroupedAccess');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationGroupedAccessQueryModel',
+    caption: '订单销售聚合关系分组权限查询',
+    description: 'accessBuilder 在 JdbcGroupCond 中使用字段引用 OR 条件',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.orderStatus },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细聚合',
+            items: [
+                { ref: fs.salesAmount },
+                { ref: fs.quantity },
+                { ref: fs.uniqueCustomers }
+            ]
+        }
+    ],
+
+    accesses: [
+        {
+            queryBuilder: (context) => {
+                const group = context.query.where.newGroupCond('and');
+                group.or(fo.orderId, 'ORD20240101000001');
+                group.or(fo.orderStatus, 'CANCELLED');
+                context.query.where.addCond(group);
+            }
+        }
+    ]
+};

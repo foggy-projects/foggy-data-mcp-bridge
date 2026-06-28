@@ -1436,6 +1436,31 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation grouped accessBuilder 应支持字段引用 OR 条件")
+    void aggregateRelationGroupedAccessBuilderFieldRefOrShouldRenderParameterizedGroup() {
+        String orderId = "ORD20240101000001";
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationGroupedAccessQuery();
+
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+        assertTrue(normalizedSql.contains("1=0 or t1.order_id = ? or t1.order_status = ?"),
+                "字段引用 OR 分组应生成外层参数化条件");
+        assertFalse(normalizedSql.contains("agg_src.order_id = ?"),
+                "OR accessBuilder 条件应保持 outer-only，不应猜测复制到 RHS 聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "字段引用 OR 分组应保留 orderId 参数");
+        assertTrue(queryEngine.getValues().contains("CANCELLED"),
+                "字段引用 OR 分组应保留 orderStatus 参数");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertTrue(rows.stream().anyMatch(row -> orderId.equals(row.get("orderId"))),
+                "字段引用 OR 分组应返回目标订单");
+        assertTrue(rows.stream().anyMatch(row -> "CANCELLED".equals(row.get("orderStatus"))),
+                "字段引用 OR 分组应返回取消状态订单");
+    }
+
+    @Test
     @DisplayName("aggregate relation ON 左键应支持已 join 维度字段")
     void aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField() {
         String orderId = findOrderIdWithActiveStore();
@@ -2077,6 +2102,20 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationRawAccessQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationGroupedAccessQuery() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationGroupedAccessQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationGroupedAccessQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "amount", "salesAmount", "uniqueCustomers"));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
         return queryEngine;
