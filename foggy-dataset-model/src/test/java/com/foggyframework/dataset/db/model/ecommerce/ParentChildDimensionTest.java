@@ -1339,4 +1339,71 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
                     "销售额应一致: " + nativeResults.get(i).get("team_name"));
         }
     }
+
+    @Test
+    @Order(67)
+    @DisplayName("层级操作符 - strict closure 下 selfAndDescendantsOf 仍包含自身")
+    void testHierarchyOp_SelfAndDescendantsOf_StrictClosureTableIncludesSelf() {
+        List<Map<String, Object>> selfLinks = removeTeamClosureSelfLinks();
+        try {
+            Long remainingSelfLinkCount = executeQueryForObject(
+                    "SELECT COUNT(*) FROM team_closure WHERE parent_id = team_id", Long.class);
+            assertEquals(0L, remainingSelfLinkCount, "测试前应临时移除 closure self-link");
+
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactTeamSalesQueryModel");
+            queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+            SliceRequestDef slice = new SliceRequestDef();
+            slice.setField("team$hierarchy$id");
+            slice.setOp("selfAndDescendantsOf");
+            slice.setValue("T001");
+            queryRequest.setSlice(List.of(slice));
+
+            List<GroupRequestDef> groups = new ArrayList<>();
+            groups.add(createGroup("team$id"));
+            groups.add(createGroup("team$caption"));
+            queryRequest.setGroupBy(groups);
+            queryRequest.setOrderBy(List.of(createOrder("team$caption", "ASC")));
+
+            PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+            PagingResultImpl result = jdbcService.queryModelData(form);
+            List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+            log.info("strict closure selfAndDescendantsOf T001 查询结果: {} 个", items.size());
+            printResults(items, 10);
+
+            assertEquals(9, items.size(), "strict closure 下 T001 及所有后代应仍有9个业务团队");
+            assertTrue(items.stream().anyMatch(item -> "T001".equals(item.get("team$id"))),
+                    "strict closure 下 selfAndDescendantsOf 应包含 T001 自身");
+            long distinctTeamCount = items.stream()
+                    .map(item -> item.get("team$id"))
+                    .distinct()
+                    .count();
+            assertEquals(items.size(), distinctTeamCount, "strict closure 下不应因层级匹配复制业务行");
+            assertTrue(items.stream().allMatch(item -> item.keySet().stream().noneMatch(key -> key.contains("$hierarchy"))),
+                    "strict closure 过滤不应返回 team$hierarchy 等层级输出列");
+        } finally {
+            restoreTeamClosureSelfLinks(selfLinks);
+        }
+    }
+
+    private List<Map<String, Object>> removeTeamClosureSelfLinks() {
+        List<Map<String, Object>> selfLinks = jdbcTemplate.queryForList("""
+                SELECT parent_id, team_id, distance
+                FROM team_closure
+                WHERE parent_id = team_id
+                """);
+        jdbcTemplate.update("DELETE FROM team_closure WHERE parent_id = team_id");
+        return selfLinks;
+    }
+
+    private void restoreTeamClosureSelfLinks(List<Map<String, Object>> selfLinks) {
+        for (Map<String, Object> row : selfLinks) {
+            jdbcTemplate.update("""
+                    INSERT INTO team_closure (parent_id, team_id, distance)
+                    VALUES (?, ?, ?)
+                    """, row.get("parent_id"), row.get("team_id"), row.get("distance"));
+        }
+    }
 }

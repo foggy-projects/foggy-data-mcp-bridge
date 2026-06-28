@@ -1836,11 +1836,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
             return;
         }
 
-        if (jdbcColumn.getQueryObject() != null && !(jdbcQuery.getFrom().getFromObject().isRootEqual(jdbcColumn.getQueryObject()))) {
-            //需要加入left join
-            jdbcQuery.join(jdbcColumn.getQueryObject());
-        }
-        String alias = jdbcQueryModel.getAlias(jdbcColumn.getQueryObject());
+        String alias = null;
+        boolean hierarchyCondition = false;
 
         if (jdbcColumn.isDimension()) {
             DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
@@ -1852,7 +1849,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
             if (pp != null && (isHierarchyColumn || hierarchyOp != null)) {
                 //这是一个parentChild维的层级查询，条件重写为使用closure表
+                hierarchyCondition = true;
                 boolean isAncestorDirection = hierarchyOp != null && hierarchyOp.isAncestorDirection();
+
+                if (isSelfInclusiveHierarchyOperator(hierarchyOp)) {
+                    buildSelfInclusiveHierarchyCondition(jdbcQueryModel, jdbcQuery, listCond, pp, hierarchyOp, sliceDef, parentLink);
+                    return;
+                }
 
                 if (isAncestorDirection && pp.getAncestorClosureQueryObject() != null) {
                     // 祖先方向: JOIN closure ON fact.FK = closure.parent_id, WHERE closure.child_id = value
@@ -1888,6 +1891,15 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 }
             }
         }
+        if (!hierarchyCondition
+                && jdbcColumn.getQueryObject() != null
+                && !(jdbcQuery.getFrom().getFromObject().isRootEqual(jdbcColumn.getQueryObject()))) {
+            //需要加入left join
+            jdbcQuery.join(jdbcColumn.getQueryObject());
+        }
+        if (alias == null) {
+            alias = jdbcQueryModel.getAlias(jdbcColumn.getQueryObject());
+        }
         if (jdbcColumn.isProperty() && jdbcColumn.getDecorate(DbPropertyColumn.class).getProperty().isBit()) {
             //是位图列,重写为bitIn
             sliceDef.setOp(CondType.BIT_IN.getCode());
@@ -1910,6 +1922,125 @@ public class JdbcModelQueryEngine implements QueryEngine {
         } else {
             sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
         }
+    }
+
+    private boolean isSelfInclusiveHierarchyOperator(HierarchyOperator hierarchyOp) {
+        if (hierarchyOp == null) {
+            return false;
+        }
+        for (String name : hierarchyOp.getNameList()) {
+            if ("selfAndDescendantsOf".equalsIgnoreCase(name)
+                    || "self_and_descendants_of".equalsIgnoreCase(name)
+                    || "selfAndAncestorsOf".equalsIgnoreCase(name)
+                    || "self_and_ancestors_of".equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void buildSelfInclusiveHierarchyCondition(JdbcQueryModel jdbcQueryModel,
+                                                      JdbcQuery jdbcQuery,
+                                                      JdbcQuery.JdbcListCond listCond,
+                                                      DbModelParentChildDimensionImpl pp,
+                                                      HierarchyOperator hierarchyOp,
+                                                      CondRequestDef sliceDef,
+                                                      String parentLink) {
+        boolean isAncestorDirection = hierarchyOp != null && hierarchyOp.isAncestorDirection();
+        QueryObject closureObject = isAncestorDirection && pp.getAncestorClosureQueryObject() != null
+                ? pp.getAncestorClosureQueryObject()
+                : pp.getClosureQueryObject();
+        RX.notNull(closureObject, "父子维度缺少 closureQueryObject，无法执行层级查询");
+
+        DbColumn foreignKeyColumn = pp.getForeignKeyDbColumn();
+        QueryObject baseQueryObject = foreignKeyColumn == null ? jdbcQuery.getFrom().getFromObject() : foreignKeyColumn.getQueryObject();
+        if (baseQueryObject != null && !(jdbcQuery.getFrom().getFromObject().isRootEqual(baseQueryObject))) {
+            jdbcQuery.join(baseQueryObject);
+        }
+        String baseAlias = jdbcQueryModel.getAlias(baseQueryObject);
+        String baseColumn = foreignKeyColumn == null
+                ? baseAlias + "." + pp.getForeignKey()
+                : baseAlias + "." + foreignKeyColumn.getSqlColumnName();
+
+        DbColumn valueColumn = isAncestorDirection ? pp.getChildKeyJdbcColumn() : pp.getParentKeyJdbcColumn();
+        List<Object> values = formatHierarchyValues(valueColumn, sliceDef.getOp(), sliceDef.getValue());
+        if (values.isEmpty()) {
+            return;
+        }
+
+        String closureAlias = jdbcQueryModel.getAlias(closureObject) + "_self";
+        String closureValueKey = isAncestorDirection ? pp.getChildKey() : pp.getParentKey();
+        String closureMatchKey = isAncestorDirection ? pp.getParentKey() : pp.getChildKey();
+        String placeholders = buildPlaceholders(values.size());
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("(")
+                .append(baseColumn)
+                .append(" in (")
+                .append(placeholders)
+                .append(") or exists (select 1 from ")
+                .append(closureObject.getBody())
+                .append(" ")
+                .append(closureAlias)
+                .append(" where ")
+                .append(closureAlias)
+                .append(".")
+                .append(closureValueKey)
+                .append(" in (")
+                .append(placeholders)
+                .append(") and ")
+                .append(closureAlias)
+                .append(".")
+                .append(closureMatchKey)
+                .append(" = ")
+                .append(baseColumn);
+        if (sliceDef.getMaxDepth() != null) {
+            sql.append(" and ")
+                    .append(closureAlias)
+                    .append(".distance <= ")
+                    .append(sliceDef.getMaxDepth());
+        }
+        sql.append("))");
+
+        List<Object> params = new ArrayList<>(values.size() * 2);
+        params.addAll(values);
+        List<Object> bodyParameters = closureObject.getBodyParameters();
+        if (bodyParameters != null && !bodyParameters.isEmpty()) {
+            params.addAll(bodyParameters);
+        }
+        params.addAll(values);
+        listCond.listLink(sql.toString(), params, parentLink);
+    }
+
+    private List<Object> formatHierarchyValues(DbColumn valueColumn, String op, Object rawValue) {
+        if (StringUtils.isEmpty(rawValue)) {
+            return List.of();
+        }
+        if (rawValue instanceof List<?> rawValues) {
+            List<Object> values = new ArrayList<>(rawValues.size());
+            for (Object item : rawValues) {
+                values.add(formatHierarchyValue(valueColumn, op, item));
+            }
+            return values;
+        }
+        return List.of(formatHierarchyValue(valueColumn, op, rawValue));
+    }
+
+    private Object formatHierarchyValue(DbColumn valueColumn, String op, Object rawValue) {
+        try {
+            return valueColumn.getFormatter(true).format(rawValue);
+        } catch (NumberFormatException | ClassCastException e) {
+            String actualType = rawValue == null ? "null" : rawValue.getClass().getSimpleName();
+            throw RX.throwAUserTip(
+                    DatasetMessages.validationSliceValueFormatInvalid(valueColumn.getName(), op, actualType),
+                    DatasetMessages.systemException(),
+                    null,
+                    e);
+        }
+    }
+
+    private String buildPlaceholders(int count) {
+        return String.join(",", java.util.Collections.nCopies(count, "?"));
     }
 
     private boolean tryApplyAggregateMemberFilterRewrite(ModelResultContext context,
