@@ -48,6 +48,7 @@ import com.foggyframework.dataset.db.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.AggregateMemberFilterPlanner;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.AggregateMemberFilterPlanner.AggregateMemberFilterPlan;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberRuntimeColumn;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
@@ -1853,7 +1854,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 boolean isAncestorDirection = hierarchyOp != null && hierarchyOp.isAncestorDirection();
 
                 if (isSelfInclusiveHierarchyOperator(hierarchyOp)) {
-                    buildSelfInclusiveHierarchyCondition(jdbcQueryModel, jdbcQuery, listCond, pp, hierarchyOp, sliceDef, parentLink);
+                    buildSelfInclusiveHierarchyCondition(jdbcQueryModel, jdbcQuery, listCond, jdbcColumn, pp, hierarchyOp, sliceDef, parentLink);
                     return;
                 }
 
@@ -1942,6 +1943,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void buildSelfInclusiveHierarchyCondition(JdbcQueryModel jdbcQueryModel,
                                                       JdbcQuery jdbcQuery,
                                                       JdbcQuery.JdbcListCond listCond,
+                                                      DbColumn jdbcColumn,
                                                       DbModelParentChildDimensionImpl pp,
                                                       HierarchyOperator hierarchyOp,
                                                       CondRequestDef sliceDef,
@@ -1952,7 +1954,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 : pp.getClosureQueryObject();
         RX.notNull(closureObject, "父子维度缺少 closureQueryObject，无法执行层级查询");
 
-        DbColumn foreignKeyColumn = pp.getForeignKeyDbColumn();
+        DbColumn foreignKeyColumn = jdbcColumn instanceof SyntheticMemberRuntimeColumn ? jdbcColumn : pp.getForeignKeyDbColumn();
         QueryObject baseQueryObject = foreignKeyColumn == null ? jdbcQuery.getFrom().getFromObject() : foreignKeyColumn.getQueryObject();
         if (baseQueryObject != null && !(jdbcQuery.getFrom().getFromObject().isRootEqual(baseQueryObject))) {
             jdbcQuery.join(baseQueryObject);
