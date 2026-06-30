@@ -3,6 +3,7 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -308,14 +310,24 @@ public class RuntimeModelsController {
             if (clearExisting && systemBundlesContext.containBundle(bundleName)) {
                 systemBundlesContext.removeBundle(bundleName);
             }
-            registered = systemBundlesContext.addExternalBundle(bundleName, namespace, path, watch);
-            if (!registered) {
-                throw new IllegalStateException("Bundle registration failed: " + bundleName);
-            }
-
-            Bundle bundle = systemBundlesContext.getBundleByName(bundleName);
+            Bundle bundle = findExistingBundleForPath(namespace, path);
+            List<ModelValidateIssue> warnings = new ArrayList<>();
             if (bundle == null) {
-                throw new IllegalStateException("Registered bundle was not found: " + bundleName);
+                registered = systemBundlesContext.addExternalBundle(bundleName, namespace, path, watch);
+                if (!registered) {
+                    throw new IllegalStateException("Bundle registration failed: " + bundleName);
+                }
+
+                bundle = systemBundlesContext.getBundleByName(bundleName);
+                if (bundle == null) {
+                    throw new IllegalStateException("Registered bundle was not found: " + bundleName);
+                }
+            } else {
+                warnings.add(warning(
+                        "BUNDLE_ALREADY_REGISTERED",
+                        "Validation reused existing bundle '" + bundle.getName()
+                                + "' for the same namespace and path instead of registering a duplicate temporary bundle."
+                ));
             }
 
             List<ModelValidateIssue> errors = new ArrayList<>();
@@ -355,7 +367,7 @@ public class RuntimeModelsController {
                     cascadingErrors,
                     Duration.between(startedAt, Instant.now()).toMillis(),
                     List.copyOf(errors),
-                    List.of()
+                    List.copyOf(warnings)
             );
         } finally {
             if (registered) {
@@ -366,6 +378,32 @@ public class RuntimeModelsController {
                 }
             }
         }
+    }
+
+    private Bundle findExistingBundleForPath(String namespace, String path) {
+        List<Bundle> bundles = systemBundlesContext.getBundleList();
+        if (bundles == null || bundles.isEmpty()) {
+            return null;
+        }
+
+        String normalizedNamespace = normalizeNamespace(namespace);
+        String normalizedPath = normalizeBundlePath(path);
+        for (Bundle bundle : bundles) {
+            if (bundle == null) {
+                continue;
+            }
+            BundleDefinition definition = bundle.getDefinition();
+            if (definition == null) {
+                continue;
+            }
+            if (!normalizedNamespace.equals(normalizeNamespace(definition.getNamespace()))) {
+                continue;
+            }
+            if (normalizedPath.equals(normalizeBundlePath(bundle.getRootPath()))) {
+                return bundle;
+            }
+        }
+        return null;
     }
 
     private void validateTmResource(
@@ -418,6 +456,21 @@ public class RuntimeModelsController {
                 null,
                 category,
                 includeStackTrace ? stackTrace(e) : null
+        );
+    }
+
+    private static ModelValidateIssue warning(String code, String message) {
+        return new ModelValidateIssue(
+                null,
+                "BUNDLE",
+                null,
+                null,
+                "WARNING",
+                code,
+                message,
+                null,
+                "RUNTIME",
+                null
         );
     }
 
@@ -480,6 +533,31 @@ public class RuntimeModelsController {
     private static String validationBundleName(String namespace) {
         String normalized = blankToNull(namespace);
         return normalized != null ? "runtime-validation-" + normalized : "runtime-validation";
+    }
+
+    private static String normalizeNamespace(String namespace) {
+        String normalized = blankToNull(namespace);
+        return normalized != null ? normalized : "";
+    }
+
+    private static String normalizeBundlePath(String path) {
+        String normalized = blankToNull(path);
+        if (normalized == null) {
+            return "";
+        }
+        try {
+            return Paths.get(normalized).toAbsolutePath().normalize().toString();
+        } catch (InvalidPathException e) {
+            return trimTrailingSlashes(normalized.replace('\\', '/'));
+        }
+    }
+
+    private static String trimTrailingSlashes(String value) {
+        int end = value.length();
+        while (end > 1 && value.charAt(end - 1) == '/') {
+            end--;
+        }
+        return value.substring(0, end);
     }
 
     private static String relativePath(BundleResource resource) {

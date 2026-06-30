@@ -165,7 +165,7 @@ public class ExternalFileBundle implements Bundle {
                 return path.endsWith(ext);
             }
             // 如果 suffix 是文件名
-            return path.endsWith(suffix) || path.endsWith("/" + suffix) || path.equals(suffix);
+            return path.equals(suffix) || path.endsWith("/" + suffix);
         }
         // 处理简单的 *.ext 模式
         if (pattern.startsWith("*.")) {

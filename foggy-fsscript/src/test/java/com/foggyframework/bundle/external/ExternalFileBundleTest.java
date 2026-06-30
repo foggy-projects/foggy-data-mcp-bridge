@@ -142,6 +142,19 @@ public class ExternalFileBundleTest {
     }
 
     @Test
+    public void testFindBundleResourceUsesExactFilenameSegment() throws IOException {
+        Files.writeString(tempDir.resolve("StationModel.tm"), "table_model StationModel {}\n");
+        Files.writeString(tempDir.resolve("FactTaskStationModel.tm"), "table_model FactTaskStationModel {}\n");
+
+        Resource[] resources = bundle.findResources("**/StationModel.tm");
+
+        Assertions.assertEquals(1, resources.length, "Should not match FactTaskStationModel.tm by suffix");
+        Assertions.assertEquals("StationModel.tm", resources[0].getFilename());
+        BundleResource resource = bundle.findBundleResource("StationModel.tm", true);
+        Assertions.assertEquals("StationModel.tm", resource.getResource().getFilename());
+    }
+
+    @Test
     public void testFindBundleResourceNotFound() {
         BundleResource resource = bundle.findBundleResource("NonExistent.fsscript", false);
 

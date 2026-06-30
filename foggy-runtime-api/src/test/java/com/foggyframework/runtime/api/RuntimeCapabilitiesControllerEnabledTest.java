@@ -37,6 +37,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -281,6 +282,77 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("success").asBoolean()).isFalse();
         assertThat(body.path("error").path("code").asText()).isEqualTo("MODEL_VALIDATE_FAILED");
         verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+    }
+
+    @Test
+    void shouldReuseExistingBundleForSameNamespaceAndPathDuringValidation() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-existing-validation-bundle");
+        Bundle existingBundle = mock(Bundle.class);
+        BundleResource tmResource = bundleResource("Order.tm");
+        ExternalBundleDefinition definition = new ExternalBundleDefinition(
+                "host-loaded-models",
+                "dev",
+                modelsDir.toString(),
+                true
+        );
+        when(existingBundle.getName()).thenReturn("host-loaded-models");
+        when(existingBundle.getDefinition()).thenReturn(definition);
+        when(existingBundle.getRootPath()).thenReturn(modelsDir.toString());
+        when(existingBundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[]{tmResource});
+        when(existingBundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[0]);
+        when(systemBundlesContext.getBundleList()).thenReturn(List.of(existingBundle));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/models/validate",
+                Map.of("path", modelsDir.toString(), "namespace", "dev"),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("valid").asBoolean()).isTrue();
+        assertThat(body.path("data").path("totalFiles").asInt()).isEqualTo(1);
+        assertThat(body.path("data").path("warnings").get(0).path("code").asText())
+                .isEqualTo("BUNDLE_ALREADY_REGISTERED");
+        verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
+        verify(systemBundlesContext, never()).removeBundle("runtime-validation-dev");
+    }
+
+    @Test
+    void shouldClearStaleValidationBundleBeforeReusingExistingHostBundle() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-clear-stale-validation-bundle");
+        Bundle existingBundle = mock(Bundle.class);
+        BundleResource tmResource = bundleResource("Order.tm");
+        ExternalBundleDefinition definition = new ExternalBundleDefinition(
+                "host-loaded-models",
+                "dev",
+                modelsDir.toString(),
+                true
+        );
+        when(existingBundle.getName()).thenReturn("host-loaded-models");
+        when(existingBundle.getDefinition()).thenReturn(definition);
+        when(existingBundle.getRootPath()).thenReturn(modelsDir.toString());
+        when(existingBundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[]{tmResource});
+        when(existingBundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[0]);
+        when(systemBundlesContext.containBundle("runtime-validation-dev")).thenReturn(true);
+        when(systemBundlesContext.getBundleList()).thenReturn(List.of(existingBundle));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/models/validate",
+                Map.of("path", modelsDir.toString(), "namespace", "dev"),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("warnings").get(0).path("code").asText())
+                .isEqualTo("BUNDLE_ALREADY_REGISTERED");
+        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+        verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
     }
 
     @Test

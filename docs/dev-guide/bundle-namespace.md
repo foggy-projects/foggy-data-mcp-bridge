@@ -107,6 +107,81 @@ foggy:
 
 新接入建议优先使用 `foggy-runtime-api` 的 `/api/v1/bundles`，并通过 `foggy.runtime-api.auth-code` 为管理操作配置授权码。
 
+### Spring Boot 宿主接入 Runtime API
+
+`foggy-runtime-api` 可以嵌入既有 Spring Boot 宿主应用，但仅添加 Maven 依赖不会保证 `/api/v1/**` Controller 被注册。当前模块提供 Controller、配置类、拦截器和服务类，没有作为 Spring Boot starter 自动导入宿主扫描范围。
+
+宿主应用的 component scan 根包如果不覆盖 `com.foggyframework.runtime.api`，需要显式导入或扫描：
+
+```java
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
+@ComponentScan(basePackages = "com.foggyframework.runtime.api")
+class HostRuntimeApiConfiguration {
+}
+```
+
+同时配置运行时管理面开关和授权码：
+
+```yaml
+foggy:
+  runtime-api:
+    enabled: true
+    security-mode: auth-code
+    auth-code: ${FOGGY_RUNTIME_API_AUTH_CODE}
+```
+
+宿主嵌入方式适合企业项目校验，因为模型加载会运行在真实 Spring 上下文中，可以访问宿主数据源、项目 Bean、可选 loader、dict/script 依赖和既有 namespace 配置。公共 lite runtime 更适合 demo、样例或不依赖宿主上下文的独立模型。
+
+### Bundle validate/refresh 标志语义
+
+`/api/v1/bundles` 和 `foggy-runtime-cli bundles add --validate --refresh` 接受 `validate` / `refresh` 参数，但 bundle API 本身只负责注册、更新或持久化 bundle 记录，不会在同一个请求里执行模型校验或缓存刷新。响应中的 warning 会提示继续执行模型命令。
+
+推荐使用明确的三步流：
+
+```bash
+foggy-runtime --base-url "$RUNTIME_URL" --namespace "$NS" bundles add \
+  --name my-models --path /data/models --watch --replace
+
+foggy-runtime --base-url "$RUNTIME_URL" --namespace "$NS" models validate \
+  --models-dir /data/models
+
+foggy-runtime --base-url "$RUNTIME_URL" --namespace "$NS" models refresh
+```
+
+这样可以把 bundle 注册失败、模型语法/宿主上下文失败、缓存刷新失败分开定位，也避免把校验副作用混进 bundle 更新回滚语义。
+
+### 企业平铺 TM/QM 目录校验
+
+企业项目可以使用标准目录：
+
+```text
+models/
+  model/*.tm
+  query/*.qm
+```
+
+也可以使用平铺目录：
+
+```text
+models-dir/
+  *.tm
+  *.qm
+  *.fsscript
+```
+
+`models validate --models-dir` 会扫描 `**/*.tm` 和 `**/*.qm`。当同一 namespace 下已经加载了同一个目录，Runtime API 会复用已注册 bundle 来校验，避免再次注册临时 bundle 造成同名 TM/QM 重复。若要校验一个尚未加载、但模型名可能和当前 namespace 已有模型冲突的目录，建议使用干净的临时 namespace。
+
+平铺目录中的文件名按完整文件名匹配，例如 `StationModel.tm` 不会再匹配 `FactTaskStationModel.tm`。如果仍出现同名资源冲突，应检查同一 namespace 下是否有多个 bundle 提供了相同文件名。
+
+企业模型如果依赖以下宿主能力，应通过嵌入宿主的 Runtime API 校验，而不是 public lite runtime：
+
+- 宿主 Spring Bean 或项目工具类
+- 真实 datasource schema、view、函数或权限上下文
+- Mongo / Odoo / 自定义 loader
+- dict、script import 或 bundle namespace 约定
+- 项目侧默认 namespace、semantic scale 或 datasource binding
+
 ### Runtime API 授权码边界
 
 `foggy-runtime-api` 是内部运行时管理面，不是面向客户的权限系统。只要部署环境会把管理操作暴露到可信本机以外的访问范围，应配置授权码：
