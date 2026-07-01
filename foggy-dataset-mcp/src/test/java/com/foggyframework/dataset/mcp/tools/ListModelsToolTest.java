@@ -220,6 +220,214 @@ class ListModelsToolTest {
         }
 
         @Test
+        @DisplayName("namespace 专属 model-list 应覆盖全局 model-list")
+        void namespaceModelList_shouldOverrideGlobalModelList() {
+            McpProperties properties = new McpProperties();
+            properties.getSemantic().setModelList(List.of("FactOrderQueryModel"));
+            McpProperties.NamespaceSemanticConfig salesdropConfig = new McpProperties.NamespaceSemanticConfig();
+            salesdropConfig.setModelList(List.of("SalesDropDailyQueryModel"));
+            properties.getSemantic().setNamespaces(Map.of("salesdrop", salesdropConfig));
+
+            QueryModel salesDropQm = mockQueryModel("SDD", "销售下滑日表", "销售下滑分析", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("SalesDropDailyQueryModel"), eq("salesdrop")))
+                    .thenReturn(salesDropQm);
+
+            SemanticMetadataResponse metadata = new SemanticMetadataResponse();
+            metadata.setData(Map.of(
+                    "fields", Map.of(),
+                    "models", Map.of("SalesDropDailyQueryModel", Map.of("name", "销售下滑日表"))
+            ));
+            when(semanticServiceResolver.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
+
+            ModelCatalogService service = new ModelCatalogService(
+                    semanticServiceResolver,
+                    queryModelLoader,
+                    new ObjectMapper(),
+                    properties
+            );
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) service
+                    .buildCatalogResponse(Map.of("format", "json"), "salesdrop", null)
+                    .get("data");
+
+            assertEquals(List.of("SalesDropDailyQueryModel"), catalog.get("models"));
+            verify(queryModelLoader, never()).getJdbcQueryModel(eq("FactOrderQueryModel"), any());
+            verify(semanticServiceResolver, never()).getAllModelNames();
+        }
+
+        @Test
+        @DisplayName("namespace 专属 model-list 应覆盖全局 use-all-models=false")
+        void namespaceModelList_shouldOverrideGlobalUseAllModelsDisabled() {
+            McpProperties properties = new McpProperties();
+            properties.getSemantic().setUseAllModels(false);
+            McpProperties.NamespaceSemanticConfig salesdropConfig = new McpProperties.NamespaceSemanticConfig();
+            salesdropConfig.setModelList(List.of("SalesDropDailyQueryModel"));
+            properties.getSemantic().setNamespaces(Map.of("salesdrop", salesdropConfig));
+
+            QueryModel salesDropQm = mockQueryModel("SDD", "销售下滑日表", "销售下滑分析", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("SalesDropDailyQueryModel"), eq("salesdrop")))
+                    .thenReturn(salesDropQm);
+
+            ModelCatalogService service = new ModelCatalogService(
+                    semanticServiceResolver,
+                    queryModelLoader,
+                    new ObjectMapper(),
+                    properties
+            );
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) service
+                    .buildCatalogResponse(Map.of("format", "json"), "salesdrop", null)
+                    .get("data");
+
+            assertEquals(List.of("SalesDropDailyQueryModel"), catalog.get("models"));
+            verify(semanticServiceResolver, never()).getAllModelNames();
+        }
+
+        @Test
+        @DisplayName("MCP list_models 应使用 context namespace 命中 namespace model-list")
+        void execute_shouldUseContextNamespaceForNamespaceModelList() {
+            McpProperties properties = new McpProperties();
+            properties.getSemantic().setModelList(List.of("FactOrderQueryModel"));
+            McpProperties.NamespaceSemanticConfig salesdropConfig = new McpProperties.NamespaceSemanticConfig();
+            salesdropConfig.setModelList(List.of("SalesDropDailyQueryModel"));
+            properties.getSemantic().setNamespaces(Map.of("salesdrop", salesdropConfig));
+
+            QueryModel salesDropQm = mockQueryModel("SDD", "销售下滑日表", "销售下滑分析", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("SalesDropDailyQueryModel"), eq("salesdrop")))
+                    .thenReturn(salesDropQm);
+
+            ListModelsTool tool = new ListModelsTool(new ModelCatalogService(
+                    semanticServiceResolver,
+                    queryModelLoader,
+                    new ObjectMapper(),
+                    properties
+            ));
+            ToolExecutionContext context = ToolExecutionContext.builder()
+                    .traceId("trace-salesdrop")
+                    .namespace("salesdrop")
+                    .build();
+
+            Object result = tool.execute(
+                    Map.of("modelNames", List.of("FactOrderQueryModel")),
+                    context
+            );
+
+            String content = extractContent(result);
+            assertTrue(content.contains("SalesDropDailyQueryModel"));
+            assertFalse(content.contains("FactOrderQueryModel"));
+            verify(queryModelLoader, never()).getJdbcQueryModel(eq("FactOrderQueryModel"), any());
+            verify(semanticServiceResolver, never()).getAllModelNames();
+        }
+
+        @Test
+        @DisplayName("请求显式 modelNames 应覆盖 namespace 专属 model-list")
+        void requestModelNames_shouldOverrideNamespaceModelList() {
+            McpProperties properties = new McpProperties();
+            McpProperties.NamespaceSemanticConfig salesdropConfig = new McpProperties.NamespaceSemanticConfig();
+            salesdropConfig.setModelList(List.of("SalesDropDailyQueryModel"));
+            properties.getSemantic().setNamespaces(Map.of("salesdrop", salesdropConfig));
+
+            QueryModel explicitQm = mockQueryModel("EX", "显式模型", "显式指定", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("ExplicitQueryModel"), eq("salesdrop")))
+                    .thenReturn(explicitQm);
+
+            SemanticMetadataResponse metadata = new SemanticMetadataResponse();
+            metadata.setData(Map.of(
+                    "fields", Map.of(),
+                    "models", Map.of("ExplicitQueryModel", Map.of("name", "显式模型"))
+            ));
+            when(semanticServiceResolver.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
+
+            ModelCatalogService service = new ModelCatalogService(
+                    semanticServiceResolver,
+                    queryModelLoader,
+                    new ObjectMapper(),
+                    properties
+            );
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) service
+                    .buildCatalogResponse(
+                            Map.of("format", "json", "modelNames", List.of("ExplicitQueryModel")),
+                            "salesdrop",
+                            null
+                    )
+                    .get("data");
+
+            assertEquals(List.of("ExplicitQueryModel"), catalog.get("models"));
+            verify(queryModelLoader, never()).getJdbcQueryModel(eq("SalesDropDailyQueryModel"), any());
+            verify(semanticServiceResolver, never()).getAllModelNames();
+        }
+
+        @Test
+        @DisplayName("全局 model-list 在 namespace 内不可见时应回退到动态发现")
+        void globalCatalog_shouldFallbackToDynamicDiscoveryWhenConfiguredModelsAreEmptyInNamespace() {
+            McpProperties properties = new McpProperties();
+            properties.getSemantic().setModelList(List.of("FactOrderQueryModel"));
+
+            when(queryModelLoader.getJdbcQueryModel(eq("FactOrderQueryModel"), eq("salesdrop")))
+                    .thenReturn(null);
+            when(semanticServiceResolver.getAllModelNames())
+                    .thenReturn(List.of("SalesDropDailyQueryModel"));
+            QueryModel salesDropQm = mockQueryModel("SDD", "销售下滑日表", "销售下滑分析", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("SalesDropDailyQueryModel"), eq("salesdrop")))
+                    .thenReturn(salesDropQm);
+
+            SemanticMetadataResponse metadata = new SemanticMetadataResponse();
+            metadata.setData(Map.of(
+                    "fields", Map.of(),
+                    "models", Map.of("SalesDropDailyQueryModel", Map.of("name", "销售下滑日表"))
+            ));
+            when(semanticServiceResolver.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
+
+            ModelCatalogService service = new ModelCatalogService(
+                    semanticServiceResolver,
+                    queryModelLoader,
+                    new ObjectMapper(),
+                    properties
+            );
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) service
+                    .buildCatalogResponse(Map.of("format", "json"), "salesdrop", null)
+                    .get("data");
+
+            assertEquals(List.of("SalesDropDailyQueryModel"), catalog.get("models"));
+            assertEquals(1, catalog.get("count"));
+            verify(semanticServiceResolver).getAllModelNames();
+        }
+
+        @Test
+        @DisplayName("namespace 专属 model-list 不可见时应严格返回空 catalog")
+        void namespaceModelList_shouldBeStrictWhenConfiguredModelsAreEmpty() {
+            McpProperties properties = new McpProperties();
+            properties.getSemantic().setModelList(List.of("FactOrderQueryModel"));
+            McpProperties.NamespaceSemanticConfig salesdropConfig = new McpProperties.NamespaceSemanticConfig();
+            salesdropConfig.setModelList(List.of("MissingSalesDropModel"));
+            properties.getSemantic().setNamespaces(Map.of("salesdrop", salesdropConfig));
+
+            when(queryModelLoader.getJdbcQueryModel(eq("MissingSalesDropModel"), eq("salesdrop")))
+                    .thenReturn(null);
+
+            SemanticMetadataResponse metadata = new SemanticMetadataResponse();
+            metadata.setData(Map.of("fields", Map.of(), "models", Map.of()));
+            when(semanticServiceResolver.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
+
+            ModelCatalogService service = new ModelCatalogService(
+                    semanticServiceResolver,
+                    queryModelLoader,
+                    new ObjectMapper(),
+                    properties
+            );
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) service
+                    .buildCatalogResponse(Map.of("format", "json"), "salesdrop", null)
+                    .get("data");
+
+            assertEquals(List.of(), catalog.get("models"));
+            assertEquals(0, catalog.get("count"));
+            verify(semanticServiceResolver, never()).getAllModelNames();
+        }
+
+        @Test
         @DisplayName("重复模型名应保序去重且 Markdown 不返回结构化 catalog")
         void duplicateModels_shouldBeDedupedAndRecommendNextOnce() {
             when(semanticServiceResolver.getAllModelNames())

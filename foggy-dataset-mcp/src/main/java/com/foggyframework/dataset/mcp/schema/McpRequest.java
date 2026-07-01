@@ -23,7 +23,7 @@ public class McpRequest {
     @Builder.Default
     private String jsonrpc = "2.0";
 
-    private String id;
+    private Object id;
 
     private String method;
 

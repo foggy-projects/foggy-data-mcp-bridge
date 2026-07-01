@@ -5,7 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * MCP 服务配置属性
@@ -79,6 +81,10 @@ public class McpProperties {
      *     model-list:
      *       - FactSalesQueryModel
      *       - FactOrderQueryModel
+     *     namespaces:
+     *       salesdrop:
+     *         model-list:
+     *           - SalesDropDailyQueryModel
      *     metadata:
      *       default-levels: [1]
      *       force-levels: [9]
@@ -110,14 +116,33 @@ public class McpProperties {
         private List<String> modelList = new ArrayList<>();
 
         /**
+         * 按 namespace 覆盖 list_models catalog 候选模型。
+         *
+         * <p>配置优先级：
+         * <ol>
+         *   <li>请求显式 modelNames/models（仅 host-facing {@code /semantic/v3/list-models} 支持）</li>
+         *   <li>当前 namespace 的 namespaces.&lt;namespace&gt;.model-list，命中后覆盖全局配置</li>
+         *   <li>全局 use-all-models / model-list（未命中 namespace 配置时生效）</li>
+         *   <li>动态发现</li>
+         * </ol>
+         *
+         * <p>namespace 专属列表是严格配置：如果列表里的模型在当前 namespace 下不可见，
+         * catalog 返回空，不再回退到动态发现，以便暴露配置错误。
+         */
+        private Map<String, NamespaceSemanticConfig> namespaces = new LinkedHashMap<>();
+
+        /**
          * 是否使用所有可用模型（动态发现模式）
+         *
+         * <p>该配置只控制全局默认 catalog；当前 namespace 配置了专属 model-list 时，
+         * namespace 配置优先。
          *
          * <p>三态逻辑：
          * <ul>
          *   <li>{@code null}（默认）：根据 model-list 是否配置自动推断。
          *       若 model-list 为空则启用动态发现，否则使用静态列表</li>
-         *   <li>{@code true}：强制启用动态发现，忽略 model-list 配置</li>
-         *   <li>{@code false}：显式禁用，不返回任何模型（即使 model-list 有值也忽略）</li>
+         *   <li>{@code true}：全局默认 catalog 强制启用动态发现，忽略全局 model-list 配置</li>
+         *   <li>{@code false}：禁用全局默认 catalog，不返回全局模型（即使全局 model-list 有值也忽略）</li>
          * </ul>
          */
         private Boolean useAllModels;
@@ -143,6 +168,17 @@ public class McpProperties {
          * 可以返回更详细的信息。
          */
         private LevelConfig internal = new LevelConfig();
+    }
+
+    /**
+     * namespace 级语义模型 catalog 配置。
+     */
+    @Data
+    public static class NamespaceSemanticConfig {
+        /**
+         * 当前 namespace 下 list_models 暴露的查询模型列表。
+         */
+        private List<String> modelList = new ArrayList<>();
     }
 
     /**

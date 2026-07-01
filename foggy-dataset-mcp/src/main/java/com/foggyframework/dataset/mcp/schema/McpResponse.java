@@ -21,7 +21,7 @@ public class McpResponse {
     @Builder.Default
     private String jsonrpc = "2.0";
 
-    private String id;
+    private Object id;
 
     private Object result;
 
@@ -30,7 +30,7 @@ public class McpResponse {
     /**
      * 创建成功响应
      */
-    public static McpResponse success(String id, Object result) {
+    public static McpResponse success(Object id, Object result) {
         return McpResponse.builder()
                 .id(id)
                 .result(result)
@@ -40,7 +40,7 @@ public class McpResponse {
     /**
      * 创建错误响应
      */
-    public static McpResponse error(String id, int code, String message) {
+    public static McpResponse error(Object id, int code, String message) {
         return McpResponse.builder()
                 .id(id)
                 .error(McpError.builder()
@@ -53,7 +53,7 @@ public class McpResponse {
     /**
      * 创建错误响应（带详情）
      */
-    public static McpResponse error(String id, int code, String message, Object data) {
+    public static McpResponse error(Object id, int code, String message, Object data) {
         return McpResponse.builder()
                 .id(id)
                 .error(McpError.builder()

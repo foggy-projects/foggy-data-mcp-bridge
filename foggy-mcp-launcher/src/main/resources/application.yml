@@ -61,6 +61,16 @@ foggy:
         - FactReturnQueryModel
         - FactInventorySnapshotQueryModel
 
+      # 按 namespace 覆盖 dataset.list_models 的 catalog 候选模型。
+      # 命中 namespace 后覆盖全局 model-list/use-all-models。
+      # namespace 专属列表是严格配置：配错时返回空 catalog，不回退动态发现。
+      # public MCP dataset.list_models 不接受 caller 传入 modelNames；
+      # 需要显式模型列表的 host-facing 调用使用 POST /semantic/v3/list-models。
+      # namespaces:
+      #   salesdrop:
+      #     model-list:
+      #       - SalesDropDailyQueryModel
+
       # 元数据服务版本（v2/v3）
       # v2: 原版服务，维度不展开
       # v3: 维度展开为独立的 $id/$caption 字段

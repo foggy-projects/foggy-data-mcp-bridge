@@ -79,19 +79,39 @@ public class ModelCatalogService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> buildCatalog(Map<String, Object> options, String namespace, String authorization) {
         Map<String, Object> safeOptions = options != null ? options : Collections.emptyMap();
-        List<String> modelNames = optionalStringList(safeOptions.get("modelNames"));
-        if (modelNames == null) {
-            modelNames = optionalStringList(safeOptions.get("models"));
-        }
-        if (modelNames == null) {
-            modelNames = configuredCatalogModelNames();
-        }
-        if (modelNames == null) {
-            modelNames = semanticServiceResolver.getAllModelNames();
-        }
-        modelNames = dedupe(modelNames);
-
+        ModelNameSelection selection = selectModelNames(safeOptions, namespace);
+        List<String> modelNames = resolveModelNames(selection);
         int fieldLimit = Math.max(0, intOr(safeOptions.get("fieldLimit"), 10));
+        CatalogData catalogData = buildCatalogData(modelNames, namespace, authorization, safeOptions, fieldLimit);
+
+        if (shouldFallbackToDynamicDiscovery(selection, namespace, catalogData)) {
+            List<String> dynamicModelNames = resolveModelNames(new ModelNameSelection(null, ModelNameSource.DYNAMIC));
+            if (!dynamicModelNames.isEmpty() && !dynamicModelNames.equals(modelNames)) {
+                CatalogData fallbackData = buildCatalogData(dynamicModelNames, namespace, authorization, safeOptions, fieldLimit);
+                if (!fallbackData.visibleModels().isEmpty()) {
+                    log.info("Configured MCP model-list resolved no models for namespace {}; using dynamic model discovery",
+                            namespace);
+                    catalogData = fallbackData;
+                }
+            }
+        }
+
+        Map<String, Object> catalog = new LinkedHashMap<>();
+        catalog.put("models", catalogData.visibleModels());
+        catalog.put("count", catalogData.visibleModels().size());
+        catalog.put("recommendedNext", "dataset.describe_model_internal");
+        catalog.put("items", catalogData.items());
+        return catalog;
+    }
+
+    @SuppressWarnings("unchecked")
+    private CatalogData buildCatalogData(
+            List<String> modelNames,
+            String namespace,
+            String authorization,
+            Map<String, Object> safeOptions,
+            int fieldLimit
+    ) {
         Map<String, Object> metadata = fetchCatalogMetadata(modelNames, namespace, authorization, safeOptions);
         Map<String, Object> fields = metadata != null && metadata.get("fields") instanceof Map<?, ?>
                 ? (Map<String, Object>) metadata.get("fields")
@@ -144,31 +164,71 @@ public class ModelCatalogService {
             }
         }
 
-        Map<String, Object> catalog = new LinkedHashMap<>();
-        catalog.put("models", visibleModels);
-        catalog.put("count", visibleModels.size());
-        catalog.put("recommendedNext", "dataset.describe_model_internal");
-        catalog.put("items", items);
-        return catalog;
+        return new CatalogData(visibleModels, items);
     }
 
-    private List<String> configuredCatalogModelNames() {
-        McpProperties.SemanticConfig semantic = mcpProperties.getSemantic();
-        if (semantic == null) {
-            return null;
+    private ModelNameSelection selectModelNames(Map<String, Object> options, String namespace) {
+        List<String> modelNames = optionalStringList(options.get("modelNames"));
+        if (modelNames == null) {
+            modelNames = optionalStringList(options.get("models"));
         }
+        if (modelNames != null) {
+            return new ModelNameSelection(modelNames, ModelNameSource.REQUEST);
+        }
+
+        McpProperties.SemanticConfig semantic = mcpProperties != null ? mcpProperties.getSemantic() : null;
+        if (semantic == null) {
+            return new ModelNameSelection(null, ModelNameSource.DYNAMIC);
+        }
+
+        McpProperties.NamespaceSemanticConfig namespaceConfig = namespaceConfig(semantic, namespace);
+        if (namespaceConfig != null) {
+            return new ModelNameSelection(
+                    namespaceConfig.getModelList() != null ? namespaceConfig.getModelList() : Collections.emptyList(),
+                    ModelNameSource.NAMESPACE_CONFIGURED
+            );
+        }
+
         Boolean useAllModels = semantic.getUseAllModels();
         if (Boolean.TRUE.equals(useAllModels)) {
-            return null;
+            return new ModelNameSelection(null, ModelNameSource.DYNAMIC);
         }
         if (Boolean.FALSE.equals(useAllModels)) {
-            return Collections.emptyList();
+            return new ModelNameSelection(Collections.emptyList(), ModelNameSource.DISABLED);
         }
         List<String> configuredModels = semantic.getModelList();
         if (configuredModels == null || configuredModels.isEmpty()) {
+            return new ModelNameSelection(null, ModelNameSource.DYNAMIC);
+        }
+        return new ModelNameSelection(configuredModels, ModelNameSource.GLOBAL_CONFIGURED);
+    }
+
+    private static McpProperties.NamespaceSemanticConfig namespaceConfig(
+            McpProperties.SemanticConfig semantic,
+            String namespace
+    ) {
+        if (semantic.getNamespaces() == null || isBlank(namespace)) {
             return null;
         }
-        return configuredModels;
+        return semantic.getNamespaces().get(namespace.trim());
+    }
+
+    private List<String> resolveModelNames(ModelNameSelection selection) {
+        List<String> modelNames = selection.modelNames();
+        if (modelNames == null) {
+            modelNames = semanticServiceResolver.getAllModelNames();
+        }
+        return dedupe(modelNames);
+    }
+
+    private static boolean shouldFallbackToDynamicDiscovery(
+            ModelNameSelection selection,
+            String namespace,
+            CatalogData catalogData
+    ) {
+        return selection.source() == ModelNameSource.GLOBAL_CONFIGURED
+                && !isBlank(namespace)
+                && catalogData.visibleModels().isEmpty();
     }
 
     private Map<String, Object> fetchCatalogMetadata(
@@ -411,5 +471,19 @@ public class ModelCatalogService {
 
     private static String sanitizeMarkdownLine(String value) {
         return value.replace("\n", " ").replace("\r", " ").replace("|", "｜");
+    }
+
+    private enum ModelNameSource {
+        REQUEST,
+        NAMESPACE_CONFIGURED,
+        GLOBAL_CONFIGURED,
+        DYNAMIC,
+        DISABLED
+    }
+
+    private record ModelNameSelection(List<String> modelNames, ModelNameSource source) {
+    }
+
+    private record CatalogData(List<String> visibleModels, List<Map<String, Object>> items) {
     }
 }
