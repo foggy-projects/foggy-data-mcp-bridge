@@ -131,7 +131,7 @@ async function initToolbarScene() {
       toolbarQueryId.value = response.queryId
 
       // 获取元数据
-      toolbarMeta.value = await fetchQueryMeta(response.queryId)
+      toolbarMeta.value = await fetchQueryMeta('DimProductQueryModel', response.queryId)
 
       // 获取 schema 并构建列
       if (toolbarMeta.value?.tableConfig?.qmModel) {
@@ -154,7 +154,7 @@ async function loadToolbarData(start = 0, limit = 50) {
 
   toolbarLoading.value = true
   try {
-    const response = await fetchQueryData(toolbarQueryId.value, {
+    const response = await fetchQueryData('DimProductQueryModel', toolbarQueryId.value, {
       start,
       limit,
       slice: toolbarSlices.value,
@@ -217,7 +217,7 @@ async function initActionsScene() {
       actionsQueryId.value = response.queryId
 
       // 获取元数据
-      actionsMeta.value = await fetchQueryMeta(response.queryId)
+      actionsMeta.value = await fetchQueryMeta('FactOrderQueryModel', response.queryId)
 
       // 获取 schema 并构建列（添加操作列）
       if (actionsMeta.value?.tableConfig?.qmModel) {
@@ -255,7 +255,7 @@ async function loadActionsData(start = 0, limit = 50) {
 
   actionsLoading.value = true
   try {
-    const response = await fetchQueryData(actionsQueryId.value, { start, limit, slice: [], orderBy: [] })
+    const response = await fetchQueryData('FactOrderQueryModel', actionsQueryId.value, { start, limit, slice: [], orderBy: [] })
 
     if (response.success) {
       actionsData.value = response.items
@@ -320,7 +320,7 @@ async function initCombinedScene() {
       combinedQueryId.value = response.queryId
 
       // 获取元数据
-      combinedMeta.value = await fetchQueryMeta(response.queryId)
+      combinedMeta.value = await fetchQueryMeta('FactSalesQueryModel', response.queryId)
 
       // 获取 schema 并构建列
       if (combinedMeta.value?.tableConfig?.qmModel) {
@@ -343,7 +343,7 @@ async function loadCombinedData(start = 0, limit = 50) {
 
   combinedLoading.value = true
   try {
-    const response = await fetchQueryData(combinedQueryId.value, {
+    const response = await fetchQueryData('FactSalesQueryModel', combinedQueryId.value, {
       start,
       limit,
       slice: combinedSlices.value,
@@ -418,7 +418,7 @@ async function initSchemaScene() {
     schemaQueryId.value = response.queryId
 
     // 2. 获取元数据
-    const meta = await fetchQueryMeta(response.queryId)
+    const meta = await fetchQueryMeta('FactSalesQueryModel', response.queryId)
 
     // 3. 获取 Schema 并构建 TableSchema
     if (meta?.tableConfig?.qmModel) {
@@ -438,7 +438,7 @@ async function initSchemaScene() {
       // 4. 创建 fetchData 函数（捕获 queryId）
       const queryId = response.queryId
       schemaModeFetchData.value = async (params: FetchDataParams): Promise<FetchDataResult> => {
-        const dataResponse = await fetchQueryData(queryId, {
+        const dataResponse = await fetchQueryData('FactSalesQueryModel', queryId, {
           start: (params.page - 1) * params.pageSize,
           limit: params.pageSize,
           slice: params.slice,
@@ -459,7 +459,7 @@ async function initSchemaScene() {
   }
 }
 
-// ============ 自定义列表场景 ============
+// ============ 自定义查询场景 ============
 const customListTableRef = ref<DataTableWithSearchRef>()
 const customListSchema = ref<TableSchema | null>(null)
 const customListFetchData = ref<((params: FetchDataParams) => Promise<FetchDataResult>) | null>(null)
@@ -472,7 +472,7 @@ async function initCustomListScene() {
   try {
     const response = await createQuery({
       model: 'FactSalesQueryModel',
-      title: '自定义列表测试 - 销售明细',
+      title: '自定义查询测试 - 销售明细',
       payload: {
         columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'store$caption', 'quantity', 'salesAmount', 'profitAmount'],
         slice: [],
@@ -487,7 +487,7 @@ async function initCustomListScene() {
 
     customListQueryId.value = response.queryId
 
-    const meta = await fetchQueryMeta(response.queryId)
+    const meta = await fetchQueryMeta('FactSalesQueryModel', response.queryId)
 
     if (meta?.tableConfig?.qmModel) {
       const qmSchema = await fetchQmSchema(meta.tableConfig.qmModel)
@@ -504,7 +504,7 @@ async function initCustomListScene() {
 
       const queryId = response.queryId
       customListFetchData.value = async (params: FetchDataParams): Promise<FetchDataResult> => {
-        const dataResponse = await fetchQueryData(queryId, {
+        const dataResponse = await fetchQueryData('FactSalesQueryModel', queryId, {
           start: (params.page - 1) * params.pageSize,
           limit: params.pageSize,
           slice: params.slice,
@@ -521,7 +521,7 @@ async function initCustomListScene() {
       customListInitialized.value = true
     }
   } catch (e) {
-    console.error('初始化自定义列表场景失败:', e)
+    console.error('初始化自定义查询场景失败:', e)
   }
 }
 
@@ -541,9 +541,9 @@ async function initSavedQueryScene() {
       model: 'FactSalesDemoAuthQueryModel',
       title: '保存查询测试 - 销售明细',
       payload: {
-        columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'store$caption', 'quantity', 'salesAmount', 'profitAmount'],
+        columns: ['orderId', 'orderStatus', 'paymentMethod', 'product$caption', 'customer$caption', 'store$caption', 'salesAmount'],
         slice: [],
-        orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+        orderBy: [{ field: 'orderId', order: 'desc' }]
       }
     })
 
@@ -555,7 +555,7 @@ async function initSavedQueryScene() {
     savedQueryQueryId.value = response.queryId
 
     // 获取元数据
-    const meta = await fetchQueryMeta(response.queryId)
+    const meta = await fetchQueryMeta('FactSalesDemoAuthQueryModel', response.queryId)
 
     // 获取 Schema 并构建 TableSchema
     if (meta?.tableConfig?.qmModel) {
@@ -574,7 +574,7 @@ async function initSavedQueryScene() {
       // 创建 fetchData 函数
       const queryId = response.queryId
       savedQueryFetchData.value = async (params: FetchDataParams): Promise<FetchDataResult> => {
-        const dataResponse = await fetchQueryData(queryId, {
+        const dataResponse = await fetchQueryData('FactSalesDemoAuthQueryModel', queryId, {
           start: (params.page - 1) * params.pageSize,
           limit: params.pageSize,
           slice: params.slice,
@@ -689,10 +689,10 @@ function goHome() {
 
         <div class="scene-card highlight" @click="goToScene('custom-list')">
           <div class="scene-icon">🧩</div>
-          <h3>自定义列表（新）</h3>
-          <p>保存列、筛选、排序和默认列表配置</p>
+          <h3>自定义查询（新）</h3>
+          <p>保存列、筛选、排序和默认查询配置</p>
           <ul>
-            <li>保存当前列表视图</li>
+            <li>保存当前查询视图</li>
             <li>编辑和覆盖已有方案</li>
             <li>按用户和业务隔离</li>
             <li>支持默认方案自动加载</li>
@@ -944,16 +944,16 @@ function goHome() {
       </div>
     </div>
 
-    <!-- 自定义列表场景（新功能） -->
+    <!-- 自定义查询场景（新功能） -->
     <div v-else-if="currentScene === 'custom-list'" class="scene-page">
       <div class="scene-header">
         <button class="back-btn" @click="goHome">← 返回首页</button>
-        <h2>自定义列表功能测试（新功能）</h2>
+        <h2>自定义查询功能测试（新功能）</h2>
       </div>
 
       <div class="scene-content">
         <div class="feature-info success">
-          <p><strong>自定义列表：</strong>允许用户保存当前列、筛选条件、排序规则和分页大小，并可设为默认列表</p>
+          <p><strong>自定义查询：</strong>允许用户保存当前列、筛选条件、排序规则和分页大小，并可设为默认查询</p>
         </div>
 
         <div class="code-example">
@@ -970,7 +970,7 @@ function goHome() {
         </div>
 
         <div class="feature-info">
-          <p><strong>操作指南：</strong>调整筛选条件或列状态后点击右上角“自定义列表”，可保存、应用、编辑、覆盖和设置默认方案</p>
+          <p><strong>操作指南：</strong>调整筛选条件或列状态后点击右上角“自定义查询”，可保存、应用、编辑名称与范围、覆盖和设置默认方案</p>
         </div>
 
         <div v-if="customListSchema && customListFetchData" class="table-container combined">
@@ -983,7 +983,7 @@ function goHome() {
               model: 'FactSalesQueryModel',
               businessKey: 'sales-custom-list-demo',
               allowShared: true,
-              buttonText: '自定义列表',
+              buttonText: '自定义查询',
               placement: 'toolbar-right'
             }"
             @load-success="handleLoadSuccess"

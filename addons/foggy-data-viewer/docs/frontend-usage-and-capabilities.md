@@ -75,7 +75,7 @@
 - 自定义列渲染 / 格式化 / 自定义过滤器
 - 查询前后钩子与全局钩子
 - 保存查询 / 加载查询 UI 与 API
-- 自定义列表 / 用户默认列表预设（ListPreset）
+- 自定义查询 / 用户默认列表预设（ListPreset）
 - `tableInstanceId` 默认查询配置与租户 / 角色 / 系统 fallback
 - TM/QM frontend-meta 级 `requiredRuntimeColumns` / `lockedColumns`
 
@@ -429,7 +429,7 @@ async function fetchData(params) {
 - `getMergedFilters()`
 - `clearSearchFilters()` / `clearTableFilters()` / `clearAllFilters()`
 - `tableInstanceId` 默认查询配置加载
-- `listPreset` 用户自定义列表与默认列表加载
+- `listPreset` 用户自定义查询与默认列表预设加载
 
 ### 6.4 `DataViewer`：和后端 viewer API 绑定的高层组件
 
@@ -632,7 +632,7 @@ saved-query 要真正可用，后端还需要：
 
 ---
 
-## 10. `tableInstanceId` 默认查询配置与自定义列表
+## 10. `tableInstanceId` 默认查询配置与自定义查询
 
 这是 `foggy-data-viewer@1.0.1-beta.40` 开始可用的业务表格默认配置能力，适合“同一个 QM 在多个页面复用，但每个页面有不同默认列、默认排序、默认分页大小”的场景。
 
@@ -729,7 +729,7 @@ foggy:
 运行时语义：
 
 - `requiredRuntimeColumns` 只追加到 `fetchData(params).columns`，不会作为普通列展示。
-- `lockedColumns` 会在应用自定义列表后补回展示，避免关键列被用户预设隐藏。
+- `lockedColumns` 会在应用自定义查询后补回展示，避免关键列被用户预设隐藏。
 - `visibleColumns` 是默认展示列，可以被用户默认 ListPreset 覆盖。
 
 ### 10.5 自定义查询管理器交互

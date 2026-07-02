@@ -1,4 +1,4 @@
-import { expect, type Page, type Route, test } from '@playwright/test'
+import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 
 interface PresetRecord {
   id: string
@@ -26,44 +26,44 @@ interface MockBackendState {
   dataRequests: Array<Record<string, unknown>>
 }
 
-test('custom list preset can be saved, applied, set as default, deleted, and restored after reload', async ({ page }) => {
+test('custom query preset can be saved, applied, set as default, deleted, and restored after reload', async ({ page }) => {
   const backend = await installMockBackend(page)
 
   await page.goto('/')
-  await page.getByText('自定义列表（新）').click()
+  await page.getByText('自定义查询（新）').click()
 
-  await expect(page.getByRole('heading', { name: '自定义列表功能测试（新功能）' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '自定义查询功能测试（新功能）' })).toBeVisible()
   await expect(page.getByTestId('list-preset-open')).toBeVisible()
 
   await page.getByTestId('list-preset-open').click()
   const dialog = page.getByTestId('list-preset-dialog')
   await expect(dialog).toBeVisible()
 
-  await dialog.getByTestId('list-preset-title').locator('input').fill('P2 默认列表')
+  await fillPresetTitle(dialog, 'P2 默认查询')
   await page.getByTestId('list-preset-save').click()
-  await expectLatestMessage(page, '自定义列表已保存')
+  await expectLatestMessage(page, '自定义查询已保存')
 
-  const defaultItem = dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 默认列表' })
+  const defaultItem = dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 默认查询' })
   await expect(defaultItem).toBeVisible()
   await defaultItem.getByTestId('list-preset-more').click()
   await page.getByRole('menuitem', { name: /设为默认/ }).click()
-  await expectLatestMessage(page, '默认列表已更新')
+  await expectLatestMessage(page, '默认查询已更新')
   await expect(defaultItem).toContainText('默认')
 
   await defaultItem.getByTestId('list-preset-apply').click()
-  await expectLatestMessage(page, '已应用: P2 默认列表')
+  await expectLatestMessage(page, '已应用: P2 默认查询')
 
   await page.getByTestId('list-preset-open').click()
-  await dialog.getByTestId('list-preset-title').locator('input').fill('P2 临时列表')
+  await fillPresetTitle(dialog, 'P2 临时查询')
   await page.getByTestId('list-preset-save').click()
-  await expectLatestMessage(page, '自定义列表已保存')
+  await expectLatestMessage(page, '自定义查询已保存')
 
-  const temporaryItem = dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 临时列表' })
+  const temporaryItem = dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 临时查询' })
   await expect(temporaryItem).toBeVisible()
   await temporaryItem.getByTestId('list-preset-more').click()
   await page.getByRole('menuitem', { name: /删除/ }).click()
   await page.getByRole('button', { name: '删除' }).click()
-  await expectLatestMessage(page, '自定义列表已删除')
+  await expectLatestMessage(page, '自定义查询已删除')
   await expect(temporaryItem).toHaveCount(0)
 
   const eventCountBeforeReload = backend.events.length
@@ -71,7 +71,7 @@ test('custom list preset can be saved, applied, set as default, deleted, and res
   const dataAfterReload = page.waitForResponse(response =>
     response.url().includes('/data-viewer/api/query/') && response.url().endsWith('/data')
   )
-  await page.getByText('自定义列表（新）').click()
+  await page.getByText('自定义查询（新）').click()
   await dataAfterReload
 
   const reloadEvents = backend.events.slice(eventCountBeforeReload)
@@ -81,9 +81,14 @@ test('custom list preset can be saved, applied, set as default, deleted, and res
   expect(dataIndex).toBeGreaterThan(defaultIndex)
 
   await page.getByTestId('list-preset-open').click()
-  await expect(dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 默认列表' })).toContainText('默认')
+  await expect(dialog.getByTestId('list-preset-item').filter({ hasText: 'P2 默认查询' })).toContainText('默认')
   expect(backend.dataRequests.length).toBeGreaterThan(0)
 })
+
+async function fillPresetTitle(dialog: Locator, title: string) {
+  await dialog.getByTestId('list-preset-save-tab').click()
+  await dialog.getByTestId('list-preset-title').locator('input').fill(title)
+}
 
 async function installMockBackend(page: Page): Promise<MockBackendState> {
   const presets: PresetRecord[] = []
@@ -241,7 +246,7 @@ async function handleListPresetRoute(
   if (method === 'PUT' && presetId) {
     const index = presets.findIndex(preset => preset.id === presetId && preset.ownerId === userId)
     if (index < 0) {
-      await route.fulfill({ status: 404, json: { code: 404, msg: '自定义列表不存在', data: null } })
+      await route.fulfill({ status: 404, json: { code: 404, msg: '自定义查询不存在', data: null } })
       return
     }
     const body = request.postDataJSON() as Partial<PresetRecord>
@@ -262,7 +267,7 @@ async function handleListPresetRoute(
   if (method === 'POST' && path.endsWith('/default') && presetId) {
     const preset = presets.find(item => item.id === presetId && item.ownerId === userId)
     if (!preset) {
-      await route.fulfill({ status: 404, json: { code: 404, msg: '自定义列表不存在', data: null } })
+      await route.fulfill({ status: 404, json: { code: 404, msg: '自定义查询不存在', data: null } })
       return
     }
     clearDefault(presets, preset)
@@ -275,7 +280,7 @@ async function handleListPresetRoute(
   if (method === 'DELETE' && presetId) {
     const index = presets.findIndex(preset => preset.id === presetId && preset.ownerId === userId)
     if (index < 0) {
-      await route.fulfill({ status: 404, json: { code: 404, msg: '自定义列表不存在', data: null } })
+      await route.fulfill({ status: 404, json: { code: 404, msg: '自定义查询不存在', data: null } })
       return
     }
     presets.splice(index, 1)

@@ -19,7 +19,8 @@
       v-model="visible"
       class="list-preset-dialog"
       title="自定义查询"
-      width="1180px"
+      width="min(1180px, calc(100vw - 32px))"
+      top="4vh"
       :close-on-click-modal="false"
       @open="loadPresets"
     >
@@ -46,7 +47,7 @@
             <span v-if="defaultPreset">默认：{{ defaultPreset.title }}</span>
           </div>
 
-          <el-scrollbar height="520px">
+          <el-scrollbar class="preset-scroll">
             <div v-if="loading" class="preset-state">
               <el-icon class="is-loading"><Loading /></el-icon>
               <span>加载中</span>
@@ -86,7 +87,7 @@
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item @click="startEditPreset(preset)">
-                        编辑信息
+                        编辑名称与范围
                       </el-dropdown-item>
                       <el-dropdown-item @click="overwritePreset(preset)">
                         覆盖当前
@@ -138,7 +139,7 @@
             <el-button size="small" @click="clearOptionalColumns">取消可选</el-button>
           </div>
 
-          <el-scrollbar height="470px">
+          <el-scrollbar class="field-scroll">
             <div class="field-list">
               <article
                 v-for="column in filteredColumnDraft"
@@ -182,11 +183,11 @@
             <el-radio-group v-model="inspectorTab" size="small">
               <el-radio-button label="columns">字段</el-radio-button>
               <el-radio-button label="query">条件</el-radio-button>
-              <el-radio-button label="save">保存</el-radio-button>
+              <el-radio-button data-testid="list-preset-save-tab" label="save">保存</el-radio-button>
             </el-radio-group>
           </div>
 
-          <el-scrollbar height="450px" class="inspector-body">
+          <el-scrollbar class="inspector-body">
             <div v-if="inspectorTab === 'columns'" class="selected-list">
               <el-empty v-if="visibleColumnDraft.length === 0" description="暂无选中字段" />
               <article
@@ -931,7 +932,8 @@ defineExpose({
 .preset-layout {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr) 340px;
-  min-height: 600px;
+  height: min(640px, calc(100vh - 190px));
+  min-height: min(520px, calc(100vh - 190px));
   border: 1px solid #e4e7ed;
   border-radius: 6px;
   overflow: hidden;
@@ -940,7 +942,22 @@ defineExpose({
 .preset-list-section,
 .field-pool-section,
 .inspector-section {
+  display: grid;
   min-width: 0;
+  min-height: 0;
+}
+
+.preset-list-section {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.field-pool-section {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.preset-scroll,
+.field-scroll,
+.inspector-body {
   min-height: 0;
 }
 
@@ -1311,5 +1328,29 @@ defineExpose({
 
 .danger-item {
   color: #f56c6c;
+}
+
+@media (max-width: 1100px) {
+  .preset-layout {
+    grid-template-columns: 220px minmax(0, 1fr) 320px;
+  }
+
+  .field-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .preset-layout {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 160px);
+    overflow: auto;
+  }
+
+  .preset-list-section,
+  .field-pool-section {
+    border-right: 0;
+    border-bottom: 1px solid #e4e7ed;
+  }
 }
 </style>

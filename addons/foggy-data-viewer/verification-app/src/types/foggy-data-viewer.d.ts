@@ -180,10 +180,8 @@ declare module 'foggy-data-viewer' {
 
   export function buildTableColumns(schema: ColumnSchema[], config?: TableConfig): EnhancedColumnSchema[]
   export function createQuery(request: CreateQueryRequest): Promise<CreateQueryResponse>
-  export function fetchQueryMeta(queryId: string): Promise<QueryMetaResponse>
   export function fetchQueryMeta(model: string, queryId: string): Promise<QueryMetaResponse>
   export function fetchQmSchema(model: string): Promise<ColumnSchema[]>
-  export function fetchQueryData(queryId: string, request: ViewerQueryRequest): Promise<ViewerDataResponse>
   export function fetchQueryData(model: string, queryId: string, request: ViewerQueryRequest): Promise<ViewerDataResponse>
 }
 
