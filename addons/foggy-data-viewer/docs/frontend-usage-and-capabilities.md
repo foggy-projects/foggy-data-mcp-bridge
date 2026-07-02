@@ -4,7 +4,7 @@
 
 `addons/foggy-data-viewer` 不是单纯的前端组件目录，而是一套完整的数据浏览方案，包含：
 
-- 一个 Spring Boot addon，用来缓存查询、暴露 viewer API、托管静态页面、提供 saved-query API。
+- 一个 Spring Boot addon，用来缓存查询、暴露 viewer API、托管静态页面、提供 saved-query / list-preset / table-defaults API。
 - 一个可单独发布/复用的 Vue 3 组件库，目录在 `addons/foggy-data-viewer/frontend`。
 - 一个面向 MCP / DSL 的“打开到浏览器”能力，后端工具名是 `dataset.open_in_viewer`。
 
@@ -75,6 +75,9 @@
 - 自定义列渲染 / 格式化 / 自定义过滤器
 - 查询前后钩子与全局钩子
 - 保存查询 / 加载查询 UI 与 API
+- 自定义列表 / 用户默认列表预设（ListPreset）
+- `tableInstanceId` 默认查询配置与租户 / 角色 / 系统 fallback
+- TM/QM frontend-meta 级 `requiredRuntimeColumns` / `lockedColumns`
 
 ### 3.4 支持的过滤器类型
 
@@ -173,6 +176,8 @@
 - 工具：`buildTableColumns`、`calculateColumnWidth`
 - API：`createQuery`、`fetchQueryMeta`、`fetchQueryData`、`fetchFilterOptions`、`fetchQmSchema`
 - saved-query API：`saveQuery`、`listSavedQueries`、`getSavedQuery`、`updateSavedQuery`、`deleteSavedQuery`、`applySavedQuery`
+- list-preset API：`listPresets`、`getDefaultListPreset`、`createListPreset`、`updateListPreset`、`deleteListPreset`、`setDefaultListPreset`
+- table-defaults API：`getTableDefaultQueryConfig`
 - hooks：`useTableQuery`、`globalQueryHooks`
 
 ### 安装和注册
@@ -423,6 +428,8 @@ async function fetchData(params) {
 - `refresh()` / `reload()`
 - `getMergedFilters()`
 - `clearSearchFilters()` / `clearTableFilters()` / `clearAllFilters()`
+- `tableInstanceId` 默认查询配置加载
+- `listPreset` 用户自定义列表与默认列表加载
 
 ### 6.4 `DataViewer`：和后端 viewer API 绑定的高层组件
 
@@ -625,7 +632,117 @@ saved-query 要真正可用，后端还需要：
 
 ---
 
-## 10. Query Hooks 能做什么
+## 10. `tableInstanceId` 默认查询配置与自定义列表
+
+这是 `foggy-data-viewer@1.0.1-beta.40` 开始可用的业务表格默认配置能力，适合“同一个 QM 在多个页面复用，但每个页面有不同默认列、默认排序、默认分页大小”的场景。
+
+### 10.1 上游接入时必须明确的标识
+
+| 字段 | 是否必需 | 说明 |
+|---|---|---|
+| `queryModel` / `qmModel` | 必需 | QM 模型名，用于定位 schema、fallback 配置和列表预设 |
+| `tableInstanceId` | 必需 | 稳定且唯一的表格实例 ID，用于区分同一 QM 下的不同页面或业务查询 |
+| `userId` | 必需 | 用户默认 ListPreset 的命名空间；不是数据权限边界 |
+| `tenantId` | 可选 | 用于租户级 fallback |
+| `roleIds` | 可选 | 用于角色级 fallback，按传入顺序匹配 |
+
+最终优先级是：
+
+1. 用户默认 ListPreset。
+2. 租户级 fallback。
+3. 角色级 fallback。
+4. 系统级 fallback。
+
+用户默认 ListPreset 如果没有 pageSize，会继承 fallback 的 pageSize。
+
+### 10.2 前端组件接法
+
+`DataTableWithSearch` 在 `schema + fetchData` 模式下可以自动加载默认配置：
+
+```vue
+<DataTableWithSearch
+  :schema="{ ...tableSchema, qmModel: 'TicketQueryModel', tableInstanceId: 'ticket-list' }"
+  :fetch-data="fetchTickets"
+  :default-query-config-scope="{
+    queryModel: 'TicketQueryModel',
+    userId: currentUser.id,
+    tenantId: currentTenant.id,
+    roleIds: currentRoleIds
+  }"
+  :list-preset="{
+    enabled: true,
+    model: 'TicketQueryModel',
+    userId: currentUser.id,
+    tableInstanceId: 'ticket-list',
+    autoLoadDefault: true
+  }"
+/>
+```
+
+如果使用 `foggy-gen` 生成的 QueryTable wrapper，升级后重新生成即可拿到 `tableInstanceId`、`defaultQueryConfigScope`、`defaultQueryConfigLoader`、`listPreset` 等透传能力。
+
+### 10.3 后端 fallback 配置
+
+后端 fallback 只负责默认展示列、默认排序、默认分页大小、默认筛选条件，不负责运行时必需列或锁定列。
+
+```yaml
+foggy:
+  data-viewer:
+    table-defaults:
+      system:
+        ticket-list:
+          query-model: TicketQueryModel
+          table-instance-id: ticket-list
+          default-visible-columns: [ticketNo, title, status, createdAt]
+          default-page-size: 50
+          default-order-by:
+            - field: createdAt
+              dir: desc
+      tenants:
+        tenant-a:
+          ticket-list:
+            query-model: TicketQueryModel
+            table-instance-id: ticket-list
+            default-visible-columns: [ticketNo, title, assignee, status]
+```
+
+对应查询接口：
+
+- `GET /data-viewer/api/table-defaults/default?queryModel=TicketQueryModel&tableInstanceId=ticket-list&userId=u001`
+
+### 10.4 TM/QM frontend-meta 归属
+
+`requiredRuntimeColumns` 和 `lockedColumns` 必须落在 TM/QM 产出的 frontend-meta / `TableSchema`，不要放到 table-defaults fallback 中。
+
+```json
+{
+  "defaults": {
+    "tableInstanceId": "ticket-list",
+    "visibleColumns": ["ticketNo", "title", "status", "createdAt"],
+    "requiredRuntimeColumns": ["id", "tenantId"],
+    "lockedColumns": ["ticketNo"],
+    "pageSize": 50
+  }
+}
+```
+
+运行时语义：
+
+- `requiredRuntimeColumns` 只追加到 `fetchData(params).columns`，不会作为普通列展示。
+- `lockedColumns` 会在应用自定义列表后补回展示，避免关键列被用户预设隐藏。
+- `visibleColumns` 是默认展示列，可以被用户默认 ListPreset 覆盖。
+
+### 10.5 验收检查点
+
+- 首次加载请求 `/data-viewer/api/table-defaults/default`，并带上 `queryModel`、`tableInstanceId`、`userId`。
+- `fetchData(params)` 能收到 `tableInstanceId`。
+- `params.columns` 包含展示列 + `lockedColumns` + `requiredRuntimeColumns`。
+- 用户保存默认 ListPreset 后刷新，优先使用用户默认配置。
+- 没有用户默认 ListPreset 时，能按租户、角色、系统 fallback 继续加载默认配置。
+
+---
+
+## 11. Query Hooks 能做什么
 
 `DataTableWithSearch` / `useTableQuery` 支持三类 hook：
 
@@ -673,7 +790,7 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 ---
 
-## 11. 后端接口总览
+## 12. 后端接口总览
 
 ### viewer 相关
 
@@ -682,6 +799,11 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 - `POST /data-viewer/api/query/create`
 - `GET /data-viewer/api/schema/{qmModel}`
 - `GET /data-viewer/api/schema/download/{qmModel}`
+- `GET /data-viewer/api/frontend-meta/{qmModel}`
+- `GET /data-viewer/api/frontend-meta/download/{qmModel}`
+- `POST /data-viewer/api/members/query`
+- `GET /data-viewer/api/query/{model}/{queryId}/filter-options/{columnName}`
+- `POST /data-viewer/api/query/direct/{qmModel}`
 
 ### 页面相关
 
@@ -697,13 +819,30 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 - `DELETE /data-viewer/api/saved-query/{id}`
 - `POST /data-viewer/api/saved-query/{id}/apply`
 
+### list-preset 相关
+
+- `GET /data-viewer/api/list-preset/users/{userId}/models/{model}`
+- `GET /data-viewer/api/list-preset/users/{userId}/models/{model}/default`
+- `POST /data-viewer/api/list-preset/users/{userId}/models/{model}`
+- `GET /data-viewer/api/list-preset/users/{userId}/presets/{id}`
+- `PUT /data-viewer/api/list-preset/users/{userId}/presets/{id}`
+- `DELETE /data-viewer/api/list-preset/users/{userId}/presets/{id}`
+- `POST /data-viewer/api/list-preset/users/{userId}/presets/{id}/default`
+- `DELETE /data-viewer/api/list-preset/users/{userId}/models/{model}/default`
+
+这些接口通过 query 参数 `businessKey` 接收 `tableInstanceId` 的旧兼容隔离字段。
+
+### table-defaults 相关
+
+- `GET /data-viewer/api/table-defaults/default`
+
 ---
 
-## 12. 使用时必须注意的几个实现事实
+## 13. 使用时必须注意的几个实现事实
 
 下面这些点是我按当前源码确认出来的，和旧文档相比更可靠。
 
-### 12.1 `buildTableColumns` 当前默认会显示全部列
+### 13.1 `buildTableColumns` 当前默认会显示全部列
 
 `frontend/src/utils/schemaHelper.ts` 当前逻辑是：
 
@@ -712,7 +851,7 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 也就是说，当前实现不是“必须显式传 `visibleColumns`”，而是“未传时默认 show all”。
 
-### 12.2 `enableSavedQuery` prop 目前只是声明，没有自动渲染 saved-query UI
+### 13.2 `enableSavedQuery` prop 目前只是声明，没有自动渲染 saved-query UI
 
 `DataTableWithSearch.vue` 里有 `enableSavedQuery?: boolean`，但当前组件模板没有依据这个 prop 自动挂出 `SavedQueryManager`。
 
@@ -721,7 +860,7 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 - 显式在页面上渲染 `SavedQueryManager`
 - 通过 `tableRef` 与 `DataTableWithSearch` 协作
 
-### 12.3 `businessId` 目前只在前端类型里出现，后端实现尚未真正落地
+### 13.3 `businessId` 目前只在前端类型里出现，后端实现尚未真正落地
 
 前端 `savedQuery.ts` 和若干文档里提到了 `businessId`，但当前后端源码中的：
 
@@ -733,25 +872,25 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 因此当前版本里，不能把 `businessId` 当成已经生效的后端隔离能力。
 
-### 12.4 维度过滤选项的后端接口，前端已经预留，但当前控制器里没有对应实现
+### 13.4 维度过滤选项已有 queryId 模式接口
 
 前端 API 里有：
 
 - `fetchFilterOptions(model, queryId, columnName)`
 
-目标路径是：
+对应后端路径是：
 
 - `GET /data-viewer/api/query/{model}/{queryId}/filter-options/{columnName}`
 
-但当前 `ViewerApiController` 代码中没有看到这个 endpoint 的实现。
+当前 `ViewerApiController` 已实现这个 endpoint。接口会先校验 `queryId` 缓存，再从缓存的 `tableConfig.qmModel` 或路径 `model` 推导 QM，最后委托 `MemberQueryService` 查询维度成员。
 
 这意味着：
 
-- 如果你要用 `dimension` 类型的动态选项加载
-- 需要你自己传 `filterOptionsLoader`
-- 或者在后端补齐这个接口
+- queryId viewer 模式下可以直接使用该接口。
+- 直连查询或生成组件不走 queryId 时，可以优先使用 `/data-viewer/api/members/query` 或自定义 `filterOptionsLoader`。
+- 接口异常时会返回空 options，避免前端过滤器直接报错。
 
-### 12.5 saved-query 的“应用查询”目前重点是恢复筛选与排序，列变更要看父层怎么处理
+### 13.5 saved-query 的“应用查询”目前重点是恢复筛选与排序，列变更要看父层怎么处理
 
 `DataTableWithSearch` 暴露了：
 
@@ -764,7 +903,7 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 ---
 
-## 13. 对前端团队的实际建议
+## 14. 对前端团队的实际建议
 
 ### 如果你想最快上线
 
@@ -789,7 +928,7 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 ---
 
-## 14. 一个推荐的落地组合
+## 15. 一个推荐的落地组合
 
 对业务前端来说，比较稳的组合是：
 
@@ -799,9 +938,9 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 4. 查询数据统一走 `/data-viewer/api/query/{model}/{queryId}/data`。
 5. 权限附加条件统一放到 `queryHooks` 或 `globalQueryHooks`。
 6. saved-query 在引入前先确认后端是否真的配好 `SecurityIdentityResolver`，并注意 `businessId` 当前未真正落地。
+7. 多页面复用同一 QM 时，给每张业务表格配置稳定的 `tableInstanceId`，并把 `requiredRuntimeColumns` / `lockedColumns` 放到 TM/QM frontend-meta。
 
 如果后续要继续完善这个 addon，优先建议补的点是：
 
-- 补齐 `filter-options` 后端接口
 - 让 `businessId` 在后端 domain / repository / service / controller 全链路生效
 - 明确 `enableSavedQuery` 的真实行为，要么删掉，要么做成真正自动挂载
