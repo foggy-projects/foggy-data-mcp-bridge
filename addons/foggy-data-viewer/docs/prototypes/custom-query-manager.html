@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>自定义查询原型</title>
+  <style>
+    :root {
+      --bg: #f4f5f2;
+      --panel: #ffffff;
+      --panel-soft: #f8f9f6;
+      --line: #d9ded6;
+      --line-strong: #b7c0b2;
+      --text: #273027;
+      --muted: #6c766b;
+      --weak: #929b8f;
+      --green: #2f8d5b;
+      --green-soft: #e7f3ec;
+      --red: #bd4b42;
+      --red-soft: #f8e8e6;
+      --amber: #be842d;
+      --amber-soft: #f8efdc;
+      --blue: #336b8f;
+      --blue-soft: #e5eff4;
+      --shadow: 0 18px 60px rgba(39, 48, 39, 0.18);
+      --radius: 6px;
+      font-family: "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(0deg, rgba(47, 141, 91, 0.06), rgba(47, 141, 91, 0.06)),
+        var(--bg);
+      font-size: 14px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 16px 18px 24px;
+    }
+
+    .table-shell {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: 0 8px 28px rgba(39, 48, 39, 0.08);
+    }
+
+    .search-strip,
+    .action-strip,
+    .header-row,
+    .filter-row,
+    .data-row {
+      display: grid;
+      grid-template-columns: 140px 150px 140px 140px 140px 150px 150px 150px;
+      min-width: 1160px;
+    }
+
+    .search-strip {
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+
+    .search-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .search-cell label {
+      flex-shrink: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .input,
+    .select {
+      width: 100%;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 9px;
+      outline: none;
+    }
+
+    .input:focus,
+    .select:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 2px rgba(47, 141, 91, 0.12);
+    }
+
+    .action-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 1160px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .checkline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .checkbox {
+      display: inline-grid;
+      place-items: center;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--line-strong);
+      border-radius: 3px;
+      background: #fff;
+      color: #fff;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .checkbox.on {
+      border-color: var(--green);
+      background: var(--green);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 30px;
+      min-width: 30px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      border-color: var(--line-strong);
+      background: var(--panel-soft);
+    }
+
+    .btn.primary {
+      border-color: var(--green);
+      background: var(--green);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      background: #25784c;
+    }
+
+    .btn.ghost {
+      background: transparent;
+    }
+
+    .btn.warning {
+      border-color: #e2c991;
+      background: var(--amber-soft);
+      color: #8b5f1e;
+    }
+
+    .btn.clear {
+      border-color: #e2b9b5;
+      background: var(--red-soft);
+      color: #9a382f;
+    }
+
+    .btn.icon-only {
+      width: 30px;
+      padding: 0;
+    }
+
+    .icon {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .table-scroll {
+      overflow: auto;
+      max-height: calc(100vh - 188px);
+    }
+
+    .header-row {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #eef1ed;
+      border-bottom: 1px solid var(--line);
+      color: #3e493d;
+      font-weight: 600;
+    }
+
+    .filter-row {
+      position: sticky;
+      top: 35px;
+      z-index: 1;
+      background: #f7f8f5;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .cell {
+      min-width: 0;
+      height: 35px;
+      border-right: 1px solid var(--line);
+      padding: 7px 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .filter-row .cell {
+      height: 40px;
+      padding: 5px 7px;
+    }
+
+    .data-row {
+      border-bottom: 1px solid #ecefeb;
+    }
+
+    .data-row:nth-child(even) {
+      background: #fbfcfa;
+    }
+
+    .sort-mark {
+      float: right;
+      color: var(--weak);
+      font-size: 11px;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(21, 24, 21, 0.48);
+    }
+
+    .dialog {
+      width: min(1280px, calc(100vw - 48px));
+      height: min(860px, calc(100vh - 48px));
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .dialog-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .title-block {
+      min-width: 0;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.3;
+      font-weight: 650;
+    }
+
+    .title-block p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .head-summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      padding: 0 9px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pill.green {
+      border-color: #b7dbc6;
+      background: var(--green-soft);
+      color: #226b43;
+    }
+
+    .pill.amber {
+      border-color: #e2c991;
+      background: var(--amber-soft);
+      color: #8b5f1e;
+    }
+
+    .toolbar-tabs {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+
+    .tabs {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .tab {
+      height: 30px;
+      min-width: 92px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0 12px;
+    }
+
+    .tab:last-child {
+      border-right: 0;
+    }
+
+    .tab.active {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .dialog-body {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr) 330px;
+      min-height: 0;
+      background: #fff;
+    }
+
+    .rail,
+    .field-center,
+    .inspector {
+      min-height: 0;
+    }
+
+    .rail {
+      border-right: 1px solid var(--line);
+      background: #f8f9f6;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .rail-head {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .rail-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-weight: 650;
+    }
+
+    .group-list {
+      overflow: auto;
+      padding: 8px;
+    }
+
+    .group-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text);
+      padding: 7px 9px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .group-item:hover {
+      background: #fff;
+      border-color: var(--line);
+    }
+
+    .group-item.active {
+      border-color: #b7dbc6;
+      background: var(--green-soft);
+      color: #226b43;
+    }
+
+    .group-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .group-count {
+      color: var(--weak);
+      font-size: 12px;
+    }
+
+    .field-center {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      border-right: 1px solid var(--line);
+    }
+
+    .field-tools {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto;
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .search-wrap {
+      position: relative;
+    }
+
+    .search-wrap .input {
+      height: 34px;
+      padding-left: 32px;
+    }
+
+    .search-wrap .icon {
+      position: absolute;
+      left: 10px;
+      top: 9px;
+      color: var(--weak);
+    }
+
+    .field-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .field-list-wrap {
+      min-height: 0;
+      overflow: auto;
+      padding: 12px 14px 18px;
+    }
+
+    .field-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(280px, 1fr));
+      gap: 8px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      min-height: 52px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      padding: 8px 9px;
+      cursor: pointer;
+    }
+
+    .field-row:hover {
+      border-color: var(--line-strong);
+      background: #fbfcfa;
+    }
+
+    .field-row.selected {
+      border-color: #b7dbc6;
+      background: var(--green-soft);
+    }
+
+    .field-row.locked {
+      background: #fffaf0;
+      border-color: #e2c991;
+    }
+
+    .field-main {
+      min-width: 0;
+    }
+
+    .field-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .field-title span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .field-code {
+      margin-top: 3px;
+      color: var(--weak);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 19px;
+      border-radius: 3px;
+      background: #eef1ed;
+      color: var(--muted);
+      padding: 0 5px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .tag.lock {
+      background: var(--amber-soft);
+      color: #8b5f1e;
+    }
+
+    .tag.runtime {
+      background: var(--blue-soft);
+      color: #275773;
+    }
+
+    .inspector {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      background: #fbfcfa;
+    }
+
+    .inspector-head {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .inspector-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 650;
+    }
+
+    .inspector-body {
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .selected-list,
+    .condition-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .selected-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 7px;
+      align-items: center;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      padding: 7px 8px;
+    }
+
+    .drag {
+      color: var(--weak);
+      cursor: grab;
+    }
+
+    .selected-name {
+      min-width: 0;
+    }
+
+    .selected-name b,
+    .condition-title b {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    .selected-name span,
+    .condition-title span {
+      color: var(--weak);
+      font-size: 12px;
+    }
+
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .mini-btn {
+      display: inline-grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .mini-btn:hover {
+      border-color: var(--line-strong);
+      color: var(--text);
+    }
+
+    .mini-btn.danger:hover {
+      border-color: #dca29d;
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .condition-row {
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      padding: 9px;
+    }
+
+    .condition-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .condition-grid {
+      display: grid;
+      grid-template-columns: 82px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .condition-grid label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .condition-grid .input,
+    .condition-grid .select {
+      height: 28px;
+    }
+
+    .save-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .form-line {
+      display: grid;
+      gap: 5px;
+    }
+
+    .form-line label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    textarea.input {
+      height: 64px;
+      resize: vertical;
+      padding-top: 8px;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      padding: 0 9px;
+    }
+
+    .switch {
+      width: 34px;
+      height: 18px;
+      border-radius: 999px;
+      background: #c8cec4;
+      padding: 2px;
+    }
+
+    .switch::before {
+      content: "";
+      display: block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      transform: translateX(0);
+      transition: transform 0.14s ease;
+    }
+
+    .switch.on {
+      background: var(--green);
+    }
+
+    .switch.on::before {
+      transform: translateX(16px);
+    }
+
+    .inspector-foot {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .summary-cell {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--panel-soft);
+      padding: 7px;
+      text-align: center;
+    }
+
+    .summary-cell strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.1;
+    }
+
+    .summary-cell span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .dialog-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .foot-left,
+    .foot-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      min-width: 220px;
+      border: 1px solid #b7dbc6;
+      border-radius: 6px;
+      background: #f3fbf6;
+      color: #226b43;
+      box-shadow: 0 10px 30px rgba(39, 48, 39, 0.16);
+      padding: 10px 12px;
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .empty {
+      display: grid;
+      place-items: center;
+      min-height: 220px;
+      border: 1px dashed var(--line);
+      border-radius: 5px;
+      color: var(--weak);
+      background: #fff;
+    }
+
+    @media (max-width: 1050px) {
+      .dialog-body {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      .inspector {
+        display: none;
+      }
+
+      .field-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute">
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M7 21h10"/><path d="M17.5 5.5 22 10l-9.5 9.5H7L2 14.5 11.5 5a4.2 4.2 0 0 1 6 0z"/><path d="m7 10 7 7"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.3 6.4"/><path d="M3 12A9 9 0 0 1 18.3 5.6"/><path d="M18 2v4h-4"/><path d="M6 22v-4h4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-top" viewBox="0 0 24 24"><path d="M5 4h14"/><path d="m18 16-6-6-6 6"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-bottom" viewBox="0 0 24 24"><path d="M5 20h14"/><path d="m6 8 6 6 6-6"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></symbol>
+  </svg>
+
+  <main class="app">
+    <section class="table-shell">
+      <div class="search-strip">
+        <div class="search-cell"><label>支付方式</label><input class="input" /></div>
+        <div class="search-cell"><label>收货人</label><input class="input" /></div>
+        <div class="search-cell"><label>收货人电话</label><input class="input" /></div>
+        <div class="search-cell"><label>揽收时间</label><input class="input" value="开始 - 终止" /></div>
+        <div class="search-cell"><label>站点到车</label><input class="input" /></div>
+      </div>
+      <div class="action-strip">
+        <div class="action-group">
+          <button class="btn">预设打印</button>
+          <span class="checkline"><span class="checkbox on">✓</span>打印存根联</span>
+          <span class="checkline"><span class="checkbox on">✓</span>打印客户联</span>
+        </div>
+        <div class="action-group">
+          <button class="btn">回补打印单</button>
+          <button class="btn primary" id="openDialog"><svg class="icon"><use href="#i-list"/></svg>自定义查询</button>
+          <button class="btn clear" id="clearToolbar" title="清空查询条件"><svg class="icon"><use href="#i-eraser"/></svg>清空条件</button>
+          <button class="btn"><svg class="icon"><use href="#i-filter"/></svg></button>
+          <button class="btn">导出</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <div class="header-row">
+          <div class="cell">运单号 <span class="sort-mark">◆</span></div>
+          <div class="cell">支付方式 <span class="sort-mark">◆</span></div>
+          <div class="cell">送货方式 <span class="sort-mark">◆</span></div>
+          <div class="cell">开单网点 <span class="sort-mark">◆</span></div>
+          <div class="cell">运达网点 <span class="sort-mark">◆</span></div>
+          <div class="cell">发货人 <span class="sort-mark">◆</span></div>
+          <div class="cell">发货人电话 <span class="sort-mark">◆</span></div>
+          <div class="cell">收货人 <span class="sort-mark">◆</span></div>
+        </div>
+        <div class="filter-row">
+          <div class="cell"><input class="input" value="2023-" /></div>
+          <div class="cell"><input class="input" /></div>
+          <div class="cell"><input class="input" /></div>
+          <div class="cell"><input class="input" /></div>
+          <div class="cell"><input class="input" /></div>
+          <div class="cell"><input class="input" value="测试" /></div>
+          <div class="cell"><input class="input" /></div>
+          <div class="cell"><input class="input" /></div>
+        </div>
+        <div id="rows"></div>
+      </div>
+    </section>
+  </main>
+
+  <section class="overlay" id="overlay">
+    <div class="dialog">
+      <header class="dialog-head">
+        <div class="title-block">
+          <h1>新建自定义查询</h1>
+          <p>运单列表 / waybill-list / WaybillQueryModel</p>
+        </div>
+        <div class="head-summary">
+          <span class="pill green">已选字段 <b id="selectedCountHead">0</b></span>
+          <span class="pill amber">查询条件 <b id="conditionCountHead">0</b></span>
+          <span class="pill">总字段 <b id="totalCountHead">0</b></span>
+          <button class="btn icon-only" id="closeDialog"><svg class="icon"><use href="#i-x"/></svg></button>
+        </div>
+      </header>
+
+      <div class="toolbar-tabs">
+        <div class="tabs" aria-label="编辑区">
+          <button class="tab active" data-tab="fields">字段</button>
+          <button class="tab" data-tab="conditions">条件</button>
+          <button class="tab" data-tab="save">保存</button>
+        </div>
+        <div class="action-group">
+          <button class="btn ghost" id="restoreDefault"><svg class="icon"><use href="#i-refresh"/></svg>恢复默认</button>
+          <button class="btn clear" id="clearModalConditions"><svg class="icon"><use href="#i-eraser"/></svg>清空条件</button>
+          <button class="btn primary" id="quickAdd"><svg class="icon"><use href="#i-plus"/></svg>加入已选</button>
+        </div>
+      </div>
+
+      <div class="dialog-body">
+        <aside class="rail">
+          <div class="rail-head">
+            <div class="rail-title">
+              <span>字段分组</span>
+              <span class="pill" id="visibleCount">0</span>
+            </div>
+            <select class="select" id="categoryMode">
+              <option value="business">业务分组</option>
+              <option value="type">字段类型</option>
+            </select>
+          </div>
+          <div class="group-list" id="groupList"></div>
+        </aside>
+
+        <section class="field-center" id="fieldPane">
+          <div class="field-tools">
+            <div class="search-wrap">
+              <svg class="icon"><use href="#i-search"/></svg>
+              <input class="input" id="fieldSearch" placeholder="搜索字段名、编码、分组，例如 收货人 / consignee / 站点" />
+            </div>
+            <div class="field-actions">
+              <button class="btn" id="selectVisible">选中当前页</button>
+              <button class="btn" id="clearVisible">取消当前页</button>
+            </div>
+          </div>
+          <div class="field-list-wrap">
+            <div class="field-list" id="fieldList"></div>
+          </div>
+        </section>
+
+        <aside class="inspector">
+          <div class="inspector-head">
+            <div class="inspector-title">
+              <span id="inspectorTitle">已选字段</span>
+              <button class="btn warning" id="saveAsDefault">设为默认</button>
+            </div>
+          </div>
+          <div class="inspector-body" id="inspectorBody"></div>
+          <div class="inspector-foot">
+            <div class="summary-grid">
+              <div class="summary-cell"><strong id="selectedCount">0</strong><span>展示列</span></div>
+              <div class="summary-cell"><strong id="conditionCount">0</strong><span>条件</span></div>
+              <div class="summary-cell"><strong>50</strong><span>分页</span></div>
+            </div>
+            <button class="btn primary"><svg class="icon"><use href="#i-save"/></svg>保存当前方案</button>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="dialog-foot">
+        <div class="foot-left">
+          <span class="pill">运行时列 id / tenantId 自动带出</span>
+          <span class="pill amber">锁定列不可移除</span>
+        </div>
+        <div class="foot-right">
+          <button class="btn" id="cancel">取消</button>
+          <button class="btn">仅应用</button>
+          <button class="btn primary">保存并应用</button>
+        </div>
+      </footer>
+    </div>
+  </section>
+
+  <div class="toast" id="toast">已清空查询条件</div>
+
+  <script>
+    const groups = [
+      { name: '核心单据', code: 'core', count: 54 },
+      { name: '客户与联系人', code: 'customer', count: 44 },
+      { name: '站点与线路', code: 'route', count: 68 },
+      { name: '揽收与发运', code: 'shipping', count: 48 },
+      { name: '费用与结算', code: 'finance', count: 38 },
+      { name: '回单与签收', code: 'receipt', count: 32 },
+      { name: '异常与状态', code: 'status', count: 36 },
+      { name: '系统字段', code: 'system', count: 28 }
+    ];
+
+    const seedFields = [
+      ['运单号', 'waybillNo', '核心单据', 'TEXT', true, false],
+      ['客户单号', 'customerOrderNo', '核心单据', 'TEXT', false, false],
+      ['运单状态', 'waybillStatus', '异常与状态', 'DICT', true, false],
+      ['揽收时间', 'pickupTime', '揽收与发运', 'DATETIME', false, false],
+      ['支付方式', 'paymentMethod', '费用与结算', 'DICT', false, false],
+      ['送货方式', 'deliveryMethod', '揽收与发运', 'DICT', false, false],
+      ['开单网点', 'billingStation', '站点与线路', 'DIMENSION', false, false],
+      ['运达网点', 'arrivalStation', '站点与线路', 'DIMENSION', false, false],
+      ['目的地', 'destinationName', '站点与线路', 'TEXT', false, false],
+      ['发货人', 'senderName', '客户与联系人', 'TEXT', false, false],
+      ['发货人电话', 'senderPhone', '客户与联系人', 'TEXT', false, false],
+      ['收货人', 'receiverName', '客户与联系人', 'TEXT', false, false],
+      ['收货人电话', 'receiverPhone', '客户与联系人', 'TEXT', false, false],
+      ['是否有回单', 'hasReceipt', '回单与签收', 'BOOL', false, false],
+      ['回单数量', 'receiptCount', '回单与签收', 'NUMBER', false, false],
+      ['是否送达', 'isArrived', '异常与状态', 'BOOL', false, false],
+      ['id', 'id', '系统字段', 'TEXT', false, true],
+      ['租户ID', 'tenantId', '系统字段', 'TEXT', false, true]
+    ];
+
+    const selectedOrder = [
+      'waybillNo', 'customerOrderNo', 'waybillStatus', 'pickupTime', 'paymentMethod', 'deliveryMethod',
+      'billingStation', 'arrivalStation', 'destinationName', 'senderName', 'senderPhone', 'receiverName', 'receiverPhone'
+    ];
+    const selectedNames = new Set(selectedOrder);
+    const lockedNames = new Set(['waybillNo']);
+    const runtimeNames = new Set(['id', 'tenantId']);
+
+    const extraNames = ['省份', '城市', '区县', '详细地址', '经度', '纬度', '线路经理', '司机', '车牌号', '货物名称', '包装', '体积', '重量', '件数', '保价金额', '代收货款', '优惠金额', '结算网点', '发票抬头', '备注', '创建人', '更新人', '审核人', '取消原因'];
+    const fields = [...seedFields.map(([title, name, group, type, locked, runtime]) => ({ title, name, group, type, locked, runtime }))];
+    groups.forEach((group, gIndex) => {
+      for (let i = 1; i <= group.count; i += 1) {
+        const label = extraNames[(i + gIndex) % extraNames.length];
+        const type = ['TEXT', 'DICT', 'DATETIME', 'NUMBER', 'BOOL', 'DIMENSION'][(i + gIndex) % 6];
+        fields.push({
+          title: `${label}${i}`,
+          name: `${group.code}${String(i).padStart(3, '0')}`,
+          group: group.name,
+          type,
+          locked: false,
+          runtime: false
+        });
+      }
+    });
+
+    let activeGroup = '全部字段';
+    let activeTab = 'fields';
+    let conditions = [
+      { field: 'waybillNo', title: '运单号', op: '包含', value: '2023-' },
+      { field: 'waybillStatus', title: '运单状态', op: '等于', value: '已发运' },
+      { field: 'pickupTime', title: '揽收时间', op: '最近', value: '一个月内' },
+      { field: 'paymentMethod', title: '支付方式', op: '属于', value: '到付, 月结' }
+    ];
+
+    const rows = document.getElementById('rows');
+    for (let i = 0; i < 36; i += 1) {
+      const row = document.createElement('div');
+      row.className = 'data-row';
+      row.innerHTML = `
+        <div class="cell">20231220${String(i + 1).padStart(4, '0')}</div>
+        <div class="cell">${i % 3 === 0 ? '到付' : '月结'}</div>
+        <div class="cell">${i % 2 === 0 ? '自提' : '送货上门'}</div>
+        <div class="cell">城阳政府</div>
+        <div class="cell">崂山政府</div>
+        <div class="cell">测试</div>
+        <div class="cell">15552751103</div>
+        <div class="cell">收货客户${i + 1}</div>
+      `;
+      rows.appendChild(row);
+    }
+
+    function icon(name) {
+      return `<svg class="icon"><use href="#${name}"/></svg>`;
+    }
+
+    function getFilteredFields() {
+      const keyword = document.getElementById('fieldSearch').value.trim().toLowerCase();
+      return fields.filter(field => {
+        const groupMatched = activeGroup === '全部字段' || field.group === activeGroup;
+        const keywordMatched = !keyword ||
+          field.title.toLowerCase().includes(keyword) ||
+          field.name.toLowerCase().includes(keyword) ||
+          field.group.toLowerCase().includes(keyword) ||
+          field.type.toLowerCase().includes(keyword);
+        return groupMatched && keywordMatched;
+      });
+    }
+
+    function renderGroups() {
+      const groupList = document.getElementById('groupList');
+      const options = [{ name: '全部字段', count: fields.length }, ...groups.map(group => ({
+        name: group.name,
+        count: fields.filter(field => field.group === group.name).length
+      }))];
+      groupList.innerHTML = options.map(group => `
+        <button class="group-item ${activeGroup === group.name ? 'active' : ''}" data-group="${group.name}">
+          <span class="group-name">${group.name}</span>
+          <span class="group-count">${group.count}</span>
+        </button>
+      `).join('');
+      groupList.querySelectorAll('.group-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeGroup = btn.dataset.group;
+          render();
+        });
+      });
+    }
+
+    function renderFields() {
+      const visible = getFilteredFields();
+      document.getElementById('visibleCount').textContent = visible.length;
+      const fieldList = document.getElementById('fieldList');
+      if (visible.length === 0) {
+        fieldList.innerHTML = '<div class="empty">没有匹配字段</div>';
+        return;
+      }
+      fieldList.innerHTML = visible.map(field => {
+        const selected = selectedNames.has(field.name);
+        const locked = lockedNames.has(field.name) || field.locked;
+        const runtime = runtimeNames.has(field.name) || field.runtime;
+        return `
+          <article class="field-row ${selected ? 'selected' : ''} ${locked ? 'locked' : ''}" data-name="${field.name}">
+            <span class="checkbox ${selected ? 'on' : ''}">${selected ? '✓' : ''}</span>
+            <div class="field-main">
+              <div class="field-title">
+                <span>${field.title}</span>
+                ${locked ? '<span class="tag lock">锁定</span>' : ''}
+                ${runtime ? '<span class="tag runtime">运行时</span>' : ''}
+                <span class="tag">${field.type}</span>
+              </div>
+              <div class="field-code">${field.name} / ${field.group}</div>
+            </div>
+            ${runtime ? icon('i-lock') : ''}
+          </article>
+        `;
+      }).join('');
+
+      fieldList.querySelectorAll('.field-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const name = row.dataset.name;
+          if (runtimeNames.has(name)) {
+            showToast('运行时字段不会展示，只在查询时自动带出');
+            return;
+          }
+          if (selectedNames.has(name) && lockedNames.has(name)) {
+            showToast('锁定列不可移除');
+            return;
+          }
+          if (selectedNames.has(name)) {
+            selectedNames.delete(name);
+            const orderIndex = selectedOrder.indexOf(name);
+            if (orderIndex >= 0) selectedOrder.splice(orderIndex, 1);
+          } else {
+            selectedNames.add(name);
+            selectedOrder.push(name);
+          }
+          render();
+        });
+      });
+    }
+
+    function selectedFields() {
+      const byName = new Map(fields.map(field => [field.name, field]));
+      const ordered = selectedOrder
+        .filter(name => selectedNames.has(name) && !runtimeNames.has(name))
+        .map(name => byName.get(name))
+        .filter(Boolean);
+      const orderedNames = new Set(ordered.map(field => field.name));
+      const newlySelected = fields.filter(field =>
+        selectedNames.has(field.name) &&
+        !runtimeNames.has(field.name) &&
+        !orderedNames.has(field.name)
+      );
+      return [...ordered, ...newlySelected];
+    }
+
+    function moveSelectedField(index, action) {
+      const selected = selectedFields();
+      const field = selected[index];
+      if (!field) return;
+      const names = selected.map(item => item.name);
+      const [current] = names.splice(index, 1);
+      if (action === 'top') names.unshift(current);
+      if (action === 'up') names.splice(Math.max(0, index - 1), 0, current);
+      if (action === 'down') names.splice(Math.min(names.length, index + 1), 0, current);
+      if (action === 'bottom') names.push(current);
+      selectedOrder.splice(0, selectedOrder.length, ...names);
+      render();
+    }
+
+    function renderInspector() {
+      const title = document.getElementById('inspectorTitle');
+      const body = document.getElementById('inspectorBody');
+      if (activeTab === 'conditions') {
+        title.textContent = '查询条件';
+        body.innerHTML = `
+          <div class="condition-list">
+            ${conditions.length === 0 ? '<div class="empty">暂无查询条件</div>' : conditions.map((condition, index) => `
+              <article class="condition-row">
+                <div class="condition-top">
+                  <div class="condition-title"><b>${condition.title}</b><span>${condition.field}</span></div>
+                  <button class="mini-btn danger" data-remove-condition="${index}">${icon('i-trash')}</button>
+                </div>
+                <div class="condition-grid">
+                  <label>操作符</label>
+                  <select class="select"><option>${condition.op}</option><option>等于</option><option>包含</option><option>最近</option><option>区间</option></select>
+                  <label>默认值</label>
+                  <input class="input" value="${condition.value}" />
+                </div>
+              </article>
+            `).join('')}
+          </div>
+        `;
+        body.querySelectorAll('[data-remove-condition]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            conditions.splice(Number(btn.dataset.removeCondition), 1);
+            render();
+          });
+        });
+        return;
+      }
+
+      if (activeTab === 'save') {
+        title.textContent = '保存设置';
+        body.innerHTML = `
+          <div class="save-panel">
+            <div class="form-line">
+              <label>名称</label>
+              <input class="input" value="运单日常跟进" />
+            </div>
+            <div class="form-line">
+              <label>描述</label>
+              <textarea class="input">含常用联系人、站点、揽收时间和运单状态。</textarea>
+            </div>
+            <div class="switch-row"><span>设为默认查询</span><span class="switch on"></span></div>
+            <div class="switch-row"><span>保存筛选条件</span><span class="switch on"></span></div>
+            <div class="switch-row"><span>保存排序</span><span class="switch on"></span></div>
+            <div class="switch-row"><span>保存分页大小</span><span class="switch on"></span></div>
+            <div class="form-line">
+              <label>可见范围</label>
+              <select class="select"><option>仅自己使用</option><option>本网点使用</option><option>租户内共享</option></select>
+            </div>
+          </div>
+        `;
+        body.querySelectorAll('.switch').forEach(item => item.addEventListener('click', () => item.classList.toggle('on')));
+        return;
+      }
+
+      title.textContent = '已选字段';
+      const selected = selectedFields();
+      body.innerHTML = `
+        <div class="selected-list">
+          ${selected.map((field, index) => {
+            const locked = lockedNames.has(field.name);
+            return `
+              <article class="selected-row">
+                <span class="drag">⋮⋮</span>
+                <div class="selected-name">
+                  <b>${field.title}${locked ? ' <span class="tag lock">锁定</span>' : ''}</b>
+                  <span>${field.name}</span>
+                </div>
+                <div class="row-actions">
+                  <button class="mini-btn" data-move-top="${index}" title="移到顶部">${icon('i-top')}</button>
+                  <button class="mini-btn" data-move-up="${index}">${icon('i-up')}</button>
+                  <button class="mini-btn" data-move-down="${index}">${icon('i-down')}</button>
+                  <button class="mini-btn" data-move-bottom="${index}" title="移到底部">${icon('i-bottom')}</button>
+                  <button class="mini-btn danger" data-remove="${field.name}">${icon(locked ? 'i-lock' : 'i-trash')}</button>
+                </div>
+              </article>
+            `;
+          }).join('')}
+        </div>
+      `;
+      body.querySelectorAll('[data-move-top]').forEach(btn => {
+        btn.addEventListener('click', () => moveSelectedField(Number(btn.dataset.moveTop), 'top'));
+      });
+      body.querySelectorAll('[data-move-up]').forEach(btn => {
+        btn.addEventListener('click', () => moveSelectedField(Number(btn.dataset.moveUp), 'up'));
+      });
+      body.querySelectorAll('[data-move-down]').forEach(btn => {
+        btn.addEventListener('click', () => moveSelectedField(Number(btn.dataset.moveDown), 'down'));
+      });
+      body.querySelectorAll('[data-move-bottom]').forEach(btn => {
+        btn.addEventListener('click', () => moveSelectedField(Number(btn.dataset.moveBottom), 'bottom'));
+      });
+      body.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const name = btn.dataset.remove;
+          if (lockedNames.has(name)) {
+            showToast('锁定列不可移除');
+            return;
+          }
+          selectedNames.delete(name);
+          const orderIndex = selectedOrder.indexOf(name);
+          if (orderIndex >= 0) selectedOrder.splice(orderIndex, 1);
+          render();
+        });
+      });
+    }
+
+    function renderCounts() {
+      const selected = selectedFields().length;
+      document.getElementById('selectedCount').textContent = selected;
+      document.getElementById('selectedCountHead').textContent = selected;
+      document.getElementById('conditionCount').textContent = conditions.length;
+      document.getElementById('conditionCountHead').textContent = conditions.length;
+      document.getElementById('totalCountHead').textContent = fields.length;
+    }
+
+    function render() {
+      renderGroups();
+      renderFields();
+      renderInspector();
+      renderCounts();
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === activeTab));
+    }
+
+    function clearConditions(source) {
+      conditions = [];
+      document.querySelectorAll('.filter-row .input').forEach(input => { input.value = ''; });
+      render();
+      showToast(source === 'toolbar' ? '已清空表格查询条件' : '已清空方案中的查询条件');
+    }
+
+    function showToast(text) {
+      const toast = document.getElementById('toast');
+      toast.textContent = text;
+      toast.classList.add('show');
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    document.getElementById('fieldSearch').addEventListener('input', render);
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        activeTab = tab.dataset.tab;
+        render();
+      });
+    });
+    document.getElementById('selectVisible').addEventListener('click', () => {
+      getFilteredFields().forEach(field => {
+        if (!runtimeNames.has(field.name)) selectedNames.add(field.name);
+      });
+      render();
+    });
+    document.getElementById('clearVisible').addEventListener('click', () => {
+      getFilteredFields().forEach(field => {
+        if (!lockedNames.has(field.name)) selectedNames.delete(field.name);
+      });
+      render();
+    });
+    document.getElementById('quickAdd').addEventListener('click', () => {
+      getFilteredFields().slice(0, 12).forEach(field => {
+        if (!runtimeNames.has(field.name)) selectedNames.add(field.name);
+      });
+      render();
+      showToast('已加入当前匹配字段');
+    });
+    document.getElementById('clearToolbar').addEventListener('click', () => clearConditions('toolbar'));
+    document.getElementById('clearModalConditions').addEventListener('click', () => clearConditions('modal'));
+    document.getElementById('restoreDefault').addEventListener('click', () => showToast('已恢复系统默认字段'));
+    document.getElementById('saveAsDefault').addEventListener('click', () => showToast('已标记为默认方案'));
+    document.getElementById('openDialog').addEventListener('click', () => document.getElementById('overlay').style.display = 'grid');
+    document.getElementById('closeDialog').addEventListener('click', () => document.getElementById('overlay').style.display = 'none');
+    document.getElementById('cancel').addEventListener('click', () => document.getElementById('overlay').style.display = 'none');
+
+    render();
+  </script>
+</body>
+</html>

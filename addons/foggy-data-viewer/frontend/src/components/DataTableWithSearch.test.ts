@@ -90,7 +90,16 @@ vi.mock('./list-preset/ListPresetManager.vue', () => ({
   default: {
     name: 'ListPresetManager',
     template: '<div class="list-preset-manager-mock" />',
-    props: ['config', 'getState', 'applyState', 'availableColumns', 'reload']
+    props: [
+      'config',
+      'getState',
+      'applyState',
+      'availableColumns',
+      'lockedColumns',
+      'requiredRuntimeColumns',
+      'reload',
+      'clearConditions'
+    ]
   }
 }))
 

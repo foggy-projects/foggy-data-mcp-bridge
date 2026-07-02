@@ -732,13 +732,31 @@ foggy:
 - `lockedColumns` 会在应用自定义列表后补回展示，避免关键列被用户预设隐藏。
 - `visibleColumns` 是默认展示列，可以被用户默认 ListPreset 覆盖。
 
-### 10.5 验收检查点
+### 10.5 自定义查询管理器交互
+
+`ListPresetManager` 已内置在 `DataTableWithSearch` 的工具栏里。开启 `listPreset` 后，用户可以在同一个弹窗里完成：
+
+- 搜索字段池，按字段类型过滤，适配数百字段的复杂模型。
+- 勾选展示列，调整列宽、左/右固定。
+- 在已选字段区执行上移、下移、移到顶部、移到底部。
+- 保存当前筛选、排序、分页大小，也可以选择不保存筛选和排序。
+- 将方案设为默认；再次进入同一 `tableInstanceId` 时优先加载用户默认方案。
+- 通过工具栏“清空条件”清掉当前筛选条件；该动作保留当前列方案和排序。
+
+`requiredRuntimeColumns` 会在管理器中作为运行时字段处理，不会保存为普通展示列。`lockedColumns` 会固定为可见，用户不能从方案里移除。
+
+原型文件：
+
+- `addons/foggy-data-viewer/docs/prototypes/custom-query-manager.html`
+
+### 10.6 验收检查点
 
 - 首次加载请求 `/data-viewer/api/table-defaults/default`，并带上 `queryModel`、`tableInstanceId`、`userId`。
 - `fetchData(params)` 能收到 `tableInstanceId`。
 - `params.columns` 包含展示列 + `lockedColumns` + `requiredRuntimeColumns`。
 - 用户保存默认 ListPreset 后刷新，优先使用用户默认配置。
 - 没有用户默认 ListPreset 时，能按租户、角色、系统 fallback 继续加载默认配置。
+- 清空条件后，当前筛选为空，列配置和排序保持不变。
 
 ---
 

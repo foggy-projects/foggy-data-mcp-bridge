@@ -569,6 +569,7 @@ const dataTableRef = ref<DataTableExpose>()
 const searchSlices = ref<SliceRequestDef[]>([])
 const tableSlices = ref<SliceRequestDef[]>([])
 const queryPanelSlices = ref<SliceRequestDef[]>([])
+const suppressFilterEventHandling = ref(false)
 
 // 合并后的筛选条件（QueryPanel + SearchToolbar + DataTable header filters）
 const mergedSlices = computed(() => {
@@ -836,11 +837,13 @@ function handleQueryPanelChange(slices: SliceRequestDef[]) {
 }
 
 function handleQueryPanelSearch() {
+  if (suppressFilterEventHandling.value) return
   handleFilterChange({ source: 'query-panel', trigger: 'search' })
 }
 
 function handleQueryPanelReset() {
   queryPanelSlices.value = []
+  if (suppressFilterEventHandling.value) return
   handleFilterChange({ source: 'query-panel', trigger: 'reset' })
 }
 
@@ -856,7 +859,7 @@ function resetQueryPanel() {
 function handleSearchChange(slices: SliceRequestDef[]) {
   searchSlices.value = slices
   // 如果隐藏了搜索按钮，则实时触发筛选
-  if (!props.showSearchActions) {
+  if (!props.showSearchActions && !suppressFilterEventHandling.value) {
     handleFilterChange({ source: 'search-toolbar', trigger: 'filter' })
   }
 }
@@ -864,6 +867,7 @@ function handleSearchChange(slices: SliceRequestDef[]) {
 // 处理搜索按钮点击
 function handleSearch() {
   emit('search', searchSlices.value)
+  if (suppressFilterEventHandling.value) return
   handleFilterChange({ source: 'search-toolbar', trigger: 'search' })
 }
 
@@ -871,18 +875,21 @@ function handleSearch() {
 function handleReset() {
   searchSlices.value = []
   emit('reset')
+  if (suppressFilterEventHandling.value) return
   handleFilterChange({ source: 'search-toolbar', trigger: 'reset' })
 }
 
 // 处理表头筛选变化
 function handleTableFilterChange(slices: SliceRequestDef[]) {
   tableSlices.value = slices
+  if (suppressFilterEventHandling.value) return
   emit('filter-change', mergedSlices.value)
 }
 
 // 处理表头筛选提交
 function handleTableFilterCommit(slices: SliceRequestDef[]) {
   tableSlices.value = slices
+  if (suppressFilterEventHandling.value) return
   emit('filter-commit', mergedSlices.value)
   handleFilterChange({ source: 'column-filter', trigger: 'filter' })
 }
@@ -986,10 +993,48 @@ function resetListViewState(options: { reload?: boolean } = {}) {
   }
 }
 
+function clearAllFilterState(options: { suppressControlEvents?: boolean } = {}) {
+  searchSlices.value = []
+  tableSlices.value = []
+  queryPanelSlices.value = []
+  if (activeListViewState.value) {
+    activeListViewState.value = {
+      ...activeListViewState.value,
+      slice: []
+    }
+  }
+  const clearControls = () => {
+    resetQueryPanel()
+    searchToolbarRef.value?.clearFilters()
+    dataTableRef.value?.clearFilters()
+  }
+
+  if (!options.suppressControlEvents) {
+    clearControls()
+    return
+  }
+
+  suppressFilterEventHandling.value = true
+  try {
+    clearControls()
+  } finally {
+    suppressFilterEventHandling.value = false
+  }
+}
+
 async function reloadAfterListPresetApply() {
   if (isSchemaMode.value) {
     query.currentPage.value = 1
     await loadData('reload', { source: 'api', trigger: 'reload' })
+  }
+}
+
+async function clearListPresetConditions() {
+  clearAllFilterState({ suppressControlEvents: true })
+  emit('filter-change', mergedSlices.value)
+  if (isSchemaMode.value) {
+    query.currentPage.value = 1
+    await loadData('filter', { source: 'api', trigger: 'filter' })
   }
 }
 
@@ -1092,12 +1137,7 @@ defineExpose({
   /** 重置 QueryPanel 并刷新筛选 */
   resetQueryPanel,
   /** 清空所有筛选 */
-  clearAllFilters: () => {
-    queryPanelSlices.value = []
-    resetQueryPanel()
-    searchToolbarRef.value?.clearFilters()
-    dataTableRef.value?.clearFilters()
-  },
+  clearAllFilters: clearAllFilterState,
   /** 获取合并后的筛选条件 */
   getMergedFilters: () => mergedSlices.value,
   /** 重置分页 */
@@ -1200,7 +1240,10 @@ defineExpose({
             :get-state="getListViewState"
             :apply-state="applyListViewState"
             :available-columns="baseColumns"
+            :locked-columns="lockedColumnNames"
+            :required-runtime-columns="activeRequiredRuntimeColumns"
             :reload="reloadAfterListPresetApply"
+            :clear-conditions="clearListPresetConditions"
           />
         </template>
         <template v-if="$slots['toolbar-right'] || (shouldRenderListPresetManager && normalizedListPresetConfig?.placement === 'toolbar-right')" #toolbar-right>
@@ -1211,7 +1254,10 @@ defineExpose({
             :get-state="getListViewState"
             :apply-state="applyListViewState"
             :available-columns="baseColumns"
+            :locked-columns="lockedColumnNames"
+            :required-runtime-columns="activeRequiredRuntimeColumns"
             :reload="reloadAfterListPresetApply"
+            :clear-conditions="clearListPresetConditions"
           />
         </template>
         <template v-if="$slots.footer" #footer>

@@ -10,13 +10,21 @@ import {
 } from '@/api/listPreset'
 
 vi.mock('@element-plus/icons-vue', () => ({
+  ArrowDown: {},
+  ArrowUp: {},
+  Bottom: {},
+  Brush: {},
   Delete: {},
+  Finished: {},
   Loading: {},
+  Lock: {},
   MoreFilled: {},
   Operation: {},
+  Rank: {},
   Refresh: {},
   Search: {},
-  Star: {}
+  Star: {},
+  Top: {}
 }))
 
 vi.mock('element-plus', () => ({
@@ -40,6 +48,7 @@ vi.mock('@/api/listPreset', () => ({
 
 type ExposedManager = {
   applyPreset: (preset: ListPresetDef) => Promise<void>
+  clearCurrentConditions: () => Promise<void>
   getColumnDraft: () => Array<{
     name: string
     visible: boolean
@@ -55,6 +64,8 @@ type ExposedManager = {
   }
   getPresets: () => ListPresetDef[]
   loadPresets: () => Promise<void>
+  moveVisibleColumn: (index: number, direction: -1 | 1) => void
+  moveVisibleColumnToEdge: (index: number, edge: 'top' | 'bottom') => void
   overwritePreset: (preset: ListPresetDef) => Promise<void>
   saveCurrentPreset: () => Promise<void>
   setDraft: (draft: Partial<ReturnType<ExposedManager['getDraft']>>) => void
@@ -107,7 +118,10 @@ function mountManager(options: {
   getState?: () => ListViewState
   applyState?: (state: ListViewState) => void
   reload?: () => Promise<void>
+  clearConditions?: () => Promise<void>
   availableColumns?: EnhancedColumnSchema[]
+  lockedColumns?: string[]
+  requiredRuntimeColumns?: string[]
 } = {}) {
   const wrapper = shallowMount(ListPresetManager, {
     props: {
@@ -115,7 +129,10 @@ function mountManager(options: {
       getState: options.getState || (() => currentState),
       applyState: options.applyState || vi.fn(),
       reload: options.reload,
-      availableColumns: options.availableColumns
+      clearConditions: options.clearConditions,
+      availableColumns: options.availableColumns,
+      lockedColumns: options.lockedColumns,
+      requiredRuntimeColumns: options.requiredRuntimeColumns
     },
     global: {
       stubs: [
@@ -135,10 +152,12 @@ function mountManager(options: {
         'el-input-number',
         'el-option',
         'el-radio',
+        'el-radio-button',
         'el-radio-group',
         'el-select',
         'el-scrollbar',
-        'el-tag'
+        'el-tag',
+        'el-tooltip'
       ]
     }
   })
@@ -241,6 +260,94 @@ describe('ListPresetManager', () => {
         orderBy: []
       }
     }))
+  })
+
+  it('moves selected columns to the top and bottom', () => {
+    const manager = mountManager({
+      getState: () => ({
+        columns: ['orderNo', 'status', 'customerName', 'amount'],
+        columnSettings: [
+          { name: 'orderNo', visible: true, order: 0 },
+          { name: 'status', visible: true, order: 1 },
+          { name: 'customerName', visible: true, order: 2 },
+          { name: 'amount', visible: true, order: 3 }
+        ],
+        slice: [],
+        orderBy: []
+      })
+    })
+
+    manager.syncColumnDraftFromState()
+    manager.moveVisibleColumnToEdge(2, 'top')
+
+    expect(manager.getColumnDraft().map(column => column.name)).toEqual([
+      'customerName',
+      'orderNo',
+      'status',
+      'amount'
+    ])
+
+    manager.moveVisibleColumnToEdge(0, 'bottom')
+
+    expect(manager.getColumnDraft().map(column => column.name)).toEqual([
+      'orderNo',
+      'status',
+      'amount',
+      'customerName'
+    ])
+  })
+
+  it('keeps locked columns visible and excludes runtime columns from saved presets', async () => {
+    const saved = makePreset({ columns: ['orderNo'] })
+    vi.mocked(createListPreset).mockResolvedValue(saved)
+
+    const manager = mountManager({
+      getState: () => ({
+        columns: ['orderNo', 'status', 'runtimeToken'],
+        columnSettings: [
+          { name: 'orderNo', visible: true, order: 0 },
+          { name: 'status', visible: true, order: 1 },
+          { name: 'runtimeToken', visible: true, order: 2 }
+        ],
+        slice: [],
+        orderBy: []
+      }),
+      availableColumns: [
+        { name: 'orderNo', title: '订单号', type: 'TEXT' },
+        { name: 'status', title: '状态', type: 'TEXT' },
+        { name: 'runtimeToken', title: '运行时令牌', type: 'TEXT' }
+      ],
+      lockedColumns: ['orderNo'],
+      requiredRuntimeColumns: ['runtimeToken']
+    })
+
+    manager.syncColumnDraftFromState()
+    manager.getColumnDraft().forEach(column => {
+      column.visible = false
+    })
+    manager.setDraft({ title: '锁定列视图' })
+
+    await manager.saveCurrentPreset()
+
+    expect(createListPreset).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      columns: ['orderNo'],
+      columnSettings: [
+        expect.objectContaining({ name: 'orderNo', visible: true, order: 0 }),
+        expect.objectContaining({ name: 'status', visible: false, order: 1 })
+      ]
+    }))
+    const request = vi.mocked(createListPreset).mock.calls[0]?.[1]
+    expect(request?.columnSettings?.some(setting => setting.name === 'runtimeToken')).toBe(false)
+  })
+
+  it('calls the clear conditions callback', async () => {
+    const clearConditions = vi.fn().mockResolvedValue(undefined)
+    const manager = mountManager({ clearConditions })
+
+    await manager.clearCurrentConditions()
+
+    expect(clearConditions).toHaveBeenCalled()
+    expect(ElMessage.success).toHaveBeenCalledWith('已清空查询条件')
   })
 
   it('prevents saving when all columns are hidden', async () => {
