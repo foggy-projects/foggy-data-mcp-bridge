@@ -8,11 +8,12 @@
         data-testid="list-preset-clear-conditions"
         size="small"
         :icon="Brush"
+        circle
+        title="清空查询条件"
+        aria-label="清空查询条件"
         :loading="clearing"
         @click="clearCurrentConditions"
-      >
-        清空条件
-      </el-button>
+      />
     </el-tooltip>
 
     <el-dialog

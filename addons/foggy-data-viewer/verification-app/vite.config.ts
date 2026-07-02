@@ -17,7 +17,10 @@ export default defineConfig({
     proxy: {
       '/data-viewer/api': {
         target: 'http://localhost:7108',
-        changeOrigin: true
+        changeOrigin: true,
+        headers: {
+          Authorization: 'Bearer manager-token-123'
+        }
       }
     }
   }

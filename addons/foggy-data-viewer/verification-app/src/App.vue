@@ -1043,6 +1043,14 @@ function goHome() {
   :schema="schema"
   :fetch-data="fetchData"
   enable-saved-query
+  :list-preset="{
+    userId: 'user_manager_001',
+    model: 'FactSalesDemoAuthQueryModel',
+    businessKey: 'sales-report-2024',
+    allowShared: true,
+    buttonText: '自定义查询',
+    placement: 'toolbar-right'
+  }"
 /&gt;</code></pre>
         </div>
 
@@ -1069,6 +1077,14 @@ function goHome() {
             :schema="savedQuerySchema"
             :fetch-data="savedQueryFetchData"
             enable-saved-query
+            :list-preset="{
+              userId: 'user_manager_001',
+              model: 'FactSalesDemoAuthQueryModel',
+              businessKey: 'sales-report-2024',
+              allowShared: true,
+              buttonText: '自定义查询',
+              placement: 'toolbar-right'
+            }"
             @load-success="handleLoadSuccess"
             @load-error="handleLoadError"
           >

@@ -123,7 +123,44 @@ function mountManager(options: {
   lockedColumns?: string[]
   requiredRuntimeColumns?: string[]
 } = {}) {
-  const wrapper = shallowMount(ListPresetManager, {
+  const wrapper = mountManagerWrapper(options)
+  return wrapper.vm as unknown as ExposedManager
+}
+
+function mountManagerWrapper(options: {
+  getState?: () => ListViewState
+  applyState?: (state: ListViewState) => void
+  reload?: () => Promise<void>
+  clearConditions?: () => Promise<void>
+  availableColumns?: EnhancedColumnSchema[]
+  lockedColumns?: string[]
+  requiredRuntimeColumns?: string[]
+} = {}) {
+  const componentStubs = Object.fromEntries([
+    'el-button',
+    'el-checkbox',
+    'el-descriptions',
+    'el-descriptions-item',
+    'el-dialog',
+    'el-dropdown',
+    'el-dropdown-item',
+    'el-dropdown-menu',
+    'el-empty',
+    'el-form',
+    'el-form-item',
+    'el-icon',
+    'el-input',
+    'el-input-number',
+    'el-option',
+    'el-radio',
+    'el-radio-button',
+    'el-radio-group',
+    'el-select',
+    'el-scrollbar',
+    'el-tag'
+  ].map(name => [name, true]))
+
+  return shallowMount(ListPresetManager, {
     props: {
       config,
       getState: options.getState || (() => currentState),
@@ -135,33 +172,14 @@ function mountManager(options: {
       requiredRuntimeColumns: options.requiredRuntimeColumns
     },
     global: {
-      stubs: [
-        'el-button',
-        'el-checkbox',
-        'el-descriptions',
-        'el-descriptions-item',
-        'el-dialog',
-        'el-dropdown',
-        'el-dropdown-item',
-        'el-dropdown-menu',
-        'el-empty',
-        'el-form',
-        'el-form-item',
-        'el-icon',
-        'el-input',
-        'el-input-number',
-        'el-option',
-        'el-radio',
-        'el-radio-button',
-        'el-radio-group',
-        'el-select',
-        'el-scrollbar',
-        'el-tag',
-        'el-tooltip'
-      ]
+      stubs: {
+        ...componentStubs,
+        'el-tooltip': {
+          template: '<div><slot /></div>'
+        }
+      }
     }
   })
-  return wrapper.vm as unknown as ExposedManager
 }
 
 describe('ListPresetManager', () => {
@@ -348,6 +366,17 @@ describe('ListPresetManager', () => {
 
     expect(clearConditions).toHaveBeenCalled()
     expect(ElMessage.success).toHaveBeenCalledWith('已清空查询条件')
+  })
+
+  it('renders clear conditions as an icon-only compact button', () => {
+    const wrapper = mountManagerWrapper({ clearConditions: vi.fn() })
+    const clearButton = wrapper.find('[data-testid="list-preset-clear-conditions"]')
+
+    expect(clearButton.exists()).toBe(true)
+    expect(clearButton.text()).toBe('')
+    expect(clearButton.attributes()).toHaveProperty('circle')
+    expect(clearButton.attributes('title')).toBe('清空查询条件')
+    expect(clearButton.attributes('aria-label')).toBe('清空查询条件')
   })
 
   it('prevents saving when all columns are hidden', async () => {
