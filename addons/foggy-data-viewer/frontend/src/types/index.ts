@@ -157,6 +157,27 @@ export interface CellRenderContext {
 
 export type CellRenderFn = (params: CellRenderContext) => unknown
 
+export interface GlobalColumnRenderContext extends CellRenderContext {
+  columns: EnhancedColumnSchema[]
+  tableSchema?: TableSchema
+  qmModel?: string
+}
+
+export type GlobalColumnMatchFn = (ctx: GlobalColumnRenderContext) => boolean
+export type GlobalColumnRenderFn = (ctx: GlobalColumnRenderContext) => unknown
+
+export interface GlobalColumnRenderer {
+  id: string
+  priority?: number
+  match?: GlobalColumnMatchFn
+  render: GlobalColumnRenderFn
+}
+
+export interface GlobalColumnRenderResolution {
+  renderer: GlobalColumnRenderer
+  value: unknown
+}
+
 /**
  * 增强的列配置（合并 QM schema 和前端定制）
  */
@@ -208,8 +229,16 @@ export interface TableConfig {
  * 表格 Schema 配置（用于 DataTableWithSearch 的 schema 模式）
  */
 export interface TableSchema {
+  /** QM 模型名，用于 schema 模式默认直连查询和远程成员加载 */
+  qmModel?: string
+  /** 同一 QM 下的业务表格实例标识 */
+  tableInstanceId?: string
   /** 列配置 */
   columns: EnhancedColumnSchema[]
+  /** 运行时依赖字段，只加入查询列，不作为普通可见列 */
+  requiredRuntimeColumns?: string[]
+  /** 固定可见列，应用自定义列表后仍会补回展示 */
+  lockedColumns?: string[]
   /** 单元格复制配置 */
   cellCopy?: CellCopyConfig
   /** 内置查询入口模式；设置后优先于 showFilters 等旧开关 */
@@ -239,6 +268,8 @@ export interface TableSchema {
 export interface FetchDataParams {
   page: number
   pageSize: number
+  /** 同一 QM 下的业务表格实例标识 */
+  tableInstanceId?: string
   /** 当前显示/激活的业务列，不包含操作列等纯前端列 */
   columns: string[]
   slice: SliceRequestDef[]
@@ -330,6 +361,58 @@ export interface QueryHooks {
   onQueryError?: ErrorQueryHookFn
 }
 
+// ========== Search Hooks ==========
+
+/** 搜索动作来源 */
+export type SearchSource = 'search-toolbar' | 'query-panel' | 'column-filter' | 'external' | 'api'
+
+/** 搜索动作触发原因 */
+export type SearchTrigger = 'search' | 'reset' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload' | 'mount'
+
+export interface SearchHookContext {
+  source: SearchSource
+  trigger: SearchTrigger
+  slice: SliceRequestDef[]
+  orderBy?: OrderRequestDef[]
+  columns?: string[]
+  qmModel?: string
+  tableSchema?: TableSchema
+  querySchema?: unknown
+  params?: FetchDataParams
+  result?: FetchDataResult
+}
+
+export interface SearchHookUpdate {
+  slice?: SliceRequestDef[]
+  orderBy?: OrderRequestDef[]
+  columns?: string[]
+  params?: FetchDataParams
+}
+
+export type SearchHookName = 'beforeSearch' | 'afterSearch' | 'searchError'
+
+/**
+ * 搜索动作前钩子
+ * - 返回 false 取消本次搜索动作
+ * - 返回 slice/orderBy/columns/params 可替换本次查询上下文
+ */
+export type BeforeSearchHookFn = (ctx: SearchHookContext) => MaybePromise<void | false | SearchHookUpdate>
+
+/** 搜索成功后钩子 */
+export type AfterSearchHookFn = (ctx: SearchHookContext, result: FetchDataResult) => MaybePromise<void>
+
+/**
+ * 搜索错误钩子
+ * - 返回 true 表示错误已处理，不再触发 load-error
+ */
+export type ErrorSearchHookFn = (ctx: SearchHookContext, error: Error) => MaybePromise<void | boolean>
+
+export interface SearchHooks {
+  beforeSearch?: BeforeSearchHookFn
+  afterSearch?: AfterSearchHookFn
+  searchError?: ErrorSearchHookFn
+}
+
 // ========== List Preset ==========
 
 /** 自定义列表可见范围 */
@@ -348,12 +431,56 @@ export interface ListPresetConfig {
   enabled?: boolean
   model: string
   userId: string
+  /** tableInstanceId 的旧兼容别名 */
   businessKey?: string
+  /** 同一 QM 下的业务表格实例标识 */
+  tableInstanceId?: string
   autoLoadDefault?: boolean
   allowShared?: boolean
   allowTenantShared?: boolean
   buttonText?: string
   placement?: ListPresetPlacement
+}
+
+// ========== Table Default Query Config ==========
+
+/** 表格实例默认查询配置来源 */
+export type TableDefaultQueryConfigSource =
+  | 'USER'
+  | 'TENANT'
+  | 'ROLE'
+  | 'SYSTEM'
+  | 'FALLBACK'
+  | string
+
+/**
+ * 表格实例默认查询配置。
+ */
+export interface TableDefaultQueryConfig {
+  tableInstanceId?: string
+  queryModel?: string
+  defaultVisibleColumns?: string[]
+  defaultOrderBy?: OrderRequestDef[]
+  defaultPageSize?: number
+  defaultSlices?: SliceRequestDef[]
+  version?: number
+  source?: TableDefaultQueryConfigSource
+}
+
+/** 默认查询配置解析作用域 */
+export interface TableDefaultQueryConfigScope {
+  queryModel: string
+  tableInstanceId?: string
+  userId?: string
+  tenantId?: string
+  roleIds?: string[]
+  includeFallback?: boolean
+}
+
+/** 默认查询配置自动加载选项 */
+export interface TableDefaultQueryConfigLoadOptions extends Partial<TableDefaultQueryConfigScope> {
+  enabled?: boolean
+  autoLoad?: boolean
 }
 
 /** 列视图偏好 */
@@ -470,7 +597,10 @@ export interface UiHintsMeta {
 
 /** 默认配置 */
 export interface DefaultsMeta {
+  tableInstanceId?: string
   visibleColumns?: string[]
+  requiredRuntimeColumns?: string[]
+  lockedColumns?: string[]
   searchFields?: string[]
   pageSize?: number
   /** 生成到 TableSchema.queryMode，优先级高于生成组件的 queryMode prop */

@@ -259,6 +259,22 @@ describe('useTableQuery', () => {
         expect.objectContaining({ columns: ['id', 'name'] })
       )
     })
+
+    it('setTableInstanceId should include tableInstanceId in fetch params only when set', async () => {
+      const mockFetch = createMockFetch()
+      const query = useTableQuery(mockFetch)
+
+      await query.loadData()
+      expect(mockFetch.mock.calls[0][0]).not.toHaveProperty('tableInstanceId')
+
+      query.setTableInstanceId('ticket-list')
+      expect(query.currentTableInstanceId.value).toBe('ticket-list')
+      await query.loadData()
+
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.objectContaining({ tableInstanceId: 'ticket-list' })
+      )
+    })
   })
 
   describe('props hooks (via options)', () => {

@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef, TableDensity, QueryTrigger, SearchHookContext, SearchHooks, SearchSource, SearchTrigger, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
 import DataTable from './DataTable.vue'
 import ListPresetManager from './list-preset/ListPresetManager.vue'
 import { useTableQuery } from './composables/useTableQuery'
+import { globalSearchHooks } from './composables/globalSearchHooks'
+import { SearchHookRegistry } from './composables/searchHookRegistry'
 import { getDefaultListPreset } from '@/api/listPreset'
+import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 
 // 禁用自动继承属性
 defineOptions({
@@ -81,6 +84,8 @@ interface Props {
   // ========== 查询钩子 ==========
   /** 查询钩子（声明式） */
   queryHooks?: QueryHooks
+  /** 搜索动作层钩子（声明式） */
+  searchHooks?: SearchHooks
 
   // ========== 查询条件区 ==========
   /** 查询 Schema（传统查询区定义） */
@@ -91,8 +96,16 @@ interface Props {
   // ========== 维度成员远程过滤 ==========
   /** QM 模型名称（远程成员加载所需） */
   qmModel?: string
+  /** 同一 QM 下的业务表格实例标识 */
+  tableInstanceId?: string
   /** 远程维度成员加载器 */
   filterMemberLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
+  /** 已解析的表格实例默认查询配置 */
+  defaultQueryConfig?: TableDefaultQueryConfig | null
+  /** 默认查询配置自动加载作用域 */
+  defaultQueryConfigScope?: TableDefaultQueryConfigLoadOptions
+  /** 自定义默认查询配置加载器 */
+  defaultQueryConfigLoader?: (scope: TableDefaultQueryConfigScope) => Promise<TableDefaultQueryConfig | null>
 
   // ========== 保存查询功能 ==========
   /** 启用保存查询功能 */
@@ -148,6 +161,47 @@ const query = useTableQuery(
 
 const activeListViewState = ref<ListViewState | null>(null)
 const activePageSize = ref<number | undefined>(undefined)
+const activeDefaultQueryConfig = ref<TableDefaultQueryConfig | null>(null)
+
+const effectiveQmModel = computed(() =>
+  props.qmModel
+  ?? props.schema?.qmModel
+  ?? props.defaultQueryConfig?.queryModel
+  ?? props.defaultQueryConfigScope?.queryModel
+  ?? activeDefaultQueryConfig.value?.queryModel
+)
+
+const effectiveTableInstanceId = computed(() =>
+  props.tableInstanceId
+  ?? props.schema?.tableInstanceId
+  ?? props.defaultQueryConfig?.tableInstanceId
+  ?? props.defaultQueryConfigScope?.tableInstanceId
+  ?? activeDefaultQueryConfig.value?.tableInstanceId
+)
+
+function mergeColumnNames(...groups: Array<Array<string | null | undefined> | undefined>): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const group of groups) {
+    for (const value of group || []) {
+      const name = value?.trim()
+      if (!name || name === '_actions' || seen.has(name)) continue
+      seen.add(name)
+      result.push(name)
+    }
+  }
+
+  return result
+}
+
+const activeRequiredRuntimeColumns = computed(() => mergeColumnNames(
+  props.schema?.requiredRuntimeColumns
+))
+
+const lockedColumnNames = computed(() => mergeColumnNames(
+  props.schema?.lockedColumns
+))
 
 const baseColumns = computed(() => {
   if (isSchemaMode.value && props.schema) {
@@ -222,9 +276,38 @@ function deriveColumnsByListViewState(columns: EnhancedColumnSchema[], state: Li
   return result.length > 0 ? result : columns
 }
 
+function ensureLockedColumns(
+  columns: EnhancedColumnSchema[],
+  sourceColumns: EnhancedColumnSchema[],
+  lockedNames: string[]
+): EnhancedColumnSchema[] {
+  if (lockedNames.length === 0) return columns
+
+  const result = [...columns]
+  const usedNames = new Set(result.map(col => col.name))
+  const sourceMap = new Map(sourceColumns.map(col => [col.name, col]))
+
+  for (const name of lockedNames) {
+    if (usedNames.has(name)) continue
+    const col = sourceMap.get(name)
+    if (!col) {
+      console.warn(`[DataTableWithSearch] Ignore unknown locked column: ${name}`)
+      continue
+    }
+    result.push(col)
+    usedNames.add(name)
+  }
+
+  return result
+}
+
 // ========== 计算属性：根据模式选择数据源 ==========
 const effectiveColumns = computed(() => {
-  const cols = deriveColumnsByListViewState(baseColumns.value, activeListViewState.value)
+  const cols = ensureLockedColumns(
+    deriveColumnsByListViewState(baseColumns.value, activeListViewState.value),
+    baseColumns.value,
+    lockedColumnNames.value
+  )
 
   // 当用户提供 row-actions 插槽时，自动注入一个 actions 列（除非已有同名列）
   if (parentSlots['row-actions'] && !cols.some(c => c.name === '_actions')) {
@@ -243,15 +326,10 @@ const effectiveColumns = computed(() => {
 })
 
 const activeQueryColumns = computed(() => {
-  const seen = new Set<string>()
-  return effectiveColumns.value.flatMap(col => {
-    const name = col.name.trim()
-    if (!name || name === '_actions' || seen.has(name)) {
-      return []
-    }
-    seen.add(name)
-    return [name]
-  })
+  return mergeColumnNames(
+    effectiveColumns.value.map(col => col.name),
+    activeRequiredRuntimeColumns.value
+  )
 })
 
 const effectiveData = computed(() => {
@@ -418,10 +496,13 @@ const normalizedListPresetConfig = computed<ListPresetConfig | null>(() => {
     console.warn('[DataTableWithSearch] listPreset requires userId and model')
     return null
   }
+  const businessKey = config.businessKey ?? config.tableInstanceId ?? effectiveTableInstanceId.value
   return {
     autoLoadDefault: true,
     placement: 'toolbar-right',
     ...config,
+    businessKey,
+    tableInstanceId: config.tableInstanceId ?? businessKey,
     enabled: true
   }
 })
@@ -525,25 +606,187 @@ function clearSelectionState(options: ClearSelectionOptions = {}) {
   dataTableRef.value?.clearSelection?.(options)
 }
 
+interface SearchActionMeta {
+  source: SearchSource
+  trigger: SearchTrigger
+}
+
+const globalSearchRegistry = globalSearchHooks._getRegistry()
+
+function buildPropsSearchRegistry(): SearchHookRegistry {
+  const registry = new SearchHookRegistry()
+  if (props.searchHooks) {
+    registry.register(props.searchHooks)
+  }
+  return registry
+}
+
+function getDefaultSearchActionMeta(trigger: QueryTrigger): SearchActionMeta {
+  switch (trigger) {
+    case 'mount':
+      return { source: 'external', trigger: 'mount' }
+    case 'filter':
+      return { source: 'column-filter', trigger: 'filter' }
+    case 'sort':
+      return { source: 'external', trigger: 'sort' }
+    case 'page':
+      return { source: 'external', trigger: 'page' }
+    case 'refresh':
+      return { source: 'api', trigger: 'refresh' }
+    case 'reload':
+      return { source: 'api', trigger: 'reload' }
+  }
+}
+
+function buildSearchParams(): FetchDataParams {
+  return {
+    page: query.currentPage.value,
+    pageSize: query.currentPageSize.value,
+    tableInstanceId: effectiveTableInstanceId.value,
+    columns: [...activeQueryColumns.value],
+    slice: [...mergedSlices.value],
+    orderBy: [...query.currentOrderBy.value]
+  }
+}
+
+function buildSearchHookContext(meta: SearchActionMeta): SearchHookContext {
+  const params = buildSearchParams()
+  return {
+    ...meta,
+    slice: params.slice,
+    orderBy: params.orderBy,
+    columns: params.columns,
+    qmModel: effectiveQmModel.value,
+    tableSchema: props.schema,
+    querySchema: props.querySchema,
+    params
+  }
+}
+
+function applySearchHookContext(ctx: SearchHookContext): FetchDataParams {
+  const params: FetchDataParams = {
+    page: ctx.params?.page ?? query.currentPage.value,
+    pageSize: ctx.params?.pageSize ?? query.currentPageSize.value,
+    tableInstanceId: ctx.params?.tableInstanceId ?? effectiveTableInstanceId.value,
+    columns: [...(ctx.columns ?? ctx.params?.columns ?? activeQueryColumns.value)],
+    slice: [...(ctx.slice ?? ctx.params?.slice ?? mergedSlices.value)],
+    orderBy: [...(ctx.orderBy ?? ctx.params?.orderBy ?? query.currentOrderBy.value)]
+  }
+
+  ctx.params = params
+  ctx.columns = params.columns
+  ctx.slice = params.slice
+  ctx.orderBy = params.orderBy
+
+  query.setPage(params.page, params.pageSize)
+  query.setColumns(params.columns)
+  query.setTableInstanceId(params.tableInstanceId)
+  query.setSlice(params.slice)
+  query.setSort(params.orderBy)
+
+  return params
+}
+
 // ========== Schema 模式的数据加载 ==========
-async function loadData(trigger: QueryTrigger = 'refresh') {
+async function loadData(trigger: QueryTrigger = 'refresh', actionMeta?: SearchActionMeta) {
   if (!isSchemaMode.value || !props.fetchData) return
+
+  const searchCtx = buildSearchHookContext(actionMeta ?? getDefaultSearchActionMeta(trigger))
+  const propsSearchRegistry = buildPropsSearchRegistry()
+
+  const globalBefore = await globalSearchRegistry.runBefore(searchCtx)
+  if (globalBefore === false) return
+
+  const propsBefore = await propsSearchRegistry.runBefore(searchCtx)
+  if (propsBefore === false) return
 
   if (trigger !== 'mount') {
     clearSelectionState()
   }
 
-  // 同步 slice 到 query 对象
-  query.setColumns(activeQueryColumns.value)
-  query.setSlice(mergedSlices.value)
+  applySearchHookContext(searchCtx)
 
   try {
     await query.loadData(trigger)
+    const result: FetchDataResult = {
+      items: query.data.value,
+      total: query.total.value,
+      totalData: query.serverSummary.value ?? undefined
+    }
+    searchCtx.result = result
+    await propsSearchRegistry.runAfter(searchCtx, result)
+    await globalSearchRegistry.runAfter(searchCtx, result)
     // 加载成功后发出事件
-    emit('load-success', { items: query.data.value, total: query.total.value, totalData: query.serverSummary.value ?? undefined })
+    emit('load-success', result)
   } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error))
+    const propsHandled = await propsSearchRegistry.runError(searchCtx, err)
+    const globalHandled = await globalSearchRegistry.runError(searchCtx, err)
+    if (propsHandled || globalHandled) {
+      return
+    }
     // 未被钩子处理的错误，发出 load-error 事件
-    emit('load-error', error as Error)
+    emit('load-error', err)
+  }
+}
+
+function defaultQueryConfigToListViewState(config: TableDefaultQueryConfig): ListViewState {
+  return {
+    columns: mergeColumnNames(config.defaultVisibleColumns),
+    slice: config.defaultSlices || [],
+    orderBy: config.defaultOrderBy || [],
+    pageSize: config.defaultPageSize
+  }
+}
+
+function applyTableDefaultQueryConfig(
+  config: TableDefaultQueryConfig,
+  options: { reload?: boolean } = {}
+) {
+  activeDefaultQueryConfig.value = config
+  applyListViewState(defaultQueryConfigToListViewState(config), options)
+}
+
+function buildTableDefaultQueryConfigScope(): TableDefaultQueryConfigScope | null {
+  const options = props.defaultQueryConfigScope
+  const queryModel = options?.queryModel ?? effectiveQmModel.value
+  if (!queryModel) {
+    console.warn('[DataTableWithSearch] defaultQueryConfigScope requires queryModel or qmModel')
+    return null
+  }
+
+  return {
+    queryModel,
+    tableInstanceId: options?.tableInstanceId ?? effectiveTableInstanceId.value,
+    userId: options?.userId,
+    tenantId: options?.tenantId,
+    roleIds: options?.roleIds,
+    includeFallback: options?.includeFallback ?? true
+  }
+}
+
+async function applyDefaultQueryConfigIfNeeded() {
+  if (props.defaultQueryConfig) {
+    applyTableDefaultQueryConfig(props.defaultQueryConfig)
+    return
+  }
+  if (props.defaultQueryConfig === null) return
+
+  const options = props.defaultQueryConfigScope
+  if (options?.enabled === false || options?.autoLoad === false) return
+  if (!options && !props.defaultQueryConfigLoader) return
+
+  const scope = buildTableDefaultQueryConfigScope()
+  if (!scope) return
+
+  try {
+    const loader = props.defaultQueryConfigLoader ?? getTableDefaultQueryConfig
+    const config = await loader(scope)
+    if (config) {
+      applyTableDefaultQueryConfig(config)
+    }
+  } catch (error) {
+    console.warn('[DataTableWithSearch] Failed to load table default query config:', error)
   }
 }
 
@@ -565,7 +808,8 @@ async function applyDefaultListPresetIfNeeded() {
     const preset = await getDefaultListPreset({
       userId: config.userId,
       model: config.model,
-      businessKey: config.businessKey
+      businessKey: config.businessKey,
+      tableInstanceId: config.tableInstanceId
     })
     if (preset) {
       applyListViewState(presetToListViewState(preset))
@@ -577,6 +821,7 @@ async function applyDefaultListPresetIfNeeded() {
 
 // Schema 模式下，初始化时加载数据
 onMounted(async () => {
+  await applyDefaultQueryConfigIfNeeded()
   await applyDefaultListPresetIfNeeded()
   if (isSchemaMode.value) {
     loadData('mount')
@@ -591,12 +836,12 @@ function handleQueryPanelChange(slices: SliceRequestDef[]) {
 }
 
 function handleQueryPanelSearch() {
-  handleFilterChange()
+  handleFilterChange({ source: 'query-panel', trigger: 'search' })
 }
 
 function handleQueryPanelReset() {
   queryPanelSlices.value = []
-  handleFilterChange()
+  handleFilterChange({ source: 'query-panel', trigger: 'reset' })
 }
 
 function searchQueryPanel() {
@@ -612,21 +857,21 @@ function handleSearchChange(slices: SliceRequestDef[]) {
   searchSlices.value = slices
   // 如果隐藏了搜索按钮，则实时触发筛选
   if (!props.showSearchActions) {
-    handleFilterChange()
+    handleFilterChange({ source: 'search-toolbar', trigger: 'filter' })
   }
 }
 
 // 处理搜索按钮点击
 function handleSearch() {
   emit('search', searchSlices.value)
-  handleFilterChange()
+  handleFilterChange({ source: 'search-toolbar', trigger: 'search' })
 }
 
 // 处理重置按钮点击
 function handleReset() {
   searchSlices.value = []
   emit('reset')
-  handleFilterChange()
+  handleFilterChange({ source: 'search-toolbar', trigger: 'reset' })
 }
 
 // 处理表头筛选变化
@@ -639,17 +884,17 @@ function handleTableFilterChange(slices: SliceRequestDef[]) {
 function handleTableFilterCommit(slices: SliceRequestDef[]) {
   tableSlices.value = slices
   emit('filter-commit', mergedSlices.value)
-  handleFilterChange()
+  handleFilterChange({ source: 'column-filter', trigger: 'filter' })
 }
 
 // 统一的筛选变化处理
-function handleFilterChange() {
+function handleFilterChange(actionMeta: SearchActionMeta = { source: 'column-filter', trigger: 'filter' }) {
   emit('filter-change', mergedSlices.value)
 
   // Schema 模式下，重置到第一页并重新加载
   if (isSchemaMode.value) {
     query.currentPage.value = 1
-    loadData('filter')
+    loadData('filter', actionMeta)
   }
 }
 
@@ -661,7 +906,7 @@ function handlePageChange(page: number, size: number) {
   // Schema 模式下，更新分页并重新加载
   if (isSchemaMode.value) {
     query.setPage(page, size)
-    loadData('page')
+    loadData('page', { source: 'external', trigger: 'page' })
   }
 }
 
@@ -676,7 +921,7 @@ function handleSortChange(field: string | null, order: 'asc' | 'desc' | null) {
     } else {
       query.setSort([])
     }
-    loadData('sort')
+    loadData('sort', { source: 'external', trigger: 'sort' })
   }
 }
 
@@ -720,7 +965,7 @@ function applyListViewState(state: ListViewState, options: { reload?: boolean } 
   if (isSchemaMode.value) {
     query.setPage(1, effectivePageSize.value)
     if (options.reload) {
-      loadData('reload')
+      loadData('reload', { source: 'api', trigger: 'reload' })
     }
   }
 }
@@ -736,7 +981,7 @@ function resetListViewState(options: { reload?: boolean } = {}) {
   if (isSchemaMode.value) {
     query.setPage(1, effectivePageSize.value)
     if (options.reload) {
-      loadData('reload')
+      loadData('reload', { source: 'api', trigger: 'reload' })
     }
   }
 }
@@ -744,7 +989,7 @@ function resetListViewState(options: { reload?: boolean } = {}) {
 async function reloadAfterListPresetApply() {
   if (isSchemaMode.value) {
     query.currentPage.value = 1
-    await loadData('reload')
+    await loadData('reload', { source: 'api', trigger: 'reload' })
   }
 }
 
@@ -770,7 +1015,8 @@ const dataTableProps = computed(() => {
     serverSummary: effectiveServerSummary.value,
     filterOptionsLoader: props.filterOptionsLoader,
     filterMemberLoader: props.filterMemberLoader,
-    qmModel: props.qmModel,
+    qmModel: effectiveQmModel.value,
+    tableSchema: props.schema,
     customFilterComponents: props.customFilterComponents,
     cellCopy: effectiveCellCopy.value,
     density: effectiveDensity.value,
@@ -859,7 +1105,7 @@ defineExpose({
   /** 刷新数据（仅 Schema 模式） */
   refresh: () => {
     if (isSchemaMode.value) {
-      return loadData('refresh')
+      return loadData('refresh', { source: 'api', trigger: 'refresh' })
     }
     return undefined
   },
@@ -867,7 +1113,7 @@ defineExpose({
   reload: () => {
     if (isSchemaMode.value) {
       query.currentPage.value = 1
-      return loadData('reload')
+      return loadData('reload', { source: 'api', trigger: 'reload' })
     }
     return undefined
   },
@@ -889,6 +1135,8 @@ defineExpose({
   getListViewState,
   /** 应用列表视图状态（用于加载自定义列表） */
   applyListViewState,
+  /** 应用表格实例默认查询配置 */
+  applyTableDefaultQueryConfig,
   /** 重置列表视图状态 */
   resetListViewState,
   /** 获取当前查询状态（用于保存查询） */
@@ -910,7 +1158,7 @@ defineExpose({
         ref="queryPanelRef"
         :schema="querySchema"
         :filter-member-loader="filterMemberLoader"
-        :qm-model="qmModel"
+        :qm-model="effectiveQmModel"
         v-model="queryPanelSlices"
         @update:model-value="handleQueryPanelChange"
         @search="handleQueryPanelSearch"
@@ -928,7 +1176,7 @@ defineExpose({
         :show-actions="showSearchActions"
         :filter-options-loader="filterOptionsLoader"
         :filter-member-loader="filterMemberLoader"
-        :qm-model="qmModel"
+        :qm-model="effectiveQmModel"
         v-model="searchSlices"
         @update:model-value="handleSearchChange"
         @search="handleSearch"

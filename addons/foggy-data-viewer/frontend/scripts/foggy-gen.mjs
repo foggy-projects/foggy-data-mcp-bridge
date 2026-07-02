@@ -109,6 +109,13 @@ function genTableSchema(meta) {
     : defaultVisibleCols
   const searchFields = meta.defaults?.searchFields || []
   const pageSize = meta.defaults?.pageSize || 50
+  const tableInstanceId = meta.defaults?.tableInstanceId || meta.model
+  const requiredRuntimeColumns = Array.isArray(meta.defaults?.requiredRuntimeColumns)
+    ? meta.defaults.requiredRuntimeColumns
+    : []
+  const lockedColumns = Array.isArray(meta.defaults?.lockedColumns)
+    ? meta.defaults.lockedColumns
+    : []
   const queryMode = ['panel', 'column', 'combined', 'none'].includes(meta.defaults?.queryMode)
     ? meta.defaults.queryMode
     : null
@@ -151,9 +158,22 @@ function genTableSchema(meta) {
   lines.push(`/** 默认搜索字段 */`)
   lines.push(`export const defaultSearchFields = ${JSON.stringify(searchFields)}`)
   lines.push(``)
+  lines.push(`/** 默认表格实例标识 */`)
+  lines.push(`export const defaultTableInstanceId = ${JSON.stringify(tableInstanceId)}`)
+  lines.push(``)
+  lines.push(`/** 运行时必需查询列 */`)
+  lines.push(`export const defaultRequiredRuntimeColumns = ${JSON.stringify(requiredRuntimeColumns, null, 2)}`)
+  lines.push(``)
+  lines.push(`/** 固定可见列 */`)
+  lines.push(`export const defaultLockedColumns = ${JSON.stringify(lockedColumns, null, 2)}`)
+  lines.push(``)
   lines.push(`/** 表格 Schema */`)
   lines.push(`export const tableSchema: TableSchema = {`)
-  lines.push(`  columns: allColumns.filter(c => defaultVisibleColumns.includes(c.name)),`)
+  lines.push(`  qmModel: '${meta.model}',`)
+  lines.push(`  tableInstanceId: defaultTableInstanceId,`)
+  lines.push(`  columns: allColumns.filter(c => defaultVisibleColumns.includes(c.name) || defaultLockedColumns.includes(c.name)),`)
+  lines.push(`  requiredRuntimeColumns: defaultRequiredRuntimeColumns,`)
+  lines.push(`  lockedColumns: defaultLockedColumns,`)
   lines.push(`  searchableFields: defaultSearchFields.length > 0 ? defaultSearchFields : undefined,`)
   lines.push(`  pageSize: ${pageSize},`)
   if (queryMode) lines.push(`  queryMode: '${queryMode}',`)
@@ -315,7 +335,7 @@ function genVue(meta) {
 <script setup lang="ts">
 import { computed, ref, useSlots } from 'vue'
 import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
-import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema } from 'foggy-data-viewer'
+import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions, ListPresetConfig } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
 import { querySchema } from './${prefix}.query.schema'
 import { query${prefix} } from './${prefix}.api'
@@ -357,6 +377,11 @@ const props = withDefaults(defineProps<{
   queryMode?: QueryMode
   querySchemaOverride?: QuerySchema
   showQueryPanel?: boolean
+  tableInstanceId?: string
+  defaultQueryConfig?: TableDefaultQueryConfig | null
+  defaultQueryConfigScope?: TableDefaultQueryConfigLoadOptions
+  defaultQueryConfigLoader?: (scope: TableDefaultQueryConfigScope) => Promise<TableDefaultQueryConfig | null>
+  listPreset?: boolean | ListPresetConfig
 }>(), { showQueryPanel: false })
 
 const mergedSchema = computed(() => {
@@ -395,6 +420,11 @@ defineExpose({
     :query-mode="queryMode"
     :show-query-panel="showQueryPanel"
     :qm-model="${constName}"
+    :table-instance-id="tableInstanceId ?? tableSchema.tableInstanceId"
+    :default-query-config="defaultQueryConfig"
+    :default-query-config-scope="defaultQueryConfigScope"
+    :default-query-config-loader="defaultQueryConfigLoader"
+    :list-preset="listPreset"
     :filter-member-loader="fetchMemberOptions"
     :query-hooks="queryHooks"
     :initial-slice="initialSlices"
@@ -425,7 +455,7 @@ function genIndex(meta) {
  */
 export type { ${prefix}Row } from './${prefix}.types'
 export { ${constName} } from './${prefix}.types'
-export { allColumns, defaultVisibleColumns, defaultSearchFields, tableSchema } from './${prefix}.table.schema'
+export { allColumns, defaultVisibleColumns, defaultSearchFields, defaultTableInstanceId, defaultRequiredRuntimeColumns, defaultLockedColumns, tableSchema } from './${prefix}.table.schema'
 export { queryFields, querySchema } from './${prefix}.query.schema'
 export { query${prefix}, query${prefix}Members, get${prefix}Meta } from './${prefix}.api'
 export { default as ${prefix}Table } from './${prefix}Table.vue'

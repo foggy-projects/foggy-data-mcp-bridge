@@ -75,6 +75,7 @@ export interface UseTableQueryReturn {
   currentOrderBy: ReturnType<typeof ref<OrderRequestDef[]>>
   currentSlice: ReturnType<typeof ref<SliceRequestDef[]>>
   currentColumns: ReturnType<typeof ref<string[]>>
+  currentTableInstanceId: ReturnType<typeof ref<string | undefined>>
 
   // 查询方法
   loadData: (trigger?: QueryTrigger) => Promise<void>
@@ -84,6 +85,7 @@ export interface UseTableQueryReturn {
   setSort: (orderBy: OrderRequestDef[]) => void
   setSlice: (slice: SliceRequestDef[]) => void
   setColumns: (columns: string[]) => void
+  setTableInstanceId: (tableInstanceId?: string) => void
 
   // 钩子管理
   addHook: <N extends QueryHookName>(name: N, fn: HookFnMap[N]) => () => void
@@ -119,6 +121,7 @@ export function useTableQuery(
   const currentOrderBy = ref<OrderRequestDef[]>([])
   const currentSlice = ref<SliceRequestDef[]>([])
   const currentColumns = ref<string[]>([])
+  const currentTableInstanceId = ref<string | undefined>(undefined)
 
   // ========== 实例级钩子注册表 ==========
   const instanceRegistry = new HookRegistry()
@@ -138,14 +141,19 @@ export function useTableQuery(
 
   // ========== 核心加载逻辑 ==========
   async function loadData(trigger: QueryTrigger = 'refresh'): Promise<void> {
+    const params: FetchDataParams = {
+      page: currentPage.value,
+      pageSize: currentPageSize.value,
+      columns: [...currentColumns.value],
+      slice: [...currentSlice.value],
+      orderBy: [...currentOrderBy.value]
+    }
+    if (currentTableInstanceId.value) {
+      params.tableInstanceId = currentTableInstanceId.value
+    }
+
     const ctx: QueryHookContext = {
-      params: {
-        page: currentPage.value,
-        pageSize: currentPageSize.value,
-        columns: [...currentColumns.value],
-        slice: [...currentSlice.value],
-        orderBy: [...currentOrderBy.value]
-      },
+      params,
       trigger
     }
 
@@ -224,6 +232,10 @@ export function useTableQuery(
     currentColumns.value = normalizeColumns(columns)
   }
 
+  function setTableInstanceId(tableInstanceId?: string): void {
+    currentTableInstanceId.value = tableInstanceId || undefined
+  }
+
   // ========== 钩子管理 API ==========
   function addHook<N extends QueryHookName>(name: N, fn: HookFnMap[N]): () => void {
     return instanceRegistry.add(name, fn)
@@ -245,6 +257,7 @@ export function useTableQuery(
     currentOrderBy,
     currentSlice,
     currentColumns,
+    currentTableInstanceId,
     loadData,
     refresh,
     reload,
@@ -252,6 +265,7 @@ export function useTableQuery(
     setSort,
     setSlice,
     setColumns,
+    setTableInstanceId,
     addHook,
     removeHook
   }

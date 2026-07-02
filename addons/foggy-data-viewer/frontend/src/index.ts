@@ -104,6 +104,11 @@ export type {
   UpdateListPresetRequest
 } from './api/listPreset'
 
+// 导出表格默认查询配置 API
+export {
+  getTableDefaultQueryConfig
+} from './api/tableDefaultQueryConfig'
+
 // 导出类型定义
 export type {
   ColumnSchema,
@@ -112,6 +117,11 @@ export type {
   TableSchema,
   CellRenderContext,
   CellRenderFn,
+  GlobalColumnRenderContext,
+  GlobalColumnMatchFn,
+  GlobalColumnRenderFn,
+  GlobalColumnRenderer,
+  GlobalColumnRenderResolution,
   CellCopyConfig,
   QueryMode,
   ColumnCustomization,
@@ -134,6 +144,15 @@ export type {
   BeforeQueryHookFn,
   AfterQueryHookFn,
   ErrorQueryHookFn,
+  SearchSource,
+  SearchTrigger,
+  SearchHookContext,
+  SearchHookUpdate,
+  SearchHookName,
+  BeforeSearchHookFn,
+  AfterSearchHookFn,
+  ErrorSearchHookFn,
+  SearchHooks,
   MaybePromise,
   PivotAxisField,
   PivotAxisPage,
@@ -151,6 +170,10 @@ export type {
   ListPresetVisibility,
   ListPresetPlacement,
   ListPresetConfig,
+  TableDefaultQueryConfig,
+  TableDefaultQueryConfigScope,
+  TableDefaultQueryConfigLoadOptions,
+  TableDefaultQueryConfigSource,
   ColumnViewSetting,
   QueryConditionPreset,
   ListViewState,

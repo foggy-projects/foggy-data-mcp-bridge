@@ -4,6 +4,7 @@ import { defineComponent, h } from 'vue'
 import type { PropType } from 'vue'
 import DataTable from './DataTable.vue'
 import type { CellRenderContext, EnhancedColumnSchema, SliceRequestDef } from '@/types'
+import { globalColumnRenderers } from './composables/globalColumnRenderers'
 
 const elMessageWarning = vi.hoisted(() => vi.fn())
 const clearCheckboxRowSpy = vi.hoisted(() => vi.fn())
@@ -128,6 +129,7 @@ describe('DataTable', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    globalColumnRenderers.clear()
     document.body.innerHTML = ''
     Object.defineProperty(navigator, 'clipboard', {
       value: {
@@ -138,6 +140,7 @@ describe('DataTable', () => {
   })
 
   afterEach(() => {
+    globalColumnRenderers.clear()
     vi.useRealTimers()
     document.body.innerHTML = ''
   })
@@ -413,6 +416,151 @@ describe('DataTable', () => {
         value: 'active',
         column: expect.objectContaining({ name: 'status' })
       }))
+    })
+
+    it('should render a matching global column renderer before default cell rendering', () => {
+      const render = vi.fn(({ value }) => h('button', { class: 'global-rendered' }, String(value)))
+      globalColumnRenderers.add({
+        id: 'test.name.link',
+        match: ({ column }) => column.name === 'name',
+        render
+      })
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: 'Test 1' }],
+          total: 1,
+          loading: false,
+          qmModel: 'order.qm',
+          tableSchema: { columns: mockColumns }
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.global-rendered').text()).toBe('Test 1')
+      expect(render).toHaveBeenCalledWith(expect.objectContaining({
+        row: { name: 'Test 1' },
+        value: 'Test 1',
+        column: expect.objectContaining({ name: 'name' }),
+        columns: [expect.objectContaining({ name: 'name' })],
+        qmModel: 'order.qm',
+        tableSchema: expect.objectContaining({ columns: mockColumns })
+      }))
+    })
+
+    it('should keep slot and customRender above global column renderers', () => {
+      const globalRender = vi.fn(() => h('span', { class: 'global-rendered' }, 'global'))
+      const customRender = vi.fn(() => h('span', { class: 'custom-rendered' }, 'custom'))
+      globalColumnRenderers.add({
+        id: 'test.name.global',
+        match: ({ column }) => column.name === 'name',
+        render: globalRender
+      })
+
+      const customWrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称', customRender }],
+          data: [{ name: 'Test 1' }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(customWrapper.find('.custom-rendered').text()).toBe('custom')
+      expect(customRender).toHaveBeenCalledTimes(1)
+      expect(globalRender).not.toHaveBeenCalled()
+
+      const slotWrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: 'Test 1' }],
+          total: 1,
+          loading: false
+        },
+        slots: {
+          'column-name': '<span class="slot-rendered">slot</span>'
+        },
+        ...renderGridConfig
+      })
+
+      expect(slotWrapper.find('.slot-rendered').text()).toBe('slot')
+      expect(globalRender).not.toHaveBeenCalled()
+    })
+
+    it('should choose the highest priority global renderer and support dispose/remove/clear', () => {
+      globalColumnRenderers.add({
+        id: 'test.low',
+        priority: 10,
+        match: ({ column }) => column.name === 'name',
+        render: () => h('span', { class: 'priority-cell' }, 'low')
+      })
+      const disposeHigh = globalColumnRenderers.add({
+        id: 'test.high',
+        priority: 100,
+        match: ({ column }) => column.name === 'name',
+        render: () => h('span', { class: 'priority-cell' }, 'high')
+      })
+
+      const mountTable = () => mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: 'Test 1' }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(mountTable().find('.priority-cell').text()).toBe('high')
+
+      disposeHigh()
+      expect(mountTable().find('.priority-cell').text()).toBe('low')
+
+      globalColumnRenderers.remove('test.low')
+      expect(mountTable().find('.priority-cell').exists()).toBe(false)
+
+      globalColumnRenderers.add({
+        id: 'test.clear',
+        match: ({ column }) => column.name === 'name',
+        render: () => h('span', { class: 'priority-cell' }, 'clear')
+      })
+      globalColumnRenderers.clear()
+      expect(mountTable().find('.priority-cell').exists()).toBe(false)
+    })
+
+    it('should allow column-level opt-out and empty value rendering for global renderers', () => {
+      globalColumnRenderers.add({
+        id: 'test.empty',
+        match: ({ column }) => column.name === 'name',
+        render: ({ value }) => h('span', { class: 'global-empty' }, String(value ?? '').trim() || '-')
+      })
+
+      const emptyWrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: '' }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(emptyWrapper.find('.global-empty').text()).toBe('-')
+
+      const optOutWrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称', uiConfig: { disableGlobalRender: true } }],
+          data: [{ name: 'Test 1' }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(optOutWrapper.find('.global-empty').exists()).toBe(false)
+      expect(optOutWrapper.find('.stub-cell-name').text()).toContain('Test 1')
     })
   })
 

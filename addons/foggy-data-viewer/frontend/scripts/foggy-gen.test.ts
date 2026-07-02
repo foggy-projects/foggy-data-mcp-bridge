@@ -48,7 +48,10 @@ function createFrontendMeta(queryMode: string, visibleColumns = ['orderNo', 'ser
       }
     ],
     defaults: {
+      tableInstanceId: 'fact-order-main',
       visibleColumns,
+      requiredRuntimeColumns: ['orderId'],
+      lockedColumns: ['serviceArea'],
       searchFields: ['orderNo'],
       pageSize: 20,
       queryMode
@@ -80,7 +83,7 @@ describe('foggy-gen QueryTable template', () => {
 
       expect(tableVue).toContain("import { computed, ref, useSlots } from 'vue'")
       expect(tableVue).toContain(
-        "import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema } from 'foggy-data-viewer'"
+        "import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode, QuerySchema, TableDefaultQueryConfig, TableDefaultQueryConfigScope, TableDefaultQueryConfigLoadOptions, ListPresetConfig } from 'foggy-data-viewer'"
       )
       expect(tableVue).toContain("render?: EnhancedColumnSchema['customRender']")
       expect(tableVue).toContain('const slots = useSlots()')
@@ -98,9 +101,27 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableVue).toContain('queryMode?: QueryMode')
       expect(tableVue).toContain('querySchemaOverride?: QuerySchema')
       expect(tableVue).toContain('showQueryPanel?: boolean')
+      expect(tableVue).toContain('tableInstanceId?: string')
+      expect(tableVue).toContain('defaultQueryConfig?: TableDefaultQueryConfig | null')
+      expect(tableVue).toContain('defaultQueryConfigScope?: TableDefaultQueryConfigLoadOptions')
+      expect(tableVue).toContain('defaultQueryConfigLoader?: (scope: TableDefaultQueryConfigScope) => Promise<TableDefaultQueryConfig | null>')
+      expect(tableVue).toContain('listPreset?: boolean | ListPresetConfig')
       expect(tableVue).toContain(':query-mode="queryMode"')
       expect(tableVue).toContain(':query-schema="props.querySchemaOverride ?? querySchema"')
       expect(tableVue).toContain(':show-query-panel="showQueryPanel"')
+      expect(tableVue).toContain(':table-instance-id="tableInstanceId ?? tableSchema.tableInstanceId"')
+      expect(tableVue).toContain(':default-query-config="defaultQueryConfig"')
+      expect(tableVue).toContain(':default-query-config-scope="defaultQueryConfigScope"')
+      expect(tableVue).toContain(':default-query-config-loader="defaultQueryConfigLoader"')
+      expect(tableVue).toContain(':list-preset="listPreset"')
+      expect(tableSchema).toContain("qmModel: 'FactOrderQueryModel'")
+      expect(tableSchema).toContain('export const defaultTableInstanceId = "fact-order-main"')
+      expect(tableSchema).toContain('tableInstanceId: defaultTableInstanceId')
+      expect(tableSchema).toContain('export const defaultRequiredRuntimeColumns = [\n  "orderId"\n]')
+      expect(tableSchema).toContain('export const defaultLockedColumns = [\n  "serviceArea"\n]')
+      expect(tableSchema).toContain('requiredRuntimeColumns: defaultRequiredRuntimeColumns')
+      expect(tableSchema).toContain('lockedColumns: defaultLockedColumns')
+      expect(tableSchema).toContain('columns: allColumns.filter(c => defaultVisibleColumns.includes(c.name) || defaultLockedColumns.includes(c.name))')
       expect(tableSchema).toContain("queryMode: 'column'")
       expect(tableSchema).toContain('showFilters: true')
       expect(tableSchema).not.toContain('showSearchToolbar')

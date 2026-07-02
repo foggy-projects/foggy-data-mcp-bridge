@@ -2,9 +2,10 @@
 import { ref, computed, watch, provide, h, useAttrs } from 'vue'
 import type { VxeGridInstance, VxeGridProps, VxeGridListeners } from 'vxe-table'
 import { ElMessage, ElTooltip } from 'element-plus'
-import type { EnhancedColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption, CellCopyConfig, MemberQueryRequest, MemberQueryResponse, TableDensity } from '@/types'
+import type { EnhancedColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption, CellCopyConfig, MemberQueryRequest, MemberQueryResponse, TableDensity, TableSchema } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
 import { useDeferredVisibility, useTableSelection, useTableSummary } from './composables'
+import { globalColumnRenderers } from './composables/globalColumnRenderers'
 
 // 禁用自动继承属性，手动控制透传到 vxe-grid
 defineOptions({
@@ -58,6 +59,8 @@ interface Props {
   filterMemberLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
   /** QM 模型名称（远程成员加载所需） */
   qmModel?: string
+  /** 表格 Schema 元数据（全局列渲染器上下文使用） */
+  tableSchema?: TableSchema
   /** 自定义过滤器组件映射 */
   customFilterComponents?: Record<string, unknown>
   /** 普通单元格悬浮复制配置 */
@@ -1035,6 +1038,25 @@ function renderDefaultCell(col: EnhancedColumnSchema, row: Record<string, unknow
   ])
 }
 
+function isGlobalRenderDisabled(col: EnhancedColumnSchema): boolean {
+  return col.uiConfig?.disableGlobalRender === true
+}
+
+function renderGlobalCell(col: EnhancedColumnSchema, row: Record<string, unknown>) {
+  if (isGlobalRenderDisabled(col)) {
+    return undefined
+  }
+
+  return globalColumnRenderers.render({
+    row,
+    value: row[col.name],
+    column: col,
+    columns: props.columns,
+    tableSchema: props.tableSchema,
+    qmModel: props.qmModel
+  })?.value
+}
+
 // 生成 vxe-table 列配置
 const tableColumns = computed<VxeGridProps['columns']>(() => {
   // 依赖 sortState 确保排序变化时重新计算
@@ -1159,7 +1181,10 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
     } else {
       colConfig.slots = {
         ...colConfig.slots as object,
-        default: ({ row }: { row: Record<string, unknown> }) => renderDefaultCell(col, row)
+        default: ({ row }: { row: Record<string, unknown> }) => {
+          const globalRendered = renderGlobalCell(col, row)
+          return globalRendered === undefined ? renderDefaultCell(col, row) : globalRendered
+        }
       }
     }
 

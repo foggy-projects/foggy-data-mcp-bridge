@@ -190,11 +190,12 @@ const model = 'TicketQueryModel'
   <DataTableWithSearch
     :schema="tableSchema"
     :fetch-data="fetchTickets"
+    table-instance-id="ticket-list"
     :list-preset="{
       enabled: true,
       model,
       userId: currentUser.id,
-      businessKey: 'ticket-list',
+      tableInstanceId: 'ticket-list',
       autoLoadDefault: true,
       placement: 'toolbar-right'
     }"
@@ -209,15 +210,60 @@ const model = 'TicketQueryModel'
 | `enabled` | 是否启用自定义列表 |
 | `model` | QM 模型名，用于后端按模型隔离配置 |
 | `userId` | v1 必填，前端显式传入的用户标识，只作为配置命名空间 |
-| `businessKey` | 同一模型在不同业务页面的隔离 key |
+| `tableInstanceId` | 同一 QM 下的表格实例标识 |
+| `businessKey` | `tableInstanceId` 的旧兼容别名 |
 | `autoLoadDefault` | 首次加载时是否自动应用默认列表 |
 | `placement` | `toolbar-left`、`toolbar-right` 或 `external` |
 
 `userId` 不是安全边界。真实数据权限仍由后端查询链路控制；后续如需从登录态解析用户，可由接入方二次开发后端身份解析。
 
-### 5.2 后端存储
+### 5.2 默认查询配置与 tableInstanceId
 
-自定义列表 API 路径包含 `/users/{userId}`，配置按 `userId + model + businessKey` 隔离。
+`DataTableWithSearch` 在 `schema + fetchData` 模式下可按 `tableInstanceId` 自动加载默认查询配置。加载顺序是先应用后端 fallback，再应用用户默认 `listPreset`；用户列表可覆盖展示列、排序、筛选和分页大小。`requiredRuntimeColumns` 与 `lockedColumns` 由 TM/QM 产出的 `TableSchema` 提供，不放在默认查询配置里。
+
+```vue
+<DataTableWithSearch
+  :schema="{ ...tableSchema, qmModel: model, tableInstanceId: 'ticket-list' }"
+  :fetch-data="fetchTickets"
+  :default-query-config-scope="{
+    userId: currentUser.id,
+    tenantId: currentTenant.id,
+    roleIds: currentRoleIds
+  }"
+/>
+```
+
+后端 fallback 示例：
+
+```yaml
+foggy:
+  data-viewer:
+    table-defaults:
+      system:
+        ticket-list:
+          query-model: TicketQueryModel
+          table-instance-id: ticket-list
+          default-visible-columns: [ticketNo, title, status]
+          default-page-size: 50
+```
+
+TM/QM frontend-meta 示例：
+
+```json
+{
+  "defaults": {
+    "tableInstanceId": "ticket-list",
+    "requiredRuntimeColumns": ["id", "tenantId"],
+    "lockedColumns": ["ticketNo"]
+  }
+}
+```
+
+`requiredRuntimeColumns` 只会追加到 `fetchData(params).columns`，不会显示为普通表格列；适合详情跳转、权限判断、行级动作等运行时必需字段。`lockedColumns` 会在应用自定义列表后补回展示。
+
+### 5.3 后端存储
+
+自定义列表 API 路径包含 `/users/{userId}`，配置按 `userId + model + tableInstanceId/businessKey` 隔离。
 
 默认 `storage: AUTO`：配置了 `spring.data.mongodb.uri` 时使用 Mongo；没有提供 Mongo URI 时直接使用文件系统。显式配置 `storage: MONGO` 时优先使用 Mongo，运行时不可用会退化到文件系统；显式配置 `storage: FILE` 时只使用文件系统。
 
@@ -237,7 +283,7 @@ foggy:
   default.json
 ```
 
-### 5.3 字段权限校验扩展
+### 5.4 字段权限校验扩展
 
 默认情况下，自定义列表后端只做基础结构校验，例如字段名非空、固定列取值合法、分页大小合法。若接入方需要校验字段是否属于当前 QM schema，或校验当前用户是否有字段权限，可以注册 `ListPresetFieldValidator` Bean。
 
@@ -400,7 +446,67 @@ const columnOverrides = {
 }
 ```
 
-选择原则：交互型单元格优先用 `column-*` 插槽；纯展示型单元格可以用 `render`。
+### 7.4 注册全局列渲染器
+
+如果多个 QM 表格都要把同一类字段渲染成统一入口，不要修改 `generated/*QueryTable.vue`，也不要在每个页面重复写插槽。可以在业务应用启动时注册全局渲染器：
+
+```typescript
+import { h } from 'vue'
+import { globalColumnRenderers } from 'foggy-data-viewer'
+
+globalColumnRenderers.add({
+  id: 'app.orderNoLink',
+  priority: 100,
+  match: ({ column }) => column.name === 'orderNo' && /运单号/.test(column.title ?? ''),
+  render: ({ value }) => {
+    const orderNo = String(value ?? '').trim()
+    if (!orderNo) return '-'
+    return h('button', {
+      type: 'button',
+      class: 'table-link-cell',
+      onClick: (event: MouseEvent) => {
+        event.stopPropagation()
+        // router.push(...) 留在业务应用侧
+      }
+    }, orderNo)
+  }
+})
+```
+
+渲染优先级：`column-*` 插槽 > `column.customRender` > 全局列渲染器 > 默认渲染 / 字典 / formatter。需要退出全局渲染时，在列元数据上设置 `uiConfig.disableGlobalRender = true`。
+
+选择原则：单页特殊交互优先用 `column-*` 插槽；纯展示型单元格可以用 `render`；跨表格统一入口用 `globalColumnRenderers`。
+
+### 7.5 搜索生命周期 Hook
+
+`globalSearchHooks` 运行在 `DataTableWithSearch` 的搜索动作层，早于最终 `fetchData` 与 `globalQueryHooks.onBeforeQuery`。上下文可区分入口来源和触发原因：
+
+```typescript
+import { globalSearchHooks } from 'foggy-data-viewer'
+
+const dispose = globalSearchHooks.register({
+  beforeSearch: (ctx) => {
+    if (ctx.trigger === 'search' && ctx.slice.length === 0) return false
+    return {
+      slice: [
+        ...ctx.slice,
+        { field: 'tenantId', op: '=', value: currentTenantId }
+      ]
+    }
+  },
+  afterSearch: (ctx, result) => {
+    console.log(ctx.source, ctx.trigger, result.total)
+  },
+  searchError: (ctx, error) => {
+    console.warn(ctx.source, ctx.trigger, error)
+    return false
+  }
+})
+
+dispose()
+```
+
+`source` 取值：`search-toolbar`、`query-panel`、`column-filter`、`external`、`api`。`trigger` 取值：`search`、`reset`、`filter`、`sort`、`page`、`refresh`、`reload`、`mount`。
 
 ## 八、选中行 API
 

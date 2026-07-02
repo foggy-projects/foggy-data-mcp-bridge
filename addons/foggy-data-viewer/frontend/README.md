@@ -149,6 +149,20 @@ function handlePageChange(page: number, pageSize: number) {
 
 `DataTableWithSearch` 在 `schema + fetchData` 服务端查询模式下默认 `localFilter=false`：列头筛选仍会提交给 `fetchData`，但返回数据不会再被前端二次过滤，避免聚合字段、派生字段、字典展示字段被简单本地比较误删。需要纯前端过滤时，可显式设置 `localFilter=true` 或 `schema.localFilter=true`。
 
+### DataTableWithSearch tableInstanceId 默认查询配置
+
+`schema + fetchData` 模式支持按 `tableInstanceId` 加载默认查询配置。默认查询配置只负责默认展示列、排序、分页和筛选；`requiredRuntimeColumns`、`lockedColumns` 由 TM/QM 产出的 `TableSchema` 提供。
+
+```vue
+<DataTableWithSearch
+  :schema="{ ...tableSchema, qmModel: 'TicketQueryModel', tableInstanceId: 'ticket-list' }"
+  :fetch-data="fetchTickets"
+  :default-query-config-scope="{ userId: currentUser.id, tenantId: currentTenant.id, roleIds: currentRoleIds }"
+/>
+```
+
+后端可通过 `foggy.data-viewer.table-defaults.system/tenants/roles` 配置 fallback；用户默认配置仍可通过 `listPreset` 覆盖。`requiredRuntimeColumns` 只会追加到 `fetchData(params).columns`，不会显示为普通列。
+
 ### DataTable Events
 
 | 事件名 | 参数 | 说明 |
@@ -255,6 +269,66 @@ const columns = buildTableColumns(qmSchema, {
 ```
 
 选择原则：需要绑定业务事件时优先用 `column-*` 插槽；只改显示内容时使用 `render` 更轻。
+
+### 全局列渲染器（应用级统一增强）
+
+业务系统可以在应用启动时注册 `globalColumnRenderers`，按列元数据统一增强单元格展示。生成的 QueryTable wrapper 不需要批量修改。
+
+```typescript
+import { h } from 'vue'
+import { globalColumnRenderers } from 'foggy-data-viewer'
+
+const dispose = globalColumnRenderers.add({
+  id: 'app.orderNoLink',
+  priority: 100,
+  match: ({ column }) => column.name === 'orderNo' && /运单号/.test(column.title ?? ''),
+  render: ({ value }) => {
+    const text = String(value ?? '').trim()
+    if (!text) return '-'
+    return h('button', {
+      type: 'button',
+      class: 'data-viewer-link-cell',
+      onClick: (event: MouseEvent) => {
+        event.stopPropagation()
+        // 在业务应用闭包里调用 router.push(...)
+      }
+    }, text)
+  }
+})
+
+// 应用卸载或测试清理
+dispose()
+```
+
+渲染优先级固定为：`column-*` 插槽 > `column.customRender` > `globalColumnRenderers` > 默认渲染/字典/formatter。列级退出可设置 `column.uiConfig.disableGlobalRender = true`。
+
+### 全局搜索生命周期 Hook
+
+`globalSearchHooks` 作用于搜索动作层，早于最终 `fetchData` 和 `globalQueryHooks.onBeforeQuery`。它可以区分搜索来源和触发原因，适合埋点、默认条件补充和无效查询拦截。
+
+```typescript
+import { globalSearchHooks } from 'foggy-data-viewer'
+
+globalSearchHooks.register({
+  beforeSearch: (ctx) => {
+    if (ctx.trigger === 'search' && ctx.slice.length === 0) return false
+    return {
+      slice: [
+        ...ctx.slice,
+        { field: 'tenantId', op: '=', value: currentTenantId }
+      ]
+    }
+  },
+  afterSearch: (ctx, result) => {
+    console.log(ctx.source, ctx.trigger, result.total)
+  },
+  searchError: (ctx, error) => {
+    console.warn(ctx.source, ctx.trigger, error)
+  }
+})
+```
+
+`ctx.source` 为 `search-toolbar | query-panel | column-filter | external | api`，`ctx.trigger` 为 `search | reset | filter | sort | page | refresh | reload | mount`。
 
 ## 类型定义
 

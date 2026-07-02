@@ -24,6 +24,7 @@ export interface ListPresetScope {
   userId: string
   model: string
   businessKey?: string
+  tableInstanceId?: string
 }
 
 export interface SaveListPresetRequest {
@@ -47,7 +48,8 @@ function assertApiResponse<T>(response: ApiResponse<T>, fallbackMessage: string)
 }
 
 function buildScopeParams(scope: ListPresetScope): Record<string, string> {
-  return scope.businessKey ? { businessKey: scope.businessKey } : {}
+  const businessKey = scope.businessKey ?? scope.tableInstanceId
+  return businessKey ? { businessKey } : {}
 }
 
 function userPath(userId: string): string {

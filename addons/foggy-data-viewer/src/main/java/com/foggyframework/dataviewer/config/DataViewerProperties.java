@@ -1,5 +1,6 @@
 package com.foggyframework.dataviewer.config;
 
+import com.foggyframework.dataviewer.domain.TableDefaultQueryConfig;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -47,6 +48,11 @@ public class DataViewerProperties {
      * 自定义列表配置
      */
     private ListPresetProperties listPreset = new ListPresetProperties();
+
+    /**
+     * 表格实例默认查询 fallback 配置。
+     */
+    private TableDefaultProperties tableDefaults = new TableDefaultProperties();
 
     @Data
     public static class CacheProperties {
@@ -145,5 +151,23 @@ public class DataViewerProperties {
             MONGO,
             FILE
         }
+    }
+
+    @Data
+    public static class TableDefaultProperties {
+        /**
+         * 系统级默认配置，key 可使用 tableInstanceId 或 queryModel。
+         */
+        private Map<String, TableDefaultQueryConfig> system = new HashMap<>();
+
+        /**
+         * 租户级默认配置，第一层 key 为 tenantId，第二层 key 可使用 tableInstanceId 或 queryModel。
+         */
+        private Map<String, Map<String, TableDefaultQueryConfig>> tenants = new HashMap<>();
+
+        /**
+         * 角色级默认配置，第一层 key 为 roleId，第二层 key 可使用 tableInstanceId 或 queryModel。
+         */
+        private Map<String, Map<String, TableDefaultQueryConfig>> roles = new HashMap<>();
     }
 }

@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import DataTableWithSearch from './DataTableWithSearch.vue'
-import type { EnhancedColumnSchema, SliceRequestDef, ListViewState } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, ListViewState, FetchDataResult, SearchHookContext } from '@/types'
+import { globalSearchHooks } from './composables/globalSearchHooks'
+import { getDefaultListPreset } from '@/api/listPreset'
+import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 
 const dataTableClearSelectionSpy = vi.hoisted(() => vi.fn())
 
@@ -56,7 +59,7 @@ vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
     template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="toolbar-right" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot name="column-name" :row="{ name: \'Test 1\' }" :column="{ name: \'name\' }" value="Test 1" /><slot /></div>',
-    props: ['columns', 'data', 'total', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'localFilter', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'density'],
+    props: ['columns', 'data', 'total', 'loading', 'backgroundLoading', 'backgroundLoadingText', 'backgroundLoadingError', 'pageSize', 'showFilters', 'showPager', 'initialSlice', 'serverSummary', 'cellCopy', 'localFilter', 'filterOptionsLoader', 'filterMemberLoader', 'qmModel', 'tableSchema', 'density'],
     emits: ['page-change', 'sort-change', 'filter-change', 'filter-commit', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
       resetPagination() {
@@ -95,9 +98,16 @@ vi.mock('@/api/listPreset', () => ({
   getDefaultListPreset: vi.fn().mockResolvedValue(null)
 }))
 
+vi.mock('@/api/tableDefaultQueryConfig', () => ({
+  getTableDefaultQueryConfig: vi.fn().mockResolvedValue(null)
+}))
+
 describe('DataTableWithSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getDefaultListPreset).mockResolvedValue(null)
+    vi.mocked(getTableDefaultQueryConfig).mockResolvedValue(null)
+    globalSearchHooks.clear()
   })
 
   const mockColumns: EnhancedColumnSchema[] = [
@@ -499,6 +509,306 @@ describe('DataTableWithSearch', () => {
         expect.objectContaining({ columns: ['amount', 'name'] })
       )
       expect(fetchData.mock.calls[fetchData.mock.calls.length - 1]?.[0].columns).not.toContain('_actions')
+    })
+
+    it('should apply table default query config without showing runtime-only columns', async () => {
+      const defaultSlice: SliceRequestDef[] = [
+        { field: 'name', op: 'right_like', value: 'A' }
+      ]
+      const fetchData = vi.fn().mockResolvedValue({ items: [], total: 0 })
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            requiredRuntimeColumns: ['id'],
+            lockedColumns: ['amount']
+          },
+          fetchData,
+          defaultQueryConfig: {
+            tableInstanceId: 'ticket-list',
+            queryModel: 'TicketModel',
+            defaultVisibleColumns: ['name'],
+            defaultSlices: defaultSlice,
+            defaultOrderBy: [{ field: 'amount', dir: 'desc' }],
+            defaultPageSize: 25
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const columns = dataTable.props('columns') as EnhancedColumnSchema[]
+      expect(columns.map(col => col.name)).toEqual(['name', 'amount'])
+      expect(dataTable.props('pageSize')).toBe(25)
+      expect(dataTable.props('initialSlice')).toEqual(defaultSlice)
+      expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
+        tableInstanceId: 'ticket-list',
+        pageSize: 25,
+        columns: ['name', 'amount', 'id'],
+        slice: defaultSlice,
+        orderBy: [{ field: 'amount', dir: 'desc' }]
+      }))
+    })
+
+    it('should load table default query config from API scope before mount query', async () => {
+      vi.mocked(getTableDefaultQueryConfig).mockResolvedValue({
+        tableInstanceId: 'ticket-list',
+        queryModel: 'TicketModel',
+        defaultVisibleColumns: ['name']
+      })
+      const fetchData = vi.fn().mockResolvedValue({ items: [], total: 0 })
+
+      mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            qmModel: 'TicketModel',
+            tableInstanceId: 'ticket-list',
+            columns: mockColumns,
+            requiredRuntimeColumns: ['id']
+          },
+          fetchData,
+          defaultQueryConfigScope: {
+            userId: 'u1',
+            tenantId: 'tenant-a',
+            roleIds: ['ops']
+          }
+        }
+      })
+
+      await flushPromises()
+
+      expect(getTableDefaultQueryConfig).toHaveBeenCalledWith({
+        queryModel: 'TicketModel',
+        tableInstanceId: 'ticket-list',
+        userId: 'u1',
+        tenantId: 'tenant-a',
+        roleIds: ['ops'],
+        includeFallback: true
+      })
+      expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
+        tableInstanceId: 'ticket-list',
+        columns: ['name', 'id']
+      }))
+    })
+
+    it('should use tableInstanceId as default list preset businessKey', async () => {
+      mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          tableInstanceId: 'ticket-list',
+          listPreset: {
+            enabled: true,
+            model: 'TicketModel',
+            userId: 'u1'
+          }
+        }
+      })
+
+      await flushPromises()
+
+      expect(getDefaultListPreset).toHaveBeenCalledWith({
+        userId: 'u1',
+        model: 'TicketModel',
+        businessKey: 'ticket-list',
+        tableInstanceId: 'ticket-list'
+      })
+    })
+
+    it('should run global beforeSearch before query hooks and apply returned search context', async () => {
+      const fetchData = vi.fn().mockResolvedValue({ items: mockData, total: mockData.length })
+      const seenBeforeSearch: Array<Pick<SearchHookContext, 'source' | 'trigger' | 'slice' | 'columns'>> = []
+      const beforeSearch = vi.fn((ctx: SearchHookContext) => {
+        seenBeforeSearch.push({
+          source: ctx.source,
+          trigger: ctx.trigger,
+          slice: [...ctx.slice],
+          columns: [...(ctx.columns ?? [])]
+        })
+        return {
+          slice: [
+            ...ctx.slice,
+            { field: 'tenantId', op: '=', value: 'tenant-a' }
+          ]
+        }
+      })
+      const onBeforeQuery = vi.fn()
+      globalSearchHooks.register({ beforeSearch })
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            queryMode: 'column'
+          },
+          fetchData,
+          queryHooks: {
+            onBeforeQuery
+          }
+        }
+      })
+
+      await flushPromises()
+      fetchData.mockClear()
+      beforeSearch.mockClear()
+      seenBeforeSearch.splice(0, seenBeforeSearch.length)
+      onBeforeQuery.mockClear()
+
+      const tableSlices: SliceRequestDef[] = [
+        { field: 'name', op: 'right_like', value: 'Test' }
+      ]
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('filter-commit', tableSlices)
+      await flushPromises()
+
+      expect(seenBeforeSearch[0]).toEqual({
+        source: 'column-filter',
+        trigger: 'filter',
+        slice: tableSlices,
+        columns: ['id', 'name', 'amount']
+      })
+      expect(beforeSearch.mock.invocationCallOrder[0]).toBeLessThan(onBeforeQuery.mock.invocationCallOrder[0])
+      expect(fetchData).toHaveBeenCalledWith(expect.objectContaining({
+        slice: [
+          ...tableSlices,
+          { field: 'tenantId', op: '=', value: 'tenant-a' }
+        ]
+      }))
+      expect(onBeforeQuery.mock.calls[0][0].params.slice).toEqual([
+        ...tableSlices,
+        { field: 'tenantId', op: '=', value: 'tenant-a' }
+      ])
+    })
+
+    it('should cancel SearchToolbar search when beforeSearch returns false and expose reset metadata', async () => {
+      const fetchData = vi.fn().mockResolvedValue({ items: mockData, total: mockData.length })
+      const seen: Array<Pick<SearchHookContext, 'source' | 'trigger'>> = []
+
+      globalSearchHooks.register({
+        beforeSearch: (ctx) => {
+          seen.push({ source: ctx.source, trigger: ctx.trigger })
+          return ctx.trigger === 'search' ? false : undefined
+        }
+      })
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            queryMode: 'panel'
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+      fetchData.mockClear()
+      dataTableClearSelectionSpy.mockClear()
+      seen.splice(0, seen.length)
+
+      const searchToolbar = wrapper.findComponent({ name: 'SearchToolbar' })
+      await searchToolbar.vm.$emit('update:modelValue', [
+        { field: 'name', op: 'right_like', value: 'Test' }
+      ])
+      await searchToolbar.vm.$emit('search')
+      await flushPromises()
+
+      expect(fetchData).not.toHaveBeenCalled()
+      expect(dataTableClearSelectionSpy).not.toHaveBeenCalled()
+      expect(seen).toContainEqual({ source: 'search-toolbar', trigger: 'search' })
+
+      await searchToolbar.vm.$emit('reset')
+      await flushPromises()
+
+      expect(fetchData).toHaveBeenCalledTimes(1)
+      expect(dataTableClearSelectionSpy).toHaveBeenCalledTimes(1)
+      expect(seen).toContainEqual({ source: 'search-toolbar', trigger: 'reset' })
+    })
+
+    it('should run local afterSearch before global afterSearch with the fetch result', async () => {
+      const pageResult: FetchDataResult = { items: [mockData[1]], total: 1 }
+      const fetchData = vi.fn()
+        .mockResolvedValueOnce({ items: mockData, total: mockData.length })
+        .mockResolvedValueOnce(pageResult)
+      const calls: string[] = []
+      const localAfterSearch = vi.fn((_ctx: SearchHookContext, result: FetchDataResult) => {
+        calls.push(`local:${result.total}`)
+      })
+      const globalAfterSearch = vi.fn((_ctx: SearchHookContext, result: FetchDataResult) => {
+        calls.push(`global:${result.total}`)
+      })
+
+      globalSearchHooks.register({ afterSearch: globalAfterSearch })
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns
+          },
+          fetchData,
+          searchHooks: {
+            afterSearch: localAfterSearch
+          }
+        }
+      })
+
+      await flushPromises()
+      calls.splice(0, calls.length)
+      localAfterSearch.mockClear()
+      globalAfterSearch.mockClear()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('page-change', 2, 50)
+      await flushPromises()
+
+      expect(calls).toEqual(['local:1', 'global:1'])
+      expect(localAfterSearch).toHaveBeenCalledWith(expect.objectContaining({
+        source: 'external',
+        trigger: 'page',
+        result: pageResult
+      }), pageResult)
+      expect(globalAfterSearch).toHaveBeenCalledWith(expect.objectContaining({
+        source: 'external',
+        trigger: 'page',
+        result: pageResult
+      }), pageResult)
+    })
+
+    it('should let searchError handle schema fetch failures without emitting load-error', async () => {
+      const error = new Error('search failed')
+      const fetchData = vi.fn()
+        .mockResolvedValueOnce({ items: mockData, total: mockData.length })
+        .mockRejectedValueOnce(error)
+      const searchError = vi.fn(() => true)
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      globalSearchHooks.register({ searchError })
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            queryMode: 'column'
+          },
+          fetchData
+        }
+      })
+
+      await flushPromises()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('filter-commit', [
+        { field: 'name', op: 'right_like', value: 'Test' }
+      ])
+      await flushPromises()
+
+      expect(searchError).toHaveBeenCalledWith(expect.objectContaining({
+        source: 'column-filter',
+        trigger: 'filter'
+      }), error)
+      expect(wrapper.emitted('load-error')).toBeUndefined()
+
+      consoleError.mockRestore()
     })
 
     it('should keep local filtering enabled by default in controlled mode', () => {

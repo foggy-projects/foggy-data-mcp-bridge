@@ -3,6 +3,7 @@ package com.foggyframework.dataviewer.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataviewer.controller.ListPresetController;
 import com.foggyframework.dataviewer.controller.SavedQueryController;
+import com.foggyframework.dataviewer.controller.TableDefaultQueryConfigController;
 import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.controller.ViewerPageController;
 import com.foggyframework.dataviewer.mcp.OpenInViewerTool;
@@ -13,11 +14,14 @@ import com.foggyframework.dataviewer.service.MemberQueryService;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
 import com.foggyframework.dataviewer.service.SavedQueryService;
+import com.foggyframework.dataviewer.service.TableDefaultQueryConfigService;
 import com.foggyframework.dataviewer.service.listpreset.FallbackListPresetStore;
 import com.foggyframework.dataviewer.service.listpreset.FileSystemListPresetStore;
 import com.foggyframework.dataviewer.service.listpreset.ListPresetFieldValidator;
 import com.foggyframework.dataviewer.service.listpreset.ListPresetStore;
 import com.foggyframework.dataviewer.service.listpreset.MongoListPresetStore;
+import com.foggyframework.dataviewer.service.tabledefault.PropertiesTableDefaultQueryConfigProvider;
+import com.foggyframework.dataviewer.service.tabledefault.TableDefaultQueryConfigProvider;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import org.springframework.beans.factory.ObjectProvider;
@@ -161,5 +165,27 @@ public class DataViewerAutoConfiguration {
     @ConditionalOnMissingBean
     public ListPresetController listPresetController(ListPresetService listPresetService) {
         return new ListPresetController(listPresetService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PropertiesTableDefaultQueryConfigProvider propertiesTableDefaultQueryConfigProvider(
+            DataViewerProperties properties) {
+        return new PropertiesTableDefaultQueryConfigProvider(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public TableDefaultQueryConfigService tableDefaultQueryConfigService(
+            ListPresetService listPresetService,
+            ObjectProvider<TableDefaultQueryConfigProvider> providers) {
+        return new TableDefaultQueryConfigService(listPresetService, providers.orderedStream().toList());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public TableDefaultQueryConfigController tableDefaultQueryConfigController(
+            TableDefaultQueryConfigService tableDefaultQueryConfigService) {
+        return new TableDefaultQueryConfigController(tableDefaultQueryConfigService);
     }
 }
