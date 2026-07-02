@@ -49,6 +49,8 @@ describe('component style contracts', () => {
     expect(css).toContain('.data-table .data-table-copyable-cell {')
     expect(css).toContain('.data-table .cell-copy-button {')
     expect(css).toContain('.data-table .cell-copy-icon {')
+    expect(css).toContain('.data-table .data-table-boolean-cell {')
+    expect(css).toContain('.data-table .vxe-body--column.data-table-boolean-column .vxe-cell svg,')
   })
 
   it('keeps DataTable header filter layout compact in unscoped styles', () => {

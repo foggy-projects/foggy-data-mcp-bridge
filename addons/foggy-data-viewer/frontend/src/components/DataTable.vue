@@ -82,6 +82,15 @@ const props = withDefaults(defineProps<Props>(), {
 
 const BOOLEAN_FILTER_MIN_WIDTH = 88
 
+function isBooleanColumn(col: EnhancedColumnSchema): boolean {
+  const type = col.type?.toUpperCase()
+  return type === 'BOOL' || type === 'BOOLEAN'
+}
+
+function shouldUseDefaultBooleanCell(col: EnhancedColumnSchema): boolean {
+  return isBooleanColumn(col) && !col.customFormatter && !(col.dictItems && col.dictItems.length > 0)
+}
+
 const emit = defineEmits<{
   (e: 'page-change', page: number, size: number): void
   (e: 'sort-change', field: string | null, order: 'asc' | 'desc' | null): void
@@ -852,6 +861,17 @@ function renderCopyIcon() {
   ])
 }
 
+function renderBooleanCell(rawValue: unknown, displayValue: string) {
+  const state = rawValue === true ? 'true' : rawValue === false ? 'false' : 'empty'
+  const content = rawValue === true ? '✓' : rawValue === false ? '否' : ''
+
+  return h('span', {
+    class: ['data-table-boolean-cell', `data-table-boolean-cell--${state}`],
+    title: displayValue || undefined,
+    'aria-label': displayValue || undefined
+  }, content)
+}
+
 function renderHeaderHelpIcon() {
   return h('svg', {
     class: 'column-help-svg',
@@ -976,8 +996,15 @@ function renderDefaultCell(col: EnhancedColumnSchema, row: Record<string, unknow
   const displayValue = formatCellDisplayValue(col, rawValue)
   const cellTitle = displayValue || undefined
   const copyEnabled = isCellCopyEnabled(col, rawValue)
+  const renderCellContent = () => shouldUseDefaultBooleanCell(col)
+    ? renderBooleanCell(rawValue, displayValue)
+    : h('span', { class: 'data-table-cell-text' }, displayValue)
 
   if (!copyEnabled) {
+    if (shouldUseDefaultBooleanCell(col)) {
+      return renderBooleanCell(rawValue, displayValue)
+    }
+
     return h('span', {
       class: 'data-table-cell-text',
       title: cellTitle
@@ -1006,7 +1033,7 @@ function renderDefaultCell(col: EnhancedColumnSchema, row: Record<string, unknow
       }
     }
   }, [
-    h('span', { class: 'data-table-cell-text' }, displayValue),
+    renderCellContent(),
     isCopyCellActive(row, col.name) && h('button', {
       type: 'button',
       class: 'cell-copy-button',
@@ -1076,6 +1103,7 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
       width: col.width,
       minWidth: getColumnMinWidth(col),
       fixed: col.fixed,
+      className: isBooleanColumn(col) ? 'data-table-boolean-column' : undefined,
       sortable: false, // 禁用 vxe-table 内置排序，我们自己处理
       ...getColumnFormatter(col),
       // 使用 slots 在表头渲染过滤器
@@ -1913,6 +1941,77 @@ provide('dataTableContext', {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.data-table .data-table-boolean-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  height: 18px;
+  max-height: 18px;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.data-table .data-table-boolean-cell--true {
+  color: #16833a;
+}
+
+.data-table .data-table-boolean-cell--false {
+  color: #909399;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.data-table .data-table-boolean-cell--empty {
+  color: #c0c4cc;
+}
+
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell {
+  line-height: 1;
+  text-align: center;
+}
+
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell .data-table-copyable-cell {
+  justify-content: center;
+  padding-right: 0;
+}
+
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell svg,
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell img,
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell canvas,
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell .el-icon,
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell [class*="icon"] {
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  max-height: 18px !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  vertical-align: middle;
+}
+
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell .cell-copy-icon {
+  width: 13px !important;
+  min-width: 13px !important;
+  max-width: 13px !important;
+  height: 13px !important;
+  max-height: 13px !important;
+  font-size: 13px !important;
+}
+
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell span:not(.data-table-boolean-cell),
+.data-table .vxe-body--column.data-table-boolean-column .vxe-cell i {
+  max-height: 20px;
+  font-size: 16px !important;
+  line-height: 1 !important;
 }
 
 .data-table .vxe-body-cell--wrapper {

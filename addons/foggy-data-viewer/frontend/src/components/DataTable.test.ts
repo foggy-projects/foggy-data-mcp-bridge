@@ -25,6 +25,7 @@ vi.mock('element-plus', () => ({
 
 interface TestGridColumn {
   field?: string
+  className?: string
   width?: number | string
   minWidth?: number
   slots?: {
@@ -348,6 +349,26 @@ describe('DataTable', () => {
       const columns = grid.props('columns') as TestGridColumn[]
       const enabledColumn = columns.find(column => column.field === 'enabled')
       expect(enabledColumn?.minWidth).toBe(88)
+      expect(enabledColumn?.className).toBe('data-table-boolean-column')
+    })
+
+    it('should render default boolean values as compact status markers', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'enabled', type: 'BOOLEAN', title: '是否启用', copyable: false }],
+          data: [{ enabled: true }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      const marker = wrapper.find('.data-table-boolean-cell')
+      expect(marker.exists()).toBe(true)
+      expect(marker.text()).toBe('✓')
+      expect(marker.classes()).toContain('data-table-boolean-cell--true')
+      expect(marker.attributes('title')).toBe('是')
+      expect(marker.attributes('aria-label')).toBe('是')
     })
 
     it('should apply fixed columns', () => {
@@ -1234,7 +1255,7 @@ describe('DataTable', () => {
         ...renderGridConfig
       })
 
-      expect(wrapper.find('.data-table-cell-text').attributes('title')).toBe('是')
+      expect(wrapper.find('.data-table-boolean-cell').attributes('title')).toBe('是')
     })
 
     it('should copy the complete raw cell value when clicking copy button', async () => {
