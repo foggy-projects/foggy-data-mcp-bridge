@@ -1,6 +1,7 @@
 package com.foggyframework.runtime.api.controller;
 
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
+import com.foggyframework.runtime.api.dto.DatasourceDiagnosticsResponse;
 import com.foggyframework.runtime.api.dto.DatasourceInfo;
 import com.foggyframework.runtime.api.dto.DatasourceListResponse;
 import com.foggyframework.runtime.api.dto.DatasourceMutationResponse;
@@ -54,6 +55,25 @@ public class RuntimeDatasourcesController {
                 ENGINE,
                 runtimeApiProperties.getRuntimeApiVersion(),
                 new DatasourceListResponse(registryService.listInfos(), List.of())
+        );
+    }
+
+    @GetMapping("/datasources/diagnostics")
+    public RuntimeEnvelope<DatasourceDiagnosticsResponse> datasourceDiagnostics() {
+        return RuntimeEnvelope.ok(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
+                new DatasourceDiagnosticsResponse(
+                        registryService.isRegistryEnabled(),
+                        registryService.resolvedRegistryPath().toString(),
+                        registryService.registryFileExists(),
+                        registryService.registrySizeBytes(),
+                        registryService.registryLastModifiedAt(),
+                        registryService.listRecords().size(),
+                        registryService.listNamespaceBindings(),
+                        registryService.listInfos(),
+                        List.of()
+                )
         );
     }
 

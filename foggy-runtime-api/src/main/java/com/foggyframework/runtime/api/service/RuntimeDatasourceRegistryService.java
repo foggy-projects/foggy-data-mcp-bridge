@@ -85,6 +85,11 @@ public class RuntimeDatasourceRegistryService {
         return Optional.ofNullable(namespaceBindings.get(namespace));
     }
 
+    public synchronized Map<String, String> listNamespaceBindings() {
+        loadIfNeeded();
+        return Map.copyOf(namespaceBindings);
+    }
+
     public synchronized void bindNamespace(String namespace, String dataSource) {
         loadIfNeeded();
         namespaceBindings.put(namespace, dataSource);
@@ -187,8 +192,40 @@ public class RuntimeDatasourceRegistryService {
         return properties.getDatasourceRegistry() == null || properties.getDatasourceRegistry().isEnabled();
     }
 
+    public boolean isRegistryEnabled() {
+        return registryEnabled();
+    }
+
     public Path resolvedRegistryPath() {
         return registryPath();
+    }
+
+    public boolean registryFileExists() {
+        return Files.exists(resolvedRegistryPath());
+    }
+
+    public Long registrySizeBytes() {
+        Path path = resolvedRegistryPath();
+        if (!Files.exists(path)) {
+            return null;
+        }
+        try {
+            return Files.size(path);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public String registryLastModifiedAt() {
+        Path path = resolvedRegistryPath();
+        if (!Files.exists(path)) {
+            return null;
+        }
+        try {
+            return Files.getLastModifiedTime(path).toInstant().toString();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private DatasourcePoolInfo defaultPoolInfo() {

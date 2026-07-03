@@ -854,6 +854,59 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldReturnDatasourceDiagnosticsThroughRuntimeEnvelope() throws Exception {
+        Path db = Files.createTempFile("runtime-api-datasource-diagnostics-test", ".db");
+        String jdbcUrl = "jdbc:sqlite:" + db.toAbsolutePath();
+        try (Connection connection = DriverManager.getConnection(jdbcUrl);
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE diagnostic_sales (id INTEGER PRIMARY KEY, amount REAL)");
+        }
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", "diagnostic-sqlite",
+                        "type", "sqlite",
+                        "jdbcUrl", jdbcUrl
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/namespaces/diagnostic-ns/datasource",
+                org.springframework.http.HttpMethod.PUT,
+                new org.springframework.http.HttpEntity<>(Map.of(
+                        "namespace", "diagnostic-ns",
+                        "dataSource", "diagnostic-sqlite"
+                )),
+                JsonNode.class
+        );
+        assertThat(bindResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(bindResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/datasources/diagnostics",
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("registryEnabled").asBoolean()).isTrue();
+        assertThat(body.path("data").path("registryPath").asText()).endsWith(".json");
+        assertThat(body.path("data").path("registryExists").asBoolean()).isTrue();
+        assertThat(findDatasource(body, "default").path("name").asText()).isEqualTo("default");
+        JsonNode diagnosticDatasource = findDatasource(body, "diagnostic-sqlite");
+        assertThat(diagnosticDatasource.path("name").asText()).isEqualTo("diagnostic-sqlite");
+        assertThat(diagnosticDatasource.path("password").isMissingNode()).isTrue();
+        assertThat(body.path("data").path("namespaceBindings").path("diagnostic-ns").asText())
+                .isEqualTo("diagnostic-sqlite");
+    }
+
+    @Test
     void shouldAddTestBindAndInspectRuntimeManagedSqliteDatasource() throws Exception {
         Path db = Files.createTempFile("runtime-api-datasource-test", ".db");
         String jdbcUrl = "jdbc:sqlite:" + db.toAbsolutePath();
