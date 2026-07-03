@@ -2,7 +2,7 @@
 doc_role: version_followup_plan
 doc_purpose: Track 9.2.12 Runtime API managed datasource pool lifecycle work.
 version: 9.2.12
-status: ready-for-implementation
+status: ready-for-acceptance
 created_at: 2026-07-03
 updated_at: 2026-07-03
 ---
@@ -23,22 +23,32 @@ updated_at: 2026-07-03
 
 | Item | Doc | Status | Owner Module | Summary |
 |---|---|---|---|---|
-| Runtime managed datasource pool lifecycle | `workitems/P0-runtime-managed-datasource-pool-lifecycle.md` | ready-for-implementation | `foggy-runtime-api`, `foggy-runtime-cli` | Add a managed pool manager with lazy Hikari initialization, idle pool close, update/remove/shutdown close semantics, diagnostics, and MySQL restart validation. |
+| Runtime managed datasource pool lifecycle | `workitems/P0-runtime-managed-datasource-pool-lifecycle.md` | ready-for-acceptance | `foggy-runtime-api`, `foggy-runtime-cli` | Added managed lazy Hikari pools, idle close, update/remove/shutdown close semantics, diagnostics, namespace-bound Runtime API datasource resolution for models/query, and MySQL restart validation. |
 
 ## Guardrails
 
 - No complex namespace/model reference counting.
 - Namespace refresh must not close datasource pools.
 - Closing an idle pool must not delete the datasource registry record.
+- `ManagedDataSourcePoolManager` must have direct deterministic lifecycle tests, not only Runtime API controller happy path tests.
+- Manager/wrapper/fingerprint classes require strict coverage evidence: target at least 90% line and 85% branch coverage when coverage tooling is available, or a method-level requirement mapping table when it is not.
 - Runtime API-managed datasource is the recommended public path; FSScript datasource remains an advanced embedded path until its factory lifecycle is hardened.
 - No Runtime API auth-code, RBAC, audit, per-user permission, or production secret-manager redesign in this iteration.
 
 ## Progress Summary
 
-- development: not-started
-- testing: not-started
-- quality: pending implementation review
-- coverage: pending implementation review
-- acceptance: pending
+- development: complete for Runtime API pool manager, namespace datasource resolution, and CLI diagnostics
+- testing: Java lifecycle tests, Runtime API controller tests, CLI tests, and MySQL restart smoke are in place
+- quality: formal implementation quality gate passed
+- coverage: formal coverage audit passed; direct manager lifecycle coverage and MySQL restart evidence are recorded
+- acceptance: ready for formal signoff if requested
 - experience: N/A, backend/runtime and CLI diagnostics only.
 
+## Validation Snapshot
+
+- Runtime-managed MySQL datasource `mysql-pool-smoke` validated against MySQL `8.0.44`.
+- Namespace `mysqlpoolsmoke` recovered its datasource binding from `runtime-datasources.json`.
+- Bundle `mysql-pool-smoke-models` recovered from `runtime-bundles.json`.
+- `models validate`, `models refresh`, `models describe`, `query validate`, and `query execute` passed against `FactOrderQueryModel`.
+- Runtime restart did not require re-adding datasource, binding, or bundle.
+- Registry default remains `.foggy-runtime/runtime-datasources.json` under the runtime process working directory unless explicitly configured; namespace bindings are stored in the same file.

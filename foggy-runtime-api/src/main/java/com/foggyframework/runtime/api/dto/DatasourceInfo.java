@@ -13,6 +13,25 @@ public record DatasourceInfo(
         boolean canRemove,
         boolean canTest,
         String status,
-        String message
+        String message,
+        DatasourcePoolInfo pool
 ) {
+    public DatasourceInfo(
+            String name,
+            String type,
+            String jdbcUrl,
+            String username,
+            String passwordRef,
+            boolean enabled,
+            String source,
+            boolean managedByRuntimeApi,
+            boolean canUpdate,
+            boolean canRemove,
+            boolean canTest,
+            String status,
+            String message
+    ) {
+        this(name, type, jdbcUrl, username, passwordRef, enabled, source, managedByRuntimeApi,
+                canUpdate, canRemove, canTest, status, message, null);
+    }
 }

@@ -51,6 +51,7 @@ public class RuntimeCapabilitiesController {
         capabilities.put("datasources.remove", "supported");
         capabilities.put("datasources.test", "supported");
         capabilities.put("datasources.bind", "supported");
+        capabilities.put("datasources.diagnostics", "supported");
         capabilities.put("query.validate", "supported");
         capabilities.put("query.execute", "supported");
         capabilities.put("sql.query", "supported");

@@ -36,6 +36,20 @@ public interface NamedDataSourceResolver {
     DataSource resolve(String name);
 
     /**
+     * Resolve a default data source for a runtime namespace.
+     *
+     * <p>Implementations may use this to let a namespace-level runtime binding
+     * provide the default datasource for models that do not explicitly declare
+     * {@code dataSourceName} or {@code dataSource}.
+     *
+     * @param namespace Runtime namespace
+     * @return DataSource or null when no namespace default is configured
+     */
+    default DataSource resolveDefault(String namespace) {
+        return null;
+    }
+
+    /**
      * Check if a named data source is configured
      *
      * @param name Data source name

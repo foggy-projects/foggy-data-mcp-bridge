@@ -125,6 +125,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("capabilities").path("datasources.remove").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("datasources.test").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("datasources.bind").asText()).isEqualTo("supported");
+        assertThat(body.path("data").path("capabilities").path("datasources.diagnostics").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.validate").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("query.execute").asText()).isEqualTo("supported");
         assertThat(body.path("data").path("capabilities").path("sql.query").asText()).isEqualTo("supported");
@@ -1047,6 +1048,10 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
         assertThat(addResponse.getBody().path("data").path("datasource").path("type").asText()).isEqualTo("h2");
+        JsonNode addedDatasource = addResponse.getBody().path("data").path("datasource");
+        assertThat(addedDatasource.path("pool").path("lifecycleStatus").asText()).isEqualTo("not-created");
+        assertThat(addedDatasource.path("pool").path("poolExists").asBoolean()).isFalse();
+        assertThat(addedDatasource.path("pool").path("maximumPoolSize").asInt()).isEqualTo(4);
 
         ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/datasources/probe-h2/test",
@@ -1081,6 +1086,40 @@ class RuntimeCapabilitiesControllerEnabledTest {
             assertThat(resultSet.next()).isTrue();
             assertThat(resultSet.getInt(1)).isEqualTo(2);
         }
+
+        ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/namespaces/probe-ns/datasource",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("dataSource", "probe-h2")),
+                JsonNode.class
+        );
+        assertThat(bindResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(bindResponse.getBody()).isNotNull();
+        assertThat(bindResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(bindResponse.getBody().path("data").path("namespace").asText()).isEqualTo("probe-ns");
+
+        DataSource namespaceDefaultDataSource = namedDataSourceResolver.resolveDefault("probe-ns");
+        assertThat(namespaceDefaultDataSource).isNotNull();
+        try (Connection connection = namespaceDefaultDataSource.getConnection();
+             java.sql.Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("select count(*) from sales_probe_daily")) {
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getInt(1)).isEqualTo(2);
+        }
+
+        ResponseEntity<JsonNode> diagnosticsResponse = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                JsonNode.class
+        );
+        assertThat(diagnosticsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode datasource = findDatasource(diagnosticsResponse.getBody(), "probe-h2");
+        assertThat(datasource.path("pool").path("registryPath").asText()).contains("runtime-api-test-datasources");
+        assertThat(datasource.path("pool").path("lifecycleStatus").asText()).isEqualTo("live");
+        assertThat(datasource.path("pool").path("poolExists").asBoolean()).isTrue();
+        assertThat(datasource.path("pool").path("activeConnections").asInt()).isZero();
+        assertThat(datasource.path("pool").path("lastBorrowedAt").asText()).isNotBlank();
+        assertThat(datasource.path("pool").path("lastReturnedAt").asText()).isNotBlank();
+        assertThat(datasource.path("pool").path("driverClassName").asText()).isEqualTo("org.h2.Driver");
     }
 
     @Test
@@ -1111,6 +1150,14 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(bindResponse.getBody()).isNotNull();
         assertThat(bindResponse.getBody().path("success").asBoolean()).isTrue();
         assertThat(namedDataSourceResolver.isConfigured(dataSourceName)).isTrue();
+
+        ResponseEntity<JsonNode> listResponse = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                JsonNode.class
+        );
+        JsonNode datasource = findDatasource(listResponse.getBody(), dataSourceName);
+        assertThat(datasource.path("pool").path("lifecycleStatus").asText()).isEqualTo("not-created");
+        assertThat(datasource.path("pool").path("poolExists").asBoolean()).isFalse();
     }
 
     @Test
@@ -1256,6 +1303,16 @@ class RuntimeCapabilitiesControllerEnabledTest {
         BundleResource bundleResource = mock(BundleResource.class);
         when(bundleResource.getResource()).thenReturn(resource);
         return bundleResource;
+    }
+
+    private static JsonNode findDatasource(JsonNode body, String name) {
+        assertThat(body).isNotNull();
+        for (JsonNode datasource : body.path("data").path("datasources")) {
+            if (name.equals(datasource.path("name").asText())) {
+                return datasource;
+            }
+        }
+        throw new AssertionError("Datasource not found: " + name);
     }
 
     @Test

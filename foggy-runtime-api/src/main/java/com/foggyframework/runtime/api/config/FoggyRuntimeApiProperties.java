@@ -15,6 +15,7 @@ public class FoggyRuntimeApiProperties {
     private String authCode;
     private BundleRegistry bundleRegistry = new BundleRegistry();
     private DatasourceRegistry datasourceRegistry = new DatasourceRegistry();
+    private DatasourcePool datasourcePool = new DatasourcePool();
 
     public boolean isEnabled() {
         return enabled;
@@ -84,6 +85,14 @@ public class FoggyRuntimeApiProperties {
         this.datasourceRegistry = datasourceRegistry;
     }
 
+    public DatasourcePool getDatasourcePool() {
+        return datasourcePool;
+    }
+
+    public void setDatasourcePool(DatasourcePool datasourcePool) {
+        this.datasourcePool = datasourcePool;
+    }
+
     public static class BundleRegistry {
         private boolean enabled = true;
         private String path = ".foggy-runtime/runtime-bundles.json";
@@ -123,6 +132,81 @@ public class FoggyRuntimeApiProperties {
 
         public void setPath(String path) {
             this.path = path;
+        }
+    }
+
+    public static class DatasourcePool {
+        private boolean cleanupEnabled = true;
+        private long idlePoolCloseMinutes = 15;
+        private long cleanupIntervalMinutes = 1;
+        private int maximumPoolSize = 4;
+        private int minimumIdle = 0;
+        private long connectionTimeoutMs = 10000;
+        private long idleTimeoutMs = 120000;
+        private long maxLifetimeMs = 1800000;
+
+        public boolean isCleanupEnabled() {
+            return cleanupEnabled;
+        }
+
+        public void setCleanupEnabled(boolean cleanupEnabled) {
+            this.cleanupEnabled = cleanupEnabled;
+        }
+
+        public long getIdlePoolCloseMinutes() {
+            return idlePoolCloseMinutes;
+        }
+
+        public void setIdlePoolCloseMinutes(long idlePoolCloseMinutes) {
+            this.idlePoolCloseMinutes = idlePoolCloseMinutes;
+        }
+
+        public long getCleanupIntervalMinutes() {
+            return cleanupIntervalMinutes;
+        }
+
+        public void setCleanupIntervalMinutes(long cleanupIntervalMinutes) {
+            this.cleanupIntervalMinutes = cleanupIntervalMinutes;
+        }
+
+        public int getMaximumPoolSize() {
+            return maximumPoolSize;
+        }
+
+        public void setMaximumPoolSize(int maximumPoolSize) {
+            this.maximumPoolSize = maximumPoolSize;
+        }
+
+        public int getMinimumIdle() {
+            return minimumIdle;
+        }
+
+        public void setMinimumIdle(int minimumIdle) {
+            this.minimumIdle = minimumIdle;
+        }
+
+        public long getConnectionTimeoutMs() {
+            return connectionTimeoutMs;
+        }
+
+        public void setConnectionTimeoutMs(long connectionTimeoutMs) {
+            this.connectionTimeoutMs = connectionTimeoutMs;
+        }
+
+        public long getIdleTimeoutMs() {
+            return idleTimeoutMs;
+        }
+
+        public void setIdleTimeoutMs(long idleTimeoutMs) {
+            this.idleTimeoutMs = idleTimeoutMs;
+        }
+
+        public long getMaxLifetimeMs() {
+            return maxLifetimeMs;
+        }
+
+        public void setMaxLifetimeMs(long maxLifetimeMs) {
+            this.maxLifetimeMs = maxLifetimeMs;
         }
     }
 }

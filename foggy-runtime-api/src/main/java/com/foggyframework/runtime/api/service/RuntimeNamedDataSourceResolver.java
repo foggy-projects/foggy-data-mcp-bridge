@@ -36,6 +36,17 @@ public class RuntimeNamedDataSourceResolver implements NamedDataSourceResolver {
     }
 
     @Override
+    public DataSource resolveDefault(String namespace) {
+        if (!StringUtils.hasText(namespace)) {
+            return null;
+        }
+        return registryService.getNamespaceDatasource(namespace)
+                .flatMap(registryService::resolve)
+                .map(RuntimeDatasourceRegistryService.ResolvedDatasource::dataSource)
+                .orElse(null);
+    }
+
+    @Override
     public boolean isConfigured(String name) {
         if (!StringUtils.hasText(name)) {
             return false;

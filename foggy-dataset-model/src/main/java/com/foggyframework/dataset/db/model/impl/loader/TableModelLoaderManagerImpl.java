@@ -153,7 +153,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         fix(def);
 
         // Resolve data source before loading (needed by JdbcTableModelLoaderImpl)
-        DataSource effectiveDataSource = resolveDataSource(def);
+        DataSource effectiveDataSource = resolveDataSource(def, namespace);
         if (effectiveDataSource != null) {
             def.setDataSource(effectiveDataSource);
         }
@@ -275,12 +275,13 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     /**
      * Resolve data source for model loading.
      *
-     * <p>Priority: dataSourceName (resolved via NamedDataSourceResolver) > def.dataSource > default dataSource
+     * <p>Priority: dataSourceName (resolved via NamedDataSourceResolver) > def.dataSource >
+     * namespace default (resolved via NamedDataSourceResolver) > default dataSource
      *
      * @param def Model definition
      * @return Resolved DataSource
      */
-    private DataSource resolveDataSource(DbModelDef def) {
+    DataSource resolveDataSource(DbModelDef def, String namespace) {
         // 1. Try to resolve by name
         if (StringUtils.isNotEmpty(def.getDataSourceName()) && namedDataSourceResolver != null) {
             DataSource namedDs = namedDataSourceResolver.resolve(def.getDataSourceName());
@@ -297,7 +298,17 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             return def.getDataSource();
         }
 
-        // 3. Use default dataSource
+        // 3. Use namespace default datasource from Runtime API binding when available
+        if (StringUtils.isNotEmpty(namespace) && namedDataSourceResolver != null) {
+            DataSource namespaceDs = namedDataSourceResolver.resolveDefault(namespace);
+            if (namespaceDs != null) {
+                log.debug("Using namespace default data source for namespace: {}, model: {}",
+                        namespace, def.getName());
+                return namespaceDs;
+            }
+        }
+
+        // 4. Use default dataSource
         return this.dataSource;
     }
 
@@ -333,7 +344,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         RX.notNull(def, "加载模型时的def不得为空");
 
         // Resolve data source: dataSourceName > def.dataSource > default dataSource
-        DataSource effectiveDataSource = resolveDataSource(def);
+        DataSource effectiveDataSource = resolveDataSource(def, null);
         RX.notNull(effectiveDataSource, "加载模型时的数据源不得为空");
 
         String tableName = def.getTableName();

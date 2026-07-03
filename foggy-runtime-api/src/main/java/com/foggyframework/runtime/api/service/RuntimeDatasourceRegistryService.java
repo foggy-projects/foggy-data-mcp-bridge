@@ -3,9 +3,10 @@ package com.foggyframework.runtime.api.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.DatasourceInfo;
+import com.foggyframework.runtime.api.dto.DatasourcePoolInfo;
+import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager.ManagedDataSourcePoolState;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -18,7 +19,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -31,6 +31,7 @@ public class RuntimeDatasourceRegistryService {
     private final FoggyRuntimeApiProperties properties;
     private final ObjectProvider<DataSource> defaultDataSourceProvider;
     private final ObjectMapper objectMapper;
+    private final ManagedDataSourcePoolManager poolManager;
     private final Map<String, RuntimeDatasourceRecord> records = new LinkedHashMap<>();
     private final Map<String, String> namespaceBindings = new LinkedHashMap<>();
     private boolean loaded;
@@ -38,11 +39,13 @@ public class RuntimeDatasourceRegistryService {
     public RuntimeDatasourceRegistryService(
             FoggyRuntimeApiProperties properties,
             ObjectProvider<DataSource> defaultDataSourceProvider,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ManagedDataSourcePoolManager poolManager
     ) {
         this.properties = properties;
         this.defaultDataSourceProvider = defaultDataSourceProvider;
         this.objectMapper = objectMapper;
+        this.poolManager = poolManager;
     }
 
     public synchronized List<RuntimeDatasourceRecord> listRecords() {
@@ -58,8 +61,10 @@ public class RuntimeDatasourceRegistryService {
     public synchronized RuntimeDatasourceRecord save(RuntimeDatasourceRecord record) {
         loadIfNeeded();
         RuntimeDatasourceRecord normalized = record.withUpdatedAt(Instant.now().toString());
+        RuntimeDatasourceRecord previous = records.get(normalized.name());
         records.put(normalized.name(), normalized);
         persist();
+        poolManager.onRecordSaved(previous, normalized);
         return normalized;
     }
 
@@ -71,6 +76,7 @@ public class RuntimeDatasourceRegistryService {
         }
         namespaceBindings.entrySet().removeIf(entry -> name.equals(entry.getValue()));
         persist();
+        poolManager.remove(name);
         return true;
     }
 
@@ -136,7 +142,7 @@ public class RuntimeDatasourceRegistryService {
         if (record == null || !record.enabled()) {
             return Optional.empty();
         }
-        return Optional.of(new ResolvedDatasource(record.name(), buildDataSource(record)));
+        return Optional.of(new ResolvedDatasource(record.name(), poolManager.resolve(record)));
     }
 
     public DatasourceInfo defaultDatasourceInfo() {
@@ -153,7 +159,8 @@ public class RuntimeDatasourceRegistryService {
                 false,
                 true,
                 "active",
-                null
+                null,
+                defaultPoolInfo()
         );
     }
 
@@ -171,91 +178,63 @@ public class RuntimeDatasourceRegistryService {
                 true,
                 record.enabled(),
                 status,
-                message
+                message,
+                poolInfo(record)
         );
-    }
-
-    public DataSource buildDataSource(RuntimeDatasourceRecord record) {
-        String jdbcUrl = record.jdbcUrl();
-        if (!StringUtils.hasText(jdbcUrl) || !jdbcUrl.toLowerCase(Locale.ROOT).startsWith("jdbc:")) {
-            throw new IllegalArgumentException("Runtime-managed dataSource requires jdbcUrl starting with jdbc:");
-        }
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        String driverClassName = driverClassNameFor(jdbcUrl);
-        if (StringUtils.hasText(driverClassName)) {
-            dataSource.setDriverClassName(driverClassName);
-        }
-        dataSource.setUrl(jdbcUrl);
-        if (StringUtils.hasText(record.username())) {
-            dataSource.setUsername(record.username());
-        }
-        String password = resolvePassword(record);
-        if (password != null) {
-            dataSource.setPassword(password);
-        }
-        return dataSource;
-    }
-
-    private String driverClassNameFor(String jdbcUrl) {
-        String lower = jdbcUrl.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("jdbc:mysql:")) {
-            return "com.mysql.cj.jdbc.Driver";
-        }
-        if (lower.startsWith("jdbc:postgresql:")) {
-            return "org.postgresql.Driver";
-        }
-        if (lower.startsWith("jdbc:sqlserver:")) {
-            return "com.microsoft.sqlserver.jdbc.SQLServerDriver";
-        }
-        if (lower.startsWith("jdbc:sqlite:")) {
-            return "org.sqlite.JDBC";
-        }
-        if (lower.startsWith("jdbc:oracle:")) {
-            return "oracle.jdbc.OracleDriver";
-        }
-        if (lower.startsWith("jdbc:h2:")) {
-            return "org.h2.Driver";
-        }
-        if (lower.startsWith("jdbc:mariadb:")) {
-            return "org.mariadb.jdbc.Driver";
-        }
-        return null;
-    }
-
-    private String resolvePassword(RuntimeDatasourceRecord record) {
-        if (record.password() != null) {
-            return record.password();
-        }
-        String ref = record.passwordRef();
-        if (!StringUtils.hasText(ref)) {
-            return null;
-        }
-        String resolved = resolvePasswordRef(ref);
-        if (resolved == null) {
-            throw new IllegalArgumentException("Runtime-managed dataSource passwordRef could not be resolved: " + ref);
-        }
-        return resolved;
-    }
-
-    private String resolvePasswordRef(String ref) {
-        if (ref.startsWith("env:")) {
-            return System.getenv(ref.substring("env:".length()));
-        }
-        if (ref.startsWith("system:")) {
-            return System.getProperty(ref.substring("system:".length()));
-        }
-        if (ref.startsWith("sys:")) {
-            return System.getProperty(ref.substring("sys:".length()));
-        }
-        String envValue = System.getenv(ref);
-        if (envValue != null) {
-            return envValue;
-        }
-        return System.getProperty(ref);
     }
 
     private boolean registryEnabled() {
         return properties.getDatasourceRegistry() == null || properties.getDatasourceRegistry().isEnabled();
+    }
+
+    public Path resolvedRegistryPath() {
+        return registryPath();
+    }
+
+    private DatasourcePoolInfo defaultPoolInfo() {
+        return new DatasourcePoolInfo(
+                resolvedRegistryPath().toString(),
+                "config",
+                true,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private DatasourcePoolInfo poolInfo(RuntimeDatasourceRecord record) {
+        ManagedDataSourcePoolState state = poolManager.state(record.name()).orElse(null);
+        ManagedDataSourcePoolSettings settings = state != null ? state.settings() : poolManager.settingsFor(record);
+        return new DatasourcePoolInfo(
+                resolvedRegistryPath().toString(),
+                state != null ? state.lifecycleStatus() : "not-created",
+                state != null && state.poolExists(),
+                state != null && state.poolClosed(),
+                state != null ? state.activeConnections() : 0,
+                state != null ? state.lastBorrowedAt() : null,
+                state != null ? state.lastReturnedAt() : null,
+                state != null ? state.lastCloseReason() : null,
+                state != null ? state.lastCloseError() : null,
+                settings.idlePoolCloseMinutes(),
+                settings.cleanupIntervalMinutes(),
+                settings.maximumPoolSize(),
+                settings.minimumIdle(),
+                settings.connectionTimeoutMs(),
+                settings.idleTimeoutMs(),
+                settings.maxLifetimeMs(),
+                settings.driverClassName()
+        );
     }
 
     private void loadIfNeeded() {

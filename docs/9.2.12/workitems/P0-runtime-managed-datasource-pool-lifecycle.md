@@ -3,7 +3,7 @@ type: optimization
 version: 9.2.12
 ticket: P0-runtime-managed-datasource-pool-lifecycle
 priority: P0
-status: ready-for-implementation
+status: implementation-validated
 owner: foggy-runtime-api
 owner_modules:
   - foggy-runtime-api
@@ -104,6 +104,11 @@ SQLite handling:
 - Password handling remains dev/test oriented in this iteration:
   - prefer `passwordRef` for user workflows;
   - plaintext `password` remains local/dev only if supported by the current endpoint.
+- The default datasource registry file remains cwd-relative:
+  - default path: `.foggy-runtime/runtime-datasources.json`;
+  - resolved relative to the runtime process working directory, not the user home directory;
+  - namespace datasource bindings are stored in the same file;
+  - `.foggy-runtime/runtime-datasource-registry.json` is not a default file name in this implementation.
 - CLI should gain a datasource diagnostic command or output mode that shows:
   - registry path;
   - datasource type;
@@ -126,11 +131,22 @@ Follow-up requirements:
 
 ## Touched Code Areas
 
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/loader/TableModelLoaderManagerImpl.java`
+- `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/NamedDataSourceResolver.java`
+- `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/impl/loader/TableModelLoaderManagerImplDataSourceResolutionTest.java`
 - `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/service/RuntimeDatasourceRegistryService.java`
 - `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/service/RuntimeNamedDataSourceResolver.java`
+- `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/service/ManagedDataSourcePoolManager.java`
+- `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/service/ManagedDataSourcePool.java`
+- `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/service/HikariManagedDataSourcePoolFactory.java`
+- `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/service/ManagedDataSourcePoolSettings.java`
+- `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/dto/DatasourcePoolInfo.java`
+- `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/dto/DatasourceInfo.java`
 - `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/config/FoggyRuntimeApiProperties.java`
 - `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/controller/RuntimeDatasourcesController.java`
+- `foggy-runtime-api/src/main/java/com/foggyframework/runtime/api/controller/RuntimeCapabilitiesController.java`
 - `foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/RuntimeCapabilitiesControllerEnabledTest.java`
+- `foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/service/ManagedDataSourcePoolManagerTest.java`
 - `foggy-runtime-cli/src/foggy_runtime_cli/main.py`
 - `foggy-runtime-cli/tests/test_cli.py`
 
@@ -147,7 +163,45 @@ Follow-up requirements:
 - Removing a datasource closes its pool and removes its namespace binding.
 - Runtime shutdown closes live pools.
 - CLI tests cover generic datasource credentials and diagnostics.
-- Java tests cover pool reuse, idle close/recreate, update close, remove close, and shutdown close.
+- Java tests cover the full `ManagedDataSourcePoolManager` lifecycle and satisfy the strict test and quality bar below.
+
+## ManagedDataSourcePoolManager Test And Quality Bar
+
+`ManagedDataSourcePoolManager` is a core runtime lifecycle component. This work item cannot be accepted with only controller-level happy path coverage.
+
+Required unit coverage, directly targeting `ManagedDataSourcePoolManager` and its datasource/connection wrapper:
+
+- Lazy pool creation on first resolve/use.
+- Pool reuse while the existing pool is live.
+- Idle cleanup closes the live Hikari pool but keeps the managed config slot.
+- Resolving after idle cleanup recreates a new Hikari instance from the retained config.
+- Active borrowed connections prevent idle cleanup even when the idle threshold has elapsed.
+- A long-running borrowed connection past the threshold is not closed until returned, then becomes cleanup-eligible.
+- Updating a datasource with an unchanged config fingerprint keeps the current pool.
+- Updating a datasource with a changed config fingerprint closes the old pool and creates on next use.
+- Removing a datasource closes the pool and removes registry/binding state.
+- Runtime shutdown closes every live pool exactly once.
+- Unresolved `passwordRef` fails only at resolve/test time and does not break list, bind, or configured-state checks.
+- SQLite uses the intended special handling: either non-pooled execution or max-pool-size 1 with no retained idle connections.
+- Connection wrapper records `lastBorrowedAt` and `lastReturnedAt`; repeated `close()` calls are idempotent.
+- Cleanup is deterministic in tests through injected `Clock`/ticker/manual cleanup trigger; no `Thread.sleep`-based unit tests.
+
+Required integration coverage:
+
+- Fast JUnit integration path with H2 or SQLite proving real `getConnection()` borrow/return and idle cleanup behavior.
+- Runtime API/CLI MySQL path proving add datasource, bind namespace, upload model, validate, refresh, describe/query, restart runtime, and query again.
+
+Strict implementation quality requirements:
+
+- `Clock`, cleanup scheduler/executor, and Hikari factory must be injectable so lifecycle tests are deterministic.
+- No static mutable singleton state for managed pools.
+- `isConfigured`, datasource listing, namespace bind, and diagnostics must not create or borrow a pool.
+- `resolve`, test-connection, and query execution may create a pool.
+- Pool close must be idempotent and exception-safe.
+- Concurrent resolve, cleanup, update, and remove must be synchronized or otherwise atomic; avoid double pool creation and use-after-close races.
+- Pool config fingerprint must include JDBC URL, username, credential identity/material hash, driver, and pool settings, but logs and persisted diagnostics must not expose plaintext secrets.
+- New lifecycle classes should provide JaCoCo evidence when module coverage tooling is available: target at least 90% line and 85% branch coverage for the manager/wrapper/fingerprint classes, with all public methods covered. If tooling is unavailable, the coverage audit must include a method-level requirement mapping table.
+- Formal `foggy-implementation-quality-gate` and `foggy-test-coverage-audit` are required before this work item can move to acceptance; a lightweight self-check is not sufficient.
 
 ## Constraints / Non-Goals
 
@@ -170,19 +224,39 @@ Review notes:
 - Keeping the config slot after close is correct: configs are small, persisted, and let the runtime recreate pools without user action.
 - The current Runtime API registry path remains cwd-relative unless explicitly configured; diagnostics should surface the resolved absolute path.
 
+## Implementation Check-In
+
+implemented_at: 2026-07-03
+
+Runtime API changes:
+
+- Added `ManagedDataSourcePoolManager` with lazy Hikari pool creation, config-slot retention, deterministic idle cleanup, config fingerprint replacement behavior, remove/shutdown close handling, and pool diagnostics.
+- Added pool defaults under `foggy.runtime-api.datasource-pool.*`.
+- Added runtime datasource diagnostics in `GET /api/v1/datasources`, surfaced by CLI `datasources diagnostics`.
+- Updated runtime datasource registry integration so runtime-managed datasource `resolve` uses the managed pool manager, while list/bind/diagnostics avoid creating pools.
+- Updated namespace datasource resolution so model validation, refresh, describe, and query execution can use the namespace-bound Runtime API-managed datasource when no TM-level datasource is explicitly set.
+- Preserved datasource configs and namespace bindings in the runtime datasource registry file.
+
+CLI changes:
+
+- Added `foggy-runtime datasources diagnostics`.
+- Added feature preflight compatibility for newer diagnostics and older datasource list support.
+- Added tests for diagnostics output and generic datasource credential paths.
+
 ## Progress Tracking
 
 | Item | Status | Notes |
 |---|---|---|
 | Workitem recorded | done | 9.2.12 work item created from datasource lifecycle design discussion. |
 | Design review | done | Passed for implementation with wrapper timestamp requirement. |
-| Runtime pool manager implementation | pending | Add managed lazy Hikari lifecycle. |
-| Runtime API diagnostics | pending | Add pool state and resolved registry path. |
-| CLI diagnostics | pending | Add command/output path after Runtime API exposes state. |
-| MySQL restart validation | pending | Must create runtime datasource, upload new namespace models, refresh, query, restart, and query again. |
-| Quality | pending | Required after implementation. |
-| Coverage | pending | Required after implementation tests pass. |
-| Acceptance | pending | Required after runtime and CLI evidence is complete. |
+| Strict manager test bar | done | Full lifecycle, deterministic cleanup, coverage, and quality requirements recorded. |
+| Runtime pool manager implementation | done | Added managed lazy Hikari lifecycle with retained config slots and idle close. |
+| Runtime API diagnostics | done | `GET /api/v1/datasources` returns resolved registry path and pool state. |
+| CLI diagnostics | done | `foggy-runtime datasources diagnostics` added and covered by tests. |
+| MySQL restart validation | done | Runtime-managed MySQL datasource, namespace binding, bundle, model validation, refresh, describe, query, restart, and query again passed. |
+| Quality | done | Formal implementation quality gate passed; see `docs/9.2.12/quality/runtime-managed-datasource-pool-lifecycle-implementation-quality.md`. |
+| Coverage | done | Coverage audit passed with direct lifecycle tests and MySQL restart evidence; see `docs/9.2.12/coverage/runtime-managed-datasource-pool-lifecycle-coverage-audit.md`. |
+| Acceptance | ready | Ready for formal acceptance signoff if requested. |
 
 ## Experience Progress
 
@@ -194,19 +268,52 @@ Reason: Backend/runtime datasource lifecycle and CLI diagnostics; no UI workflow
 
 - [x] Record 9.2.12 work item.
 - [x] Record idle-close design and review constraints.
-- [ ] Implement managed pool manager.
-- [ ] Add Runtime API pool state diagnostics.
-- [ ] Add CLI diagnostics.
-- [ ] Add Java lifecycle tests.
-- [ ] Add CLI tests.
-- [ ] Run MySQL Runtime API restart validation.
-- [ ] Record implementation check-in.
-- [ ] Run quality and coverage review.
+- [x] Implement managed pool manager.
+- [x] Add Runtime API pool state diagnostics.
+- [x] Add CLI diagnostics.
+- [x] Add Java lifecycle tests.
+- [x] Add CLI tests.
+- [x] Run MySQL Runtime API restart validation.
+- [x] Record implementation check-in.
+- [x] Run quality and coverage review.
 - [ ] Sign off acceptance.
+
+## Validation Evidence
+
+Local runtime evidence directory:
+
+- `D:\foggy-projects\foggy-data-mcp\.codex-tmp\runtime-pool-smoke-20260703-173237`
+
+Runtime setup:
+
+- Runtime API: `http://127.0.0.1:18126`
+- Datasource registry override: `D:\foggy-projects\foggy-data-mcp\.codex-tmp\runtime-pool-smoke-20260703-173237\runtime-datasources.json`
+- Bundle registry override: `D:\foggy-projects\foggy-data-mcp\.codex-tmp\runtime-pool-smoke-20260703-173237\runtime-bundles.json`
+- MySQL container: `mysql:8.0`, exposed on `127.0.0.1:13308`
+- MySQL product version reported by Runtime API: `8.0.44`
+- MySQL schema: `foggy_runtime_pool_test`
+- Runtime datasource: `mysql-pool-smoke`
+- Namespace: `mysqlpoolsmoke`
+- Bundle: `mysql-pool-smoke-models`
+- Model fixture: `docs/v4.1/contracts/runtime-api-v1/model-fixtures/minimal-fact-order`
+
+Runtime API/CLI validation:
+
+- `wait-ready`: passed.
+- `capabilities`: `datasources.diagnostics`, `models.validate`, `models.refresh`, `models.describe`, and `query.execute` all reported `supported`.
+- `datasources diagnostics`: recovered `mysql-pool-smoke` from `runtime-datasources.json` with `managedByRuntimeApi=true`, `lifecycleStatus=not-created`, `poolExists=false` before first use after restart.
+- `datasources test mysql-pool-smoke`: connected to MySQL `8.0.44`.
+- `datasources binding --namespace mysqlpoolsmoke`: recovered binding to `mysql-pool-smoke`.
+- `bundles list --namespace mysqlpoolsmoke`: recovered `mysql-pool-smoke-models`.
+- `models validate --namespace mysqlpoolsmoke`: valid, `totalFiles=2`, `validFiles=2`.
+- `models refresh --namespace mysqlpoolsmoke --model FactOrderQueryModel`: loaded `FactOrderQueryModel`.
+- `models describe --namespace mysqlpoolsmoke FactOrderQueryModel`: returned runtime-observed dictionary values from MySQL rows.
+- `query validate --namespace mysqlpoolsmoke FactOrderQueryModel`: passed.
+- `query execute --namespace mysqlpoolsmoke FactOrderQueryModel`: returned `ORD-1001`, `ORD-1002`, and `ORD-1003` from MySQL.
+- Full restart validation: after stopping and restarting Runtime API with the same registry files, datasource, namespace binding, bundle, model refresh, and query execution all passed without re-adding datasource, binding, or bundle.
 
 ## Acceptance Readiness
 
-status: not-ready
+status: ready-for-acceptance
 
-Reason: Design is reviewed and ready for implementation, but code, tests, diagnostics, and restart validation are pending.
-
+Reason: Implementation, automated tests, MySQL restart validation, quality gate, and coverage audit are complete. Formal acceptance signoff is the remaining optional step.
