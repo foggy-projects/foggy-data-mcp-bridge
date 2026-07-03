@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -153,7 +154,7 @@ public class RuntimeDatasourcesController {
             return fail("INVALID_REQUEST", "datasources.bind", "Missing required field: dataSource",
                     "Provide a dataSource name.", false);
         }
-        if (registryService.resolve(dataSource).isEmpty()) {
+        if (!registryService.isConfigured(dataSource)) {
             return fail("DATASOURCE_NOT_FOUND", "datasources.bind", "DataSource not found or disabled: " + dataSource,
                     "Add or enable the dataSource before binding it to a namespace.", false);
         }
@@ -180,26 +181,23 @@ public class RuntimeDatasourcesController {
                     "The default dataSource is configured by Spring and cannot be managed by Runtime API.",
                     "Choose a non-default runtime-managed dataSource name.", false);
         }
-        String type = stringOr(request != null ? request.type() : null, "sqlite").toLowerCase();
-        if (!"sqlite".equals(type)) {
-            return fail("DATASOURCE_TYPE_UNSUPPORTED", update ? "datasources.update" : "datasources.add",
-                    "Only sqlite runtime-managed dataSources are supported in this phase: " + type,
-                    "Use type=sqlite for local demo and model exploration.", false);
-        }
         String jdbcUrl = blankToNull(request != null ? request.jdbcUrl() : null);
         if (jdbcUrl == null) {
             return fail("INVALID_REQUEST", update ? "datasources.update" : "datasources.add",
-                    "Missing required field: jdbcUrl", "Provide a jdbc:sqlite: URL.", false);
+                    "Missing required field: jdbcUrl", "Provide a JDBC URL starting with jdbc:.", false);
         }
-        if (!jdbcUrl.startsWith("jdbc:sqlite:")) {
+        if (!jdbcUrl.toLowerCase(Locale.ROOT).startsWith("jdbc:")) {
             return fail("INVALID_REQUEST", update ? "datasources.update" : "datasources.add",
-                    "SQLite dataSource requires jdbcUrl starting with jdbc:sqlite:",
-                    "Provide a valid SQLite JDBC URL.", false);
+                    "Runtime-managed dataSource requires jdbcUrl starting with jdbc:",
+                    "Provide a valid JDBC URL.", false);
         }
-        if (request != null && StringUtils.hasText(request.password())) {
-            return fail("DATASOURCE_PASSWORD_UNSUPPORTED", update ? "datasources.update" : "datasources.add",
-                    "Plaintext dataSource passwords are not supported in this development Runtime API phase.",
-                    "Use passwordRef in a later secured phase; SQLite demos should not require passwords.", false);
+        String type = normalizeType(request != null ? request.type() : null, jdbcUrl);
+        String password = blankToNull(request != null ? request.password() : null);
+        String passwordRef = blankToNull(request != null ? request.passwordRef() : null);
+        if (password != null && passwordRef != null) {
+            return fail("INVALID_REQUEST", update ? "datasources.update" : "datasources.add",
+                    "Provide either password or passwordRef, not both.",
+                    "Use passwordRef for environment-backed secrets or password for local development only.", false);
         }
 
         RuntimeDatasourceRecord existingRecord = registryService.find(name).orElse(null);
@@ -220,7 +218,8 @@ public class RuntimeDatasourcesController {
                 type,
                 jdbcUrl,
                 blankToNull(request != null ? request.username() : null),
-                blankToNull(request != null ? request.passwordRef() : null),
+                password,
+                passwordRef,
                 booleanOr(request != null ? request.enabled() : null, true)
         );
         record = registryService.save(record);
@@ -256,8 +255,18 @@ public class RuntimeDatasourcesController {
         return StringUtils.hasText(value) ? value : null;
     }
 
-    private static String stringOr(String value, String fallback) {
-        return StringUtils.hasText(value) ? value : fallback;
+    private static String normalizeType(String value, String jdbcUrl) {
+        String requested = blankToNull(value);
+        if (requested != null) {
+            return requested.toLowerCase(Locale.ROOT);
+        }
+        String lower = jdbcUrl.toLowerCase(Locale.ROOT);
+        int start = "jdbc:".length();
+        int end = lower.indexOf(':', start);
+        if (end > start) {
+            return lower.substring(start, end);
+        }
+        return "jdbc";
     }
 
     private static boolean booleanOr(Boolean value, boolean fallback) {

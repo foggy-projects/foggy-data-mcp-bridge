@@ -12,15 +12,19 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -83,6 +87,9 @@ class RuntimeCapabilitiesControllerEnabledTest {
 
     @MockitoBean
     private DataSource dataSource;
+
+    @Autowired
+    private NamedDataSourceResolver namedDataSourceResolver;
 
     private final TestRestTemplate restTemplate = new TestRestTemplate();
 
@@ -1009,6 +1016,101 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(rejectedBody.path("success").asBoolean()).isFalse();
         assertThat(rejectedBody.path("error").path("code").asText()).isEqualTo("SQL_QUERY_REJECTED");
         assertThat(rejectedBody.path("error").path("phase").asText()).isEqualTo("sql.query");
+    }
+
+    @Test
+    void shouldAddTestQueryAndResolveGenericJdbcDatasource() throws Exception {
+        String jdbcUrl = "jdbc:h2:mem:runtime_api_generic_" + System.nanoTime() + ";MODE=MySQL;DB_CLOSE_DELAY=-1";
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE sales_probe_daily (
+                        id INTEGER PRIMARY KEY,
+                        region VARCHAR(64) NOT NULL,
+                        sales_amount DECIMAL(18, 2)
+                    )
+                    """);
+            statement.execute("INSERT INTO sales_probe_daily(id, region, sales_amount) VALUES (1, 'East', 120.50)");
+            statement.execute("INSERT INTO sales_probe_daily(id, region, sales_amount) VALUES (2, 'West', 80.00)");
+        }
+
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", "probe-h2",
+                        "type", "h2",
+                        "jdbcUrl", jdbcUrl,
+                        "username", "sa"
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(addResponse.getBody().path("data").path("datasource").path("type").asText()).isEqualTo("h2");
+
+        ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources/probe-h2/test",
+                null,
+                JsonNode.class
+        );
+        assertThat(testResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(testResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(testResponse.getBody().path("data").path("productName").asText()).containsIgnoringCase("h2");
+
+        ResponseEntity<JsonNode> queryResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/sql/query",
+                Map.of(
+                        "dataSource", "probe-h2",
+                        "sql", "select region as \"region\", sales_amount as \"sales_amount\" from sales_probe_daily order by id",
+                        "maxRows", 2
+                ),
+                JsonNode.class
+        );
+        assertThat(queryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode queryBody = queryResponse.getBody();
+        assertThat(queryBody).isNotNull();
+        assertThat(queryBody.path("success").asBoolean()).isTrue();
+        assertThat(queryBody.path("data").path("rows").get(0).path("region").asText()).isEqualTo("East");
+
+        DataSource resolvedDataSource = namedDataSourceResolver.resolve("probe-h2");
+        assertThat(resolvedDataSource).isNotNull();
+        assertThat(namedDataSourceResolver.isConfigured("probe-h2")).isTrue();
+        try (Connection connection = resolvedDataSource.getConnection();
+             java.sql.Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("select count(*) from sales_probe_daily")) {
+            assertThat(resultSet.next()).isTrue();
+            assertThat(resultSet.getInt(1)).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void shouldBindDatasourceWithoutResolvingPasswordRef() {
+        String dataSourceName = "unresolved-ref-" + System.nanoTime();
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", dataSourceName,
+                        "type", "h2",
+                        "jdbcUrl", "jdbc:h2:mem:" + dataSourceName,
+                        "username", "sa",
+                        "passwordRef", "env:FOGGY_MISSING_PASSWORD_FOR_BIND_TEST"
+                ),
+                JsonNode.class
+        );
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
+
+        ResponseEntity<JsonNode> bindResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/namespaces/bind-ref-ns/datasource",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("dataSource", dataSourceName)),
+                JsonNode.class
+        );
+
+        assertThat(bindResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(bindResponse.getBody()).isNotNull();
+        assertThat(bindResponse.getBody().path("success").asBoolean()).isTrue();
+        assertThat(namedDataSourceResolver.isConfigured(dataSourceName)).isTrue();
     }
 
     @Test

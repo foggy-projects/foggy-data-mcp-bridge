@@ -67,6 +67,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- MySQL JDBC Driver（Runtime API managed datasource / external MySQL demos） -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- SQLite JDBC Driver（lite profile 启动数据源） -->
         <dependency>
             <groupId>org.xerial</groupId>

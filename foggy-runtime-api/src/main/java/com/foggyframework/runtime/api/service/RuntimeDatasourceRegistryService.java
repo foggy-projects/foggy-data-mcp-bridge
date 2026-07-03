@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -89,11 +90,12 @@ public class RuntimeDatasourceRegistryService {
             String type,
             String jdbcUrl,
             String username,
+            String password,
             String passwordRef,
             boolean enabled
     ) {
         String now = Instant.now().toString();
-        return new RuntimeDatasourceRecord(name, type, jdbcUrl, username, passwordRef, enabled, now, now);
+        return new RuntimeDatasourceRecord(name, type, jdbcUrl, username, password, passwordRef, enabled, now, now);
     }
 
     public List<DatasourceInfo> listInfos() {
@@ -109,6 +111,16 @@ public class RuntimeDatasourceRegistryService {
 
     public boolean hasDefaultDataSource() {
         return defaultDataSourceProvider.getIfAvailable() != null;
+    }
+
+    public synchronized boolean isConfigured(String name) {
+        String normalized = StringUtils.hasText(name) ? name : DEFAULT_DATASOURCE_NAME;
+        if (DEFAULT_DATASOURCE_NAME.equals(normalized)) {
+            return hasDefaultDataSource();
+        }
+        loadIfNeeded();
+        RuntimeDatasourceRecord record = records.get(normalized);
+        return record != null && record.enabled();
     }
 
     public Optional<ResolvedDatasource> resolve(String name) {
@@ -164,20 +176,82 @@ public class RuntimeDatasourceRegistryService {
     }
 
     public DataSource buildDataSource(RuntimeDatasourceRecord record) {
-        if (!"sqlite".equalsIgnoreCase(record.type())) {
-            throw new IllegalArgumentException("Unsupported runtime-managed dataSource type: " + record.type());
-        }
         String jdbcUrl = record.jdbcUrl();
-        if (!StringUtils.hasText(jdbcUrl) || !jdbcUrl.startsWith("jdbc:sqlite:")) {
-            throw new IllegalArgumentException("SQLite dataSource requires jdbcUrl starting with jdbc:sqlite:");
+        if (!StringUtils.hasText(jdbcUrl) || !jdbcUrl.toLowerCase(Locale.ROOT).startsWith("jdbc:")) {
+            throw new IllegalArgumentException("Runtime-managed dataSource requires jdbcUrl starting with jdbc:");
         }
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName("org.sqlite.JDBC");
+        String driverClassName = driverClassNameFor(jdbcUrl);
+        if (StringUtils.hasText(driverClassName)) {
+            dataSource.setDriverClassName(driverClassName);
+        }
         dataSource.setUrl(jdbcUrl);
         if (StringUtils.hasText(record.username())) {
             dataSource.setUsername(record.username());
         }
+        String password = resolvePassword(record);
+        if (password != null) {
+            dataSource.setPassword(password);
+        }
         return dataSource;
+    }
+
+    private String driverClassNameFor(String jdbcUrl) {
+        String lower = jdbcUrl.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("jdbc:mysql:")) {
+            return "com.mysql.cj.jdbc.Driver";
+        }
+        if (lower.startsWith("jdbc:postgresql:")) {
+            return "org.postgresql.Driver";
+        }
+        if (lower.startsWith("jdbc:sqlserver:")) {
+            return "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+        }
+        if (lower.startsWith("jdbc:sqlite:")) {
+            return "org.sqlite.JDBC";
+        }
+        if (lower.startsWith("jdbc:oracle:")) {
+            return "oracle.jdbc.OracleDriver";
+        }
+        if (lower.startsWith("jdbc:h2:")) {
+            return "org.h2.Driver";
+        }
+        if (lower.startsWith("jdbc:mariadb:")) {
+            return "org.mariadb.jdbc.Driver";
+        }
+        return null;
+    }
+
+    private String resolvePassword(RuntimeDatasourceRecord record) {
+        if (record.password() != null) {
+            return record.password();
+        }
+        String ref = record.passwordRef();
+        if (!StringUtils.hasText(ref)) {
+            return null;
+        }
+        String resolved = resolvePasswordRef(ref);
+        if (resolved == null) {
+            throw new IllegalArgumentException("Runtime-managed dataSource passwordRef could not be resolved: " + ref);
+        }
+        return resolved;
+    }
+
+    private String resolvePasswordRef(String ref) {
+        if (ref.startsWith("env:")) {
+            return System.getenv(ref.substring("env:".length()));
+        }
+        if (ref.startsWith("system:")) {
+            return System.getProperty(ref.substring("system:".length()));
+        }
+        if (ref.startsWith("sys:")) {
+            return System.getProperty(ref.substring("sys:".length()));
+        }
+        String envValue = System.getenv(ref);
+        if (envValue != null) {
+            return envValue;
+        }
+        return System.getProperty(ref);
     }
 
     private boolean registryEnabled() {
@@ -252,13 +326,14 @@ public class RuntimeDatasourceRegistryService {
             String type,
             String jdbcUrl,
             String username,
+            String password,
             String passwordRef,
             boolean enabled,
             String createdAt,
             String updatedAt
     ) {
         public RuntimeDatasourceRecord withUpdatedAt(String updatedAt) {
-            return new RuntimeDatasourceRecord(name, type, jdbcUrl, username, passwordRef, enabled, createdAt, updatedAt);
+            return new RuntimeDatasourceRecord(name, type, jdbcUrl, username, password, passwordRef, enabled, createdAt, updatedAt);
         }
     }
 
