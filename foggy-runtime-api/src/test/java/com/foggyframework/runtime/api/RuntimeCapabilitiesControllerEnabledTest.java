@@ -16,6 +16,7 @@ import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -24,6 +25,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -90,6 +92,9 @@ class RuntimeCapabilitiesControllerEnabledTest {
 
     @Autowired
     private NamedDataSourceResolver namedDataSourceResolver;
+
+    @Autowired
+    private RuntimeDatasourceRegistryService datasourceRegistryService;
 
     private final TestRestTemplate restTemplate = new TestRestTemplate();
 
@@ -1160,6 +1165,38 @@ class RuntimeCapabilitiesControllerEnabledTest {
             assertThat(resultSet.getInt(1)).isEqualTo(2);
         }
 
+        HttpHeaders namespaceHeaders = new HttpHeaders();
+        namespaceHeaders.add("X-NS", "probe-ns");
+        ResponseEntity<JsonNode> namespaceListResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/tables/list",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("includeViews", false), namespaceHeaders),
+                JsonNode.class
+        );
+        assertThat(namespaceListResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode namespaceListBody = namespaceListResponse.getBody();
+        assertThat(namespaceListBody).isNotNull();
+        assertThat(namespaceListBody.path("success").asBoolean()).isTrue();
+        assertThat(namespaceListBody.path("data").path("dataSource").asText()).isEqualTo("probe-h2");
+        assertThat(namespaceListBody.path("data").path("tables"))
+                .anySatisfy(table -> assertThat(table.path("name").asText()).isEqualToIgnoringCase("sales_probe_daily"));
+
+        ResponseEntity<JsonNode> namespaceQueryResponse = restTemplate.exchange(
+                "http://localhost:" + port + "/api/v1/sql/query",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "sql", "select count(*) as \"sales_count\" from sales_probe_daily",
+                        "maxRows", 5
+                ), namespaceHeaders),
+                JsonNode.class
+        );
+        assertThat(namespaceQueryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode namespaceQueryBody = namespaceQueryResponse.getBody();
+        assertThat(namespaceQueryBody).isNotNull();
+        assertThat(namespaceQueryBody.path("success").asBoolean()).isTrue();
+        assertThat(namespaceQueryBody.path("data").path("dataSource").asText()).isEqualTo("probe-h2");
+        assertThat(namespaceQueryBody.path("data").path("rows").get(0).path("sales_count").asInt()).isEqualTo(2);
+
         ResponseEntity<JsonNode> diagnosticsResponse = restTemplate.getForEntity(
                 "http://localhost:" + port + "/api/v1/datasources",
                 JsonNode.class
@@ -1211,6 +1248,72 @@ class RuntimeCapabilitiesControllerEnabledTest {
         JsonNode datasource = findDatasource(listResponse.getBody(), dataSourceName);
         assertThat(datasource.path("pool").path("lifecycleStatus").asText()).isEqualTo("not-created");
         assertThat(datasource.path("pool").path("poolExists").asBoolean()).isFalse();
+
+        ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources/" + dataSourceName + "/test",
+                null,
+                JsonNode.class
+        );
+        assertThat(testResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode testBody = testResponse.getBody();
+        assertThat(testBody).isNotNull();
+        assertThat(testBody.path("success").asBoolean()).isFalse();
+        assertThat(testBody.path("error").path("code").asText()).isEqualTo("DATASOURCE_CREDENTIAL_UNRESOLVED");
+        assertThat(testBody.path("error").path("phase").asText()).isEqualTo("datasources.test");
+        assertThat(testBody.path("error").path("message").asText()).contains("passwordRef could not be resolved");
+    }
+
+    @Test
+    void shouldRejectUnsupportedPasswordRefSchemeOnDatasourceAdd() {
+        ResponseEntity<JsonNode> addResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources",
+                Map.of(
+                        "name", "unsupported-ref-" + System.nanoTime(),
+                        "type", "h2",
+                        "jdbcUrl", "jdbc:h2:mem:unsupported_ref",
+                        "username", "sa",
+                        "passwordRef", "plain:secret"
+                ),
+                JsonNode.class
+        );
+
+        assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = addResponse.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("INVALID_REQUEST");
+        assertThat(body.path("error").path("phase").asText()).isEqualTo("datasources.add");
+        assertThat(body.path("error").path("message").asText()).contains("Unsupported passwordRef scheme: plain");
+        assertThat(body.path("error").path("message").asText()).doesNotContain("secret");
+    }
+
+    @Test
+    void shouldReturnStructuredErrorForSavedUnsupportedPasswordRefScheme() {
+        String dataSourceName = "saved-unsupported-ref-" + System.nanoTime();
+        datasourceRegistryService.save(datasourceRegistryService.newRecord(
+                dataSourceName,
+                "h2",
+                "jdbc:h2:mem:" + dataSourceName,
+                "sa",
+                null,
+                "plain:secret",
+                true
+        ));
+
+        ResponseEntity<JsonNode> testResponse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/datasources/" + dataSourceName + "/test",
+                null,
+                JsonNode.class
+        );
+
+        assertThat(testResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = testResponse.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("DATASOURCE_CREDENTIAL_UNRESOLVED");
+        assertThat(body.path("error").path("phase").asText()).isEqualTo("datasources.test");
+        assertThat(body.path("error").path("message").asText()).contains("Unsupported passwordRef scheme: plain");
+        assertThat(body.path("error").path("message").asText()).doesNotContain("secret");
     }
 
     @Test

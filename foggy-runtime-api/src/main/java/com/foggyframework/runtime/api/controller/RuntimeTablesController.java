@@ -1,6 +1,8 @@
 package com.foggyframework.runtime.api.controller;
 
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.RuntimeError;
@@ -18,9 +20,11 @@ import com.foggyframework.runtime.api.dto.TableListResponse;
 import com.foggyframework.runtime.api.dto.TablePrimaryKeyInfo;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -70,19 +74,34 @@ public class RuntimeTablesController {
 
     private final FoggyRuntimeApiProperties runtimeApiProperties;
     private final RuntimeDatasourceRegistryService datasourceRegistryService;
+    private final DatasetProperties datasetProperties;
 
     public RuntimeTablesController(
             FoggyRuntimeApiProperties runtimeApiProperties,
-            RuntimeDatasourceRegistryService datasourceRegistryService
+            RuntimeDatasourceRegistryService datasourceRegistryService,
+            ObjectProvider<DatasetProperties> datasetPropertiesProvider
     ) {
         this.runtimeApiProperties = runtimeApiProperties;
         this.datasourceRegistryService = datasourceRegistryService;
+        this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
     }
 
     @PostMapping("/tables/list")
-    public RuntimeEnvelope<TableListResponse> listTables(@RequestBody(required = false) TableListRequest request) {
-        String requestedDataSource = stringOr(request != null ? request.dataSource() : null, RuntimeDatasourceRegistryService.DEFAULT_DATASOURCE_NAME);
-        ResolvedDatasource resolved = datasourceRegistryService.resolve(requestedDataSource).orElse(null);
+    public RuntimeEnvelope<TableListResponse> listTables(
+            @RequestBody(required = false) TableListRequest request,
+            @RequestHeader(value = "X-NS", required = false) String namespace
+    ) {
+        String requestedDataSource = resolveRequestedDataSource(
+                request != null ? request.dataSource() : null,
+                resolveNamespace(namespace, request != null ? request.namespace() : null)
+        );
+        ResolvedDatasource resolved;
+        try {
+            resolved = datasourceRegistryService.resolve(requestedDataSource).orElse(null);
+        } catch (IllegalArgumentException e) {
+            return fail(datasourceResolveFailureCode(e), "tables.list", e.getMessage(),
+                    datasourceResolveFailureSuggestion(e), false);
+        }
         if (resolved == null) {
             return fail("DATASOURCE_NOT_FOUND", "tables.list", "DataSource not found or disabled: " + requestedDataSource,
                     "Start the engine with a configured default DataSource or add a runtime-managed dataSource.", false);
@@ -116,15 +135,27 @@ public class RuntimeTablesController {
     }
 
     @PostMapping("/tables/inspect")
-    public RuntimeEnvelope<TableInspectResponse> inspectTable(@RequestBody(required = false) TableInspectRequest request) {
+    public RuntimeEnvelope<TableInspectResponse> inspectTable(
+            @RequestBody(required = false) TableInspectRequest request,
+            @RequestHeader(value = "X-NS", required = false) String namespace
+    ) {
         String table = blankToNull(request != null ? request.table() : null);
         if (table == null) {
             return fail("INVALID_REQUEST", "tables.inspect", "Missing required body field: table",
                     null, "Provide a database table name.", false);
         }
 
-        String requestedDataSource = stringOr(request != null ? request.dataSource() : null, RuntimeDatasourceRegistryService.DEFAULT_DATASOURCE_NAME);
-        ResolvedDatasource resolved = datasourceRegistryService.resolve(requestedDataSource).orElse(null);
+        String requestedDataSource = resolveRequestedDataSource(
+                request != null ? request.dataSource() : null,
+                resolveNamespace(namespace, request != null ? request.namespace() : null)
+        );
+        ResolvedDatasource resolved;
+        try {
+            resolved = datasourceRegistryService.resolve(requestedDataSource).orElse(null);
+        } catch (IllegalArgumentException e) {
+            return fail(datasourceResolveFailureCode(e), "tables.inspect", e.getMessage(),
+                    datasourceResolveFailureSuggestion(e), false);
+        }
         if (resolved == null) {
             return fail("DATASOURCE_NOT_FOUND", "tables.inspect", "DataSource not found or disabled: " + requestedDataSource,
                     null, "Start the engine with a configured default DataSource or add a runtime-managed dataSource.", false);
@@ -162,9 +193,21 @@ public class RuntimeTablesController {
     }
 
     @PostMapping("/sql/query")
-    public RuntimeEnvelope<SqlQueryResponse> querySql(@RequestBody(required = false) SqlQueryRequest request) {
-        String requestedDataSource = stringOr(request != null ? request.dataSource() : null, RuntimeDatasourceRegistryService.DEFAULT_DATASOURCE_NAME);
-        ResolvedDatasource resolved = datasourceRegistryService.resolve(requestedDataSource).orElse(null);
+    public RuntimeEnvelope<SqlQueryResponse> querySql(
+            @RequestBody(required = false) SqlQueryRequest request,
+            @RequestHeader(value = "X-NS", required = false) String namespace
+    ) {
+        String requestedDataSource = resolveRequestedDataSource(
+                request != null ? request.dataSource() : null,
+                resolveNamespace(namespace, request != null ? request.namespace() : null)
+        );
+        ResolvedDatasource resolved;
+        try {
+            resolved = datasourceRegistryService.resolve(requestedDataSource).orElse(null);
+        } catch (IllegalArgumentException e) {
+            return fail(datasourceResolveFailureCode(e), "sql.query", e.getMessage(),
+                    datasourceResolveFailureSuggestion(e), false);
+        }
         if (resolved == null) {
             return fail("DATASOURCE_NOT_FOUND", "sql.query", "DataSource not found or disabled: " + requestedDataSource,
                     "Start the engine with a configured default DataSource or add a runtime-managed dataSource.", false);
@@ -472,6 +515,39 @@ public class RuntimeTablesController {
     private int boundedInt(Integer value, int fallback, int min, int max) {
         int resolved = value != null ? value : fallback;
         return Math.max(min, Math.min(max, resolved));
+    }
+
+    private String resolveRequestedDataSource(String dataSource, String namespace) {
+        String normalizedDataSource = blankToNull(dataSource);
+        if (normalizedDataSource != null) {
+            return normalizedDataSource;
+        }
+        String normalizedNamespace = blankToNull(namespace);
+        if (normalizedNamespace != null) {
+            return datasourceRegistryService.getNamespaceDatasource(normalizedNamespace)
+                    .orElse(RuntimeDatasourceRegistryService.DEFAULT_DATASOURCE_NAME);
+        }
+        return RuntimeDatasourceRegistryService.DEFAULT_DATASOURCE_NAME;
+    }
+
+    private String resolveNamespace(String headerNamespace, String bodyNamespace) {
+        return DatasetRequestNamespaceResolver.resolve(datasetProperties, headerNamespace, bodyNamespace);
+    }
+
+    private static String datasourceResolveFailureCode(Exception e) {
+        String message = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (message.contains("passwordref")) {
+            return "DATASOURCE_CREDENTIAL_UNRESOLVED";
+        }
+        return "DATASOURCE_RESOLVE_FAILED";
+    }
+
+    private static String datasourceResolveFailureSuggestion(Exception e) {
+        String message = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (message.contains("passwordref")) {
+            return "Update the dataSource passwordRef to env:, system:, sys:, or a resolvable bare key, then retry.";
+        }
+        return "Check the runtime-managed dataSource configuration, then retry.";
     }
 
     private Boolean nullableColumn(int nullable) {

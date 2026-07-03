@@ -192,11 +192,46 @@ public class ManagedDataSourcePoolManager {
         if (!StringUtils.hasText(ref)) {
             return null;
         }
+        ref = ref.trim();
+        String validationError = validatePasswordRef(ref);
+        if (validationError != null) {
+            throw new IllegalArgumentException(validationError);
+        }
         String resolved = resolvePasswordRef(ref);
         if (resolved == null) {
             throw new IllegalArgumentException("Runtime-managed dataSource passwordRef could not be resolved: " + ref);
         }
         return resolved;
+    }
+
+    public static String validatePasswordRef(String ref) {
+        if (!StringUtils.hasText(ref)) {
+            return null;
+        }
+        String normalized = ref.trim();
+        if (normalized.startsWith("env:")) {
+            return validatePasswordRefTarget(normalized, "env:");
+        }
+        if (normalized.startsWith("system:")) {
+            return validatePasswordRefTarget(normalized, "system:");
+        }
+        if (normalized.startsWith("sys:")) {
+            return validatePasswordRefTarget(normalized, "sys:");
+        }
+        int schemeSeparator = normalized.indexOf(':');
+        if (schemeSeparator > 0) {
+            String scheme = normalized.substring(0, schemeSeparator);
+            return "Unsupported passwordRef scheme: " + scheme
+                    + ". Supported schemes are env:, system:, sys:, or a bare environment/system property name.";
+        }
+        return null;
+    }
+
+    private static String validatePasswordRefTarget(String ref, String prefix) {
+        if (ref.length() == prefix.length() || !StringUtils.hasText(ref.substring(prefix.length()))) {
+            return "passwordRef " + prefix + " requires a non-empty key.";
+        }
+        return null;
     }
 
     private String resolvePasswordRef(String ref) {

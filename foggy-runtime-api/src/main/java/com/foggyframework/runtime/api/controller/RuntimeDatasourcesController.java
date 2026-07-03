@@ -12,6 +12,7 @@ import com.foggyframework.runtime.api.dto.NamespaceDatasourceResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.RuntimeError;
+import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.RuntimeDatasourceRecord;
@@ -119,7 +120,13 @@ public class RuntimeDatasourcesController {
             return fail("INVALID_REQUEST", "datasources.test", "Missing required path variable: name",
                     "Provide a dataSource name.", false);
         }
-        ResolvedDatasource resolved = registryService.resolve(normalizedName).orElse(null);
+        ResolvedDatasource resolved;
+        try {
+            resolved = registryService.resolve(normalizedName).orElse(null);
+        } catch (IllegalArgumentException e) {
+            return fail(datasourceResolveFailureCode(e), "datasources.test", e.getMessage(),
+                    datasourceResolveFailureSuggestion(e), false);
+        }
         if (resolved == null) {
             return fail("DATASOURCE_NOT_FOUND", "datasources.test", "DataSource not found or disabled: " + normalizedName,
                     "Add or enable the dataSource, then retry.", false);
@@ -219,6 +226,12 @@ public class RuntimeDatasourcesController {
                     "Provide either password or passwordRef, not both.",
                     "Use passwordRef for environment-backed secrets or password for local development only.", false);
         }
+        String passwordRefValidationError = ManagedDataSourcePoolManager.validatePasswordRef(passwordRef);
+        if (passwordRefValidationError != null) {
+            return fail("INVALID_REQUEST", update ? "datasources.update" : "datasources.add",
+                    passwordRefValidationError,
+                    "Use passwordRef with env:, system:, sys:, or a bare environment/system property name.", false);
+        }
 
         RuntimeDatasourceRecord existingRecord = registryService.find(name).orElse(null);
         boolean replace = update || booleanOr(request != null ? request.replace() : null, false);
@@ -291,5 +304,21 @@ public class RuntimeDatasourcesController {
 
     private static boolean booleanOr(Boolean value, boolean fallback) {
         return value != null ? value : fallback;
+    }
+
+    private static String datasourceResolveFailureCode(Exception e) {
+        String message = e.getMessage() != null ? e.getMessage().toLowerCase(Locale.ROOT) : "";
+        if (message.contains("passwordref")) {
+            return "DATASOURCE_CREDENTIAL_UNRESOLVED";
+        }
+        return "DATASOURCE_RESOLVE_FAILED";
+    }
+
+    private static String datasourceResolveFailureSuggestion(Exception e) {
+        String message = e.getMessage() != null ? e.getMessage().toLowerCase(Locale.ROOT) : "";
+        if (message.contains("passwordref")) {
+            return "Update the dataSource passwordRef to env:, system:, sys:, or a resolvable bare key, then retry.";
+        }
+        return "Check the runtime-managed dataSource configuration, then retry.";
     }
 }
