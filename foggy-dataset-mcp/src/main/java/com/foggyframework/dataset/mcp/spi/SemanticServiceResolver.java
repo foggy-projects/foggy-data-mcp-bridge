@@ -52,6 +52,19 @@ public interface SemanticServiceResolver {
     List<String> getAllModelNames();
 
     /**
+     * 获取指定 namespace 下可见的模型名称。
+     *
+     * <p>默认实现保持历史行为，具体实现可以按 namespace 过滤 runtime bundle/registry
+     * 中实际可加载的查询模型，避免命名空间之间的静态 model-list 污染。</p>
+     *
+     * @param namespace 命名空间；null 或空字符串表示底层默认命名空间
+     * @return 模型名称列表
+     */
+    default List<String> getAllModelNames(String namespace) {
+        return getAllModelNames();
+    }
+
+    /**
      * 清除模型名称缓存
      *
      * <p>当 QM 文件发生变化时调用此方法，下次 {@link #getAllModelNames()}

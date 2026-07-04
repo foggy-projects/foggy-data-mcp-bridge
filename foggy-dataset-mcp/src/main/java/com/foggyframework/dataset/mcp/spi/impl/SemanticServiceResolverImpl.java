@@ -238,6 +238,27 @@ public class SemanticServiceResolverImpl implements SemanticServiceResolver, Dir
     }
 
     @Override
+    public List<String> getAllModelNames(String namespace) {
+        if (namespace == null || namespace.trim().isEmpty()) {
+            return getAllModelNames();
+        }
+
+        List<String> visible = new ArrayList<>();
+        for (String modelName : getAllModelNames()) {
+            try {
+                QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName, namespace);
+                if (queryModel != null) {
+                    visible.add(modelName);
+                }
+            } catch (Exception e) {
+                log.debug("模型 {} 在 namespace={} 下不可见: {}", modelName, namespace, e.getMessage());
+            }
+        }
+        log.debug("namespace={} 下可见模型: {} 个模型: {}", namespace, visible.size(), visible);
+        return List.copyOf(visible);
+    }
+
+    @Override
     public void invalidateModelCache() {
         cachedModelNames = null;
         log.info("模型名称缓存已清除");

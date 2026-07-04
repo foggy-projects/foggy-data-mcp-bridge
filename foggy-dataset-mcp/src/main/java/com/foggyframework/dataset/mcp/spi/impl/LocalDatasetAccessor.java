@@ -84,32 +84,8 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         try {
             SemanticMetadataRequest request = new SemanticMetadataRequest();
 
-            // 从配置获取可用模型列表（三态逻辑）
             McpProperties.SemanticConfig semanticConfig = mcpProperties.getSemantic();
-            List<String> availableModels;
-            Boolean useAllModels = semanticConfig.getUseAllModels();
-
-            if (Boolean.FALSE.equals(useAllModels)) {
-                // 显式禁用：返回空列表
-                log.debug("[Local] Model discovery explicitly disabled, traceId={}", traceId);
-                return RX.failB("模型发现已禁用（useAllModels=false）");
-            } else if (Boolean.TRUE.equals(useAllModels)) {
-                // 强制动态发现
-                availableModels = semanticServiceResolver.getAllModelNames();
-                log.debug("[Local] Dynamic model discovery (forced): found {} models, traceId={}", availableModels.size(), traceId);
-            } else {
-                // null：根据 model-list 自动推断
-                List<String> configuredModels = semanticConfig.getModelList();
-                if (configuredModels == null || configuredModels.isEmpty()) {
-                    // 未配置 model-list，使用动态发现
-                    availableModels = semanticServiceResolver.getAllModelNames();
-                    log.debug("[Local] Dynamic model discovery (auto): found {} models, traceId={}", availableModels.size(), traceId);
-                } else {
-                    // 使用静态配置
-                    availableModels = configuredModels;
-                    log.debug("[Local] Using configured model-list: {} models, traceId={}", availableModels.size(), traceId);
-                }
-            }
+            List<String> availableModels = selectMetadataModels(semanticConfig, namespace, effectiveNamespace, traceId);
 
             if (availableModels == null || availableModels.isEmpty()) {
                 log.warn("[Local] No models available, traceId={}", traceId);
@@ -140,6 +116,77 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             log.error("[Local] Failed to fetch metadata: {}, traceId={}", e.getMessage(), traceId, e);
             return RX.failB("获取元数据失败: " + e.getMessage());
         }
+    }
+
+    private List<String> selectMetadataModels(
+            McpProperties.SemanticConfig semanticConfig,
+            String requestNamespace,
+            String effectiveNamespace,
+            String traceId
+    ) {
+        McpProperties.NamespaceSemanticConfig namespaceConfig = namespaceConfig(semanticConfig, effectiveNamespace);
+        if (namespaceConfig != null) {
+            List<String> namespaceModels = namespaceConfig.getModelList() != null
+                    ? namespaceConfig.getModelList()
+                    : List.of();
+            log.debug("[Local] Using namespace model-list: namespace={}, models={}, traceId={}",
+                    effectiveNamespace, namespaceModels.size(), traceId);
+            return namespaceModels;
+        }
+
+        boolean explicitNamespace = !isBlank(requestNamespace);
+        if (explicitNamespace) {
+            Boolean useAllModels = semanticConfig.getUseAllModels();
+            if (Boolean.FALSE.equals(useAllModels)) {
+                log.debug("[Local] Model discovery explicitly disabled for namespace={}, traceId={}",
+                        effectiveNamespace, traceId);
+                return List.of();
+            }
+            List<String> visibleModels = semanticServiceResolver.getAllModelNames(effectiveNamespace);
+            log.debug("[Local] Dynamic namespace model discovery: namespace={}, found {} models, traceId={}",
+                    effectiveNamespace, visibleModels.size(), traceId);
+            return visibleModels;
+        }
+
+        Boolean useAllModels = semanticConfig.getUseAllModels();
+        if (Boolean.FALSE.equals(useAllModels)) {
+            log.debug("[Local] Model discovery explicitly disabled, traceId={}", traceId);
+            return List.of();
+        }
+        if (Boolean.TRUE.equals(useAllModels)) {
+            List<String> discoveredModels = discoverModels(effectiveNamespace);
+            log.debug("[Local] Dynamic model discovery (forced): found {} models, traceId={}",
+                    discoveredModels.size(), traceId);
+            return discoveredModels;
+        }
+
+        List<String> configuredModels = semanticConfig.getModelList();
+        if (configuredModels == null || configuredModels.isEmpty()) {
+            List<String> discoveredModels = discoverModels(effectiveNamespace);
+            log.debug("[Local] Dynamic model discovery (auto): found {} models, traceId={}",
+                    discoveredModels.size(), traceId);
+            return discoveredModels;
+        }
+
+        log.debug("[Local] Using configured model-list for default namespace path: {} models, traceId={}",
+                configuredModels.size(), traceId);
+        return configuredModels;
+    }
+
+    private List<String> discoverModels(String namespace) {
+        return isBlank(namespace)
+                ? semanticServiceResolver.getAllModelNames()
+                : semanticServiceResolver.getAllModelNames(namespace);
+    }
+
+    private static McpProperties.NamespaceSemanticConfig namespaceConfig(
+            McpProperties.SemanticConfig semanticConfig,
+            String namespace
+    ) {
+        if (semanticConfig == null || semanticConfig.getNamespaces() == null || namespace == null || namespace.isBlank()) {
+            return null;
+        }
+        return semanticConfig.getNamespaces().get(namespace.trim());
     }
 
     /**

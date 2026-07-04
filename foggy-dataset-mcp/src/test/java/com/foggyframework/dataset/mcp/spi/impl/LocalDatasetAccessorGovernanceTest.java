@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -53,7 +54,7 @@ class LocalDatasetAccessorGovernanceTest {
     @Test
     @DisplayName("metadata 场景应将 grouped deniedColumns 展开并写入 SemanticRequestContext")
     void metadataShouldExpandGroupedDeniedColumnsIntoContext() {
-        when(semanticServiceResolver.getAllModelNames()).thenReturn(List.of("OdooHrEmployeeQueryModel"));
+        when(semanticServiceResolver.getAllModelNames("odoo")).thenReturn(List.of("OdooHrEmployeeQueryModel"));
         when(semanticServiceResolver.getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), any(SemanticRequestContext.class)))
                 .thenReturn(new SemanticMetadataResponse());
 
@@ -244,7 +245,7 @@ class LocalDatasetAccessorGovernanceTest {
         datasetProperties.getRequest().setDefaultNamespace("tms-ai");
         accessor = new LocalDatasetAccessor(semanticServiceResolver, createMcpProperties(), datasetProperties);
 
-        when(semanticServiceResolver.getAllModelNames()).thenReturn(List.of("SemanticModel"));
+        when(semanticServiceResolver.getAllModelNames("tms-ai")).thenReturn(List.of("SemanticModel"));
         when(semanticServiceResolver.getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), any(SemanticRequestContext.class)))
                 .thenReturn(new SemanticMetadataResponse());
 
@@ -254,6 +255,82 @@ class LocalDatasetAccessorGovernanceTest {
         ArgumentCaptor<SemanticRequestContext> contextCaptor = ArgumentCaptor.forClass(SemanticRequestContext.class);
         verify(semanticServiceResolver).getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), contextCaptor.capture());
         assertEquals("tms-ai", contextCaptor.getValue().getNamespace());
+    }
+
+    @Test
+    @DisplayName("metadata 显式 namespace 应使用 namespace 专属 model-list 覆盖全局静态列表")
+    void metadataExplicitNamespaceShouldUseNamespaceModelList() {
+        McpProperties properties = new McpProperties();
+        properties.getSemantic().setModelList(List.of(
+                "FactOrderQueryModel",
+                "CrmLead",
+                "CustomerOrderLifecycleQueryModel",
+                "ServiceTicketQueryModel"
+        ));
+        McpProperties.NamespaceSemanticConfig salesdropConfig = new McpProperties.NamespaceSemanticConfig();
+        salesdropConfig.setModelList(List.of("SalesDropDailyQueryModel"));
+        properties.getSemantic().setNamespaces(Map.of("salesdrop", salesdropConfig));
+        accessor = new LocalDatasetAccessor(semanticServiceResolver, properties);
+
+        when(semanticServiceResolver.getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), any(SemanticRequestContext.class)))
+                .thenReturn(new SemanticMetadataResponse());
+
+        RX<SemanticMetadataResponse> result = accessor.getMetadata("trace-salesdrop-metadata", null, "salesdrop");
+
+        assertNotNull(result.getData());
+        ArgumentCaptor<SemanticMetadataRequest> requestCaptor = ArgumentCaptor.forClass(SemanticMetadataRequest.class);
+        ArgumentCaptor<SemanticRequestContext> contextCaptor = ArgumentCaptor.forClass(SemanticRequestContext.class);
+        verify(semanticServiceResolver).getMetadata(requestCaptor.capture(), eq("markdown"), contextCaptor.capture());
+        assertEquals(List.of("SalesDropDailyQueryModel"), requestCaptor.getValue().getQmModels());
+        assertEquals("salesdrop", contextCaptor.getValue().getNamespace());
+        verify(semanticServiceResolver, never()).getAllModelNames();
+    }
+
+    @Test
+    @DisplayName("metadata 显式 namespace 不应回退到全局 legacy model-list")
+    void metadataExplicitNamespaceShouldNotUseGlobalLegacyModelList() {
+        McpProperties properties = new McpProperties();
+        properties.getSemantic().setModelList(List.of(
+                "FactOrderQueryModel",
+                "CrmLead",
+                "CustomerOrderLifecycleQueryModel",
+                "ServiceTicketQueryModel"
+        ));
+        accessor = new LocalDatasetAccessor(semanticServiceResolver, properties);
+
+        when(semanticServiceResolver.getAllModelNames("salesdrop"))
+                .thenReturn(List.of("SalesDropDailyQueryModel"));
+        when(semanticServiceResolver.getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), any(SemanticRequestContext.class)))
+                .thenReturn(new SemanticMetadataResponse());
+
+        RX<SemanticMetadataResponse> result = accessor.getMetadata("trace-salesdrop-dynamic", null, "salesdrop");
+
+        assertNotNull(result.getData());
+        ArgumentCaptor<SemanticMetadataRequest> requestCaptor = ArgumentCaptor.forClass(SemanticMetadataRequest.class);
+        verify(semanticServiceResolver).getMetadata(requestCaptor.capture(), eq("markdown"), any(SemanticRequestContext.class));
+        assertEquals(List.of("SalesDropDailyQueryModel"), requestCaptor.getValue().getQmModels());
+        verify(semanticServiceResolver).getAllModelNames("salesdrop");
+        verify(semanticServiceResolver, never()).getAllModelNames();
+    }
+
+    @Test
+    @DisplayName("metadata 未传 namespace 时保留默认路径全局 legacy model-list")
+    void metadataDefaultNamespacePathShouldKeepGlobalLegacyModelList() {
+        McpProperties properties = new McpProperties();
+        properties.getSemantic().setModelList(List.of("FactOrderQueryModel"));
+        accessor = new LocalDatasetAccessor(semanticServiceResolver, properties);
+
+        when(semanticServiceResolver.getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), any(SemanticRequestContext.class)))
+                .thenReturn(new SemanticMetadataResponse());
+
+        RX<SemanticMetadataResponse> result = accessor.getMetadata("trace-default-legacy", null, null);
+
+        assertNotNull(result.getData());
+        ArgumentCaptor<SemanticMetadataRequest> requestCaptor = ArgumentCaptor.forClass(SemanticMetadataRequest.class);
+        verify(semanticServiceResolver).getMetadata(requestCaptor.capture(), eq("markdown"), any(SemanticRequestContext.class));
+        assertEquals(List.of("FactOrderQueryModel"), requestCaptor.getValue().getQmModels());
+        verify(semanticServiceResolver, never()).getAllModelNames();
+        verify(semanticServiceResolver, never()).getAllModelNames(anyString());
     }
 
     @Test
