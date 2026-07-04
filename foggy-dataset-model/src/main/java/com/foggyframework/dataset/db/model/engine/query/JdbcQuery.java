@@ -114,6 +114,7 @@ public class JdbcQuery {
     public JdbcQuery and(Object fieldRef, Object value) {
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
+        joinConditionColumn(dbColumn);
         String sqlFragment = resolveColumnRef(dbColumn) + " = ?";
         getWhere().and(sqlFragment, value);
         pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "=", value);
@@ -134,6 +135,7 @@ public class JdbcQuery {
         }
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
+        joinConditionColumn(dbColumn);
         String placeholders = String.join(", ", values.stream().map(v -> "?").toList());
         String sqlFragment = resolveColumnRef(dbColumn) + " in (" + placeholders + ")";
         getWhere().andList(sqlFragment, values);
@@ -151,6 +153,7 @@ public class JdbcQuery {
     public JdbcQuery andNe(Object fieldRef, Object value) {
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
+        joinConditionColumn(dbColumn);
         String sqlFragment = resolveColumnRef(dbColumn) + " != ?";
         getWhere().and(sqlFragment, value);
         pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "!=", value);
@@ -166,6 +169,7 @@ public class JdbcQuery {
     public JdbcQuery andNotNull(Object fieldRef) {
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
+        joinConditionColumn(dbColumn);
         String sqlFragment = resolveColumnRef(dbColumn) + " is not null";
         getWhere().and(sqlFragment);
         pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "is not null", null);
@@ -181,6 +185,7 @@ public class JdbcQuery {
     public JdbcQuery andNull(Object fieldRef) {
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
+        joinConditionColumn(dbColumn);
         String sqlFragment = resolveColumnRef(dbColumn) + " is null";
         getWhere().and(sqlFragment);
         pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "is null", null);
@@ -218,6 +223,13 @@ public class JdbcQuery {
             throw RX.throwAUserTip("字段 [" + fieldName + "] 在 QueryModel [" + queryModel.getName() + "] 中不存在");
         }
         return dbColumn;
+    }
+
+    private void joinConditionColumn(DbColumn dbColumn) {
+        if (dbColumn == null || dbColumn.getQueryObject() == null || from == null) {
+            return;
+        }
+        from.join(dbColumn.getQueryObject());
     }
 
     private String resolveColumnRef(DbColumn dbColumn) {
@@ -958,6 +970,7 @@ public class JdbcQuery {
         private JdbcListCond fieldRefEq(Object fieldRef, Object value, String link) {
             ColumnRef columnRef = toColumnRef(fieldRef);
             DbColumn dbColumn = resolveDbColumn(columnRef);
+            joinConditionColumn(dbColumn);
             String sqlFragment = resolveColumnRef(dbColumn) + " = ?";
             ValueCond c = new ValueCond(link, sqlFragment, value);
             conds.add(c);

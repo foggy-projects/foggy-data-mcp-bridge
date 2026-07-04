@@ -1,0 +1,37 @@
+/**
+ * Issue 12 维度字段 access 过滤复现探针。
+ *
+ * @description 不显式 join 维表，仅通过主模型 stockHouse 维度路径在 access 中过滤。
+ */
+const si = loadTableModel('FactOrderO615StockItemProbeModel');
+
+export const queryModel = {
+    name: 'OrderStationStockProjectionIssue12AccessDimensionProbeQueryModel',
+    caption: 'Issue 12 维度字段 access 过滤探针',
+    model: si,
+
+    joins: [],
+
+    columnGroups: [
+        {
+            caption: '库存主表',
+            items: [
+                { ref: si.orderId },
+                { ref: si.stockHouseId },
+                { ref: si.stockHouse$useType },
+                { ref: si.number },
+                { ref: si.tenantId }
+            ]
+        }
+    ],
+
+    accesses: [{
+        property: 'tenantId',
+        queryBuilder: (context) => {
+            context.query.and(si.tenant$id, 20240101);
+            context.query.and(si.stockHouse$useType, '直营');
+            context.query.andIn(si.stockHouse$status, ['ACTIVE']);
+            context.query.getWhere().and(si.stockHouse$status, 'ACTIVE');
+        }
+    }]
+};

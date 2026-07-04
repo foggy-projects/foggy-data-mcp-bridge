@@ -1880,6 +1880,41 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("Issue 12 probe: access 中维度字段过滤不应生成自比较 SQL")
+    void issue12AccessDimensionFilterShouldNotRenderSelfComparison() {
+        JdbcQueryModel queryModel = getQueryModel("OrderStationStockProjectionIssue12AccessDimensionProbeQueryModel");
+        assertNotNull(queryModel, "Issue 12 维度字段 access 回归模型加载失败");
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStationStockProjectionIssue12AccessDimensionProbeQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "number", "tenantId"));
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String normalizedSql = normalizeSql(queryEngine.getSql());
+
+        assertFalse(normalizedSql.contains("stockHouseId = stockHouseId"),
+                "维度关联不应退化成 stockHouseId = stockHouseId 自比较");
+        assertFalse(normalizedSql.contains("tenantId = tenantId"),
+                "租户过滤不应退化成 tenantId = tenantId 自比较");
+        assertTrue(normalizedSql.contains("left join dim_store"),
+                "access 中的 stockHouse$useType 应触发 stockHouse 维表 join");
+        assertTrue(normalizedSql.contains("store_type = ?") || normalizedSql.contains("store_type=?"),
+                "stockHouse$useType access 过滤应渲染为维表物理字段过滤");
+        assertTrue(normalizedSql.contains("status in (?)") || normalizedSql.contains("status in(?)"),
+                "stockHouse$status andIn access 过滤应渲染为维表物理字段 IN 过滤");
+        assertTrue(normalizedSql.contains("status = ?") || normalizedSql.contains("status=?"),
+                "getWhere().and(fieldRef, value) 也应渲染为维表物理字段过滤");
+        assertTrue(normalizedSql.contains("date_key = ?") || normalizedSql.contains("date_key=?"),
+                "tenant$id access 过滤应渲染为主表租户物理字段过滤");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                queryEngine.getSql(),
+                queryEngine.getValues().toArray());
+        assertFalse(rows.isEmpty(), "Issue 12 access 维度过滤探针应能返回真实数据");
+    }
+
+    @Test
     @DisplayName("aggregate relation ON 左键应支持嵌套维度路径")
     void aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath() {
         JdbcModelQueryEngine queryEngine = buildSalesNestedCategoryAggregateRelationDimensionPathQuery();

@@ -1,29 +1,32 @@
 ---
 doc_role: version_followup_plan
-doc_purpose: Track 9.2.12 Runtime API managed datasource pool lifecycle work.
+doc_purpose: Track 9.2.12 Runtime API managed datasource pool lifecycle work and focused follow-up fixes.
 version: 9.2.12
 status: ready-for-acceptance
 created_at: 2026-07-03
 updated_at: 2026-07-03
 ---
 
-# 9.2.12 Runtime Managed Datasource Pool Lifecycle
+# 9.2.12 Follow-up Iteration
 
 ## Document Purpose
 
 - doc_type: version-summary
 - intended_for: execution-agent, reviewer, signoff-owner
-- purpose: Track the Runtime API managed datasource pool lifecycle design and implementation follow-up.
+- purpose: Track the Runtime API managed datasource pool lifecycle work and focused 9.2.12 follow-up fixes.
 
 ## Scope
 
 9.2.12 turns Runtime API-managed JDBC datasource support into the primary public datasource path for standalone runtime and CLI onboarding. It adds an explicit connection-pool lifecycle design so runtime-created datasources can support MySQL/PostgreSQL-style user databases without relying on JVM GC or namespace refresh side effects.
+
+This iteration also carries focused backend/query-engine bug fixes that need versioned tracking before reviewer verification.
 
 ## Work Items
 
 | Item | Doc | Status | Owner Module | Summary |
 |---|---|---|---|---|
 | Runtime managed datasource pool lifecycle | `workitems/P0-runtime-managed-datasource-pool-lifecycle.md` | ready-for-acceptance | `foggy-runtime-api`, `foggy-runtime-cli` | Added managed lazy Hikari pools, idle close, update/remove/shutdown close semantics, diagnostics, namespace-bound Runtime API datasource resolution for models/query, and MySQL restart validation. |
+| Query access dimension filter join | `workitems/BUG-query-access-dimension-filter-join.md` | ready-for-verification | `foggy-dataset-model` | Fixed Issue 12 where access DSL dimension-field filters resolved WHERE predicates without registering the required dimension join. |
 
 ## Guardrails
 
@@ -43,6 +46,7 @@ updated_at: 2026-07-03
 - coverage: formal coverage audit passed; direct manager lifecycle coverage and MySQL restart evidence are recorded
 - acceptance: ready for formal signoff if requested
 - experience: N/A, backend/runtime and CLI diagnostics only.
+- query-engine follow-up: Issue 12 fix is ready for reviewer verification; targeted and adjacent O615 regression tests passed.
 
 ## Validation Snapshot
 
