@@ -178,7 +178,6 @@ declare module 'foggy-data-viewer' {
   export const DataTable: DefineComponent<Record<string, unknown>>
   export const SearchToolbar: DefineComponent<Record<string, unknown>>
   export const DataTableWithSearch: DefineComponent<Record<string, unknown>>
-  export const SavedQueryManager: DefineComponent<Record<string, unknown>>
   export const PivotRawViewer: DefineComponent<Record<string, unknown>>
 
   export function buildTableColumns(schema: ColumnSchema[], config?: TableConfig): EnhancedColumnSchema[]

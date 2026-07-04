@@ -705,6 +705,36 @@ const filteredData = computed(() => {
   return props.data.filter(row => slices.every(slice => matchesFilterSlice(row, slice)))
 })
 
+function hasIdentifierKeyword(value: string | undefined): boolean {
+  if (!value) return false
+  const normalized = value.trim()
+  if (!normalized) return false
+
+  return /(?:^|[_\-$.\s])(id|ids|no|code|number)(?:$|[_\-$.\s])/i.test(normalized) ||
+    /(ID|编号|编码|代码|单号|运单号|订单号|账号|卡号|票号|证件号|手机号|电话|流水号|序列号)/.test(normalized)
+}
+
+function shouldFormatIntegerWithGrouping(col: EnhancedColumnSchema): boolean {
+  if (col.measure === true || col.aggregatable === true || col.category === 'measure') {
+    return true
+  }
+  if (col.category === 'dimension-id') {
+    return false
+  }
+  if (hasIdentifierKeyword(col.name) || hasIdentifierKeyword(col.title)) {
+    return false
+  }
+  return true
+}
+
+function formatIntegerDisplayValue(col: EnhancedColumnSchema, cellValue: unknown): string {
+  if (cellValue == null) return ''
+  if (typeof cellValue !== 'number') return String(cellValue)
+  return shouldFormatIntegerWithGrouping(col)
+    ? cellValue.toLocaleString('zh-CN')
+    : String(cellValue)
+}
+
 function formatCellDisplayValue(col: EnhancedColumnSchema, cellValue: unknown): string {
   if (col.customFormatter) {
     return col.customFormatter(cellValue)
@@ -728,10 +758,7 @@ function formatCellDisplayValue(col: EnhancedColumnSchema, cellValue: unknown): 
     case 'INTEGER':
     case 'BIGINT':
     case 'LONG':
-      if (cellValue == null) return ''
-      return typeof cellValue === 'number'
-        ? cellValue.toLocaleString('zh-CN')
-        : String(cellValue)
+      return formatIntegerDisplayValue(col, cellValue)
     case 'DAY':
     case 'DATE':
       if (!cellValue) return ''

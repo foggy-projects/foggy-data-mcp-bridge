@@ -5,7 +5,6 @@ import {
   DataTable,
   SearchToolbar,
   DataTableWithSearch,
-  SavedQueryManager,
   buildTableColumns,
   createQuery,
   fetchQueryMeta,
@@ -466,6 +465,13 @@ const customListFetchData = ref<((params: FetchDataParams) => Promise<FetchDataR
 const customListInitialized = ref(false)
 const customListQueryId = ref<string | null>(null)
 
+function appendCustomListLongProbe(items: Record<string, unknown>[]): Record<string, unknown>[] {
+  return items.map((item, index) => ({
+    ...item,
+    longProbeId: 88000 + index
+  }))
+}
+
 async function initCustomListScene() {
   if (customListInitialized.value) return
 
@@ -491,7 +497,24 @@ async function initCustomListScene() {
 
     if (meta?.tableConfig?.qmModel) {
       const qmSchema = await fetchQmSchema(meta.tableConfig.qmModel)
-      const columns = buildTableColumns(qmSchema, meta.tableConfig)
+      const columns = buildTableColumns([
+        ...qmSchema,
+        {
+          name: 'longProbeId',
+          type: 'LONG',
+          title: 'LONG测试ID',
+          filterable: false,
+          aggregatable: false,
+          measure: false
+        }
+      ], {
+        ...meta.tableConfig,
+        visibleColumns: [...(meta.tableConfig.visibleColumns || []), 'longProbeId'],
+        customizations: [
+          ...(meta.tableConfig.customizations || []),
+          { name: 'longProbeId', width: 130 }
+        ]
+      })
 
       customListSchema.value = {
         columns,
@@ -512,7 +535,7 @@ async function initCustomListScene() {
         })
 
         return {
-          items: dataResponse.items,
+          items: appendCustomListLongProbe(dataResponse.items),
           total: dataResponse.total,
           totalData: dataResponse.totalData
         }
@@ -951,27 +974,29 @@ function goHome() {
         <h2>自定义查询功能测试（新功能）</h2>
       </div>
 
-      <div class="scene-content">
-        <div class="feature-info success">
-          <p><strong>自定义查询：</strong>允许用户保存当前列、筛选条件、排序规则和分页大小，并可设为默认查询</p>
-        </div>
+      <div class="scene-content custom-list-scene-content">
+        <aside class="custom-list-aside">
+          <div class="feature-info success">
+            <p><strong>自定义查询：</strong>允许用户保存当前列、筛选条件、排序规则和分页大小，并可设为默认查询</p>
+          </div>
 
-        <div class="code-example">
-          <h4>使用示例</h4>
-          <pre><code>&lt;DataTableWithSearch
+          <div class="code-example custom-list-code-example">
+            <h4>使用示例</h4>
+            <pre><code>&lt;DataTableWithSearch
   :schema="schema"
   :fetch-data="fetchData"
   :list-preset="{
     userId: 'verification_user_001',
     model: 'FactSalesQueryModel',
-    businessKey: 'sales-custom-list-demo'
+    businessKey: 'sales-custom-list-demo-long'
   }"
 /&gt;</code></pre>
-        </div>
+          </div>
 
-        <div class="feature-info">
-          <p><strong>操作指南：</strong>调整筛选条件或列状态后点击右上角“自定义查询”，可保存、应用、编辑名称与范围、覆盖和设置默认方案</p>
-        </div>
+          <div class="feature-info custom-list-guide">
+            <p><strong>操作指南：</strong>调整筛选条件或列状态后点击右上角“自定义查询”，可保存、应用、编辑名称与范围、覆盖和设置默认方案</p>
+          </div>
+        </aside>
 
         <div v-if="customListSchema && customListFetchData" class="table-container combined">
           <DataTableWithSearch
@@ -981,7 +1006,7 @@ function goHome() {
             :list-preset="{
               userId: 'verification_user_001',
               model: 'FactSalesQueryModel',
-              businessKey: 'sales-custom-list-demo',
+              businessKey: 'sales-custom-list-demo-long',
               allowShared: true,
               buttonText: '自定义查询',
               placement: 'toolbar-right'
@@ -1013,32 +1038,26 @@ function goHome() {
         <h2>保存查询功能测试（新功能）</h2>
       </div>
 
-      <div class="scene-content">
-        <div class="feature-info success">
-          <p><strong>保存查询功能：</strong>允许用户保存常用的查询配置（列、筛选、排序），并支持团队成员之间共享查询</p>
-        </div>
+      <div class="scene-content saved-query-scene-content">
+        <aside class="saved-query-aside">
+          <div class="feature-info success">
+            <p><strong>保存查询功能：</strong>允许用户保存常用的查询配置（列、筛选、排序），并支持团队成员之间共享查询</p>
+          </div>
 
-        <!-- 功能说明 -->
-        <div class="code-example">
-          <h4>功能特性</h4>
-          <pre><code>✓ 三步向导保存查询（选列 → 配置条件 → 命名确认）
+          <!-- 功能说明 -->
+          <div class="code-example saved-query-code-example">
+            <h4>功能特性</h4>
+            <pre><code>✓ 统一查询方案入口：自定义、加载、保存和清空条件
+✓ 保存当前实时表格状态：列、筛选、排序和分页大小
 ✓ 三级分享：PRIVATE（仅自己）/ DEPARTMENT（部门）/ TENANT（租户）
-✓ 查询列表：左右分栏显示"我的查询"和"共享查询"
+✓ 查询列表：在自定义查询面板中加载和管理已有方案
 ✓ 一键应用：快速加载已保存的查询配置
-✓ 参数配置：支持固定值、单选、多选三种参数类型
 ✓ 业务隔离：通过 businessId 区分不同业务的查询</code></pre>
-        </div>
+          </div>
 
-        <div class="code-example">
-          <h4>使用示例</h4>
-          <pre><code>&lt;SavedQueryManager
-  :table-ref="tableRef"
-  :model="FactSalesDemoAuthQueryModel"
-  :business-id="sales-report-2024"
-  :current-user-id="user_manager_001"
-/&gt;
-
-&lt;DataTableWithSearch
+          <div class="code-example saved-query-code-example">
+            <h4>使用示例</h4>
+            <pre><code>&lt;DataTableWithSearch
   ref="tableRef"
   :schema="schema"
   :fetch-data="fetchData"
@@ -1052,26 +1071,16 @@ function goHome() {
     placement: 'toolbar-right'
   }"
 /&gt;</code></pre>
-        </div>
-
-        <!-- 操作提示 -->
-        <div class="feature-info">
-          <p><strong>操作指南：</strong>使用上方的"保存查询"按钮保存当前配置，使用"加载查询"按钮查看和应用已保存的查询</p>
-          <p><strong>认证说明：</strong>当前使用 Authorization: Bearer manager-token-123（模拟门店经理身份）</p>
-        </div>
-
-        <div v-if="savedQuerySchema && savedQueryFetchData" class="table-container combined">
-          <!-- SavedQueryManager 独立放置 -->
-          <div class="saved-query-toolbar">
-            <SavedQueryManager
-              :table-ref="savedQueryTableRef"
-              :model="'FactSalesDemoAuthQueryModel'"
-              business-id="sales-report-2024"
-              current-user-id="user_manager_001"
-            />
           </div>
 
-          <!-- DataTable -->
+          <!-- 操作提示 -->
+          <div class="feature-info saved-query-guide">
+            <p><strong>操作指南：</strong>使用上方的"查询方案"下拉保存当前配置，或加载和应用已保存的查询方案</p>
+            <p><strong>认证说明：</strong>当前使用 Authorization: Bearer manager-token-123（模拟门店经理身份）</p>
+          </div>
+        </aside>
+
+        <div v-if="savedQuerySchema && savedQueryFetchData" class="table-container combined">
           <DataTableWithSearch
             ref="savedQueryTableRef"
             :schema="savedQuerySchema"
@@ -1266,12 +1275,15 @@ html, body, #app {
 /* 场景页面通用样式 */
 .scene-page {
   height: 100%;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: #f5f7fa;
 }
 
 .scene-header {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -1304,10 +1316,71 @@ html, body, #app {
 
 .scene-content {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.custom-list-scene-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.custom-list-aside {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+}
+
+.custom-list-aside .feature-info {
+  margin-bottom: 16px;
+}
+
+.custom-list-code-example {
+  margin-bottom: 16px;
+}
+
+.custom-list-guide {
+  margin-bottom: 0;
+}
+
+.custom-list-scene-content > .table-container {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.saved-query-scene-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.saved-query-aside {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+}
+
+.saved-query-aside .feature-info,
+.saved-query-code-example {
+  margin-bottom: 16px;
+}
+
+.saved-query-guide {
+  margin-bottom: 0;
+}
+
+.saved-query-scene-content > .table-container {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .pivot-scene-page {
@@ -1618,19 +1691,29 @@ html, body, #app {
   border-color: #66b1ff;
 }
 
-/* 保存查询工具栏样式 */
-.saved-query-toolbar {
-  padding: 12px 16px;
-  background: #f5f7fa;
-  border-bottom: 1px solid #e4e7ed;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 @media (max-width: 768px) {
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .custom-list-scene-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .custom-list-aside {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .saved-query-scene-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .saved-query-aside {
+    max-height: none;
+    overflow: visible;
   }
 }
 </style>

@@ -1,31 +1,33 @@
 <template>
   <div class="list-preset-manager">
-    <el-button data-testid="list-preset-open" size="small" :icon="Operation" @click="openDialog">
-      {{ buttonText }}
-    </el-button>
-    <el-tooltip v-if="clearConditionsEnabled" content="清空查询条件" placement="top">
-      <el-button
-        data-testid="list-preset-clear-conditions"
-        size="small"
-        :icon="Brush"
-        circle
-        title="清空查询条件"
-        aria-label="清空查询条件"
-        :loading="clearing"
-        @click="clearCurrentConditions"
-      />
-    </el-tooltip>
+    <template v-if="triggerMode !== 'none'">
+      <el-button data-testid="list-preset-open" size="small" :icon="Operation" @click="openDialog">
+        {{ buttonText }}
+      </el-button>
+      <el-tooltip v-if="clearConditionsEnabled" content="清空查询条件" placement="top">
+        <el-button
+          data-testid="list-preset-clear-conditions"
+          size="small"
+          :icon="Brush"
+          circle
+          title="清空查询条件"
+          aria-label="清空查询条件"
+          :loading="clearing"
+          @click="clearCurrentConditions"
+        />
+      </el-tooltip>
+    </template>
 
     <el-dialog
       v-model="visible"
       class="list-preset-dialog"
-      title="自定义查询"
-      width="min(1180px, calc(100vw - 32px))"
+      :title="dialogTitle"
+      width="min(1360px, calc(100vw - 32px))"
       top="4vh"
       :close-on-click-modal="false"
       @open="loadPresets"
     >
-      <div class="preset-layout" data-testid="list-preset-dialog">
+      <div class="preset-layout" :class="`is-${dialogMode}-mode`" data-testid="list-preset-dialog">
         <section class="preset-list-section">
           <div class="section-header">
             <div>
@@ -109,7 +111,7 @@
           </el-scrollbar>
         </section>
 
-        <section class="field-pool-section">
+        <section v-if="dialogMode !== 'load'" class="field-pool-section">
           <div class="section-header">
             <div>
               <h4>字段池</h4>
@@ -190,7 +192,7 @@
           </el-scrollbar>
         </section>
 
-        <section class="inspector-section">
+        <section v-if="dialogMode !== 'load'" class="inspector-section">
           <div class="inspector-header">
             <div class="inspector-title">
               <h4>{{ inspectorTitle }}</h4>
@@ -234,69 +236,71 @@
                   </div>
                   <div class="selected-code">{{ column.name }}</div>
                 </div>
-                <div class="selected-actions selected-move-actions" @click.stop>
-                  <el-tooltip content="移到顶部" placement="top">
-                    <el-button
-                      :icon="Top"
-                      size="small"
-                      title="移到顶部"
-                      aria-label="移到顶部"
-                      :disabled="index === 0"
-                      @click="moveVisibleColumnToEdge(index, 'top')"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="上移" placement="top">
-                    <el-button
-                      :icon="ArrowUp"
-                      size="small"
-                      title="上移"
-                      aria-label="上移"
-                      :disabled="index === 0"
-                      @click="moveVisibleColumn(index, -1)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="下移" placement="top">
-                    <el-button
-                      :icon="ArrowDown"
-                      size="small"
-                      title="下移"
-                      aria-label="下移"
-                      :disabled="index === visibleColumnDraft.length - 1"
-                      @click="moveVisibleColumn(index, 1)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="移到底部" placement="top">
-                    <el-button
-                      :icon="Bottom"
-                      size="small"
-                      title="移到底部"
-                      aria-label="移到底部"
-                      :disabled="index === visibleColumnDraft.length - 1"
-                      @click="moveVisibleColumnToEdge(index, 'bottom')"
-                    />
-                  </el-tooltip>
-                </div>
-                <div class="selected-actions selected-row-actions" @click.stop>
-                  <el-tooltip content="编辑字段配置" placement="top">
-                    <el-button
-                      :icon="Edit"
-                      size="small"
-                      title="编辑字段配置"
-                      aria-label="编辑字段配置"
-                      @click="toggleColumnEditor(column.name)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip :content="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'" placement="top">
-                    <el-button
-                      :icon="isColumnLocked(column.name) ? Lock : Delete"
-                      size="small"
-                      :type="isColumnLocked(column.name) ? 'warning' : 'default'"
-                      :title="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
-                      :aria-label="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
-                      :disabled="isColumnLocked(column.name)"
-                      @click="removeColumn(column.name)"
-                    />
-                  </el-tooltip>
+                <div class="selected-action-rail" @click.stop>
+                  <div class="selected-actions selected-move-actions">
+                    <el-tooltip content="移到顶部" placement="top">
+                      <el-button
+                        :icon="Top"
+                        size="small"
+                        title="移到顶部"
+                        aria-label="移到顶部"
+                        :disabled="index === 0"
+                        @click="moveVisibleColumnToEdge(index, 'top')"
+                      />
+                    </el-tooltip>
+                    <el-tooltip content="上移" placement="top">
+                      <el-button
+                        :icon="ArrowUp"
+                        size="small"
+                        title="上移"
+                        aria-label="上移"
+                        :disabled="index === 0"
+                        @click="moveVisibleColumn(index, -1)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip content="下移" placement="top">
+                      <el-button
+                        :icon="ArrowDown"
+                        size="small"
+                        title="下移"
+                        aria-label="下移"
+                        :disabled="index === visibleColumnDraft.length - 1"
+                        @click="moveVisibleColumn(index, 1)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip content="移到底部" placement="top">
+                      <el-button
+                        :icon="Bottom"
+                        size="small"
+                        title="移到底部"
+                        aria-label="移到底部"
+                        :disabled="index === visibleColumnDraft.length - 1"
+                        @click="moveVisibleColumnToEdge(index, 'bottom')"
+                      />
+                    </el-tooltip>
+                  </div>
+                  <div class="selected-actions selected-row-actions">
+                    <el-tooltip content="编辑字段配置" placement="top">
+                      <el-button
+                        :icon="Edit"
+                        size="small"
+                        title="编辑字段配置"
+                        aria-label="编辑字段配置"
+                        @click="toggleColumnEditor(column.name)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip :content="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'" placement="top">
+                      <el-button
+                        :icon="isColumnLocked(column.name) ? Lock : Delete"
+                        size="small"
+                        :type="isColumnLocked(column.name) ? 'warning' : 'default'"
+                        :title="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
+                        :aria-label="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
+                        :disabled="isColumnLocked(column.name)"
+                        @click="removeColumn(column.name)"
+                      />
+                    </el-tooltip>
+                  </div>
                 </div>
                 <div v-if="activeColumnEditor === column.name" class="selected-editor" @click.stop>
                   <label class="editor-field">
@@ -450,9 +454,11 @@ interface Props {
   availableColumns?: EnhancedColumnSchema[]
   lockedColumns?: string[]
   requiredRuntimeColumns?: string[]
+  triggerMode?: 'button' | 'none'
 }
 
 const props = defineProps<Props>()
+const triggerMode = computed(() => props.triggerMode ?? 'button')
 
 interface ColumnDraft {
   name: string
@@ -483,6 +489,7 @@ interface ColumnGroupResolution {
 }
 
 type InspectorTab = 'columns' | 'query' | 'save'
+type DialogMode = 'customize' | 'load' | 'save'
 type MoveEdge = 'top' | 'bottom'
 
 const visible = ref(false)
@@ -494,6 +501,7 @@ const fieldKeyword = ref('')
 const fieldTypeFilter = ref('')
 const activeColumnEditor = ref<string | null>(null)
 const inspectorTab = ref<InspectorTab>('columns')
+const dialogMode = ref<DialogMode>('customize')
 const presets = ref<ListPresetDef[]>([])
 const columnDraft = ref<ColumnDraft[]>([])
 const editingPresetId = ref<string | null>(null)
@@ -515,6 +523,11 @@ const availableColumnMap = computed(() => new Map((props.availableColumns || [])
 const visibleColumnDraft = computed(() => columnDraft.value.filter(column => column.visible && !isRuntimeColumn(column.name)))
 const appliedPreset = computed(() => presets.value.find(preset => preset.id === appliedPresetId.value))
 const defaultPreset = computed(() => presets.value.find(preset => preset.isDefault))
+const dialogTitle = computed(() => {
+  if (dialogMode.value === 'load') return '加载查询'
+  if (dialogMode.value === 'save') return '保存查询'
+  return '自定义查询'
+})
 const inspectorTitle = computed(() => {
   if (inspectorTab.value === 'query') return '查询条件'
   if (inspectorTab.value === 'save') return editingPresetId.value ? '编辑方案' : '保存方案'
@@ -650,17 +663,18 @@ function resolveSourceColumnGroup(column: EnhancedColumnSchema): Pick<ColumnDraf
 }
 
 function resolveColumnGroup(column: ColumnDraft): ColumnGroupResolution {
+  const category = column.category || ''
+  const categoryGroup = CATEGORY_GROUPS[category]
   const explicitKey = pickText(column.groupKey, column.groupTitle)
   if (explicitKey) {
+    const isCategoryGroup = Boolean(categoryGroup && explicitKey === category)
     return {
-      key: `qm:${explicitKey}`,
+      key: isCategoryGroup ? `category:${category}` : `qm:${explicitKey}`,
       title: pickText(column.groupTitle, column.groupKey) || '未分组',
-      order: column.groupOrder ?? 10
+      order: column.groupOrder ?? (isCategoryGroup && categoryGroup ? categoryGroup.order : 10)
     }
   }
 
-  const category = column.category || ''
-  const categoryGroup = CATEGORY_GROUPS[category]
   if (categoryGroup) {
     return {
       key: `category:${category}`,
@@ -670,14 +684,30 @@ function resolveColumnGroup(column: ColumnDraft): ColumnGroupResolution {
   }
 
   return {
-    key: 'default',
-    title: '未分组',
-    order: 999
+    key: 'category:attribute',
+    title: CATEGORY_GROUPS.attribute.title,
+    order: CATEGORY_GROUPS.attribute.order
   }
 }
 
 function openDialog() {
+  dialogMode.value = 'customize'
+  inspectorTab.value = 'columns'
   syncColumnDraftFromState()
+  visible.value = true
+}
+
+function openLoadDialog() {
+  dialogMode.value = 'load'
+  syncColumnDraftFromState()
+  visible.value = true
+}
+
+function openSaveDialog() {
+  dialogMode.value = 'save'
+  resetForm()
+  syncColumnDraftFromState()
+  inspectorTab.value = 'save'
   visible.value = true
 }
 
@@ -1183,6 +1213,8 @@ defineExpose({
   moveVisibleColumn,
   moveVisibleColumnToEdge,
   openDialog,
+  openLoadDialog,
+  openSaveDialog,
   overwritePreset,
   saveCurrentPreset,
   startEditPreset,
@@ -1208,12 +1240,16 @@ defineExpose({
 
 .preset-layout {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr) 340px;
+  grid-template-columns: 250px minmax(420px, 1fr) minmax(420px, 0.5fr);
   height: min(640px, calc(100vh - 190px));
   min-height: min(520px, calc(100vh - 190px));
   border: 1px solid #e4e7ed;
   border-radius: 6px;
   overflow: hidden;
+}
+
+.preset-layout.is-load-mode {
+  grid-template-columns: minmax(420px, 1fr);
 }
 
 .preset-list-section,
@@ -1246,6 +1282,15 @@ defineExpose({
 .preset-list-section,
 .field-pool-section {
   border-right: 1px solid #e4e7ed;
+}
+
+.preset-layout.is-load-mode .preset-list-section {
+  border-right: 0;
+  background: #fff;
+}
+
+.preset-layout.is-load-mode .preset-title {
+  max-width: none;
 }
 
 .section-header,
@@ -1529,11 +1574,11 @@ defineExpose({
 
 .selected-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-  min-height: 60px;
-  padding: 8px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  min-height: 80px;
+  padding: 10px;
   border: 1px solid #e4e7ed;
   border-radius: 6px;
   background: #fff;
@@ -1552,26 +1597,53 @@ defineExpose({
 }
 
 .drag-icon {
+  margin-top: 8px;
   color: #c0c4cc;
+}
+
+.selected-main {
+  padding-top: 2px;
+}
+
+.selected-action-rail {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: end;
+  align-self: start;
+  gap: 2px;
+  min-width: 104px;
+  min-height: 32px;
+  padding-top: 1px;
 }
 
 .selected-actions {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 1px;
 }
 
 .selected-actions :deep(.el-button) {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.selected-actions :deep(.el-button:hover),
+.selected-actions :deep(.el-button:focus) {
+  border-color: transparent;
+  background: #f5f7fa;
 }
 
 .selected-move-actions {
-  opacity: 0.78;
+  opacity: 0.72;
+  transition: opacity 0.16s ease;
 }
 
 .selected-row-actions {
+  height: 24px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.16s ease;
@@ -1584,8 +1656,14 @@ defineExpose({
   pointer-events: auto;
 }
 
+.selected-row:hover .selected-move-actions,
+.selected-row:focus-within .selected-move-actions,
+.selected-row.is-editing .selected-move-actions {
+  opacity: 1;
+}
+
 .selected-editor {
-  grid-column: 2 / 5;
+  grid-column: 2 / 4;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 120px) auto;
   align-items: end;
@@ -1703,7 +1781,7 @@ defineExpose({
 
 @media (max-width: 1100px) {
   .preset-layout {
-    grid-template-columns: 220px minmax(0, 1fr) 320px;
+    grid-template-columns: 220px minmax(0, 1fr) minmax(360px, 0.42fr);
   }
 
   .field-list {
@@ -1729,13 +1807,21 @@ defineExpose({
   }
 
   .selected-row {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 18px minmax(0, 1fr);
   }
 
-  .selected-move-actions,
-  .selected-row-actions,
+  .selected-action-rail,
   .selected-editor {
     grid-column: 2 / 3;
+  }
+
+  .selected-action-rail {
+    justify-content: start;
+  }
+
+  .selected-row-actions {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .selected-editor {

@@ -6,6 +6,7 @@ import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
 import DataTable from './DataTable.vue'
 import ListPresetManager from './list-preset/ListPresetManager.vue'
+import { ArrowDown, Brush, DocumentAdd, FolderOpened, Operation } from '@element-plus/icons-vue'
 import { useTableQuery } from './composables/useTableQuery'
 import { globalSearchHooks } from './composables/globalSearchHooks'
 import { SearchHookRegistry } from './composables/searchHookRegistry'
@@ -122,7 +123,9 @@ const props = withDefaults(defineProps<Props>(), {
   showSearchActions: true,
   filterMergeMode: 'merge',
   showQueryPanel: false,
-  localFilter: undefined
+  localFilter: undefined,
+  enableSavedQuery: undefined,
+  listPreset: undefined
 })
 
 const emit = defineEmits<{
@@ -484,25 +487,30 @@ const effectiveSearchLayout = computed(() => {
 
 const normalizedListPresetConfig = computed<ListPresetConfig | null>(() => {
   const config = props.listPreset
-  if (!config) return null
+  if (props.enableSavedQuery === false || config === false) return null
 
-  if (config === true) {
-    console.warn('[DataTableWithSearch] listPreset=true requires object config with userId and model')
+  const hasExplicitListPreset = config !== undefined
+  const rawConfig: ListPresetConfig = !config || config === true ? {} : config
+
+  if (rawConfig.enabled === false) return null
+
+  const model = rawConfig.model ?? effectiveQmModel.value
+  const userId = rawConfig.userId ?? props.defaultQueryConfigScope?.userId
+  if (!userId || !model) {
+    if (hasExplicitListPreset) {
+      console.warn('[DataTableWithSearch] listPreset requires userId and model')
+    }
     return null
   }
-
-  if (config.enabled === false) return null
-  if (!config.userId || !config.model) {
-    console.warn('[DataTableWithSearch] listPreset requires userId and model')
-    return null
-  }
-  const businessKey = config.businessKey ?? config.tableInstanceId ?? effectiveTableInstanceId.value
+  const businessKey = rawConfig.businessKey ?? rawConfig.tableInstanceId ?? effectiveTableInstanceId.value
   return {
     autoLoadDefault: true,
     placement: 'toolbar-right',
-    ...config,
+    ...rawConfig,
+    model,
+    userId,
     businessKey,
-    tableInstanceId: config.tableInstanceId ?? businessKey,
+    tableInstanceId: rawConfig.tableInstanceId ?? businessKey,
     enabled: true
   }
 })
@@ -511,6 +519,27 @@ const shouldRenderListPresetManager = computed(() => {
   const config = normalizedListPresetConfig.value
   return !!config && config.placement !== 'external'
 })
+
+const shouldRenderToolbarRightListPreset = computed(() =>
+  shouldRenderListPresetManager.value
+  && normalizedListPresetConfig.value?.placement === 'toolbar-right'
+)
+
+const shouldRenderUnifiedQueryPlanDropdown = computed(() =>
+  props.enableSavedQuery === true && shouldRenderToolbarRightListPreset.value
+)
+
+const shouldRenderStandaloneToolbarRightListPreset = computed(() =>
+  shouldRenderToolbarRightListPreset.value && !shouldRenderUnifiedQueryPlanDropdown.value
+)
+
+const shouldRenderHiddenToolbarRightListPreset = computed(() =>
+  shouldRenderToolbarRightListPreset.value && shouldRenderUnifiedQueryPlanDropdown.value
+)
+
+const shouldRenderQueryPlanClearConditions = computed(() =>
+  shouldRenderHiddenToolbarRightListPreset.value && Boolean(clearListPresetConditions)
+)
 
 // 计算搜索工具栏显示的字段
 const effectiveSearchableFields = computed(() => {
@@ -561,9 +590,23 @@ interface DataTableExpose {
   clearSelection: (options?: ClearSelectionOptions) => void
 }
 
+interface ListPresetManagerExpose {
+  applyPreset: (preset: ListPresetDef) => Promise<void>
+  getPresets: () => ListPresetDef[]
+  loadPresets: () => Promise<void>
+  openDialog: () => void
+  openLoadDialog: () => void
+  openSaveDialog: () => void
+  clearCurrentConditions: () => void | Promise<void>
+}
+
 const searchToolbarRef = ref<SearchToolbarExpose>()
 const queryPanelRef = ref<QueryPanelExpose>()
 const dataTableRef = ref<DataTableExpose>()
+const toolbarListPresetManagerRef = ref<ListPresetManagerExpose>()
+const queryPlanPresetLoading = ref(false)
+const queryPlanPresets = ref<ListPresetDef[]>([])
+const queryPlanPresetCommandPrefix = 'apply-list-preset:'
 
 // ========== 筛选状态 ==========
 const searchSlices = ref<SliceRequestDef[]>([])
@@ -1029,6 +1072,47 @@ async function reloadAfterListPresetApply() {
   }
 }
 
+async function refreshQueryPlanPresets() {
+  if (!toolbarListPresetManagerRef.value) return
+  queryPlanPresetLoading.value = true
+  try {
+    await toolbarListPresetManagerRef.value.loadPresets()
+    queryPlanPresets.value = toolbarListPresetManagerRef.value.getPresets()
+  } finally {
+    queryPlanPresetLoading.value = false
+  }
+}
+
+function getQueryPlanPresetCommand(presetId: string) {
+  return `${queryPlanPresetCommandPrefix}${presetId}`
+}
+
+async function handleQueryPlanDropdownVisibleChange(visible: boolean) {
+  if (visible) {
+    await refreshQueryPlanPresets()
+  }
+}
+
+async function handleQueryPlanCommand(command: string | number | object) {
+  if (typeof command === 'string' && command.startsWith(queryPlanPresetCommandPrefix)) {
+    const presetId = command.slice(queryPlanPresetCommandPrefix.length)
+    const preset = queryPlanPresets.value.find(item => item.id === presetId)
+    if (preset) {
+      await toolbarListPresetManagerRef.value?.applyPreset(preset)
+    }
+    return
+  }
+  if (command === 'list-preset') {
+    toolbarListPresetManagerRef.value?.openDialog()
+  } else if (command === 'saved-load') {
+    toolbarListPresetManagerRef.value?.openLoadDialog()
+  } else if (command === 'saved-save') {
+    toolbarListPresetManagerRef.value?.openSaveDialog()
+  } else if (command === 'clear-conditions') {
+    await toolbarListPresetManagerRef.value?.clearCurrentConditions()
+  }
+}
+
 async function clearListPresetConditions() {
   clearAllFilterState({ suppressControlEvents: true })
   emit('filter-change', mergedSlices.value)
@@ -1246,10 +1330,88 @@ defineExpose({
             :clear-conditions="clearListPresetConditions"
           />
         </template>
-        <template v-if="$slots['toolbar-right'] || (shouldRenderListPresetManager && normalizedListPresetConfig?.placement === 'toolbar-right')" #toolbar-right>
+        <template v-if="$slots['toolbar-right'] || shouldRenderUnifiedQueryPlanDropdown || shouldRenderStandaloneToolbarRightListPreset" #toolbar-right>
           <slot name="toolbar-right" />
+          <el-dropdown
+            v-if="shouldRenderUnifiedQueryPlanDropdown"
+            trigger="click"
+            @command="handleQueryPlanCommand"
+            @visible-change="handleQueryPlanDropdownVisibleChange"
+          >
+            <el-button data-testid="query-plan-dropdown" size="small" :icon="FolderOpened">
+              查询方案
+              <el-icon class="query-plan-dropdown-icon">
+                <ArrowDown />
+              </el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-if="shouldRenderHiddenToolbarRightListPreset"
+                  command="list-preset"
+                  :icon="Operation"
+                >
+                  自定义查询
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="saved-load"
+                  :icon="FolderOpened"
+                >
+                  加载查询
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="saved-save"
+                  :icon="DocumentAdd"
+                >
+                  保存查询
+                </el-dropdown-item>
+                <el-dropdown-item
+                  class="query-plan-section-title"
+                  disabled
+                  divided
+                >
+                  可用查询
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-if="queryPlanPresetLoading"
+                  class="query-plan-preset-empty"
+                  disabled
+                >
+                  加载中...
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-else-if="queryPlanPresets.length === 0"
+                  class="query-plan-preset-empty"
+                  disabled
+                >
+                  暂无可用查询
+                </el-dropdown-item>
+                <template v-else>
+                  <el-dropdown-item
+                    v-for="preset in queryPlanPresets"
+                    :key="preset.id"
+                    class="query-plan-preset-item"
+                    :command="getQueryPlanPresetCommand(preset.id)"
+                    :title="preset.title"
+                  >
+                    <span class="query-plan-preset-title">{{ preset.title }}</span>
+                    <span v-if="preset.isDefault" class="query-plan-preset-tag">默认</span>
+                  </el-dropdown-item>
+                </template>
+                <el-dropdown-item
+                  v-if="shouldRenderQueryPlanClearConditions"
+                  command="clear-conditions"
+                  :icon="Brush"
+                  divided
+                >
+                  清空查询条件
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <ListPresetManager
-            v-if="shouldRenderListPresetManager && normalizedListPresetConfig && normalizedListPresetConfig.placement === 'toolbar-right'"
+            v-if="shouldRenderToolbarRightListPreset && normalizedListPresetConfig"
+            ref="toolbarListPresetManagerRef"
             :config="normalizedListPresetConfig"
             :get-state="getListViewState"
             :apply-state="applyListViewState"
@@ -1258,6 +1420,7 @@ defineExpose({
             :required-runtime-columns="activeRequiredRuntimeColumns"
             :reload="reloadAfterListPresetApply"
             :clear-conditions="clearListPresetConditions"
+            :trigger-mode="shouldRenderHiddenToolbarRightListPreset ? 'none' : 'button'"
           />
         </template>
         <template v-if="$slots.footer" #footer>
@@ -1315,6 +1478,44 @@ defineExpose({
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.query-plan-dropdown-icon {
+  margin-left: 4px;
+  font-size: 12px;
+}
+
+.query-plan-section-title {
+  height: 28px;
+  font-size: 12px;
+  color: #909399;
+  cursor: default;
+}
+
+.query-plan-preset-empty {
+  color: #c0c4cc;
+}
+
+.query-plan-preset-item {
+  max-width: 220px;
+}
+
+.query-plan-preset-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.query-plan-preset-tag {
+  flex-shrink: 0;
+  margin-left: 8px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #ecf5ff;
+  color: #409eff;
+  font-size: 11px;
+  line-height: 16px;
 }
 </style>
 

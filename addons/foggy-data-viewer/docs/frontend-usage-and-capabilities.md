@@ -74,7 +74,7 @@
 - 选中行汇总 + 服务端全量汇总
 - 自定义列渲染 / 格式化 / 自定义过滤器
 - 查询前后钩子与全局钩子
-- 保存查询 / 加载查询 UI 与 API
+- 查询方案 UI 与 list-preset API（自定义、加载、保存、清空条件）
 - 自定义查询 / 用户默认列表预设（ListPreset）
 - `tableInstanceId` 默认查询配置与租户 / 角色 / 系统 fallback
 - TM/QM frontend-meta 级 `requiredRuntimeColumns` / `lockedColumns`
@@ -175,7 +175,6 @@
 - 组件：`DataTable`、`SearchToolbar`、`DataTableWithSearch`、`DataViewer`
 - 工具：`buildTableColumns`、`calculateColumnWidth`
 - API：`createQuery`、`fetchQueryMeta`、`fetchQueryData`、`fetchFilterOptions`、`fetchQmSchema`
-- saved-query API：`saveQuery`、`listSavedQueries`、`getSavedQuery`、`updateSavedQuery`、`deleteSavedQuery`、`applySavedQuery`
 - list-preset API：`listPresets`、`getDefaultListPreset`、`createListPreset`、`updateListPreset`、`deleteListPreset`、`setDefaultListPreset`
 - table-defaults API：`getTableDefaultQueryConfig`
 - hooks：`useTableQuery`、`globalQueryHooks`
@@ -573,62 +572,67 @@ const columns = buildTableColumns(qmSchema, {
 
 ---
 
-## 9. saved-query 怎么接
+## 9. 查询方案怎么接
 
-这是这套 addon 的高级能力之一，适合报表页、分析页、运营后台。
+这是这套 addon 的高级能力之一，适合报表页、分析页、运营后台。当前前端统一使用 `ListPresetManager` 与 list-preset API，不再导出旧的 standalone saved-query 组件。
 
 ### 9.1 前端侧能力
 
 组件：
 
-- `SavedQueryManager`
-- `SaveQueryDialog`
-- `QueryListDialog`
-- `OptionManagerDialog`
+- `DataTableWithSearch` 内置查询方案下拉入口
+- `ListPresetManager`
 
 API：
 
-- `saveQuery`
-- `listSavedQueries`
-- `getSavedQuery`
-- `updateSavedQuery`
-- `deleteSavedQuery`
-- `applySavedQuery`
+- `listPresets`
+- `getDefaultListPreset`
+- `createListPreset`
+- `updateListPreset`
+- `deleteListPreset`
+- `setDefaultListPreset`
 
 ### 9.2 最常见接法
 
 ```vue
-<script setup lang="ts">
-import { ref } from 'vue'
-import { DataTableWithSearch, SavedQueryManager } from 'foggy-data-viewer'
-
-const tableRef = ref()
-</script>
-
 <template>
-  <SavedQueryManager
-    :table-ref="tableRef"
-    model="FactSalesQueryModel"
-    current-user-id="u001"
-  />
-
   <DataTableWithSearch
-    ref="tableRef"
     :schema="schema"
     :fetch-data="fetchData"
+    qm-model="FactSalesQueryModel"
+    table-instance-id="sales-report"
+    enable-saved-query
+    :default-query-config-scope="{ userId: 'u001' }"
   />
 </template>
 ```
 
-### 9.3 后端前置条件
+当 `enableSavedQuery` 为 true，且能解析出 `model + userId` 时，组件会在工具栏右侧渲染 `查询方案` 下拉菜单：
 
-saved-query 要真正可用，后端还需要：
+- `自定义查询`：配置字段、筛选、排序、列宽、固定列。
+- `加载查询`：只打开查询方案列表，选择并应用已有方案。
+- `保存查询`：从当前表格实时状态创建新方案。
+- `可用查询`：在下拉中直接列出当前用户可用方案，点击方案名立即应用。
+- `清空查询条件`：清掉筛选条件，保留当前列方案和排序。
 
-- MongoDB
-- `SecurityIdentityResolver` SPI
-- 请求头里的 `Authorization`
+### 9.3 显式配置业务隔离
 
-否则会返回 503 或鉴权相关错误。
+```vue
+<DataTableWithSearch
+  :schema="schema"
+  :fetch-data="fetchData"
+  enable-saved-query
+  :list-preset="{
+    userId: 'u001',
+    model: 'FactSalesQueryModel',
+    businessKey: 'sales-report',
+    allowShared: true,
+    placement: 'toolbar-right'
+  }"
+/>
+```
+
+`businessKey` 用于区分同一 QM 下的不同业务页面。`PRIVATE`、`DEPARTMENT`、`TENANT` 等共享范围由 list-preset 后端能力承接。
 
 ---
 
@@ -869,26 +873,25 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 也就是说，当前实现不是“必须显式传 `visibleColumns`”，而是“未传时默认 show all”。
 
-### 13.2 `enableSavedQuery` prop 目前只是声明，没有自动渲染 saved-query UI
+### 13.2 `enableSavedQuery` 会自动渲染查询方案入口
 
-`DataTableWithSearch.vue` 里有 `enableSavedQuery?: boolean`，但当前组件模板没有依据这个 prop 自动挂出 `SavedQueryManager`。
+`DataTableWithSearch.vue` 里 `enableSavedQuery` 的当前行为是：
 
-实际可用方式仍然是：
+- `enableSavedQuery=true` 且能解析出 `model + userId` 时，自动启用 toolbar-right 的 `查询方案` 下拉。
+- `listPreset=false` 或 `enableSavedQuery=false` 时关闭该能力。
+- `listPreset` 对象可以显式覆盖 `userId`、`model`、`businessKey`、共享范围和 placement。
 
-- 显式在页面上渲染 `SavedQueryManager`
-- 通过 `tableRef` 与 `DataTableWithSearch` 协作
+`查询方案` 下拉统一承载自定义查询、加载查询、保存查询和清空条件；底层使用 list-preset API。
 
-### 13.3 `businessId` 目前只在前端类型里出现，后端实现尚未真正落地
+### 13.3 业务隔离使用 `businessKey`
 
-前端 `savedQuery.ts` 和若干文档里提到了 `businessId`，但当前后端源码中的：
+当前前端 list-preset 能力使用 `businessKey` 区分同一 QM 下的不同业务表格或页面。推荐传入稳定的页面级 key，例如：
 
-- `SavedQueryDef`
-- `SavedQueryService`
-- `SavedQueryController`
+- `sales-report`
+- `inventory-dashboard`
+- `customer-analysis`
 
-都没有真正保存或按 `businessId` 过滤查询。
-
-因此当前版本里，不能把 `businessId` 当成已经生效的后端隔离能力。
+不要再按旧 saved-query 文档使用 `businessId`。
 
 ### 13.4 维度过滤选项已有 queryId 模式接口
 
@@ -908,16 +911,16 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 - 直连查询或生成组件不走 queryId 时，可以优先使用 `/data-viewer/api/members/query` 或自定义 `filterOptionsLoader`。
 - 接口异常时会返回空 options，避免前端过滤器直接报错。
 
-### 13.5 saved-query 的“应用查询”目前重点是恢复筛选与排序，列变更要看父层怎么处理
+### 13.5 查询方案会恢复列、筛选、排序和分页大小
 
-`DataTableWithSearch` 暴露了：
+`DataTableWithSearch` 内置的 list-preset 应用流程会恢复：
 
-- `getQueryState()`
-- `applyQueryState()`
+- 展示列与列设置
+- 筛选条件
+- 排序规则
+- 分页大小
 
-但源码注释已经写明：列的应用需要父组件处理，因为 schema 是从 props 传入的。
-
-也就是说，saved-query 若要彻底恢复列显示顺序，父层通常还要配合重建 schema / columns。
+`lockedColumns` 会被强制保留；`requiredRuntimeColumns` 会参与请求但不会作为普通展示列保存。
 
 ---
 
@@ -936,7 +939,7 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 ### 如果你要做复杂报表页
 
-- 用 `DataTableWithSearch + SavedQueryManager + QueryHooks`
+- 用 `DataTableWithSearch + 查询方案 + QueryHooks`
 - 对租户、组织、权限条件统一走 hooks 注入
 
 ### 如果你只需要一个基础表格底座
@@ -955,10 +958,10 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 3. 元数据统一来自 `/data-viewer/api/schema/{qmModel}`。
 4. 查询数据统一走 `/data-viewer/api/query/{model}/{queryId}/data`。
 5. 权限附加条件统一放到 `queryHooks` 或 `globalQueryHooks`。
-6. saved-query 在引入前先确认后端是否真的配好 `SecurityIdentityResolver`，并注意 `businessId` 当前未真正落地。
+6. 查询方案统一使用 `listPreset/businessKey`，不要再接旧 saved-query 组件。
 7. 多页面复用同一 QM 时，给每张业务表格配置稳定的 `tableInstanceId`，并把 `requiredRuntimeColumns` / `lockedColumns` 放到 TM/QM frontend-meta。
 
 如果后续要继续完善这个 addon，优先建议补的点是：
 
-- 让 `businessId` 在后端 domain / repository / service / controller 全链路生效
-- 明确 `enableSavedQuery` 的真实行为，要么删掉，要么做成真正自动挂载
+- 持续完善 list-preset 的共享权限与默认方案管理
+- 保持 `enableSavedQuery`、`listPreset` 与文档示例同步

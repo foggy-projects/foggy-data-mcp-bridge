@@ -410,6 +410,49 @@ describe('DataTable', () => {
       expect(wrapper.exists()).toBe(true)
     })
 
+    it('should not add grouping separators for integer identifier columns', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            { name: 'targetServiceAreaId', type: 'BIGINT', title: '目的服务区域ID', category: 'dimension-id' },
+            { name: 'transportStationTenantId', type: 'BIGINT', title: '运达站点租户ID' },
+            { name: 'businessOrderNo', type: 'INTEGER', title: '业务运单号' },
+            { name: 'stationCode', type: 'INTEGER', title: '站点编码' }
+          ],
+          data: [{
+            targetServiceAreaId: 48156,
+            transportStationTenantId: 88800,
+            businessOrderNo: 4450,
+            stationCode: 440111
+          }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.stub-cell-targetServiceAreaId').text()).toBe('48156')
+      expect(wrapper.find('.stub-cell-transportStationTenantId').text()).toBe('88800')
+      expect(wrapper.find('.stub-cell-businessOrderNo').text()).toBe('4450')
+      expect(wrapper.find('.stub-cell-stationCode').text()).toBe('440111')
+    })
+
+    it('should keep grouping separators for integer measure columns', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            { name: 'orderCount', type: 'INTEGER', title: '订单数量', measure: true }
+          ],
+          data: [{ orderCount: 12345 }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.stub-cell-orderCount').text()).toBe('12,345')
+    })
+
     it('should handle custom render with row, value and column context', () => {
       const render = vi.fn(({ value, column }: CellRenderContext) => h('span', { class: 'custom' }, `${column.name}:${String(value)}`))
       const columnsWithRender: EnhancedColumnSchema[] = [

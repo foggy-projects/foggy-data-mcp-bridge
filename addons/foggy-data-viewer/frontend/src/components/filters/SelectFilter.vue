@@ -51,6 +51,7 @@ const searchInputRef = ref<HTMLInputElement>()
 
 // 下拉框位置（Teleport 到 body 后需要绝对定位）
 const dropdownStyle = ref<Record<string, string>>({})
+const DROPDOWN_MIN_WIDTH = 160
 
 // 远程模式状态
 const remoteOptions = ref<FilterOption[]>([])
@@ -194,6 +195,7 @@ function updateDropdownPosition() {
     top: `${rect.bottom + 4}px`,
     left: `${rect.left}px`,
     width: `${rect.width}px`,
+    minWidth: `${DROPDOWN_MIN_WIDTH}px`,
     zIndex: '9999'
   }
 }

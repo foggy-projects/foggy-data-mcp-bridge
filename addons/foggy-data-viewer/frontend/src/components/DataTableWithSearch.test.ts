@@ -1,13 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import DataTableWithSearch from './DataTableWithSearch.vue'
-import type { EnhancedColumnSchema, SliceRequestDef, ListViewState, FetchDataResult, SearchHookContext } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, ListViewState, FetchDataResult, SearchHookContext, ListPresetDef } from '@/types'
 import { globalSearchHooks } from './composables/globalSearchHooks'
 import { getDefaultListPreset } from '@/api/listPreset'
 import { getTableDefaultQueryConfig } from '@/api/tableDefaultQueryConfig'
 
 const dataTableClearSelectionSpy = vi.hoisted(() => vi.fn())
+const listPresetOpenDialogSpy = vi.hoisted(() => vi.fn())
+const listPresetOpenLoadDialogSpy = vi.hoisted(() => vi.fn())
+const listPresetOpenSaveDialogSpy = vi.hoisted(() => vi.fn())
+const listPresetClearConditionsSpy = vi.hoisted(() => vi.fn())
+const listPresetLoadPresetsSpy = vi.hoisted(() => vi.fn())
+const listPresetApplyPresetSpy = vi.hoisted(() => vi.fn())
+const listPresetManagerState = vi.hoisted(() => ({
+  presets: [] as ListPresetDef[]
+}))
 
 // Mock child components
 vi.mock('./SearchToolbar.vue', () => ({
@@ -98,8 +107,34 @@ vi.mock('./list-preset/ListPresetManager.vue', () => ({
       'lockedColumns',
       'requiredRuntimeColumns',
       'reload',
-      'clearConditions'
-    ]
+      'clearConditions',
+      'triggerMode'
+    ],
+    methods: {
+      applyPreset(preset: ListPresetDef) {
+        listPresetApplyPresetSpy(preset)
+        return Promise.resolve()
+      },
+      getPresets() {
+        return listPresetManagerState.presets
+      },
+      loadPresets() {
+        listPresetLoadPresetsSpy()
+        return Promise.resolve()
+      },
+      openDialog() {
+        listPresetOpenDialogSpy()
+      },
+      openLoadDialog() {
+        listPresetOpenLoadDialogSpy()
+      },
+      openSaveDialog() {
+        listPresetOpenSaveDialogSpy()
+      },
+      clearCurrentConditions() {
+        listPresetClearConditionsSpy()
+      }
+    }
   }
 }))
 
@@ -111,11 +146,34 @@ vi.mock('@/api/tableDefaultQueryConfig', () => ({
   getTableDefaultQueryConfig: vi.fn().mockResolvedValue(null)
 }))
 
+config.global.stubs = {
+  ...config.global.stubs,
+  'el-button': {
+    template: '<button v-bind="$attrs"><slot /></button>'
+  },
+  'el-dropdown': {
+    name: 'ElDropdown',
+    emits: ['command', 'visible-change'],
+    template: '<div v-bind="$attrs"><slot /><slot name="dropdown" /></div>'
+  },
+  'el-dropdown-menu': {
+    template: '<div v-bind="$attrs"><slot /></div>'
+  },
+  'el-dropdown-item': {
+    props: ['command', 'divided'],
+    template: '<button v-bind="$attrs"><slot /></button>'
+  },
+  'el-icon': {
+    template: '<span v-bind="$attrs"><slot /></span>'
+  }
+}
+
 describe('DataTableWithSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getDefaultListPreset).mockResolvedValue(null)
     vi.mocked(getTableDefaultQueryConfig).mockResolvedValue(null)
+    listPresetManagerState.presets = []
     globalSearchHooks.clear()
   })
 
@@ -234,6 +292,166 @@ describe('DataTableWithSearch', () => {
       })
 
       expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(true)
+    })
+
+    it('should render a unified query plan dropdown when saved query is enabled', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          enableSavedQuery: true,
+          tableInstanceId: 'ticket-list',
+          listPreset: {
+            enabled: true,
+            model: 'TicketQueryModel',
+            userId: 'u1',
+            businessKey: 'ticket-list'
+          }
+        }
+      })
+
+      const listPresetManager = wrapper.findComponent({ name: 'ListPresetManager' })
+      expect(wrapper.find('[data-testid="query-plan-dropdown"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('自定义查询')
+      expect(wrapper.text()).toContain('加载查询')
+      expect(wrapper.text()).toContain('保存查询')
+      expect(listPresetManager.props('config')).toMatchObject({
+        model: 'TicketQueryModel',
+        businessKey: 'ticket-list',
+        userId: 'u1'
+      })
+      expect(listPresetManager.props()).toMatchObject({
+        triggerMode: 'none'
+      })
+    })
+
+    it('should route unified query plan commands to the list preset manager', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          enableSavedQuery: true,
+          tableInstanceId: 'ticket-list',
+          listPreset: {
+            enabled: true,
+            model: 'TicketQueryModel',
+            userId: 'u1',
+            businessKey: 'ticket-list'
+          }
+        }
+      })
+
+      const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+      expect(dropdown.exists()).toBe(true)
+
+      dropdown.vm.$emit('command', 'list-preset')
+      dropdown.vm.$emit('command', 'saved-load')
+      dropdown.vm.$emit('command', 'saved-save')
+      dropdown.vm.$emit('command', 'clear-conditions')
+      await wrapper.vm.$nextTick()
+
+      expect(listPresetOpenDialogSpy).toHaveBeenCalledTimes(1)
+      expect(listPresetOpenLoadDialogSpy).toHaveBeenCalledTimes(1)
+      expect(listPresetOpenSaveDialogSpy).toHaveBeenCalledTimes(1)
+      expect(listPresetClearConditionsSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('should load available presets in query plan dropdown and apply one directly', async () => {
+      const preset: ListPresetDef = {
+        id: 'preset_001',
+        model: 'TicketQueryModel',
+        businessKey: 'ticket-list',
+        title: '我的常用查询',
+        columns: ['id', 'name'],
+        columnSettings: [],
+        query: {
+          slice: [],
+          orderBy: []
+        },
+        pageSize: 50,
+        visibility: 'PRIVATE',
+        ownerId: 'u1',
+        isDefault: true,
+        version: 1,
+        createdAt: '2026-07-04T00:00:00Z',
+        updatedAt: '2026-07-04T00:00:00Z'
+      }
+      listPresetManagerState.presets = [preset]
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          enableSavedQuery: true,
+          tableInstanceId: 'ticket-list',
+          listPreset: {
+            enabled: true,
+            model: 'TicketQueryModel',
+            userId: 'u1',
+            businessKey: 'ticket-list'
+          }
+        }
+      })
+
+      const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+      dropdown.vm.$emit('visible-change', true)
+      await flushPromises()
+
+      expect(listPresetLoadPresetsSpy).toHaveBeenCalledTimes(1)
+      expect(wrapper.text()).toContain('可用查询')
+      expect(wrapper.text()).toContain('我的常用查询')
+      expect(wrapper.text()).toContain('默认')
+
+      dropdown.vm.$emit('command', 'apply-list-preset:preset_001')
+      await flushPromises()
+
+      expect(listPresetApplyPresetSpy).toHaveBeenCalledWith(preset)
+    })
+
+    it('should render ListPresetManager by default when model and userId can be resolved', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          qmModel: 'TicketQueryModel',
+          tableInstanceId: 'ticket-list',
+          defaultQueryConfigScope: {
+            userId: 'u1'
+          }
+        }
+      })
+
+      const manager = wrapper.findComponent({ name: 'ListPresetManager' })
+      expect(manager.exists()).toBe(true)
+      expect(manager.props('config')).toMatchObject({
+        model: 'TicketQueryModel',
+        userId: 'u1',
+        businessKey: 'ticket-list',
+        tableInstanceId: 'ticket-list',
+        placement: 'toolbar-right',
+        autoLoadDefault: true
+      })
+    })
+
+    it('should not render ListPresetManager by default without a resolved userId', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          qmModel: 'TicketQueryModel'
+        }
+      })
+
+      expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(false)
+    })
+
+    it('should disable default ListPresetManager when listPreset is false', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          qmModel: 'TicketQueryModel',
+          defaultQueryConfigScope: {
+            userId: 'u1'
+          },
+          listPreset: false
+        }
+      })
+
+      expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(false)
     })
 
     it('should not render ListPresetManager when placement is external', () => {

@@ -67,6 +67,9 @@ type ExposedManager = {
   loadPresets: () => Promise<void>
   moveVisibleColumn: (index: number, direction: -1 | 1) => void
   moveVisibleColumnToEdge: (index: number, edge: 'top' | 'bottom') => void
+  openDialog: () => void
+  openLoadDialog: () => void
+  openSaveDialog: () => void
   overwritePreset: (preset: ListPresetDef) => Promise<void>
   saveCurrentPreset: () => Promise<void>
   setDraft: (draft: Partial<ReturnType<ExposedManager['getDraft']>>) => void
@@ -241,6 +244,47 @@ describe('ListPresetManager', () => {
     expect(manager.getDraft().title).toBe('')
   })
 
+  it('opens the save flow with the current table state', () => {
+    const manager = mountManager()
+    manager.setDraft({
+      title: '旧标题',
+      saveQueryConditions: false
+    })
+
+    manager.openSaveDialog()
+
+    expect(manager.getDraft()).toMatchObject({
+      title: '',
+      saveQueryConditions: true
+    })
+    expect(manager.getColumnDraft().filter(column => column.visible).map(column => column.name)).toEqual(currentState.columns)
+  })
+
+  it('opens the load flow as a focused preset list', async () => {
+    const wrapper = mountManagerWrapper()
+    const manager = wrapper.vm as unknown as ExposedManager
+
+    manager.openLoadDialog()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.preset-layout.is-load-mode').exists()).toBe(true)
+    expect(wrapper.find('.preset-list-section').exists()).toBe(true)
+    expect(wrapper.find('.field-pool-section').exists()).toBe(false)
+    expect(wrapper.find('.inspector-section').exists()).toBe(false)
+  })
+
+  it('opens the custom flow with field configuration visible', async () => {
+    const wrapper = mountManagerWrapper()
+    const manager = wrapper.vm as unknown as ExposedManager
+
+    manager.openDialog()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.preset-layout.is-customize-mode').exists()).toBe(true)
+    expect(wrapper.find('.field-pool-section').exists()).toBe(true)
+    expect(wrapper.find('.inspector-section').exists()).toBe(true)
+  })
+
   it('saves column visibility and order from available columns', async () => {
     const saved = makePreset({ columns: ['status'] })
     vi.mocked(createListPreset).mockResolvedValue(saved)
@@ -392,7 +436,62 @@ describe('ListPresetManager', () => {
     expect(wrapper.findAll('.field-group').at(0)?.text()).toContain('2 / 2 已选')
   })
 
-  it('keeps reorder actions visible and opens field settings only on row click', async () => {
+  it('places columns without group metadata into the base attribute group', async () => {
+    const wrapper = mountManagerWrapper({
+      getState: () => ({
+        columns: ['longProbeId'],
+        columnSettings: [
+          { name: 'longProbeId', visible: true, order: 0 }
+        ],
+        slice: [],
+        orderBy: []
+      }),
+      availableColumns: [
+        { name: 'longProbeId', title: 'LONG测试ID', type: 'LONG' }
+      ]
+    })
+
+    const manager = wrapper.vm as unknown as ExposedManager
+    manager.syncColumnDraftFromState()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('.field-group-title span').map(node => node.text())).toEqual(['基础属性'])
+    expect(wrapper.text()).not.toContain('未分组')
+  })
+
+  it('merges category-like explicit groups with the base attribute fallback group', async () => {
+    const wrapper = mountManagerWrapper({
+      getState: () => ({
+        columns: ['orderId', 'longProbeId'],
+        columnSettings: [
+          { name: 'orderId', visible: true, order: 0 },
+          { name: 'longProbeId', visible: true, order: 1 }
+        ],
+        slice: [],
+        orderBy: []
+      }),
+      availableColumns: [
+        {
+          name: 'orderId',
+          title: '订单ID',
+          type: 'STRING',
+          category: 'attribute',
+          groupKey: 'attribute',
+          groupTitle: '基础属性'
+        },
+        { name: 'longProbeId', title: 'LONG测试ID', type: 'LONG' }
+      ]
+    })
+
+    const manager = wrapper.vm as unknown as ExposedManager
+    manager.syncColumnDraftFromState()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('.field-group-title span').map(node => node.text())).toEqual(['基础属性'])
+    expect(wrapper.find('.field-group').text()).toContain('2 / 2 已选')
+  })
+
+  it('keeps selected field actions in a separate rail and opens field settings only on row click', async () => {
     const wrapper = mountManagerWrapper({
       getState: () => ({
         columns: ['orderNo', 'status'],
@@ -414,6 +513,10 @@ describe('ListPresetManager', () => {
     await wrapper.vm.$nextTick()
 
     const firstRow = wrapper.find('.selected-row')
+    const actionRail = firstRow.find('.selected-action-rail')
+    expect(actionRail.exists()).toBe(true)
+    expect(actionRail.find('.selected-move-actions').exists()).toBe(true)
+    expect(actionRail.find('.selected-row-actions').exists()).toBe(true)
     expect(firstRow.find('.selected-move-actions').exists()).toBe(true)
     expect(firstRow.find('[aria-label="移到顶部"]').exists()).toBe(true)
     expect(firstRow.text()).toContain('左固定')

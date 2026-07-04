@@ -26,9 +26,6 @@ export type {
 // 导出过滤器组件
 export * from './components/filters'
 
-// 导出保存查询组件
-export * from './components/saved-query'
-
 // 导出 Composables
 export * from './components/composables'
 
@@ -67,23 +64,6 @@ export type {
   CreateQueryRequest,
   CreateQueryResponse
 } from './api/viewer'
-
-// 导出保存查询 API
-export {
-  saveQuery,
-  listSavedQueries,
-  getSavedQuery,
-  updateSavedQuery,
-  deleteSavedQuery,
-  applySavedQuery
-} from './api/savedQuery'
-
-// 导出保存查询类型
-export type {
-  SavedQueryDef,
-  SaveQueryRequest,
-  QueryVisibility
-} from './api/savedQuery'
 
 // 导出自定义列表 API
 export {

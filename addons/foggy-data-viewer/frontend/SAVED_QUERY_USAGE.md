@@ -1,239 +1,124 @@
-# Saved Query Feature - Usage Guide
+# Query Plan Feature - Usage Guide
 
 ## Overview
 
-The saved query feature allows users to save, share, and reuse table query configurations including:
-- Selected columns
-- Filter conditions (with parameter configuration)
-- Sort settings
-- Visibility levels (PRIVATE, DEPARTMENT, TENANT)
+The query plan feature is implemented by `ListPresetManager` and integrated into
+`DataTableWithSearch`. It lets users save, load, and reuse table view state:
 
-## Installation
+- visible columns and column settings
+- filter conditions
+- sort rules
+- page size
+- visibility levels: `PRIVATE`, `DEPARTMENT`, `TENANT`
+- default plan per user/model/business key
 
-The saved query components are already included in the `foggy-data-viewer` package. You just need to install the dependencies:
-
-```bash
-npm install date-fns
-```
-
-## Components
-
-### SavedQueryManager
-
-The main entry point component that provides "Load Query" and "Save Query" buttons.
-
-**Props:**
-- `tableRef` - Reference to DataTableWithSearch instance (required)
-- `model` - QM model name (required)
-- `businessId` - Business ID for query isolation (optional)
-- `currentUserId` - Current user ID for distinguishing own queries (optional)
-- `position` - Button position: 'top' | 'bottom' (default: 'top')
-
-### SaveQueryDialog
-
-Three-step wizard dialog for saving queries:
-1. **Step 1**: Select columns (with search, select-all, invert)
-2. **Step 2**: Configure query conditions (parameter types, default values, options)
-3. **Step 3**: Name and confirm (visibility selection, preview)
-
-### QueryListDialog
-
-Left-right split dialog for viewing saved queries:
-- **Left**: My queries (with edit/delete actions)
-- **Right**: Shared queries (view-only)
-
-### OptionManagerDialog
-
-Dialog for configuring single-select/multi-select options for query parameters.
+The old standalone saved-query components and API are no longer exported. Use
+`DataTableWithSearch` with `enableSavedQuery` and `listPreset` instead.
 
 ## Basic Usage
 
-### 1. Enable Saved Query Feature
+```vue
+<template>
+  <DataTableWithSearch
+    :schema="tableSchema"
+    :fetch-data="fetchData"
+    qm-model="FactSalesDemoAuthQueryModel"
+    table-instance-id="sales-report-2024"
+    enable-saved-query
+    :default-query-config-scope="{ userId: 'user-123' }"
+  />
+</template>
+```
 
-Add `enableSavedQuery` prop to DataTableWithSearch:
+When `enableSavedQuery` is enabled and `model + userId` can be resolved,
+`DataTableWithSearch` renders a toolbar dropdown named `查询方案`.
+
+The dropdown contains:
+
+- `自定义查询`: open the field and condition configuration dialog.
+- `加载查询`: open a focused query plan list and apply an existing plan.
+- `保存查询`: save the current table state as a new plan.
+- `可用查询`: list available user query plans in the dropdown; click one to apply it directly.
+- `清空查询条件`: clear current filters while preserving columns and sort rules.
+
+## Explicit List Preset Config
+
+Use `listPreset` when the page needs a stable business namespace or custom
+sharing behavior.
 
 ```vue
 <template>
-  <div class="report-container">
-    <!-- Query Manager (independent component) -->
-    <SavedQueryManager
-      :table-ref="tableRef"
-      :model="modelName"
-      :business-id="businessId"
-      :current-user-id="userId"
-      position="top"
-    />
-
-    <!-- Data Table -->
-    <DataTableWithSearch
-      ref="tableRef"
-      :schema="tableSchema"
-      :fetch-data="fetchData"
-      enable-saved-query
-    />
-  </div>
+  <DataTableWithSearch
+    :schema="tableSchema"
+    :fetch-data="fetchData"
+    enable-saved-query
+    :list-preset="{
+      userId: 'user-123',
+      model: 'FactSalesDemoAuthQueryModel',
+      businessKey: 'sales-report-2024',
+      allowShared: true,
+      allowTenantShared: false,
+      placement: 'toolbar-right'
+    }"
+  />
 </template>
-
-<script setup lang="ts">
-import { ref } from 'vue'
-import { DataTableWithSearch, SavedQueryManager } from 'foggy-data-viewer'
-
-const tableRef = ref()
-const modelName = 'FactSalesDemoAuthQueryModel'
-const businessId = 'sales-report-2024'  // Optional: for multi-business isolation
-const userId = 'user-123'  // Current user ID
-
-// Your table schema and fetch data logic
-const tableSchema = { /* ... */ }
-const fetchData = async (params) => { /* ... */ }
-</script>
 ```
 
-### 2. Configure Authorization
+`businessKey` isolates plans for different pages or business contexts, for
+example:
 
-The saved query API requires authentication. Add an Axios interceptor to inject the Authorization header:
+- `sales-report-2024`
+- `inventory-dashboard`
+- `customer-analysis`
 
-```typescript
-import axios from 'axios'
+## API Functions
 
-axios.interceptors.request.use(config => {
-  const token = getAuthToken() // Your auth token logic
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-```
+Programmatic plan management uses the list-preset API:
 
-### 3. Backend Configuration
-
-The backend needs a `SecurityIdentityResolver` implementation to parse user identity from the Authorization token. See the main implementation plan for details.
-
-## Features
-
-### Save Query
-
-1. Click "Save Query" button
-2. **Step 1**: Select columns to include in the saved query
-3. **Step 2**: Configure filter conditions:
-   - Select field, operator
-   - Choose parameter type: Fixed value | Single-select | Multi-select
-   - Set default values and options
-4. **Step 3**: Name the query, add description, choose visibility
-5. Click "Save Query"
-
-### Load Query
-
-1. Click "Load Query" button
-2. Browse saved queries in left-right split view:
-   - **My Queries**: Queries you created (can edit/delete)
-   - **Shared Queries**: Queries shared by colleagues
-3. Click "Apply" to load a saved query
-4. The table will reload with the saved configuration
-
-### Query Visibility Levels
-
-- **PRIVATE**: Only you can see and use this query
-- **DEPARTMENT**: All members in your department can see and use this query
-- **TENANT**: All members in your organization can see and use this query
-
-### Business ID Isolation
-
-Use `businessId` to isolate queries for different business contexts. For example:
-- `sales-report-2024` - Sales report queries
-- `inventory-dashboard` - Inventory dashboard queries
-- `customer-analysis` - Customer analysis queries
-
-Queries with different businessIds won't show up in each other's lists.
-
-## API Methods
-
-The following methods are exposed via `tableRef`:
-
-```typescript
-// Get current query state (for saving)
-tableRef.value.getQueryState()
-// Returns: { columns: string[], slice: SliceRequestDef[], orderBy: OrderRequestDef[] }
-
-// Apply saved query state (for loading)
-tableRef.value.applyQueryState({
-  columns: ['col1', 'col2'],
-  slice: [/* filter conditions */],
-  orderBy: [/* sort settings */]
-})
-
-// Reload data
-tableRef.value.reload()
-
-// Get column schema
-tableRef.value.getSchema()
-// Returns: ColumnSchema[]
-```
-
-## Styling
-
-The saved query components use Element Plus default theme colors:
-- Primary: `#409eff` (Blue)
-- Success: `#67c23a` (Green)
-- Warning: `#e6a23c` (Orange)
-- Danger: `#f56c6c` (Red)
-- Info: `#909399` (Gray)
-
-You can customize the theme by overriding Element Plus CSS variables.
-
-## Advanced Usage
-
-### Programmatic Query Management
-
-You can also use the saved query API functions directly:
-
-```typescript
+```ts
 import {
-  saveQuery,
-  listSavedQueries,
-  getSavedQuery,
-  updateSavedQuery,
-  deleteSavedQuery,
-  applySavedQuery
+  createListPreset,
+  listPresets,
+  updateListPreset,
+  deleteListPreset,
+  getDefaultListPreset,
+  setDefaultListPreset
 } from 'foggy-data-viewer'
-
-// Save a query
-const savedQuery = await saveQuery({
-  businessId: 'report-001',
-  model: 'FactSalesDemoAuthQueryModel',
-  title: 'Q1 Sales Report',
-  description: 'Sales data for Q1 2024',
-  columns: ['date', 'product', 'amount'],
-  slice: [{ field: 'date', op: '>=', value: '2024-01-01' }],
-  orderBy: [{ field: 'date', order: 'desc' }],
-  visibility: 'DEPARTMENT'
-})
-
-// List queries
-const queries = await listSavedQueries('FactSalesDemoAuthQueryModel', 'report-001')
-
-// Apply a saved query
-const result = await applySavedQuery(savedQuery.id)
-// result.queryId - Use this to fetch data from the viewer API
 ```
+
+Most pages should not call these functions directly. Prefer the integrated
+`DataTableWithSearch` toolbar unless you are building a custom management UI.
+
+## Backend Requirements
+
+The list-preset API persists user plans by `userId`, `model`, and `businessKey`.
+Make sure the backend list-preset endpoints are enabled and the current page
+passes a stable `userId`.
+
+Sharing options depend on the backend identity and authorization integration:
+
+- `PRIVATE`: only the owner can use the plan.
+- `DEPARTMENT`: department-level sharing when enabled.
+- `TENANT`: tenant-level sharing when enabled.
 
 ## Troubleshooting
 
-### Service Unavailable (503)
+### The Dropdown Does Not Render
 
-If you get a 503 error when trying to save queries, it means the `SecurityIdentityResolver` SPI is not configured on the backend. Check the backend configuration.
+Check that either:
 
-### Query Not Found (404)
+- `enableSavedQuery` is true and `qmModel/defaultQueryConfigScope.userId` are
+  available, or
+- `listPreset` explicitly provides `model` and `userId`.
 
-If you get a 404 error when applying a query, it means:
-- The query was deleted
-- You don't have permission to access it
-- The query has expired (if TTL is configured)
+Also check that `listPreset` is not `false` and `enableSavedQuery` is not false.
 
-### Authorization Failed
+### Saved Plans Do Not Appear
 
-Make sure your Axios interceptor is correctly injecting the Authorization header with a valid token.
+Verify that `userId`, `model`, and `businessKey` are stable across refreshes.
+Changing any of them switches the plan namespace.
 
-## Examples
+### Saved Columns Are Missing
 
-See the implementation plan document for complete UI examples and detailed component specifications.
+`requiredRuntimeColumns` are intentionally not shown as normal columns.
+`lockedColumns` are forced visible and cannot be removed by user plans.

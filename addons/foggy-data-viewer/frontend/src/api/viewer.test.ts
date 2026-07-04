@@ -75,6 +75,57 @@ describe('fetchQmSchema', () => {
       })
     ])
   })
+
+  it('derives field groups when V3 schema omits explicit group metadata', async () => {
+    axiosMock.get.mockResolvedValue({
+      data: {
+        code: 200,
+        data: {
+          fields: {
+            orderStatus: {
+              name: '订单状态',
+              type: 'STRING',
+              filterable: true
+            },
+            'product$caption': {
+              name: '商品(名称)',
+              type: 'TEXT',
+              filterType: 'dimension'
+            },
+            salesAmount: {
+              name: '销售金额',
+              type: 'MONEY',
+              measure: true,
+              aggregatable: true
+            }
+          }
+        }
+      }
+    })
+
+    const { fetchQmSchema } = await import('./viewer')
+
+    await expect(fetchQmSchema('FactSalesDemoAuthQueryModel')).resolves.toEqual([
+      expect.objectContaining({
+        name: 'orderStatus',
+        category: 'attribute',
+        groupKey: 'attribute',
+        groupTitle: '基础属性'
+      }),
+      expect.objectContaining({
+        name: 'product$caption',
+        category: 'dimension-caption',
+        groupKey: 'dimension:product',
+        groupTitle: '商品'
+      }),
+      expect.objectContaining({
+        name: 'salesAmount',
+        category: 'measure',
+        groupKey: 'measure',
+        groupTitle: '指标'
+      })
+    ])
+  })
 })
 
 describe('fetchQueryDataDirect', () => {

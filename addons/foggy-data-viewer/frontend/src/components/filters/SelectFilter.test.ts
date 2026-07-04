@@ -41,4 +41,36 @@ describe('SelectFilter', () => {
       { field: 'customerType', op: 'in', value: [10, 20] }
     ])
   })
+
+  it('aligns dropdown width with input and keeps a minimum width', async () => {
+    const wrapper = mount(SelectFilter, {
+      attachTo: document.body,
+      props: {
+        field: 'status',
+        options: [
+          { label: '运输中', value: 'transporting' }
+        ]
+      }
+    })
+
+    const input = wrapper.find('.select-input').element as HTMLElement
+    input.getBoundingClientRect = () => ({
+      width: 86,
+      height: 28,
+      top: 10,
+      right: 106,
+      bottom: 38,
+      left: 20,
+      x: 20,
+      y: 10,
+      toJSON: () => ({})
+    })
+
+    await wrapper.find('.select-input').trigger('click')
+
+    const dropdown = document.body.querySelector<HTMLElement>('.filter-dropdown')
+    expect(dropdown?.style.left).toBe('20px')
+    expect(dropdown?.style.width).toBe('86px')
+    expect(dropdown?.style.minWidth).toBe('160px')
+  })
 })

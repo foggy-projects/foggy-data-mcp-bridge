@@ -19,6 +19,146 @@ const apiClient = axios.create({
   }
 })
 
+type RawQmField = Record<string, unknown>
+
+const DIMENSION_GROUP_ORDER_BASE = 20
+const CATEGORY_GROUP_META: Record<string, { key: string, title: string, order: number }> = {
+  attribute: { key: 'attribute', title: '基础属性', order: 100 },
+  measure: { key: 'measure', title: '指标', order: 200 },
+  calculated: { key: 'calculated', title: '计算字段', order: 300 },
+  'dimension-id': { key: 'dimension-id', title: '维度ID', order: 400 },
+  'dimension-property': { key: 'dimension-property', title: '维度属性', order: 500 },
+  'dimension-caption': { key: 'dimension-caption', title: '维度', order: 600 }
+}
+
+function pickText(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return undefined
+}
+
+function pickNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const numberValue = Number(value)
+      if (Number.isFinite(numberValue)) {
+        return numberValue
+      }
+    }
+  }
+  return undefined
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
+function deriveQmFieldCategory(fieldName: string, field: RawQmField): string {
+  const explicitCategory = pickText(field.category)
+  if (explicitCategory) return explicitCategory
+
+  const meta = pickText(field.meta)?.toLowerCase() || ''
+  if (field.calculated === true || meta.includes('calculated') || meta.includes('计算')) {
+    return 'calculated'
+  }
+  if (field.measure === true || field.aggregatable === true || meta.includes('measure') || meta.includes('指标')) {
+    return 'measure'
+  }
+  if (fieldName.endsWith('$id')) {
+    return 'dimension-id'
+  }
+  if (fieldName.endsWith('$caption')) {
+    return 'dimension-caption'
+  }
+  if (fieldName.includes('$')) {
+    return 'dimension-property'
+  }
+  return 'attribute'
+}
+
+function getDimensionGroupTitle(fieldName: string, title: string): string {
+  const titleBase = title.replace(/[（(].*$/, '').trim()
+  if (titleBase && titleBase !== title) {
+    return titleBase
+  }
+  return fieldName.split('$')[0] || title
+}
+
+function deriveQmFieldGroup(fieldName: string, field: RawQmField, category: string, title: string) {
+  const groupRecord = getRecord(field.group)
+  const groupText = typeof field.group === 'string' ? field.group : undefined
+  const groupKey = pickText(
+    field.groupKey,
+    groupText,
+    groupRecord?.key,
+    groupRecord?.id,
+    groupRecord?.code,
+    groupRecord?.name
+  )
+  const groupTitle = pickText(
+    field.groupTitle,
+    field.groupLabel,
+    field.groupCaption,
+    groupText,
+    groupRecord?.title,
+    groupRecord?.label,
+    groupRecord?.caption,
+    groupRecord?.name
+  )
+  const groupOrder = pickNumber(
+    field.groupOrder,
+    field.groupSort,
+    field.groupIndex,
+    groupRecord?.order,
+    groupRecord?.sort,
+    groupRecord?.index
+  )
+
+  if (groupKey || groupTitle || groupOrder !== undefined) {
+    return {
+      group: field.group,
+      groupKey: groupKey || groupTitle,
+      groupTitle: groupTitle || groupKey,
+      groupOrder
+    }
+  }
+
+  if (category.startsWith('dimension-') && fieldName.includes('$')) {
+    const dimensionKey = fieldName.split('$')[0]
+    return {
+      group: undefined,
+      groupKey: `dimension:${dimensionKey}`,
+      groupTitle: getDimensionGroupTitle(fieldName, title),
+      groupOrder: DIMENSION_GROUP_ORDER_BASE
+    }
+  }
+
+  const categoryGroup = CATEGORY_GROUP_META[category]
+  if (categoryGroup) {
+    return {
+      group: undefined,
+      groupKey: categoryGroup.key,
+      groupTitle: categoryGroup.title,
+      groupOrder: categoryGroup.order
+    }
+  }
+
+  return {
+    group: undefined,
+    groupKey: category,
+    groupTitle: category,
+    groupOrder: 900
+  }
+}
+
 /**
  * 查询 payload（与 dataset.query_model 格式一致）
  */
@@ -140,25 +280,27 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
   // 遍历 fields 对象，转换为 ColumnSchema 数组
   const columns: ColumnSchema[] = []
   for (const [fieldName, fieldInfo] of Object.entries(data.fields)) {
-    const field = fieldInfo as any
+    const field = fieldInfo as RawQmField
+    const title = pickText(field.name, field.title, field.label, field.caption) || fieldName
+    const category = deriveQmFieldCategory(fieldName, field)
+    const group = deriveQmFieldGroup(fieldName, field, category, title)
 
-    // 直接使用后端返回的字段（不再解析 meta）
     columns.push({
       name: fieldName,
-      title: field.name || fieldName,
-      type: field.type || 'TEXT',
-      group: field.group,
-      groupKey: field.groupKey || (typeof field.group === 'string' ? field.group : field.group?.key || field.group?.id || field.group?.code || field.group?.name),
-      groupTitle: field.groupTitle || field.groupLabel || field.groupCaption || (typeof field.group === 'string' ? field.group : field.group?.title || field.group?.label || field.group?.caption || field.group?.name),
-      groupOrder: field.groupOrder ?? field.groupSort ?? field.groupIndex ?? field.group?.order ?? field.group?.sort ?? field.group?.index,
-      category: field.category,
+      title,
+      type: pickText(field.type) || 'TEXT',
+      group: group.group as ColumnSchema['group'],
+      groupKey: group.groupKey,
+      groupTitle: group.groupTitle,
+      groupOrder: group.groupOrder,
+      category,
       filterable: field.filterable !== false,
-      aggregatable: field.aggregatable || false,
-      measure: field.measure || false,
-      filterType: field.filterType,
-      dictId: field.dictId,
-      dictItems: field.dictItems,
-      format: field.format
+      aggregatable: field.aggregatable === true,
+      measure: field.measure === true,
+      filterType: field.filterType as ColumnSchema['filterType'],
+      dictId: pickText(field.dictId),
+      dictItems: field.dictItems as ColumnSchema['dictItems'],
+      format: pickText(field.format)
     })
   }
 

@@ -176,7 +176,7 @@ async function loadFilterOptions(columnName: string) {
 
 ## 五、自定义列表
 
-`DataTableWithSearch` 可以通过 `listPreset` 开启“自定义列表”入口，用户可保存列显隐、列顺序、列宽、固定列、当前筛选、排序和分页大小。
+`DataTableWithSearch` 默认会在能解析出 `model` 和 `userId` 时显示“自定义列表”入口，用户可保存列显隐、列顺序、列宽、固定列、当前筛选、排序和分页大小。`model` 可由 `qmModel`、`schema.qmModel` 或 `defaultQueryConfigScope.queryModel` 提供；`userId` 可由 `defaultQueryConfigScope.userId` 提供。需要关闭时传 `:list-preset="false"` 或 `:enable-saved-query="false"`。
 
 ```vue
 <script setup lang="ts">
@@ -208,8 +208,8 @@ const model = 'TicketQueryModel'
 | 参数 | 说明 |
 |---|---|
 | `enabled` | 是否启用自定义列表 |
-| `model` | QM 模型名，用于后端按模型隔离配置 |
-| `userId` | v1 必填，前端显式传入的用户标识，只作为配置命名空间 |
+| `model` | QM 模型名，用于后端按模型隔离配置；不传时从组件上下文推导 |
+| `userId` | 前端显式传入的用户标识，只作为配置命名空间；不传时从 `defaultQueryConfigScope.userId` 推导 |
 | `tableInstanceId` | 同一 QM 下的表格实例标识 |
 | `businessKey` | `tableInstanceId` 的旧兼容别名 |
 | `autoLoadDefault` | 首次加载时是否自动应用默认列表 |

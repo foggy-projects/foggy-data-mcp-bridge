@@ -442,8 +442,10 @@ export type ListPresetPlacement = 'toolbar-left' | 'toolbar-right' | 'external'
  */
 export interface ListPresetConfig {
   enabled?: boolean
-  model: string
-  userId: string
+  /** QM 模型名；不传时由 DataTableWithSearch 从 qmModel/schema/defaultQueryConfigScope 推导 */
+  model?: string
+  /** 当前用户标识；不传时由 DataTableWithSearch 从 defaultQueryConfigScope.userId 推导 */
+  userId?: string
   /** tableInstanceId 的旧兼容别名 */
   businessKey?: string
   /** 同一 QM 下的业务表格实例标识 */
