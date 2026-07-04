@@ -117,6 +117,7 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             }
 
             request.setQmModels(availableModels);
+            request.setTolerateModelLoadErrors(true);
 
             // 应用字段级别配置
             // metadata.force-levels 会覆盖用户请求

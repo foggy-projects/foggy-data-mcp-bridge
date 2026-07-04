@@ -46,6 +46,8 @@ import java.util.*;
 @Service
 public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
+    private static final String MODEL_LOAD_NULL_MESSAGE = "模型不存在或加载返回 null";
+
     @Resource
     private QueryModelLoader queryModelLoader;
 
@@ -111,12 +113,14 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> fields = new LinkedHashMap<>();
         Map<String, Object> models = new LinkedHashMap<>();
         List<Map<String, String>> physicalTables = new ArrayList<>();
+        List<Map<String, String>> modelErrors = new ArrayList<>();
 
         for (String qmModelName : request.getQmModels()) {
             try {
                 QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
                 if (queryModel == null) {
                     log.warn("metadata 构建跳过模型 '{}': 模型不存在或加载返回 null", qmModelName);
+                    recordModelLoadError(modelErrors, qmModelName, MODEL_LOAD_NULL_MESSAGE);
                     continue;
                 }
 
@@ -135,6 +139,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             } catch (Exception e) {
                 // 单模型加载失败不拖垮整包 metadata
                 log.warn("metadata 构建跳过模型 '{}': {}", qmModelName, e.getMessage());
+                recordModelLoadError(modelErrors, qmModelName, modelLoadErrorMessage(e));
             }
         }
 
@@ -142,6 +147,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         data.put("models", models);
         if (!physicalTables.isEmpty()) {
             data.put("physicalTables", physicalTables);
+        }
+        if (!modelErrors.isEmpty()) {
+            data.put("modelErrors", modelErrors);
         }
 
         return data;
@@ -171,11 +179,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 单模型：使用详细格式
         if (qmModels != null && qmModels.size() == 1) {
-            return buildSingleModelMarkdown(qmModels.get(0), request, namespace, fieldAccess, context);
+            return buildSingleModelMarkdown(qmModels.get(0), request, namespace, fieldAccess, context,
+                    request.isTolerateModelLoadErrors());
         }
 
         // 多模型：使用精简索引格式
-        return buildMultiModelMarkdown(request, namespace, fieldAccess, context);
+        return buildMultiModelMarkdown(request, namespace, fieldAccess, context,
+                request.isTolerateModelLoadErrors());
     }
 
     /**
@@ -191,9 +201,28 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * </ul>
      */
     private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request, String namespace,
-                                              Set<String> fieldAccess, SemanticRequestContext context) {
-        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName, namespace);
+                                              Set<String> fieldAccess, SemanticRequestContext context,
+                                              boolean tolerateModelLoadErrors) {
+        QueryModel queryModel;
+        try {
+            queryModel = queryModelLoader.getJdbcQueryModel(modelName, namespace);
+        } catch (Exception e) {
+            if (!tolerateModelLoadErrors) {
+                throw e;
+            }
+            log.warn("metadata 构建跳过模型 '{}': {}", modelName, e.getMessage());
+            StringBuilder md = new StringBuilder();
+            md.append("# 数据模型语义索引 V3\n\n");
+            appendModelLoadDiagnostics(md, List.of(modelLoadError(modelName, modelLoadErrorMessage(e))));
+            return md.toString();
+        }
         if (queryModel == null) {
+            if (tolerateModelLoadErrors) {
+                StringBuilder md = new StringBuilder();
+                md.append("# 数据模型语义索引 V3\n\n");
+                appendModelLoadDiagnostics(md, List.of(modelLoadError(modelName, MODEL_LOAD_NULL_MESSAGE)));
+                return md.toString();
+            }
             return "# 错误\n\n模型不存在: " + modelName;
         }
         Set<String> effectiveFieldAccess = resolveEffectiveFieldAccess(queryModel, namespace, fieldAccess,
@@ -647,6 +676,50 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         return text.replace("|", "\\|").replace("\n", " ");
     }
 
+    private void recordModelLoadError(List<Map<String, String>> modelErrors,
+                                      String modelName,
+                                      String message) {
+        modelErrors.add(modelLoadError(modelName, message));
+    }
+
+    private Map<String, String> modelLoadError(String modelName, String message) {
+        Map<String, String> error = new LinkedHashMap<>();
+        error.put("model", modelName);
+        error.put("message", StringUtils.isNotEmpty(message) ? message : MODEL_LOAD_NULL_MESSAGE);
+        return error;
+    }
+
+    private String modelLoadErrorMessage(Exception e) {
+        if (e == null) {
+            return MODEL_LOAD_NULL_MESSAGE;
+        }
+        if (StringUtils.isNotEmpty(e.getMessage())) {
+            return e.getMessage();
+        }
+        Throwable cause = e.getCause();
+        if (cause != null && StringUtils.isNotEmpty(cause.getMessage())) {
+            return cause.getMessage();
+        }
+        return e.getClass().getSimpleName();
+    }
+
+    private void appendModelLoadDiagnostics(StringBuilder md, List<Map<String, String>> modelErrors) {
+        if (modelErrors == null || modelErrors.isEmpty()) {
+            return;
+        }
+        md.append("## 模型加载诊断\n");
+        md.append("| 模型 | 错误 |\n");
+        md.append("|------|------|\n");
+        for (Map<String, String> error : modelErrors) {
+            md.append("| ")
+                    .append(escapeMarkdownTable(error.get("model")))
+                    .append(" | ")
+                    .append(escapeMarkdownTable(error.get("message")))
+                    .append(" |\n");
+        }
+        md.append("\n");
+    }
+
     /**
      * 构建多模型精简索引（用于 MetadataTool）
      *
@@ -658,7 +731,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * </ol>
      */
     private String buildMultiModelMarkdown(SemanticMetadataRequest request, String namespace,
-                                           Set<String> fieldAccess, SemanticRequestContext context) {
+                                           Set<String> fieldAccess, SemanticRequestContext context,
+                                           boolean tolerateModelLoadErrors) {
         StringBuilder md = new StringBuilder();
 
         md.append("# 数据模型语义索引 V3\n\n");
@@ -669,17 +743,28 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         // 收集被引用的字典（包括 fsscript 字典和 Java 类字典）
         Set<String> referencedDictIds = new LinkedHashSet<>();
         Set<DictInfo> referencedDictClasses = new LinkedHashSet<>();
+        List<Map<String, String>> modelErrors = new ArrayList<>();
 
         for (String qmModelName : request.getQmModels()) {
-            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
-            if (queryModel == null) {
-                continue;
+            try {
+                QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
+                if (queryModel == null) {
+                    log.warn("metadata 构建跳过模型 '{}': 模型不存在或加载返回 null", qmModelName);
+                    recordModelLoadError(modelErrors, qmModelName, MODEL_LOAD_NULL_MESSAGE);
+                    continue;
+                }
+                modelMap.put(qmModelName, queryModel);
+                Set<String> effectiveFieldAccess = resolveEffectiveFieldAccess(queryModel, namespace, fieldAccess,
+                        context.getDeniedColumns(), context);
+                collectFieldsInfoV3(queryModel, allFields, request.getFields(), request.getLevels(),
+                        referencedDictIds, referencedDictClasses, effectiveFieldAccess, context);
+            } catch (Exception e) {
+                if (!tolerateModelLoadErrors) {
+                    throw e;
+                }
+                log.warn("metadata 构建跳过模型 '{}': {}", qmModelName, e.getMessage());
+                recordModelLoadError(modelErrors, qmModelName, modelLoadErrorMessage(e));
             }
-            modelMap.put(qmModelName, queryModel);
-            Set<String> effectiveFieldAccess = resolveEffectiveFieldAccess(queryModel, namespace, fieldAccess,
-                    context.getDeniedColumns(), context);
-            collectFieldsInfoV3(queryModel, allFields, request.getFields(), request.getLevels(),
-                    referencedDictIds, referencedDictClasses, effectiveFieldAccess, context);
         }
 
         // 构建模型简称映射（使用 JdbcQueryModel 的 shortAlias）
@@ -711,6 +796,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             md.append("- ").append(alias).append("(").append(modelName).append(")").append(typeTag).append(": ").append(caption).append("\n");
         }
         md.append("\n");
+
+        appendModelLoadDiagnostics(md, modelErrors);
 
         // ========== 字典定义（放在字段索引前面）==========
         if (!referencedDictIds.isEmpty() || !referencedDictClasses.isEmpty()) {

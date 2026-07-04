@@ -65,9 +65,11 @@ class LocalDatasetAccessorGovernanceTest {
         RX<SemanticMetadataResponse> result = accessor.getMetadata("trace-metadata", null, "odoo", options);
 
         assertNotNull(result.getData());
+        ArgumentCaptor<SemanticMetadataRequest> requestCaptor = ArgumentCaptor.forClass(SemanticMetadataRequest.class);
         ArgumentCaptor<SemanticRequestContext> contextCaptor = ArgumentCaptor.forClass(SemanticRequestContext.class);
-        verify(semanticServiceResolver).getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), contextCaptor.capture());
+        verify(semanticServiceResolver).getMetadata(requestCaptor.capture(), eq("markdown"), contextCaptor.capture());
 
+        assertTrue(requestCaptor.getValue().isTolerateModelLoadErrors());
         SemanticRequestContext context = contextCaptor.getValue();
         assertEquals("odoo", context.getNamespace());
         assertDeniedColumns(
@@ -107,9 +109,11 @@ class LocalDatasetAccessorGovernanceTest {
         );
 
         assertNotNull(result.getData());
+        ArgumentCaptor<SemanticMetadataRequest> requestCaptor = ArgumentCaptor.forClass(SemanticMetadataRequest.class);
         ArgumentCaptor<SemanticRequestContext> contextCaptor = ArgumentCaptor.forClass(SemanticRequestContext.class);
-        verify(semanticServiceResolver).getMetadata(any(SemanticMetadataRequest.class), eq("json"), contextCaptor.capture());
+        verify(semanticServiceResolver).getMetadata(requestCaptor.capture(), eq("json"), contextCaptor.capture());
 
+        assertFalse(requestCaptor.getValue().isTolerateModelLoadErrors());
         SemanticRequestContext context = contextCaptor.getValue();
         assertEquals("odoo", context.getNamespace());
         assertEquals("Bearer governance-token", context.getAuthorization());

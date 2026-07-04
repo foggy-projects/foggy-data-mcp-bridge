@@ -60,6 +60,7 @@ public class SemanticController implements ApplicationContextAware {
         }
 
         semanticProperties.applyGetMetadata(request);
+        request.setTolerateModelLoadErrors(true);
 
         if (request.getLevels() == null || request.getLevels().isEmpty()) {
             request.setLevels(Arrays.asList(1));

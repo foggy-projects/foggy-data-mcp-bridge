@@ -23,6 +23,9 @@ public class SemanticMetadataRequest {
     @ApiModelProperty(value = "字段级别列表，空则返回level=1的字段", example = "[1, 2, 3]")
     private List<Integer> levels;
 
+    @ApiModelProperty(value = "是否容忍单个QM模型加载失败，并在响应中返回模型级错误诊断", example = "true")
+    private boolean tolerateModelLoadErrors = false;
+
     public List<String> getQmModels() {
         return qmModels;
     }
@@ -53,5 +56,13 @@ public class SemanticMetadataRequest {
 
     public void setLevels(List<Integer> levels) {
         this.levels = levels;
+    }
+
+    public boolean isTolerateModelLoadErrors() {
+        return tolerateModelLoadErrors;
+    }
+
+    public void setTolerateModelLoadErrors(boolean tolerateModelLoadErrors) {
+        this.tolerateModelLoadErrors = tolerateModelLoadErrors;
     }
 }
