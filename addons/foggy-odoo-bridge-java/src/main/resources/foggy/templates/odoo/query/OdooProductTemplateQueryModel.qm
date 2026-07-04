@@ -13,8 +13,6 @@ export const queryModel = {
     description: 'Browse and analyze the product catalog by category, product type, unit of measure, and company. '
         + 'Filter by detailed_type: "consu" (consumable), "service", "product" (storable). '
         + 'Filter by active=true for current products only.',
-    loader: 'v2',
-
     model: pt,
 
     columnGroups: [

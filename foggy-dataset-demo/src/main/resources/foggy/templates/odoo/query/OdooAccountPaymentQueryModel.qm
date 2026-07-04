@@ -13,8 +13,6 @@ export const queryModel = {
     description: 'Analyze payments by partner, type, currency, and time period. '
         + 'Filter by payment_type: "inbound" for received payments, "outbound" for sent payments. '
         + 'Filter by partner_type: "customer" or "supplier".',
-    loader: 'v2',
-
     model: ap,
 
     columnGroups: [

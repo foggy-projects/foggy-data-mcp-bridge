@@ -11,8 +11,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateJoinQueryModel',
     caption: '订单销售聚合关联查询',
     description: '订单主表 LEFT JOIN 销售明细按订单粒度预聚合结果，避免 1:N 明细连接放大订单粒度',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'CustomerOrderLifecycleQueryModel',
     caption: '客户订单生命周期查询',
     description: '客户生命周期派生查询模型，支持按首购日期、首购月份、首购渠道统计首购客户数、订单数、生命周期金额以及30/60/90天复购客户数；复购率可用 repurchase30dCustomerCount/customerCount、repurchase60dCustomerCount/customerCount、repurchase90dCustomerCount/customerCount 计算。',
-    loader: 'v2',
-
     model: lifecycle,
 
     columnGroups: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactReturnQueryModel',
     caption: '退货查询',
     description: '退货事实表查询模型，支持按退货日期、商品、客户、门店等维度查询退货记录',
-    loader: 'v2',
-
     model: fr,
 
     columnGroups: [

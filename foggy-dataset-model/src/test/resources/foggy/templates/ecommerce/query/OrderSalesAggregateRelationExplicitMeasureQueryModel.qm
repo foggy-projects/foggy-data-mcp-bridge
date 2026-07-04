@@ -18,8 +18,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationExplicitMeasureQueryModel',
     caption: '订单销售显式聚合关系查询',
     description: '销售明细按订单显式声明 count 和 groupConcat 输出',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

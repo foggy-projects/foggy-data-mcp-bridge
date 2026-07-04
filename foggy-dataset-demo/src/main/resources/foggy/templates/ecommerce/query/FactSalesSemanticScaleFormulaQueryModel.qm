@@ -6,8 +6,6 @@ const fs = loadTableModel('FactSalesSemanticScaleFormulaModel');
 export const queryModel = {
     name: 'FactSalesSemanticScaleFormulaQueryModel',
     caption: '语义缩放公式查询',
-    loader: 'v2',
-
     model: fs,
 
     columnGroups: [

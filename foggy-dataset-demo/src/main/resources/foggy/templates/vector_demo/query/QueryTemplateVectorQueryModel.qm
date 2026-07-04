@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'QueryTemplateVectorQueryModel',
     caption: '查询模板检索',
     description: '通过语义相似度检索查询模板，使用 ~ 操作符进行向量相似度查询',
-    loader: 'v2',
-
     model: tm,
 
     columnGroups: [

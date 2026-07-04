@@ -13,8 +13,6 @@ export const queryModel = {
         + 'customer invoices, and customer payments. Use this model when the question asks which '
         + 'delivery, customer invoice, or customer receipt belongs to a sales order, or asks for '
         + 'delivered-but-not-fully-collected flows.',
-    loader: 'v2',
-
     model: sdf,
 
     columnGroups: [

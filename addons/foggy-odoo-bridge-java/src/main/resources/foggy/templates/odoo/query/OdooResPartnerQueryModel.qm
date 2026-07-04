@@ -12,8 +12,6 @@ export const queryModel = {
     caption: 'Partner Directory',
     description: 'Search and analyze partners (customers, vendors, contacts) by country, company, '
         + 'sales team, and address. Use customer_rank/supplier_rank to filter by role.',
-    loader: 'v2',
-
     model: p,
 
     columnGroups: [

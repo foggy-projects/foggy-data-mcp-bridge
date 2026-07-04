@@ -12,8 +12,6 @@ export const queryModel = {
     description: 'Analyze purchase cross-document flows that connect purchase orders, inbound receipts, '
         + 'and vendor bills. Use this model when the question asks which receipt or vendor bill belongs '
         + 'to a purchase order, or asks for received-but-open payable flows.',
-    loader: 'v2',
-
     model: pdf,
 
     columnGroups: [

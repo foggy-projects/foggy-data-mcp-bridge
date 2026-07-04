@@ -15,8 +15,6 @@ const fs = sales
 export const queryModel = {
     name: 'OrderSalesAggregateRelationNullSlicePushdownProbeQueryModel',
     caption: '订单销售聚合关系空值切片下推探针',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

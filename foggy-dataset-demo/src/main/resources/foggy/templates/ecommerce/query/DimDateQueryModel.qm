@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'DimDateQueryModel',
     caption: '日期维度查询',
     description: '查询日期维度信息，包括年、季度、月、周、日等时间层级属性',
-    loader: 'v2',
-
     model: dd,
 
     columnGroups: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'DocumentSearchQueryModel',
     caption: '文档语义搜索',
     description: '基于向量相似度的文档检索，支持自然语言查询。使用 similar 操作符进行语义搜索。',
-    loader: 'v2',
-
     model: doc,
 
     columnGroups: [

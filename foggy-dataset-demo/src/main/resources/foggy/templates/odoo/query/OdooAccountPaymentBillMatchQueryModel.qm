@@ -12,8 +12,6 @@ export const queryModel = {
     description: 'Analyze which supplier payments are matched to which vendor bills. '
         + 'Use this model when the question asks whether a vendor payment is matched to a bill, '
         + 'not just whether the payment is reconciled.',
-    loader: 'v2',
-
     model: pbm,
 
     columnGroups: [

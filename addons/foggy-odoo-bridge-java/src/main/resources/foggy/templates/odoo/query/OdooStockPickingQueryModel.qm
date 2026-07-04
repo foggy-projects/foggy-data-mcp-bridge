@@ -12,8 +12,6 @@ export const queryModel = {
     caption: 'Inventory Transfer Analysis',
     description: 'Analyze inventory transfers (receipts, deliveries, internal moves) by operation type, '
         + 'source/destination location, partner, and time period.',
-    loader: 'v2',
-
     model: sp,
 
     columnGroups: [

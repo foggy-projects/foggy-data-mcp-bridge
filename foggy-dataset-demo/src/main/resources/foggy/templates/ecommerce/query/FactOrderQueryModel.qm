@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactOrderQueryModel',
     caption: '订单查询',
     description: '订单事实表查询模型，支持按日期、客户、门店、销售团队、渠道、促销等维度查询；orderId 是可被 CrmLead.convertedOrderId 引用的业务订单号，跨模型执行需等待受治理关系签名；orderStatus 表示订单生命周期阶段，可用于待处理或打开订单积压分析',
-    loader: 'v2',
-
     model: fo,
 
     columnGroups: [

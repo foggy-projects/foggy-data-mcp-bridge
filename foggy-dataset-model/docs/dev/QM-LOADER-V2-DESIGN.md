@@ -18,7 +18,7 @@
 
 ### 1.3 格式支持说明
 
-> **注意**: 自 2025-01 起，V1 格式已被移除。所有 QM 文件必须使用 V2 格式（`loader: 'v2'`）。
+> **注意**: 自 2025-01 起，V1 格式已被移除。QM 默认按 V2 格式加载，不再需要声明 `loader` 字段。
 >
 > 如需可视化 IDE 配置，请参考 [QM-JSON-FORMAT-SPEC.md](./QM-JSON-FORMAT-SPEC.md)。
 
@@ -34,8 +34,6 @@ const fp = loadTableModel('FactPaymentModel');
 export const queryModel = {
     name: 'OrderPaymentJoinQueryModel',
     caption: '订单支付联合查询',
-    loader: 'v2',  // 必须声明使用 V2 加载器
-
     // 主表（对应 JoinGraph.root）
     model: fo,
 
@@ -75,7 +73,6 @@ export const queryModel = {
 |------|------|------|------|
 | `name` | `string` | 是 | QueryModel 唯一标识 |
 | `caption` | `string` | 是 | 显示名称 |
-| `loader` | `string` | 是 | 必须为 `'v2'` |
 | `model` | `TableModelProxy` | 是 | 主表（对应 `JoinGraph.root`） |
 | `joins` | `JoinBuilder[]` | 否 | 关联关系（对应 `JoinGraph.addEdge()`） |
 | `columnGroups` | `array` | 是 | 字段分组配置 |
@@ -160,12 +157,11 @@ com.foggyframework.dataset.db.model
 │   ├── JoinCondition.java          # JOIN 条件
 │   └── LoadTableModelFunction.java # loadTableModel 内置函数
 ├── def/query/
-│   ├── DbQueryModelDef.java        # loader 和 joins 字段
+│   ├── DbQueryModelDef.java        # 兼容旧 loader 字段和 joins 字段
 │   └── SelectColumnDef.java        # ref 支持 ColumnRef 类型
 ├── engine/query_model/
 │   ├── QueryModelLoaderImpl.java   # 统一入口（仅支持 V2）
-│   ├── QueryModelBuilderV2.java    # V2 格式构建器（实现 QueryModelBuilder）
-│   └── QueryModelLoaderV2.java     # 辅助类（解析和校验）
+│   └── JdbcQueryModelBuilder.java  # JDBC V2 格式构建器（实现 QueryModelBuilder）
 ├── spi/
 │   └── QueryModelBuilder.java      # 策略接口
 └── config/
@@ -181,8 +177,8 @@ QueryModelLoaderImpl（统一入口）
     │
     └── for each QueryModelBuilder:
             │
-            └── QueryModelBuilderV2
-                ├── 检查 loader == 'v2'
+            └── JdbcQueryModelBuilder
+                ├── 识别 TableModelProxy / joins V2 结构
                 ├── 解析 model + joins
                 └── 创建 QueryModel
 ```
@@ -322,13 +318,13 @@ public class JoinCondition {
 └────────────────────────────────────────────────────────────────┘
                               ↓
 ┌────────────────────────────────────────────────────────────────┐
-│  2. QueryModelLoaderImpl 检测 loader 字段                       │
-│     - loader != 'v2' → 抛出错误（必须使用 V2 加载器）            │
-│     - loader == 'v2' → 调用 QueryModelBuilderV2                │
+│  2. QueryModelLoaderImpl 调用 QueryModelBuilder 链              │
+│     - loader 字段仅作为旧模型兼容字段保留                       │
+│     - Builder 根据 model / joins 结构识别可处理的 QM             │
 └────────────────────────────────────────────────────────────────┘
                               ↓
 ┌────────────────────────────────────────────────────────────────┐
-│  3. QueryModelBuilderV2 解析                                    │
+│  3. JdbcQueryModelBuilder 解析                                  │
 │     a. 解析 model（主表）                                       │
 │        - TableModelProxy → 加载 TableModel，设为 JoinGraph.root│
 │     b. 解析 joins 数组                                          │
@@ -396,11 +392,11 @@ public class DatasetFsscriptConfig {
 
 ## 7. 错误提示设计
 
-### 7.1 loader 未指定
+### 7.1 model 未指定
 
 ```
 QM加载失败: OrderPaymentJoinQueryModel
-  错误: 查询模型必须使用V2加载器，请设置 loader: 'v2'
+  错误: 查询模型 OrderPaymentJoinQueryModel 的 model 属性不能为空
 ```
 
 ### 7.2 字段不存在

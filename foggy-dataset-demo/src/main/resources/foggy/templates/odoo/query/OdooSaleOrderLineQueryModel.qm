@@ -13,8 +13,6 @@ export const queryModel = {
     caption: 'Sales Line Analysis',
     description: 'Analyze sale order line items by product, order, salesperson, and unit of measure. '
         + 'Supports quantity tracking (ordered/delivered/invoiced), revenue breakdown, and discount analysis.',
-    loader: 'v2',
-
     model: sol,
 
     columnGroups: [

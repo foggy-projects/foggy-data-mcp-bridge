@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'DimProductQueryModel',
     caption: '商品维度查询',
     description: '查询商品基础信息，包括品类、品牌、价格、成本等属性',
-    loader: 'v2',
-
     model: dp,
 
     columnGroups: [

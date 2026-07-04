@@ -13,8 +13,6 @@ export const queryModel = {
     description: 'Analyze manufacturing orders by product, BOM, status, responsible user, and time period. '
         + 'Supports production quantity aggregation, order counts, and yield tracking. '
         + 'Filter by state: "draft", "confirmed", "progress", "to_close", "done", "cancel".',
-    loader: 'v2',
-
     model: mp,
 
     columnGroups: [

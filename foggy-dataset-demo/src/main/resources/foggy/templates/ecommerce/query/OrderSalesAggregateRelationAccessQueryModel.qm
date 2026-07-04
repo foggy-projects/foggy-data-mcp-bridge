@@ -16,8 +16,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationAccessQueryModel',
     caption: '订单销售聚合关系权限下推查询',
     description: 'accessBuilder 使用字段引用 API 追加左侧 join key 过滤，引擎应同步下推到 RHS 聚合子查询',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'DimChannelQueryModel',
     caption: '渠道维度查询',
     description: '查询电商销售渠道信息，包括渠道类型、平台、状态等属性',
-    loader: 'v2',
-
     model: dc,
 
     columnGroups: [

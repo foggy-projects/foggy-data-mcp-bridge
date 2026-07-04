@@ -17,8 +17,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationRhsDimensionFilterQueryModel',
     caption: '订单销售聚合关系 RHS 维度过滤查询',
     description: '销售明细先按订单粒度聚合，RHS 聚合前过滤引用销售商品维度字段',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

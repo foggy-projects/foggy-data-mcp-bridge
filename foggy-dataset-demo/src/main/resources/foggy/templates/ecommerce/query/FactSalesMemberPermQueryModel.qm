@@ -9,8 +9,6 @@ const fs = loadTableModel('FactSalesMemberPermModel');
 export const queryModel = {
     name: 'FactSalesMemberPermQueryModel',
     caption: '成员权限测试查询',
-    loader: 'v2',
-
     model: fs,
 
     columnGroups: [

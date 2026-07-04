@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'McpAuditLogQueryModel',
     caption: 'MCP工具调用日志查询',
     description: '查询和分析MCP工具调用记录，支持按工具、角色、时间等维度统计分析',
-    loader: 'v2',
-
     model: mal,
 
     columnGroups: [

@@ -13,8 +13,6 @@ export const queryModel = {
     description: 'Analyze project tasks by project, stage, assignee, customer, and time period. '
         + 'Supports task counts, priority filtering, and deadline tracking. '
         + 'Filter by state: "01_in_progress", "1_done", "1_canceled".',
-    loader: 'v2',
-
     model: pt,
 
     columnGroups: [

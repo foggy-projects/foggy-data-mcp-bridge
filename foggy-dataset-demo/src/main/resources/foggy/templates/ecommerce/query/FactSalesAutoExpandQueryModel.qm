@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactSalesAutoExpandQueryModel',
     caption: '维度自动展开测试',
     description: '测试维度自动展开属性和嵌套子维度',
-    loader: 'v2',
-
     model: fs,
 
     columnGroups: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactSalesNestedDimQueryModel',
     caption: '嵌套维度销售查询',
     description: '演示嵌套维度（雪花模型）的查询模型，支持使用路径语法访问嵌套维度',
-    loader: 'v2',
-
     model: fs,
 
     columnGroups: [

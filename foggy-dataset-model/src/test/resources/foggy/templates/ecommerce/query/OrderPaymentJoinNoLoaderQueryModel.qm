@@ -1,15 +1,15 @@
 /**
- * QM v2 default-loader regression model.
+ * QM v2 default-builder regression model.
  *
- * Verifies that loadTableModel + joins syntax no longer requires loader: 'v2'.
+ * Verifies that loadTableModel + joins syntax is accepted by the default V2 path.
  */
 const fo = loadTableModel('FactOrderModel');
 const fp = loadTableModel('FactPaymentModel');
 
 export const queryModel = {
     name: 'OrderPaymentJoinNoLoaderQueryModel',
-    caption: '订单支付联合查询（无 loader）',
-    description: 'QM v2 syntax without explicit loader declaration',
+    caption: '订单支付联合查询（默认 V2）',
+    description: 'QM v2 syntax through the default builder path',
 
     model: fo,
     joins: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactSalesQueryModel',
     caption: '销售明细查询',
     description: '销售事实表查询模型，支持按日期、商品、客户、门店、渠道、促销等维度查询',
-    loader: 'v2',
-
     model: fs,
 
     columnGroups: [

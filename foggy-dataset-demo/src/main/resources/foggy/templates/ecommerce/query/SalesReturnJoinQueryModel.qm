@@ -11,8 +11,6 @@ export const queryModel = {
     name: 'SalesReturnJoinQueryModel',
     caption: '销售退货联合查询',
     description: '多事实表JOIN场景 - 销售表与退货表联合查询，用于测试不同粒度事实表JOIN',
-    loader: 'v2',
-
     model: fs,
 
     joins: [

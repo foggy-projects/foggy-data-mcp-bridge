@@ -15,8 +15,6 @@ export const queryModel = {
     name: 'TmsStyleOrderStoreSalesAggregateRelationQueryModel',
     caption: 'TMS风格订单站点销售聚合关系查询',
     description: '订单主表按订单号和门店粒度关联右侧预聚合销售明细，模拟 TMS 主单-站点-明细占用类投影。',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

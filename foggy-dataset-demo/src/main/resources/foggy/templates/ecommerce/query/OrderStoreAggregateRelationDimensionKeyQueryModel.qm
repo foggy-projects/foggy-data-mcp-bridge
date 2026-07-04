@@ -16,8 +16,6 @@ export const queryModel = {
     name: 'OrderStoreAggregateRelationDimensionKeyQueryModel',
     caption: '订单门店聚合关系查询',
     description: 'aggregate relation ON 左侧使用订单门店维度属性，右侧按门店业务ID聚合',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

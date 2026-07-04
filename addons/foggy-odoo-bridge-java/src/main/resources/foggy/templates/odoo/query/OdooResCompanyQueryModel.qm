@@ -12,8 +12,6 @@ export const queryModel = {
     caption: 'Company Directory',
     description: 'Search and analyze companies by currency and parent hierarchy. '
         + 'Use parent hierarchy operators (selfAndDescendantsOf) to query company trees.',
-    loader: 'v2',
-
     model: c,
 
     columnGroups: [

@@ -184,7 +184,7 @@ mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '
 
 - 组合验证通过；`Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`。
 - 覆盖 #84 左侧已 join 维度字段、嵌套维度路径、RHS dimension fixed filter，以及 #85 / predefined formula slice-only 相关回归。
-- `foggy-projects/foggy-data-mcp-bridge#84` 上游反馈已确认 `OrderStationStockProjectionQuery` loader v2 真实 TMS 查询返回 `code=200`，`total=33`，并且 ON 条件包含左侧维度路径展开后的物理字段。
+- `foggy-projects/foggy-data-mcp-bridge#84` 上游反馈已确认 `OrderStationStockProjectionQuery` 真实 TMS 查询返回 `code=200`，`total=33`，并且 ON 条件包含左侧维度路径展开后的物理字段。
 - #84 当前仍保留一个边界：RHS dimension join with custom `onBuilder` 属于后续增强范围，不影响本 workitem 的左侧维度路径 aggregate ON 验收。
 
 ## Follow-Up

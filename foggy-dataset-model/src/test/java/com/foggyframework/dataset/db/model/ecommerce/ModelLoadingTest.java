@@ -308,8 +308,8 @@ class ModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(32)
-    @DisplayName("加载无 loader 声明的 V2 联合查询模型")
-    void testLoadV2QueryModelWithoutLoaderDeclaration() {
+    @DisplayName("加载默认 V2 联合查询模型")
+    void testLoadDefaultV2QueryModel() {
         JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinNoLoaderQueryModel");
         assertNotNull(queryModel, "OrderPaymentJoinNoLoaderQueryModel 加载失败");
         assertEquals("OrderPaymentJoinNoLoaderQueryModel", queryModel.getName());

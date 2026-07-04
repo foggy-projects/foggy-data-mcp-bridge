@@ -16,8 +16,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationGroupKeyAliasQueryModel',
     caption: '订单销售聚合关系 group key alias 查询',
     description: '暴露 RHS aggregate relation group key 的独立别名，用于验证请求侧条件不与左侧同名字段冲突',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

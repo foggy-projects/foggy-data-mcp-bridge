@@ -16,8 +16,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationRawAccessQueryModel',
     caption: '订单销售聚合关系原生权限查询',
     description: 'accessBuilder 使用原生 SQL 追加左侧过滤，引擎不解析或猜测 RHS 聚合下推',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

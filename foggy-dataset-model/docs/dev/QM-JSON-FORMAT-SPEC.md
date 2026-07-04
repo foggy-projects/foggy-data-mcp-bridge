@@ -503,5 +503,5 @@
 ## 参考文档
 
 - [TM-QM-Syntax-Manual.md](../guide/TM-QM-Syntax-Manual.md) - TM/QM 语法手册
-- [QM-LOADER-V2-DESIGN.md](./QM-LOADER-V2-DESIGN.md) - V2 加载器设计文档
+- [QM-LOADER-V2-DESIGN.md](./QM-LOADER-V2-DESIGN.md) - QM V2 格式设计文档
 - [Authorization-Control.md](../security/Authorization-Control.md) - 权限控制文档

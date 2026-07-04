@@ -15,8 +15,6 @@ const storeAgg = stores
 export const queryModel = {
     name: 'OrderStoreAggregateRelationDualPathQueryModel',
     caption: '订单门店双路径聚合关系查询',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

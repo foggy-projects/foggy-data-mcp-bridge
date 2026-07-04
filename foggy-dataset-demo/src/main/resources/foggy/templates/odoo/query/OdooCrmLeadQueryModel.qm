@@ -12,8 +12,6 @@ export const queryModel = {
     caption: 'CRM Pipeline Analysis',
     description: 'Analyze CRM leads and opportunities by pipeline stage, salesperson, sales team, '
         + 'campaign, and time period. Supports revenue forecasting, conversion analysis, and pipeline metrics.',
-    loader: 'v2',
-
     model: crm,
 
     columnGroups: [

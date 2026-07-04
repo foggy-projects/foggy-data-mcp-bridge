@@ -12,8 +12,6 @@ export const queryModel = {
     caption: 'Purchase Analysis',
     description: 'Analyze purchase orders by vendor, buyer, and time period. '
         + 'Supports amount aggregation, order counts, and procurement analysis.',
-    loader: 'v2',
-
     model: po,
 
     columnGroups: [

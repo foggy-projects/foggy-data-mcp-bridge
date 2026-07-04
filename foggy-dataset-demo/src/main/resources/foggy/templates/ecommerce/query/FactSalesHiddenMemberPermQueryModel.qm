@@ -6,8 +6,6 @@ const fs = loadTableModel('FactSalesHiddenMemberPermModel');
 export const queryModel = {
     name: 'FactSalesHiddenMemberPermQueryModel',
     caption: '成员权限隐藏字段测试查询',
-    loader: 'v2',
-
     model: fs,
 
     columnGroups: [

@@ -16,8 +16,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationGroupedAccessQueryModel',
     caption: '订单销售聚合关系分组权限查询',
     description: 'accessBuilder 在 JdbcGroupCond 中使用字段引用 OR 条件',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

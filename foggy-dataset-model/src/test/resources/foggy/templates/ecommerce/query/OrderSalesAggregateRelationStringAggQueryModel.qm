@@ -16,8 +16,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationStringAggQueryModel',
     caption: '订单销售聚合关系字符串聚合查询',
     description: '销售明细按订单聚合后暴露字符串聚合字段，支持标准 slice like',
-    loader: 'v2',
-
     model: fo,
 
     joins: [

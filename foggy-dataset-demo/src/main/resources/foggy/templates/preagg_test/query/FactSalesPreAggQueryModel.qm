@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactSalesPreAggQueryModel',
     caption: '销售预聚合查询',
     description: '用于测试单TM预聚合查询，包含完全匹配、rollup、混合查询等场景',
-    loader: 'v2',
-
     model: fs,
 
     columnGroups: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactInventorySnapshotQueryModel',
     caption: '库存快照查询',
     description: '库存快照事实表查询模型，支持按快照日期、商品、门店等维度查询库存状态',
-    loader: 'v2',
-
     model: fis,
 
     columnGroups: [

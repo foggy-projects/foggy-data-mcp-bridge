@@ -16,7 +16,6 @@ const plannedByOrder = pa
 export const queryModel = {
     name: 'OrderStationStockProjectionO615RhsJoinDimensionProbeQueryModel',
     caption: 'O615 RHS 内部维表 join 探针',
-    loader: 'v2',
     model: si,
 
     joins: [

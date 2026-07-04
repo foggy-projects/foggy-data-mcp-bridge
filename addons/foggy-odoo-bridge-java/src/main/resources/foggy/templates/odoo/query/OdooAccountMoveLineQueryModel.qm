@@ -14,8 +14,6 @@ export const queryModel = {
     description: 'Analyze journal items by GL account, journal, partner, product, and date. '
         + 'Filter by display_type="product" for invoice product lines only. '
         + 'Filter by parent_state="posted" for confirmed entries.',
-    loader: 'v2',
-
     model: aml,
 
     columnGroups: [

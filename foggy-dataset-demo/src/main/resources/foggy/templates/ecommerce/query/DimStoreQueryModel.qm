@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'DimStoreQueryModel',
     caption: '门店维度查询',
     description: '查询门店基础信息，包括门店类型、地区、店长、面积等属性',
-    loader: 'v2',
-
     model: ds,
 
     columnGroups: [

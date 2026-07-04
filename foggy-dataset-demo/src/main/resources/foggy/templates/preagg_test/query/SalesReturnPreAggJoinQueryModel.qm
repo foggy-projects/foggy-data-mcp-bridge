@@ -11,9 +11,6 @@ export const queryModel = {
     name: 'SalesReturnPreAggJoinQueryModel',
     caption: '销售退货分析',
     description: '用于测试多TM预聚合查询，JOIN销售和退货两个事实表',
-    loader: 'v2',
-
-    // 主模型为销售模型
     model: fs,
 
     // 关联退货模型（使用与现有QM一致的JOIN语法）

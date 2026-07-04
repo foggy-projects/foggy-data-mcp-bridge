@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactReturnPreAggQueryModel',
     caption: '退货预聚合查询',
     description: '用于测试退货数据的预聚合查询',
-    loader: 'v2',
-
     model: fr,
 
     columnGroups: [

@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'DimPromotionQueryModel',
     caption: '促销活动维度查询',
     description: '查询促销活动信息，包括促销类型、折扣率、有效期等属性',
-    loader: 'v2',
-
     model: dp,
 
     columnGroups: [

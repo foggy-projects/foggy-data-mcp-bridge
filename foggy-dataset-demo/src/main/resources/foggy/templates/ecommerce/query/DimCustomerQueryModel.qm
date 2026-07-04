@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'DimCustomerQueryModel',
     caption: '客户维度查询',
     description: '查询客户基础信息，包括客户类型、性别、年龄段、地区、会员等级等属性',
-    loader: 'v2',
-
     model: dc,
 
     columnGroups: [

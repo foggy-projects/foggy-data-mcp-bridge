@@ -9,8 +9,6 @@ export const queryModel = {
     name: 'GeoStationQueryModel',
     caption: '地理站点查询',
     description: '测试 MongoDB 数组元素通过点号索引访问的投影',
-    loader: 'v2',
-
     model: gm,
 
     columnGroups: [

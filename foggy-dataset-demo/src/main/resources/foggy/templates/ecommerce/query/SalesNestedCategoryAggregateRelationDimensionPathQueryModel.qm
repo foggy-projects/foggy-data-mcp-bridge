@@ -16,8 +16,6 @@ export const queryModel = {
     name: 'SalesNestedCategoryAggregateRelationDimensionPathQueryModel',
     caption: '销售嵌套品类聚合关系查询',
     description: 'aggregate relation ON 左侧使用销售商品品类嵌套维度路径，右侧按品类业务ID聚合',
-    loader: 'v2',
-
     model: fs,
 
     joins: [

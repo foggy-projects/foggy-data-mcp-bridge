@@ -10,8 +10,6 @@ export const queryModel = {
     name: 'FactPaymentQueryModel',
     caption: '支付查询',
     description: '支付事实表查询模型，支持按支付日期、客户等维度查询支付记录',
-    loader: 'v2',
-
     model: fp,
 
     columnGroups: [

@@ -358,7 +358,6 @@ const telAgg = tel
 
 export const queryModel = {
     name: 'CustomerQueryModel',
-    loader: 'v2',
     model: customer,
     joins: [
         customer.leftJoin(telAgg).on(customer.customerId, telAgg.customerId)

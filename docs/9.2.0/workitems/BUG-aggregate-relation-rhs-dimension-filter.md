@@ -142,7 +142,7 @@ pa.planAssignmentStatus = 'PLANNED'
 - 真实 TMS 查询选择 `plannedPieceCount` / `plannedWeight` / `plannedVolume`: returned `code=200`, `total=33`.
 - 样本订单号覆盖 `1297`、`1129`、`1128`、`1127`、`1126`。
 - TMS 不再需要移除 `planSheet` filters 的临时 fallback。
-- TMS 保持 `loader: 'v2'` 与 aggregate relation-first QM 形态，不使用 `viewSql` / raw SQL / CTE。
+- TMS 保持 aggregate relation-first QM 形态，不使用 `viewSql` / raw SQL / CTE。
 
 ## Follow-Up
 

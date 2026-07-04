@@ -19,8 +19,6 @@ export const queryModel = {
         + 'For AR aging, overdue receivable amount, overdue customer count, or collection-priority questions, '
         + 'prefer OdooAccountMoveLineQueryModel, which exposes the predefined AR measures arOverdueAmount, '
         + 'arOutstandingAmount, and arOverdueCustomerCount.',
-    loader: 'v2',
-
     model: am,
 
     columnGroups: [

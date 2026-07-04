@@ -92,10 +92,6 @@ public class DatasetMessages {
         return getMessage("error.querymodel.model.missing", name);
     }
 
-    public static String querymodelLoaderRequired(String name) {
-        return getMessage("error.querymodel.loader.required", name);
-    }
-
     public static String querymodelAccessInvalid() {
         return getMessage("error.querymodel.access.invalid");
     }

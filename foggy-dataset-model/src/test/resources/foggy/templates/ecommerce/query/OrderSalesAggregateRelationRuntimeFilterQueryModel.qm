@@ -17,8 +17,6 @@ export const queryModel = {
     name: 'OrderSalesAggregateRelationRuntimeFilterQueryModel',
     caption: '订单销售聚合关系运行期过滤查询',
     description: '销售明细先按订单粒度聚合，RHS 聚合前过滤从 ModelResultContext.extData 读取运行期参数',
-    loader: 'v2',
-
     model: fo,
 
     joins: [
