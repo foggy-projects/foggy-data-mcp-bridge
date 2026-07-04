@@ -30,8 +30,9 @@ The old standalone saved-query components and API are no longer exported. Use
 </template>
 ```
 
-When `enableSavedQuery` is enabled and `model + userId` can be resolved,
-`DataTableWithSearch` renders a toolbar dropdown named `查询方案`.
+When `enableSavedQuery` is enabled, or when `listPreset` can resolve
+`model + userId`, `DataTableWithSearch` renders a toolbar-right dropdown named
+`查询方案`. Explicit `listPreset.placement` can still override the placement.
 
 The dropdown contains:
 
@@ -43,8 +44,9 @@ The dropdown contains:
 
 ## Explicit List Preset Config
 
-Use `listPreset` when the page needs a stable business namespace or custom
-sharing behavior.
+Use `listPreset` when the page needs a stable business namespace, custom
+sharing behavior, or non-default placement. If `placement` is omitted it
+defaults to `toolbar-right`.
 
 ```vue
 <template>
@@ -109,7 +111,8 @@ Check that either:
 
 - `enableSavedQuery` is true and `qmModel/defaultQueryConfigScope.userId` are
   available, or
-- `listPreset` explicitly provides `model` and `userId`.
+- `listPreset` explicitly provides `model` and `userId`, or can resolve them
+  from component context.
 
 Also check that `listPreset` is not `false` and `enableSavedQuery` is not false.
 

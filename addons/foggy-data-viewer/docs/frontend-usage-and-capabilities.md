@@ -607,7 +607,7 @@ API：
 </template>
 ```
 
-当 `enableSavedQuery` 为 true，且能解析出 `model + userId` 时，组件会在工具栏右侧渲染 `查询方案` 下拉菜单：
+当 `enableSavedQuery` 为 true，或 `listPreset` 能解析出 `model + userId` 时，组件会在工具栏右侧渲染 `查询方案` 下拉菜单。未显式配置 `placement` 时默认 `toolbar-right`：
 
 - `自定义查询`：配置字段、筛选、排序、列宽、固定列。
 - `加载查询`：只打开查询方案列表，选择并应用已有方案。
@@ -873,13 +873,14 @@ const dispose = globalQueryHooks.add('onBeforeQuery', (ctx) => {
 
 也就是说，当前实现不是“必须显式传 `visibleColumns`”，而是“未传时默认 show all”。
 
-### 13.2 `enableSavedQuery` 会自动渲染查询方案入口
+### 13.2 查询方案默认走 toolbar-right
 
-`DataTableWithSearch.vue` 里 `enableSavedQuery` 的当前行为是：
+`DataTableWithSearch.vue` 里查询方案入口的当前行为是：
 
-- `enableSavedQuery=true` 且能解析出 `model + userId` 时，自动启用 toolbar-right 的 `查询方案` 下拉。
+- `enableSavedQuery=true` 且能解析出 `model + userId` 时，自动启用 toolbar-right 的 `查询方案` 下拉，不需要额外传 `listPreset`。
+- `listPreset` 能解析出 `model + userId` 时，同样默认启用 toolbar-right 的 `查询方案` 下拉。
 - `listPreset=false` 或 `enableSavedQuery=false` 时关闭该能力。
-- `listPreset` 对象可以显式覆盖 `userId`、`model`、`businessKey`、共享范围和 placement。
+- `listPreset` 对象可以显式覆盖 `userId`、`model`、`businessKey`、共享范围和 placement；未传 `placement` 时默认 `toolbar-right`。
 
 `查询方案` 下拉统一承载自定义查询、加载查询、保存查询和清空条件；底层使用 list-preset API。
 

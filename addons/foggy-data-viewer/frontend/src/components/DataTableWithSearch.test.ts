@@ -279,7 +279,7 @@ describe('DataTableWithSearch', () => {
       expect(wrapper.find('.data-table-mock').exists()).toBe(true)
     })
 
-    it('should render ListPresetManager when listPreset config is enabled', () => {
+    it('should render a unified query plan dropdown when listPreset config is enabled', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
           ...defaultProps,
@@ -291,7 +291,14 @@ describe('DataTableWithSearch', () => {
         }
       })
 
-      expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(true)
+      const listPresetManager = wrapper.findComponent({ name: 'ListPresetManager' })
+      expect(wrapper.find('[data-testid="query-plan-dropdown"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('查询方案')
+      expect(wrapper.text()).toContain('自定义查询')
+      expect(listPresetManager.exists()).toBe(true)
+      expect(listPresetManager.props()).toMatchObject({
+        triggerMode: 'none'
+      })
     })
 
     it('should render a unified query plan dropdown when saved query is enabled', () => {
@@ -318,6 +325,34 @@ describe('DataTableWithSearch', () => {
         model: 'TicketQueryModel',
         businessKey: 'ticket-list',
         userId: 'u1'
+      })
+      expect(listPresetManager.props()).toMatchObject({
+        triggerMode: 'none'
+      })
+    })
+
+    it('should enable the unified query plan dropdown from enableSavedQuery defaults', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          enableSavedQuery: true,
+          qmModel: 'TicketQueryModel',
+          tableInstanceId: 'ticket-list',
+          defaultQueryConfigScope: {
+            userId: 'u1'
+          }
+        }
+      })
+
+      const listPresetManager = wrapper.findComponent({ name: 'ListPresetManager' })
+      expect(wrapper.find('[data-testid="query-plan-dropdown"]').exists()).toBe(true)
+      expect(listPresetManager.props('config')).toMatchObject({
+        model: 'TicketQueryModel',
+        userId: 'u1',
+        businessKey: 'ticket-list',
+        tableInstanceId: 'ticket-list',
+        placement: 'toolbar-right',
+        autoLoadDefault: true
       })
       expect(listPresetManager.props()).toMatchObject({
         triggerMode: 'none'
@@ -417,6 +452,7 @@ describe('DataTableWithSearch', () => {
       })
 
       const manager = wrapper.findComponent({ name: 'ListPresetManager' })
+      expect(wrapper.find('[data-testid="query-plan-dropdown"]').exists()).toBe(true)
       expect(manager.exists()).toBe(true)
       expect(manager.props('config')).toMatchObject({
         model: 'TicketQueryModel',
@@ -451,6 +487,23 @@ describe('DataTableWithSearch', () => {
         }
       })
 
+      expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(false)
+    })
+
+    it('should disable query plan features when enableSavedQuery is false', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          enableSavedQuery: false,
+          listPreset: {
+            enabled: true,
+            model: 'TicketQueryModel',
+            userId: 'u1'
+          }
+        }
+      })
+
+      expect(wrapper.find('[data-testid="query-plan-dropdown"]').exists()).toBe(false)
       expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(false)
     })
 

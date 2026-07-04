@@ -497,7 +497,7 @@ const normalizedListPresetConfig = computed<ListPresetConfig | null>(() => {
   const model = rawConfig.model ?? effectiveQmModel.value
   const userId = rawConfig.userId ?? props.defaultQueryConfigScope?.userId
   if (!userId || !model) {
-    if (hasExplicitListPreset) {
+    if (hasExplicitListPreset || props.enableSavedQuery === true) {
       console.warn('[DataTableWithSearch] listPreset requires userId and model')
     }
     return null
@@ -526,7 +526,7 @@ const shouldRenderToolbarRightListPreset = computed(() =>
 )
 
 const shouldRenderUnifiedQueryPlanDropdown = computed(() =>
-  props.enableSavedQuery === true && shouldRenderToolbarRightListPreset.value
+  shouldRenderToolbarRightListPreset.value
 )
 
 const shouldRenderStandaloneToolbarRightListPreset = computed(() =>

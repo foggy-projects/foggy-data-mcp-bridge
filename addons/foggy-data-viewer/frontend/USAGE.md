@@ -176,32 +176,28 @@ async function loadFilterOptions(columnName: string) {
 
 ## 五、自定义列表
 
-`DataTableWithSearch` 默认会在能解析出 `model` 和 `userId` 时显示“自定义列表”入口，用户可保存列显隐、列顺序、列宽、固定列、当前筛选、排序和分页大小。`model` 可由 `qmModel`、`schema.qmModel` 或 `defaultQueryConfigScope.queryModel` 提供；`userId` 可由 `defaultQueryConfigScope.userId` 提供。需要关闭时传 `:list-preset="false"` 或 `:enable-saved-query="false"`。
+`DataTableWithSearch` 默认会在能解析出 `model` 和 `userId` 时，在工具栏右侧显示“查询方案”入口，用户可保存列显隐、列顺序、列宽、固定列、当前筛选、排序和分页大小。`enableSavedQuery=true` 或可解析的 `listPreset` 都会按 `toolbar-right` 激活；`model` 可由 `qmModel`、`schema.qmModel` 或 `defaultQueryConfigScope.queryModel` 提供；`userId` 可由 `defaultQueryConfigScope.userId` 提供。需要关闭时传 `:list-preset="false"` 或 `:enable-saved-query="false"`。
 
 ```vue
 <script setup lang="ts">
 import { DataTableWithSearch } from 'foggy-data-viewer'
 
 const currentUser = { id: 'u_001' }
-const model = 'TicketQueryModel'
 </script>
 
 <template>
   <DataTableWithSearch
     :schema="tableSchema"
     :fetch-data="fetchTickets"
+    enable-saved-query
+    qm-model="TicketQueryModel"
     table-instance-id="ticket-list"
-    :list-preset="{
-      enabled: true,
-      model,
-      userId: currentUser.id,
-      tableInstanceId: 'ticket-list',
-      autoLoadDefault: true,
-      placement: 'toolbar-right'
-    }"
+    :default-query-config-scope="{ userId: currentUser.id }"
   />
 </template>
 ```
+
+需要覆盖业务隔离 key、共享范围或弹出位置时，再显式传 `listPreset`；未传 `placement` 时默认 `toolbar-right`。
 
 ### 5.1 前端配置
 
