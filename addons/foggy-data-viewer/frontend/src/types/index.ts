@@ -6,6 +6,13 @@ export interface DictItem {
   label: string
 }
 
+/** QM 字段分组元数据 */
+export interface ColumnGroupMeta {
+  key: string
+  title: string
+  order?: number
+}
+
 /**
  * 列定义类型
  */
@@ -13,6 +20,12 @@ export interface ColumnSchema {
   name: string
   type: string
   title?: string
+  /** QM 字段分组，用于自定义列表等字段选择场景 */
+  group?: string | ColumnGroupMeta
+  groupKey?: string
+  groupTitle?: string
+  groupOrder?: number
+  category?: FieldCategory | string
   /** 字段说明，来自 TM/QM description，用于表头帮助提示 */
   description?: string
   width?: number
@@ -558,6 +571,9 @@ export interface FieldMeta {
   title: string
   description?: string
   type: string
+  groupKey?: string
+  groupTitle?: string
+  groupOrder?: number
   category: FieldCategory
   filterType?: string
   filterable?: boolean

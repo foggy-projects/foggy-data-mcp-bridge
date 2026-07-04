@@ -142,34 +142,50 @@
 
           <el-scrollbar class="field-scroll">
             <div class="field-list">
-              <article
-                v-for="column in filteredColumnDraft"
-                :key="column.name"
-                class="field-row"
-                :class="{
-                  'is-selected': column.visible,
-                  'is-locked': isColumnLocked(column.name),
-                  'is-runtime': isRuntimeColumn(column.name)
-                }"
-                @click="toggleColumn(column.name, !column.visible)"
+              <section
+                v-for="group in filteredColumnGroups"
+                :key="group.key"
+                class="field-group"
               >
-                <el-checkbox
-                  :model-value="column.visible"
-                  :disabled="isRuntimeColumn(column.name) || isColumnLocked(column.name)"
-                  @click.stop
-                  @change="value => toggleColumn(column.name, value)"
-                />
-                <div class="field-main">
-                  <div class="field-title">
-                    <span>{{ column.title || column.name }}</span>
-                    <el-tag v-if="isColumnLocked(column.name)" size="small" type="warning">锁定</el-tag>
-                    <el-tag v-if="isRuntimeColumn(column.name)" size="small">运行时</el-tag>
-                    <el-tag size="small" effect="plain">{{ column.type }}</el-tag>
+                <div class="field-group-header">
+                  <div class="field-group-title">
+                    <span>{{ group.title }}</span>
+                    <small>{{ group.selectedCount }} / {{ group.columns.length }} 已选</small>
                   </div>
-                  <div class="field-code">{{ column.name }}</div>
+                  <div class="field-group-actions">
+                    <el-button size="small" link type="primary" @click="selectColumnGroup(group.key)">选择本组</el-button>
+                    <el-button size="small" link @click="clearColumnGroup(group.key)">取消本组</el-button>
+                  </div>
                 </div>
-                <el-icon v-if="column.visible" class="field-selected-icon"><Finished /></el-icon>
-              </article>
+                <article
+                  v-for="column in group.columns"
+                  :key="column.name"
+                  class="field-row"
+                  :class="{
+                    'is-selected': column.visible,
+                    'is-locked': isColumnLocked(column.name),
+                    'is-runtime': isRuntimeColumn(column.name)
+                  }"
+                  @click="toggleColumn(column.name, !column.visible)"
+                >
+                  <el-checkbox
+                    :model-value="column.visible"
+                    :disabled="isRuntimeColumn(column.name) || isColumnLocked(column.name)"
+                    @click.stop
+                    @change="value => toggleColumn(column.name, value)"
+                  />
+                  <div class="field-main">
+                    <div class="field-title">
+                      <span>{{ column.title || column.name }}</span>
+                      <el-tag v-if="isColumnLocked(column.name)" size="small" type="warning">锁定</el-tag>
+                      <el-tag v-if="isRuntimeColumn(column.name)" size="small">运行时</el-tag>
+                      <el-tag size="small" effect="plain">{{ column.type }}</el-tag>
+                    </div>
+                    <div class="field-code">{{ column.name }}</div>
+                  </div>
+                  <el-icon v-if="column.visible" class="field-selected-icon"><Finished /></el-icon>
+                </article>
+              </section>
             </div>
           </el-scrollbar>
         </section>
@@ -196,20 +212,35 @@
                 v-else
                 :key="column.name"
                 class="selected-row"
+                :class="{ 'is-editing': activeColumnEditor === column.name }"
+                tabindex="0"
+                @click="openColumnEditor(column.name)"
+                @keydown.enter="openColumnEditor(column.name)"
+                @keydown.space.prevent="openColumnEditor(column.name)"
               >
                 <el-icon class="drag-icon"><Rank /></el-icon>
                 <div class="selected-main">
                   <div class="selected-name">
                     <span>{{ column.title || column.name }}</span>
                     <el-tag v-if="isColumnLocked(column.name)" size="small" type="warning">锁定</el-tag>
+                    <el-tag
+                      v-for="tag in getColumnSettingTags(column)"
+                      :key="tag"
+                      size="small"
+                      effect="plain"
+                    >
+                      {{ tag }}
+                    </el-tag>
                   </div>
                   <div class="selected-code">{{ column.name }}</div>
                 </div>
-                <div class="selected-actions">
+                <div class="selected-actions selected-move-actions" @click.stop>
                   <el-tooltip content="移到顶部" placement="top">
                     <el-button
                       :icon="Top"
                       size="small"
+                      title="移到顶部"
+                      aria-label="移到顶部"
                       :disabled="index === 0"
                       @click="moveVisibleColumnToEdge(index, 'top')"
                     />
@@ -218,6 +249,8 @@
                     <el-button
                       :icon="ArrowUp"
                       size="small"
+                      title="上移"
+                      aria-label="上移"
                       :disabled="index === 0"
                       @click="moveVisibleColumn(index, -1)"
                     />
@@ -226,6 +259,8 @@
                     <el-button
                       :icon="ArrowDown"
                       size="small"
+                      title="下移"
+                      aria-label="下移"
                       :disabled="index === visibleColumnDraft.length - 1"
                       @click="moveVisibleColumn(index, 1)"
                     />
@@ -234,8 +269,21 @@
                     <el-button
                       :icon="Bottom"
                       size="small"
+                      title="移到底部"
+                      aria-label="移到底部"
                       :disabled="index === visibleColumnDraft.length - 1"
                       @click="moveVisibleColumnToEdge(index, 'bottom')"
+                    />
+                  </el-tooltip>
+                </div>
+                <div class="selected-actions selected-row-actions" @click.stop>
+                  <el-tooltip content="编辑字段配置" placement="top">
+                    <el-button
+                      :icon="Edit"
+                      size="small"
+                      title="编辑字段配置"
+                      aria-label="编辑字段配置"
+                      @click="toggleColumnEditor(column.name)"
                     />
                   </el-tooltip>
                   <el-tooltip :content="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'" placement="top">
@@ -243,24 +291,36 @@
                       :icon="isColumnLocked(column.name) ? Lock : Delete"
                       size="small"
                       :type="isColumnLocked(column.name) ? 'warning' : 'default'"
+                      :title="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
+                      :aria-label="isColumnLocked(column.name) ? '锁定列不可移除' : '移除字段'"
                       :disabled="isColumnLocked(column.name)"
                       @click="removeColumn(column.name)"
                     />
                   </el-tooltip>
                 </div>
-                <div class="selected-settings">
-                  <el-input-number
-                    v-model="column.width"
-                    size="small"
-                    :min="40"
-                    :step="10"
-                    controls-position="right"
-                    placeholder="列宽"
-                  />
-                  <el-select v-model="column.fixed" size="small" placeholder="固定" clearable>
-                    <el-option label="左固定" value="left" />
-                    <el-option label="右固定" value="right" />
-                  </el-select>
+                <div v-if="activeColumnEditor === column.name" class="selected-editor" @click.stop>
+                  <label class="editor-field">
+                    <span>列宽</span>
+                    <el-input-number
+                      v-model="column.width"
+                      size="small"
+                      :min="40"
+                      :step="10"
+                      controls-position="right"
+                      placeholder="列宽"
+                    />
+                  </label>
+                  <label class="editor-field">
+                    <span>固定</span>
+                    <el-select v-model="column.fixed" size="small" placeholder="不固定" clearable>
+                      <el-option label="左固定" value="left" />
+                      <el-option label="右固定" value="right" />
+                    </el-select>
+                  </label>
+                  <div class="editor-actions">
+                    <el-button size="small" link @click="resetColumnSettings(column.name)">恢复默认</el-button>
+                    <el-button size="small" type="primary" link @click="closeColumnEditor">完成</el-button>
+                  </div>
                 </div>
               </article>
             </div>
@@ -353,6 +413,7 @@ import {
   Bottom,
   Brush,
   Delete,
+  Edit,
   Finished,
   Loading,
   Lock,
@@ -397,10 +458,28 @@ interface ColumnDraft {
   name: string
   title?: string
   type?: string
+  groupKey?: string
+  groupTitle?: string
+  groupOrder?: number
+  category?: string
   visible: boolean
   width?: number
   minWidth?: number
   fixed?: 'left' | 'right'
+}
+
+interface ColumnDraftGroup {
+  key: string
+  title: string
+  order: number
+  columns: ColumnDraft[]
+  selectedCount: number
+}
+
+interface ColumnGroupResolution {
+  key: string
+  title: string
+  order: number
 }
 
 type InspectorTab = 'columns' | 'query' | 'save'
@@ -413,6 +492,7 @@ const clearing = ref(false)
 const keyword = ref('')
 const fieldKeyword = ref('')
 const fieldTypeFilter = ref('')
+const activeColumnEditor = ref<string | null>(null)
 const inspectorTab = ref<InspectorTab>('columns')
 const presets = ref<ListPresetDef[]>([])
 const columnDraft = ref<ColumnDraft[]>([])
@@ -431,6 +511,7 @@ const clearConditionsEnabled = computed(() => Boolean(props.clearConditions))
 const currentState = computed(() => props.getState())
 const lockedColumnNameSet = computed(() => new Set(props.lockedColumns || []))
 const runtimeColumnNameSet = computed(() => new Set(props.requiredRuntimeColumns || []))
+const availableColumnMap = computed(() => new Map((props.availableColumns || []).map(column => [column.name, column])))
 const visibleColumnDraft = computed(() => columnDraft.value.filter(column => column.visible && !isRuntimeColumn(column.name)))
 const appliedPreset = computed(() => presets.value.find(preset => preset.id === appliedPresetId.value))
 const defaultPreset = computed(() => presets.value.find(preset => preset.isDefault))
@@ -474,9 +555,125 @@ const filteredColumnDraft = computed(() => {
     return (column.title || '').toLowerCase().includes(kw) || column.name.toLowerCase().includes(kw)
   })
 })
+const filteredColumnGroups = computed<ColumnDraftGroup[]>(() => {
+  const groupMap = new Map<string, ColumnDraftGroup>()
+
+  for (const column of filteredColumnDraft.value) {
+    const group = resolveColumnGroup(column)
+    const existing = groupMap.get(group.key)
+    if (existing) {
+      existing.columns.push(column)
+      if (column.visible) existing.selectedCount += 1
+      continue
+    }
+    groupMap.set(group.key, {
+      key: group.key,
+      title: group.title,
+      order: group.order,
+      columns: [column],
+      selectedCount: column.visible ? 1 : 0
+    })
+  }
+
+  return [...groupMap.values()].sort((left, right) => {
+    if (left.order !== right.order) return left.order - right.order
+    return left.title.localeCompare(right.title, 'zh-Hans-CN')
+  })
+})
+
+const CATEGORY_GROUPS: Record<string, { title: string, order: number }> = {
+  'dimension-caption': { title: '维度', order: 20 },
+  'dimension-property': { title: '维度属性', order: 30 },
+  'dimension-id': { title: '维度ID', order: 40 },
+  attribute: { title: '基础属性', order: 50 },
+  measure: { title: '指标', order: 60 },
+  calculated: { title: '计算字段', order: 70 }
+}
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
+}
+
+function pickText(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return undefined
+}
+
+function pickNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const numberValue = Number(value)
+      if (Number.isFinite(numberValue)) {
+        return numberValue
+      }
+    }
+  }
+  return undefined
+}
+
+function resolveSourceColumnGroup(column: EnhancedColumnSchema): Pick<ColumnDraft, 'groupKey' | 'groupTitle' | 'groupOrder' | 'category'> {
+  const rawGroup = column.group
+  const groupRecord = rawGroup && typeof rawGroup === 'object'
+    ? rawGroup as unknown as Record<string, unknown>
+    : null
+  const groupText = typeof rawGroup === 'string' ? rawGroup : undefined
+  const groupKey = pickText(
+    column.groupKey,
+    groupText,
+    groupRecord?.key,
+    groupRecord?.id,
+    groupRecord?.code,
+    groupRecord?.name
+  )
+  const groupTitle = pickText(
+    column.groupTitle,
+    groupText,
+    groupRecord?.title,
+    groupRecord?.label,
+    groupRecord?.caption,
+    groupRecord?.name,
+    groupKey
+  )
+  return {
+    groupKey,
+    groupTitle,
+    groupOrder: pickNumber(column.groupOrder, groupRecord?.order, groupRecord?.sort, groupRecord?.index),
+    category: typeof column.category === 'string' ? column.category : undefined
+  }
+}
+
+function resolveColumnGroup(column: ColumnDraft): ColumnGroupResolution {
+  const explicitKey = pickText(column.groupKey, column.groupTitle)
+  if (explicitKey) {
+    return {
+      key: `qm:${explicitKey}`,
+      title: pickText(column.groupTitle, column.groupKey) || '未分组',
+      order: column.groupOrder ?? 10
+    }
+  }
+
+  const category = column.category || ''
+  const categoryGroup = CATEGORY_GROUPS[category]
+  if (categoryGroup) {
+    return {
+      key: `category:${category}`,
+      title: categoryGroup.title,
+      order: categoryGroup.order
+    }
+  }
+
+  return {
+    key: 'default',
+    title: '未分组',
+    order: 999
+  }
 }
 
 function openDialog() {
@@ -486,6 +683,7 @@ function openDialog() {
 
 function syncColumnDraftFromState() {
   columnDraft.value = buildColumnDraft(currentState.value)
+  activeColumnEditor.value = null
 }
 
 function isColumnLocked(name: string): boolean {
@@ -515,10 +713,15 @@ function buildColumnDraft(state: ListViewState): ColumnDraft[] {
     .map((column, sourceIndex) => {
       const setting = settingMap.get(column.name)
       const visibleValue = setting?.visible ?? (!hasVisibleColumns || visibleNames.has(column.name))
+      const group = resolveSourceColumnGroup(column)
       return {
         name: column.name,
         title: column.title,
         type: column.type,
+        groupKey: group.groupKey,
+        groupTitle: group.groupTitle,
+        groupOrder: group.groupOrder,
+        category: group.category,
         visible: normalizeVisible(column.name, visibleValue),
         width: setting?.width ?? column.width,
         minWidth: setting?.minWidth ?? column.minWidth,
@@ -531,6 +734,10 @@ function buildColumnDraft(state: ListViewState): ColumnDraft[] {
       name: column.name,
       title: column.title,
       type: column.type,
+      groupKey: column.groupKey,
+      groupTitle: column.groupTitle,
+      groupOrder: column.groupOrder,
+      category: column.category,
       visible: column.visible,
       width: column.width,
       minWidth: column.minWidth,
@@ -612,6 +819,9 @@ function toggleColumn(name: string, value: unknown) {
 
 function removeColumn(name: string) {
   toggleColumn(name, false)
+  if (activeColumnEditor.value === name) {
+    activeColumnEditor.value = null
+  }
 }
 
 function selectAllColumns() {
@@ -626,6 +836,72 @@ function clearOptionalColumns() {
     ...column,
     visible: isColumnLocked(column.name) && !isRuntimeColumn(column.name)
   }))
+}
+
+function getGroupColumnNames(groupKey: string): Set<string> {
+  const group = filteredColumnGroups.value.find(item => item.key === groupKey)
+  return new Set((group?.columns || []).map(column => column.name))
+}
+
+function selectColumnGroup(groupKey: string) {
+  const groupColumnNames = getGroupColumnNames(groupKey)
+  columnDraft.value = columnDraft.value.map(column => (
+    groupColumnNames.has(column.name)
+      ? { ...column, visible: !isRuntimeColumn(column.name) }
+      : column
+  ))
+}
+
+function clearColumnGroup(groupKey: string) {
+  const groupColumnNames = getGroupColumnNames(groupKey)
+  columnDraft.value = columnDraft.value.map(column => (
+    groupColumnNames.has(column.name)
+      ? { ...column, visible: isColumnLocked(column.name) && !isRuntimeColumn(column.name) }
+      : column
+  ))
+}
+
+function openColumnEditor(name: string) {
+  activeColumnEditor.value = name
+}
+
+function toggleColumnEditor(name: string) {
+  activeColumnEditor.value = activeColumnEditor.value === name ? null : name
+}
+
+function closeColumnEditor() {
+  activeColumnEditor.value = null
+}
+
+function getColumnSettingTags(column: ColumnDraft): string[] {
+  const baseline = availableColumnMap.value.get(column.name)
+  const tags: string[] = []
+  const baselineFixed = baseline?.fixed
+
+  if (column.fixed !== baselineFixed) {
+    if (column.fixed === 'left') {
+      tags.push('左固定')
+    } else if (column.fixed === 'right') {
+      tags.push('右固定')
+    } else if (baselineFixed) {
+      tags.push('不固定')
+    }
+  }
+
+  if (column.width !== undefined && column.width !== baseline?.width) {
+    tags.push(`宽 ${column.width}`)
+  }
+
+  return tags
+}
+
+function resetColumnSettings(name: string) {
+  const column = columnDraft.value.find(item => item.name === name)
+  if (!column) return
+  const baseline = availableColumnMap.value.get(name)
+  column.width = baseline?.width
+  column.minWidth = baseline?.minWidth
+  column.fixed = baseline?.fixed
 }
 
 function applyVisibleOrder(orderedVisibleColumns: ColumnDraft[]) {
@@ -1104,9 +1380,51 @@ defineExpose({
 
 .field-list {
   display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 12px 14px 16px;
+}
+
+.field-group {
+  display: grid;
   grid-template-columns: repeat(2, minmax(230px, 1fr));
   gap: 8px;
-  padding: 12px 14px 16px;
+}
+
+.field-group-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 2px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.field-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.field-group-title span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.field-group-title small {
+  font-size: 12px;
+  color: #909399;
+}
+
+.field-group-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .field-row {
@@ -1211,14 +1529,26 @@ defineExpose({
 
 .selected-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
-  min-height: 72px;
+  min-height: 60px;
   padding: 8px;
   border: 1px solid #e4e7ed;
   border-radius: 6px;
   background: #fff;
+  cursor: pointer;
+}
+
+.selected-row:hover,
+.selected-row:focus-within,
+.selected-row.is-editing {
+  border-color: #c0c4cc;
+}
+
+.selected-row:focus-visible {
+  outline: 2px solid #a0cfff;
+  outline-offset: 2px;
 }
 
 .drag-icon {
@@ -1228,23 +1558,63 @@ defineExpose({
 .selected-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .selected-actions :deep(.el-button) {
-  width: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
 }
 
-.selected-settings {
-  grid-column: 2 / 4;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px;
-  gap: 8px;
+.selected-move-actions {
+  opacity: 0.78;
 }
 
-.selected-settings :deep(.el-input-number) {
+.selected-row-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.selected-row:hover .selected-row-actions,
+.selected-row:focus-within .selected-row-actions,
+.selected-row.is-editing .selected-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.selected-editor {
+  grid-column: 2 / 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 120px) auto;
+  align-items: end;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #ebeef5;
+  border-radius: 5px;
+  background: #fafafa;
+  cursor: default;
+}
+
+.selected-editor :deep(.el-input-number) {
   width: 100%;
+}
+
+.editor-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  color: #606266;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  align-items: center;
+  min-height: 28px;
 }
 
 .query-panel {
@@ -1339,6 +1709,10 @@ defineExpose({
   .field-list {
     grid-template-columns: 1fr;
   }
+
+  .field-group {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1352,6 +1726,20 @@ defineExpose({
   .field-pool-section {
     border-right: 0;
     border-bottom: 1px solid #e4e7ed;
+  }
+
+  .selected-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .selected-move-actions,
+  .selected-row-actions,
+  .selected-editor {
+    grid-column: 2 / 3;
+  }
+
+  .selected-editor {
+    grid-template-columns: 1fr;
   }
 }
 </style>

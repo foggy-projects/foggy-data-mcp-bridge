@@ -23,6 +23,9 @@ declare module 'foggy-data-viewer' {
     name: string
     type: string
     title?: string
+    groupKey?: string
+    groupTitle?: string
+    groupOrder?: number
     filterType?: string
     filterable?: boolean
     aggregatable?: boolean

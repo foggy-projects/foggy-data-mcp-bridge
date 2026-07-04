@@ -135,6 +135,9 @@ function genTableSchema(meta) {
   for (const f of meta.fields) {
     const props = [`    name: '${f.name}'`, `    title: '${f.title}'`, `    type: '${f.type}'`]
     if (f.description) props.push(`    description: ${JSON.stringify(f.description)}`)
+    if (f.groupKey) props.push(`    groupKey: ${JSON.stringify(f.groupKey)}`)
+    if (f.groupTitle) props.push(`    groupTitle: ${JSON.stringify(f.groupTitle)}`)
+    if (f.groupOrder != null) props.push(`    groupOrder: ${Number(f.groupOrder)}`)
     if (f.filterType) props.push(`    filterType: '${f.filterType}'`)
     if (f.filterable != null) props.push(`    filterable: ${f.filterable}`)
     if (f.measure) props.push(`    measure: true`)

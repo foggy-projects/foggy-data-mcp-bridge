@@ -15,6 +15,7 @@ vi.mock('@element-plus/icons-vue', () => ({
   Bottom: {},
   Brush: {},
   Delete: {},
+  Edit: {},
   Finished: {},
   Loading: {},
   Lock: {},
@@ -141,7 +142,6 @@ function mountManagerWrapper(options: {
     'el-checkbox',
     'el-descriptions',
     'el-descriptions-item',
-    'el-dialog',
     'el-dropdown',
     'el-dropdown-item',
     'el-dropdown-menu',
@@ -155,9 +155,7 @@ function mountManagerWrapper(options: {
     'el-radio',
     'el-radio-button',
     'el-radio-group',
-    'el-select',
-    'el-scrollbar',
-    'el-tag'
+    'el-select'
   ].map(name => [name, true]))
 
   return shallowMount(ListPresetManager, {
@@ -174,6 +172,15 @@ function mountManagerWrapper(options: {
     global: {
       stubs: {
         ...componentStubs,
+        'el-dialog': {
+          template: '<div><slot /><slot name="footer" /></div>'
+        },
+        'el-scrollbar': {
+          template: '<div><slot /></div>'
+        },
+        'el-tag': {
+          template: '<span><slot /></span>'
+        },
         'el-tooltip': {
           template: '<div><slot /></div>'
         }
@@ -356,6 +363,66 @@ describe('ListPresetManager', () => {
     }))
     const request = vi.mocked(createListPreset).mock.calls[0]?.[1]
     expect(request?.columnSettings?.some(setting => setting.name === 'runtimeToken')).toBe(false)
+  })
+
+  it('groups the field pool by QM group metadata', async () => {
+    const wrapper = mountManagerWrapper({
+      getState: () => ({
+        columns: ['orderNo', 'customerName', 'amount'],
+        columnSettings: [
+          { name: 'orderNo', visible: true, order: 0 },
+          { name: 'customerName', visible: true, order: 1 },
+          { name: 'amount', visible: true, order: 2 }
+        ],
+        slice: [],
+        orderBy: []
+      }),
+      availableColumns: [
+        { name: 'orderNo', title: '订单号', type: 'TEXT', groupKey: 'order', groupTitle: '订单信息', groupOrder: 1 },
+        { name: 'customerName', title: '客户', type: 'TEXT', groupKey: 'customer', groupTitle: '客户信息', groupOrder: 2 },
+        { name: 'amount', title: '金额', type: 'NUMBER', groupKey: 'order', groupTitle: '订单信息', groupOrder: 1 }
+      ]
+    })
+
+    const manager = wrapper.vm as unknown as ExposedManager
+    manager.syncColumnDraftFromState()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('.field-group-title span').map(node => node.text())).toEqual(['订单信息', '客户信息'])
+    expect(wrapper.findAll('.field-group').at(0)?.text()).toContain('2 / 2 已选')
+  })
+
+  it('keeps reorder actions visible and opens field settings only on row click', async () => {
+    const wrapper = mountManagerWrapper({
+      getState: () => ({
+        columns: ['orderNo', 'status'],
+        columnSettings: [
+          { name: 'orderNo', visible: true, order: 0, width: 180, fixed: 'left' },
+          { name: 'status', visible: true, order: 1 }
+        ],
+        slice: [],
+        orderBy: []
+      }),
+      availableColumns: [
+        { name: 'orderNo', title: '订单号', type: 'TEXT', width: 160 },
+        { name: 'status', title: '状态', type: 'TEXT' }
+      ]
+    })
+
+    const manager = wrapper.vm as unknown as ExposedManager
+    manager.syncColumnDraftFromState()
+    await wrapper.vm.$nextTick()
+
+    const firstRow = wrapper.find('.selected-row')
+    expect(firstRow.find('.selected-move-actions').exists()).toBe(true)
+    expect(firstRow.find('[aria-label="移到顶部"]').exists()).toBe(true)
+    expect(firstRow.text()).toContain('左固定')
+    expect(firstRow.text()).toContain('宽 180')
+    expect(firstRow.find('.selected-editor').exists()).toBe(false)
+
+    await firstRow.trigger('click')
+
+    expect(wrapper.find('.selected-editor').exists()).toBe(true)
   })
 
   it('calls the clear conditions callback', async () => {

@@ -60,6 +60,12 @@ public class FrontendMeta {
         private String description;
         /** 数据类型 */
         private String type;
+        /** QM 字段分组标识 */
+        private String groupKey;
+        /** QM 字段分组显示名 */
+        private String groupTitle;
+        /** QM 字段分组排序 */
+        private Integer groupOrder;
         /** 字段分类 */
         private String category;
         /** 过滤器类型 */

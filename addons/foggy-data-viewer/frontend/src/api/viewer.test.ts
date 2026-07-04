@@ -13,23 +13,72 @@ vi.mock('axios', () => ({
   }
 }))
 
-describe('fetchQueryDataDirect', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    axiosMock.get.mockReset()
-    axiosMock.post.mockReset()
-    axiosMock.responseUse.mockReset()
-    axiosMock.create.mockReset()
-    axiosMock.create.mockReturnValue({
-      get: axiosMock.get,
-      post: axiosMock.post,
-      interceptors: {
-        response: {
-          use: axiosMock.responseUse
+function resetApiClientMock() {
+  vi.resetModules()
+  axiosMock.get.mockReset()
+  axiosMock.post.mockReset()
+  axiosMock.responseUse.mockReset()
+  axiosMock.create.mockReset()
+  axiosMock.create.mockReturnValue({
+    get: axiosMock.get,
+    post: axiosMock.post,
+    interceptors: {
+      response: {
+        use: axiosMock.responseUse
+      }
+    }
+  })
+}
+
+describe('fetchQmSchema', () => {
+  beforeEach(resetApiClientMock)
+
+  it('preserves QM field group metadata', async () => {
+    axiosMock.get.mockResolvedValue({
+      data: {
+        code: 200,
+        data: {
+          fields: {
+            orderNo: {
+              name: '订单号',
+              type: 'TEXT',
+              group: { key: 'order', title: '订单信息', order: 1 },
+              category: 'dimension-caption'
+            },
+            customerName: {
+              name: '客户',
+              type: 'TEXT',
+              groupKey: 'customer',
+              groupTitle: '客户信息',
+              groupOrder: 2
+            }
+          }
         }
       }
     })
+
+    const { fetchQmSchema } = await import('./viewer')
+
+    await expect(fetchQmSchema('FactOrderQueryModel')).resolves.toEqual([
+      expect.objectContaining({
+        name: 'orderNo',
+        groupKey: 'order',
+        groupTitle: '订单信息',
+        groupOrder: 1,
+        category: 'dimension-caption'
+      }),
+      expect.objectContaining({
+        name: 'customerName',
+        groupKey: 'customer',
+        groupTitle: '客户信息',
+        groupOrder: 2
+      })
+    ])
   })
+})
+
+describe('fetchQueryDataDirect', () => {
+  beforeEach(resetApiClientMock)
 
   it('normalizes business columns before posting direct query', async () => {
     axiosMock.post.mockResolvedValue({

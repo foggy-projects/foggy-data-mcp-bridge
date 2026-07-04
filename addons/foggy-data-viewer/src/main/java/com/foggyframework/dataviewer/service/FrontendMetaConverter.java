@@ -93,6 +93,22 @@ public class FrontendMetaConverter {
         String title = getString(fieldData, "name");
         String description = getFirstString(fieldData, "description", "desc", "descrip", "describe", "comment", "remark", "purpose");
         String type = getString(fieldData, "type");
+        Map<String, Object> groupData = getMap(fieldData, "group");
+        String groupKey = groupData != null
+                ? getFirstString(groupData, "key", "id", "code", "name")
+                : getFirstString(fieldData, "groupKey", "groupCode", "groupId", "group");
+        String groupTitle = groupData != null
+                ? getFirstString(groupData, "title", "label", "caption", "name")
+                : getFirstString(fieldData, "groupTitle", "groupLabel", "groupCaption", "groupName", "group");
+        Integer groupOrder = groupData != null
+                ? getInteger(groupData, "order", "sort", "index")
+                : getInteger(fieldData, "groupOrder", "groupSort", "groupIndex");
+        if (groupKey == null) {
+            groupKey = groupTitle;
+        }
+        if (groupTitle == null) {
+            groupTitle = groupKey;
+        }
         String filterType = getString(fieldData, "filterType");
         Boolean filterable = getBoolean(fieldData, "filterable");
         Boolean measure = getBoolean(fieldData, "measure");
@@ -130,6 +146,9 @@ public class FrontendMetaConverter {
                 .title(title)
                 .description(description)
                 .type(type)
+                .groupKey(groupKey)
+                .groupTitle(groupTitle)
+                .groupOrder(groupOrder)
                 .category(category)
                 .filterType(filterType)
                 .filterable(filterable)
@@ -330,6 +349,29 @@ public class FrontendMetaConverter {
             String text = String.valueOf(val);
             if (!text.isBlank()) {
                 return new BigDecimal(text);
+            }
+        }
+        return null;
+    }
+
+    private Integer getInteger(Map<String, Object> map, String... keys) {
+        if (map == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object val = map.get(key);
+            if (val instanceof Number) {
+                return ((Number) val).intValue();
+            }
+            if (val instanceof String) {
+                String text = ((String) val).trim();
+                if (!text.isEmpty()) {
+                    try {
+                        return Integer.parseInt(text);
+                    } catch (NumberFormatException ignored) {
+                        continue;
+                    }
+                }
             }
         }
         return null;

@@ -18,6 +18,9 @@ function createFrontendMeta(queryMode: string, visibleColumns = ['orderNo', 'ser
         name: 'orderNo',
         title: 'Order No',
         type: 'TEXT',
+        groupKey: 'order',
+        groupTitle: 'Order Info',
+        groupOrder: 1,
         category: 'attribute',
         filterType: 'text',
         filterable: true,
@@ -122,6 +125,9 @@ describe('foggy-gen QueryTable template', () => {
       expect(tableSchema).toContain('requiredRuntimeColumns: defaultRequiredRuntimeColumns')
       expect(tableSchema).toContain('lockedColumns: defaultLockedColumns')
       expect(tableSchema).toContain('columns: allColumns.filter(c => defaultVisibleColumns.includes(c.name) || defaultLockedColumns.includes(c.name))')
+      expect(tableSchema).toContain('groupKey: "order"')
+      expect(tableSchema).toContain('groupTitle: "Order Info"')
+      expect(tableSchema).toContain('groupOrder: 1')
       expect(tableSchema).toContain("queryMode: 'column'")
       expect(tableSchema).toContain('showFilters: true')
       expect(tableSchema).not.toContain('showSearchToolbar')
