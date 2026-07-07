@@ -487,6 +487,58 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldValidateComposeJoinOnMapArrayThroughRuntimeEnvelope() {
+        when(semanticQueryServiceV3.generateSql(eq("wwi_sales_analysis"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT customer_id, revenue FROM wwi_sales", List.of(), null));
+
+        String script = """
+                const prior = dsl({
+                  model: 'wwi_sales_analysis',
+                  columns: [
+                    'customer$id as customer_id',
+                    'customer$caption as customer_name',
+                    'sum(totalIncludingTax) as revenue_2015'
+                  ],
+                  groupBy: ['customer$id', 'customer$caption']
+                });
+
+                const current = dsl({
+                  model: 'wwi_sales_analysis',
+                  columns: [
+                    'customer$id as customer_id_2016',
+                    'customer$caption as customer_name_2016',
+                    'sum(totalIncludingTax) as revenue_2016'
+                  ],
+                  groupBy: ['customer$id', 'customer$caption']
+                });
+
+                const joined = prior.join(current, 'inner', [
+                  { left: 'customer_id', op: '=', right: 'customer_id_2016' }
+                ]);
+
+                return { plans: joined };
+                """;
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/validate",
+                Map.of("script", script, "params", Map.of()),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(body.path("data").path("valid").asBoolean()).isTrue();
+        assertThat(body.path("data").path("mode").asText()).isEqualTo("validate");
+        assertThat(body.path("data").path("value").path("plans").path("sql").asText())
+                .contains("JOIN", "customer_id");
+        verify(semanticQueryServiceV3, times(2))
+                .generateSql(eq("wwi_sales_analysis"), any(SemanticQueryRequest.class), any());
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
     void shouldPreviewComposeThroughRuntimeEnvelope() {
         when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));

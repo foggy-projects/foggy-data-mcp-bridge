@@ -144,9 +144,27 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                 yield union((QueryPlan) args[0]);
             }
             case "join" -> {
-                @SuppressWarnings("unchecked")
-                List<?> on = (List<?>) args[2];
-                yield join((QueryPlan) args[0], (String) args[1], on);
+                if (args == null || args.length != 3) {
+                    throw new IllegalArgumentException(
+                            "join(other, type, on) requires exactly 3 arguments: "
+                                    + "other QueryPlan, join type, and on array of {left, op, right}");
+                }
+                if (!(args[0] instanceof QueryPlan other)) {
+                    throw new IllegalArgumentException(
+                            "join.other must be a QueryPlan, got: " + simpleType(args[0]));
+                }
+                if (!(args[1] instanceof String type)) {
+                    throw new IllegalArgumentException(
+                            "join.type must be a string join type, got: " + simpleType(args[1]));
+                }
+                if (!(args[2] instanceof List<?> on)) {
+                    throw new IllegalArgumentException(
+                            "join.on must be an array of {left, op, right}; got: "
+                                    + simpleType(args[2])
+                                    + ". Example: plan.join(other, 'inner', "
+                                    + "[{left: 'customer_id', op: '=', right: 'customer_id_2016'}])");
+                }
+                yield join(other, type, on);
             }
             case "execute" -> execute();
             case "toSql" -> toSql();
@@ -910,15 +928,19 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                     out.add(JoinOn.fromMap((Map<String, ?>) entry));
                 } catch (IllegalArgumentException ex) {
                     throw new IllegalArgumentException(
-                            "JoinPlan.on[" + i + "]: " + ex.getMessage(), ex);
+                            "join.on[" + i + "]: " + ex.getMessage(), ex);
                 }
             } else {
                 throw new IllegalArgumentException(
-                        "JoinPlan.on[" + i + "] must be a JoinOn or Map, got: "
-                                + (entry == null ? "null" : entry.getClass().getSimpleName()));
+                        "join.on[" + i + "] must be an object with left, op, and right; got: "
+                                + simpleType(entry));
             }
         }
         return out;
+    }
+
+    private static String simpleType(Object value) {
+        return value == null ? "null" : value.getClass().getSimpleName();
     }
 
     @SuppressWarnings("unchecked")

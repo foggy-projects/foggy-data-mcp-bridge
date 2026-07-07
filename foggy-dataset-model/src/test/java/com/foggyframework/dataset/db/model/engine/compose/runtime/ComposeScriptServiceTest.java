@@ -40,6 +40,62 @@ class ComposeScriptServiceTest {
             return { plans: { summary: wrapped }, metadata: { title: 'orders' } };
             """;
 
+    private static final String JOIN_ON_MAP_ARRAY_SCRIPT = """
+            const prior = dsl({
+              model: 'wwi_sales_analysis',
+              columns: [
+                'customer$id as customer_id',
+                'customer$caption as customer_name',
+                'sum(totalIncludingTax) as revenue_2015'
+              ],
+              groupBy: ['customer$id', 'customer$caption']
+            });
+
+            const current = dsl({
+              model: 'wwi_sales_analysis',
+              columns: [
+                'customer$id as customer_id_2016',
+                'customer$caption as customer_name_2016',
+                'sum(totalIncludingTax) as revenue_2016'
+              ],
+              groupBy: ['customer$id', 'customer$caption']
+            });
+
+            const joined = prior.join(current, 'inner', [
+              { left: 'customer_id', op: '=', right: 'customer_id_2016' }
+            ]);
+
+            return { plans: joined };
+            """;
+
+    private static final String JOIN_ON_STRING_SCRIPT = """
+            const prior = dsl({
+              model: 'wwi_sales_analysis',
+              columns: ['customer$id as customer_id'],
+              groupBy: ['customer$id']
+            });
+            const current = dsl({
+              model: 'wwi_sales_analysis',
+              columns: ['customer$id as customer_id_2016'],
+              groupBy: ['customer$id']
+            });
+            return { plans: prior.join(current, 'inner', 'customer_id = customer_id_2016') };
+            """;
+
+    private static final String JOIN_ON_STRING_ARRAY_SCRIPT = """
+            const prior = dsl({
+              model: 'wwi_sales_analysis',
+              columns: ['customer$id as customer_id'],
+              groupBy: ['customer$id']
+            });
+            const current = dsl({
+              model: 'wwi_sales_analysis',
+              columns: ['customer$id as customer_id_2016'],
+              groupBy: ['customer$id']
+            });
+            return { plans: prior.join(current, 'inner', ['customer_id = customer_id_2016']) };
+            """;
+
     @Test
     @DisplayName("validate runs through restricted preview path without executing SQL")
     void validate_usesPreviewPathWithoutSqlExecution() {
@@ -99,6 +155,55 @@ class ComposeScriptServiceTest {
         assertEquals(baseSql.getParams(), normalizedSql.getParams());
         assertEquals(1, normalizedService.generateSqlCount.get());
         assertEquals(0, normalizedService.executeSqlCount.get());
+    }
+
+    @Test
+    @DisplayName("validate accepts documented join on Map-array shape")
+    void validateAcceptsJoinOnMapArrayShape() {
+        CountingSemanticService semanticService = new CountingSemanticService();
+
+        ComposeScriptService.ComposeScriptResult result = ComposeScriptService.validate(
+                JOIN_ON_MAP_ARRAY_SCRIPT, ctx(), semanticService, "sqlite");
+
+        assertEquals(ComposeScriptService.Mode.VALIDATE, result.mode());
+        assertTrue(result.valid());
+        assertFalse(result.executed());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> value = (Map<String, Object>) result.value();
+        ComposedSql sql = assertInstanceOf(ComposedSql.class, value.get("plans"));
+        assertTrue(sql.getSql().contains("JOIN"));
+        assertTrue(sql.getSql().contains("customer_id"));
+        assertEquals(2, semanticService.generateSqlCount.get());
+        assertEquals(0, semanticService.executeSqlCount.get());
+    }
+
+    @Test
+    @DisplayName("validate rejects join on string with schema message")
+    void validateRejectsJoinOnStringWithSchemaMessage() {
+        CountingSemanticService semanticService = new CountingSemanticService();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> ComposeScriptService.validate(JOIN_ON_STRING_SCRIPT, ctx(), semanticService, "sqlite"));
+
+        assertTrue(ex.getMessage().contains("join.on must be an array of {left, op, right}"));
+        assertFalse(ex.getMessage().contains("cannot be cast"));
+        assertEquals(0, semanticService.generateSqlCount.get());
+        assertEquals(0, semanticService.executeSqlCount.get());
+    }
+
+    @Test
+    @DisplayName("validate rejects join on string array without internal class names")
+    void validateRejectsJoinOnStringArrayWithSchemaMessage() {
+        CountingSemanticService semanticService = new CountingSemanticService();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> ComposeScriptService.validate(JOIN_ON_STRING_ARRAY_SCRIPT, ctx(), semanticService, "sqlite"));
+
+        assertTrue(ex.getMessage().contains("join.on[0] must be an object with left, op, and right"));
+        assertFalse(ex.getMessage().contains("JoinPlan"));
+        assertFalse(ex.getMessage().contains("cannot be cast"));
+        assertEquals(0, semanticService.generateSqlCount.get());
+        assertEquals(0, semanticService.executeSqlCount.get());
     }
 
     @Test
