@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.spi.support;
 
 import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.core.trans.ObjectTransFormatter;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
@@ -93,6 +94,17 @@ public class AggregationDbColumn extends AbstractDecorate implements DbColumn {
     public String getDeclare(ApplicationContext appCtx,String alias) {
         return declare;
     }
+
+    @Override
+    public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
+        return declare;
+    }
+
+    @Override
+    public String getDeclareOrder(ApplicationContext appCtx, String alias, FDialect dialect) {
+        return declare;
+    }
+
     @Override
     public SqlColumn getSqlColumn() {
         return null;

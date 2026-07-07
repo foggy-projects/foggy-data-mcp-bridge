@@ -4,6 +4,7 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.common.result.DbDataItem;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
@@ -399,13 +400,18 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
+            return getDeclare(appCtx, alias, DbColumnRenderContext.getDialect());
+        }
+
+        @Override
+        public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
             if (formulaBuilder != null) {
                 DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
                 expEvaluator.setVar("alias", StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias);
                 expEvaluator.setVar("def", this);
                 return (String) formulaBuilder.autoApply(expEvaluator);
             }
-            return property.getPropertyDbColumn().getDeclare(appCtx, alias);
+            return property.getPropertyDbColumn().getDeclare(appCtx, alias, dialect);
         }
 
         @Override
@@ -615,8 +621,13 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
+            return getDeclare(appCtx, alias, DbColumnRenderContext.getDialect());
+        }
+
+        @Override
+        public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
             if (captionFormulaBuilder == null) {
-                return super.getDeclare(appCtx, alias);
+                return super.getDeclare(appCtx, alias, dialect);
             }
             DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
             String effectiveAlias = (com.foggyframework.core.utils.StringUtils.isEmpty(alias)

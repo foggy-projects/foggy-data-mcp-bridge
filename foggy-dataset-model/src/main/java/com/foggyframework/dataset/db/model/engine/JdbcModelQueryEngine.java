@@ -385,7 +385,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
                         jdbcQuery.getSelect().getColumns().set(idx, aggColumn);
                     }
                 } else {
-                    String declare = column.getDeclare(systemBundlesContext.getApplicationContext(), jdbcQueryModel.getAlias(column.getQueryObject()));
+                    String declare = column.getDeclare(systemBundlesContext.getApplicationContext(),
+                            jdbcQueryModel.getAlias(column.getQueryObject()), jdbcQueryModel.getDialect());
                     AggregationDbColumn aggColumn = buildAggColumn1(column.getQueryObject(), declare, column, column.getAggregation());
                     jdbcQuery.addGroupBy(aggColumn, column);
 
@@ -1830,9 +1831,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
             // 聚合条件需要添加到HAVING，否则添加到WHERE
             if (isAggregateCondition) {
                 JdbcQuery.JdbcListCond target = forceCurrentListCondForAggregate ? listCond : jdbcQuery.getHaving();
-                sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
+                sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, null,
+                        sliceDef.getValue(), parentLink, jdbcQueryModel.getDialect());
             } else {
-                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
+                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null,
+                        sliceDef.getValue(), parentLink, jdbcQueryModel.getDialect());
             }
             return;
         }
@@ -1882,7 +1885,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
                         JdbcQuery.JdbcGroupCond subGroup = jdbcQuery.getWhere().newGroupCond(parentLink);
                         hierarchyOp.buildDistanceCondition(subGroup, alias, sliceDef.getMaxDepth());
                         sliceDef.setOp(sliceDef.getValue() instanceof List ? "in" : "=");
-                        sqlFormulaService.buildAndAddToJdbcCond(subGroup, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), "AND");
+                        sqlFormulaService.buildAndAddToJdbcCond(subGroup, sliceDef.getOp(), jdbcColumn, alias,
+                                sliceDef.getValue(), "AND", jdbcQueryModel.getDialect());
                         listCond.addCond(subGroup);
                         return;
                     }
@@ -1919,9 +1923,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 聚合条件需要添加到HAVING，否则添加到WHERE
         if (isAggregateCondition) {
             JdbcQuery.JdbcListCond target = forceCurrentListCondForAggregate ? listCond : jdbcQuery.getHaving();
-            sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
+            sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, alias,
+                    sliceDef.getValue(), parentLink, jdbcQueryModel.getDialect());
         } else {
-            sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
+            sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias,
+                    sliceDef.getValue(), parentLink, jdbcQueryModel.getDialect());
         }
     }
 
@@ -2093,7 +2099,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             jdbcQuery.join(column.getQueryObject());
         }
         String alias = jdbcQueryModel.getAlias(column.getQueryObject());
-        return column.getDeclare(null, alias);
+        return column.getDeclare(null, alias, jdbcQueryModel.getDialect());
     }
 
     private void pushAggregateRelationFilterIfSafe(JdbcQueryModel jdbcQueryModel, DbColumn jdbcColumn,

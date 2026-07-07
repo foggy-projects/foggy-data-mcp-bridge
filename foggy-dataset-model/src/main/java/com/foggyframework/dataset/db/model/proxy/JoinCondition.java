@@ -135,6 +135,9 @@ public class JoinCondition {
             DbColumn dbColumn = findDbColumn(queryModel, columnRef);
             RX.notNull(dbColumn, "JOIN 条件字段不存在: " + columnRef.getFullRef());
             String alias = queryModel.getAlias(dbColumn.getQueryObject());
+            if (queryModel instanceof com.foggyframework.dataset.db.model.spi.JdbcQueryModel jdbcQueryModel) {
+                return dbColumn.getDeclare(null, alias, jdbcQueryModel.getDialect());
+            }
             return dbColumn.getDeclare(null, alias);
         }
 

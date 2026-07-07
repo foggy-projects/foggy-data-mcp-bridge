@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.spi;
 
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import org.springframework.context.ApplicationContext;
 
@@ -15,18 +16,39 @@ import org.springframework.context.ApplicationContext;
 public interface DbColumn extends DbObject {
 
     default String getDeclare() {
-        return getQueryObject().getAlias() + "." + getSqlColumnName();
+        return getDeclare(null, getQueryObject().getAlias());
     }
 
     default String getDeclare(ApplicationContext appCtx,String alias) {
-        return (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias) + "." + getSqlColumnName();
+        FDialect dialect = DbColumnRenderContext.getDialect();
+        if (dialect != null) {
+            return getDeclare(appCtx, alias, dialect);
+        }
+        return getQualifiedSqlColumnName(alias, null);
+    }
+
+    default String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
+        return getQualifiedSqlColumnName(alias, dialect);
     }
     default String getDeclareOrder(ApplicationContext appCtx,String alias) {
         return getDeclare(appCtx,alias);
     }
 
+    default String getDeclareOrder(ApplicationContext appCtx, String alias, FDialect dialect) {
+        return getDeclare(appCtx, alias, dialect);
+    }
+
     default String getSqlColumnName() {
         return getSqlColumn().getName();
+    }
+
+    default String getSqlColumnName(FDialect dialect) {
+        String sqlColumnName = getSqlColumnName();
+        return dialect == null ? sqlColumnName : dialect.quoteIdentifierIfNeeded(sqlColumnName);
+    }
+
+    default String getQualifiedSqlColumnName(String alias, FDialect dialect) {
+        return (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias) + "." + getSqlColumnName(dialect);
     }
 
     String getAlias();
@@ -51,6 +73,10 @@ public interface DbColumn extends DbObject {
     default String buildSqlFragment(ApplicationContext appCtx,String alias, String s) {
 //        return (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias) + "." + getSqlColumn().getName() + " " + s + " ";
         return getDeclare(appCtx,alias) + " " + s + " ";
+    }
+
+    default String buildSqlFragment(ApplicationContext appCtx, String alias, FDialect dialect, String s) {
+        return getDeclare(appCtx, alias, dialect) + " " + s + " ";
     }
 
     default DbAggregation getAggregation() {

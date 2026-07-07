@@ -93,7 +93,7 @@ public class SqlCalculateExp extends AbstractExp<String> {
         for (String field : remaining) {
             DbQueryColumn col = ctx.resolveColumn(field);
             refs.add(col);
-            partitionSqls.add(col.getDeclare(ctx.getAppCtx(), ctx.getAlias(col)));
+            partitionSqls.add(col.getDeclare(ctx.getAppCtx(), ctx.getAlias(col), ctx.getDialect()));
         }
         for (String field : removeFields) {
             refs.add(ctx.resolveColumn(field));

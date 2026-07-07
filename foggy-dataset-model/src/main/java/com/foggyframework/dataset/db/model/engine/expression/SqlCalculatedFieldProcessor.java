@@ -338,7 +338,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                 return ((CalculatedDbColumn) col).getDeclare();
             }
             if (col.getSelectColumn() != null) {
-                return col.getSelectColumn().getDeclare(appCtx, alias);
+                return col.getSelectColumn().getDeclare(appCtx, alias, dialect);
             }
             return alias != null ? alias + "." + col.getAlias() : col.getAlias();
         }

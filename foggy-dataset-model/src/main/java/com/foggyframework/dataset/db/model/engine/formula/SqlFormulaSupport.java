@@ -2,9 +2,11 @@ package com.foggyframework.dataset.db.model.engine.formula;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
+import com.foggyframework.dataset.db.model.spi.DbColumnRenderContext;
 import org.springframework.context.ApplicationContext;
 
 import java.util.ArrayList;
@@ -33,6 +35,14 @@ public abstract class SqlFormulaSupport implements SqlFormula {
             return buildAndAddListSqlToJdbcCond(listCond, type, sqlColumn, alias, v, link);
         } else {
             return buildAndAddObjectToJdbcCond(listCond, type, sqlColumn, alias, sqlColumn.isCalculatedField() ? value : formatValue(sqlColumn, type, value), link);
+        }
+    }
+
+    @Override
+    public Object buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn,
+                                        String alias, Object value, String link, FDialect dialect) {
+        try (DbColumnRenderContext.Scope ignored = DbColumnRenderContext.useDialect(dialect)) {
+            return buildAndAddToJdbcCond(listCond, type, sqlColumn, alias, value, link);
         }
     }
 

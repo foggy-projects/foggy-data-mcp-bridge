@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.impl.column;
 
 import com.foggyframework.core.trans.ObjectTransFormatter;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
@@ -125,6 +126,11 @@ public class InvalidDbColumn implements DbColumn {
 
     @Override
     public String getDeclare(ApplicationContext appCtx, String alias) {
+        return "NULL /* Invalid column: " + columnName + " */";
+    }
+
+    @Override
+    public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
         return "NULL /* Invalid column: " + columnName + " */";
     }
 

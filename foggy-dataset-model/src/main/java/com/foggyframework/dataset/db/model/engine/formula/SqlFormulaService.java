@@ -1,10 +1,16 @@
 package com.foggyframework.dataset.db.model.engine.formula;
 
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 
 public interface SqlFormulaService {
     void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, String link);
+
+    default void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn,
+                                       String alias, Object value, String link, FDialect dialect) {
+        buildAndAddToJdbcCond(listCond, type, sqlColumn, alias, value, link);
+    }
 
     /**
      * 检查是否支持指定的操作符

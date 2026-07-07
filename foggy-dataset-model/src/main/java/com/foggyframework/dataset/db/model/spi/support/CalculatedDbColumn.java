@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.spi.support;
 
 import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.core.trans.ObjectTransFormatter;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.spi.*;
@@ -98,6 +99,16 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
      */
     @Override
     public String getDeclare(ApplicationContext appCtx, String alias) {
+        return sqlFragment.getSql();
+    }
+
+    @Override
+    public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
+        return sqlFragment.getSql();
+    }
+
+    @Override
+    public String getDeclareOrder(ApplicationContext appCtx, String alias, FDialect dialect) {
         return sqlFragment.getSql();
     }
 

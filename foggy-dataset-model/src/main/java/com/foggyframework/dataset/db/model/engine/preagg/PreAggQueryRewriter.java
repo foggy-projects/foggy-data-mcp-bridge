@@ -780,8 +780,8 @@ public class PreAggQueryRewriter {
             if (column.getQueryObject() != null && column.getSqlColumn() != null) {
                 // 普通列：使用 queryModel 解析的原始表别名
                 String tableAlias = queryModel.getAlias(column.getQueryObject());
-                String sqlColumnName = column.getSqlColumnName();
-                columns.add(tableAlias + "." + sqlColumnName + " AS " + columnAlias);
+                String declare = column.getDeclare(applicationContext, tableAlias, queryModel.getDialect());
+                columns.add(declare + " AS " + columnAlias);
             } else {
                 // AggregationDbColumn 等特殊列（无 SqlColumn）
                 // 使用 getDeclare 获取预构建的引用，然后去除可能的聚合函数包装

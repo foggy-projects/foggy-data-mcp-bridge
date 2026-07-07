@@ -74,7 +74,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
                 // 使用 dialect.quoteIdentifier() 替代硬编码反引号
                 sb.append("1 ").append(dialect.quoteIdentifier(column.getAlias()));
             } else {
-                sb.append(column.getDeclare(appCtx, getAlias(column.getQueryObject())))
+                sb.append(column.getDeclare(appCtx, getAlias(column.getQueryObject()), dialect))
                   .append(" ").append(dialect.quoteIdentifier(column.getAlias()));
             }
 
@@ -130,8 +130,8 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
                     sb.append(onCondition).append("\t");
                 } else {
                     // 从 left/foreignKey/right/primaryKey 构建 ON 条件并缓存
-                    onCondition = getAlias(join.getLeft()) + "." + join.getForeignKey() + "="
-                            + getAlias(join.getRight()) + "." + join.getRight().getPrimaryKey();
+                    onCondition = renderQualifiedIdentifier(getAlias(join.getLeft()), join.getForeignKey()) + "="
+                            + renderQualifiedIdentifier(getAlias(join.getRight()), join.getRight().getPrimaryKey());
                     join.setOnCondition(onCondition);  // 缓存
                     sb.append(onCondition);
                 }
@@ -176,6 +176,10 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
         }
     }
 
+    private String renderQualifiedIdentifier(String alias, String columnName) {
+        return alias + "." + dialect.quoteIdentifierIfNeeded(columnName);
+    }
+
     @Override
     public void acceptWhere(JdbcQuery.JdbcWhere where) {
         if (where.isEmpty()) {
@@ -202,7 +206,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
                 sb.append(",\t");
             }
             DbColumn column = orderOrder.getSelectColumn();
-            String cn = column.getDeclareOrder(appCtx, getAlias(column.getQueryObject()));
+            String cn = column.getDeclareOrder(appCtx, getAlias(column.getQueryObject()), dialect);
 
             // 使用 dialect.buildNullOrderClause() 处理 NULL 排序
             if (orderOrder.isNullLast() || orderOrder.isNullFirst()) {

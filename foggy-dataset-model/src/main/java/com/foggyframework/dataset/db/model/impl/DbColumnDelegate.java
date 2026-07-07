@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.impl;
 
 import com.foggyframework.core.AbstractDelegateDecorate;
 import com.foggyframework.core.trans.ObjectTransFormatter;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import org.springframework.context.ApplicationContext;
@@ -23,8 +24,18 @@ public abstract class DbColumnDelegate extends AbstractDelegateDecorate<DbColumn
     }
 
     @Override
+    public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
+        return delegate.getDeclare(appCtx, alias, dialect);
+    }
+
+    @Override
     public String getDeclareOrder(ApplicationContext appCtx, String alias) {
         return delegate.getDeclareOrder(appCtx, alias);
+    }
+
+    @Override
+    public String getDeclareOrder(ApplicationContext appCtx, String alias, FDialect dialect) {
+        return delegate.getDeclareOrder(appCtx, alias, dialect);
     }
 
     @Override
@@ -65,6 +76,11 @@ public abstract class DbColumnDelegate extends AbstractDelegateDecorate<DbColumn
     @Override
     public String buildSqlFragment(ApplicationContext appCtx,String alias, String s) {
         return delegate.buildSqlFragment(appCtx,alias, s);
+    }
+
+    @Override
+    public String buildSqlFragment(ApplicationContext appCtx, String alias, FDialect dialect, String s) {
+        return delegate.buildSqlFragment(appCtx, alias, dialect, s);
     }
 
     @Override

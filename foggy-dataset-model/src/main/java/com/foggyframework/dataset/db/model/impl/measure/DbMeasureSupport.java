@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.impl.measure;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
@@ -263,6 +264,11 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
+            return getDeclare(appCtx, alias, DbColumnRenderContext.getDialect());
+        }
+
+        @Override
+        public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
             if (formulaBuilder != null) {
                 DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
                 expEvaluator.setVar("alias", alias);
@@ -277,8 +283,7 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
                         FormulaSqlSupport.applyAlias(formulaSql, effectiveAlias),
                         semanticScaleFactor);
             } else {
-                String baseDeclare = (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias)
-                        + "." + getSqlColumnName();
+                String baseDeclare = getQualifiedSqlColumnName(alias, dialect);
                 return SemanticScaleSqlSupport.scaledDeclare(baseDeclare, semanticScaleFactor);
             }
         }
@@ -291,6 +296,11 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
         @Override
         public String getDeclareOrder(ApplicationContext appCtx, String alias) {
             return getDeclare(appCtx, alias);
+        }
+
+        @Override
+        public String getDeclareOrder(ApplicationContext appCtx, String alias, FDialect dialect) {
+            return getDeclare(appCtx, alias, dialect);
         }
 
         @Override

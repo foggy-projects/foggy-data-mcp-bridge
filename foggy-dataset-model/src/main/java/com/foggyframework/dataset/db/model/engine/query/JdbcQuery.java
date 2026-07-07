@@ -237,7 +237,10 @@ public class JdbcQuery {
         String alias = queryModel.getAlias(dbColumn.getQueryObject());
 
         // 返回 alias.column_name
-        return alias + "." + dbColumn.getSqlColumnName();
+        if (queryModel instanceof JdbcQueryModel jdbcQueryModel) {
+            return dbColumn.getDeclare(null, alias, jdbcQueryModel.getDialect());
+        }
+        return dbColumn.getDeclare(null, alias);
     }
 
     private void pushAggregateRelationFilterIfSafe(ColumnRef columnRef, DbColumn dbColumn, String op, Object value) {

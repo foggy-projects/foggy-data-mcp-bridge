@@ -21,8 +21,11 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public abstract class FDialect {
+    private static final Pattern SIMPLE_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
     public static MysqlDialect MYSQL_DIALECT;
     public static Mysql8Dialect MYSQL8_DIALECT;
     public static PostgresDialect POSTGRES_DIALECT;
@@ -285,7 +288,31 @@ public abstract class FDialect {
         if (identifier == null) {
             return null;
         }
-        return openQuote() + identifier + closeQuote();
+        String closeQuote = String.valueOf(closeQuote());
+        String escaped = identifier.replace(closeQuote, closeQuote + closeQuote);
+        return openQuote() + escaped + closeQuote;
+    }
+
+    /**
+     * Quote an identifier only when it cannot be safely emitted as a simple SQL identifier.
+     *
+     * @param identifier identifier name
+     * @return original or quoted identifier
+     */
+    public String quoteIdentifierIfNeeded(String identifier) {
+        if (StringUtils.isEmpty(identifier)) {
+            return identifier;
+        }
+        if (isAlreadyQuoted(identifier) || SIMPLE_IDENTIFIER.matcher(identifier).matches()) {
+            return identifier;
+        }
+        return quoteIdentifier(identifier);
+    }
+
+    private boolean isAlreadyQuoted(String identifier) {
+        return identifier.length() >= 2
+                && identifier.charAt(0) == openQuote()
+                && identifier.charAt(identifier.length() - 1) == closeQuote();
     }
 
     /**

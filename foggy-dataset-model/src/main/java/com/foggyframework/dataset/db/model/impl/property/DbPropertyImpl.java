@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.impl.property;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.dict.DbDictionaryDiscoveryDef;
 import com.foggyframework.dataset.db.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
@@ -272,6 +273,11 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
         
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
+            return getDeclare(appCtx, alias, DbColumnRenderContext.getDialect());
+        }
+
+        @Override
+        public String getDeclare(ApplicationContext appCtx, String alias, FDialect dialect) {
             if (formulaBuilder == null) {
                 if (FormulaSqlSupport.hasSql(formulaSql)) {
                     String effectiveAlias = StringUtils.isEmpty(alias) ? queryObjRef.getAlias() : alias;
@@ -280,7 +286,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
                             semanticScaleFactor);
                 }
                 return SemanticScaleSqlSupport.scaledDeclare(
-                        super.getDeclare(appCtx, alias),
+                        super.getDeclare(appCtx, alias, dialect),
                         semanticScaleFactor);
             } else {
                 DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);

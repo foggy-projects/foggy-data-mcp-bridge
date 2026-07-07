@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.formula;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
@@ -38,14 +39,19 @@ public class SqlFormulaServiceImpl implements SqlFormulaService {
 
     }
 
+    @Override
+    public void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, String link) {
+        buildAndAddToJdbcCond(listCond, type, jdbcColumn, alias, value, link, null);
+    }
 
-@Override
-    public void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, String link){
+    @Override
+    public void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn,
+                                      String alias, Object value, String link, FDialect dialect) {
         SqlFormula sqlFormula = name2SqlFormula.get(type);
-        if(sqlFormula==null){
+        if (sqlFormula == null) {
             throw RX.throwAUserTip(DatasetMessages.formulaNotfound(type));
         }
-        sqlFormula.buildAndAddToJdbcCond(listCond,type,jdbcColumn,alias,value,link);
+        sqlFormula.buildAndAddToJdbcCond(listCond, type, jdbcColumn, alias, value, link, dialect);
 
 //        sqlFormula.
     }
