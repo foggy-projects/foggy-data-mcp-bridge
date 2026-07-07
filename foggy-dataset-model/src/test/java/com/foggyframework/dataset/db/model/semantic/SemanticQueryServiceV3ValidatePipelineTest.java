@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
@@ -37,7 +38,11 @@ class SemanticQueryServiceV3ValidatePipelineTest {
     void setUp() {
         service = new SemanticQueryServiceV3Impl();
         QueryModelLoader loader = mock(QueryModelLoader.class);
-        QueryModel saleOrder = queryModel("SaleOrder", "orderId");
+        QueryModel saleOrder = queryModel(
+                "SaleOrder",
+                column("orderId"),
+                measure("amount", DbAggregation.SUM),
+                measure("quantity", null));
         when(loader.getJdbcQueryModel("SaleOrder", "tenantA")).thenReturn(saleOrder);
         queryFacade = mock(QueryFacade.class);
         when(queryFacade.buildSqlOnly(any(ModelResultContext.class))).thenAnswer(invocation -> {
@@ -79,21 +84,74 @@ class SemanticQueryServiceV3ValidatePipelineTest {
         assertTrue(response.getWarnings().contains("engine-warning"));
     }
 
-    private QueryModel queryModel(String name, String... fields) {
+    @Test
+    @DisplayName("validateQuery warns when raw measure-only columns omit groupBy and aggregate expressions")
+    void validateQueryWarnsForRawMeasureOnlyColumnsWithoutGroupBy() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("amount", "quantity"));
+        request.setLimit(1);
+
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", request, SemanticRequestContext.ofNamespace("tenantA"));
+
+        assertTrue(String.join("\n", response.getWarnings()).contains("RAW_MEASURE_SELECTION"));
+        assertTrue(String.join("\n", response.getWarnings()).contains("sum(amount) as amount"));
+    }
+
+    @Test
+    @DisplayName("validateQuery allows detail queries that include a non-measure anchor column")
+    void validateQueryDoesNotWarnWhenDetailAnchorIsSelected() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("orderId", "amount"));
+        request.setLimit(1);
+
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", request, SemanticRequestContext.ofNamespace("tenantA"));
+
+        assertTrue(response.getWarnings().contains("engine-warning"));
+        assertTrue(response.getWarnings().stream().noneMatch(warning -> warning.contains("RAW_MEASURE_SELECTION")));
+    }
+
+    @Test
+    @DisplayName("validateQuery allows explicit aggregate expressions without groupBy")
+    void validateQueryDoesNotWarnWhenAggregatesAreExplicit() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("sum(amount) as amount", "countd(quantity) as quantity"));
+        request.setLimit(1);
+
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", request, SemanticRequestContext.ofNamespace("tenantA"));
+
+        assertTrue(response.getWarnings().contains("engine-warning"));
+        assertTrue(response.getWarnings().stream().noneMatch(warning -> warning.contains("RAW_MEASURE_SELECTION")));
+    }
+
+    private QueryModel queryModel(String name, DbQueryColumn... fields) {
         QueryModel qm = mock(QueryModel.class);
-        List<DbQueryColumn> columns = List.of(fields).stream()
-                .map(this::column)
-                .toList();
+        List<DbQueryColumn> columns = List.of(fields);
         when(qm.getName()).thenReturn(name);
         when(qm.getShortAlias()).thenReturn(name);
         when(qm.getJdbcQueryColumns()).thenReturn(columns);
         when(qm.getPredefinedCalculatedFields()).thenReturn(List.of());
+        for (DbQueryColumn column : columns) {
+            when(qm.findJdbcQueryColumnByName(column.getName(), false)).thenReturn(column);
+        }
         return qm;
     }
 
     private DbQueryColumn column(String name) {
+        return column(name, false, null);
+    }
+
+    private DbQueryColumn measure(String name, DbAggregation aggregation) {
+        return column(name, true, aggregation);
+    }
+
+    private DbQueryColumn column(String name, boolean measure, DbAggregation aggregation) {
         DbQueryColumn column = mock(DbQueryColumn.class);
         when(column.getName()).thenReturn(name);
+        when(column.isMeasure()).thenReturn(measure);
+        when(column.getAggregation()).thenReturn(aggregation);
         return column;
     }
 }

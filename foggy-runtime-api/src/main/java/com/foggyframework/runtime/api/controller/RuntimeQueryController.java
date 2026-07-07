@@ -177,6 +177,14 @@ public class RuntimeQueryController {
                         true
                 );
             }
+            if (normalized.contains("raw_measure_selection")) {
+                return new QueryErrorMapping(
+                        "AMBIGUOUS_MEASURE_SELECTION",
+                        "columns",
+                        "Use explicit aggregate expressions such as sum(amount) as amount, or include a detail dimension/id field.",
+                        true
+                );
+            }
             return new QueryErrorMapping(
                     "QUERY_VALIDATE_FAILED",
                     null,
@@ -202,6 +210,9 @@ public class RuntimeQueryController {
                     || normalized.contains("unknown field")
                     || normalized.contains("未能找到")
                     || normalized.contains("字段不存在")) {
+                return warning;
+            }
+            if (normalized.contains("raw_measure_selection")) {
                 return warning;
             }
         }

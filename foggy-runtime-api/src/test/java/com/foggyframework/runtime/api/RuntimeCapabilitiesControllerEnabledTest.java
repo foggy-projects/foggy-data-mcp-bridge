@@ -439,6 +439,31 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldMapRawMeasureSelectionWarningAsValidateError() {
+        SemanticQueryResponse queryResponse = new SemanticQueryResponse();
+        queryResponse.setWarnings(List.of(
+                "RAW_MEASURE_SELECTION: columns [amount] are measure fields selected without groupBy or explicit aggregate expressions."));
+        when(semanticQueryServiceV3.queryModel(eq("OrderModel"), any(SemanticQueryRequest.class), eq("validate"), any()))
+                .thenReturn(queryResponse);
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/query/OrderModel/validate",
+                Map.of("payload", Map.of("columns", List.of("amount"))),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("AMBIGUOUS_MEASURE_SELECTION");
+        assertThat(body.path("error").path("phase").asText()).isEqualTo("query.validate");
+        assertThat(body.path("error").path("field").asText()).isEqualTo("columns");
+        assertThat(body.path("error").path("suggestedNextAction").asText()).contains("explicit aggregate");
+        assertThat(body.path("error").path("safeToAutoRepair").asBoolean()).isTrue();
+    }
+
+    @Test
     void shouldExecuteQueryThroughRuntimeEnvelope() {
         SemanticQueryResponse queryResponse = new SemanticQueryResponse();
         queryResponse.setItems(List.of(Map.of("orderNo", "SO-001")));

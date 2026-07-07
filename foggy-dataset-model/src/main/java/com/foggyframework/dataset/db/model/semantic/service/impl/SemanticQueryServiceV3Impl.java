@@ -41,6 +41,7 @@ import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlDslReques
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlToDslMapper;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticRequestNormalizer;
+import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
@@ -85,6 +86,10 @@ import java.util.stream.Collectors;
 public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private static final Logger logger = LoggerFactory.getLogger(SemanticQueryServiceV3Impl.class);
+    private static final String RAW_MEASURE_SELECTION_WARNING_CODE = "RAW_MEASURE_SELECTION";
+    private static final Set<String> AGGREGATE_FUNCTIONS = Set.of(
+            "sum", "avg", "count", "countd", "max", "min", "count_distinct", "group_concat",
+            "stddev_pop", "stddev_samp", "var_pop", "var_samp");
 
     @Resource
     private QueryFacade queryFacade;
@@ -1011,6 +1016,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         context.originalRequest = request;
 
         PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context, namespace);
+        addRawMeasureSelectionWarnings(
+                jdbcRequest.getParam().getColumns(),
+                jdbcRequest.getParam().getGroupBy() != null && !jdbcRequest.getParam().getGroupBy().isEmpty(),
+                queryModel,
+                context.warnings);
         ModelResultContext resultContext = buildSemanticResultContext(jdbcRequest, request, requestContext);
         queryFacade.buildSqlOnly(resultContext);
 
@@ -1085,6 +1095,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 }
             }
         }
+        addRawMeasureSelectionWarnings(
+                request.getColumns(),
+                request.getGroupBy() != null && !request.getGroupBy().isEmpty(),
+                queryModel,
+                warnings);
         validateOutputFormatting(request.getOutputFormatting(),
                 request.getColumns() == null ? List.of() : request.getColumns());
 
@@ -1111,6 +1126,116 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     "TIME_WINDOW_RESULT_STAGE_UNSUPPORTED: timeWindow 模式不支持顶层 postSlice。"
                             + "请先返回 timeWindow 结果，再使用受治理的二阶段分析过滤，或拆分为普通 query_model result-stage 请求");
         }
+    }
+
+    private void addRawMeasureSelectionWarnings(List<String> columns, boolean hasGroupBy,
+                                                QueryModel queryModel, List<String> warnings) {
+        if (hasGroupBy || columns == null || columns.isEmpty() || queryModel == null || warnings == null) {
+            return;
+        }
+
+        List<RawMeasureColumn> rawMeasures = new ArrayList<>();
+        boolean hasDetailAnchor = false;
+        for (String column : columns) {
+            ColumnAliasParts parts;
+            try {
+                parts = AliasExtractor.extract(column);
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            String expression = parts.expression();
+            if (isAggregateExpression(expression)) {
+                continue;
+            }
+            String rawField = simpleFieldReference(expression);
+            if (rawField == null) {
+                hasDetailAnchor = true;
+                continue;
+            }
+            DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(rawField, false);
+            if (queryColumn == null) {
+                continue;
+            }
+            if (queryColumn.isMeasure()) {
+                rawMeasures.add(new RawMeasureColumn(rawField, aggregationName(queryColumn)));
+            } else {
+                hasDetailAnchor = true;
+            }
+        }
+
+        if (rawMeasures.isEmpty() || hasDetailAnchor) {
+            return;
+        }
+
+        String rawFields = rawMeasures.stream()
+                .map(RawMeasureColumn::field)
+                .distinct()
+                .collect(Collectors.joining(", "));
+        String examples = rawMeasures.stream()
+                .map(measure -> measure.aggregation() + "(" + measure.field() + ") as " + measure.field())
+                .distinct()
+                .limit(3)
+                .collect(Collectors.joining(", "));
+        warnings.add(RAW_MEASURE_SELECTION_WARNING_CODE
+                + ": columns [" + rawFields + "] are measure fields selected without groupBy or explicit aggregate expressions. "
+                + "Raw measure columns run as a detail query; use explicit aggregate expressions such as "
+                + examples + ", or include a detail dimension/id column.");
+    }
+
+    private boolean isAggregateExpression(String expression) {
+        String normalized = expression == null ? "" : expression.strip().toLowerCase(Locale.ROOT);
+        int openParen = normalized.indexOf('(');
+        if (openParen <= 0) {
+            return false;
+        }
+        String functionName = normalized.substring(0, openParen).strip();
+        if ("count".equals(functionName)) {
+            return true;
+        }
+        return AGGREGATE_FUNCTIONS.contains(functionName);
+    }
+
+    private String simpleFieldReference(String expression) {
+        if (expression == null) {
+            return null;
+        }
+        String field = expression.strip();
+        if (field.isEmpty()) {
+            return null;
+        }
+        for (int i = 0; i < field.length(); i++) {
+            char ch = field.charAt(i);
+            boolean valid = Character.isLetterOrDigit(ch) || ch == '_' || ch == '$';
+            if (!valid) {
+                return null;
+            }
+        }
+        char first = field.charAt(0);
+        return Character.isLetter(first) || first == '_' ? field : null;
+    }
+
+    private String aggregationName(DbQueryColumn queryColumn) {
+        DbAggregation aggregation = queryColumn.getAggregation();
+        if (aggregation == null) {
+            return "sum";
+        }
+        return switch (aggregation) {
+            case AVG -> "avg";
+            case COUNT -> "count";
+            case COUNT_DISTINCT -> "count_distinct";
+            case GROUP_CONCAT -> "group_concat";
+            case MAX -> "max";
+            case MIN -> "min";
+            case STDDEV_POP -> "stddev_pop";
+            case STDDEV_SAMP -> "stddev_samp";
+            case SUM -> "sum";
+            case VAR_POP -> "var_pop";
+            case VAR_SAMP -> "var_samp";
+            case CUSTOM, NONE, PK, WINDOW -> "sum";
+        };
+    }
+
+    private record RawMeasureColumn(String field, String aggregation) {
     }
 
     /**
