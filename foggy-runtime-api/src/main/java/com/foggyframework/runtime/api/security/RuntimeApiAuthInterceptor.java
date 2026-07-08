@@ -1,6 +1,7 @@
 package com.foggyframework.runtime.api.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
@@ -28,6 +30,7 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
     private static final String PHASE = "runtime.auth";
     private static final String BEARER_PREFIX = "Bearer ";
 
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final FoggyRuntimeApiProperties properties;
     private final RuntimeApiResponseFactory responses;
     private final ObjectMapper objectMapper;
@@ -91,14 +94,17 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
             return false;
         }
         return switch (pattern) {
-            case "/api/v1/bundles" -> "POST".equals(method);
-            case "/api/v1/bundles/{name}" -> "PUT".equals(method) || "DELETE".equals(method);
-            case "/api/v1/datasources" -> "POST".equals(method);
-            case "/api/v1/datasources/{name}" -> "PUT".equals(method) || "DELETE".equals(method);
-            case "/api/v1/datasources/{name}/test" -> "POST".equals(method);
-            case "/api/v1/namespaces/{namespace}/datasource" -> "PUT".equals(method);
-            case "/api/v1/resources/save", "/api/v1/models/validate", "/api/v1/models/refresh" -> "POST".equals(method);
-            case "/api/bundles/add", "/api/bundles/remove/{bundleName}" -> "POST".equals(method) || "DELETE".equals(method);
+            case RuntimeApiRoutes.Full.BUNDLES -> "POST".equals(method);
+            case RuntimeApiRoutes.Full.BUNDLE_BY_NAME -> "PUT".equals(method) || "DELETE".equals(method);
+            case RuntimeApiRoutes.Full.DATASOURCES -> "POST".equals(method);
+            case RuntimeApiRoutes.Full.DATASOURCE_BY_NAME -> "PUT".equals(method) || "DELETE".equals(method);
+            case RuntimeApiRoutes.Full.DATASOURCE_TEST -> "POST".equals(method);
+            case RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE -> "PUT".equals(method);
+            case RuntimeApiRoutes.Full.RESOURCES_SAVE,
+                 RuntimeApiRoutes.Full.MODELS_VALIDATE,
+                 RuntimeApiRoutes.Full.MODELS_REFRESH -> "POST".equals(method);
+            case RuntimeApiRoutes.Full.LEGACY_BUNDLE_ADD,
+                 RuntimeApiRoutes.Full.LEGACY_BUNDLE_REMOVE -> "POST".equals(method) || "DELETE".equals(method);
             default -> false;
         };
     }
@@ -113,33 +119,33 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
     }
 
     private boolean isPathProtected(String path, String method) {
-        if ("/api/v1/bundles".equals(path)) {
+        if (RuntimeApiRoutes.Full.BUNDLES.equals(path)) {
             return "POST".equals(method);
         }
-        if (path.matches("^/api/v1/bundles/[^/]+$")) {
+        if (pathMatcher.match(RuntimeApiRoutes.Full.BUNDLE_BY_NAME, path)) {
             return "PUT".equals(method) || "DELETE".equals(method);
         }
-        if ("/api/v1/datasources".equals(path)) {
+        if (RuntimeApiRoutes.Full.DATASOURCES.equals(path)) {
             return "POST".equals(method);
         }
-        if (path.matches("^/api/v1/datasources/[^/]+$")) {
+        if (pathMatcher.match(RuntimeApiRoutes.Full.DATASOURCE_BY_NAME, path)) {
             return "PUT".equals(method) || "DELETE".equals(method);
         }
-        if (path.matches("^/api/v1/datasources/[^/]+/test$")) {
+        if (pathMatcher.match(RuntimeApiRoutes.Full.DATASOURCE_TEST, path)) {
             return "POST".equals(method);
         }
-        if (path.matches("^/api/v1/namespaces/[^/]+/datasource$")) {
+        if (pathMatcher.match(RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE, path)) {
             return "PUT".equals(method);
         }
-        if ("/api/v1/resources/save".equals(path)
-                || "/api/v1/models/validate".equals(path)
-                || "/api/v1/models/refresh".equals(path)) {
+        if (RuntimeApiRoutes.Full.RESOURCES_SAVE.equals(path)
+                || RuntimeApiRoutes.Full.MODELS_VALIDATE.equals(path)
+                || RuntimeApiRoutes.Full.MODELS_REFRESH.equals(path)) {
             return "POST".equals(method);
         }
-        if ("/api/bundles/add".equals(path)) {
+        if (RuntimeApiRoutes.Full.LEGACY_BUNDLE_ADD.equals(path)) {
             return "POST".equals(method);
         }
-        if (path.matches("^/api/bundles/remove/[^/]+$")) {
+        if (pathMatcher.match(RuntimeApiRoutes.Full.LEGACY_BUNDLE_REMOVE, path)) {
             return "DELETE".equals(method);
         }
         return false;

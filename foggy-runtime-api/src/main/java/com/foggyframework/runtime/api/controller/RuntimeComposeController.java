@@ -1,6 +1,7 @@
 package com.foggyframework.runtime.api.controller;
 
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.ComposeRequest;
 import com.foggyframework.runtime.api.dto.ComposeResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/compose")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeComposeController {
 
@@ -34,7 +35,7 @@ public class RuntimeComposeController {
         this.composeRunner = composeRunner;
     }
 
-    @PostMapping("/validate")
+    @PostMapping(RuntimeApiRoutes.V1.COMPOSE_VALIDATE)
     public RuntimeEnvelope<ComposeResponse> validate(
             @RequestBody(required = false) ComposeRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -45,7 +46,7 @@ public class RuntimeComposeController {
                 request, authorization, namespace, headers);
     }
 
-    @PostMapping("/preview")
+    @PostMapping(RuntimeApiRoutes.V1.COMPOSE_PREVIEW)
     public RuntimeEnvelope<ComposeResponse> preview(
             @RequestBody(required = false) ComposeRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -56,7 +57,7 @@ public class RuntimeComposeController {
                 request, authorization, namespace, headers);
     }
 
-    @PostMapping("/execute")
+    @PostMapping(RuntimeApiRoutes.V1.COMPOSE_EXECUTE)
     public RuntimeEnvelope<ComposeResponse> execute(
             @RequestBody(required = false) ComposeRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,

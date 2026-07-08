@@ -2,6 +2,7 @@ package com.foggyframework.runtime.api.controller;
 
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.SqlColumnInfo;
 import com.foggyframework.runtime.api.dto.SqlQueryRequest;
@@ -41,7 +42,7 @@ import java.util.Map;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeTablesController {
 
@@ -83,7 +84,7 @@ public class RuntimeTablesController {
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
     }
 
-    @PostMapping("/tables/list")
+    @PostMapping(RuntimeApiRoutes.V1.TABLES_LIST)
     public RuntimeEnvelope<TableListResponse> listTables(
             @RequestBody(required = false) TableListRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
@@ -130,7 +131,7 @@ public class RuntimeTablesController {
         }
     }
 
-    @PostMapping("/tables/inspect")
+    @PostMapping(RuntimeApiRoutes.V1.TABLES_INSPECT)
     public RuntimeEnvelope<TableInspectResponse> inspectTable(
             @RequestBody(required = false) TableInspectRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
@@ -188,7 +189,7 @@ public class RuntimeTablesController {
         }
     }
 
-    @PostMapping("/sql/query")
+    @PostMapping(RuntimeApiRoutes.V1.SQL_QUERY)
     public RuntimeEnvelope<SqlQueryResponse> querySql(
             @RequestBody(required = false) SqlQueryRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace

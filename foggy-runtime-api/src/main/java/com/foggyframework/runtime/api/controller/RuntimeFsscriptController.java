@@ -6,6 +6,7 @@ import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.FsscriptClosureDefinition;
 import com.foggyframework.fsscript.utils.ExpUtils;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.FsscriptRequest;
 import com.foggyframework.runtime.api.dto.FsscriptResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/fsscript")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeFsscriptController {
 
@@ -39,7 +40,7 @@ public class RuntimeFsscriptController {
         this.cteBridge = cteBridge;
     }
 
-    @PostMapping("/execute")
+    @PostMapping(RuntimeApiRoutes.V1.FSSCRIPT_EXECUTE)
     public RuntimeEnvelope<FsscriptResponse> execute(
             @RequestBody(required = false) FsscriptRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,

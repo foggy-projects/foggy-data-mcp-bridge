@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeQueryController {
 
@@ -41,7 +42,7 @@ public class RuntimeQueryController {
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
     }
 
-    @PostMapping("/query/{model}/validate")
+    @PostMapping(RuntimeApiRoutes.V1.QUERY_VALIDATE)
     public RuntimeEnvelope<SemanticQueryResponse> validateQuery(
             @PathVariable String model,
             @RequestBody(required = false) JsonNode body,
@@ -50,7 +51,7 @@ public class RuntimeQueryController {
         return query(model, body, namespace, "validate", "query.validate");
     }
 
-    @PostMapping("/query/{model}/execute")
+    @PostMapping(RuntimeApiRoutes.V1.QUERY_EXECUTE)
     public RuntimeEnvelope<SemanticQueryResponse> executeQuery(
             @PathVariable String model,
             @RequestBody(required = false) JsonNode body,

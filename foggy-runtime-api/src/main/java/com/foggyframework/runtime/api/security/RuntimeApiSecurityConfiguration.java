@@ -1,5 +1,6 @@
 package com.foggyframework.runtime.api.security;
 
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -18,6 +19,6 @@ public class RuntimeApiSecurityConfiguration implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
-                .addPathPatterns("/api/v1/**", "/api/bundles/**");
+                .addPathPatterns(RuntimeApiRoutes.API_V1_PATTERN, RuntimeApiRoutes.LEGACY_BUNDLES_PATTERN);
     }
 }

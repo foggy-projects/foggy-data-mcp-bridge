@@ -1,5 +1,6 @@
 package com.foggyframework.runtime.api.controller;
 
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.CapabilitiesResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
@@ -15,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeCapabilitiesController {
 
@@ -33,7 +34,7 @@ public class RuntimeCapabilitiesController {
         this.datasourceRegistryService = datasourceRegistryService;
     }
 
-    @GetMapping("/capabilities")
+    @GetMapping(RuntimeApiRoutes.V1.CAPABILITIES)
     public RuntimeEnvelope<CapabilitiesResponse> capabilities() {
         Map<String, String> capabilities = new LinkedHashMap<>();
         capabilities.put("runtime.capabilities", "supported");

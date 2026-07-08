@@ -3,6 +3,7 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.core.bundle.BundleDefinition;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.BundleInfo;
 import com.foggyframework.runtime.api.dto.BundleListResponse;
 import com.foggyframework.runtime.api.dto.BundleMutationResponse;
@@ -29,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeBundlesController {
 
@@ -47,7 +48,7 @@ public class RuntimeBundlesController {
         this.registryService = registryService;
     }
 
-    @GetMapping("/bundles")
+    @GetMapping(RuntimeApiRoutes.V1.BUNDLES)
     public RuntimeEnvelope<BundleListResponse> listBundles() {
         Map<String, RuntimeBundleRecord> managedRecords = new LinkedHashMap<>();
         for (RuntimeBundleRecord record : registryService.listRecords()) {
@@ -69,7 +70,7 @@ public class RuntimeBundlesController {
         return responses.ok(new BundleListResponse(List.copyOf(bundles.values()), List.of()));
     }
 
-    @PostMapping("/bundles")
+    @PostMapping(RuntimeApiRoutes.V1.BUNDLES)
     public RuntimeEnvelope<BundleMutationResponse> addBundle(
             @RequestBody(required = false) BundleRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
@@ -77,7 +78,7 @@ public class RuntimeBundlesController {
         return upsertBundle(null, request, namespace, false);
     }
 
-    @PutMapping("/bundles/{name}")
+    @PutMapping(RuntimeApiRoutes.V1.BUNDLE_BY_NAME)
     public RuntimeEnvelope<BundleMutationResponse> updateBundle(
             @PathVariable String name,
             @RequestBody(required = false) BundleRequest request,
@@ -86,7 +87,7 @@ public class RuntimeBundlesController {
         return upsertBundle(name, request, namespace, true);
     }
 
-    @DeleteMapping("/bundles/{name}")
+    @DeleteMapping(RuntimeApiRoutes.V1.BUNDLE_BY_NAME)
     public RuntimeEnvelope<BundleMutationResponse> removeBundle(@PathVariable String name) {
         String normalizedName = blankToNull(name);
         if (normalizedName == null) {

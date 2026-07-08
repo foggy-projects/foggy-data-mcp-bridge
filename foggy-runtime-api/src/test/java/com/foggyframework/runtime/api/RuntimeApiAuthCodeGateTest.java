@@ -78,7 +78,7 @@ class RuntimeApiAuthCodeGateTest {
 
     @Test
     void shouldExposeAuthCodeEffectiveSecurityModeWithoutAuthHeader() {
-        ResponseEntity<JsonNode> response = restTemplate.getForEntity(url("/api/v1/capabilities"), JsonNode.class);
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity(url(RuntimeApiRoutes.Full.CAPABILITIES), JsonNode.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
@@ -89,7 +89,7 @@ class RuntimeApiAuthCodeGateTest {
     @Test
     void shouldRejectProtectedMutationWithoutAuthCode() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                url("/api/v1/bundles"),
+                url(RuntimeApiRoutes.Full.BUNDLES),
                 Map.of("name", "runtime-auth-demo", "path", ".", "namespace", "dev"),
                 JsonNode.class
         );
@@ -104,7 +104,7 @@ class RuntimeApiAuthCodeGateTest {
     @Test
     void shouldRejectDatasourceTestWithoutAuthCode() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                url("/api/v1/datasources/demo/test"),
+                url(route(RuntimeApiRoutes.Full.DATASOURCE_TEST, "name", "demo")),
                 Map.of(),
                 JsonNode.class
         );
@@ -126,7 +126,7 @@ class RuntimeApiAuthCodeGateTest {
         );
 
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                url("/api/v1/bundles"),
+                url(RuntimeApiRoutes.Full.BUNDLES),
                 HttpMethod.POST,
                 entity,
                 JsonNode.class
@@ -145,7 +145,7 @@ class RuntimeApiAuthCodeGateTest {
         when(systemBundlesContext.addExternalBundle("runtime-auth-demo", "dev", ".", false)).thenReturn(true);
 
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                url("/api/v1/bundles"),
+                url(RuntimeApiRoutes.Full.BUNDLES),
                 HttpMethod.POST,
                 new HttpEntity<>(
                         Map.of("name", "runtime-auth-demo", "path", ".", "namespace", "dev"),
@@ -166,7 +166,7 @@ class RuntimeApiAuthCodeGateTest {
         when(systemBundlesContext.addExternalBundle("runtime-bearer-demo", "dev", ".", false)).thenReturn(true);
 
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                url("/api/v1/bundles"),
+                url(RuntimeApiRoutes.Full.BUNDLES),
                 HttpMethod.POST,
                 new HttpEntity<>(
                         Map.of("name", "runtime-bearer-demo", "path", ".", "namespace", "dev"),
@@ -190,7 +190,7 @@ class RuntimeApiAuthCodeGateTest {
                 new RuntimeApiResponseFactory(properties),
                 new ObjectMapper()
         );
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/bundles");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", RuntimeApiRoutes.Full.BUNDLES);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean allowed = interceptor.preHandle(request, response, new Object());
@@ -204,43 +204,47 @@ class RuntimeApiAuthCodeGateTest {
 
     @Test
     void shouldRequireAuthCodeForRuntimeManagementOperationInventory() throws Exception {
-        assertRejectedByInterceptor("POST", "/api/v1/bundles");
-        assertRejectedByInterceptor("PUT", "/api/v1/bundles/demo");
-        assertRejectedByInterceptor("DELETE", "/api/v1/bundles/demo");
-        assertRejectedByInterceptor("POST", "/api/v1/datasources");
-        assertRejectedByInterceptor("PUT", "/api/v1/datasources/demo");
-        assertRejectedByInterceptor("DELETE", "/api/v1/datasources/demo");
-        assertRejectedByInterceptor("POST", "/api/v1/datasources/demo/test");
-        assertRejectedByInterceptor("PUT", "/api/v1/namespaces/dev/datasource");
-        assertRejectedByInterceptor("POST", "/api/v1/resources/save");
-        assertRejectedByInterceptor("POST", "/api/v1/models/validate");
-        assertRejectedByInterceptor("POST", "/api/v1/models/refresh");
-        assertRejectedByInterceptor("POST", "/api/bundles/add");
-        assertRejectedByInterceptor("DELETE", "/api/bundles/remove/demo");
+        assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.BUNDLES);
+        assertRejectedByInterceptor("PUT", route(RuntimeApiRoutes.Full.BUNDLE_BY_NAME, "name", "demo"));
+        assertRejectedByInterceptor("DELETE", route(RuntimeApiRoutes.Full.BUNDLE_BY_NAME, "name", "demo"));
+        assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.DATASOURCES);
+        assertRejectedByInterceptor("PUT", route(RuntimeApiRoutes.Full.DATASOURCE_BY_NAME, "name", "demo"));
+        assertRejectedByInterceptor("DELETE", route(RuntimeApiRoutes.Full.DATASOURCE_BY_NAME, "name", "demo"));
+        assertRejectedByInterceptor("POST", route(RuntimeApiRoutes.Full.DATASOURCE_TEST, "name", "demo"));
+        assertRejectedByInterceptor("PUT", route(RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE, "namespace", "dev"));
+        assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.RESOURCES_SAVE);
+        assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.MODELS_VALIDATE);
+        assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.MODELS_REFRESH);
+        assertRejectedByInterceptor("POST", RuntimeApiRoutes.Full.LEGACY_BUNDLE_ADD);
+        assertRejectedByInterceptor("DELETE", route(RuntimeApiRoutes.Full.LEGACY_BUNDLE_REMOVE, "bundleName", "demo"));
     }
 
     @Test
     void shouldLeaveReadAndExecutionEndpointsOutsideManagementAuthGate() throws Exception {
-        assertAllowedByInterceptor("GET", "/api/v1/capabilities");
-        assertAllowedByInterceptor("GET", "/api/v1/bundles");
-        assertAllowedByInterceptor("GET", "/api/v1/datasources");
-        assertAllowedByInterceptor("GET", "/api/v1/namespaces/dev/datasource");
-        assertAllowedByInterceptor("GET", "/api/v1/models");
-        assertAllowedByInterceptor("POST", "/api/v1/models/Order/describe");
-        assertAllowedByInterceptor("POST", "/api/v1/resources/export");
-        assertAllowedByInterceptor("POST", "/api/v1/query/Order/validate");
-        assertAllowedByInterceptor("POST", "/api/v1/query/Order/execute");
-        assertAllowedByInterceptor("POST", "/api/v1/tables/list");
-        assertAllowedByInterceptor("POST", "/api/v1/tables/inspect");
-        assertAllowedByInterceptor("POST", "/api/v1/sql/query");
-        assertAllowedByInterceptor("POST", "/api/v1/compose/validate");
-        assertAllowedByInterceptor("POST", "/api/v1/compose/preview");
-        assertAllowedByInterceptor("POST", "/api/v1/compose/execute");
-        assertAllowedByInterceptor("POST", "/api/v1/fsscript/execute");
+        assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.CAPABILITIES);
+        assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.BUNDLES);
+        assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.DATASOURCES);
+        assertAllowedByInterceptor("GET", route(RuntimeApiRoutes.Full.NAMESPACE_DATASOURCE, "namespace", "dev"));
+        assertAllowedByInterceptor("GET", RuntimeApiRoutes.Full.MODELS);
+        assertAllowedByInterceptor("POST", route(RuntimeApiRoutes.Full.MODEL_DESCRIBE, "model", "Order"));
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.RESOURCES_EXPORT);
+        assertAllowedByInterceptor("POST", route(RuntimeApiRoutes.Full.QUERY_VALIDATE, "model", "Order"));
+        assertAllowedByInterceptor("POST", route(RuntimeApiRoutes.Full.QUERY_EXECUTE, "model", "Order"));
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.TABLES_LIST);
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.TABLES_INSPECT);
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.SQL_QUERY);
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_VALIDATE);
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_PREVIEW);
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.COMPOSE_EXECUTE);
+        assertAllowedByInterceptor("POST", RuntimeApiRoutes.Full.FSSCRIPT_EXECUTE);
     }
 
     private String url(String path) {
         return "http://localhost:" + port + path;
+    }
+
+    private static String route(String template, String variable, String value) {
+        return template.replace("{" + variable + "}", value);
     }
 
     private static HttpHeaders authHeaders(String headerName, String value) {

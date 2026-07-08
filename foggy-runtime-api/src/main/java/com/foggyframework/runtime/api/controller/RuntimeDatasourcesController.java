@@ -1,5 +1,6 @@
 package com.foggyframework.runtime.api.controller;
 
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.DatasourceDiagnosticsResponse;
 import com.foggyframework.runtime.api.dto.DatasourceInfo;
 import com.foggyframework.runtime.api.dto.DatasourceListResponse;
@@ -31,7 +32,7 @@ import java.util.List;
 import java.util.Locale;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeDatasourcesController {
 
@@ -46,12 +47,12 @@ public class RuntimeDatasourcesController {
         this.registryService = registryService;
     }
 
-    @GetMapping("/datasources")
+    @GetMapping(RuntimeApiRoutes.V1.DATASOURCES)
     public RuntimeEnvelope<DatasourceListResponse> listDatasources() {
         return responses.ok(new DatasourceListResponse(registryService.listInfos(), List.of()));
     }
 
-    @GetMapping("/datasources/diagnostics")
+    @GetMapping(RuntimeApiRoutes.V1.DATASOURCES_DIAGNOSTICS)
     public RuntimeEnvelope<DatasourceDiagnosticsResponse> datasourceDiagnostics() {
         return responses.ok(new DatasourceDiagnosticsResponse(
                         registryService.isRegistryEnabled(),
@@ -66,12 +67,12 @@ public class RuntimeDatasourcesController {
                 ));
     }
 
-    @PostMapping("/datasources")
+    @PostMapping(RuntimeApiRoutes.V1.DATASOURCES)
     public RuntimeEnvelope<DatasourceMutationResponse> addDatasource(@RequestBody(required = false) DatasourceRequest request) {
         return upsertDatasource(null, request, false);
     }
 
-    @PutMapping("/datasources/{name}")
+    @PutMapping(RuntimeApiRoutes.V1.DATASOURCE_BY_NAME)
     public RuntimeEnvelope<DatasourceMutationResponse> updateDatasource(
             @PathVariable String name,
             @RequestBody(required = false) DatasourceRequest request
@@ -79,7 +80,7 @@ public class RuntimeDatasourcesController {
         return upsertDatasource(name, request, true);
     }
 
-    @DeleteMapping("/datasources/{name}")
+    @DeleteMapping(RuntimeApiRoutes.V1.DATASOURCE_BY_NAME)
     public RuntimeEnvelope<DatasourceMutationResponse> removeDatasource(@PathVariable String name) {
         String normalizedName = blankToNull(name);
         if (normalizedName == null) {
@@ -97,7 +98,7 @@ public class RuntimeDatasourcesController {
         return responses.ok(new DatasourceMutationResponse(info, List.of()));
     }
 
-    @PostMapping("/datasources/{name}/test")
+    @PostMapping(RuntimeApiRoutes.V1.DATASOURCE_TEST)
     public RuntimeEnvelope<DatasourceTestResponse> testDatasource(@PathVariable String name) {
         String normalizedName = blankToNull(name);
         if (normalizedName == null) {
@@ -133,7 +134,7 @@ public class RuntimeDatasourcesController {
         }
     }
 
-    @GetMapping("/namespaces/{namespace}/datasource")
+    @GetMapping(RuntimeApiRoutes.V1.NAMESPACE_DATASOURCE)
     public RuntimeEnvelope<NamespaceDatasourceResponse> getNamespaceDatasource(@PathVariable String namespace) {
         String normalizedNamespace = blankToNull(namespace);
         if (normalizedNamespace == null) {
@@ -144,7 +145,7 @@ public class RuntimeDatasourcesController {
         return responses.ok(new NamespaceDatasourceResponse(normalizedNamespace, dataSource, List.of()));
     }
 
-    @PutMapping("/namespaces/{namespace}/datasource")
+    @PutMapping(RuntimeApiRoutes.V1.NAMESPACE_DATASOURCE)
     public RuntimeEnvelope<NamespaceDatasourceResponse> bindNamespaceDatasource(
             @PathVariable String namespace,
             @RequestBody(required = false) NamespaceDatasourceRequest request

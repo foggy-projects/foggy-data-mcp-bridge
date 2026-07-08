@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalog
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.ModelDescribeRequest;
 import com.foggyframework.runtime.api.dto.ModelDescribeResponse;
 import com.foggyframework.runtime.api.dto.ModelRefreshFailure;
@@ -50,7 +51,7 @@ import java.util.Map;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeModelsController {
 
@@ -80,7 +81,7 @@ public class RuntimeModelsController {
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
     }
 
-    @GetMapping("/models")
+    @GetMapping(RuntimeApiRoutes.V1.MODELS)
     public RuntimeEnvelope<Map<String, Object>> listModels(
             @RequestParam Map<String, String> query,
             @RequestHeader(value = "X-NS", required = false) String namespace
@@ -95,7 +96,7 @@ public class RuntimeModelsController {
         return responses.ok(response);
     }
 
-    @PostMapping("/models/{model}/describe")
+    @PostMapping(RuntimeApiRoutes.V1.MODEL_DESCRIBE)
     public RuntimeEnvelope<ModelDescribeResponse> describeModel(
             @PathVariable String model,
             @RequestBody(required = false) ModelDescribeRequest request,
@@ -137,7 +138,7 @@ public class RuntimeModelsController {
         return responses.ok(response);
     }
 
-    @PostMapping("/models/validate")
+    @PostMapping(RuntimeApiRoutes.V1.MODELS_VALIDATE)
     public RuntimeEnvelope<ModelValidateResponse> validateModels(
             @RequestBody(required = false) ModelValidateRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
@@ -183,7 +184,7 @@ public class RuntimeModelsController {
         return responses.ok(response);
     }
 
-    @PostMapping("/models/refresh")
+    @PostMapping(RuntimeApiRoutes.V1.MODELS_REFRESH)
     public RuntimeEnvelope<ModelRefreshResponse> refreshModels(
             @RequestBody(required = false) ModelRefreshRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace

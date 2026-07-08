@@ -3,6 +3,7 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.core.bundle.BundleDefinition;
+import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.ResourceExportRequest;
 import com.foggyframework.runtime.api.dto.ResourceExportResponse;
 import com.foggyframework.runtime.api.dto.ResourceFileInfo;
@@ -36,7 +37,7 @@ import java.util.List;
 import java.util.Locale;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(RuntimeApiRoutes.API_V1)
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeResourcesController {
 
@@ -54,7 +55,7 @@ public class RuntimeResourcesController {
         this.registryService = registryService;
     }
 
-    @PostMapping("/resources/export")
+    @PostMapping(RuntimeApiRoutes.V1.RESOURCES_EXPORT)
     public RuntimeEnvelope<ResourceExportResponse> exportResources(
             @RequestBody(required = false) ResourceExportRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
@@ -121,7 +122,7 @@ public class RuntimeResourcesController {
         return responses.ok(response);
     }
 
-    @PostMapping("/resources/save")
+    @PostMapping(RuntimeApiRoutes.V1.RESOURCES_SAVE)
     public RuntimeEnvelope<ResourceSaveResponse> saveResources(
             @RequestBody(required = false) ResourceSaveRequest request,
             @RequestHeader(value = "X-NS", required = false) String namespace
