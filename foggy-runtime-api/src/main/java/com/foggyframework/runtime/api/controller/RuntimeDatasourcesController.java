@@ -9,9 +9,7 @@ import com.foggyframework.runtime.api.dto.DatasourceRequest;
 import com.foggyframework.runtime.api.dto.DatasourceTestResponse;
 import com.foggyframework.runtime.api.dto.NamespaceDatasourceRequest;
 import com.foggyframework.runtime.api.dto.NamespaceDatasourceResponse;
-import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import com.foggyframework.runtime.api.dto.RuntimeError;
 import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;
@@ -271,7 +269,9 @@ public class RuntimeDatasourcesController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        RuntimeError error = new RuntimeError(
+        return RuntimeEnvelope.fail(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
                 code,
                 phase,
                 message,
@@ -281,7 +281,6 @@ public class RuntimeDatasourcesController {
                 suggestedNextAction,
                 safeToAutoRepair
         );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, RuntimeDiagnostics.empty());
     }
 
     private static String blankToNull(String value) {

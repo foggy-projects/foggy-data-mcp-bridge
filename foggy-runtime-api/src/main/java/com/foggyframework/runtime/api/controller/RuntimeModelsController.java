@@ -24,7 +24,6 @@ import com.foggyframework.runtime.api.dto.ModelValidateRequest;
 import com.foggyframework.runtime.api.dto.ModelValidateResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import com.foggyframework.runtime.api.dto.RuntimeError;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -269,7 +268,9 @@ public class RuntimeModelsController {
             boolean safeToAutoRepair,
             RuntimeDiagnostics diagnostics
     ) {
-        RuntimeError error = new RuntimeError(
+        return RuntimeEnvelope.fail(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
                 code,
                 phase,
                 message,
@@ -277,9 +278,9 @@ public class RuntimeModelsController {
                 null,
                 null,
                 suggestedNextAction,
-                safeToAutoRepair
+                safeToAutoRepair,
+                diagnostics
         );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, diagnostics);
     }
 
     private String resolveNamespace(String headerNamespace, String bodyNamespace) {

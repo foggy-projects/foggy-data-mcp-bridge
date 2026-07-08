@@ -8,9 +8,7 @@ import com.foggyframework.runtime.api.dto.BundleInfo;
 import com.foggyframework.runtime.api.dto.BundleListResponse;
 import com.foggyframework.runtime.api.dto.BundleMutationResponse;
 import com.foggyframework.runtime.api.dto.BundleRequest;
-import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import com.foggyframework.runtime.api.dto.RuntimeError;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -255,7 +253,9 @@ public class RuntimeBundlesController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        RuntimeError error = new RuntimeError(
+        return RuntimeEnvelope.fail(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
                 code,
                 phase,
                 message,
@@ -265,7 +265,6 @@ public class RuntimeBundlesController {
                 suggestedNextAction,
                 safeToAutoRepair
         );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, RuntimeDiagnostics.empty());
     }
 
     private static String blankToNull(String value) {

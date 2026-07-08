@@ -10,9 +10,7 @@ import com.foggyframework.runtime.api.dto.ResourceFileInfo;
 import com.foggyframework.runtime.api.dto.ResourceSaveFile;
 import com.foggyframework.runtime.api.dto.ResourceSaveRequest;
 import com.foggyframework.runtime.api.dto.ResourceSaveResponse;
-import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import com.foggyframework.runtime.api.dto.RuntimeError;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -324,7 +322,9 @@ public class RuntimeResourcesController {
             boolean safeToAutoRepair,
             String path
     ) {
-        RuntimeError error = new RuntimeError(
+        return RuntimeEnvelope.fail(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
                 code,
                 phase,
                 message,
@@ -334,7 +334,6 @@ public class RuntimeResourcesController {
                 suggestedNextAction,
                 safeToAutoRepair
         );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, RuntimeDiagnostics.empty());
     }
 
     private static String blankToNull(String value) {

@@ -43,4 +43,46 @@ public record RuntimeEnvelope<T>(
                 error
         );
     }
+
+    public static <T> RuntimeEnvelope<T> fail(
+            String engine,
+            String runtimeApiVersion,
+            String code,
+            String phase,
+            String message,
+            String model,
+            String field,
+            String path,
+            String suggestedNextAction,
+            boolean safeToAutoRepair
+    ) {
+        return fail(engine, runtimeApiVersion, code, phase, message, model, field, path,
+                suggestedNextAction, safeToAutoRepair, RuntimeDiagnostics.empty());
+    }
+
+    public static <T> RuntimeEnvelope<T> fail(
+            String engine,
+            String runtimeApiVersion,
+            String code,
+            String phase,
+            String message,
+            String model,
+            String field,
+            String path,
+            String suggestedNextAction,
+            boolean safeToAutoRepair,
+            RuntimeDiagnostics diagnostics
+    ) {
+        RuntimeError error = new RuntimeError(
+                code,
+                phase,
+                message,
+                model,
+                field,
+                path,
+                suggestedNextAction,
+                safeToAutoRepair
+        );
+        return fail(engine, runtimeApiVersion, error, diagnostics);
+    }
 }

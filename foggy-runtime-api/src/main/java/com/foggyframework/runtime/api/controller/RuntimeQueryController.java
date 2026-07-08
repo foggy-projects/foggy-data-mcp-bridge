@@ -9,9 +9,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
-import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import com.foggyframework.runtime.api.dto.RuntimeError;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -138,7 +136,9 @@ public class RuntimeQueryController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        RuntimeError error = new RuntimeError(
+        return RuntimeEnvelope.fail(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
                 code,
                 phase,
                 message,
@@ -148,7 +148,6 @@ public class RuntimeQueryController {
                 suggestedNextAction,
                 safeToAutoRepair
         );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, RuntimeDiagnostics.empty());
     }
 
     private static QueryErrorMapping mapQueryError(Exception e, String phase) {

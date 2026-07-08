@@ -3,9 +3,7 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
-import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import com.foggyframework.runtime.api.dto.RuntimeError;
 import com.foggyframework.runtime.api.dto.SqlColumnInfo;
 import com.foggyframework.runtime.api.dto.SqlQueryRequest;
 import com.foggyframework.runtime.api.dto.SqlQueryResponse;
@@ -576,7 +574,9 @@ public class RuntimeTablesController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        RuntimeError error = new RuntimeError(
+        return RuntimeEnvelope.fail(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
                 code,
                 phase,
                 message,
@@ -586,7 +586,6 @@ public class RuntimeTablesController {
                 suggestedNextAction,
                 safeToAutoRepair
         );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, RuntimeDiagnostics.empty());
     }
 
     private static String safeGetString(ResultSet resultSet, String column) {
