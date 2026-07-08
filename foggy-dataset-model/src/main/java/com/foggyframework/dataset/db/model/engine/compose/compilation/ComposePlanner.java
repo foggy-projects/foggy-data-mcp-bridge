@@ -96,6 +96,11 @@ public final class ComposePlanner {
         return flag != null && flag;
     }
 
+    private static boolean isSqlServerDialect(String dialect) {
+        String dl = dialect == null ? "" : dialect.toLowerCase(Locale.ROOT);
+        return "mssql".equals(dl) || "sqlserver".equals(dl);
+    }
+
     /** Fail-closed: reject unknown dialect strings early so downstream
      *  snapshot drift is caught here rather than at a live query. */
     private static void assertDialect(String dialect) {
@@ -1971,9 +1976,13 @@ public final class ComposePlanner {
             List<Object> outerParams, CompileState state) {
 
         String dialect = state.dialect;
+        boolean sqlServerDialect = isSqlServerDialect(dialect);
         StringBuilder sb = new StringBuilder();
         sb.append("SELECT ");
         if (plan.distinct()) sb.append("DISTINCT ");
+        if (sqlServerDialect && plan.limit() != null && plan.start() == null) {
+            sb.append("TOP (").append(plan.limit()).append(") ");
+        }
         if (plan.columns().isEmpty()) {
             sb.append("*");
         } else {
@@ -2014,17 +2023,41 @@ public final class ComposePlanner {
             sb.append("\nORDER BY ").append(String.join(", ", orderFrags));
         }
 
-        if (plan.limit() != null) {
-            if (plan.start() != null) {
-                sb.append("\nLIMIT ").append(plan.limit()).append(" OFFSET ").append(plan.start());
-            } else {
-                sb.append("\nLIMIT ").append(plan.limit());
-            }
-        } else if (plan.start() != null) {
-            sb.append("\nOFFSET ").append(plan.start());
+        if (sqlServerDialect) {
+            appendSqlServerPagination(sb, plan);
+        } else {
+            appendLimitOffset(sb, plan.limit(), plan.start());
         }
 
         return sb.toString();
+    }
+
+    private static void appendLimitOffset(StringBuilder sb, Integer limit, Integer offset) {
+        if (limit != null) {
+            if (offset != null) {
+                sb.append("\nLIMIT ").append(limit).append(" OFFSET ").append(offset);
+            } else {
+                sb.append("\nLIMIT ").append(limit);
+            }
+        } else if (offset != null) {
+            sb.append("\nOFFSET ").append(offset);
+        }
+    }
+
+    private static void appendSqlServerPagination(StringBuilder sb, DerivedQueryPlan plan) {
+        if (plan.start() == null) {
+            return;
+        }
+        if (plan.orderBy().isEmpty()) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                    "SQL Server OFFSET pagination requires an ORDER BY clause in derived compose query.");
+        }
+        sb.append("\nOFFSET ").append(plan.start()).append(" ROWS");
+        if (plan.limit() != null) {
+            sb.append(" FETCH NEXT ").append(plan.limit()).append(" ROWS ONLY");
+        }
     }
 
     private static String renderSliceEntry(

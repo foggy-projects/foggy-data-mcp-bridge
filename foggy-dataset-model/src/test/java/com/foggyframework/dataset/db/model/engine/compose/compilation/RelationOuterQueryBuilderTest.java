@@ -233,6 +233,43 @@ class RelationOuterQueryBuilderTest {
         assertTrue(result.sql().contains("OFFSET 20"));
     }
 
+    @Test
+    @DisplayName("sqlServerLimitUsesTop · SQL Server limit uses TOP")
+    void sqlServerLimitUsesTop() {
+        CompiledRelation rel = enrichedRelation("sqlserver");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of("storeName"))
+                        .orderBy(List.of("salesAmount DESC"))
+                        .limit(10)
+                        .build());
+
+        assertNotNull(result);
+        assertTrue(result.sql().contains("SELECT TOP (10)"));
+        assertTrue(result.sql().contains("ORDER BY rel_0.[salesAmount] DESC"));
+        assertFalse(result.sql().contains("LIMIT"));
+    }
+
+    @Test
+    @DisplayName("sqlServerLimitOffsetUsesOffsetFetch · SQL Server pagination uses OFFSET FETCH")
+    void sqlServerLimitOffsetUsesOffsetFetch() {
+        CompiledRelation rel = enrichedRelation("sqlserver");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of("storeName"))
+                        .orderBy(List.of("salesAmount DESC"))
+                        .limit(10)
+                        .offset(20)
+                        .build());
+
+        assertNotNull(result);
+        assertTrue(result.sql().contains("ORDER BY rel_0.[salesAmount] DESC"));
+        assertTrue(result.sql().contains("OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY"));
+        assertFalse(result.sql().contains("LIMIT"));
+    }
+
     // ------------------------------------------------------------------
     // 5. unknown column rejected
     // ------------------------------------------------------------------

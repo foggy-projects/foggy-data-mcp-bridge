@@ -165,6 +165,45 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("SQL Server LIMIT renders as TOP")
+    void sqlServerLimitUsesTop() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, delta FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "delta");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "delta"))
+                .orderBy(List.of("delta:asc"))
+                .limit(10)
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlserver");
+        assertTrue(sql.getSql().contains("SELECT TOP (10) id, delta"));
+        assertTrue(sql.getSql().contains("ORDER BY delta ASC"));
+        assertFalse(sql.getSql().contains("LIMIT"));
+    }
+
+    @Test
+    @DisplayName("SQL Server LIMIT + OFFSET renders as OFFSET FETCH")
+    void sqlServerLimitOffsetUsesOffsetFetch() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, name FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "name"))
+                .orderBy(List.of("name:asc"))
+                .limit(10)
+                .start(20)
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlserver");
+        assertTrue(sql.getSql().contains("ORDER BY name ASC"));
+        assertTrue(sql.getSql().contains("OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY"));
+        assertFalse(sql.getSql().contains("LIMIT"));
+    }
+
+    @Test
     @DisplayName("参数顺序：inner params 先于 outer params")
     void paramOrderingInnerBeforeOuter() {
         FakeSemanticService svc = new FakeSemanticService();

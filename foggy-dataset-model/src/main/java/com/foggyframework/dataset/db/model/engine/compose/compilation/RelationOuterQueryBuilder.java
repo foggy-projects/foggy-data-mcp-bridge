@@ -511,7 +511,8 @@ public final class RelationOuterQueryBuilder {
             List<SelectItem> selectItems, OuterQuerySpec spec,
             String dialect) {
         StringBuilder sb = new StringBuilder();
-        sb.append(buildSelectClause(selectItems, alias, dialect));
+        sb.append(buildSelectClause(selectItems, alias, dialect,
+                sqlServerTopLimit(spec, dialect)));
         sb.append("\nFROM (").append(bodySql).append(") AS ").append(alias);
         appendWhereGroupOrderLimit(sb, spec, alias, dialect);
         return sb.toString();
@@ -541,7 +542,8 @@ public final class RelationOuterQueryBuilder {
         }
         appendCteItem(sb, alias, bodySql);
         sb.append("\n");
-        sb.append(buildSelectClause(selectItems, alias, dialect));
+        sb.append(buildSelectClause(selectItems, alias, dialect,
+                sqlServerTopLimit(spec, dialect)));
         sb.append("\nFROM ").append(alias);
         appendWhereGroupOrderLimit(sb, spec, alias, dialect);
         return sb.toString();
@@ -553,7 +555,16 @@ public final class RelationOuterQueryBuilder {
 
     private static String buildSelectClause(
             List<SelectItem> selectItems, String alias, String dialect) {
+        return buildSelectClause(selectItems, alias, dialect, null);
+    }
+
+    private static String buildSelectClause(
+            List<SelectItem> selectItems, String alias, String dialect,
+            Integer topLimit) {
         StringBuilder sb = new StringBuilder("SELECT ");
+        if (topLimit != null) {
+            sb.append("TOP (").append(topLimit).append(") ");
+        }
         for (int i = 0; i < selectItems.size(); i++) {
             if (i > 0) sb.append(", ");
             sb.append(renderSelectItem(selectItems.get(i), alias, dialect));
@@ -641,11 +652,38 @@ public final class RelationOuterQueryBuilder {
                         alias, dialect));
             }
         }
+        if (isSqlServerDialect(dialect)) {
+            appendSqlServerPagination(sb, spec);
+            return;
+        }
         if (spec.limit() != null) {
             sb.append("\nLIMIT ").append(spec.limit());
         }
         if (spec.offset() != null) {
             sb.append("\nOFFSET ").append(spec.offset());
+        }
+    }
+
+    private static Integer sqlServerTopLimit(OuterQuerySpec spec, String dialect) {
+        if (!isSqlServerDialect(dialect) || spec == null || spec.offset() != null) {
+            return null;
+        }
+        return spec.limit();
+    }
+
+    private static void appendSqlServerPagination(StringBuilder sb, OuterQuerySpec spec) {
+        if (spec.offset() == null) {
+            return;
+        }
+        if (spec.orderBy() == null || spec.orderBy().isEmpty()) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "SQL Server OFFSET pagination requires an ORDER BY clause in outer relation query.");
+        }
+        sb.append("\nOFFSET ").append(spec.offset()).append(" ROWS");
+        if (spec.limit() != null) {
+            sb.append(" FETCH NEXT ").append(spec.limit()).append(" ROWS ONLY");
         }
     }
 
