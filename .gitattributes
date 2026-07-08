@@ -1,0 +1,2 @@
+foggy-runtime-api/src/main/java/**/*.java text eol=lf
+foggy-runtime-api/src/test/java/**/*.java text eol=lf
