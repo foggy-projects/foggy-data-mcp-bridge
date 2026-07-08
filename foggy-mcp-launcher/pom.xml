@@ -99,6 +99,12 @@
                     <artifactId>foggy-runtime-api</artifactId>
                     <version>${project.version}</version>
                 </dependency>
+                <!-- Runtime API managed SQL Server datasource support for development/test CLI sessions. -->
+                <dependency>
+                    <groupId>com.microsoft.sqlserver</groupId>
+                    <artifactId>mssql-jdbc</artifactId>
+                    <scope>runtime</scope>
+                </dependency>
             </dependencies>
         </profile>
     </profiles>
