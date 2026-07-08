@@ -68,6 +68,15 @@ class QueryRequestValidationStepTest {
         return new ModelResultContext(pagingRequest, null);
     }
 
+    private static void assertValidationMessage(Exception exception, String requiredToken, String... localizedTokens) {
+        String message = exception.getMessage();
+        assertTrue(message.contains(requiredToken),
+                () -> "Expected validation message to contain '" + requiredToken + "', actual: " + message);
+        assertTrue(Arrays.stream(localizedTokens).anyMatch(message::contains),
+                () -> "Expected validation message to contain one of " + Arrays.toString(localizedTokens)
+                        + ", actual: " + message);
+    }
+
     private DbQueryRequestDef groupedTeamSalesRequest(String extraColumn) {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setColumns(List.of(
@@ -363,7 +372,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("field") && exception.getMessage().contains("不能为空"));
+        assertValidationMessage(exception, "field", "不能为空", "cannot be empty", "required");
         log.info("field 为空校验生效: {}", exception.getMessage());
     }
 
@@ -379,7 +388,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("op") && exception.getMessage().contains("不能为空"));
+        assertValidationMessage(exception, "op", "不能为空", "cannot be empty", "required");
         log.info("op 为空校验生效: {}", exception.getMessage());
     }
 
@@ -395,7 +404,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("不合法") && exception.getMessage().contains("invalid_op"));
+        assertValidationMessage(exception, "invalid_op", "不合法", "Invalid");
         log.info("op 不合法校验生效: {}", exception.getMessage());
     }
 
@@ -411,7 +420,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("value") && exception.getMessage().contains("不能为空"));
+        assertValidationMessage(exception, "value", "不能为空", "cannot be empty", "required");
         log.info("value 为空校验生效: {}", exception.getMessage());
     }
 
@@ -548,7 +557,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("field") && exception.getMessage().contains("不能为空"));
+        assertValidationMessage(exception, "field", "不能为空", "cannot be empty", "required");
         log.info("groupBy field 为空校验生效: {}", exception.getMessage());
     }
 
@@ -567,7 +576,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("不合法") && exception.getMessage().contains("INVALID_AGG"));
+        assertValidationMessage(exception, "INVALID_AGG", "不合法", "Invalid");
         log.info("groupBy agg 不合法校验生效: {}", exception.getMessage());
     }
 
@@ -610,7 +619,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("field") && exception.getMessage().contains("不能为空"));
+        assertValidationMessage(exception, "field", "不能为空", "cannot be empty", "required");
         log.info("orderBy field 为空校验生效: {}", exception.getMessage());
     }
 
@@ -628,7 +637,7 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("不合法") && exception.getMessage().contains("invalid"));
+        assertValidationMessage(exception, "invalid", "不合法", "Invalid");
         log.info("orderBy order 不合法校验生效: {}", exception.getMessage());
     }
 

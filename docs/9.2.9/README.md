@@ -4,7 +4,7 @@ doc_purpose: Track 9.2.9 FSScript arithmetic-operator robustness follow-up.
 version: 9.2.9
 status: signed-off
 created_at: 2026-06-26
-updated_at: 2026-06-26
+updated_at: 2026-07-08
 ---
 
 # 9.2.9 FSScript Division Operand Robustness Follow-Up
@@ -24,6 +24,12 @@ updated_at: 2026-06-26
 | Item | Doc | Status | Owner Module | Summary |
 |---|---|---|---|---|
 | Division operand robustness | `workitems/P1-fsscript-division-operand-robustness.md` | signed-off | `foggy-fsscript` | Prevent `/` from failing with `ClassCastException` when operands are non-number values, while preserving existing numeric/null/zero division behavior. |
+
+## Post-Signoff Operational Follow-Up
+
+| Item | Doc | Status | Owner Module | Summary |
+|---|---|---|---|---|
+| WSL Docker test environment stabilization | `workitems/P1-wsl-docker-test-environment-stabilization.md` | completed, ready-for-review | `foggy-dataset-model` | Confirmed host Docker data remained intact, recovered WSL port-forwarding for Docker-backed test services, fixed locale-sensitive validation assertions, and passed full `mvn test` plus `mvn install`. |
 
 ## Guardrails
 
