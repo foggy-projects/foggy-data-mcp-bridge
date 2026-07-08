@@ -1,10 +1,6 @@
 package com.foggyframework.runtime.api.controller;
 
-import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeCompileException;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
-import com.foggyframework.dataset.db.model.engine.compose.sandbox.ComposeSandboxViolationException;
-import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
 import com.foggyframework.fsscript.exp.PropertyFunction;
@@ -20,8 +16,10 @@ import com.foggyframework.runtime.api.dto.FsscriptResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.RuntimeError;
-import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory;
-import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory.RuntimeComposeContext;
+import com.foggyframework.runtime.api.service.RuntimeComposeException;
+import com.foggyframework.runtime.api.service.RuntimeComposeInvocation;
+import com.foggyframework.runtime.api.service.RuntimeComposeRunner;
+import com.foggyframework.runtime.api.service.RuntimeComposeRunner.RuntimeComposeRunResult;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,7 +27,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,17 +38,14 @@ public class RuntimeFsscriptController {
     private static final String ENGINE = "java";
 
     private final FoggyRuntimeApiProperties runtimeApiProperties;
-    private final SemanticQueryServiceV3 semanticQueryServiceV3;
-    private final RuntimeComposeContextFactory contextFactory;
+    private final RuntimeComposeRunner composeRunner;
 
     public RuntimeFsscriptController(
             FoggyRuntimeApiProperties runtimeApiProperties,
-            SemanticQueryServiceV3 semanticQueryServiceV3,
-            RuntimeComposeContextFactory contextFactory
+            RuntimeComposeRunner composeRunner
     ) {
         this.runtimeApiProperties = runtimeApiProperties;
-        this.semanticQueryServiceV3 = semanticQueryServiceV3;
-        this.contextFactory = contextFactory;
+        this.composeRunner = composeRunner;
     }
 
     @PostMapping("/execute")
@@ -84,9 +78,8 @@ public class RuntimeFsscriptController {
         } catch (CteBridgeDeniedException e) {
             return fail("FSSCRIPT_CTE_BRIDGE_DENIED", "fsscript.execute", e.getMessage(),
                     null, "Enable capabilities.cteBridge for this dev/test request and retry.", false);
-        } catch (ComposeBridgeException e) {
-            return fail(e.code(), e.phase(), e.getMessage(), e.field(), e.suggestedNextAction(),
-                    e.safeToAutoRepair(), e.diagnostics());
+        } catch (RuntimeComposeException e) {
+            return fail(e);
         } catch (RuntimeException e) {
             return fail("FSSCRIPT_EXECUTE_FAILED", "fsscript.execute", e.getMessage(),
                     null, "Inspect the fsscript source and runtime diagnostics, then retry.", false);
@@ -119,78 +112,10 @@ public class RuntimeFsscriptController {
             String phase,
             Object[] args
     ) {
-        ComposeRequestParts compose = composeRequest(args, phase);
-        if (compose.script() == null || compose.script().isBlank()) {
-            throw new ComposeBridgeException("COMPOSE_SCRIPT_INVALID", phase,
-                    "parameter 'script' is required and must be non-blank",
-                    null, "Provide an inline compose script.", true);
-        }
-
-        RuntimeComposeContext context = null;
-        try {
-            context = contextFactory.create(
-                    fsscriptRequest.namespace(),
-                    fsscriptRequest.traceId(),
-                    compose.params(),
-                    mergeOptions(fsscriptRequest.options(), compose.options()),
-                    headerNamespace,
-                    authorization,
-                    headers);
-            ComposeScriptService.ComposeScriptResult result = ComposeScriptService.run(
-                    context.toScriptRequest(mode, compose.script(), semanticQueryServiceV3));
-            return toResponse(result, context);
-        } catch (ComposeSandboxViolationException e) {
-            throw new ComposeBridgeException("COMPOSE_SANDBOX_VIOLATION", phase, e.getMessage(),
-                    null, "Remove forbidden script host access and retry.", false,
-                    diagnostics(context));
-        } catch (ComposeSchemaException e) {
-            throw new ComposeBridgeException(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    e.offendingField(), "Inspect compose fields/schema and retry.", true,
-                    diagnostics(context));
-        } catch (ComposeCompileException e) {
-            throw new ComposeBridgeException(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    null, "Fix compose script or model metadata and retry.", true,
-                    diagnostics(context));
-        } catch (RuntimeException e) {
-            throw new ComposeBridgeException(mapRuntimeErrorCode(phase), phase, e.getMessage(),
-                    null, "Inspect diagnostics and runtime logs, then retry.", false,
-                    diagnostics(context));
-        }
-    }
-
-    private ComposeResponse toResponse(
-            ComposeScriptService.ComposeScriptResult result,
-            RuntimeComposeContext context) {
-        return new ComposeResponse(
-                result.valid(),
-                "compose",
-                result.mode().name().toLowerCase(),
-                result.value(),
-                result.sql(),
-                result.params() != null ? result.params() : List.of(),
-                result.warnings() != null ? result.warnings() : List.of(),
-                context.diagnosticsAttributes()
-        );
-    }
-
-    private ComposeRequestParts composeRequest(Object[] args, String phase) {
-        if (args == null || args.length == 0 || args[0] == null) {
-            return new ComposeRequestParts(null, Map.of(), Map.of());
-        }
-        Object arg = args[0];
-        if (arg instanceof String script) {
-            return new ComposeRequestParts(script, Map.of(), Map.of());
-        }
-        if (arg instanceof Map<?, ?> map) {
-            return new ComposeRequestParts(
-                    stringValue(map.get("script")),
-                    objectMap(map.get("params")),
-                    objectMap(map.get("options"))
-            );
-        }
-        throw new ComposeBridgeException("COMPOSE_SCRIPT_INVALID", phase,
-                "cte request must be a string script or object containing script",
-                null, "Pass foggy.cte.*({ script: '...' }).", true);
+        RuntimeComposeRunResult result = composeRunner.run(mode, phase,
+                RuntimeComposeInvocation.fromFsscriptCteArgs(
+                        fsscriptRequest, headerNamespace, authorization, headers, args, phase));
+        return result.response();
     }
 
     private RuntimeEnvelope<FsscriptResponse> fail(
@@ -214,46 +139,12 @@ public class RuntimeFsscriptController {
         return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, RuntimeDiagnostics.empty());
     }
 
-    private RuntimeEnvelope<FsscriptResponse> fail(
-            String code,
-            String phase,
-            String message,
-            String field,
-            String suggestedNextAction,
-            boolean safeToAutoRepair,
-            RuntimeDiagnostics diagnostics
-    ) {
-        RuntimeError error = new RuntimeError(
-                code,
-                phase,
-                message,
-                null,
-                field,
-                null,
-                suggestedNextAction,
-                safeToAutoRepair
-        );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, diagnostics);
-    }
-
-    private static String mapScriptErrorCode(String phase) {
-        if ("compose.validate".equals(phase)) {
-            return "COMPOSE_SCRIPT_INVALID";
-        }
-        if ("compose.preview".equals(phase)) {
-            return "COMPOSE_COMPILE_FAILED";
-        }
-        return "COMPOSE_EXECUTE_FAILED";
-    }
-
-    private static String mapRuntimeErrorCode(String phase) {
-        if ("compose.execute".equals(phase)) {
-            return "COMPOSE_EXECUTE_FAILED";
-        }
-        if ("compose.preview".equals(phase)) {
-            return "COMPOSE_COMPILE_FAILED";
-        }
-        return "COMPOSE_SCRIPT_INVALID";
+    private RuntimeEnvelope<FsscriptResponse> fail(RuntimeComposeException e) {
+        return RuntimeEnvelope.fail(
+                ENGINE,
+                runtimeApiProperties.getRuntimeApiVersion(),
+                e.toRuntimeError(),
+                e.diagnostics());
     }
 
     private static boolean booleanFlag(Map<String, Object> map, String key) {
@@ -265,54 +156,6 @@ public class RuntimeFsscriptController {
             return bool;
         }
         return value != null && Boolean.parseBoolean(value.toString());
-    }
-
-    private static String stringValue(Object value) {
-        if (value == null) {
-            return null;
-        }
-        String text = value.toString();
-        return text.isBlank() ? null : text;
-    }
-
-    private static Map<String, Object> objectMap(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            map.forEach((key, mapValue) -> {
-                if (key != null) {
-                    result.put(key.toString(), mapValue);
-                }
-            });
-            return result;
-        }
-        return Map.of();
-    }
-
-    private static Map<String, Object> mergeOptions(
-            Map<String, Object> outerOptions,
-            Map<String, Object> composeOptions) {
-        if ((outerOptions == null || outerOptions.isEmpty())
-                && (composeOptions == null || composeOptions.isEmpty())) {
-            return Map.of();
-        }
-        Map<String, Object> merged = new LinkedHashMap<>();
-        if (outerOptions != null) {
-            merged.putAll(outerOptions);
-        }
-        if (composeOptions != null) {
-            merged.putAll(composeOptions);
-        }
-        return merged;
-    }
-
-    private static RuntimeDiagnostics diagnostics(RuntimeComposeContext context) {
-        return context != null ? context.diagnostics() : RuntimeDiagnostics.empty();
-    }
-
-    private record ComposeRequestParts(
-            String script,
-            Map<String, Object> params,
-            Map<String, Object> options) {
     }
 
     private final class CteFunctions implements PropertyFunction {
@@ -377,69 +220,6 @@ public class RuntimeFsscriptController {
     private static final class CteBridgeDeniedException extends RuntimeException {
         private CteBridgeDeniedException(String message) {
             super(message);
-        }
-    }
-
-    private static final class ComposeBridgeException extends RuntimeException {
-        private final String code;
-        private final String phase;
-        private final String field;
-        private final String suggestedNextAction;
-        private final boolean safeToAutoRepair;
-        private final RuntimeDiagnostics diagnostics;
-
-        private ComposeBridgeException(
-                String code,
-                String phase,
-                String message,
-                String field,
-                String suggestedNextAction,
-                boolean safeToAutoRepair
-        ) {
-            this(code, phase, message, field, suggestedNextAction, safeToAutoRepair,
-                    RuntimeDiagnostics.empty());
-        }
-
-        private ComposeBridgeException(
-                String code,
-                String phase,
-                String message,
-                String field,
-                String suggestedNextAction,
-                boolean safeToAutoRepair,
-                RuntimeDiagnostics diagnostics
-        ) {
-            super(message);
-            this.code = code;
-            this.phase = phase;
-            this.field = field;
-            this.suggestedNextAction = suggestedNextAction;
-            this.safeToAutoRepair = safeToAutoRepair;
-            this.diagnostics = diagnostics != null ? diagnostics : RuntimeDiagnostics.empty();
-        }
-
-        private String code() {
-            return code;
-        }
-
-        private String phase() {
-            return phase;
-        }
-
-        private String field() {
-            return field;
-        }
-
-        private String suggestedNextAction() {
-            return suggestedNextAction;
-        }
-
-        private boolean safeToAutoRepair() {
-            return safeToAutoRepair;
-        }
-
-        private RuntimeDiagnostics diagnostics() {
-            return diagnostics;
         }
     }
 }
