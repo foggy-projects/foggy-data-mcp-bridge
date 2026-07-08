@@ -12,6 +12,22 @@ public record RuntimeEnvelope<T>(
         return new RuntimeEnvelope<>(true, engine, runtimeApiVersion, data, RuntimeDiagnostics.empty(), null);
     }
 
+    public static <T> RuntimeEnvelope<T> ok(
+            String engine,
+            String runtimeApiVersion,
+            T data,
+            RuntimeDiagnostics diagnostics
+    ) {
+        return new RuntimeEnvelope<>(
+                true,
+                engine,
+                runtimeApiVersion,
+                data,
+                diagnostics != null ? diagnostics : RuntimeDiagnostics.empty(),
+                null
+        );
+    }
+
     public static <T> RuntimeEnvelope<T> fail(
             String engine,
             String runtimeApiVersion,

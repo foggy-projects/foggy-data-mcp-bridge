@@ -1,16 +1,9 @@
 package com.foggyframework.runtime.api.controller;
 
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeCompileException;
-import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
-import com.foggyframework.dataset.db.model.engine.compose.context.Principal;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ComposeSandboxViolationException;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
-import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
@@ -27,9 +20,8 @@ import com.foggyframework.runtime.api.dto.FsscriptResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.RuntimeError;
-import com.foggyframework.runtime.api.service.RuntimeComposeDialectResolver;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
+import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory;
+import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory.RuntimeComposeContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,7 +29,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,27 +42,16 @@ public class RuntimeFsscriptController {
 
     private final FoggyRuntimeApiProperties runtimeApiProperties;
     private final SemanticQueryServiceV3 semanticQueryServiceV3;
-    private final AuthorityResolver authorityResolver;
-    private final DatasetProperties datasetProperties;
-    private final RuntimeComposeDialectResolver dialectResolver;
-    private final String defaultDialect;
+    private final RuntimeComposeContextFactory contextFactory;
 
     public RuntimeFsscriptController(
             FoggyRuntimeApiProperties runtimeApiProperties,
             SemanticQueryServiceV3 semanticQueryServiceV3,
-            ObjectProvider<AuthorityResolver> authorityResolvers,
-            ObjectProvider<DatasetProperties> datasetPropertiesProvider,
-            RuntimeComposeDialectResolver dialectResolver,
-            @Value("${foggy.compose.dialect:mysql}") String defaultDialect
+            RuntimeComposeContextFactory contextFactory
     ) {
         this.runtimeApiProperties = runtimeApiProperties;
         this.semanticQueryServiceV3 = semanticQueryServiceV3;
-        this.authorityResolver = authorityResolvers.orderedStream()
-                .findFirst()
-                .orElse(RuntimeFsscriptController::allowAll);
-        this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
-        this.dialectResolver = dialectResolver;
-        this.defaultDialect = defaultDialect != null ? defaultDialect : "mysql";
+        this.contextFactory = contextFactory;
     }
 
     @PostMapping("/execute")
@@ -146,16 +126,17 @@ public class RuntimeFsscriptController {
         }
 
         try {
-            ComposeQueryContext context = buildContext(fsscriptRequest, compose.params(), headerNamespace, authorization, headers);
+            RuntimeComposeContext context = contextFactory.create(
+                    fsscriptRequest.namespace(),
+                    fsscriptRequest.traceId(),
+                    compose.params(),
+                    fsscriptRequest.options(),
+                    headerNamespace,
+                    authorization,
+                    headers);
             ComposeScriptService.ComposeScriptResult result = ComposeScriptService.run(
-                    ComposeScriptService.ComposeScriptRequest.builder()
-                            .mode(mode)
-                            .script(compose.script())
-                            .ctx(context)
-                            .semanticService(semanticQueryServiceV3)
-                            .dialect(dialectResolver.resolve(defaultDialect, context.namespace(), fsscriptRequest.options()))
-                            .build());
-            return toResponse(result);
+                    context.toScriptRequest(mode, compose.script(), semanticQueryServiceV3));
+            return toResponse(result, context);
         } catch (ComposeSandboxViolationException e) {
             throw new ComposeBridgeException("COMPOSE_SANDBOX_VIOLATION", phase, e.getMessage(),
                     null, "Remove forbidden script host access and retry.", false);
@@ -171,33 +152,9 @@ public class RuntimeFsscriptController {
         }
     }
 
-    private ComposeQueryContext buildContext(
-            FsscriptRequest request,
-            Map<String, Object> composeParams,
-            String headerNamespace,
-            String authorization,
-            Map<String, String> headers
-    ) {
-        Map<String, String> safeHeaders = headers != null ? headers : Map.of();
-        Principal principal = Principal.builder()
-                .userId(firstNonBlank(header(safeHeaders, "X-User-Id"), "runtime-api"))
-                .tenantId(header(safeHeaders, "X-Tenant-Id"))
-                .roles(parseRoles(header(safeHeaders, "X-Roles")))
-                .deptId(header(safeHeaders, "X-Dept-Id"))
-                .authorizationHint(authorization)
-                .policySnapshotId(header(safeHeaders, "X-Policy-Snapshot-Id"))
-                .build();
-        return ComposeQueryContext.builder()
-                .principal(principal)
-                .namespace(DatasetRequestNamespaceResolver.resolve(
-                        datasetProperties, headerNamespace, request.namespace()))
-                .traceId(firstNonBlank(header(safeHeaders, "X-Trace-Id"), request.traceId()))
-                .params(composeParams)
-                .authorityResolver(authorityResolver)
-                .build();
-    }
-
-    private ComposeResponse toResponse(ComposeScriptService.ComposeScriptResult result) {
+    private ComposeResponse toResponse(
+            ComposeScriptService.ComposeScriptResult result,
+            RuntimeComposeContext context) {
         return new ComposeResponse(
                 result.valid(),
                 "compose",
@@ -205,7 +162,8 @@ public class RuntimeFsscriptController {
                 result.value(),
                 result.sql(),
                 result.params() != null ? result.params() : List.of(),
-                result.warnings() != null ? result.warnings() : List.of()
+                result.warnings() != null ? result.warnings() : List.of(),
+                context.diagnosticsAttributes()
         );
     }
 
@@ -267,46 +225,6 @@ public class RuntimeFsscriptController {
             return "COMPOSE_COMPILE_FAILED";
         }
         return "COMPOSE_SCRIPT_INVALID";
-    }
-
-    private static AuthorityResolution allowAll(com.foggyframework.dataset.db.model.engine.compose.security.AuthorityRequest request) {
-        Map<String, ModelBinding> bindings = new LinkedHashMap<>();
-        for (String model : request.modelNames()) {
-            bindings.put(model, ModelBinding.builder()
-                    .deniedColumns(List.of())
-                    .systemSlice(List.of())
-                    .build());
-        }
-        return AuthorityResolution.builder().bindings(bindings).build();
-    }
-
-    private static List<String> parseRoles(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return List.of();
-        }
-        return Arrays.stream(raw.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
-    }
-
-    private static String header(Map<String, String> headers, String name) {
-        if (headers.containsKey(name)) {
-            return headers.get(name);
-        }
-        return headers.get(name.toLowerCase());
-    }
-
-    private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
     }
 
     private static boolean booleanFlag(Map<String, Object> map, String key) {

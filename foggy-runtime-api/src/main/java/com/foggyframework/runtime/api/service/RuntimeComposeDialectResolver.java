@@ -20,31 +20,69 @@ public class RuntimeComposeDialectResolver {
     }
 
     public String resolve(String defaultDialect, String namespace, Map<String, Object> options) {
-        String requestedDialect = stringOption(options, "dialect");
-        if (StringUtils.hasText(requestedDialect)) {
-            return normalizeDialect(requestedDialect, defaultDialect);
-        }
-        return resolveFromNamespace(namespace)
-                .orElseGet(() -> normalizeDialect(defaultDialect, "mysql"));
+        return resolveDetails(defaultDialect, namespace, options).resolvedDialect();
     }
 
-    private Optional<String> resolveFromNamespace(String namespace) {
+    public ResolvedDialect resolveDetails(String defaultDialect, String namespace, Map<String, Object> options) {
+        String normalizedDefault = normalizeDialect(defaultDialect, "mysql");
+        BoundDatasource bound = resolveBoundDatasource(namespace).orElse(BoundDatasource.unbound());
+        String requestedDialect = stringOption(options, "dialect");
+        if (StringUtils.hasText(requestedDialect)) {
+            return new ResolvedDialect(
+                    normalizeDialect(requestedDialect, normalizedDefault),
+                    "request-options",
+                    bound.name(),
+                    bound.status(),
+                    bound.type(),
+                    normalizedDefault
+            );
+        }
+        if (bound.record() != null && bound.record().enabled()) {
+            String dialect = normalizeDatasourceType(bound.record().type());
+            if (dialect != null) {
+                return new ResolvedDialect(
+                        dialect,
+                        "namespace-datasource-type",
+                        bound.name(),
+                        bound.status(),
+                        bound.type(),
+                        normalizedDefault
+                );
+            }
+            dialect = normalizeJdbcUrl(bound.record().jdbcUrl());
+            if (dialect != null) {
+                return new ResolvedDialect(
+                        dialect,
+                        "namespace-datasource-jdbc-url",
+                        bound.name(),
+                        bound.status(),
+                        bound.type(),
+                        normalizedDefault
+                );
+            }
+        }
+        return new ResolvedDialect(
+                normalizedDefault,
+                "default",
+                bound.name(),
+                bound.status(),
+                bound.type(),
+                normalizedDefault
+        );
+    }
+
+    private Optional<BoundDatasource> resolveBoundDatasource(String namespace) {
         if (!StringUtils.hasText(namespace)) {
             return Optional.empty();
         }
         return registryService.getNamespaceDatasource(namespace)
-                .flatMap(registryService::find)
-                .filter(RuntimeDatasourceRecord::enabled)
-                .flatMap(this::dialectFromRecord);
-    }
-
-    private Optional<String> dialectFromRecord(RuntimeDatasourceRecord record) {
-        String dialect = normalizeDatasourceType(record.type());
-        if (dialect != null) {
-            return Optional.of(dialect);
-        }
-        dialect = normalizeJdbcUrl(record.jdbcUrl());
-        return Optional.ofNullable(dialect);
+                .map(name -> {
+                    RuntimeDatasourceRecord record = registryService.find(name).orElse(null);
+                    if (record == null) {
+                        return new BoundDatasource(name, "missing", null);
+                    }
+                    return new BoundDatasource(name, record.enabled() ? "active" : "disabled", record);
+                });
     }
 
     private static String normalizeDatasourceType(String value) {
@@ -105,5 +143,25 @@ public class RuntimeComposeDialectResolver {
         }
         String text = value.toString().trim();
         return text.isEmpty() ? null : text;
+    }
+
+    public record ResolvedDialect(
+            String resolvedDialect,
+            String source,
+            String namespaceDatasourceId,
+            String namespaceDatasourceStatus,
+            String datasourceType,
+            String defaultDialect
+    ) {
+    }
+
+    private record BoundDatasource(String name, String status, RuntimeDatasourceRecord record) {
+        private static BoundDatasource unbound() {
+            return new BoundDatasource(null, "unbound", null);
+        }
+
+        private String type() {
+            return record != null ? record.type() : null;
+        }
     }
 }

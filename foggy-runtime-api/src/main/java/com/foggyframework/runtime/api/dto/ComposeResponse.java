@@ -1,6 +1,7 @@
 package com.foggyframework.runtime.api.dto;
 
 import java.util.List;
+import java.util.Map;
 
 public record ComposeResponse(
         boolean valid,
@@ -9,6 +10,7 @@ public record ComposeResponse(
         Object value,
         String sql,
         List<Object> params,
-        List<String> warnings
+        List<String> warnings,
+        Map<String, Object> diagnostics
 ) {
 }

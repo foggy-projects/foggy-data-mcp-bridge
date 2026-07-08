@@ -512,7 +512,8 @@ public final class RelationOuterQueryBuilder {
             String dialect) {
         StringBuilder sb = new StringBuilder();
         sb.append(buildSelectClause(selectItems, alias, dialect,
-                sqlServerTopLimit(spec, dialect)));
+                ComposePaginationRenderer.topLimit(
+                        dialect, spec.limit(), spec.offset())));
         sb.append("\nFROM (").append(bodySql).append(") AS ").append(alias);
         appendWhereGroupOrderLimit(sb, spec, alias, dialect);
         return sb.toString();
@@ -523,7 +524,7 @@ public final class RelationOuterQueryBuilder {
             List<SelectItem> selectItems, OuterQuerySpec spec,
             String dialect) {
         StringBuilder sb = new StringBuilder();
-        if (isSqlServerDialect(dialect)) {
+        if (ComposePaginationRenderer.isSqlServerDialect(dialect)) {
             sb.append(";");
         }
         sb.append("WITH ");
@@ -543,7 +544,8 @@ public final class RelationOuterQueryBuilder {
         appendCteItem(sb, alias, bodySql);
         sb.append("\n");
         sb.append(buildSelectClause(selectItems, alias, dialect,
-                sqlServerTopLimit(spec, dialect)));
+                ComposePaginationRenderer.topLimit(
+                        dialect, spec.limit(), spec.offset())));
         sb.append("\nFROM ").append(alias);
         appendWhereGroupOrderLimit(sb, spec, alias, dialect);
         return sb.toString();
@@ -652,39 +654,14 @@ public final class RelationOuterQueryBuilder {
                         alias, dialect));
             }
         }
-        if (isSqlServerDialect(dialect)) {
-            appendSqlServerPagination(sb, spec);
-            return;
-        }
-        if (spec.limit() != null) {
-            sb.append("\nLIMIT ").append(spec.limit());
-        }
-        if (spec.offset() != null) {
-            sb.append("\nOFFSET ").append(spec.offset());
-        }
-    }
-
-    private static Integer sqlServerTopLimit(OuterQuerySpec spec, String dialect) {
-        if (!isSqlServerDialect(dialect) || spec == null || spec.offset() != null) {
-            return null;
-        }
-        return spec.limit();
-    }
-
-    private static void appendSqlServerPagination(StringBuilder sb, OuterQuerySpec spec) {
-        if (spec.offset() == null) {
-            return;
-        }
-        if (spec.orderBy() == null || spec.orderBy().isEmpty()) {
-            throw new ComposeCompileException(
-                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
-                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
-                    "SQL Server OFFSET pagination requires an ORDER BY clause in outer relation query.");
-        }
-        sb.append("\nOFFSET ").append(spec.offset()).append(" ROWS");
-        if (spec.limit() != null) {
-            sb.append(" FETCH NEXT ").append(spec.limit()).append(" ROWS ONLY");
-        }
+        ComposePaginationRenderer.appendPagination(
+                sb,
+                dialect,
+                spec.limit(),
+                spec.offset(),
+                spec.orderBy() != null && !spec.orderBy().isEmpty(),
+                ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                "outer relation query");
     }
 
     private static String extractColumnName(String col) {
@@ -762,15 +739,10 @@ public final class RelationOuterQueryBuilder {
         if (dl.startsWith("mysql")) {
             return "`" + name + "`";
         }
-        if (isSqlServerDialect(dl)) {
+        if (ComposePaginationRenderer.isSqlServerDialect(dl)) {
             return "[" + name + "]";
         }
         return "\"" + name + "\"";
-    }
-
-    private static boolean isSqlServerDialect(String dialect) {
-        String dl = dialect == null ? "" : dialect.toLowerCase(Locale.ROOT);
-        return "mssql".equals(dl) || "sqlserver".equals(dl);
     }
 
     private record SelectItem(

@@ -645,6 +645,15 @@ class RuntimeCapabilitiesControllerEnabledTest {
         String sql = body.path("data").path("value").path("plans").path("sql").asText();
         assertThat(sql).contains("SELECT TOP (10)", "ORDER BY delta ASC");
         assertThat(sql).doesNotContain("LIMIT 10");
+        JsonNode diagnostics = body.path("diagnostics").path("attributes");
+        assertThat(diagnostics.path("resolvedDialect").asText()).isEqualTo("sqlserver");
+        assertThat(diagnostics.path("dialectSource").asText()).isEqualTo("namespace-datasource-type");
+        assertThat(diagnostics.path("namespaceDatasourceId").asText()).isEqualTo("wwi-sqlserver");
+        assertThat(diagnostics.path("namespaceDatasourceStatus").asText()).isEqualTo("active");
+        assertThat(diagnostics.path("datasourceType").asText()).isEqualTo("sqlserver");
+        assertThat(body.path("data").path("diagnostics").path("resolvedDialect").asText()).isEqualTo("sqlserver");
+        assertThat(body.path("data").path("diagnostics").path("namespaceDatasourceId").asText())
+                .isEqualTo("wwi-sqlserver");
         verify(semanticQueryServiceV3, times(2))
                 .generateSql(eq("wwi_sales_analysis"), any(SemanticQueryRequest.class), any());
         verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
@@ -1540,6 +1549,8 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(value.path("mode").asText()).isEqualTo("preview");
         assertThat(value.path("value").path("plans").path("sql").asText())
                 .contains("SELECT order_id FROM fact_order");
+        assertThat(value.path("diagnostics").path("resolvedDialect").asText()).isEqualTo("mysql");
+        assertThat(value.path("diagnostics").path("dialectSource").asText()).isEqualTo("default");
         verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
     }
 
