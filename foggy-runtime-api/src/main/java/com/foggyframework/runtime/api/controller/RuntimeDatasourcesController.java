@@ -1,6 +1,5 @@
 package com.foggyframework.runtime.api.controller;
 
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.DatasourceDiagnosticsResponse;
 import com.foggyframework.runtime.api.dto.DatasourceInfo;
 import com.foggyframework.runtime.api.dto.DatasourceListResponse;
@@ -10,6 +9,7 @@ import com.foggyframework.runtime.api.dto.DatasourceTestResponse;
 import com.foggyframework.runtime.api.dto.NamespaceDatasourceRequest;
 import com.foggyframework.runtime.api.dto.NamespaceDatasourceResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;
@@ -35,34 +35,25 @@ import java.util.Locale;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeDatasourcesController {
 
-    private static final String ENGINE = "java";
-
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final RuntimeDatasourceRegistryService registryService;
 
     public RuntimeDatasourcesController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             RuntimeDatasourceRegistryService registryService
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.registryService = registryService;
     }
 
     @GetMapping("/datasources")
     public RuntimeEnvelope<DatasourceListResponse> listDatasources() {
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new DatasourceListResponse(registryService.listInfos(), List.of())
-        );
+        return responses.ok(new DatasourceListResponse(registryService.listInfos(), List.of()));
     }
 
     @GetMapping("/datasources/diagnostics")
     public RuntimeEnvelope<DatasourceDiagnosticsResponse> datasourceDiagnostics() {
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new DatasourceDiagnosticsResponse(
+        return responses.ok(new DatasourceDiagnosticsResponse(
                         registryService.isRegistryEnabled(),
                         registryService.resolvedRegistryPath().toString(),
                         registryService.registryFileExists(),
@@ -72,8 +63,7 @@ public class RuntimeDatasourcesController {
                         registryService.listNamespaceBindings(),
                         registryService.listInfos(),
                         List.of()
-                )
-        );
+                ));
     }
 
     @PostMapping("/datasources")
@@ -104,11 +94,7 @@ public class RuntimeDatasourcesController {
         }
         registryService.remove(normalizedName);
         DatasourceInfo info = registryService.infoFromRecord(record, "removed", null);
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new DatasourceMutationResponse(info, List.of())
-        );
+        return responses.ok(new DatasourceMutationResponse(info, List.of()));
     }
 
     @PostMapping("/datasources/{name}/test")
@@ -140,7 +126,7 @@ public class RuntimeDatasourcesController {
                     meta.getURL(),
                     List.of()
             );
-            return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+            return responses.ok(response);
         } catch (Exception e) {
             return fail("DATASOURCE_TEST_FAILED", "datasources.test", e.getMessage(),
                     "Check the dataSource jdbcUrl and driver, then retry.", false);
@@ -155,11 +141,7 @@ public class RuntimeDatasourcesController {
                     "Provide a namespace.", false);
         }
         String dataSource = registryService.getNamespaceDatasource(normalizedNamespace).orElse(null);
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new NamespaceDatasourceResponse(normalizedNamespace, dataSource, List.of())
-        );
+        return responses.ok(new NamespaceDatasourceResponse(normalizedNamespace, dataSource, List.of()));
     }
 
     @PutMapping("/namespaces/{namespace}/datasource")
@@ -184,11 +166,7 @@ public class RuntimeDatasourcesController {
                     "Add or enable the dataSource before binding it to a namespace.", false);
         }
         registryService.bindNamespace(normalizedNamespace, dataSource);
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new NamespaceDatasourceResponse(normalizedNamespace, dataSource, List.of())
-        );
+        return responses.ok(new NamespaceDatasourceResponse(normalizedNamespace, dataSource, List.of()));
     }
 
     private RuntimeEnvelope<DatasourceMutationResponse> upsertDatasource(
@@ -255,11 +233,7 @@ public class RuntimeDatasourcesController {
         );
         record = registryService.save(record);
         DatasourceInfo info = registryService.infoFromRecord(record, record.enabled() ? "active" : "disabled", null);
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new DatasourceMutationResponse(info, List.of())
-        );
+        return responses.ok(new DatasourceMutationResponse(info, List.of()));
     }
 
     private <T> RuntimeEnvelope<T> fail(
@@ -269,9 +243,7 @@ public class RuntimeDatasourcesController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
+        return responses.fail(
                 code,
                 phase,
                 message,

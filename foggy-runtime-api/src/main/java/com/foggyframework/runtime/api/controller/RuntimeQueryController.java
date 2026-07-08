@@ -8,8 +8,8 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,20 +24,18 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeQueryController {
 
-    private static final String ENGINE = "java";
-
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final SemanticQueryServiceV3 semanticQueryServiceV3;
     private final ObjectMapper objectMapper;
     private final DatasetProperties datasetProperties;
 
     public RuntimeQueryController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             SemanticQueryServiceV3 semanticQueryServiceV3,
             ObjectMapper objectMapper,
             ObjectProvider<DatasetProperties> datasetPropertiesProvider
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.semanticQueryServiceV3 = semanticQueryServiceV3;
         this.objectMapper = objectMapper;
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
@@ -101,7 +99,7 @@ public class RuntimeQueryController {
                             errorMapping.suggestedNextAction(), errorMapping.safeToAutoRepair());
                 }
             }
-            return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+            return responses.ok(response);
         } catch (Exception e) {
             QueryErrorMapping errorMapping = mapQueryError(e, phase);
             return fail(errorMapping.code(), phase, e.getMessage(), normalizedModel, errorMapping.field(),
@@ -136,9 +134,7 @@ public class RuntimeQueryController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
+        return responses.fail(
                 code,
                 phase,
                 message,

@@ -3,6 +3,7 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.CapabilitiesResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,16 +19,17 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeCapabilitiesController {
 
-    private static final String ENGINE = "java";
-
     private final FoggyRuntimeApiProperties properties;
+    private final RuntimeApiResponseFactory responses;
     private final RuntimeDatasourceRegistryService datasourceRegistryService;
 
     public RuntimeCapabilitiesController(
             FoggyRuntimeApiProperties properties,
+            RuntimeApiResponseFactory responses,
             RuntimeDatasourceRegistryService datasourceRegistryService
     ) {
         this.properties = properties;
+        this.responses = responses;
         this.datasourceRegistryService = datasourceRegistryService;
     }
 
@@ -64,8 +66,8 @@ public class RuntimeCapabilitiesController {
         capabilities.put("fsscript.cteBridge", "supported");
 
         CapabilitiesResponse response = new CapabilitiesResponse(
-                ENGINE,
-                properties.getRuntimeApiVersion(),
+                responses.engine(),
+                responses.runtimeApiVersion(),
                 properties.getSchemaVersion(),
                 properties.isEnabled(),
                 properties.getEffectiveSecurityMode(),
@@ -73,7 +75,7 @@ public class RuntimeCapabilitiesController {
                 warnings()
         );
 
-        return RuntimeEnvelope.ok(ENGINE, properties.getRuntimeApiVersion(), response);
+        return responses.ok(response);
     }
 
     private List<String> warnings() {

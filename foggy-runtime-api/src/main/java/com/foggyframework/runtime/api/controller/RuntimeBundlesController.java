@@ -3,12 +3,12 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.core.bundle.BundleDefinition;
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.BundleInfo;
 import com.foggyframework.runtime.api.dto.BundleListResponse;
 import com.foggyframework.runtime.api.dto.BundleMutationResponse;
 import com.foggyframework.runtime.api.dto.BundleRequest;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,18 +33,16 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeBundlesController {
 
-    private static final String ENGINE = "java";
-
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final SystemBundlesContext systemBundlesContext;
     private final RuntimeBundleRegistryService registryService;
 
     public RuntimeBundlesController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             SystemBundlesContext systemBundlesContext,
             RuntimeBundleRegistryService registryService
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
     }
@@ -68,11 +66,7 @@ public class RuntimeBundlesController {
             }
         }
 
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new BundleListResponse(List.copyOf(bundles.values()), List.of())
-        );
+        return responses.ok(new BundleListResponse(List.copyOf(bundles.values()), List.of()));
     }
 
     @PostMapping("/bundles")
@@ -115,11 +109,7 @@ public class RuntimeBundlesController {
         }
         registryService.remove(normalizedName);
         BundleInfo info = infoFromRecord(record, "removed", null);
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new BundleMutationResponse(info, List.of())
-        );
+        return responses.ok(new BundleMutationResponse(info, List.of()));
     }
 
     private RuntimeEnvelope<BundleMutationResponse> upsertBundle(
@@ -186,11 +176,7 @@ public class RuntimeBundlesController {
             warnings.add("refresh flag accepted but Stage 1 bundle API does not run model refresh yet; run models refresh explicitly.");
         }
         BundleInfo info = infoFromRecord(record, enabled ? "active" : "disabled", null);
-        return RuntimeEnvelope.ok(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                new BundleMutationResponse(info, warnings)
-        );
+        return responses.ok(new BundleMutationResponse(info, warnings));
     }
 
     private void restoreRemovedExistingBundle(boolean removedExisting, RuntimeBundleRecord existingRecord) {
@@ -253,9 +239,7 @@ public class RuntimeBundlesController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
+        return responses.fail(
                 code,
                 phase,
                 message,

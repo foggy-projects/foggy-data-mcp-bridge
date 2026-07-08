@@ -6,10 +6,10 @@ import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.FsscriptClosureDefinition;
 import com.foggyframework.fsscript.utils.ExpUtils;
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.FsscriptRequest;
 import com.foggyframework.runtime.api.dto.FsscriptResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeComposeException;
 import com.foggyframework.runtime.api.service.RuntimeFsscriptCteBridge;
 import com.foggyframework.runtime.api.service.RuntimeFsscriptCteBridge.CteBridgeDeniedException;
@@ -28,16 +28,14 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeFsscriptController {
 
-    private static final String ENGINE = "java";
-
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final RuntimeFsscriptCteBridge cteBridge;
 
     public RuntimeFsscriptController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             RuntimeFsscriptCteBridge cteBridge
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.cteBridge = cteBridge;
     }
 
@@ -67,7 +65,7 @@ public class RuntimeFsscriptController {
 
             Object value = exp != null ? exp.evalResult(evaluator) : null;
             FsscriptResponse response = new FsscriptResponse(true, "fsscript", "execute", value, List.of());
-            return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+            return responses.ok(response);
         } catch (CteBridgeDeniedException e) {
             return fail("FSSCRIPT_CTE_BRIDGE_DENIED", "fsscript.execute", e.getMessage(),
                     null, "Enable capabilities.cteBridge for this dev/test request and retry.", false);
@@ -87,9 +85,7 @@ public class RuntimeFsscriptController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
+        return responses.fail(
                 code,
                 phase,
                 message,
@@ -102,11 +98,7 @@ public class RuntimeFsscriptController {
     }
 
     private RuntimeEnvelope<FsscriptResponse> fail(RuntimeComposeException e) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                e.toRuntimeError(),
-                e.diagnostics());
+        return responses.fail(e.toRuntimeError(), e.diagnostics());
     }
 
 }

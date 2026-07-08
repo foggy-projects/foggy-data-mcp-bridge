@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.security.RuntimeApiAuthInterceptor;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -184,7 +185,11 @@ class RuntimeApiAuthCodeGateTest {
     void shouldFailClosedWhenAuthCodeModeHasNoCode() throws Exception {
         FoggyRuntimeApiProperties properties = new FoggyRuntimeApiProperties();
         properties.setSecurityMode("auth-code");
-        RuntimeApiAuthInterceptor interceptor = new RuntimeApiAuthInterceptor(properties, new ObjectMapper());
+        RuntimeApiAuthInterceptor interceptor = new RuntimeApiAuthInterceptor(
+                properties,
+                new RuntimeApiResponseFactory(properties),
+                new ObjectMapper()
+        );
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/bundles");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -272,7 +277,11 @@ class RuntimeApiAuthCodeGateTest {
     private static RuntimeApiAuthInterceptor authInterceptor(String authCode) {
         FoggyRuntimeApiProperties properties = new FoggyRuntimeApiProperties();
         properties.setAuthCode(authCode);
-        return new RuntimeApiAuthInterceptor(properties, new ObjectMapper());
+        return new RuntimeApiAuthInterceptor(
+                properties,
+                new RuntimeApiResponseFactory(properties),
+                new ObjectMapper()
+        );
     }
 
     @SpringBootApplication(scanBasePackages = "com.foggyframework.runtime.api")

@@ -13,7 +13,6 @@ import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalog
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.ModelDescribeRequest;
 import com.foggyframework.runtime.api.dto.ModelDescribeResponse;
 import com.foggyframework.runtime.api.dto.ModelRefreshFailure;
@@ -24,6 +23,7 @@ import com.foggyframework.runtime.api.dto.ModelValidateRequest;
 import com.foggyframework.runtime.api.dto.ModelValidateResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,9 +54,7 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeModelsController {
 
-    private static final String ENGINE = "java";
-
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final SemanticModelCatalogService catalogService;
     private final SemanticServiceV3 semanticServiceV3;
     private final SystemBundlesContext systemBundlesContext;
@@ -65,7 +63,7 @@ public class RuntimeModelsController {
     private final DatasetProperties datasetProperties;
 
     public RuntimeModelsController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             SemanticModelCatalogService catalogService,
             SemanticServiceV3 semanticServiceV3,
             SystemBundlesContext systemBundlesContext,
@@ -73,7 +71,7 @@ public class RuntimeModelsController {
             TableModelLoaderManager tableModelLoaderManager,
             ObjectProvider<DatasetProperties> datasetPropertiesProvider
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.catalogService = catalogService;
         this.semanticServiceV3 = semanticServiceV3;
         this.systemBundlesContext = systemBundlesContext;
@@ -94,7 +92,7 @@ public class RuntimeModelsController {
                 resolveNamespace(namespace, bodyNamespace),
                 null
         );
-        return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+        return responses.ok(response);
     }
 
     @PostMapping("/models/{model}/describe")
@@ -136,7 +134,7 @@ public class RuntimeModelsController {
                 metadata.getContent(),
                 metadata.getData()
         );
-        return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+        return responses.ok(response);
     }
 
     @PostMapping("/models/validate")
@@ -182,7 +180,7 @@ public class RuntimeModelsController {
             );
         }
 
-        return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+        return responses.ok(response);
     }
 
     @PostMapping("/models/refresh")
@@ -245,7 +243,7 @@ public class RuntimeModelsController {
                     diagnosticsForRefresh(response)
             );
         }
-        return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+        return responses.ok(response);
     }
 
     private <T> RuntimeEnvelope<T> fail(
@@ -268,9 +266,7 @@ public class RuntimeModelsController {
             boolean safeToAutoRepair,
             RuntimeDiagnostics diagnostics
     ) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
+        return responses.fail(
                 code,
                 phase,
                 message,

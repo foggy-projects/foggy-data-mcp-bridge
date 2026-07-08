@@ -1,6 +1,5 @@
 package com.foggyframework.runtime.api.controller;
 
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
@@ -16,6 +15,7 @@ import com.foggyframework.runtime.api.dto.TableInspectResponse;
 import com.foggyframework.runtime.api.dto.TableListRequest;
 import com.foggyframework.runtime.api.dto.TableListResponse;
 import com.foggyframework.runtime.api.dto.TablePrimaryKeyInfo;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;
 import org.springframework.beans.factory.ObjectProvider;
@@ -45,7 +45,6 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeTablesController {
 
-    private static final String ENGINE = "java";
     private static final int DEFAULT_SQL_MAX_ROWS = 100;
     private static final int HARD_SQL_MAX_ROWS = 500;
     private static final int DEFAULT_SQL_TIMEOUT_SECONDS = 10;
@@ -70,16 +69,16 @@ public class RuntimeTablesController {
             "vacuum"
     );
 
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final RuntimeDatasourceRegistryService datasourceRegistryService;
     private final DatasetProperties datasetProperties;
 
     public RuntimeTablesController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             RuntimeDatasourceRegistryService datasourceRegistryService,
             ObjectProvider<DatasetProperties> datasetPropertiesProvider
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.datasourceRegistryService = datasourceRegistryService;
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
     }
@@ -124,8 +123,7 @@ public class RuntimeTablesController {
                     ));
                 }
             }
-            return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(),
-                    new TableListResponse(resolved.name(), schema, List.copyOf(tables), List.of()));
+            return responses.ok(new TableListResponse(resolved.name(), schema, List.copyOf(tables), List.of()));
         } catch (Exception e) {
             return fail("TABLE_LIST_FAILED", "tables.list", e.getMessage(),
                     "Check the DataSource and schema, then retry.", false);
@@ -183,7 +181,7 @@ public class RuntimeTablesController {
                     foreignKeys,
                     indexes
             );
-            return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+            return responses.ok(response);
         } catch (Exception e) {
             return fail("TABLE_INSPECT_FAILED", "tables.inspect", e.getMessage(),
                     null, "Check the DataSource and table name, then retry.", false);
@@ -257,7 +255,7 @@ public class RuntimeTablesController {
                         rows.size(),
                         warnings
                 );
-                return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+                return responses.ok(response);
             }
         } catch (Exception e) {
             return fail("SQL_QUERY_FAILED", "sql.query", e.getMessage(),
@@ -574,9 +572,7 @@ public class RuntimeTablesController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
+        return responses.fail(
                 code,
                 phase,
                 message,

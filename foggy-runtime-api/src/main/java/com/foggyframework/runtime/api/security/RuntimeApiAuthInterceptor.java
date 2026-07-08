@@ -2,9 +2,8 @@ package com.foggyframework.runtime.api.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
-import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
-import com.foggyframework.runtime.api.dto.RuntimeError;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,15 +25,20 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
 
     public static final String AUTH_CODE_HEADER = "X-Foggy-Runtime-Code";
 
-    private static final String ENGINE = "java";
     private static final String PHASE = "runtime.auth";
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final FoggyRuntimeApiProperties properties;
+    private final RuntimeApiResponseFactory responses;
     private final ObjectMapper objectMapper;
 
-    public RuntimeApiAuthInterceptor(FoggyRuntimeApiProperties properties, ObjectMapper objectMapper) {
+    public RuntimeApiAuthInterceptor(
+            FoggyRuntimeApiProperties properties,
+            RuntimeApiResponseFactory responses,
+            ObjectMapper objectMapper
+    ) {
         this.properties = properties;
+        this.responses = responses;
         this.objectMapper = objectMapper;
     }
 
@@ -174,7 +178,7 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
         response.setStatus(status);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        RuntimeError error = new RuntimeError(
+        RuntimeEnvelope<Object> envelope = responses.fail(
                 code,
                 PHASE,
                 message,
@@ -183,12 +187,6 @@ public class RuntimeApiAuthInterceptor implements HandlerInterceptor {
                 normalizedRequestPath(request),
                 suggestedNextAction,
                 false
-        );
-        RuntimeEnvelope<Object> envelope = RuntimeEnvelope.fail(
-                ENGINE,
-                properties.getRuntimeApiVersion(),
-                error,
-                RuntimeDiagnostics.empty()
         );
         objectMapper.writeValue(response.getWriter(), envelope);
     }

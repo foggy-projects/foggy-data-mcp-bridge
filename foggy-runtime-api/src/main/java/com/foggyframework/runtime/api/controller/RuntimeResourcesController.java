@@ -3,7 +3,6 @@ package com.foggyframework.runtime.api.controller;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.core.bundle.BundleDefinition;
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.ResourceExportRequest;
 import com.foggyframework.runtime.api.dto.ResourceExportResponse;
 import com.foggyframework.runtime.api.dto.ResourceFileInfo;
@@ -11,6 +10,7 @@ import com.foggyframework.runtime.api.dto.ResourceSaveFile;
 import com.foggyframework.runtime.api.dto.ResourceSaveRequest;
 import com.foggyframework.runtime.api.dto.ResourceSaveResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -40,18 +40,16 @@ import java.util.Locale;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeResourcesController {
 
-    private static final String ENGINE = "java";
-
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final SystemBundlesContext systemBundlesContext;
     private final RuntimeBundleRegistryService registryService;
 
     public RuntimeResourcesController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             SystemBundlesContext systemBundlesContext,
             RuntimeBundleRegistryService registryService
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
     }
@@ -120,7 +118,7 @@ public class RuntimeResourcesController {
                 resources,
                 List.of()
         );
-        return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+        return responses.ok(response);
     }
 
     @PostMapping("/resources/save")
@@ -197,7 +195,7 @@ public class RuntimeResourcesController {
                 saved,
                 warnings
         );
-        return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), response);
+        return responses.ok(response);
     }
 
     private BundleLocation resolveBundle(String bundle) {
@@ -322,9 +320,7 @@ public class RuntimeResourcesController {
             boolean safeToAutoRepair,
             String path
     ) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
+        return responses.fail(
                 code,
                 phase,
                 message,

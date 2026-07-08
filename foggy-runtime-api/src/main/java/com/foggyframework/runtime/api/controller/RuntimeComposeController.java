@@ -1,10 +1,10 @@
 package com.foggyframework.runtime.api.controller;
 
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
-import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.ComposeRequest;
 import com.foggyframework.runtime.api.dto.ComposeResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
+import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeComposeException;
 import com.foggyframework.runtime.api.service.RuntimeComposeInvocation;
 import com.foggyframework.runtime.api.service.RuntimeComposeRunner;
@@ -23,16 +23,14 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeComposeController {
 
-    private static final String ENGINE = "java";
-
-    private final FoggyRuntimeApiProperties runtimeApiProperties;
+    private final RuntimeApiResponseFactory responses;
     private final RuntimeComposeRunner composeRunner;
 
     public RuntimeComposeController(
-            FoggyRuntimeApiProperties runtimeApiProperties,
+            RuntimeApiResponseFactory responses,
             RuntimeComposeRunner composeRunner
     ) {
-        this.runtimeApiProperties = runtimeApiProperties;
+        this.responses = responses;
         this.composeRunner = composeRunner;
     }
 
@@ -80,22 +78,14 @@ public class RuntimeComposeController {
         try {
             RuntimeComposeRunResult result = composeRunner.run(mode, phase,
                     RuntimeComposeInvocation.fromComposeRequest(request, namespace, authorization, headers));
-            return RuntimeEnvelope.ok(
-                    ENGINE,
-                    runtimeApiProperties.getRuntimeApiVersion(),
-                    result.response(),
-                    result.diagnostics());
+            return responses.ok(result.response(), result.diagnostics());
         } catch (RuntimeComposeException e) {
             return fail(e);
         }
     }
 
     private RuntimeEnvelope<ComposeResponse> fail(RuntimeComposeException e) {
-        return RuntimeEnvelope.fail(
-                ENGINE,
-                runtimeApiProperties.getRuntimeApiVersion(),
-                e.toRuntimeError(),
-                e.diagnostics());
+        return responses.fail(e.toRuntimeError(), e.diagnostics());
     }
 
 }
