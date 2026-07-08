@@ -165,6 +165,20 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("Postgres LIMIT + OFFSET remains LIMIT syntax")
+    void postgresLimitOffsetUsesLimitSyntax() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .limit(50).start(100).build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+        assertTrue(sql.getSql().contains("LIMIT 50 OFFSET 100"));
+    }
+
+    @Test
     @DisplayName("SQL Server LIMIT renders as TOP")
     void sqlServerLimitUsesTop() {
         FakeSemanticService svc = new FakeSemanticService();
@@ -201,6 +215,27 @@ class DerivedLoweringTest {
         assertTrue(sql.getSql().contains("ORDER BY name ASC"));
         assertTrue(sql.getSql().contains("OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY"));
         assertFalse(sql.getSql().contains("LIMIT"));
+    }
+
+    @Test
+    @DisplayName("SQL Server OFFSET without ORDER BY fails")
+    void sqlServerOffsetWithoutOrderByFails() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, name FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "name"))
+                .limit(10)
+                .start(20)
+                .build();
+
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlserver"));
+
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+        assertTrue(ex.getMessage().contains("SQL Server OFFSET pagination requires an ORDER BY clause"));
     }
 
     @Test

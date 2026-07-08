@@ -660,6 +660,63 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldHonorComposeRequestDialectOverride() {
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/validate",
+                Map.of(
+                        "script", derivedLimitComposeScript(),
+                        "params", Map.of(),
+                        "options", Map.of("dialect", "sqlserver")
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        String sql = body.path("data").path("value").path("plans").path("sql").asText();
+        assertThat(sql).contains("SELECT TOP (3)");
+        assertThat(sql).doesNotContain("LIMIT 3");
+        JsonNode diagnostics = body.path("diagnostics").path("attributes");
+        assertThat(diagnostics.path("resolvedDialect").asText()).isEqualTo("sqlserver");
+        assertThat(diagnostics.path("dialectSource").asText()).isEqualTo("request-options");
+        assertThat(body.path("data").path("diagnostics").path("resolvedDialect").asText()).isEqualTo("sqlserver");
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldReturnComposeFailureDiagnosticsAfterDialectResolution() {
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/validate",
+                Map.of(
+                        "script", derivedOffsetWithoutOrderByComposeScript(),
+                        "params", Map.of(),
+                        "options", Map.of("dialect", "sqlserver")
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText()).isEqualTo("COMPOSE_SCRIPT_INVALID");
+        assertThat(body.path("error").path("message").asText())
+                .contains("SQL Server OFFSET pagination requires an ORDER BY clause");
+        JsonNode diagnostics = body.path("diagnostics").path("attributes");
+        assertThat(diagnostics.path("resolvedDialect").asText()).isEqualTo("sqlserver");
+        assertThat(diagnostics.path("dialectSource").asText()).isEqualTo("request-options");
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
     void shouldPreviewComposeThroughRuntimeEnvelope() {
         when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
@@ -1555,6 +1612,74 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldRenderComposePaginationWithNamespaceDatasourceDialectThroughFsscriptCteBridge() {
+        datasourceRegistryService.save(datasourceRegistryService.newRecord(
+                "cte-sqlserver",
+                "sqlserver",
+                "jdbc:sqlserver://localhost:1433;databaseName=WideWorldImportersDW",
+                "sa",
+                null,
+                null,
+                true
+        ));
+        datasourceRegistryService.bindNamespace("cte-compose-sqlserver", "cte-sqlserver");
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-NS", "cte-compose-sqlserver");
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                new HttpEntity<>(Map.of(
+                        "script", "return foggy.cte.preview({script: \"" + derivedLimitComposeScript() + "\"});",
+                        "capabilities", Map.of("cteBridge", true)
+                ), headers),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode value = body.path("data").path("value");
+        String sql = value.path("value").path("plans").path("sql").asText();
+        assertThat(sql).contains("SELECT TOP (3)");
+        assertThat(sql).doesNotContain("LIMIT 3");
+        assertThat(value.path("diagnostics").path("resolvedDialect").asText()).isEqualTo("sqlserver");
+        assertThat(value.path("diagnostics").path("dialectSource").asText()).isEqualTo("namespace-datasource-type");
+        assertThat(value.path("diagnostics").path("namespaceDatasourceId").asText()).isEqualTo("cte-sqlserver");
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
+    void shouldHonorNestedComposeOptionsThroughFsscriptCteBridge() {
+        when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/fsscript/execute",
+                Map.of(
+                        "script", "return foggy.cte.preview({script: \"" + derivedLimitComposeScript()
+                                + "\", options: { dialect: 'sqlserver' }});",
+                        "capabilities", Map.of("cteBridge", true)
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        JsonNode value = body.path("data").path("value");
+        String sql = value.path("value").path("plans").path("sql").asText();
+        assertThat(sql).contains("SELECT TOP (3)");
+        assertThat(sql).doesNotContain("LIMIT 3");
+        assertThat(value.path("diagnostics").path("resolvedDialect").asText()).isEqualTo("sqlserver");
+        assertThat(value.path("diagnostics").path("dialectSource").asText()).isEqualTo("request-options");
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
     void shouldReturnComposeSandboxViolationThroughFsscriptCteBridge() {
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/fsscript/execute",
@@ -1626,6 +1751,18 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("columns").get(0).path("name").asText()).isEqualTo("id");
         assertThat(body.path("data").path("columns").get(1).path("jdbcType").asText()).isEqualTo("NUMERIC");
         assertThat(body.path("data").path("primaryKey").path("columns").get(0).asText()).isEqualTo("id");
+    }
+
+    private static String derivedLimitComposeScript() {
+        return "const base = dsl({model: 'FactOrderQueryModel', columns: ['orderId']}); "
+                + "const plan = dsl({source: base, columns: ['orderId'], limit: 3}); "
+                + "return { plans: plan };";
+    }
+
+    private static String derivedOffsetWithoutOrderByComposeScript() {
+        return "const base = dsl({model: 'FactOrderQueryModel', columns: ['orderId']}); "
+                + "const plan = dsl({source: base, columns: ['orderId'], start: 20, limit: 3}); "
+                + "return { plans: plan };";
     }
 
     private static BundleResource bundleResource(String filename) {

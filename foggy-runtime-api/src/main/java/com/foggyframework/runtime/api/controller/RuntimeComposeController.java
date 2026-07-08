@@ -91,8 +91,9 @@ public class RuntimeComposeController {
                     null, "Provide an inline compose script.", true);
         }
 
+        RuntimeComposeContext context = null;
         try {
-            RuntimeComposeContext context = contextFactory.create(
+            context = contextFactory.create(
                     request.namespace(),
                     request.traceId(),
                     request.params(),
@@ -109,16 +110,20 @@ public class RuntimeComposeController {
                     context.diagnostics());
         } catch (ComposeSandboxViolationException e) {
             return fail("COMPOSE_SANDBOX_VIOLATION", phase, e.getMessage(),
-                    null, "Remove forbidden script host access and retry.", false);
+                    null, "Remove forbidden script host access and retry.", false,
+                    diagnostics(context));
         } catch (ComposeSchemaException e) {
             return fail(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    e.offendingField(), "Inspect compose fields/schema and retry.", true);
+                    e.offendingField(), "Inspect compose fields/schema and retry.", true,
+                    diagnostics(context));
         } catch (ComposeCompileException e) {
             return fail(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    null, "Fix compose script or model metadata and retry.", true);
+                    null, "Fix compose script or model metadata and retry.", true,
+                    diagnostics(context));
         } catch (RuntimeException e) {
             return fail(mapRuntimeErrorCode(phase), phase, e.getMessage(),
-                    null, "Inspect diagnostics and runtime logs, then retry.", false);
+                    null, "Inspect diagnostics and runtime logs, then retry.", false,
+                    diagnostics(context));
         }
     }
 
@@ -145,6 +150,19 @@ public class RuntimeComposeController {
             String suggestedNextAction,
             boolean safeToAutoRepair
     ) {
+        return fail(code, phase, message, field, suggestedNextAction, safeToAutoRepair,
+                RuntimeDiagnostics.empty());
+    }
+
+    private RuntimeEnvelope<ComposeResponse> fail(
+            String code,
+            String phase,
+            String message,
+            String field,
+            String suggestedNextAction,
+            boolean safeToAutoRepair,
+            RuntimeDiagnostics diagnostics
+    ) {
         RuntimeError error = new RuntimeError(
                 code,
                 phase,
@@ -155,7 +173,11 @@ public class RuntimeComposeController {
                 suggestedNextAction,
                 safeToAutoRepair
         );
-        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, RuntimeDiagnostics.empty());
+        return RuntimeEnvelope.fail(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), error, diagnostics);
+    }
+
+    private static RuntimeDiagnostics diagnostics(RuntimeComposeContext context) {
+        return context != null ? context.diagnostics() : RuntimeDiagnostics.empty();
     }
 
     private static String mapScriptErrorCode(String phase) {

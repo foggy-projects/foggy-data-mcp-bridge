@@ -270,6 +270,24 @@ class RelationOuterQueryBuilderTest {
         assertFalse(result.sql().contains("LIMIT"));
     }
 
+    @Test
+    @DisplayName("sqlServerOffsetWithoutOrderByFails · SQL Server OFFSET requires ORDER BY")
+    void sqlServerOffsetWithoutOrderByFails() {
+        CompiledRelation rel = enrichedRelation("sqlserver");
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> RelationOuterQueryBuilder.buildOuterQuery(
+                        rel,
+                        OuterQuerySpec.builder()
+                                .selectColumns(List.of("storeName"))
+                                .limit(10)
+                                .offset(20)
+                                .build()));
+
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+        assertTrue(ex.getMessage().contains("SQL Server OFFSET pagination requires an ORDER BY clause"));
+    }
+
     // ------------------------------------------------------------------
     // 5. unknown column rejected
     // ------------------------------------------------------------------
