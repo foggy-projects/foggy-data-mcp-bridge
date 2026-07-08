@@ -101,9 +101,10 @@ public interface SemanticQueryServiceV3 {
      *
      * @param sql         compiled SQL (positional ? placeholders)
      * @param params      positional bind parameters
-     * @param routeModel  reserved for multi-datasource routing (M8+);
-     *                    ignored in M7 single-datasource deployment.
-     *                    Always null-safe.
+     * @param routeModel  optional base/query model name used to route raw SQL
+     *                    to the same datasource as the compiled compose plan.
+     *                    Always null-safe; null falls back to the primary
+     *                    DataSource.
      * @return list of rows (Map&lt;column_name, value&gt;)
      * @throws RuntimeException with message prefix "executeSql failed:"
      *         when executor not configured / SQL syntax error / DB connection error

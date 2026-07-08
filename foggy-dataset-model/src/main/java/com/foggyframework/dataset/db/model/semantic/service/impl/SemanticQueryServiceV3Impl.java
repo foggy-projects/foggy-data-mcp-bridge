@@ -13,6 +13,8 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeHolder;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
@@ -47,6 +49,7 @@ import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
+import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModel;
@@ -2044,19 +2047,43 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     @Override
     public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
-        if (dataSource == null) {
+        DataSource executionDataSource = resolveRawSqlDataSource(routeModel);
+        if (executionDataSource == null) {
             throw new RuntimeException(
                 "executeSql failed: DataSource not injected into SemanticQueryServiceV3Impl;"
                 + " host must configure a primary DataSource bean");
         }
         try {
             Object[] paramsArray = params == null ? new Object[0] : params.toArray(new Object[0]);
-            return DataSourceQueryUtils.getDatasetTemplate(dataSource)
+            return DataSourceQueryUtils.getDatasetTemplate(executionDataSource)
                     .getTemplate()
                     .queryForList(sql, paramsArray);
         } catch (Exception e) {
             throw new RuntimeException("executeSql failed: " + e.getMessage(), e);
         }
+    }
+
+    private DataSource resolveRawSqlDataSource(String routeModel) {
+        if (routeModel == null || routeModel.isBlank() || queryModelLoader == null) {
+            return dataSource;
+        }
+        String namespace = currentComposeNamespace();
+        try {
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(routeModel, namespace);
+            if (queryModel instanceof JdbcQueryModel jdbcQueryModel
+                    && jdbcQueryModel.getDataSource() != null) {
+                return jdbcQueryModel.getDataSource();
+            }
+        } catch (Exception e) {
+            logger.debug("Falling back to primary DataSource for raw SQL routeModel={} namespace={}: {}",
+                    routeModel, namespace, e.getMessage());
+        }
+        return dataSource;
+    }
+
+    private static String currentComposeNamespace() {
+        ComposeRuntimeBundle bundle = ComposeRuntimeHolder.currentBundle();
+        return bundle != null && bundle.ctx() != null ? bundle.ctx().namespace() : null;
     }
 
     // ---- Case-insensitive field resolution helper ----
