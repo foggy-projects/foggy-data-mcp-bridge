@@ -576,6 +576,81 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldRenderComposePaginationWithNamespaceDatasourceDialect() {
+        datasourceRegistryService.save(datasourceRegistryService.newRecord(
+                "wwi-sqlserver",
+                "sqlserver",
+                "jdbc:sqlserver://localhost:1433;databaseName=WideWorldImportersDW",
+                "sa",
+                null,
+                null,
+                true
+        ));
+        datasourceRegistryService.bindNamespace("wwi-compose-sqlserver", "wwi-sqlserver");
+        when(semanticQueryServiceV3.generateSql(eq("wwi_sales_analysis"), any(SemanticQueryRequest.class), any()))
+                .thenReturn(new SqlGenerationResult("SELECT customer_id, revenue FROM wwi_sales", List.of(), null));
+
+        String script = """
+                const prior = dsl({
+                  model: 'wwi_sales_analysis',
+                  columns: [
+                    'customer$id as customer_id',
+                    'customer$caption as customer_name',
+                    'sum(totalIncludingTax) as revenue_2015'
+                  ],
+                  groupBy: ['customer$id', 'customer$caption']
+                });
+
+                const current = dsl({
+                  model: 'wwi_sales_analysis',
+                  columns: [
+                    'customer$id as customer_id_2016',
+                    'customer$caption as customer_name_2016',
+                    'sum(totalIncludingTax) as revenue_2016'
+                  ],
+                  groupBy: ['customer$id', 'customer$caption']
+                });
+
+                const joined = prior.join(current, 'inner', [
+                  { left: 'customer_id', op: '=', right: 'customer_id_2016' }
+                ]);
+
+                const result = joined.query({
+                  columns: [
+                    'customer_id',
+                    'customer_name',
+                    'revenue_2015',
+                    'revenue_2016',
+                    'revenue_2016 - revenue_2015 as delta'
+                  ],
+                  orderBy: [{ field: 'delta', dir: 'ASC' }],
+                  limit: 10
+                });
+
+                return { plans: result };
+                """;
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-NS", "wwi-compose-sqlserver");
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/compose/validate",
+                new HttpEntity<>(Map.of("script", script, "params", Map.of()), headers),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isTrue();
+        String sql = body.path("data").path("value").path("plans").path("sql").asText();
+        assertThat(sql).contains("SELECT TOP (10)", "ORDER BY delta ASC");
+        assertThat(sql).doesNotContain("LIMIT 10");
+        verify(semanticQueryServiceV3, times(2))
+                .generateSql(eq("wwi_sales_analysis"), any(SemanticQueryRequest.class), any());
+        verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
+    }
+
+    @Test
     void shouldPreviewComposeThroughRuntimeEnvelope() {
         when(semanticQueryServiceV3.generateSql(eq("FactOrderQueryModel"), any(SemanticQueryRequest.class), any()))
                 .thenReturn(new SqlGenerationResult("SELECT order_id FROM fact_order", List.of(), null));

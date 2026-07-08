@@ -27,6 +27,7 @@ import com.foggyframework.runtime.api.dto.FsscriptResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.RuntimeError;
+import com.foggyframework.runtime.api.service.RuntimeComposeDialectResolver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -52,6 +53,7 @@ public class RuntimeFsscriptController {
     private final SemanticQueryServiceV3 semanticQueryServiceV3;
     private final AuthorityResolver authorityResolver;
     private final DatasetProperties datasetProperties;
+    private final RuntimeComposeDialectResolver dialectResolver;
     private final String defaultDialect;
 
     public RuntimeFsscriptController(
@@ -59,6 +61,7 @@ public class RuntimeFsscriptController {
             SemanticQueryServiceV3 semanticQueryServiceV3,
             ObjectProvider<AuthorityResolver> authorityResolvers,
             ObjectProvider<DatasetProperties> datasetPropertiesProvider,
+            RuntimeComposeDialectResolver dialectResolver,
             @Value("${foggy.compose.dialect:mysql}") String defaultDialect
     ) {
         this.runtimeApiProperties = runtimeApiProperties;
@@ -67,6 +70,7 @@ public class RuntimeFsscriptController {
                 .findFirst()
                 .orElse(RuntimeFsscriptController::allowAll);
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
+        this.dialectResolver = dialectResolver;
         this.defaultDialect = defaultDialect != null ? defaultDialect : "mysql";
     }
 
@@ -142,13 +146,14 @@ public class RuntimeFsscriptController {
         }
 
         try {
+            ComposeQueryContext context = buildContext(fsscriptRequest, compose.params(), headerNamespace, authorization, headers);
             ComposeScriptService.ComposeScriptResult result = ComposeScriptService.run(
                     ComposeScriptService.ComposeScriptRequest.builder()
                             .mode(mode)
                             .script(compose.script())
-                            .ctx(buildContext(fsscriptRequest, compose.params(), headerNamespace, authorization, headers))
+                            .ctx(context)
                             .semanticService(semanticQueryServiceV3)
-                            .dialect(defaultDialect)
+                            .dialect(dialectResolver.resolve(defaultDialect, context.namespace(), fsscriptRequest.options()))
                             .build());
             return toResponse(result);
         } catch (ComposeSandboxViolationException e) {

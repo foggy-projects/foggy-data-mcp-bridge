@@ -18,6 +18,7 @@ import com.foggyframework.runtime.api.dto.ComposeResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.RuntimeError;
+import com.foggyframework.runtime.api.service.RuntimeComposeDialectResolver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -43,6 +44,7 @@ public class RuntimeComposeController {
     private final SemanticQueryServiceV3 semanticQueryServiceV3;
     private final AuthorityResolver authorityResolver;
     private final DatasetProperties datasetProperties;
+    private final RuntimeComposeDialectResolver dialectResolver;
     private final String defaultDialect;
 
     public RuntimeComposeController(
@@ -50,6 +52,7 @@ public class RuntimeComposeController {
             SemanticQueryServiceV3 semanticQueryServiceV3,
             ObjectProvider<AuthorityResolver> authorityResolvers,
             ObjectProvider<DatasetProperties> datasetPropertiesProvider,
+            RuntimeComposeDialectResolver dialectResolver,
             @Value("${foggy.compose.dialect:mysql}") String defaultDialect
     ) {
         this.runtimeApiProperties = runtimeApiProperties;
@@ -58,6 +61,7 @@ public class RuntimeComposeController {
                 .findFirst()
                 .orElse(RuntimeComposeController::allowAll);
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
+        this.dialectResolver = dialectResolver;
         this.defaultDialect = defaultDialect != null ? defaultDialect : "mysql";
     }
 
@@ -109,13 +113,14 @@ public class RuntimeComposeController {
         }
 
         try {
+            ComposeQueryContext context = buildContext(request, namespace, authorization, headers);
             ComposeScriptService.ComposeScriptResult result = ComposeScriptService.run(
                     ComposeScriptService.ComposeScriptRequest.builder()
                             .mode(mode)
                             .script(request.script())
-                            .ctx(buildContext(request, namespace, authorization, headers))
+                            .ctx(context)
                             .semanticService(semanticQueryServiceV3)
-                            .dialect(defaultDialect)
+                            .dialect(dialectResolver.resolve(defaultDialect, context.namespace(), request.options()))
                             .build());
             return RuntimeEnvelope.ok(ENGINE, runtimeApiProperties.getRuntimeApiVersion(), toResponse(result));
         } catch (ComposeSandboxViolationException e) {
