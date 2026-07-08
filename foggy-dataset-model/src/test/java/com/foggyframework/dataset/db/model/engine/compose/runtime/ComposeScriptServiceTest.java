@@ -65,7 +65,19 @@ class ComposeScriptServiceTest {
               { left: 'customer_id', op: '=', right: 'customer_id_2016' }
             ]);
 
-            return { plans: joined };
+            const result = joined.query({
+              columns: [
+                'customer_id',
+                'customer_name',
+                'revenue_2015',
+                'revenue_2016',
+                'revenue_2016 - revenue_2015 as delta'
+              ],
+              orderBy: [{ field: 'delta', dir: 'ASC' }],
+              limit: 10
+            });
+
+            return { plans: result };
             """;
 
     private static final String JOIN_ON_STRING_SCRIPT = """
@@ -158,7 +170,7 @@ class ComposeScriptServiceTest {
     }
 
     @Test
-    @DisplayName("validate accepts documented join on Map-array shape")
+    @DisplayName("validate accepts documented join on Map-array shape with object orderBy")
     void validateAcceptsJoinOnMapArrayShape() {
         CountingSemanticService semanticService = new CountingSemanticService();
 
@@ -173,6 +185,8 @@ class ComposeScriptServiceTest {
         ComposedSql sql = assertInstanceOf(ComposedSql.class, value.get("plans"));
         assertTrue(sql.getSql().contains("JOIN"));
         assertTrue(sql.getSql().contains("customer_id"));
+        assertTrue(sql.getSql().contains("ORDER BY"));
+        assertTrue(sql.getSql().contains("delta"));
         assertEquals(2, semanticService.generateSqlCount.get());
         assertEquals(0, semanticService.executeSqlCount.get());
     }

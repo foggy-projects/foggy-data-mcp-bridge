@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
+import com.foggyframework.dataset.db.model.engine.compose.ComposeOrderByNormalizer;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression;
@@ -959,8 +960,13 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
         if (map.containsKey("groupBy") && map.get("groupBy") instanceof List<?> list) {
             builder.groupBy((List<String>) list);
         }
-        if (map.containsKey("orderBy") && map.get("orderBy") instanceof List<?> list) {
-            builder.orderBy((List<String>) list);
+        Object orderBy = map.get("orderBy");
+        if (orderBy instanceof List<?> list) {
+            builder.orderBy(coerceOrderByList(list, "QueryPlan.query(opts).orderBy"));
+        } else if (map.containsKey("orderBy") && orderBy != null) {
+            throw new IllegalArgumentException(
+                    "QueryPlan.query(opts).orderBy must be an array; got: "
+                            + simpleType(orderBy));
         }
         if (map.get("limit") instanceof Number n) {
             builder.limit(n.intValue());
@@ -974,6 +980,24 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             builder.distinct(Boolean.TRUE.equals(map.get("distinct")));
         }
         return builder.build();
+    }
+
+    private static List<String> coerceOrderByList(List<?> raw, String path) {
+        List<String> out = new ArrayList<>(raw.size());
+        for (int i = 0; i < raw.size(); i++) {
+            Object entry = raw.get(i);
+            try {
+                ComposeOrderByNormalizer.OrderSpec spec = ComposeOrderByNormalizer.parse(entry);
+                if (spec.field() == null || spec.field().isBlank()) {
+                    throw new IllegalArgumentException("orderBy field must be non-empty");
+                }
+                out.add("desc".equalsIgnoreCase(spec.dir()) ? "-" + spec.field() : spec.field());
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException(
+                        path + "[" + i + "]: " + ex.getMessage(), ex);
+            }
+        }
+        return out;
     }
 
     // ------------------------------------------------------------------

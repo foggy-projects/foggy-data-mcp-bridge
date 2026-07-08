@@ -541,7 +541,19 @@ class RuntimeCapabilitiesControllerEnabledTest {
                   { left: 'customer_id', op: '=', right: 'customer_id_2016' }
                 ]);
 
-                return { plans: joined };
+                const result = joined.query({
+                  columns: [
+                    'customer_id',
+                    'customer_name',
+                    'revenue_2015',
+                    'revenue_2016',
+                    'revenue_2016 - revenue_2015 as delta'
+                  ],
+                  orderBy: [{ field: 'delta', dir: 'ASC' }],
+                  limit: 10
+                });
+
+                return { plans: result };
                 """;
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
@@ -557,7 +569,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("valid").asBoolean()).isTrue();
         assertThat(body.path("data").path("mode").asText()).isEqualTo("validate");
         assertThat(body.path("data").path("value").path("plans").path("sql").asText())
-                .contains("JOIN", "customer_id");
+                .contains("JOIN", "customer_id", "ORDER BY", "delta");
         verify(semanticQueryServiceV3, times(2))
                 .generateSql(eq("wwi_sales_analysis"), any(SemanticQueryRequest.class), any());
         verify(semanticQueryServiceV3, never()).executeSql(any(), any(), any());
