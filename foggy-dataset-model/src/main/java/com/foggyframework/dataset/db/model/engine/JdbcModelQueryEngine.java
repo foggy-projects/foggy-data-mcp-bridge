@@ -35,6 +35,8 @@ import com.foggyframework.dataset.db.model.engine.postagg.PostAggregateRatioToTo
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.db.model.engine.query_model.PredefinedCalculatedFieldInjector;
+import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
+import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlanner;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
@@ -182,6 +184,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     List<Object> cteOuterSelectParams = List.of();
 
     List values;
+    QueryStagePlanner queryStagePlanner = new QueryStagePlanner();
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
     private static final Pattern SAFE_INTERNAL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
@@ -462,6 +465,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         boolean hasWindowCf = hasWindowCalculatedFields(queryRequest);
         boolean hasPostAggregateCalculations = hasPostAggregateCalculations(queryRequest);
         boolean hasPostSlice = hasPostSlice(queryRequest);
+        attachQueryStagePlan(context, queryRequest, jdbcQuery, hasWindowCf, hasPostAggregateCalculations, hasPostSlice);
 
         if (hasPostSlice && !hasPostAggregateCalculations && !hasWindowCf) {
             throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
@@ -495,6 +499,32 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
     }
+
+    private void attachQueryStagePlan(ModelResultContext context,
+                                      DbQueryRequestDef queryRequest,
+                                      JdbcQuery jdbcQuery,
+                                      boolean hasWindowCf,
+                                      boolean hasPostAggregateCalculations,
+                                      boolean hasPostSlice) {
+        if (context == null) {
+            return;
+        }
+        QueryStagePlan plan = queryStagePlanner.plan(
+                queryRequest,
+                jdbcQuery,
+                jdbcQueryModel.getDialect(),
+                calculatedColumns,
+                postAggregateSlice,
+                hasWindowCf,
+                hasPostAggregateCalculations,
+                hasPostSlice
+        );
+        if (context.getExtData() == null) {
+            context.setExtData(new java.util.HashMap<>());
+        }
+        context.getExtData().put(QueryStagePlan.EXT_DATA_KEY, plan.toDiagnosticsMap());
+    }
+
     private boolean hasAggregateSelect(JdbcQuery jdbcQuery) {
         if (jdbcQuery == null || jdbcQuery.getSelect() == null || jdbcQuery.getSelect().getColumns() == null) {
             return false;

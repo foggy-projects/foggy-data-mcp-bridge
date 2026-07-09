@@ -1,9 +1,12 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -384,6 +387,108 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertFalse(results.isEmpty());
     }
 
+    @Test
+    @Order(22)
+    @DisplayName("Stage planner diagnostics keep non-window aggregate query single-stage")
+    void testStagePlannerDiagnosticsForSinglePassAggregate() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(new ArrayList<>(List.of("product$categoryName", "salesAmount")));
+        request.setGroupBy(buildGroupBy("product$categoryName"));
+        request.setReturnTotal(true);
+
+        AnalysisResult result = analyzeWithContext(request);
+        Map<String, Object> plan = queryStagePlan(result.context());
+
+        assertEquals(QueryStagePlan.VERSION, plan.get("version"));
+        assertEquals(true, plan.get("enabled"));
+        assertEquals("single", plan.get("renderStrategy"));
+        assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
+        assertEquals("final", plan.get("finalCountStageId"));
+        assertEquals(List.of(), plan.get("fallbacks"));
+        assertEquals(List.of(), plan.get("unsupported"));
+
+        assertEquals(List.of("row", "agg", "final"), stageIds(plan));
+        assertEquals("ROW_STAGE", stage(plan, "row").get("type"));
+        assertEquals("AGGREGATE_STAGE", stage(plan, "agg").get("type"));
+        assertEquals("FINAL_STAGE", stage(plan, "final").get("type"));
+        assertEquals(false, stage(plan, "row").get("requiresSqlBoundary"));
+        assertEquals(false, stage(plan, "agg").get("requiresSqlBoundary"));
+        assertEquals(false, stage(plan, "final").get("requiresSqlBoundary"));
+        assertFalse(result.engine().getSql().toUpperCase().contains("WITH STAGE1 AS"),
+                "Planner diagnostics must not change SQL rendering: " + result.engine().getSql());
+    }
+
+    @Test
+    @Order(23)
+    @DisplayName("Stage planner diagnostics expose window result and postSlice aliases")
+    void testStagePlannerDiagnosticsForWindowPostSlice() {
+        if (!supportsWindowFunctions()) {
+            return;
+        }
+        DbQueryRequestDef request = buildRankWindowRequest();
+        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesRank", "=", 1))));
+        request.setOrderBy(new ArrayList<>(List.of(orderDesc("salesRank"))));
+        request.setReturnTotal(true);
+
+        AnalysisResult result = analyzeWithContext(request);
+        Map<String, Object> plan = queryStagePlan(result.context());
+
+        assertEquals(expectedMultiStageRenderStrategy(), plan.get("renderStrategy"));
+        assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
+        assertEquals(List.of("row", "window_result", "final"), stageIds(plan));
+
+        Map<String, Object> windowStage = stage(plan, "window_result");
+        assertEquals("WINDOW_RESULT_STAGE", windowStage.get("type"));
+        assertTrue(listValue(windowStage, "outputAliases").contains("salesRank"));
+        assertEquals(List.of("salesRank"), windowStage.get("filterAliases"));
+        assertEquals(true, windowStage.get("requiresSqlBoundary"));
+        assertEquals(1, windowStage.get("parameterCount"));
+        assertEquals(List.of("salesRank"), stage(plan, "final").get("orderAliases"));
+        assertEquals(false, stage(plan, "final").get("requiresSqlBoundary"));
+        assertTrue(result.engine().getSql().contains("__POST_RESULT_STAGE__"),
+                "Existing window SQL wrapping should remain active: " + result.engine().getSql());
+    }
+
+    @Test
+    @Order(24)
+    @DisplayName("Stage planner diagnostics expose post-aggregate stage aliases")
+    void testStagePlannerDiagnosticsForPostAggregate() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(new ArrayList<>(List.of(
+                "product$categoryName",
+                "sum(salesAmount) as teamSales",
+                "salesShare"
+        )));
+        request.setGroupBy(buildGroupBy("product$categoryName"));
+        request.setPostAggregateCalculations(new ArrayList<>(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "teamSales", "grandTotal", "ratio"
+        ))));
+        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesShare", ">", 0.2))));
+
+        AnalysisResult result = analyzeWithContext(request);
+        Map<String, Object> plan = queryStagePlan(result.context());
+
+        assertEquals(expectedMultiStageRenderStrategy(), plan.get("renderStrategy"));
+        assertEquals("disabled", plan.get("returnTotalStrategy"));
+        assertEquals(List.of("row", "agg", "post_agg", "window_result", "final"), stageIds(plan));
+
+        Map<String, Object> postAggStage = stage(plan, "post_agg");
+        assertEquals("POST_AGGREGATE_STAGE", postAggStage.get("type"));
+        assertTrue(listValue(postAggStage, "outputAliases").contains("salesShare"));
+        assertTrue(listValue(postAggStage, "inputAliases").contains("teamSales"));
+        assertEquals(true, postAggStage.get("requiresSqlBoundary"));
+
+        Map<String, Object> resultStage = stage(plan, "window_result");
+        assertEquals("WINDOW_RESULT_STAGE", resultStage.get("type"));
+        assertTrue(listValue(resultStage, "inputAliases").contains("salesShare"));
+        assertEquals(List.of("salesShare"), resultStage.get("filterAliases"));
+        assertEquals(1, resultStage.get("parameterCount"));
+        assertTrue(result.engine().getSql().contains("post_stage AS"),
+                "Existing post-aggregate SQL wrapping should remain active: " + result.engine().getSql());
+    }
+
     // ==========================================
     // QM Predefined Window CFs
     // ==========================================
@@ -489,6 +594,54 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         JdbcModelQueryEngine engine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
         engine.analysisQueryRequest(systemBundlesContext, request);
         return engine;
+    }
+
+    private AnalysisResult analyzeWithContext(DbQueryRequestDef request) {
+        JdbcQueryModel queryModel = getQueryModel(request.getQueryModel());
+        assertNotNull(queryModel, "查询模型加载失败");
+        JdbcModelQueryEngine engine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        ModelResultContext context = new ModelResultContext(PagingRequest.buildPagingRequest(request, 100), null);
+        engine.analysisQueryRequest(systemBundlesContext, context);
+        return new AnalysisResult(engine, context);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> queryStagePlan(ModelResultContext context) {
+        Object plan = context.getExtData().get(QueryStagePlan.EXT_DATA_KEY);
+        assertNotNull(plan, "queryStagePlan diagnostics should be attached to context.extData");
+        assertTrue(plan instanceof Map<?, ?>, "queryStagePlan diagnostics should be a map");
+        return (Map<String, Object>) plan;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> stages(Map<String, Object> plan) {
+        Object stages = plan.get("stages");
+        assertTrue(stages instanceof List<?>, "queryStagePlan.stages should be a list");
+        return (List<Map<String, Object>>) stages;
+    }
+
+    private List<String> stageIds(Map<String, Object> plan) {
+        return stages(plan).stream()
+                .map(stage -> (String) stage.get("id"))
+                .toList();
+    }
+
+    private Map<String, Object> stage(Map<String, Object> plan, String id) {
+        return stages(plan).stream()
+                .filter(stage -> id.equals(stage.get("id")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Missing stage '" + id + "' in " + plan));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> listValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        assertTrue(value instanceof List<?>, key + " should be a list");
+        return (List<String>) value;
+    }
+
+    private String expectedMultiStageRenderStrategy() {
+        return supportsCommonTableExpressions() ? "cte" : "derived";
     }
 
     private List<GroupRequestDef> buildGroupBy(String... fields) {
@@ -643,6 +796,9 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
 
     private JdbcModelQueryEngine analyze(JdbcModelQueryEngine engine) {
         return engine;
+    }
+
+    private record AnalysisResult(JdbcModelQueryEngine engine, ModelResultContext context) {
     }
 
     @Test
