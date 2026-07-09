@@ -92,6 +92,7 @@ The current code has several useful pieces that should be preserved and reorgani
 - `JdbcModelQueryEngine` currently owns single-pass, CTE wrapping, and post-aggregate wrapping. 9.3.0 should move stage decision logic out of that class and leave it as orchestration plus backwards-compatible accessors.
 - `SimpleSqlJdbcQueryVisitor` remains the low-level SQL visitor for one relational stage.
 - Existing `SqlGenerationResult.CteStage` and compose relation compiler behavior should be reused for structured CTE output instead of inventing another final SQL carrier.
+- `SqlGenerationResult` should carry a diagnostics snapshot so compose consumers can inspect `queryStagePlan` without reparsing SQL.
 - `PreAggRewriteStep`, `AggSqlOptimizer`, and `returnTotal` paths must receive stage metadata so they can optimize the correct stage rather than assuming `innerSqlWithoutOrder` always has the right shape.
 
 ## SQL Rendering Strategy
@@ -132,6 +133,9 @@ Minimum shape:
   "renderStrategy": "single|cte|derived",
   "finalCountStageId": "final",
   "returnTotalStrategy": "final-stage-count|preagg-equivalent|disabled",
+  "countSqlInput": "final-stage-sql-without-order|disabled",
+  "aggSqlOptimizationPolicy": "preserve-final-stage-sql|optimizer-allowed",
+  "preAggOptimizationPolicy": "skip-final-stage-required|optimizer-allowed",
   "stages": [
     {
       "id": "agg",
@@ -140,6 +144,8 @@ Minimum shape:
       "inputAliases": ["product$categoryName"],
       "outputAliases": ["salesAmount", "profitAmount"],
       "filterAliases": [],
+      "orderAliases": [],
+      "requiresSqlBoundary": false,
       "parameterCount": 0
     }
   ],
@@ -153,8 +159,12 @@ Required semantics:
 - `stages` order is the execution/render order.
 - `renderStrategy` reflects the selected SQL shape after dialect fallback.
 - `filterAliases` records filters owned by that stage, including `slice`, `having`, `postSlice`, and result-stage filters.
+- `countSqlInput` records which rendered SQL shape feeds `returnTotal`.
+- `aggSqlOptimizationPolicy` records whether `AggSqlOptimizer` may rewrite total SQL or must preserve the final semantic stage.
+- `preAggOptimizationPolicy` records whether pre-aggregation can be attempted. `skip-final-stage-required` means both main-query preAgg and preAgg aggregate SQL must be skipped unless a later stage-aware preAgg equivalence proof is implemented.
 - `fallbacks` records dialect fallbacks actually used.
 - `unsupported` records fail-closed decisions for diagnostics before an exception is thrown.
+- `SqlGenerationResult.diagnostics` must preserve this metadata for compose query integration.
 - Existing SQL debug output may remain, but planner tests should prefer this metadata where possible.
 
 ## Why Not A Loop Step

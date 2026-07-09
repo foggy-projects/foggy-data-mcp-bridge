@@ -5,7 +5,9 @@ import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * SQL 生成结果 -- 仅截取 SQL 不执行
@@ -77,6 +79,16 @@ public class SqlGenerationResult {
     private final List<CteStage> cteStages;
 
     /**
+     * SQL generation diagnostics captured from {@code ModelResultContext.extData}.
+     *
+     * <p>Consumers such as Compose can inspect {@code queryStagePlan} without
+     * reparsing SQL shape or coupling to engine internals.</p>
+     *
+     * @since 9.3.0
+     */
+    private final Map<String, Object> diagnostics;
+
+    /**
      * Legacy constructor — single-pass SQL (no CTE stages).
      */
     public SqlGenerationResult(String sql, List<Object> params, JdbcModelQueryEngine queryEngine) {
@@ -94,10 +106,28 @@ public class SqlGenerationResult {
      */
     public SqlGenerationResult(String sql, List<Object> params, JdbcModelQueryEngine queryEngine,
                                List<CteStage> cteStages) {
+        this(sql, params, queryEngine, cteStages, Collections.emptyMap());
+    }
+
+    /**
+     * Full constructor with optional CTE stages and diagnostics.
+     *
+     * @param sql         outer SELECT SQL (or complete SQL when no CTE stages)
+     * @param params      params for the outer SELECT (or complete params when no CTE stages)
+     * @param queryEngine engine instance
+     * @param cteStages   prerequisite CTE stages (empty for single-pass)
+     * @param diagnostics immutable SQL generation diagnostics snapshot
+     * @since 9.3.0
+     */
+    public SqlGenerationResult(String sql, List<Object> params, JdbcModelQueryEngine queryEngine,
+                               List<CteStage> cteStages, Map<String, Object> diagnostics) {
         this.sql = sql;
         this.params = params;
         this.queryEngine = queryEngine;
         this.cteStages = cteStages != null ? cteStages : Collections.emptyList();
+        this.diagnostics = diagnostics != null
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(diagnostics))
+                : Collections.emptyMap();
     }
 
     /**

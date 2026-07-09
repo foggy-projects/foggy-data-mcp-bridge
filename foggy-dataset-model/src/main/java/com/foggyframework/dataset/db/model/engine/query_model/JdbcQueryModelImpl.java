@@ -185,6 +185,9 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
     public SqlGenerationResult generateSql(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
         queryEngine.analysisQueryRequest(systemBundlesContext, context);
+        Map<String, Object> diagnostics = context != null && context.getExtData() != null
+                ? context.getExtData()
+                : Collections.emptyMap();
 
         if (queryEngine.isCteWrapped()) {
             List<SqlGenerationResult.CteStage> stages = queryEngine.getCteStages();
@@ -205,9 +208,11 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
                     queryEngine.getCteOuterSelectSql(),
                     outerParams,
                     queryEngine,
-                    stages);
+                    stages,
+                    diagnostics);
         }
-        return new SqlGenerationResult(queryEngine.getSql(), queryEngine.getValues(), queryEngine);
+        return new SqlGenerationResult(queryEngine.getSql(), queryEngine.getValues(), queryEngine,
+                Collections.emptyList(), diagnostics);
     }
 
     /**

@@ -6,7 +6,9 @@ import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.dialect.SqliteDialect;
 import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
@@ -411,6 +413,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals("final", plan.get("finalCountStageId"));
         assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
         assertEquals("optimizer-allowed", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("optimizer-allowed", plan.get("preAggOptimizationPolicy"));
         assertEquals(List.of(), plan.get("fallbacks"));
         assertEquals(List.of(), plan.get("unsupported"));
 
@@ -444,6 +447,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
         assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
         assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("skip-final-stage-required", plan.get("preAggOptimizationPolicy"));
         assertEquals(List.of("row", "window_result", "final"), stageIds(plan));
 
         Map<String, Object> windowStage = stage(plan, "window_result");
@@ -474,6 +478,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals("disabled", plan.get("returnTotalStrategy"));
         assertEquals("disabled", plan.get("countSqlInput"));
         assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("skip-final-stage-required", plan.get("preAggOptimizationPolicy"));
         assertEquals(List.of("row", "agg", "post_agg", "window_result", "final"), stageIds(plan));
 
         Map<String, Object> postAggStage = stage(plan, "post_agg");
@@ -509,6 +514,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
         assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
         assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("skip-final-stage-required", plan.get("preAggOptimizationPolicy"));
         assertEquals(List.of("sqlite-derived-table"), plan.get("fallbacks"));
         assertFalse(result.engine().isCteWrapped(), "Derived fallback should not expose structured CTE stages");
         assertEquals(List.of(), result.engine().getCteStages());
@@ -537,6 +543,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
         assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
         assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("skip-final-stage-required", plan.get("preAggOptimizationPolicy"));
         assertNull(result.engine().getAggSqlOptimizationResult(),
                 "Post-aggregate returnTotal should not optimize away final-stage filters");
         assertFinalTotalMatchesRows(result.engine());
@@ -573,6 +580,32 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals(List.of("sqlite-derived-table"), plan.get("fallbacks"));
         assertTrue(listValue(plan, "unsupported").contains("window-derived-rendering-unsupported"), plan.toString());
         assertEquals(List.of("row", "window_result", "final"), stageIds(plan));
+    }
+
+    @Test
+    @Order(29)
+    @DisplayName("SqlGenerationResult carries stage diagnostics for compose")
+    void testSqlGenerationResultCarriesStageDiagnosticsForCompose() {
+        if (!supportsWindowFunctions()) {
+            return;
+        }
+        DbQueryRequestDef request = buildRankWindowRequest();
+        JdbcQueryModel queryModel = getQueryModel(request.getQueryModel());
+        assertTrue(queryModel instanceof JdbcQueryModelImpl, "test fixture should use JdbcQueryModelImpl");
+        ModelResultContext context = new ModelResultContext(PagingRequest.buildPagingRequest(request, 100), null);
+
+        SqlGenerationResult result = ((JdbcQueryModelImpl) queryModel).generateSql(systemBundlesContext, context);
+
+        assertTrue(result.hasCteStages());
+        assertTrue(result.getDiagnostics().containsKey(QueryStagePlan.EXT_DATA_KEY));
+        Object raw = result.getDiagnostics().get(QueryStagePlan.EXT_DATA_KEY);
+        assertTrue(raw instanceof Map<?, ?>);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> plan = (Map<String, Object>) raw;
+        assertEquals("cte", plan.get("renderStrategy"));
+        assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("skip-final-stage-required", plan.get("preAggOptimizationPolicy"));
+        assertEquals(plan, context.getExtData().get(QueryStagePlan.EXT_DATA_KEY));
     }
 
     // ==========================================

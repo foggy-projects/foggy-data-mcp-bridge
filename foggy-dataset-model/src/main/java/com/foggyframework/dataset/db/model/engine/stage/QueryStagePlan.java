@@ -113,6 +113,13 @@ public class QueryStagePlan {
         return "optimizer-allowed";
     }
 
+    public String preAggOptimizationPolicy() {
+        if (requiresFinalStageAggSql()) {
+            return "skip-final-stage-required";
+        }
+        return "optimizer-allowed";
+    }
+
     public Map<String, Object> toDiagnosticsMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("version", VERSION);
@@ -123,6 +130,7 @@ public class QueryStagePlan {
         map.put("returnTotalStrategy", returnTotalStrategy);
         map.put("countSqlInput", countSqlInput());
         map.put("aggSqlOptimizationPolicy", aggSqlOptimizationPolicy());
+        map.put("preAggOptimizationPolicy", preAggOptimizationPolicy());
 
         List<Map<String, Object>> stageMaps = new ArrayList<>(stages.size());
         for (Stage stage : stages) {

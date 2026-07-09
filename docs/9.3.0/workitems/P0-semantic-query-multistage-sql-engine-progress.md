@@ -20,10 +20,10 @@ experience: N/A
 
 - delivery_mode: single-root-delivery
 - operation_mode: progress-update / execution-checkin
-- active_stage: Stage 3 - Window And Result Stage Integration
-- scope: completed Stage 2 post-aggregate rendering and final-stage `returnTotal`/count SQL alignment; next execution scope is window/result-stage migration.
-- next_stage: Stage 3 - migrate window result-stage rendering to planner metadata and add dialect fail-closed behavior where needed.
-- non_goals_this_pass: no Step loop planning, no public API contract change, no full window renderer migration, no release-level dialect signoff.
+- active_stage: Stage 5 - Default Enablement And Cleanup
+- scope: completed Stage 3 window/result-stage fail-closed behavior and Stage 4 preAgg/Compose metadata hardening; next execution scope is default enablement cleanup and release-level evidence.
+- next_stage: Stage 5 - cleanup duplicated ad hoc stage checks, broaden dialect evidence, and prepare quality/coverage/acceptance records.
+- non_goals_this_pass: no Step loop planning, no public API contract change, no release-level SQL Server signoff.
 
 ## Stage Progress
 
@@ -32,28 +32,37 @@ experience: N/A
 | Stage 0 - Baseline And Regression Fence | completed | Existing issue #120 guard and targeted regression tests are present. |
 | Stage 1 - Planner Skeleton | completed | Added planner DTOs, classifier, diagnostics, and `ModelResultContext.extData["queryStagePlan"]` metadata exposure. |
 | Stage 2 - Aggregate And Post-Aggregate Stage Builders | completed | Post-aggregate renderer consumes planner `renderStrategy`; final-stage count SQL metadata and multi-stage `aggSql` policy are exposed in diagnostics. |
-| Stage 3 - Window And Result Stage Integration | pending | Requires Stage 2 renderer abstraction and dialect fallback. |
-| Stage 4 - PreAgg, AggSql, Compose, And Dialect Hardening | pending | Requires planned final count stage metadata. |
+| Stage 3 - Window And Result Stage Integration | completed | Window result-stage plans now fail closed when window functions or required CTE rendering are unsupported. |
+| Stage 4 - PreAgg, AggSql, Compose, And Dialect Hardening | completed | Added `preAggOptimizationPolicy`, skipped unsafe preAgg paths for final-stage plans, and preserved stage diagnostics in `SqlGenerationResult`. |
 | Stage 5 - Default Enablement And Cleanup | pending | Requires full dialect/test evidence and quality gates. |
 
 ## Development Progress
 
 - Stage 1 completed.
 - Stage 2 checkpoint completed for post-aggregate SQL rendering.
+- Stage 3 completed for window/result-stage dialect fail-closed behavior.
+- Stage 4 completed for preAgg/Compose metadata hardening.
 - Implemented code touchpoints:
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage`
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/query_execution/PreAggRewriteStep.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/JdbcQueryModelImpl.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/compose/SqlGenerationResult.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/support/DslCteDslRequestMapper.java`
   - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/JdbcModelQueryEngineCteWrapTest.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java`
 - Diagnostics metadata currently includes:
   - `version`
   - `renderStrategy`
-  - `fallbackReason`
   - `returnTotalStrategy`
   - `finalCountStageId`
   - `countSqlInput`
   - `aggSqlOptimizationPolicy`
+  - `preAggOptimizationPolicy`
   - ordered `stages`
   - per-stage `id`, `type`, `inputAliases`, `outputAliases`, `filterAliases`, `orderAliases`, `requiresSqlBoundary`
+  - `fallbacks`
+  - `unsupported`
 - Stage 1 does not change SQL rendering behavior; existing wrapper paths still render SQL.
 - Stage 2 post-aggregate rendering now uses stage-plan metadata:
   - `renderStrategy=cte` keeps the existing structured `WITH base_stage AS (...), post_stage AS (...)` rendering.
@@ -65,7 +74,15 @@ experience: N/A
   - `countSqlInput=disabled` is emitted when `returnTotal=false`.
   - `aggSqlOptimizationPolicy=preserve-final-stage-sql` skips `AggSqlOptimizer` for stage-boundary queries so filters on post-aggregate/window results are preserved.
   - `aggSqlOptimizationPolicy=optimizer-allowed` remains for compatible single-stage queries.
-- Window result-stage rendering still uses the existing CTE wrapper path; dialect capability enforcement for window functions is deferred to Stage 3.
+- Stage 3 window/result-stage hardening is implemented:
+  - Dialects without window-function support fail closed with `WINDOW_RESULT_STAGE_WINDOW_FUNCTION_UNSUPPORTED`.
+  - Window result-stage queries that would require unsupported derived rendering fail closed with `WINDOW_RESULT_STAGE_DERIVED_RENDERING_UNSUPPORTED`.
+  - `unsupported` diagnostics record the stage-plan reason before the exception is thrown.
+- Stage 4 preAgg/Compose hardening is implemented:
+  - `preAggOptimizationPolicy=skip-final-stage-required` is emitted when a query must preserve final semantic SQL.
+  - `PreAggRewriteStep` skips both main-query preAgg and returnTotal preAgg aggregate SQL for final-stage-required plans.
+  - `SqlGenerationResult.diagnostics` carries the `ModelResultContext.extData` snapshot, including `queryStagePlan`, for compose consumers.
+  - DSL CTE top-level limit wrapping preserves `SqlGenerationResult` diagnostics.
 
 ## Testing Progress
 
@@ -93,7 +110,19 @@ experience: N/A
 - Stage 2 count-stage regression fence:
   - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest test`
   - result: pass, 61 tests; the Maven execution also completed the project's configured `test-mysql` phase successfully.
-- SQL Server status: pending.
+- Stage 3 targeted tests:
+  - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 22 tests; the Maven execution also completed the project's configured `test-mysql` phase successfully.
+- Stage 4 preAgg/window targeted tests:
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 30 tests.
+- Stage 4 compose regression:
+  - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`
+  - result: pass, 19 tests.
+- Stage 4 regression fence:
+  - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest,PreAggregationEdgeCaseTest test`
+  - result: pass, 71 tests.
+- SQL Server status: not-run in this checkpoint; no SQL Server datasource/profile was executed.
 - MySQL 5.7 derived fallback status: partial; no-CTE derived fallback is covered with a `NoCteSqliteDialect` fixture, but true MySQL 5.7 execution evidence is still pending.
 - release-level test: pending.
 
@@ -108,11 +137,12 @@ experience: N/A
 | No nested aggregate for issue #120 variants | partial | Existing regression tests pass before Stage 1. |
 | Legal aggregate expressions remain single-stage where valid | partial | Existing regression tests pass before Stage 1. |
 | Aggregate alias references visible only downstream | partial | Stage 1 tests assert `teamSales` as post-aggregate input and `salesShare` as downstream output/filter metadata; Stage 2 renders post-aggregate output downstream. |
-| Deterministic stage diagnostics | partial | Stage 1 tests assert stage order and `renderStrategy`; Stage 2 tests assert renderer behavior, `countSqlInput`, and `aggSqlOptimizationPolicy` match the plan. |
+| Deterministic stage diagnostics | partial | Stage 1 tests assert stage order and `renderStrategy`; Stage 2 tests assert renderer behavior, `countSqlInput`, and `aggSqlOptimizationPolicy`; Stage 4 tests assert `preAggOptimizationPolicy` and `SqlGenerationResult.diagnostics`. |
 | Existing single-stage behavior compatible | partial | Stage 1 tests assert single-stage aggregate stays `renderStrategy=single` and does not introduce CTE SQL. |
-| MySQL 5.7 no unsupported CTE | partial | Stage 2 post-aggregate path can render derived tables when `supportsCte=false`; real MySQL 5.7 and window-path evidence remain pending. |
-| `returnTotal` final semantic row set | partial | Stage 2 tests compare `aggSql` total with the rendered final-row SQL for window post-slice, post-aggregate CTE, and post-aggregate derived fallback paths; true SQL Server/MySQL 5.7 baselines remain pending. |
-| Step loop not used as planner | partial | Stage 1 uses dedicated `QueryStagePlanner`; Stage 2 post-aggregate renderer reads the planner directly and does not introduce `QueryExecutionStep` planning. |
+| MySQL 5.7 no unsupported CTE | partial | Stage 2 post-aggregate path can render derived tables when `supportsCte=false`; Stage 3 window no-CTE path fails closed before invalid SQL; real MySQL 5.7 execution evidence remains pending. |
+| `returnTotal` final semantic row set | partial | Stage 2 tests compare `aggSql` total with the rendered final-row SQL for window post-slice, post-aggregate CTE, and post-aggregate derived fallback paths; Stage 4 preAgg test verifies unsafe preAgg aggregate SQL is skipped; true SQL Server/MySQL 5.7 baselines remain pending. |
+| PreAgg respects stage boundaries | partial | Stage 4 test verifies `preAggSkippedByStagePlan=true`, no `preAggUsed`, and no `preAggAggregateUsed` for a final-stage postAggregate request. |
+| Step loop not used as planner | partial | Stage 1 uses dedicated `QueryStagePlanner`; Stage 2/3/4 consumers read planner metadata directly and do not introduce `QueryExecutionStep` planning. |
 
 ## Execution Check-In
 
@@ -199,3 +229,65 @@ experience: N/A
   - Stage 4 should reintroduce safe optimized count SQL for stage plans where the optimizer can prove semantic equivalence.
 - acceptance readiness: Stage 2 is complete at engine-fixture level, but not ready for release-level signoff until Stage 3/4 dialect evidence is captured.
 - self-check conclusion: Stage 2 can close; proceed to Stage 3 window/result-stage integration.
+
+### Stage 3 Checkpoint - 2026-07-09
+
+- completed work summary:
+  - Added stage-plan unsupported diagnostics and validation before window/result-stage rendering.
+  - Added fail-closed behavior for dialects that do not support required window functions.
+  - Added fail-closed behavior for window result-stage plans when CTE is unavailable and no derived renderer is supported.
+  - Kept the existing CTE window renderer active for supported dialects while making unsupported combinations explicit.
+- commit:
+  - `cda7baf8 feat: fail closed unsupported window stages`
+- touched code paths:
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlan.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlanner.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/JdbcModelQueryEngineCteWrapTest.java`
+- self-check checklist:
+  - window-function capability gate: completed.
+  - no-CTE window/result-stage fail-closed gate: completed.
+  - unsupported diagnostics available before exception: completed.
+  - Step loop still not used as planner: completed.
+  - true SQL Server and MySQL 5.7 execution evidence captured: pending.
+- verification:
+  - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 22 tests; configured `test-mysql` execution completed successfully.
+- remaining risks / blockers:
+  - Window derived-table rendering remains unsupported and intentionally fail-closed until a dedicated renderer is implemented.
+  - SQL Server profile was not run in this checkpoint.
+- acceptance readiness: Stage 3 is complete at engine-fixture level; release-level dialect signoff remains pending.
+- self-check conclusion: Stage 3 can close; proceed to Stage 4 preAgg/Compose hardening.
+
+### Stage 4 Checkpoint - 2026-07-09
+
+- completed work summary:
+  - Added `preAggOptimizationPolicy` to `QueryStagePlan` diagnostics.
+  - Changed `PreAggRewriteStep` to skip both main-query preAgg rewrite and returnTotal preAgg aggregate SQL when the plan requires final-stage preservation.
+  - Added `preAggSkippedByStagePlan` and `preAggSkipReason` metadata to `ModelResultContext.extData`.
+  - Added `SqlGenerationResult.diagnostics` and preserved it through DSL CTE top-level limit wrapping.
+  - Added tests for stage diagnostics, compose metadata transport, and preAgg skip behavior.
+- touched code paths:
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlan.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/query_execution/PreAggRewriteStep.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/compose/SqlGenerationResult.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/JdbcQueryModelImpl.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/support/DslCteDslRequestMapper.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/JdbcModelQueryEngineCteWrapTest.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java`
+- self-check checklist:
+  - stage metadata exposes preAgg optimization policy: completed.
+  - unsafe preAgg paths are skipped for final-stage plans: completed.
+  - compose can consume `queryStagePlan` from SQL generation result diagnostics: completed.
+  - Step loop still not used as planner: completed.
+  - stage-aware preAgg equivalence optimization for safe multi-stage cases: pending future optimization.
+  - true SQL Server and MySQL 5.7 execution evidence captured: pending.
+- verification:
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 30 tests.
+  - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`: pass, 19 tests.
+  - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest,PreAggregationEdgeCaseTest test`: pass, 71 tests.
+- remaining risks / blockers:
+  - Current Stage 4 chooses correctness over preAgg optimization for final-stage plans; a future stage-aware preAgg equivalence proof is needed before re-enabling those optimizations.
+  - SQL Server profile was not run in this checkpoint.
+  - Real MySQL 5.7 execution evidence remains pending; current coverage uses a no-CTE dialect fixture.
+- acceptance readiness: Stage 4 is complete for planner metadata consumption and correctness hardening, but not ready for release-level signoff until dialect evidence and quality gates are complete.
+- self-check conclusion: Stage 4 can close; proceed to Stage 5 default enablement, cleanup, and release evidence.

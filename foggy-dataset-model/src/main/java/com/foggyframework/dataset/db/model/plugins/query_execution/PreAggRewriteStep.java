@@ -5,11 +5,14 @@ import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.preagg.PreAggQueryRewriter;
 import com.foggyframework.dataset.db.model.engine.preagg.PreAggRewriteResult;
 import com.foggyframework.dataset.db.model.engine.preagg.PreAggregationInterceptor;
+import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
 
 /**
  * 预聚合重写步骤
@@ -76,6 +79,10 @@ public class PreAggRewriteStep implements QueryExecutionStep {
             queryRequest = ctx.getModelResultContext().getRequest().getParam();
         }
 
+        if (shouldSkipPreAggForStagePlan(ctx)) {
+            return CONTINUE;
+        }
+
         // 尝试预聚合重写（主查询）
         PreAggregationInterceptor interceptor = createInterceptor(ctx);
         PreAggRewriteResult preAggResult = tryPreAggregation(interceptor, queryEngine, queryModel, queryRequest);
@@ -115,6 +122,44 @@ public class PreAggRewriteStep implements QueryExecutionStep {
         }
 
         return CONTINUE;
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean shouldSkipPreAggForStagePlan(QueryExecutionContext ctx) {
+        ModelResultContext modelContext = ctx.getModelResultContext();
+        if (modelContext == null || modelContext.getExtData() == null) {
+            return false;
+        }
+        Object rawPlan = modelContext.getExtData().get(QueryStagePlan.EXT_DATA_KEY);
+        if (!(rawPlan instanceof Map<?, ?> plan)) {
+            return false;
+        }
+        Object preAggPolicy = plan.get("preAggOptimizationPolicy");
+        Object aggSqlPolicy = plan.get("aggSqlOptimizationPolicy");
+        if ("skip-final-stage-required".equals(preAggPolicy)
+                || "preserve-final-stage-sql".equals(aggSqlPolicy)) {
+            markPreAggSkippedByStagePlan(
+                    ctx,
+                    preAggPolicy != null ? String.valueOf(preAggPolicy) : String.valueOf(aggSqlPolicy)
+            );
+            return true;
+        }
+        return false;
+    }
+
+    private void markPreAggSkippedByStagePlan(QueryExecutionContext ctx, String reason) {
+        ctx.setExtData("preAggOptimizationPolicy", reason);
+        ctx.setExtData("preAggSkippedByStagePlan", true);
+        ctx.setExtData("preAggSkipReason", reason);
+
+        ModelResultContext modelContext = ctx.getModelResultContext();
+        if (modelContext != null && modelContext.getExtData() != null) {
+            modelContext.getExtData().put("preAggOptimizationPolicy", reason);
+            modelContext.getExtData().put("preAggSkippedByStagePlan", true);
+            modelContext.getExtData().put("preAggSkipReason", reason);
+        }
+        log.debug("Pre-aggregation skipped for model={} because stage plan policy={}",
+                ctx.getModelName(), reason);
     }
 
     /**

@@ -2,8 +2,11 @@ package com.foggyframework.dataset.db.model.preagg;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
@@ -376,9 +379,73 @@ class PreAggregationEdgeCaseTest {
                         totalWithPreAgg, totalNoPreAgg));
     }
 
+    @Test
+    @Order(21)
+    @DisplayName("多阶段 postAggregate 查询保留 final stage 时跳过预聚合")
+    void testPostAggregateResultStageSkipsPreAggOptimization() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "product$categoryName",
+                "sum(salesAmount) as teamSales",
+                "salesShare"
+        ));
+        queryRequest.setGroupBy(buildGroupBy("product$categoryName"));
+        queryRequest.setPostAggregateCalculations(new ArrayList<>(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "teamSales", "grandTotal", "ratio"
+        ))));
+        queryRequest.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesShare", ">", 0.2))));
+        queryRequest.setReturnTotal(true);
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
+        pagingRequest.setParam(queryRequest);
+        pagingRequest.setStart(0);
+        pagingRequest.setLimit(100);
+
+        ModelResultContext context = new ModelResultContext(pagingRequest, null);
+        context.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
+                .l1Enabled(false)
+                .l2Enabled(false)
+                .preAggEnabled(true)
+                .build());
+
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        assertNotNull(result.getPagingResult());
+
+        Map<String, Object> plan = queryStagePlan(context);
+        assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("skip-final-stage-required", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, context.getExtData().get("preAggSkippedByStagePlan"));
+        assertEquals("skip-final-stage-required", context.getExtData().get("preAggSkipReason"));
+        assertFalse(context.getCacheConfig().isPreAggHit());
+        assertFalse(context.getExtData().containsKey("preAggUsed"));
+        assertFalse(context.getExtData().containsKey("preAggAggregateUsed"));
+        assertFalse(result.getPagingResult().getItems().isEmpty());
+        assertTrue(result.getPagingResult().getTotal() >= result.getPagingResult().getItems().size(),
+                "returnTotal should count the final semantic result set");
+    }
+
     // ==========================================
     // 辅助方法
     // ==========================================
+
+    private List<GroupRequestDef> buildGroupBy(String... fields) {
+        List<GroupRequestDef> groups = new ArrayList<>();
+        for (String field : fields) {
+            GroupRequestDef group = new GroupRequestDef();
+            group.setField(field);
+            groups.add(group);
+        }
+        return groups;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> queryStagePlan(ModelResultContext context) {
+        Object plan = context.getExtData().get(QueryStagePlan.EXT_DATA_KEY);
+        assertNotNull(plan, "queryStagePlan diagnostics should be attached to context.extData");
+        assertTrue(plan instanceof Map<?, ?>, "queryStagePlan diagnostics should be a map");
+        return (Map<String, Object>) plan;
+    }
 
     /**
      * 计算总额

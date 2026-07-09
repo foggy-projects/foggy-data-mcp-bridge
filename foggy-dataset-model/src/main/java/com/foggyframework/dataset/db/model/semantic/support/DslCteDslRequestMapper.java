@@ -4156,7 +4156,8 @@ public final class DslCteDslRequestMapper {
             params.addAll(base.getParams());
         }
         params.add(value);
-        return new SqlGenerationResult(sql + "\nLIMIT ?", params, base.getQueryEngine(), base.getCteStages());
+        return new SqlGenerationResult(sql + "\nLIMIT ?", params, base.getQueryEngine(), base.getCteStages(),
+                base.getDiagnostics());
     }
 
     private static boolean containsTrailingLimit(String sql) {

@@ -239,11 +239,14 @@ Completion evidence:
 - Ensure `AggSqlOptimizer`, `PreAggRewriteStep`, and pre-aggregation aggregate SQL consume the correct planned stage.
 - Verify SQL Server, PostgreSQL, MySQL, SQLite identifier quoting and CTE/derived table behavior.
 - Preserve structured `SqlGenerationResult.CteStage` for compose query integration.
+- Preserve `queryStagePlan` diagnostics in `SqlGenerationResult` so compose consumers can read stage metadata directly.
+- Add `preAggOptimizationPolicy`; skip pre-aggregation when the final semantic stage must be preserved.
 - Verify `queryStagePlan` metadata remains available after pre-aggregation/cache execution steps.
 
 Completion evidence:
 
 - Targeted compose, pre-aggregation, and dialect tests pass.
+- Pre-aggregation does not rewrite either the main SQL or returnTotal aggregate SQL for post-aggregate/window result-stage queries that require final-stage preservation.
 - SQL Server profile is run where available.
 - If any dialect remains not-run, the reason is recorded in progress.
 
