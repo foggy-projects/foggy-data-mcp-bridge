@@ -50,6 +50,9 @@ public class QueryStagePlanner {
         if (hasWindowCalculatedFields && dialect != null && !dialect.supportsWindowFunctions()) {
             unsupported.add("window-functions-unsupported");
         }
+        if (hasWindowCalculatedFields && "derived".equals(renderStrategy)) {
+            unsupported.add("window-derived-rendering-unsupported");
+        }
 
         List<QueryStagePlan.Stage> stages = new ArrayList<>();
         List<String> selectAliases = selectedAliases(jdbcQuery);

@@ -69,6 +69,10 @@ public class QueryStagePlan {
         return unsupported;
     }
 
+    public boolean hasUnsupported() {
+        return !unsupported.isEmpty();
+    }
+
     public boolean hasStage(QueryStageType type) {
         for (Stage stage : stages) {
             if (stage.getType() == type) {

@@ -542,6 +542,39 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertFinalTotalMatchesRows(result.engine());
     }
 
+    @Test
+    @Order(27)
+    @DisplayName("Window result stage fails closed when dialect does not support window functions")
+    void testWindowStageFailsClosedWhenWindowFunctionsUnsupported() {
+        DbQueryRequestDef request = buildRankWindowRequest();
+
+        AnalysisFailure failure = analyzeFailureWithContext(request, new NoWindowSqliteDialect());
+        Map<String, Object> plan = queryStagePlan(failure.context());
+
+        assertTrue(failure.exception().getMessage().contains("WINDOW_RESULT_STAGE_WINDOW_FUNCTION_UNSUPPORTED"),
+                failure.exception().getMessage());
+        assertTrue(listValue(plan, "unsupported").contains("window-functions-unsupported"), plan.toString());
+        assertEquals("cte", plan.get("renderStrategy"));
+        assertEquals(List.of("row", "window_result", "final"), stageIds(plan));
+    }
+
+    @Test
+    @Order(28)
+    @DisplayName("Window result stage fails closed when CTE is unavailable")
+    void testWindowStageFailsClosedWhenCteUnsupported() {
+        DbQueryRequestDef request = buildRankWindowRequest();
+
+        AnalysisFailure failure = analyzeFailureWithContext(request, new NoCteWindowSqliteDialect());
+        Map<String, Object> plan = queryStagePlan(failure.context());
+
+        assertTrue(failure.exception().getMessage().contains("WINDOW_RESULT_STAGE_DERIVED_RENDERING_UNSUPPORTED"),
+                failure.exception().getMessage());
+        assertEquals("derived", plan.get("renderStrategy"));
+        assertEquals(List.of("sqlite-derived-table"), plan.get("fallbacks"));
+        assertTrue(listValue(plan, "unsupported").contains("window-derived-rendering-unsupported"), plan.toString());
+        assertEquals(List.of("row", "window_result", "final"), stageIds(plan));
+    }
+
     // ==========================================
     // QM Predefined Window CFs
     // ==========================================
@@ -682,6 +715,20 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         return new AnalysisResult(engine, context);
     }
 
+    private AnalysisFailure analyzeFailureWithContext(DbQueryRequestDef request, FDialect dialect) {
+        JdbcQueryModel queryModel = getQueryModel(request.getQueryModel());
+        assertNotNull(queryModel, "查询模型加载失败");
+        if (dialect != null) {
+            queryModel = spy(queryModel);
+            doReturn(dialect).when(queryModel).getDialect();
+        }
+        JdbcModelQueryEngine engine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        ModelResultContext context = new ModelResultContext(PagingRequest.buildPagingRequest(request, 100), null);
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> engine.analysisQueryRequest(systemBundlesContext, context));
+        return new AnalysisFailure(exception, context);
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> queryStagePlan(ModelResultContext context) {
         Object plan = context.getExtData().get(QueryStagePlan.EXT_DATA_KEY);
@@ -756,6 +803,25 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         @Override
         public boolean supportsCte() {
             return false;
+        }
+    }
+
+    private static class NoWindowSqliteDialect extends SqliteDialect {
+        @Override
+        public boolean supportsWindowFunctions() {
+            return false;
+        }
+    }
+
+    private static class NoCteWindowSqliteDialect extends SqliteDialect {
+        @Override
+        public boolean supportsCte() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsWindowFunctions() {
+            return true;
         }
     }
 
@@ -916,10 +982,16 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
     private record AnalysisResult(JdbcModelQueryEngine engine, ModelResultContext context) {
     }
 
+    private record AnalysisFailure(RuntimeException exception, ModelResultContext context) {
+    }
+
     @Test
     @Order(100)
     @DisplayName("测试隐式依赖注入：Window CF 引用了未在 columns 选中的字段")
     void testHiddenDependencyInWindowFunction() throws Exception {
+        if (!supportsWindowFunctions()) {
+            return;
+        }
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
         // Request DOES NOT explicitly ask for product$categoryName, but explicitly asks for dimension product$caption and metric salesAmount

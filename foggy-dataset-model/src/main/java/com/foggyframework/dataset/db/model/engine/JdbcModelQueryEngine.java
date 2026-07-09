@@ -471,6 +471,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (hasPostSlice && !hasPostAggregateCalculations && !hasWindowCf) {
             throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
         }
+        validateStagePlan(stagePlan, hasWindowCf);
 
         AggregateJoinTableModel.setRuntimeFilterContext(context);
         try {
@@ -524,6 +525,22 @@ public class JdbcModelQueryEngine implements QueryEngine {
             context.getExtData().put(QueryStagePlan.EXT_DATA_KEY, plan.toDiagnosticsMap());
         }
         return plan;
+    }
+
+    private void validateStagePlan(QueryStagePlan stagePlan, boolean hasWindowCf) {
+        if (stagePlan == null || !stagePlan.hasUnsupported()) {
+            return;
+        }
+        if (hasWindowCf && stagePlan.getUnsupported().contains("window-functions-unsupported")) {
+            throw RX.throwAUserTip("WINDOW_RESULT_STAGE_WINDOW_FUNCTION_UNSUPPORTED: dialect "
+                    + stagePlan.getDialect() + " does not support window functions.");
+        }
+        if (hasWindowCf && stagePlan.getUnsupported().contains("window-derived-rendering-unsupported")) {
+            throw RX.throwAUserTip("WINDOW_RESULT_STAGE_DERIVED_RENDERING_UNSUPPORTED: dialect "
+                    + stagePlan.getDialect()
+                    + " cannot render window result stages without CTE support in the current planner.");
+        }
+        throw RX.throwAUserTip("QUERY_STAGE_PLAN_UNSUPPORTED: " + String.join(", ", stagePlan.getUnsupported()));
     }
 
     private boolean hasAggregateSelect(JdbcQuery jdbcQuery) {
