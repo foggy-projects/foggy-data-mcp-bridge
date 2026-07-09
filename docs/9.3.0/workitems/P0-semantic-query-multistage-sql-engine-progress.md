@@ -2,7 +2,7 @@
 type: progress
 version: 9.3.0
 ticket: P0-semantic-query-multistage-sql-engine
-status: in_progress
+status: completed_with_risks
 owner: foggy-dataset-model
 updated_at: 2026-07-09
 experience: N/A
@@ -21,8 +21,8 @@ experience: N/A
 - delivery_mode: single-root-delivery
 - operation_mode: progress-update / execution-checkin
 - active_stage: Stage 5 - Default Enablement And Cleanup
-- scope: completed Stage 3 window/result-stage fail-closed behavior and Stage 4 preAgg/Compose metadata hardening; next execution scope is default enablement cleanup and release-level evidence.
-- next_stage: Stage 5 - cleanup duplicated ad hoc stage checks, broaden dialect evidence, and prepare quality/coverage/acceptance records.
+- scope: completed Stage 5 cleanup, full module regression, and quality/coverage/acceptance records.
+- next_stage: follow-up dialect evidence for SQL Server profile and true MySQL 5.7 server execution, plus future stage-aware preAgg equivalence optimization.
 - non_goals_this_pass: no Step loop planning, no public API contract change, no release-level SQL Server signoff.
 
 ## Stage Progress
@@ -34,7 +34,7 @@ experience: N/A
 | Stage 2 - Aggregate And Post-Aggregate Stage Builders | completed | Post-aggregate renderer consumes planner `renderStrategy`; final-stage count SQL metadata and multi-stage `aggSql` policy are exposed in diagnostics. |
 | Stage 3 - Window And Result Stage Integration | completed | Window result-stage plans now fail closed when window functions or required CTE rendering are unsupported. |
 | Stage 4 - PreAgg, AggSql, Compose, And Dialect Hardening | completed | Added `preAggOptimizationPolicy`, skipped unsafe preAgg paths for final-stage plans, and preserved stage diagnostics in `SqlGenerationResult`. |
-| Stage 5 - Default Enablement And Cleanup | pending | Requires full dialect/test evidence and quality gates. |
+| Stage 5 - Default Enablement And Cleanup | completed_with_risks | Planner owns remaining stage detection and renderer dispatch; full module tests pass; quality, coverage, and acceptance records are written. SQL Server and true MySQL 5.7 server evidence remain follow-up risks. |
 
 ## Development Progress
 
@@ -42,6 +42,7 @@ experience: N/A
 - Stage 2 checkpoint completed for post-aggregate SQL rendering.
 - Stage 3 completed for window/result-stage dialect fail-closed behavior.
 - Stage 4 completed for preAgg/Compose metadata hardening.
+- Stage 5 completed for default enablement cleanup and release evidence.
 - Implemented code touchpoints:
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage`
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java`
@@ -50,6 +51,7 @@ experience: N/A
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/compose/SqlGenerationResult.java`
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/support/DslCteDslRequestMapper.java`
   - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/JdbcModelQueryEngineCteWrapTest.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/odoo/OdooModelLoadingTest.java`
   - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java`
 - Diagnostics metadata currently includes:
   - `version`
@@ -63,6 +65,11 @@ experience: N/A
   - per-stage `id`, `type`, `inputAliases`, `outputAliases`, `filterAliases`, `orderAliases`, `requiresSqlBoundary`
   - `fallbacks`
   - `unsupported`
+- `unsupported` currently records fail-closed planner reasons including:
+  - `post-slice-result-stage-required`
+  - `post-aggregate-window-mix-unsupported`
+  - `window-functions-unsupported`
+  - `window-derived-rendering-unsupported`
 - Stage 1 does not change SQL rendering behavior; existing wrapper paths still render SQL.
 - Stage 2 post-aggregate rendering now uses stage-plan metadata:
   - `renderStrategy=cte` keeps the existing structured `WITH base_stage AS (...), post_stage AS (...)` rendering.
@@ -83,6 +90,11 @@ experience: N/A
   - `PreAggRewriteStep` skips both main-query preAgg and returnTotal preAgg aggregate SQL for final-stage-required plans.
   - `SqlGenerationResult.diagnostics` carries the `ModelResultContext.extData` snapshot, including `queryStagePlan`, for compose consumers.
   - DSL CTE top-level limit wrapping preserves `SqlGenerationResult` diagnostics.
+- Stage 5 default enablement cleanup is implemented:
+  - `QueryStagePlanner` owns window, post-aggregate, and postSlice feature detection.
+  - `JdbcModelQueryEngine` dispatches renderers through `QueryStagePlan.requiresPostAggregateRenderer()` and `QueryStagePlan.requiresWindowResultRenderer()`.
+  - PostSlice without a result-stage producer and postAggregate/window mixed plans fail closed through planner diagnostics.
+  - Odoo post-aggregate SQL tests accept either CTE or derived-table stage shape according to dialect capability.
 
 ## Testing Progress
 
@@ -115,16 +127,37 @@ experience: N/A
   - result: pass, 22 tests; the Maven execution also completed the project's configured `test-mysql` phase successfully.
 - Stage 4 preAgg/window targeted tests:
   - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`
-  - result: pass, 30 tests.
+  - result: pass, 31 tests.
 - Stage 4 compose regression:
   - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`
   - result: pass, 19 tests.
 - Stage 4 regression fence:
   - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest,PreAggregationEdgeCaseTest test`
-  - result: pass, 71 tests.
+  - result: pass, 72 tests; configured `test-mysql` execution completed successfully.
+- Stage 5 compile:
+  - `mvn -pl foggy-dataset-model -DskipTests compile`
+  - result: pass.
+- Stage 5 targeted renderer tests:
+  - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 24 tests.
+- Stage 5 preAgg/window targeted tests:
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 31 tests.
+- Stage 5 compose regression:
+  - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`
+  - result: pass, 19 tests.
+- Stage 5 regression fence:
+  - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest,PreAggregationEdgeCaseTest test`
+  - result: pass, 72 tests; configured `test-mysql` execution completed successfully.
+- Stage 5 Odoo post-aggregate shape regression:
+  - `mvn -pl foggy-dataset-model -Dtest=OdooModelLoadingTest test`
+  - result: pass, 38 tests.
+- Stage 5 release-level test:
+  - `mvn -pl foggy-dataset-model test`
+  - result: pass, 3259 tests, 0 failures, 0 errors, 3 skipped.
 - SQL Server status: not-run in this checkpoint; no SQL Server datasource/profile was executed.
-- MySQL 5.7 derived fallback status: partial; no-CTE derived fallback is covered with a `NoCteSqliteDialect` fixture, but true MySQL 5.7 execution evidence is still pending.
-- release-level test: pending.
+- MySQL 5.7 derived fallback status: partial; no-CTE derived fallback is covered with a `NoCteSqliteDialect` fixture and MySQL dialect regression shape tests, but true MySQL 5.7 server execution evidence is still pending.
+- release-level test: completed.
 
 ## Experience Progress
 
@@ -134,15 +167,15 @@ experience: N/A
 
 | Criteria | Status | Evidence |
 |---|---|---|
-| No nested aggregate for issue #120 variants | partial | Existing regression tests pass before Stage 1. |
-| Legal aggregate expressions remain single-stage where valid | partial | Existing regression tests pass before Stage 1. |
-| Aggregate alias references visible only downstream | partial | Stage 1 tests assert `teamSales` as post-aggregate input and `salesShare` as downstream output/filter metadata; Stage 2 renders post-aggregate output downstream. |
-| Deterministic stage diagnostics | partial | Stage 1 tests assert stage order and `renderStrategy`; Stage 2 tests assert renderer behavior, `countSqlInput`, and `aggSqlOptimizationPolicy`; Stage 4 tests assert `preAggOptimizationPolicy` and `SqlGenerationResult.diagnostics`. |
-| Existing single-stage behavior compatible | partial | Stage 1 tests assert single-stage aggregate stays `renderStrategy=single` and does not introduce CTE SQL. |
-| MySQL 5.7 no unsupported CTE | partial | Stage 2 post-aggregate path can render derived tables when `supportsCte=false`; Stage 3 window no-CTE path fails closed before invalid SQL; real MySQL 5.7 execution evidence remains pending. |
-| `returnTotal` final semantic row set | partial | Stage 2 tests compare `aggSql` total with the rendered final-row SQL for window post-slice, post-aggregate CTE, and post-aggregate derived fallback paths; Stage 4 preAgg test verifies unsafe preAgg aggregate SQL is skipped; true SQL Server/MySQL 5.7 baselines remain pending. |
-| PreAgg respects stage boundaries | partial | Stage 4 test verifies `preAggSkippedByStagePlan=true`, no `preAggUsed`, and no `preAggAggregateUsed` for a final-stage postAggregate request. |
-| Step loop not used as planner | partial | Stage 1 uses dedicated `QueryStagePlanner`; Stage 2/3/4 consumers read planner metadata directly and do not introduce `QueryExecutionStep` planning. |
+| No nested aggregate for issue #120 variants | completed | Regression fences and full module tests pass. |
+| Legal aggregate expressions remain single-stage where valid | completed | Single-stage aggregate diagnostics and full module tests pass. |
+| Aggregate alias references visible only downstream | completed | Stage diagnostics and post-aggregate rendering tests assert downstream ownership. |
+| Deterministic stage diagnostics | completed | Tests assert stage order, render strategy, count SQL policy, preAgg policy, unsupported reasons, and compose diagnostics transport. |
+| Existing single-stage behavior compatible | completed | Full module regression passed. |
+| MySQL 5.7 no unsupported CTE | partial | Derived fallback and MySQL dialect shape are covered; true MySQL 5.7 server execution evidence remains pending. |
+| `returnTotal` final semantic row set | completed_for_fixtures | Tests compare final-stage `aggSql` behavior for post-aggregate, window postSlice, derived fallback, and preAgg skip paths. True SQL Server/MySQL 5.7 baselines remain pending. |
+| PreAgg respects stage boundaries | completed | Stage 4 and Stage 5 tests verify unsafe preAgg paths are skipped for final-stage plans. |
+| Step loop not used as planner | completed | Planning remains in `QueryStagePlanner`; execution Step hooks only consume metadata. |
 
 ## Execution Check-In
 
@@ -291,3 +324,45 @@ experience: N/A
   - Real MySQL 5.7 execution evidence remains pending; current coverage uses a no-CTE dialect fixture.
 - acceptance readiness: Stage 4 is complete for planner metadata consumption and correctness hardening, but not ready for release-level signoff until dialect evidence and quality gates are complete.
 - self-check conclusion: Stage 4 can close; proceed to Stage 5 default enablement, cleanup, and release evidence.
+
+### Stage 5 Checkpoint - 2026-07-09
+
+- completed work summary:
+  - Moved remaining window, post-aggregate, and postSlice feature detection into `QueryStagePlanner`.
+  - Changed `JdbcModelQueryEngine` renderer dispatch to use `QueryStagePlan.requiresPostAggregateRenderer()` and `QueryStagePlan.requiresWindowResultRenderer()`.
+  - Added planner-level unsupported diagnostics for postSlice without a result-stage producer and postAggregate/window mixed plans.
+  - Updated Odoo post-aggregate SQL shape assertions to accept CTE or derived-table stages according to dialect capability.
+  - Ran full module regression and wrote quality, coverage, and acceptance records under `docs/9.3.0`.
+- touched code paths:
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlan.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlanner.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/JdbcModelQueryEngineCteWrapTest.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/odoo/OdooModelLoadingTest.java`
+  - `docs/9.3.0/quality/semantic-query-multistage-sql-engine-implementation-quality.md`
+  - `docs/9.3.0/coverage/semantic-query-multistage-sql-engine-coverage-audit.md`
+  - `docs/9.3.0/acceptance/semantic-query-multistage-sql-engine-acceptance.md`
+- self-check checklist:
+  - planner owns default stage detection for covered paths: completed.
+  - engine renderer dispatch consumes planner metadata: completed.
+  - unsupported mixed/result-stage cases are diagnosable before fail-closed exception: completed.
+  - Odoo/MySQL dialect shape assertions are compatible with derived fallback: completed.
+  - full module regression completed: completed.
+  - quality, coverage, and acceptance records written: completed.
+  - Step loop still not used as planner: completed.
+  - SQL Server profile execution evidence captured: pending follow-up.
+  - true MySQL 5.7 server execution evidence captured: pending follow-up.
+- verification:
+  - `mvn -pl foggy-dataset-model -DskipTests compile`: pass.
+  - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 24 tests.
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 31 tests.
+  - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`: pass, 19 tests.
+  - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest,PreAggregationEdgeCaseTest test`: pass, 72 tests; configured `test-mysql` execution completed successfully.
+  - `mvn -pl foggy-dataset-model -Dtest=OdooModelLoadingTest test`: pass, 38 tests.
+  - `mvn -pl foggy-dataset-model test`: pass, 3259 tests, 0 failures, 0 errors, 3 skipped.
+- remaining risks / blockers:
+  - SQL Server profile was not run in this checkpoint.
+  - True MySQL 5.7 server execution evidence remains pending; current evidence covers no-CTE and MySQL dialect rendering behavior inside the module test profile.
+  - Stage-aware preAgg equivalence optimization remains a future performance enhancement; current behavior intentionally preserves correctness by skipping unsafe final-stage preAgg paths.
+- acceptance readiness: accepted-with-risks for 9.3.0 covered paths.
+- self-check conclusion: Stage 5 is complete with documented dialect evidence gaps and is ready for commit/push.

@@ -185,8 +185,13 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         request.setColumns(new ArrayList<>(List.of("product$caption", "salesAmount")));
         request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesAmount", ">", 100))));
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> analyze(request));
-        assertTrue(exception.getMessage().contains("POST_SLICE_REQUIRES_RESULT_STAGE"));
+        AnalysisFailure failure = analyzeFailureWithContext(request, null);
+        Map<String, Object> plan = queryStagePlan(failure.context());
+
+        assertTrue(failure.exception().getMessage().contains("POST_SLICE_REQUIRES_RESULT_STAGE"),
+                failure.exception().getMessage());
+        assertTrue(listValue(plan, "unsupported").contains("post-slice-result-stage-required"),
+                plan.toString());
     }
 
     @Test
@@ -608,12 +613,39 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals(plan, context.getExtData().get(QueryStagePlan.EXT_DATA_KEY));
     }
 
+    @Test
+    @Order(30)
+    @DisplayName("Post-aggregate and window result stage mix fails closed through planner diagnostics")
+    void testPostAggregateWindowMixFailsClosedThroughPlannerDiagnostics() {
+        if (!supportsWindowFunctions()) {
+            return;
+        }
+        DbQueryRequestDef request = buildPostAggregateSalesShareRequest();
+        CalculatedFieldDef movingAvg = new CalculatedFieldDef();
+        movingAvg.setName("stage5MovingAvg");
+        movingAvg.setExpression("AVG(teamSales)");
+        movingAvg.setPartitionBy(Arrays.asList("product$categoryName"));
+        movingAvg.setWindowOrderBy(Arrays.asList(new WindowOrderDef("teamSales", "desc")));
+        movingAvg.setWindowFrame("ROWS BETWEEN 1 PRECEDING AND CURRENT ROW");
+        request.setCalculatedFields(new ArrayList<>(List.of(movingAvg)));
+        request.getColumns().add("stage5MovingAvg");
+
+        AnalysisFailure failure = analyzeFailureWithContext(request, null);
+        Map<String, Object> plan = queryStagePlan(failure.context());
+
+        assertTrue(failure.exception().getMessage().contains("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED"),
+                failure.exception().getMessage());
+        assertTrue(listValue(plan, "unsupported").contains("post-aggregate-window-mix-unsupported"),
+                plan.toString());
+        assertEquals(List.of("row", "agg", "post_agg", "window_result", "final"), stageIds(plan));
+    }
+
     // ==========================================
     // QM Predefined Window CFs
     // ==========================================
 
     @Test
-    @Order(30)
+    @Order(31)
     @DisplayName("QM predefined window CF uses CTE wrapping and executes correctly")
     void testQmPredefinedWindowWithCte() {
         if (!supportsWindowFunctions()) {

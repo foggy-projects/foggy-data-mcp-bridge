@@ -1,7 +1,7 @@
 ---
 doc_role: detailed_design
 version: 9.3.0
-status: planned
+status: implemented_with_risks
 owner: foggy-dataset-model
 created_at: 2026-07-09
 updated_at: 2026-07-09
@@ -167,6 +167,13 @@ Required semantics:
 - `SqlGenerationResult.diagnostics` must preserve this metadata for compose query integration.
 - Existing SQL debug output may remain, but planner tests should prefer this metadata where possible.
 
+Implemented fail-closed reasons in the 9.3.0 stage planner include:
+
+- `post-slice-result-stage-required`
+- `post-aggregate-window-mix-unsupported`
+- `window-functions-unsupported`
+- `window-derived-rendering-unsupported`
+
 ## Why Not A Loop Step
 
 The existing `QueryExecutionStep` loop hook is useful for bounded execution-time stabilization. It is not the right mechanism for SQL stage planning.
@@ -218,6 +225,8 @@ Stage E: Cleanup and hardening
 - Remove duplicated stage detection from `JdbcModelQueryEngine`.
 - Collapse ad hoc `hasWindowCf`, `hasPostAggregateCalculations`, and `postAggregateSlice` handling into planner diagnostics.
 - Add quality and coverage audit records under `docs/9.3.0`.
+
+Implementation status on 2026-07-09: Stage E is complete for covered engine paths. The planner owns window, post-aggregate, and postSlice feature detection; `JdbcModelQueryEngine` chooses the renderer from `QueryStagePlan` helper methods; quality, coverage, and acceptance records are stored under `docs/9.3.0`.
 
 ## Acceptance Criteria
 

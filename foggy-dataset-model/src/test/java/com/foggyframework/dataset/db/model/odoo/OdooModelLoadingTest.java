@@ -325,10 +325,8 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("WITH stage1 AS"), sql);
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("stage1.\"teamSales\" / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"salesShare\""), sql);
-        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
         assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
         assertTrue(normalizedSql.contains("ORDER BY \"teamSales\" DESC, \"salesShare\" DESC"), sql);
         assertEquals(0.2, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
@@ -352,8 +350,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
-        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
         assertEquals(0.2, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
     }
@@ -374,7 +371,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("AS \"salesShare\""), sql);
         assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
     }
@@ -412,7 +409,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("RANK() OVER (ORDER BY stage1.\"teamSales\" DESC) AS \"salesRank\""), sql);
         assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS \"cumulativeSales\""), sql);
         assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"cumulativeShare\""), sql);
@@ -455,11 +452,10 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("RANK() OVER (ORDER BY stage1.\"teamSales\" DESC) AS \"salesRank\""), sql);
         assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS \"cumulativeSales\""), sql);
         assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"cumulativeShare\""), sql);
-        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
         assertTrue(normalizedSql.contains("WHERE \"cumulativeShare\" <= ?"), sql);
         assertTrue(normalizedSql.contains("ORDER BY \"salesRank\" ASC"), sql);
         assertEquals(0.8, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
@@ -651,6 +647,19 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         }
     }
 
+    private static void assertPostAggregateStageShape(String normalizedSql, String rawSql) {
+        String lower = normalizedSql.toLowerCase();
+        boolean cteShape = lower.contains("with stage1 as")
+                && lower.contains("post_stage as")
+                && lower.contains("from post_stage");
+        boolean derivedShape = !lower.contains("with stage1 as")
+                && lower.contains("from (\nselect stage1.")
+                && lower.contains(") stage1")
+                && lower.contains(") post_stage");
+        assertTrue(cteShape || derivedShape,
+                "postAggregate SQL should render either CTE stages or derived-table stages: " + rawSql);
+    }
+
     @Test
     @Order(206)
     @DisplayName("calculatedFields 聚合别名总额占比公式归一为 postAggregateCalculations")
@@ -667,7 +676,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("stage1.\"teamSales\" / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"salesShare\""), sql);
         assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
         assertTrue(queryRequest.getCalculatedFields().stream()
@@ -693,8 +702,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
-        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
         assertFalse(normalizedSql.contains("HAVING \"salesShare\""), sql);
         assertEquals(0.2, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
@@ -717,7 +725,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         String sql = queryEngine.getSql();
         String normalizedSql = sql.replace('`', '"');
 
-        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertPostAggregateStageShape(normalizedSql, sql);
         assertTrue(normalizedSql.contains("stage1.\"teamSales\" / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"salesShare\""), sql);
         assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
         assertTrue(queryRequest.getCalculatedFields().stream()

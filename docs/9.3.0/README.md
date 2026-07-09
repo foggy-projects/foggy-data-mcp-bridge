@@ -2,7 +2,7 @@
 doc_role: version_followup_plan
 doc_purpose: Track 9.3.0 semantic query engine architecture hardening and multi-stage SQL planning work.
 version: 9.3.0
-status: planned
+status: completed_with_risks
 created_at: 2026-07-09
 updated_at: 2026-07-09
 ---
@@ -25,13 +25,13 @@ The immediate GitHub issue #120 fix remains valid as a regression fix, but it is
 
 | Item | Doc | Status | Owner Module | Summary |
 |---|---|---|---|---|
-| P0 Semantic Query Multi-Stage SQL Engine | `workitems/P0-semantic-query-multistage-sql-engine.md` | planned | `foggy-dataset-model` | Introduce explicit SQL stage planning for row, aggregate, post-aggregate, window/result, and final SQL phases. |
+| P0 Semantic Query Multi-Stage SQL Engine | `workitems/P0-semantic-query-multistage-sql-engine.md` | completed_with_risks | `foggy-dataset-model` | Introduce explicit SQL stage planning for row, aggregate, post-aggregate, window/result, and final SQL phases. |
 
 ## Detailed Designs
 
 | Design | Doc | Summary |
 |---|---|---|
-| Multi-stage SQL architecture | `detailed_design/00_semantic_query_multistage_sql_engine.md` | Defines stage boundaries, symbol resolution, renderer responsibilities, rollout, and test gates. |
+| Multi-stage SQL architecture | `detailed_design/00_semantic_query_multistage_sql_engine.md` | Defines stage boundaries, symbol resolution, renderer responsibilities, rollout, and test gates. Implemented for covered 9.3.0 JDBC paths with documented dialect evidence gaps. |
 
 ## Guardrails
 
@@ -47,9 +47,10 @@ The immediate GitHub issue #120 fix remains valid as a regression fix, but it is
 
 ## Progress Summary
 
-- development: not started.
-- testing: not started.
+- development: completed with documented risks. Stage 1 through Stage 5 are implemented for the covered JDBC semantic query paths.
+- testing: passed. `mvn -pl foggy-dataset-model test` completed with 3259 tests, 0 failures, 0 errors, and 3 skipped.
 - experience: N/A, backend query engine architecture only.
-- quality: pending after implementation stages.
-- coverage: pending after implementation stages.
-- acceptance: pending.
+- quality: reviewed, ready-with-risks. See `quality/semantic-query-multistage-sql-engine-implementation-quality.md`.
+- coverage: reviewed, ready-with-gaps. See `coverage/semantic-query-multistage-sql-engine-coverage-audit.md`.
+- acceptance: signed off as accepted-with-risks. See `acceptance/semantic-query-multistage-sql-engine-acceptance.md`.
+- remaining risks: SQL Server profile was not executed in this checkpoint; true MySQL 5.7 server execution evidence is still pending.

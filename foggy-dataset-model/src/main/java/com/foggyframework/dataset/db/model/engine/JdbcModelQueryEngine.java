@@ -37,7 +37,6 @@ import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisito
 import com.foggyframework.dataset.db.model.engine.query_model.PredefinedCalculatedFieldInjector;
 import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlanner;
-import com.foggyframework.dataset.db.model.engine.stage.QueryStageType;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
@@ -463,25 +462,15 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // When detected, we generate a two-stage SQL:
         //   Stage 1 (CTE): base aggregations + dimensions (no window CFs, no ORDER BY)
         //   Stage 2 (outer): SELECT stage1.*, windowCF1, windowCF2 FROM stage1 ORDER BY ... LIMIT ...
-        boolean hasWindowCf = hasWindowCalculatedFields(queryRequest);
-        boolean hasPostAggregateCalculations = hasPostAggregateCalculations(queryRequest);
-        boolean hasPostSlice = hasPostSlice(queryRequest);
-        QueryStagePlan stagePlan = attachQueryStagePlan(context, queryRequest, jdbcQuery, hasWindowCf, hasPostAggregateCalculations, hasPostSlice);
-
-        if (hasPostSlice && !hasPostAggregateCalculations && !hasWindowCf) {
-            throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
-        }
-        validateStagePlan(stagePlan, hasWindowCf);
+        QueryStagePlan stagePlan = attachQueryStagePlan(context, queryRequest, jdbcQuery);
+        validateStagePlan(stagePlan);
 
         AggregateJoinTableModel.setRuntimeFilterContext(context);
         try {
             prepareAggregateRelationProjection(jdbcQuery);
-            if (stagePlan.hasStage(QueryStageType.POST_AGGREGATE_STAGE) && hasPostAggregateCalculations) {
-                if (hasWindowCf) {
-                    throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
-                }
+            if (stagePlan.requiresPostAggregateRenderer()) {
                 generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
-            } else if (stagePlan.hasStage(QueryStageType.WINDOW_RESULT_STAGE) && hasWindowCf) {
+            } else if (stagePlan.requiresWindowResultRenderer()) {
                 generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
             } else {
                 generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
@@ -504,19 +493,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     private QueryStagePlan attachQueryStagePlan(ModelResultContext context,
                                                 DbQueryRequestDef queryRequest,
-                                                JdbcQuery jdbcQuery,
-                                                boolean hasWindowCf,
-                                                boolean hasPostAggregateCalculations,
-                                                boolean hasPostSlice) {
+                                                JdbcQuery jdbcQuery) {
         QueryStagePlan plan = queryStagePlanner.plan(
                 queryRequest,
                 jdbcQuery,
                 jdbcQueryModel.getDialect(),
                 calculatedColumns,
-                postAggregateSlice,
-                hasWindowCf,
-                hasPostAggregateCalculations,
-                hasPostSlice
+                postAggregateSlice
         );
         if (context != null) {
             if (context.getExtData() == null) {
@@ -527,15 +510,21 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return plan;
     }
 
-    private void validateStagePlan(QueryStagePlan stagePlan, boolean hasWindowCf) {
+    private void validateStagePlan(QueryStagePlan stagePlan) {
         if (stagePlan == null || !stagePlan.hasUnsupported()) {
             return;
         }
-        if (hasWindowCf && stagePlan.getUnsupported().contains("window-functions-unsupported")) {
+        if (stagePlan.hasUnsupported("post-slice-result-stage-required")) {
+            throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
+        }
+        if (stagePlan.hasUnsupported("post-aggregate-window-mix-unsupported")) {
+            throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
+        }
+        if (stagePlan.hasUnsupported("window-functions-unsupported")) {
             throw RX.throwAUserTip("WINDOW_RESULT_STAGE_WINDOW_FUNCTION_UNSUPPORTED: dialect "
                     + stagePlan.getDialect() + " does not support window functions.");
         }
-        if (hasWindowCf && stagePlan.getUnsupported().contains("window-derived-rendering-unsupported")) {
+        if (stagePlan.hasUnsupported("window-derived-rendering-unsupported")) {
             throw RX.throwAUserTip("WINDOW_RESULT_STAGE_DERIVED_RENDERING_UNSUPPORTED: dialect "
                     + stagePlan.getDialect()
                     + " cannot render window result stages without CTE support in the current planner.");
@@ -754,49 +743,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return aliases;
     }
 
-    private boolean hasPostAggregateCalculations(DbQueryRequestDef queryRequest) {
-        return queryRequest.getPostAggregateCalculations() != null
-                && !queryRequest.getPostAggregateCalculations().isEmpty();
-    }
-
-    private boolean hasPostSlice(DbQueryRequestDef queryRequest) {
-        return queryRequest != null
-                && queryRequest.getPostSlice() != null
-                && !queryRequest.getPostSlice().isEmpty();
-    }
-
     private Set<String> postAggregateNames(DbQueryRequestDef queryRequest) {
-        if (!hasPostAggregateCalculations(queryRequest)) {
+        if (queryRequest == null
+                || queryRequest.getPostAggregateCalculations() == null
+                || queryRequest.getPostAggregateCalculations().isEmpty()) {
             return Set.of();
         }
         return queryRequest.getPostAggregateCalculations().stream()
                 .map(PostAggregateCalculationDef::getName)
                 .filter(StringUtils::isNotEmpty)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-    }
-
-    /**
-     * Check whether the current SELECT list contains any window calculated fields.
-     * <p>
-     * Window CFs are identified by the {@code DbAggregation.WINDOW} type on their
-     * wrapping {@link AggregationDbColumn}, or by the {@code hasWindow()} flag on
-     * a raw {@link CalculatedDbColumn}.
-     * </p>
-     */
-    private boolean hasWindowCalculatedFields(DbQueryRequestDef queryRequest) {
-        if (calculatedColumns == null || calculatedColumns.isEmpty()) {
-            return false;
-        }
-        // CTE wrapping is only needed for window CFs that were processed through
-        // wrapWithWindowClause (i.e., have explicit partitionBy/windowOrderBy).
-        // CALCULATE-generated windows (SUM(SUM(x)) OVER(...)) are self-contained
-        // and work in single-pass mode — they are NOT flagged for CTE wrapping.
-        for (CalculatedDbColumn col : calculatedColumns) {
-            if (col.isNeedsCteWrapping()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void rejectWindowCalculatedFieldSlice(DbQueryRequestDef queryRequest) {
@@ -1058,7 +1014,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         String finalSelectSql;
         String ctePrefix;
 
-        if (hasPostSlice(queryRequest)) {
+        if (queryRequest.getPostSlice() != null && !queryRequest.getPostSlice().isEmpty()) {
             String postResultAlias = "__POST_RESULT_STAGE__";
             StringBuilder finalSelect = new StringBuilder();
             finalSelect.append("SELECT ");

@@ -27,10 +27,11 @@ public class QueryStagePlanner {
                                JdbcQuery jdbcQuery,
                                FDialect dialect,
                                List<CalculatedDbColumn> calculatedColumns,
-                               List<SliceRequestDef> postAggregateSlice,
-                               boolean hasWindowCalculatedFields,
-                               boolean hasPostAggregateCalculations,
-                               boolean hasPostSlice) {
+                               List<SliceRequestDef> postAggregateSlice) {
+        boolean hasWindowCalculatedFields = hasWindowCalculatedFields(calculatedColumns)
+                || hasWindowCalculatedFields(request);
+        boolean hasPostAggregateCalculations = hasPostAggregateCalculations(request);
+        boolean hasPostSlice = hasPostSlice(request);
         boolean aggregateStageRequired = (request != null && request.hasGroupBy()) || hasAggregateSelect(jdbcQuery);
         boolean postAggregateStageRequired = hasPostAggregateCalculations || !isEmpty(postAggregateSlice);
         boolean windowResultStageRequired = hasWindowCalculatedFields || hasPostSlice;
@@ -52,6 +53,12 @@ public class QueryStagePlanner {
         }
         if (hasWindowCalculatedFields && "derived".equals(renderStrategy)) {
             unsupported.add("window-derived-rendering-unsupported");
+        }
+        if (hasPostSlice && !hasPostAggregateCalculations && !hasWindowCalculatedFields) {
+            unsupported.add("post-slice-result-stage-required");
+        }
+        if (hasWindowCalculatedFields && hasPostAggregateCalculations) {
+            unsupported.add("post-aggregate-window-mix-unsupported");
         }
 
         List<QueryStagePlan.Stage> stages = new ArrayList<>();
@@ -165,6 +172,47 @@ public class QueryStagePlanner {
             }
         }
         return false;
+    }
+
+    private boolean hasWindowCalculatedFields(List<CalculatedDbColumn> calculatedColumns) {
+        if (calculatedColumns == null || calculatedColumns.isEmpty()) {
+            return false;
+        }
+        for (CalculatedDbColumn column : calculatedColumns) {
+            if (column != null && column.isNeedsCteWrapping()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasWindowCalculatedFields(DbQueryRequestDef request) {
+        if (request == null || request.getCalculatedFields() == null || request.getCalculatedFields().isEmpty()) {
+            return false;
+        }
+        for (CalculatedFieldDef field : request.getCalculatedFields()) {
+            if (field == null) {
+                continue;
+            }
+            if (!isEmpty(field.getPartitionBy())
+                    || !isEmpty(field.getWindowOrderBy())
+                    || StringUtils.isNotEmpty(field.getWindowFrame())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasPostAggregateCalculations(DbQueryRequestDef request) {
+        return request != null
+                && request.getPostAggregateCalculations() != null
+                && !request.getPostAggregateCalculations().isEmpty();
+    }
+
+    private boolean hasPostSlice(DbQueryRequestDef request) {
+        return request != null
+                && request.getPostSlice() != null
+                && !request.getPostSlice().isEmpty();
     }
 
     private String dialectName(FDialect dialect) {

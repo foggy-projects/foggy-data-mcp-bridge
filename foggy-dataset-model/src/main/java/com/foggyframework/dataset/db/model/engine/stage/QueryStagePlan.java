@@ -73,6 +73,10 @@ public class QueryStagePlan {
         return !unsupported.isEmpty();
     }
 
+    public boolean hasUnsupported(String reason) {
+        return unsupported.contains(reason);
+    }
+
     public boolean hasStage(QueryStageType type) {
         for (Stage stage : stages) {
             if (stage.getType() == type) {
@@ -80,6 +84,22 @@ public class QueryStagePlan {
             }
         }
         return false;
+    }
+
+    public boolean hasPostAggregateStage() {
+        return hasStage(QueryStageType.POST_AGGREGATE_STAGE);
+    }
+
+    public boolean hasWindowResultStage() {
+        return hasStage(QueryStageType.WINDOW_RESULT_STAGE);
+    }
+
+    public boolean requiresPostAggregateRenderer() {
+        return hasPostAggregateStage();
+    }
+
+    public boolean requiresWindowResultRenderer() {
+        return !hasPostAggregateStage() && hasWindowResultStage();
     }
 
     public boolean usesCteRendering() {

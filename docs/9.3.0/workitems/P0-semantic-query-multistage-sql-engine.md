@@ -3,7 +3,7 @@ type: architecture-hardening
 version: 9.3.0
 ticket: P0-semantic-query-multistage-sql-engine
 priority: P0
-status: planned
+status: completed_with_risks
 owner: foggy-dataset-model
 source: github-issue-120-followup
 test_strategy: integration-test
@@ -312,12 +312,13 @@ Additional evidence required before acceptance:
 
 ## Progress Tracking
 
-- development: planned.
-- testing: not started.
+- development: completed_with_risks. Stage 1 through Stage 5 are implemented for the covered JDBC semantic query paths.
+- testing: completed. Full `foggy-dataset-model` module regression passed with 3259 tests, 0 failures, 0 errors, and 3 skipped.
 - experience: N/A, backend query engine architecture only.
-- quality: pending.
-- coverage: pending.
-- acceptance readiness: not ready.
+- quality: ready-with-risks. See `../quality/semantic-query-multistage-sql-engine-implementation-quality.md`.
+- coverage: ready-with-gaps. See `../coverage/semantic-query-multistage-sql-engine-coverage-audit.md`.
+- acceptance readiness: accepted-with-risks. See `../acceptance/semantic-query-multistage-sql-engine-acceptance.md`.
+- remaining risks: SQL Server profile was not executed; true MySQL 5.7 server execution evidence remains pending.
 
 ## Implementation Self-Check Template
 
