@@ -409,6 +409,8 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals("single", plan.get("renderStrategy"));
         assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
         assertEquals("final", plan.get("finalCountStageId"));
+        assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
+        assertEquals("optimizer-allowed", plan.get("aggSqlOptimizationPolicy"));
         assertEquals(List.of(), plan.get("fallbacks"));
         assertEquals(List.of(), plan.get("unsupported"));
 
@@ -440,6 +442,8 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
 
         assertEquals(expectedMultiStageRenderStrategy(), plan.get("renderStrategy"));
         assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
+        assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
+        assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
         assertEquals(List.of("row", "window_result", "final"), stageIds(plan));
 
         Map<String, Object> windowStage = stage(plan, "window_result");
@@ -452,6 +456,9 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertEquals(false, stage(plan, "final").get("requiresSqlBoundary"));
         assertTrue(result.engine().getSql().contains("__POST_RESULT_STAGE__"),
                 "Existing window SQL wrapping should remain active: " + result.engine().getSql());
+        assertNull(result.engine().getAggSqlOptimizationResult(),
+                "Result-stage filters require returnTotal to preserve the final SQL stage");
+        assertFinalTotalMatchesRows(result.engine());
     }
 
     @Test
@@ -465,6 +472,8 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
 
         assertEquals(expectedMultiStageRenderStrategy(), plan.get("renderStrategy"));
         assertEquals("disabled", plan.get("returnTotalStrategy"));
+        assertEquals("disabled", plan.get("countSqlInput"));
+        assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
         assertEquals(List.of("row", "agg", "post_agg", "window_result", "final"), stageIds(plan));
 
         Map<String, Object> postAggStage = stage(plan, "post_agg");
@@ -489,6 +498,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
             return;
         }
         DbQueryRequestDef request = buildPostAggregateSalesShareRequest();
+        request.setReturnTotal(true);
         request.setOrderBy(new ArrayList<>(List.of(orderDesc("salesShare"))));
 
         AnalysisResult result = analyzeWithContext(request, new NoCteSqliteDialect());
@@ -496,6 +506,9 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         String sql = result.engine().getSql();
 
         assertEquals("derived", plan.get("renderStrategy"));
+        assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
+        assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
+        assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
         assertEquals(List.of("sqlite-derived-table"), plan.get("fallbacks"));
         assertFalse(result.engine().isCteWrapped(), "Derived fallback should not expose structured CTE stages");
         assertEquals(List.of(), result.engine().getCteStages());
@@ -503,9 +516,30 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertTrue(sql.contains("post_stage"), "Derived fallback should still expose the post stage alias: " + sql);
         assertTrue(sql.contains("FROM (\nSELECT"), "Derived fallback should nest the planned stage SQL: " + sql);
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                sql, result.engine().getValues().toArray(new Object[0]));
-        assertFalse(rows.isEmpty(), "Derived post-aggregate fallback should execute against the fixture");
+        assertNull(result.engine().getAggSqlOptimizationResult(),
+                "Derived stage fallback should preserve final-stage SQL for returnTotal");
+        assertFinalTotalMatchesRows(result.engine());
+    }
+
+    @Test
+    @Order(26)
+    @DisplayName("Post-aggregate returnTotal counts the filtered final result stage")
+    void testPostAggregateReturnTotalCountsFilteredFinalStage() {
+        if (!supportsWindowFunctions()) {
+            return;
+        }
+        DbQueryRequestDef request = buildPostAggregateSalesShareRequest();
+        request.setReturnTotal(true);
+
+        AnalysisResult result = analyzeWithContext(request);
+        Map<String, Object> plan = queryStagePlan(result.context());
+
+        assertEquals("final-stage-count", plan.get("returnTotalStrategy"));
+        assertEquals("final-stage-sql-without-order", plan.get("countSqlInput"));
+        assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertNull(result.engine().getAggSqlOptimizationResult(),
+                "Post-aggregate returnTotal should not optimize away final-stage filters");
+        assertFinalTotalMatchesRows(result.engine());
     }
 
     // ==========================================
@@ -701,6 +735,21 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertFalse(sql.toUpperCase().contains("WITH "), "Derived fallback must not emit WITH: " + sql);
         assertTrue(sql.contains("post_stage"), "Derived fallback should still expose the post stage alias: " + sql);
         assertTrue(sql.contains("FROM (\nSELECT"), "Derived fallback should nest the planned stage SQL: " + sql);
+    }
+
+    private void assertFinalTotalMatchesRows(JdbcModelQueryEngine engine) {
+        Object[] params = engine.getValues().toArray(new Object[0]);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(engine.getSql(), params);
+        assertFalse(rows.isEmpty(), "Main query should execute against the fixture");
+
+        Map<String, Object> totalData = jdbcTemplate.queryForMap(engine.getAggSql(), params);
+        Object total = totalData.get("total");
+        if (total == null) {
+            total = totalData.get("TOTAL");
+        }
+        assertNotNull(total, "Agg SQL should expose a total column: " + engine.getAggSql());
+        assertEquals(rows.size(), ((Number) total).intValue(),
+                "returnTotal should count the final semantic result set");
     }
 
     private static class NoCteSqliteDialect extends SqliteDialect {

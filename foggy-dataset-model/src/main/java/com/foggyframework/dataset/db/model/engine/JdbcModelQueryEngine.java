@@ -481,9 +481,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 }
                 generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
             } else if (stagePlan.hasStage(QueryStageType.WINDOW_RESULT_STAGE) && hasWindowCf) {
-                generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+                generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
             } else {
-                generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+                generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
             }
 
             if (log.isDebugEnabled()) {
@@ -825,7 +825,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void generateSinglePass(SystemBundlesContext systemBundlesContext,
                                      DbQueryRequestDef queryRequest,
                                      JdbcQuery jdbcQuery,
-                                     DomainTransportSqlInjection domainTransportInjection) {
+                                     DomainTransportSqlInjection domainTransportInjection,
+                                     QueryStagePlan stagePlan) {
         SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(
                 systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
         jdbcQuery.accept(v);
@@ -845,19 +846,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
         this.sql = this.innerSql;
 
-        // 构建聚合SQL（支持优化）
         boolean countToSum = queryRequest.hasGroupBy();
-        if (queryRequest.isOptimizeAggSqlEnabled()) {
-            AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
-            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(this.innerSqlWithoutOrder, countToSum);
-            this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
-            if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
-                log.debug("聚合SQL优化: {}", this.aggSqlOptimizationResult.getSummary());
-            }
-        } else {
-            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
-            this.aggSqlOptimizationResult = null;
-        }
+        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery, stagePlan, countToSum);
     }
 
     /**
@@ -927,7 +917,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void generateWithCteWrapping(SystemBundlesContext systemBundlesContext,
                                           DbQueryRequestDef queryRequest,
                                           JdbcQuery jdbcQuery,
-                                          DomainTransportSqlInjection domainTransportInjection) {
+                                          DomainTransportSqlInjection domainTransportInjection,
+                                          QueryStagePlan stagePlan) {
         FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
 
         // ── Identify window CF columns in the SELECT list ──
@@ -955,7 +946,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         if (windowColumns.isEmpty()) {
             // Fallback: no window CFs found (shouldn't happen since hasWindowCF was true)
-            generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+            generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
             return;
         }
 
@@ -1106,19 +1097,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         mergedValues.addAll(finalParams);
         this.values = mergedValues;
 
-        // 构建聚合SQL（基于 Stage 1，不含窗口函数和排序）
         boolean countToSum = queryRequest.hasGroupBy();
-        if (queryRequest.isOptimizeAggSqlEnabled()) {
-            AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
-            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(ctePrefix + outerSelectWithoutOrder, countToSum);
-            this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
-            if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
-                log.debug("聚合SQL优化 (CTE wrapped): {}", this.aggSqlOptimizationResult.getSummary());
-            }
-        } else {
-            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
-            this.aggSqlOptimizationResult = null;
-        }
+        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery, stagePlan, countToSum);
     }
 
     private List<String> buildWindowResultOrderExprs(
@@ -1293,13 +1273,30 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.values = mergedValues;
 
         boolean countToSum = queryRequest.hasGroupBy();
-        if (queryRequest.isOptimizeAggSqlEnabled()) {
+        buildAggSqlForStagePlan(systemBundlesContext, queryRequest, jdbcQuery, stagePlan, countToSum);
+    }
+
+    private void buildAggSqlForStagePlan(SystemBundlesContext systemBundlesContext,
+                                         DbQueryRequestDef queryRequest,
+                                         JdbcQuery jdbcQuery,
+                                         QueryStagePlan stagePlan,
+                                         boolean countToSum) {
+        boolean optimizeAggSql = queryRequest.isOptimizeAggSqlEnabled()
+                && (stagePlan == null || !stagePlan.requiresFinalStageAggSql());
+        if (optimizeAggSql) {
             AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
             this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(this.innerSqlWithoutOrder, countToSum);
             this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
-        } else {
-            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
-            this.aggSqlOptimizationResult = null;
+            if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
+                log.debug("聚合SQL优化: {}", this.aggSqlOptimizationResult.getSummary());
+            }
+            return;
+        }
+        this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
+        this.aggSqlOptimizationResult = null;
+        if (log.isDebugEnabled() && queryRequest.isOptimizeAggSqlEnabled()
+                && stagePlan != null && stagePlan.requiresFinalStageAggSql()) {
+            log.debug("聚合SQL优化跳过: {}", stagePlan.aggSqlOptimizationPolicy());
         }
     }
 

@@ -86,6 +86,29 @@ public class QueryStagePlan {
         return "derived".equals(renderStrategy);
     }
 
+    public boolean requiresFinalStageAggSql() {
+        for (Stage stage : stages) {
+            if (stage.getType() != QueryStageType.FINAL_STAGE && stage.isRequiresSqlBoundary()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public String countSqlInput() {
+        if (!"final-stage-count".equals(returnTotalStrategy)) {
+            return "disabled";
+        }
+        return "final-stage-sql-without-order";
+    }
+
+    public String aggSqlOptimizationPolicy() {
+        if (requiresFinalStageAggSql()) {
+            return "preserve-final-stage-sql";
+        }
+        return "optimizer-allowed";
+    }
+
     public Map<String, Object> toDiagnosticsMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("version", VERSION);
@@ -94,6 +117,8 @@ public class QueryStagePlan {
         map.put("renderStrategy", renderStrategy);
         map.put("finalCountStageId", finalCountStageId);
         map.put("returnTotalStrategy", returnTotalStrategy);
+        map.put("countSqlInput", countSqlInput());
+        map.put("aggSqlOptimizationPolicy", aggSqlOptimizationPolicy());
 
         List<Map<String, Object>> stageMaps = new ArrayList<>(stages.size());
         for (Stage stage : stages) {
