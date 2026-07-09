@@ -240,13 +240,13 @@ Completion evidence:
 - Verify SQL Server, PostgreSQL, MySQL, SQLite identifier quoting and CTE/derived table behavior.
 - Preserve structured `SqlGenerationResult.CteStage` for compose query integration.
 - Preserve `queryStagePlan` diagnostics in `SqlGenerationResult` so compose consumers can read stage metadata directly.
-- Add `preAggOptimizationPolicy`; skip pre-aggregation when the final semantic stage must be preserved.
+- Add `preAggOptimizationPolicy`; skip pre-aggregation when the final semantic stage must be preserved, except for explicitly proven `return-total-equivalent-only` aggregate SQL.
 - Verify `queryStagePlan` metadata remains available after pre-aggregation/cache execution steps.
 
 Completion evidence:
 
 - Targeted compose, pre-aggregation, and dialect tests pass.
-- Pre-aggregation does not rewrite either the main SQL or returnTotal aggregate SQL for post-aggregate/window result-stage queries that require final-stage preservation.
+- Pre-aggregation does not rewrite main SQL for post-aggregate/window result-stage queries that require final-stage preservation. ReturnTotal preAgg aggregate SQL is allowed only for the proven `return-total-equivalent-only` path and must fail closed otherwise.
 - SQL Server profile is run where available.
 - If any dialect remains not-run, the reason is recorded in progress.
 

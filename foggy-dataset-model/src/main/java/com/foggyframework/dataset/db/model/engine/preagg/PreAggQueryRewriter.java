@@ -165,6 +165,21 @@ public class PreAggQueryRewriter {
     }
 
     /**
+     * 构建基于预聚合主查询结果的 final-stage count SQL。
+     * <p>
+     * 该路径用于多阶段查询中“最终 stage 未新增过滤，只改变投影/派生列”的场景。
+     * 直接对预聚合物理表 COUNT(*) 可能会把预聚合粒度行数误当作最终分组行数；
+     * 因此这里只在能够明确重建预聚合 rollup 行集时生成 SQL；否则返回 null 交回原始 final-stage count。
+     * </p>
+     */
+    public PreAggAggregateSqlResult buildFinalStageAggregateSql(PreAggRewriteResult rewriteResult,
+                                                                 JdbcQuery jdbcQuery,
+                                                                 DbQueryRequestDef queryRequest) {
+        return new FinalStagePreAggAggregateSqlBuilder(queryModel, this)
+                .build(rewriteResult, jdbcQuery, queryRequest);
+    }
+
+    /**
      * 构建聚合查询 SQL 的内部实现
      *
      * @param preAgg       预聚合
@@ -948,7 +963,7 @@ public class PreAggQueryRewriter {
     /**
      * 获取预聚合表的完整表名（包括 schema）
      */
-    private String getFullTableName(PreAggregation preAgg) {
+    String getFullTableName(PreAggregation preAgg) {
         String schema = preAgg.getSchema();
         String tableName = preAgg.getTableName();
 
@@ -1011,7 +1026,7 @@ public class PreAggQueryRewriter {
     /**
      * 获取聚合函数名
      */
-    private String getAggregationFunction(DbAggregation agg) {
+    String getAggregationFunction(DbAggregation agg) {
         if (agg == null) {
             return "SUM";
         }
@@ -1045,7 +1060,7 @@ public class PreAggQueryRewriter {
      */
     @lombok.Data
     @lombok.AllArgsConstructor
-    private static class WhereClauseResult {
+    static class WhereClauseResult {
         private String clause;
         private List<Object> params;
 
@@ -1062,9 +1077,9 @@ public class PreAggQueryRewriter {
      * @param alias        表别名
      * @return WHERE 子句结果
      */
-    private WhereClauseResult buildWhereClauseFromSlices(PreAggregation preAgg,
-                                                          DbQueryRequestDef queryRequest,
-                                                          String alias) {
+    WhereClauseResult buildWhereClauseFromSlices(PreAggregation preAgg,
+                                                 DbQueryRequestDef queryRequest,
+                                                 String alias) {
         List<SliceRequestDef> slices = queryRequest.getSlice();
         if (slices == null || slices.isEmpty()) {
             return WhereClauseResult.empty();
@@ -1327,7 +1342,7 @@ public class PreAggQueryRewriter {
      * @param field  字段名（如 product$categoryName 或 salesDate$caption）
      * @return 预聚合表的列名
      */
-    private String mapFieldToPreAggColumn(PreAggregation preAgg, String field) {
+    String mapFieldToPreAggColumn(PreAggregation preAgg, String field) {
         // 首先检查预聚合的列名映射
         Map<String, String> columnNames = preAgg.getDimensionPropertyColumnNames();
         if (columnNames != null && columnNames.containsKey(field)) {

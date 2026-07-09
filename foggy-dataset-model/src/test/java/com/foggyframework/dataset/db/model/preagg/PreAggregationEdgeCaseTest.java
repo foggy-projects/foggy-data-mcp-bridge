@@ -9,6 +9,10 @@ import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.db.model.spi.TableModel;
+import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +24,7 @@ import org.springframework.test.context.ActiveProfiles;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,6 +54,9 @@ class PreAggregationEdgeCaseTest {
 
     @Resource
     private DataSource dataSource;
+
+    @Resource
+    private QueryModelLoader queryModelLoader;
 
     private JdbcTemplate jdbcTemplate;
 
@@ -425,9 +433,253 @@ class PreAggregationEdgeCaseTest {
                 "returnTotal should count the final semantic result set");
     }
 
+    @Test
+    @Order(22)
+    @DisplayName("多阶段 postAggregate 无结果过滤时 returnTotal 可使用等价预聚合")
+    void testPostAggregateWithoutResultFilterUsesEquivalentPreAggForReturnTotal() {
+        ModelResultContext contextWithPreAgg = queryContext(postAggregateShareRequest(), true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+        ModelResultContext contextNoPreAgg = queryContext(postAggregateShareRequest(), false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("preserve-final-stage-sql", plan.get("aggSqlOptimizationPolicy"));
+        assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit(),
+                "主查询不能被预聚合整体替换，避免破坏 postAggregate stage");
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggUsed"));
+        assertEquals("daily_product_sales", contextWithPreAgg.getExtData().get("preAggAggregateUsed"));
+        assertEquals("final-stage-equivalent", contextWithPreAgg.getExtData().get("preAggAggregateMode"));
+        assertEquals(
+                resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "等价预聚合 returnTotal 应匹配 final-stage count"
+        );
+    }
+
+    @Test
+    @Order(23)
+    @DisplayName("多阶段 postAggregate 等价预聚合遇到 hybrid 匹配时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedForHybridMatch() {
+        Map<PreAggregation, Object> originalWatermarks = setSalesPreAggWatermarks(LocalDate.of(2024, 3, 20));
+        assertFalse(originalWatermarks.isEmpty(), "fixture should contain hybrid-capable sales pre-aggregations");
+
+        try {
+            ModelResultContext contextWithPreAgg = queryContext(postAggregateShareRequest(), true, true);
+            DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+            ModelResultContext contextNoPreAgg = queryContext(postAggregateShareRequest(), false);
+            DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+            Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+            assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+            assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+            assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+            assertEquals("return-total-equivalent-not-matched",
+                    contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+            assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+            assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+            assertEquals(
+                    resultNoPreAgg.getPagingResult().getTotal(),
+                    resultWithPreAgg.getPagingResult().getTotal(),
+                    "hybrid preAgg cannot prove final-stage equivalence and must fall back to original final count"
+            );
+        } finally {
+            restoreSalesPreAggWatermarks(originalWatermarks);
+        }
+    }
+
+    @Test
+    @Order(24)
+    @DisplayName("多阶段 postAggregate 等价预聚合无法证明映射时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedWhenMappingNotProvable() {
+        DbQueryRequestDef request = postAggregateShareRequest("store$storeType");
+
+        ModelResultContext contextWithPreAgg = queryContext(request, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+        ModelResultContext contextNoPreAgg = queryContext(postAggregateShareRequest("store$storeType"), false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+        assertEquals("return-total-equivalent-not-matched",
+                contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+        assertEquals(
+                resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "unprovable preAgg group mapping must fall back to original final count"
+        );
+    }
+
+    @Test
+    @Order(25)
+    @DisplayName("多阶段 postAggregate 等价预聚合同维度未声明属性时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedWhenDimensionPropertyNotDeclared() {
+        DbQueryRequestDef request = postAggregateShareRequest("product$subCategoryName");
+
+        ModelResultContext contextWithPreAgg = queryContext(request, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+        ModelResultContext contextNoPreAgg = queryContext(postAggregateShareRequest("product$subCategoryName"), false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+        assertEquals("return-total-equivalent-not-matched",
+                contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+        assertEquals(
+                resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "undeclared preAgg dimension property must fall back to original final count"
+        );
+    }
+
+    @Test
+    @Order(26)
+    @DisplayName("多阶段 postAggregate 等价预聚合未声明度量时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedWhenMeasureNotDeclared() {
+        DbQueryRequestDef request = postAggregateShareRequest("product$categoryName", "unitPrice");
+
+        ModelResultContext contextWithPreAgg = queryContext(request, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+        ModelResultContext contextNoPreAgg = queryContext(
+                postAggregateShareRequest("product$categoryName", "unitPrice"), false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+        assertEquals("return-total-equivalent-not-matched",
+                contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+        assertEquals(
+                resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "undeclared preAgg measure must fall back to original final count"
+        );
+    }
+
+    @Test
+    @Order(27)
+    @DisplayName("多阶段 postAggregate 等价预聚合遇到部分 groupBy 不可映射时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedWhenAnyGroupMappingNotProvable() {
+        DbQueryRequestDef request = postAggregateShareRequest(
+                List.of("product$categoryName", "store$storeType"), "salesAmount");
+
+        ModelResultContext contextWithPreAgg = queryContext(request, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+        ModelResultContext contextNoPreAgg = queryContext(
+                postAggregateShareRequest(List.of("product$categoryName", "store$storeType"), "salesAmount"), false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+        assertEquals("return-total-equivalent-not-matched",
+                contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+        assertEquals(
+                resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "partially mapped groupBy fields must not be dropped from equivalent preAgg count"
+        );
+    }
+
     // ==========================================
     // 辅助方法
     // ==========================================
+
+    private ModelResultContext queryContext(DbQueryRequestDef queryRequest, boolean preAggEnabled) {
+        return queryContext(queryRequest, preAggEnabled, false);
+    }
+
+    private ModelResultContext queryContext(DbQueryRequestDef queryRequest,
+                                            boolean preAggEnabled,
+                                            boolean hybridQueryEnabled) {
+        PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
+        pagingRequest.setParam(queryRequest);
+        pagingRequest.setStart(0);
+        pagingRequest.setLimit(100);
+
+        ModelResultContext context = new ModelResultContext(pagingRequest, null);
+        context.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
+                .l1Enabled(false)
+                .l2Enabled(false)
+                .preAggEnabled(preAggEnabled)
+                .hybridQueryEnabled(hybridQueryEnabled)
+                .build());
+        return context;
+    }
+
+    private DbQueryRequestDef postAggregateShareRequest() {
+        return postAggregateShareRequest("product$categoryName");
+    }
+
+    private DbQueryRequestDef postAggregateShareRequest(String groupField) {
+        return postAggregateShareRequest(groupField, "salesAmount");
+    }
+
+    private DbQueryRequestDef postAggregateShareRequest(String groupField, String measureField) {
+        return postAggregateShareRequest(List.of(groupField), measureField);
+    }
+
+    private DbQueryRequestDef postAggregateShareRequest(List<String> groupFields, String measureField) {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        List<String> columns = new ArrayList<>(groupFields);
+        columns.add("sum(" + measureField + ") as teamSales");
+        columns.add("salesShare");
+        queryRequest.setColumns(columns);
+        queryRequest.setGroupBy(buildGroupBy(groupFields.toArray(new String[0])));
+        queryRequest.setPostAggregateCalculations(new ArrayList<>(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "teamSales", "grandTotal", "ratio"
+        ))));
+        queryRequest.setReturnTotal(true);
+        return queryRequest;
+    }
+
+    private Map<PreAggregation, Object> setSalesPreAggWatermarks(Object watermark) {
+        Map<PreAggregation, Object> originalWatermarks = new LinkedHashMap<>();
+        for (PreAggregation preAgg : salesPreAggregations()) {
+            if (preAgg.supportsHybridQuery()) {
+                originalWatermarks.put(preAgg, preAgg.getDataWatermark());
+                preAgg.setDataWatermark(watermark);
+            }
+        }
+        return originalWatermarks;
+    }
+
+    private void restoreSalesPreAggWatermarks(Map<PreAggregation, Object> originalWatermarks) {
+        for (Map.Entry<PreAggregation, Object> entry : originalWatermarks.entrySet()) {
+            entry.getKey().setDataWatermark(entry.getValue());
+        }
+    }
+
+    private List<PreAggregation> salesPreAggregations() {
+        JdbcQueryModel queryModel = (JdbcQueryModel) queryModelLoader.getJdbcQueryModel("FactSalesPreAggQueryModel", null);
+        assertNotNull(queryModel, "FactSalesPreAggQueryModel should load");
+        TableModel tableModel = queryModel.getJdbcModel();
+        assertNotNull(tableModel, "FactSalesPreAggQueryModel table model should load");
+        assertNotNull(tableModel.getPreAggregations(), "sales pre-aggregations should load");
+        return tableModel.getPreAggregations();
+    }
 
     private List<GroupRequestDef> buildGroupBy(String... fields) {
         List<GroupRequestDef> groups = new ArrayList<>();

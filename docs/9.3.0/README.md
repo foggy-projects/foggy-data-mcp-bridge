@@ -48,9 +48,10 @@ The immediate GitHub issue #120 fix remains valid as a regression fix, but it is
 ## Progress Summary
 
 - development: completed with documented risks. Stage 1 through Stage 5 are implemented for the covered JDBC semantic query paths.
-- testing: passed. `mvn -pl foggy-dataset-model test` completed with 3259 tests, 0 failures, 0 errors, and 3 skipped.
+- P0-P2 follow-up: bounded stage-aware preAgg `returnTotal` equivalence is restored for final-stage plans that add no post-aggregate/window result filters; hybrid, unprovable group/measure mapping, undeclared dimension property, and partial group mapping cases fail closed.
+- testing: passed for covered scope. `mvn -pl foggy-dataset-model test` completed with 3259 tests, 0 failures, 0 errors, and 3 skipped. Latest P0-P2 targeted evidence also passed `PreAggregationEdgeCaseTest` with 13 tests, combined preAgg/stage tests with 37 tests, and docker profile `JdbcModelQueryEngineCteWrapTest` with 24 tests, 0 failures, 0 errors, and 1 skipped.
 - experience: N/A, backend query engine architecture only.
 - quality: reviewed, ready-with-risks. See `quality/semantic-query-multistage-sql-engine-implementation-quality.md`.
 - coverage: reviewed, ready-with-gaps. See `coverage/semantic-query-multistage-sql-engine-coverage-audit.md`.
 - acceptance: signed off as accepted-with-risks. See `acceptance/semantic-query-multistage-sql-engine-acceptance.md`.
-- remaining risks: SQL Server profile was not executed in this checkpoint; true MySQL 5.7 server execution evidence is still pending.
+- remaining risks: SQL Server profile was attempted but blocked by JDBC pre-login connection reset on `localhost:11433`; true MySQL 5.7 server execution evidence is still pending; broader final-stage preAgg equivalence remains limited to proven cases.

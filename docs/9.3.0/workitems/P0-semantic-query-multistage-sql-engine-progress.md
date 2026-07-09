@@ -21,8 +21,8 @@ experience: N/A
 - delivery_mode: single-root-delivery
 - operation_mode: progress-update / execution-checkin
 - active_stage: Stage 5 - Default Enablement And Cleanup
-- scope: completed Stage 5 cleanup, full module regression, and quality/coverage/acceptance records.
-- next_stage: follow-up dialect evidence for SQL Server profile and true MySQL 5.7 server execution, plus future stage-aware preAgg equivalence optimization.
+- scope: completed Stage 5 cleanup, P0-P2 preAgg follow-up hardening, full module regression, and quality/coverage/acceptance records.
+- next_stage: resolve SQL Server profile connectivity, capture true MySQL 5.7 server execution, and broaden stage-aware preAgg equivalence only after additional proof.
 - non_goals_this_pass: no Step loop planning, no public API contract change, no release-level SQL Server signoff.
 
 ## Stage Progress
@@ -34,7 +34,7 @@ experience: N/A
 | Stage 2 - Aggregate And Post-Aggregate Stage Builders | completed | Post-aggregate renderer consumes planner `renderStrategy`; final-stage count SQL metadata and multi-stage `aggSql` policy are exposed in diagnostics. |
 | Stage 3 - Window And Result Stage Integration | completed | Window result-stage plans now fail closed when window functions or required CTE rendering are unsupported. |
 | Stage 4 - PreAgg, AggSql, Compose, And Dialect Hardening | completed | Added `preAggOptimizationPolicy`, skipped unsafe preAgg paths for final-stage plans, and preserved stage diagnostics in `SqlGenerationResult`. |
-| Stage 5 - Default Enablement And Cleanup | completed_with_risks | Planner owns remaining stage detection and renderer dispatch; full module tests pass; quality, coverage, and acceptance records are written. SQL Server and true MySQL 5.7 server evidence remain follow-up risks. |
+| Stage 5 - Default Enablement And Cleanup | completed_with_risks | Planner owns remaining stage detection and renderer dispatch; full module tests pass; quality, coverage, and acceptance records are written. SQL Server profile was attempted but blocked by datasource connectivity; true MySQL 5.7 server evidence remains a follow-up risk. |
 
 ## Development Progress
 
@@ -90,6 +90,13 @@ experience: N/A
   - `PreAggRewriteStep` skips both main-query preAgg and returnTotal preAgg aggregate SQL for final-stage-required plans.
   - `SqlGenerationResult.diagnostics` carries the `ModelResultContext.extData` snapshot, including `queryStagePlan`, for compose consumers.
   - DSL CTE top-level limit wrapping preserves `SqlGenerationResult` diagnostics.
+- P0-P2 follow-up preAgg restoration and fail-closed hardening is implemented:
+  - `preAggOptimizationPolicy=return-total-equivalent-only` is emitted only when the plan requires final-stage SQL, `returnTotal` uses `final-stage-count`, and no post-aggregate/window result-stage filter is present.
+  - Main-query preAgg remains skipped for final-stage-required plans, preserving final projection and calculated-field semantics.
+  - ReturnTotal preAgg aggregate SQL is restored for the bounded equivalent path by rebuilding a preAgg-backed grouped rollup and counting that rollup result set.
+  - Final-stage plans with post-aggregate/window result filters still skip both main and aggregate preAgg paths.
+  - The final-stage equivalent builder fails closed when it cannot map the actual planned group fields/measures to preAgg columns, when a same-dimension property is not declared by the preAgg, when only part of the groupBy can be mapped, or when the matched preAgg path is hybrid.
+  - Equivalent aggregate diagnostics distinguish `preAggAggregateUsed`, `preAggAggregateMode=final-stage-equivalent`, `preAggAggregateSkippedByStagePlan`, and `preAggAggregateSkipReason`.
 - Stage 5 default enablement cleanup is implemented:
   - `QueryStagePlanner` owns window, post-aggregate, and postSlice feature detection.
   - `JdbcModelQueryEngine` dispatches renderers through `QueryStagePlan.requiresPostAggregateRenderer()` and `QueryStagePlan.requiresWindowResultRenderer()`.
@@ -143,6 +150,15 @@ experience: N/A
 - Stage 5 preAgg/window targeted tests:
   - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`
   - result: pass, 31 tests.
+- P0-P2 follow-up preAgg strictness and stage evidence:
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`
+  - result: pass, 13 tests, 0 failures, 0 errors, 0 skipped.
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 37 tests, 0 failures, 0 errors, 0 skipped; the configured second surefire execution also passed 37 tests.
+  - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=docker -Dtest=JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 24 tests, 0 failures, 0 errors, 1 skipped.
+  - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=sqlserver -Dtest=JdbcModelQueryEngineCteWrapTest test`
+  - result: blocked by datasource connectivity. Active profile was `sqlserver`; JDBC failed during SQL Server pre-login with connection reset on `localhost:11433`. Maven reported 24 tests run, 0 failures, 6 errors, 1 skipped.
 - Stage 5 compose regression:
   - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`
   - result: pass, 19 tests.
@@ -155,8 +171,8 @@ experience: N/A
 - Stage 5 release-level test:
   - `mvn -pl foggy-dataset-model test`
   - result: pass, 3259 tests, 0 failures, 0 errors, 3 skipped.
-- SQL Server status: not-run in this checkpoint; no SQL Server datasource/profile was executed.
-- MySQL 5.7 derived fallback status: partial; no-CTE derived fallback is covered with a `NoCteSqliteDialect` fixture and MySQL dialect regression shape tests, but true MySQL 5.7 server execution evidence is still pending.
+- SQL Server status: attempted_blocked; the focused profile reached `localhost:11433` but failed during JDBC pre-login connection reset before model loading.
+- MySQL 5.7 derived fallback status: partial; no-CTE derived fallback is covered with a `NoCteSqliteDialect` fixture, MySQL dialect regression shape tests, and docker profile execution, but true MySQL 5.7 server execution evidence is still pending.
 - release-level test: completed.
 
 ## Experience Progress
@@ -172,9 +188,9 @@ experience: N/A
 | Aggregate alias references visible only downstream | completed | Stage diagnostics and post-aggregate rendering tests assert downstream ownership. |
 | Deterministic stage diagnostics | completed | Tests assert stage order, render strategy, count SQL policy, preAgg policy, unsupported reasons, and compose diagnostics transport. |
 | Existing single-stage behavior compatible | completed | Full module regression passed. |
-| MySQL 5.7 no unsupported CTE | partial | Derived fallback and MySQL dialect shape are covered; true MySQL 5.7 server execution evidence remains pending. |
-| `returnTotal` final semantic row set | completed_for_fixtures | Tests compare final-stage `aggSql` behavior for post-aggregate, window postSlice, derived fallback, and preAgg skip paths. True SQL Server/MySQL 5.7 baselines remain pending. |
-| PreAgg respects stage boundaries | completed | Stage 4 and Stage 5 tests verify unsafe preAgg paths are skipped for final-stage plans. |
+| MySQL 5.7 no unsupported CTE | partial | Derived fallback, MySQL dialect shape, and docker profile execution are covered; true MySQL 5.7 server execution evidence remains pending. |
+| `returnTotal` final semantic row set | completed_for_fixtures | Tests compare final-stage `aggSql` behavior for post-aggregate, window postSlice, derived fallback, preAgg skip paths, and bounded equivalent preAgg aggregate paths. SQL Server is attempted-blocked; true MySQL 5.7 baseline remains pending. |
+| PreAgg respects stage boundaries | completed_with_bounded_optimization | Stage 4 and Stage 5 tests verify unsafe preAgg paths are skipped for final-stage plans; P0-P2 follow-up restores returnTotal preAgg only for no-result-filter equivalent plans and proves fail-closed behavior for hybrid/unmappable cases. |
 | Step loop not used as planner | completed | Planning remains in `QueryStagePlanner`; execution Step hooks only consume metadata. |
 
 ## Execution Check-In
@@ -287,7 +303,7 @@ experience: N/A
   - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 22 tests; configured `test-mysql` execution completed successfully.
 - remaining risks / blockers:
   - Window derived-table rendering remains unsupported and intentionally fail-closed until a dedicated renderer is implemented.
-  - SQL Server profile was not run in this checkpoint.
+  - SQL Server profile remained pending in this historical checkpoint.
 - acceptance readiness: Stage 3 is complete at engine-fixture level; release-level dialect signoff remains pending.
 - self-check conclusion: Stage 3 can close; proceed to Stage 4 preAgg/Compose hardening.
 
@@ -320,7 +336,7 @@ experience: N/A
   - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest,PreAggregationEdgeCaseTest test`: pass, 71 tests.
 - remaining risks / blockers:
   - Current Stage 4 chooses correctness over preAgg optimization for final-stage plans; a future stage-aware preAgg equivalence proof is needed before re-enabling those optimizations.
-  - SQL Server profile was not run in this checkpoint.
+  - SQL Server profile remained pending in this historical checkpoint.
   - Real MySQL 5.7 execution evidence remains pending; current coverage uses a no-CTE dialect fixture.
 - acceptance readiness: Stage 4 is complete for planner metadata consumption and correctness hardening, but not ready for release-level signoff until dialect evidence and quality gates are complete.
 - self-check conclusion: Stage 4 can close; proceed to Stage 5 default enablement, cleanup, and release evidence.
@@ -361,8 +377,44 @@ experience: N/A
   - `mvn -pl foggy-dataset-model -Dtest=OdooModelLoadingTest test`: pass, 38 tests.
   - `mvn -pl foggy-dataset-model test`: pass, 3259 tests, 0 failures, 0 errors, 3 skipped.
 - remaining risks / blockers:
-  - SQL Server profile was not run in this checkpoint.
+  - SQL Server profile remained pending at this Stage 5 checkpoint; it was later attempted in the P0-P2 follow-up and blocked by datasource connectivity.
   - True MySQL 5.7 server execution evidence remains pending; current evidence covers no-CTE and MySQL dialect rendering behavior inside the module test profile.
-  - Stage-aware preAgg equivalence optimization remains a future performance enhancement; current behavior intentionally preserves correctness by skipping unsafe final-stage preAgg paths.
+  - Broad stage-aware preAgg equivalence optimization remains a future performance enhancement; current behavior intentionally preserves correctness by skipping unsafe final-stage preAgg paths.
 - acceptance readiness: accepted-with-risks for 9.3.0 covered paths.
 - self-check conclusion: Stage 5 is complete with documented dialect evidence gaps and is ready for commit/push.
+
+### P0-P2 Follow-Up Checkpoint - 2026-07-09
+
+- completed work summary:
+  - Restored a bounded stage-aware preAgg path for `returnTotal` when the final stage adds only projection/derived values and does not add post-aggregate/window result filters.
+  - Kept main-query preAgg disabled for final-stage-required plans so the visible result SQL continues to preserve stage semantics.
+  - Added `return-total-equivalent-only` diagnostics to distinguish safe aggregate-only restoration from unsafe final-stage preAgg rewrites.
+  - Built final-stage equivalent aggregate SQL from mapped preAgg dimensions/measures and fail closed when the mapping cannot be proven.
+  - Tightened the final-stage preAgg proof to use actual JDBC group columns before request `groupBy`, avoiding `AutoGroupByStep` helper aliases from polluting the equivalence check.
+  - Added negative coverage for hybrid preAgg, unmappable group fields, undeclared same-dimension properties, undeclared measures, and partially mappable groupBy lists.
+  - Preserved the existing skip behavior for result-filter final-stage plans.
+- touched code paths:
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlan.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/query_execution/PreAggRewriteStep.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationInterceptor.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/FinalStagePreAggAggregateSqlBuilder.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggQueryRewriter.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java`
+- self-check checklist:
+  - unsafe result-filter preAgg skip remains protected: completed.
+  - safe no-result-filter returnTotal equivalent preAgg is restored: completed for covered fixture.
+  - final-stage equivalent SQL does not count raw preAgg physical rows directly: completed.
+  - unsupported/unprovable preAgg equivalent cases fail closed: completed.
+  - external docker profile evidence captured: completed for available docker profile.
+  - true SQL Server and MySQL 5.7 execution evidence captured: SQL Server attempted-blocked; true MySQL 5.7 pending follow-up.
+- verification:
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`: pass, 13 tests, 0 failures, 0 errors, 0 skipped.
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 37 tests, 0 failures, 0 errors, 0 skipped; configured second surefire execution also passed 37 tests.
+  - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=docker -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 24 tests, 0 failures, 0 errors, 1 skipped.
+  - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=sqlserver -Dtest=JdbcModelQueryEngineCteWrapTest test`: blocked by SQL Server pre-login connection reset on `localhost:11433`; Maven reported 24 tests run, 0 failures, 6 errors, 1 skipped.
+- remaining risks / blockers:
+  - The restored preAgg equivalence path is intentionally narrow; it does not cover final-stage filters, mixed post-aggregate/window plans, hybrid preAgg, or cases where preAgg group/measure mapping is not provable.
+  - SQL Server profile cannot be signed off until the `localhost:11433` datasource accepts connections and model loading succeeds.
+  - True MySQL 5.7 server execution evidence remains pending.
+- acceptance readiness: ready-with-risks for the bounded P1 preAgg restoration.
+- self-check conclusion: P0 correctness remains protected, P1 preAgg performance recovery is partially restored for the proven no-result-filter returnTotal path, and P2 fail-closed proof coverage now protects the risky preAgg mapping edges.

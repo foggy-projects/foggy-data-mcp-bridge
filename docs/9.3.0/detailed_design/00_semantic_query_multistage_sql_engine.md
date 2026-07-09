@@ -135,7 +135,7 @@ Minimum shape:
   "returnTotalStrategy": "final-stage-count|preagg-equivalent|disabled",
   "countSqlInput": "final-stage-sql-without-order|disabled",
   "aggSqlOptimizationPolicy": "preserve-final-stage-sql|optimizer-allowed",
-  "preAggOptimizationPolicy": "skip-final-stage-required|optimizer-allowed",
+  "preAggOptimizationPolicy": "skip-final-stage-required|return-total-equivalent-only|optimizer-allowed",
   "stages": [
     {
       "id": "agg",
@@ -161,7 +161,7 @@ Required semantics:
 - `filterAliases` records filters owned by that stage, including `slice`, `having`, `postSlice`, and result-stage filters.
 - `countSqlInput` records which rendered SQL shape feeds `returnTotal`.
 - `aggSqlOptimizationPolicy` records whether `AggSqlOptimizer` may rewrite total SQL or must preserve the final semantic stage.
-- `preAggOptimizationPolicy` records whether pre-aggregation can be attempted. `skip-final-stage-required` means both main-query preAgg and preAgg aggregate SQL must be skipped unless a later stage-aware preAgg equivalence proof is implemented.
+- `preAggOptimizationPolicy` records whether pre-aggregation can be attempted. `skip-final-stage-required` means both main-query preAgg and preAgg aggregate SQL must be skipped. `return-total-equivalent-only` means the main query still skips preAgg, but `returnTotal` may use a bounded stage-aware preAgg aggregate SQL only when the final stage adds no post-aggregate/window result filter and all preAgg group/measure mappings are proven; otherwise it must fail closed.
 - `fallbacks` records dialect fallbacks actually used.
 - `unsupported` records fail-closed decisions for diagnostics before an exception is thrown.
 - `SqlGenerationResult.diagnostics` must preserve this metadata for compose query integration.

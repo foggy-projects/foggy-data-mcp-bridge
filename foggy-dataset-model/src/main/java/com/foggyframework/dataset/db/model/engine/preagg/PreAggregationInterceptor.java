@@ -193,6 +193,34 @@ public class PreAggregationInterceptor {
     }
 
     /**
+     * 为多阶段 final-stage count 构建等价的预聚合聚合 SQL。
+     * <p>
+     * 该方法要求完整查询本身可以被预聚合主查询重写；随后只把该重写结果包成
+     * final count SQL。这样可以避免直接 COUNT 预聚合物理表导致粒度不一致。
+     * </p>
+     */
+    public PreAggQueryRewriter.PreAggAggregateSqlResult tryBuildFinalStageAggregateSql(
+            JdbcModelQueryEngine queryEngine,
+            JdbcQueryModel queryModel,
+            DbQueryRequestDef queryRequest) {
+
+        PreAggRewriteResult rewriteResult = tryRewrite(queryEngine, queryModel, queryRequest);
+        if (!rewriteResult.isApplied()) {
+            return null;
+        }
+
+        PreAggQueryRewriter rewriter = new PreAggQueryRewriter(queryModel, applicationContext);
+        PreAggQueryRewriter.PreAggAggregateSqlResult result =
+                rewriter.buildFinalStageAggregateSql(rewriteResult, queryEngine.getJdbcQuery(), queryRequest);
+
+        if (result != null) {
+            log.info("Using pre-aggregation '{}' for equivalent final-stage aggregate query (returnTotal)",
+                    result.getPreAggName());
+        }
+        return result;
+    }
+
+    /**
      * 构建聚合查询的需求
      * <p>
      * 聚合查询只需要度量（不需要维度分组），但仍需要检查：

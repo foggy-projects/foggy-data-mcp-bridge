@@ -119,6 +119,20 @@ public class QueryStagePlan {
         return false;
     }
 
+    public boolean allowsPreAggFinalCountEquivalent() {
+        if (!requiresFinalStageAggSql() || !"final-stage-count".equals(returnTotalStrategy)) {
+            return false;
+        }
+        for (Stage stage : stages) {
+            if ((stage.getType() == QueryStageType.POST_AGGREGATE_STAGE
+                    || stage.getType() == QueryStageType.WINDOW_RESULT_STAGE)
+                    && !stage.getFilterAliases().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public String countSqlInput() {
         if (!"final-stage-count".equals(returnTotalStrategy)) {
             return "disabled";
@@ -135,6 +149,9 @@ public class QueryStagePlan {
 
     public String preAggOptimizationPolicy() {
         if (requiresFinalStageAggSql()) {
+            if (allowsPreAggFinalCountEquivalent()) {
+                return "return-total-equivalent-only";
+            }
             return "skip-final-stage-required";
         }
         return "optimizer-allowed";

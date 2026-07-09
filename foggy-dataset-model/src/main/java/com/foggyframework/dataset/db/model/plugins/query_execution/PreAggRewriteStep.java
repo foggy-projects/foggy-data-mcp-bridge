@@ -79,13 +79,17 @@ public class PreAggRewriteStep implements QueryExecutionStep {
             queryRequest = ctx.getModelResultContext().getRequest().getParam();
         }
 
-        if (shouldSkipPreAggForStagePlan(ctx)) {
-            return CONTINUE;
-        }
-
         // 尝试预聚合重写（主查询）
         PreAggregationInterceptor interceptor = createInterceptor(ctx);
-        PreAggRewriteResult preAggResult = tryPreAggregation(interceptor, queryEngine, queryModel, queryRequest);
+        StagePlanPreAggPolicy stagePlanPolicy = stagePlanPreAggPolicy(ctx);
+        boolean skipMainPreAggForStagePlan = stagePlanPolicy.restrictsMainRewrite();
+        PreAggRewriteResult preAggResult = PreAggRewriteResult.notApplied();
+
+        if (skipMainPreAggForStagePlan) {
+            markMainPreAggSkippedByStagePlan(ctx, stagePlanPolicy.policy);
+        } else {
+            preAggResult = tryPreAggregation(interceptor, queryEngine, queryModel, queryRequest);
+        }
 
         if (preAggResult.isApplied()) {
             // 使用重写后的 SQL
@@ -118,48 +122,68 @@ public class PreAggRewriteStep implements QueryExecutionStep {
         // 无论主查询是否使用预聚合，都尝试为聚合查询（returnTotal）设置预聚合 SQL
         // 这样可以确保聚合查询也能受益于预聚合优化
         if (queryRequest != null && queryRequest.isReturnTotal()) {
-            tryAggregatePreAggregation(ctx, interceptor, queryEngine, queryModel, queryRequest);
+            if (stagePlanPolicy.allowsEquivalentFinalCount()) {
+                tryEquivalentFinalStageAggregatePreAggregation(ctx, interceptor, queryEngine, queryModel, queryRequest);
+            } else if (stagePlanPolicy.skipsAllPreAgg()) {
+                markAggregatePreAggSkippedByStagePlan(ctx, stagePlanPolicy.policy);
+            } else {
+                tryAggregatePreAggregation(ctx, interceptor, queryEngine, queryModel, queryRequest);
+            }
         }
 
         return CONTINUE;
     }
 
     @SuppressWarnings("unchecked")
-    private boolean shouldSkipPreAggForStagePlan(QueryExecutionContext ctx) {
+    private StagePlanPreAggPolicy stagePlanPreAggPolicy(QueryExecutionContext ctx) {
         ModelResultContext modelContext = ctx.getModelResultContext();
         if (modelContext == null || modelContext.getExtData() == null) {
-            return false;
+            return StagePlanPreAggPolicy.optimizerAllowed();
         }
         Object rawPlan = modelContext.getExtData().get(QueryStagePlan.EXT_DATA_KEY);
         if (!(rawPlan instanceof Map<?, ?> plan)) {
-            return false;
+            return StagePlanPreAggPolicy.optimizerAllowed();
         }
         Object preAggPolicy = plan.get("preAggOptimizationPolicy");
         Object aggSqlPolicy = plan.get("aggSqlOptimizationPolicy");
+        if ("return-total-equivalent-only".equals(preAggPolicy)) {
+            return new StagePlanPreAggPolicy("return-total-equivalent-only");
+        }
         if ("skip-final-stage-required".equals(preAggPolicy)
                 || "preserve-final-stage-sql".equals(aggSqlPolicy)) {
-            markPreAggSkippedByStagePlan(
-                    ctx,
+            return new StagePlanPreAggPolicy(
                     preAggPolicy != null ? String.valueOf(preAggPolicy) : String.valueOf(aggSqlPolicy)
             );
-            return true;
         }
-        return false;
+        return StagePlanPreAggPolicy.optimizerAllowed();
     }
 
-    private void markPreAggSkippedByStagePlan(QueryExecutionContext ctx, String reason) {
+    private void markMainPreAggSkippedByStagePlan(QueryExecutionContext ctx, String reason) {
         ctx.setExtData("preAggOptimizationPolicy", reason);
         ctx.setExtData("preAggSkippedByStagePlan", true);
+        ctx.setExtData("preAggMainSkippedByStagePlan", true);
         ctx.setExtData("preAggSkipReason", reason);
 
         ModelResultContext modelContext = ctx.getModelResultContext();
         if (modelContext != null && modelContext.getExtData() != null) {
             modelContext.getExtData().put("preAggOptimizationPolicy", reason);
             modelContext.getExtData().put("preAggSkippedByStagePlan", true);
+            modelContext.getExtData().put("preAggMainSkippedByStagePlan", true);
             modelContext.getExtData().put("preAggSkipReason", reason);
         }
         log.debug("Pre-aggregation skipped for model={} because stage plan policy={}",
                 ctx.getModelName(), reason);
+    }
+
+    private void markAggregatePreAggSkippedByStagePlan(QueryExecutionContext ctx, String reason) {
+        ctx.setExtData("preAggAggregateSkippedByStagePlan", true);
+        ctx.setExtData("preAggAggregateSkipReason", reason);
+
+        ModelResultContext modelContext = ctx.getModelResultContext();
+        if (modelContext != null && modelContext.getExtData() != null) {
+            modelContext.getExtData().put("preAggAggregateSkippedByStagePlan", true);
+            modelContext.getExtData().put("preAggAggregateSkipReason", reason);
+        }
     }
 
     /**
@@ -210,6 +234,59 @@ public class PreAggRewriteStep implements QueryExecutionStep {
             if (log.isDebugEnabled()) {
                 log.debug("Aggregate pre-aggregation error details", e);
             }
+        }
+    }
+
+    private void tryEquivalentFinalStageAggregatePreAggregation(QueryExecutionContext ctx,
+                                                                PreAggregationInterceptor interceptor,
+                                                                JdbcModelQueryEngine queryEngine,
+                                                                JdbcQueryModel queryModel,
+                                                                DbQueryRequestDef queryRequest) {
+        try {
+            PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                    interceptor.tryBuildFinalStageAggregateSql(queryEngine, queryModel, queryRequest);
+            if (aggResult == null) {
+                markAggregatePreAggSkippedByStagePlan(ctx, "return-total-equivalent-not-matched");
+                return;
+            }
+            ctx.setPreAggAggregateSql(aggResult.getSql());
+            ctx.setPreAggAggregateParams(aggResult.getParams());
+            ctx.setPreAggAggregatePreAggName(aggResult.getPreAggName());
+
+            ctx.setExtData("preAggAggregateUsed", aggResult.getPreAggName());
+            ctx.setExtData("preAggAggregateHybrid", aggResult.isHybrid());
+            ctx.setExtData("preAggAggregateMode", "final-stage-equivalent");
+
+            if (ctx.getModelResultContext() != null && ctx.getModelResultContext().getExtData() != null) {
+                ctx.getModelResultContext().getExtData().put("preAggAggregateUsed", aggResult.getPreAggName());
+                ctx.getModelResultContext().getExtData().put("preAggAggregateHybrid", aggResult.isHybrid());
+                ctx.getModelResultContext().getExtData().put("preAggAggregateMode", "final-stage-equivalent");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to build equivalent final-stage aggregate SQL using pre-aggregation: {}", e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("Equivalent final-stage aggregate pre-aggregation error details", e);
+            }
+            markAggregatePreAggSkippedByStagePlan(ctx, "return-total-equivalent-error");
+        }
+    }
+
+    private record StagePlanPreAggPolicy(String policy) {
+        static StagePlanPreAggPolicy optimizerAllowed() {
+            return new StagePlanPreAggPolicy("optimizer-allowed");
+        }
+
+        boolean restrictsMainRewrite() {
+            return !"optimizer-allowed".equals(policy);
+        }
+
+        boolean allowsEquivalentFinalCount() {
+            return "return-total-equivalent-only".equals(policy);
+        }
+
+        boolean skipsAllPreAgg() {
+            return "skip-final-stage-required".equals(policy)
+                    || "preserve-final-stage-sql".equals(policy);
         }
     }
 
