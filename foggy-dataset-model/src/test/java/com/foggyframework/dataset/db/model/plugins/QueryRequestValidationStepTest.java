@@ -49,6 +49,8 @@ class QueryRequestValidationStepTest {
         when(mockSqlFormulaService.supports("in")).thenReturn(true);
         when(mockSqlFormulaService.supports("like")).thenReturn(true);
         when(mockSqlFormulaService.supports("null")).thenReturn(true);
+        when(mockSqlFormulaService.supports("is null")).thenReturn(true);
+        when(mockSqlFormulaService.supports("is not null")).thenReturn(true);
         when(mockSqlFormulaService.supports("invalid_op")).thenReturn(false);
 
         // 创建 validationStep 并注入 mock service
@@ -436,7 +438,34 @@ class QueryRequestValidationStepTest {
         ModelResultContext ctx = createContext(queryRequest);
 
         assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
+        assertEquals("is null", queryRequest.getSlice().get(0).getOp());
         log.info("null 操作符无需 value 校验通过");
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("null 操作符别名应归一化为标准 SQL 形式")
+    void testNullOperatorAliasesNormalized() {
+        SliceRequestDef notNull = new SliceRequestDef("deletedAt", "notNull", null);
+        SliceRequestDef isNotNull = new SliceRequestDef("paidAt", "isNotNull", null);
+        SliceRequestDef isNull = new SliceRequestDef("closedAt", "isNull", null);
+        CondRequestDef nestedNotNull = new CondRequestDef("shipTime", "notNull", null);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setSlice(List.of(
+                notNull,
+                isNotNull,
+                isNull,
+                SliceRequestDef.or(List.of(nestedNotNull))
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
+        assertEquals("is not null", notNull.getOp());
+        assertEquals("is not null", isNotNull.getOp());
+        assertEquals("is null", isNull.getOp());
+        assertEquals("is not null", nestedNotNull.getOp());
     }
 
     @Test

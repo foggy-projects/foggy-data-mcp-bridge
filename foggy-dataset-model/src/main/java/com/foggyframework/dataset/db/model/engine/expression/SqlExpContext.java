@@ -124,6 +124,17 @@ public class SqlExpContext {
     }
 
     /**
+     * 尝试只从查询模型解析列名，不查找已注册的计算字段。
+     * <p>
+     * 当内联聚合别名与模型字段同名时，后续 {@code SUM(field)} 的参数需要优先解析为模型字段，
+     * 避免把已注册的聚合别名再次传入外层聚合函数。
+     * </p>
+     */
+    public DbQueryColumn tryResolveModelColumn(String columnName) {
+        return queryModel.findJdbcColumnForSelectByName(columnName, false);
+    }
+
+    /**
      * 检查列是否存在
      */
     public boolean hasColumn(String columnName) {

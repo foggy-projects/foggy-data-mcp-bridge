@@ -51,6 +51,18 @@ public class SqlColumnRefExp extends AbstractExp<String> {
 
         // 解析列名 → JdbcQueryColumn
         DbQueryColumn column = ctx.resolveColumn(value);
+        if (ctx.isInsideAggregateFunctionArgument()
+                && column instanceof CalculatedDbColumn calcColumn
+                && calcColumn.hasAggregate()) {
+            DbQueryColumn modelColumn = ctx.tryResolveModelColumn(value);
+            if (modelColumn != null) {
+                column = modelColumn;
+                if (log.isDebugEnabled()) {
+                    log.debug("SqlColumnRefExp.evalValue: aggregate argument '{}' resolved to model column to avoid nested aggregate alias",
+                            value);
+                }
+            }
+        }
         if (log.isDebugEnabled()) {
             log.debug("SqlColumnRefExp.evalValue: resolved column type={}", column.getClass().getName());
         }

@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * 计算字段服务（工具类）
@@ -41,6 +42,10 @@ import java.util.*;
  */
 @Slf4j
 public final class CalculatedFieldService {
+
+    private static final Pattern AGGREGATE_FUNCTION_CALL = Pattern.compile(
+            "\\b(sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\(",
+            Pattern.CASE_INSENSITIVE);
 
     /**
      * 共享的表达式解析器（线程安全）
@@ -377,7 +382,10 @@ public final class CalculatedFieldService {
             // 2.1 如果 InlineExpressionPreprocessStep 推断了聚合类型，传递到 SqlFragment
             //     注意：不设置 hasAggregate，因为表达式本身没有聚合函数
             //     Engine 层会根据 aggregationType 来包裹聚合函数
-            if (fieldDef.getAgg() != null && sqlFragment.getAggregationType() == null) {
+            if (fieldDef.getAgg() != null
+                    && sqlFragment.getAggregationType() == null
+                    && !sqlFragment.isHasAggregate()
+                    && !sqlFragment.isHasWindow()) {
                 sqlFragment.setAggregationType(fieldDef.getAgg().toUpperCase());
                 if (log.isDebugEnabled()) {
                     log.debug("Applied inferred aggregation from CalculatedFieldDef: {} -> agg={}",
@@ -417,7 +425,12 @@ public final class CalculatedFieldService {
 
     private static boolean isInlineAggregateAlias(CalculatedFieldDef fieldDef) {
         return fieldDef.getOrigin() == CalculatedFieldDef.Origin.INLINE_EXPRESSION
-                && StringUtils.isNotEmpty(fieldDef.getAgg());
+                && (StringUtils.isNotEmpty(fieldDef.getAgg()) || hasAggregateFunctionCall(fieldDef));
+    }
+
+    private static boolean hasAggregateFunctionCall(CalculatedFieldDef fieldDef) {
+        return fieldDef.getExpression() != null
+                && AGGREGATE_FUNCTION_CALL.matcher(fieldDef.getExpression()).find();
     }
 
     /**

@@ -2,6 +2,8 @@ package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.*;
+import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -194,6 +197,51 @@ class CalculatedFieldAggregationBugTest extends EcommerceTestSupport {
             @SuppressWarnings("unchecked")
             Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
             assertTrue(firstRow.containsKey("avgUnitPrice"), "结果应包含 avgUnitPrice 字段");
+        }
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("Issue 120: 同名内联聚合别名参与后聚合表达式 - 不应产生嵌套聚合")
+    void testInlinePostAggregateExpressionSameNameAliases_NoNestedAggregate() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "product$categoryName",
+                "sum(salesAmount) as salesAmount",
+                "sum(profitAmount) as profitAmount",
+                "sum(profitAmount) / sum(salesAmount) as profitRate",
+                "sum(salesAmount) - sum(profitAmount) as salesProfitGap"
+        ));
+
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("product$categoryName");
+        queryRequest.setGroupBy(List.of(group));
+
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("salesProfitGap");
+        order.setDir("DESC");
+        queryRequest.setOrderBy(List.of(order));
+        queryRequest.setReturnTotal(true);
+
+        DbQueryResult result = assertDoesNotThrow(() ->
+                queryFacade.queryModelResult(PagingRequest.buildPagingRequest(queryRequest, 100)));
+
+        assertNotNull(result);
+        assertNotNull(result.getQueryEngine());
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        assertNoNestedAggregate(queryEngine.getSql());
+        if (queryEngine.getAggSql() != null) {
+            assertNoNestedAggregate(queryEngine.getAggSql());
+        }
+
+        PagingResultImpl pagingResult = result.getPagingResult();
+        assertNotNull(pagingResult, "查询结果不应为空");
+        if (!pagingResult.getItems().isEmpty()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> firstRow = (Map<String, Object>) pagingResult.getItems().get(0);
+            assertTrue(firstRow.containsKey("profitRate"), "结果应包含 profitRate 字段");
+            assertTrue(firstRow.containsKey("salesProfitGap"), "结果应包含 salesProfitGap 字段");
         }
     }
 
@@ -799,5 +847,12 @@ class CalculatedFieldAggregationBugTest extends EcommerceTestSupport {
             log.info("首行数据: fieldA={}, fieldB={}, fieldC={}",
                     firstRow.get("fieldA"), firstRow.get("fieldB"), firstRow.get("fieldC"));
         }
+    }
+
+    private void assertNoNestedAggregate(String sql) {
+        assertNotNull(sql, "SQL 不应为空");
+        String normalized = sql.replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
+        assertFalse(normalized.contains("SUM(SUM("), () -> "SQL 不应包含嵌套 SUM: " + sql);
+        assertFalse(normalized.contains("SUM((SUM("), () -> "SQL 不应包含嵌套 SUM: " + sql);
     }
 }

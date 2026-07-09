@@ -139,7 +139,10 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             }
 
             // 2.2 如果推断了聚合类型，传递到 SqlFragment
-            if (fieldDef.getAgg() != null && sqlFragment.getAggregationType() == null && !sqlFragment.isHasWindow()) {
+            if (fieldDef.getAgg() != null
+                    && sqlFragment.getAggregationType() == null
+                    && !sqlFragment.isHasAggregate()
+                    && !sqlFragment.isHasWindow()) {
                 sqlFragment.setAggregationType(fieldDef.getAgg().toUpperCase());
                 if (log.isDebugEnabled()) {
                     log.debug("Applied inferred aggregation from CalculatedFieldDef: {} -> agg={}",
@@ -183,7 +186,12 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
     private boolean isInlineAggregateAlias(CalculatedFieldDef fieldDef) {
         return fieldDef.getOrigin() == CalculatedFieldDef.Origin.INLINE_EXPRESSION
-                && StringUtils.isNotEmpty(fieldDef.getAgg());
+                && (StringUtils.isNotEmpty(fieldDef.getAgg()) || hasAggregateFunctionCall(fieldDef));
+    }
+
+    private boolean hasAggregateFunctionCall(CalculatedFieldDef fieldDef) {
+        return fieldDef.getExpression() != null
+                && AGGREGATE_FUNCTION_CALL.matcher(fieldDef.getExpression()).find();
     }
 
     private List<CalculatedFieldDef> deduplicateQueryModelPredefinedFields(List<CalculatedFieldDef> calculatedFields) {

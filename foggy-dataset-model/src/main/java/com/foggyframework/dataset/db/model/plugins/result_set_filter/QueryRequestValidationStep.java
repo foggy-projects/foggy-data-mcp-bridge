@@ -198,7 +198,8 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             throw RX.throwAUserTip(DatasetMessages.validationSliceOpRequired(index, field));
         }
 
-        String op = item.getOp();
+        String op = normalizeOperatorAlias(item.getOp());
+        item.setOp(op);
 
         // 4. 校验 op 是否合法（通过 SqlFormulaService 检查）
         if (!isValidOperator(op)) {
@@ -248,7 +249,8 @@ public class QueryRequestValidationStep implements DataSetResultStep {
                 throw RX.throwAUserTip(DatasetMessages.validationSliceOpRequired(i, field));
             }
 
-            String op = item.getOp();
+            String op = normalizeOperatorAlias(item.getOp());
+            item.setOp(op);
 
             // 4. 校验 op 是否合法
             if (!isValidOperator(op)) {
@@ -497,6 +499,22 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         }
         // 检查层级操作符（父子维度查询）
         return HIERARCHY_OPERATORS.contains(op.toLowerCase());
+    }
+
+    /**
+     * 归一化空值类操作符别名，确保校验和 SQL 生成使用 SqlFormula 已注册的标准名称。
+     */
+    private String normalizeOperatorAlias(String op) {
+        if (op == null) {
+            return null;
+        }
+        String trimmed = op.trim();
+        String compact = trimmed.replaceAll("[\\s_-]+", "").toLowerCase(Locale.ROOT);
+        return switch (compact) {
+            case "null", "isnull" -> "is null";
+            case "notnull", "isnotnull" -> "is not null";
+            default -> trimmed;
+        };
     }
 
     /**
