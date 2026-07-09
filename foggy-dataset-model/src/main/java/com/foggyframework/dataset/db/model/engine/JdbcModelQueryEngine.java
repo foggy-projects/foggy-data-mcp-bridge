@@ -37,6 +37,7 @@ import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisito
 import com.foggyframework.dataset.db.model.engine.query_model.PredefinedCalculatedFieldInjector;
 import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlan;
 import com.foggyframework.dataset.db.model.engine.stage.QueryStagePlanner;
+import com.foggyframework.dataset.db.model.engine.stage.QueryStageType;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
@@ -465,7 +466,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         boolean hasWindowCf = hasWindowCalculatedFields(queryRequest);
         boolean hasPostAggregateCalculations = hasPostAggregateCalculations(queryRequest);
         boolean hasPostSlice = hasPostSlice(queryRequest);
-        attachQueryStagePlan(context, queryRequest, jdbcQuery, hasWindowCf, hasPostAggregateCalculations, hasPostSlice);
+        QueryStagePlan stagePlan = attachQueryStagePlan(context, queryRequest, jdbcQuery, hasWindowCf, hasPostAggregateCalculations, hasPostSlice);
 
         if (hasPostSlice && !hasPostAggregateCalculations && !hasWindowCf) {
             throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
@@ -474,12 +475,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
         AggregateJoinTableModel.setRuntimeFilterContext(context);
         try {
             prepareAggregateRelationProjection(jdbcQuery);
-            if (hasPostAggregateCalculations) {
+            if (stagePlan.hasStage(QueryStageType.POST_AGGREGATE_STAGE) && hasPostAggregateCalculations) {
                 if (hasWindowCf) {
                     throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
                 }
-                generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
-            } else if (hasWindowCf) {
+                generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection, stagePlan);
+            } else if (stagePlan.hasStage(QueryStageType.WINDOW_RESULT_STAGE) && hasWindowCf) {
                 generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
             } else {
                 generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
@@ -500,15 +501,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     }
 
-    private void attachQueryStagePlan(ModelResultContext context,
-                                      DbQueryRequestDef queryRequest,
-                                      JdbcQuery jdbcQuery,
-                                      boolean hasWindowCf,
-                                      boolean hasPostAggregateCalculations,
-                                      boolean hasPostSlice) {
-        if (context == null) {
-            return;
-        }
+    private QueryStagePlan attachQueryStagePlan(ModelResultContext context,
+                                                DbQueryRequestDef queryRequest,
+                                                JdbcQuery jdbcQuery,
+                                                boolean hasWindowCf,
+                                                boolean hasPostAggregateCalculations,
+                                                boolean hasPostSlice) {
         QueryStagePlan plan = queryStagePlanner.plan(
                 queryRequest,
                 jdbcQuery,
@@ -519,10 +517,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 hasPostAggregateCalculations,
                 hasPostSlice
         );
-        if (context.getExtData() == null) {
-            context.setExtData(new java.util.HashMap<>());
+        if (context != null) {
+            if (context.getExtData() == null) {
+                context.setExtData(new java.util.HashMap<>());
+            }
+            context.getExtData().put(QueryStagePlan.EXT_DATA_KEY, plan.toDiagnosticsMap());
         }
-        context.getExtData().put(QueryStagePlan.EXT_DATA_KEY, plan.toDiagnosticsMap());
+        return plan;
     }
 
     private boolean hasAggregateSelect(JdbcQuery jdbcQuery) {
@@ -1162,8 +1163,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void generateWithPostAggregateWrapping(SystemBundlesContext systemBundlesContext,
                                                    DbQueryRequestDef queryRequest,
                                                    JdbcQuery jdbcQuery,
-                                                   DomainTransportSqlInjection domainTransportInjection) {
+                                                   DomainTransportSqlInjection domainTransportInjection,
+                                                   QueryStagePlan stagePlan) {
         FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
+        boolean useDerivedTables = stagePlan != null && stagePlan.usesDerivedTableRendering();
+        if (useDerivedTables && domainTransportInjection.hasCte()) {
+            throw RX.throwAUserTip("DERIVED_STAGE_CTE_TRANSPORT_UNSUPPORTED: the current dialect cannot combine derived-table stage fallback with CTE-based domain transport.");
+        }
 
         List<DbColumn> originalSelectCols = new ArrayList<>(jdbcQuery.getSelect().getColumns());
         JdbcQuery.JdbcOrder savedOrder = jdbcQuery.getOrder();
@@ -1205,8 +1211,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
             finalAliases.add(calc.getName());
         }
 
+        String stage1Source = useDerivedTables
+                ? "(\n" + stage1Sql + "\n) " + stage1Alias
+                : stage1Alias;
         String postStageSql = "SELECT " + String.join(",\n\t", postSelects)
-                + "\nFROM " + stage1Alias;
+                + "\nFROM " + stage1Source;
+        String finalStageSource = useDerivedTables
+                ? "(\n" + postStageSql + "\n) " + postAlias
+                : postAlias;
 
         StringBuilder finalSelect = new StringBuilder();
         finalSelect.append("SELECT ");
@@ -1214,7 +1226,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 .map(dialect::quoteIdentifier)
                 .collect(Collectors.toList());
         finalSelect.append(String.join(",\n\t", finalSelects));
-        finalSelect.append("\nFROM ").append(postAlias);
+        finalSelect.append("\nFROM ").append(finalStageSource);
 
         List<Object> finalParams = new ArrayList<>();
         List<SliceRequestDef> resultStageSlice = new ArrayList<>();
@@ -1250,23 +1262,30 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
 
-        this.cteWrapped = true;
         this.cteStage1Alias = stage1Alias;
         this.cteStage1Sql = stage1Sql;
         this.cteStage1Params = stage1Params;
         this.cteOuterSelectSql = finalSelect.toString();
         this.cteOuterSelectParams = finalParams;
-        this.cteStages = List.of(
-                new SqlGenerationResult.CteStage(stage1Alias, stage1Sql, stage1Params),
-                new SqlGenerationResult.CteStage(postAlias, postStageSql, List.of())
-        );
+        if (useDerivedTables) {
+            this.cteWrapped = false;
+            this.cteStages = List.of();
+            this.innerSql = finalSelect.toString();
+            this.innerSqlWithoutOrder = finalSelectWithoutOrder;
+        } else {
+            this.cteWrapped = true;
+            this.cteStages = List.of(
+                    new SqlGenerationResult.CteStage(stage1Alias, stage1Sql, stage1Params),
+                    new SqlGenerationResult.CteStage(postAlias, postStageSql, List.of())
+            );
 
-        this.innerSql = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
-                + postAlias + " AS (\n" + postStageSql + "\n)\n"
-                + finalSelect;
-        this.innerSqlWithoutOrder = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
-                + postAlias + " AS (\n" + postStageSql + "\n)\n"
-                + finalSelectWithoutOrder;
+            this.innerSql = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
+                    + postAlias + " AS (\n" + postStageSql + "\n)\n"
+                    + finalSelect;
+            this.innerSqlWithoutOrder = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
+                    + postAlias + " AS (\n" + postStageSql + "\n)\n"
+                    + finalSelectWithoutOrder;
+        }
         this.sql = this.innerSql;
         List<Object> mergedValues = new ArrayList<>();
         mergedValues.addAll(stage1Params);

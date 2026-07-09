@@ -2,6 +2,8 @@ package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.dialect.SqliteDialect;
 import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -21,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 /**
  * CTE Wrapping 集成测试
@@ -454,18 +458,7 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
     @Order(24)
     @DisplayName("Stage planner diagnostics expose post-aggregate stage aliases")
     void testStagePlannerDiagnosticsForPostAggregate() {
-        DbQueryRequestDef request = new DbQueryRequestDef();
-        request.setQueryModel("FactSalesQueryModel");
-        request.setColumns(new ArrayList<>(List.of(
-                "product$categoryName",
-                "sum(salesAmount) as teamSales",
-                "salesShare"
-        )));
-        request.setGroupBy(buildGroupBy("product$categoryName"));
-        request.setPostAggregateCalculations(new ArrayList<>(List.of(new PostAggregateCalculationDef(
-                "salesShare", "ratioToTotal", "teamSales", "grandTotal", "ratio"
-        ))));
-        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesShare", ">", 0.2))));
+        DbQueryRequestDef request = buildPostAggregateSalesShareRequest();
 
         AnalysisResult result = analyzeWithContext(request);
         Map<String, Object> plan = queryStagePlan(result.context());
@@ -485,8 +478,34 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertTrue(listValue(resultStage, "inputAliases").contains("salesShare"));
         assertEquals(List.of("salesShare"), resultStage.get("filterAliases"));
         assertEquals(1, resultStage.get("parameterCount"));
-        assertTrue(result.engine().getSql().contains("post_stage AS"),
-                "Existing post-aggregate SQL wrapping should remain active: " + result.engine().getSql());
+        assertPostAggregateRenderingMatchesPlan(result.engine(), plan);
+    }
+
+    @Test
+    @Order(25)
+    @DisplayName("Post-aggregate renderer uses derived table fallback when CTE is unsupported")
+    void testPostAggregateDerivedFallbackWhenCteUnsupported() {
+        if (!supportsWindowFunctions()) {
+            return;
+        }
+        DbQueryRequestDef request = buildPostAggregateSalesShareRequest();
+        request.setOrderBy(new ArrayList<>(List.of(orderDesc("salesShare"))));
+
+        AnalysisResult result = analyzeWithContext(request, new NoCteSqliteDialect());
+        Map<String, Object> plan = queryStagePlan(result.context());
+        String sql = result.engine().getSql();
+
+        assertEquals("derived", plan.get("renderStrategy"));
+        assertEquals(List.of("sqlite-derived-table"), plan.get("fallbacks"));
+        assertFalse(result.engine().isCteWrapped(), "Derived fallback should not expose structured CTE stages");
+        assertEquals(List.of(), result.engine().getCteStages());
+        assertFalse(sql.toUpperCase().contains("WITH "), "Derived fallback must not emit WITH: " + sql);
+        assertTrue(sql.contains("post_stage"), "Derived fallback should still expose the post stage alias: " + sql);
+        assertTrue(sql.contains("FROM (\nSELECT"), "Derived fallback should nest the planned stage SQL: " + sql);
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql, result.engine().getValues().toArray(new Object[0]));
+        assertFalse(rows.isEmpty(), "Derived post-aggregate fallback should execute against the fixture");
     }
 
     // ==========================================
@@ -588,6 +607,22 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         return analyze(request);
     }
 
+    private DbQueryRequestDef buildPostAggregateSalesShareRequest() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(new ArrayList<>(List.of(
+                "product$categoryName",
+                "sum(salesAmount) as teamSales",
+                "salesShare"
+        )));
+        request.setGroupBy(buildGroupBy("product$categoryName"));
+        request.setPostAggregateCalculations(new ArrayList<>(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "teamSales", "grandTotal", "ratio"
+        ))));
+        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesShare", ">", 0.2))));
+        return request;
+    }
+
     private JdbcModelQueryEngine analyze(DbQueryRequestDef request) {
         JdbcQueryModel queryModel = getQueryModel(request.getQueryModel());
         assertNotNull(queryModel, "查询模型加载失败");
@@ -597,8 +632,16 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
     }
 
     private AnalysisResult analyzeWithContext(DbQueryRequestDef request) {
+        return analyzeWithContext(request, null);
+    }
+
+    private AnalysisResult analyzeWithContext(DbQueryRequestDef request, FDialect dialect) {
         JdbcQueryModel queryModel = getQueryModel(request.getQueryModel());
         assertNotNull(queryModel, "查询模型加载失败");
+        if (dialect != null) {
+            queryModel = spy(queryModel);
+            doReturn(dialect).when(queryModel).getDialect();
+        }
         JdbcModelQueryEngine engine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
         ModelResultContext context = new ModelResultContext(PagingRequest.buildPagingRequest(request, 100), null);
         engine.analysisQueryRequest(systemBundlesContext, context);
@@ -642,6 +685,29 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
 
     private String expectedMultiStageRenderStrategy() {
         return supportsCommonTableExpressions() ? "cte" : "derived";
+    }
+
+    private void assertPostAggregateRenderingMatchesPlan(JdbcModelQueryEngine engine, Map<String, Object> plan) {
+        String strategy = (String) plan.get("renderStrategy");
+        String sql = engine.getSql();
+        if ("cte".equals(strategy)) {
+            assertTrue(engine.isCteWrapped(), "CTE rendering should expose structured CTE stages");
+            assertTrue(sql.contains("post_stage AS"),
+                    "CTE post-aggregate SQL wrapping should remain active: " + sql);
+            return;
+        }
+        assertEquals("derived", strategy, "Post-aggregate strategy should be CTE or derived");
+        assertFalse(engine.isCteWrapped(), "Derived fallback should not expose structured CTE stages");
+        assertFalse(sql.toUpperCase().contains("WITH "), "Derived fallback must not emit WITH: " + sql);
+        assertTrue(sql.contains("post_stage"), "Derived fallback should still expose the post stage alias: " + sql);
+        assertTrue(sql.contains("FROM (\nSELECT"), "Derived fallback should nest the planned stage SQL: " + sql);
+    }
+
+    private static class NoCteSqliteDialect extends SqliteDialect {
+        @Override
+        public boolean supportsCte() {
+            return false;
+        }
     }
 
     private List<GroupRequestDef> buildGroupBy(String... fields) {

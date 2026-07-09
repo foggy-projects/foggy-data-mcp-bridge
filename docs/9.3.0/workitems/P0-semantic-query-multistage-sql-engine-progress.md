@@ -20,10 +20,10 @@ experience: N/A
 
 - delivery_mode: single-root-delivery
 - operation_mode: progress-update / execution-checkin
-- active_stage: Stage 1 - Planner Skeleton
-- scope: introduced read-only stage planning diagnostics without changing default SQL rendering.
-- next_stage: Stage 2 - Aggregate And Post-Aggregate Stage Builders
-- non_goals_this_pass: no plan-driven renderer enablement, no Step loop planning, no public API contract change.
+- active_stage: Stage 2 - Aggregate And Post-Aggregate Stage Builders
+- scope: connected post-aggregate SQL rendering to `QueryStagePlan.renderStrategy` and added a derived-table fallback for no-CTE dialects.
+- next_stage: Stage 2 continuation - returnTotal/count-stage metadata alignment, then Stage 3 window/result-stage integration.
+- non_goals_this_pass: no Step loop planning, no public API contract change, no full window renderer migration, no release-level dialect signoff.
 
 ## Stage Progress
 
@@ -31,7 +31,7 @@ experience: N/A
 |---|---|---|
 | Stage 0 - Baseline And Regression Fence | completed | Existing issue #120 guard and targeted regression tests are present. |
 | Stage 1 - Planner Skeleton | completed | Added planner DTOs, classifier, diagnostics, and `ModelResultContext.extData["queryStagePlan"]` metadata exposure. |
-| Stage 2 - Aggregate And Post-Aggregate Stage Builders | pending | Requires stable `queryStagePlan` metadata first. |
+| Stage 2 - Aggregate And Post-Aggregate Stage Builders | in_progress | Post-aggregate renderer now consumes planner `renderStrategy`; `returnTotal` and count-stage metadata alignment remain. |
 | Stage 3 - Window And Result Stage Integration | pending | Requires Stage 2 renderer abstraction and dialect fallback. |
 | Stage 4 - PreAgg, AggSql, Compose, And Dialect Hardening | pending | Requires planned final count stage metadata. |
 | Stage 5 - Default Enablement And Cleanup | pending | Requires full dialect/test evidence and quality gates. |
@@ -39,6 +39,7 @@ experience: N/A
 ## Development Progress
 
 - Stage 1 completed.
+- Stage 2 checkpoint completed for post-aggregate SQL rendering.
 - Implemented code touchpoints:
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage`
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java`
@@ -52,6 +53,12 @@ experience: N/A
   - ordered `stages`
   - per-stage `id`, `type`, `inputAliases`, `outputAliases`, `filterAliases`, `orderAliases`, `requiresSqlBoundary`
 - Stage 1 does not change SQL rendering behavior; existing wrapper paths still render SQL.
+- Stage 2 post-aggregate rendering now uses stage-plan metadata:
+  - `renderStrategy=cte` keeps the existing structured `WITH base_stage AS (...), post_stage AS (...)` rendering.
+  - `renderStrategy=derived` renders nested derived tables instead of `WITH`.
+  - derived fallback sets `cteWrapped=false` and exposes no `cteStages`.
+  - CTE-based domain transport plus derived-table fallback currently fails closed with `DERIVED_STAGE_CTE_TRANSPORT_UNSUPPORTED`.
+- Window result-stage rendering still uses the existing CTE wrapper path; dialect capability enforcement for window functions is deferred to Stage 3.
 
 ## Testing Progress
 
@@ -67,8 +74,14 @@ experience: N/A
 - Stage 1 regression fence:
   - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest test`
   - result: pass, 59 tests.
+- Stage 2 targeted tests:
+  - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 19 tests.
+- Stage 2 regression fence:
+  - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest test`
+  - result: pass, 60 tests.
 - SQL Server status: pending.
-- MySQL 5.7 derived fallback status: pending.
+- MySQL 5.7 derived fallback status: partial; no-CTE derived fallback is covered with a `NoCteSqliteDialect` fixture, but true MySQL 5.7 execution evidence is still pending.
 - release-level test: pending.
 
 ## Experience Progress
@@ -81,14 +94,16 @@ experience: N/A
 |---|---|---|
 | No nested aggregate for issue #120 variants | partial | Existing regression tests pass before Stage 1. |
 | Legal aggregate expressions remain single-stage where valid | partial | Existing regression tests pass before Stage 1. |
-| Aggregate alias references visible only downstream | partial | Stage 1 tests assert `teamSales` as post-aggregate input and `salesShare` as downstream output/filter metadata. |
-| Deterministic stage diagnostics | partial | Stage 1 tests assert stage order and `renderStrategy`; broader dialect coverage remains pending. |
+| Aggregate alias references visible only downstream | partial | Stage 1 tests assert `teamSales` as post-aggregate input and `salesShare` as downstream output/filter metadata; Stage 2 renders post-aggregate output downstream. |
+| Deterministic stage diagnostics | partial | Stage 1 tests assert stage order and `renderStrategy`; Stage 2 tests assert renderer behavior matches the plan. |
 | Existing single-stage behavior compatible | partial | Stage 1 tests assert single-stage aggregate stays `renderStrategy=single` and does not introduce CTE SQL. |
-| MySQL 5.7 no unsupported CTE | pending | Stage 2/3 renderer work. |
+| MySQL 5.7 no unsupported CTE | partial | Stage 2 post-aggregate path can render derived tables when `supportsCte=false`; real MySQL 5.7 and window-path evidence remain pending. |
 | `returnTotal` final semantic row set | pending | Stage 4 work. |
-| Step loop not used as planner | partial | Stage 1 uses dedicated `QueryStagePlanner`; renderer and execution steps still need later confirmation. |
+| Step loop not used as planner | partial | Stage 1 uses dedicated `QueryStagePlanner`; Stage 2 post-aggregate renderer reads the planner directly and does not introduce `QueryExecutionStep` planning. |
 
 ## Execution Check-In
+
+### Stage 1 Checkpoint - 2026-07-09
 
 - completed work summary:
   - Added `QueryStagePlan`, `QueryStagePlanner`, and `QueryStageType` as read-only planning metadata.
@@ -113,3 +128,33 @@ experience: N/A
   - Stage 4 must define `returnTotal` count source from stage metadata and align preAgg/AggSql consumers.
 - acceptance readiness: ready for Stage 1 review, not ready for release-level signoff.
 - self-check conclusion: Stage 1 is complete and ready to proceed to Stage 2.
+
+### Stage 2 Checkpoint - 2026-07-09
+
+- completed work summary:
+  - Changed `JdbcModelQueryEngine` post-aggregate SQL rendering to consume `QueryStagePlan` instead of relying only on local wrapper flags.
+  - Added `QueryStagePlan` helper methods for stage lookup and render-strategy checks.
+  - Added derived-table fallback for post-aggregate queries when the dialect does not support CTE.
+  - Added a fail-closed guard for the currently unsupported combination of CTE-based domain transport and derived-table stage fallback.
+  - Added tests that compare rendered SQL shape with `queryStagePlan.renderStrategy` and execute the no-CTE derived-table fallback.
+- touched code paths:
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java`
+  - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlan.java`
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/JdbcModelQueryEngineCteWrapTest.java`
+- self-check checklist:
+  - post-aggregate renderer consumes planner metadata: completed.
+  - CTE rendering path remains compatible: completed.
+  - no-CTE derived fallback covered by test fixture: completed.
+  - Step loop still not used as planner: completed.
+  - returnTotal/count-stage semantics resolved: pending.
+  - window result-stage renderer migrated: pending.
+  - true MySQL 5.7 and SQL Server evidence captured: pending.
+- verification:
+  - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 19 tests.
+  - `mvn -pl foggy-dataset-model -Dtest=CalculatedFieldAggregationBugTest,QueryRequestValidationStepTest,JdbcModelQueryEngineCteWrapTest test`: pass, 60 tests.
+- remaining risks / blockers:
+  - `returnTotal` still needs explicit final-count-stage metadata and SQL consumer alignment.
+  - Window-function support is still partly diagnostic-only; Stage 3 must migrate the window result-stage renderer and make unsupported dialects fail closed.
+  - MySQL 5.7 compatibility is not release-proven until a real MySQL 5.7 execution baseline is captured.
+- acceptance readiness: ready for Stage 2 checkpoint review, not ready for release-level signoff.
+- self-check conclusion: Stage 2 post-aggregate renderer checkpoint is complete; continue Stage 2 with `returnTotal` and count-stage semantics before broadening to Stage 3.

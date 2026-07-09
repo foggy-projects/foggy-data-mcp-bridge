@@ -69,6 +69,23 @@ public class QueryStagePlan {
         return unsupported;
     }
 
+    public boolean hasStage(QueryStageType type) {
+        for (Stage stage : stages) {
+            if (stage.getType() == type) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean usesCteRendering() {
+        return "cte".equals(renderStrategy);
+    }
+
+    public boolean usesDerivedTableRendering() {
+        return "derived".equals(renderStrategy);
+    }
+
     public Map<String, Object> toDiagnosticsMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("version", VERSION);
