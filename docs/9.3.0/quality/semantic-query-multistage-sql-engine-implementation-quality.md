@@ -33,8 +33,8 @@ This quality gate reviews the Stage 5 implementation of the 9.3.0 JDBC semantic 
 - Odoo post-aggregate tests allow either CTE or derived-table stage shape based on dialect capability.
 - `QueryStagePlan` now distinguishes `return-total-equivalent-only` from unsafe final-stage preAgg rewrites.
 - `PreAggRewriteStep` keeps main-query preAgg disabled for final-stage-required plans, but can attach preAgg aggregate SQL for no-result-filter equivalent `returnTotal` plans.
-- `FinalStagePreAggAggregateSqlBuilder` builds equivalent final-stage aggregate SQL from mapped preAgg group fields and measures, and returns null when equivalence cannot be proven.
-- The equivalent builder validates actual JDBC group fields before request `groupBy` fallback, and fails closed for hybrid matches, undeclared preAgg dimension properties, undeclared measures, unmappable groups, and partially mappable groupBy lists.
+- `FinalStagePreAggAggregateSqlBuilder` builds equivalent final-stage aggregate SQL from mapped preAgg group fields and measures, and skips aggregate preAgg when equivalence cannot be proven.
+- The equivalent builder validates actual JDBC group fields before request `groupBy` fallback, and fails closed for hybrid matches, undeclared preAgg dimension properties, undeclared measures, unmappable groups, partially mappable groupBy lists, and unprovable `$field`/`$expr`/logical slice predicates.
 
 ## Quality Checklist
 
@@ -46,7 +46,7 @@ This quality gate reviews the Stage 5 implementation of the 9.3.0 JDBC semantic 
 | Failure behavior explicit | pass | Unsupported mixed/result-stage cases fail closed with planner diagnostics. |
 | Backwards compatibility for single-stage paths | pass | Full module regression passed. |
 | Dialect capability respected | pass_with_risk | MySQL no-CTE rendering is covered by fixtures/profile tests; docker profile execution passed; true MySQL 5.7 server evidence is pending; SQL Server profile is connectivity-blocked. |
-| PreAgg correctness and bounded restoration | pass | Unsafe final-stage result-filter plans still skip preAgg; no-result-filter returnTotal equivalent plans can use preAgg aggregate SQL; hybrid/unprovable mapping cases fail closed. |
+| PreAgg correctness and bounded restoration | pass | Unsafe final-stage result-filter plans still skip preAgg; no-result-filter returnTotal equivalent plans can use preAgg aggregate SQL; hybrid/unprovable mapping and predicate-proof cases fail closed. |
 | Test evidence attached | pass | Targeted, compose, Odoo, and full module tests are recorded in the progress file. |
 | Documentation updated | pass | Progress, quality, coverage, and acceptance records are written under `docs/9.3.0`. |
 
@@ -54,13 +54,15 @@ This quality gate reviews the Stage 5 implementation of the 9.3.0 JDBC semantic 
 
 No blocking implementation quality issues were found in the Stage 5 or P0-P2 follow-up diff.
 
+The 2026-07-09 review finding on final-stage equivalent preAgg predicate proof has been closed by a strict final-stage-only proof path. Unprovable predicates now skip aggregate preAgg with `return-total-equivalent-predicate-not-provable`.
+
 The main remaining concern is evidence, not code structure: SQL Server profile execution was attempted but blocked by JDBC pre-login connection reset on `localhost:11433`, and true MySQL 5.7 server execution is still pending. The P1 preAgg restoration is intentionally narrow and should not be treated as broad final-stage preAgg optimization.
 
 ## Risks / Follow-ups
 
 - Fix or reprovision the SQL Server focused profile datasource, then rerun the profile.
 - Run true MySQL 5.7 execution for post-aggregate derived fallback and `returnTotal` final-stage semantics.
-- Broaden stage-aware preAgg equivalence only with additional proof and tests for final-stage filters, mixed stages, and non-trivial group/measure mappings.
+- Broaden stage-aware preAgg equivalence only with additional proof and tests for final-stage filters, mixed stages, non-trivial group/measure mappings, and any row-level measure predicate semantics.
 
 ## Recommended Next Skills
 

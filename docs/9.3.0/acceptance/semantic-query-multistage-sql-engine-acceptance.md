@@ -37,7 +37,7 @@ This acceptance record covers the 9.3.0 multi-stage SQL engine work item after S
 | Post-aggregate and window/result-stage paths are deterministic | accepted | Supported paths render through stage plan; unsupported mixed paths fail closed. |
 | `returnTotal` final-stage semantics are protected | accepted | Covered fixtures preserve final-stage SQL for total count. |
 | PreAgg does not rewrite unsafe final-stage queries | accepted | Skip metadata and tests are present for result-filter final-stage plans. |
-| Bounded preAgg returnTotal equivalence | accepted_with_scope_limit | No-result-filter final-stage plans can use equivalent preAgg aggregate SQL; hybrid/unprovable mapping cases fail closed; broader final-stage preAgg rewrites remain out of scope. |
+| Bounded preAgg returnTotal equivalence | accepted_with_scope_limit | No-result-filter final-stage plans can use equivalent preAgg aggregate SQL; hybrid/unprovable mapping and predicate-proof cases fail closed; broader final-stage preAgg rewrites remain out of scope. |
 | Compose diagnostics are preserved | accepted | `SqlGenerationResult.diagnostics` coverage is present. |
 | Full module regression passes | accepted | 3259 tests, 0 failures, 0 errors, 3 skipped. |
 | SQL Server execution evidence | blocked_with_risk | SQL Server profile was attempted but failed during JDBC pre-login connection reset on `localhost:11433`. |
@@ -48,8 +48,8 @@ This acceptance record covers the 9.3.0 multi-stage SQL engine work item after S
 - `mvn -pl foggy-dataset-model -DskipTests compile`: pass.
 - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 24 tests.
 - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest#testPostAggregateWithoutResultFilterUsesEquivalentPreAggForReturnTotal test`: pass, 1 test.
-- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`: pass, 13 tests, 0 failures, 0 errors, 0 skipped.
-- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 37 tests, 0 failures, 0 errors, 0 skipped; configured second surefire execution also passed 37 tests.
+- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`: pass, 17 tests, 0 failures, 0 errors, 0 skipped.
+- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 41 tests, 0 failures, 0 errors, 0 skipped; configured second surefire execution also passed 41 tests.
 - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=docker -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 24 tests, 0 failures, 0 errors, 1 skipped.
 - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=sqlserver -Dtest=JdbcModelQueryEngineCteWrapTest test`: blocked by SQL Server pre-login connection reset on `localhost:11433`; Maven reported 24 tests run, 0 failures, 6 errors, 1 skipped.
 - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`: pass, 19 tests.
@@ -61,7 +61,7 @@ This acceptance record covers the 9.3.0 multi-stage SQL engine work item after S
 
 - Fix or reprovision SQL Server profile connectivity, then rerun focused execution.
 - Run true MySQL 5.7 server execution for derived fallback and final-stage `returnTotal` behavior.
-- Broaden stage-aware preAgg equivalence only after adding proof and tests for final-stage filters, mixed stages, and non-trivial preAgg mappings.
+- Broaden stage-aware preAgg equivalence only after adding proof and tests for final-stage filters, mixed stages, non-trivial preAgg mappings, and row-level measure predicate semantics.
 
 ## Failed Items
 

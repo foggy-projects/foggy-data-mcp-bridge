@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.preagg;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
@@ -602,9 +603,130 @@ class PreAggregationEdgeCaseTest {
         );
     }
 
+    @Test
+    @Order(28)
+    @DisplayName("多阶段 postAggregate 等价预聚合可证明 $field/$expr 谓词时保持命中")
+    void testPostAggregateEquivalentPreAggKeepsProvableFieldReferenceAndExpressionPredicates() {
+        List<SliceRequestDef> slices = List.of(SliceRequestDef.and(List.of(
+                fieldReferenceCondition("product$categoryName", ">=", "product$categoryName"),
+                CondRequestDef.expr("product$categoryName >= product$categoryName")
+        )));
+
+        ModelResultContext contextWithPreAgg = queryContext(postAggregateShareRequestWithSlices(slices), true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+        ModelResultContext contextNoPreAgg = queryContext(postAggregateShareRequestWithSlices(slices), false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertEquals("daily_product_sales", contextWithPreAgg.getExtData().get("preAggAggregateUsed"));
+        assertEquals("final-stage-equivalent", contextWithPreAgg.getExtData().get("preAggAggregateMode"));
+        assertEquals(
+                resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "provable $field/$expr predicates should preserve equivalent preAgg returnTotal"
+        );
+    }
+
+    @Test
+    @Order(29)
+    @DisplayName("多阶段 postAggregate 等价预聚合遇到不可映射 $field 右侧时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedWhenFieldReferenceRightSideNotProvable() {
+        List<SliceRequestDef> slices = List.of(fieldReferenceSlice("product$categoryName", ">", "unitPrice"));
+
+        assertPredicateProofFallback(
+                postAggregateShareRequestWithSlices(slices),
+                postAggregateShareRequestWithSlices(slices),
+                "unmapped $field RHS must fall back to original final count"
+        );
+    }
+
+    @Test
+    @Order(30)
+    @DisplayName("多阶段 postAggregate 等价预聚合遇到不可映射 $expr token 时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedWhenExpressionTokenNotProvable() {
+        List<SliceRequestDef> slices = List.of(expressionSlice("product$categoryName > unitPrice"));
+
+        assertPredicateProofFallback(
+                postAggregateShareRequestWithSlices(slices),
+                postAggregateShareRequestWithSlices(slices),
+                "unmapped $expr token must fall back to original final count"
+        );
+    }
+
+    @Test
+    @Order(31)
+    @DisplayName("多阶段 postAggregate 等价预聚合遇到逻辑组部分不可证明时 fail closed")
+    void testPostAggregateEquivalentPreAggFailsClosedWhenLogicalGroupPartiallyNotProvable() {
+        List<SliceRequestDef> slices = List.of(SliceRequestDef.or(List.of(
+                fieldReferenceCondition("product$categoryName", "=", "product$categoryName"),
+                CondRequestDef.expr("product$categoryName > unitPrice")
+        )));
+
+        assertPredicateProofFallback(
+                postAggregateShareRequestWithSlices(slices),
+                postAggregateShareRequestWithSlices(slices),
+                "partially unprovable logical group must fall back to original final count"
+        );
+    }
+
     // ==========================================
     // 辅助方法
     // ==========================================
+
+    private void assertPredicateProofFallback(DbQueryRequestDef requestWithPreAgg,
+                                              DbQueryRequestDef requestNoPreAgg,
+                                              String message) {
+        ModelResultContext contextWithPreAgg = queryContext(requestWithPreAgg, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+
+        ModelResultContext contextNoPreAgg = queryContext(requestNoPreAgg, false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+        assertEquals("return-total-equivalent-predicate-not-provable",
+                contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+        assertEquals(
+                resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                message
+        );
+    }
+
+    private DbQueryRequestDef postAggregateShareRequestWithSlices(List<SliceRequestDef> slices) {
+        DbQueryRequestDef request = postAggregateShareRequest();
+        request.setSlice(new ArrayList<>(slices));
+        return request;
+    }
+
+    private SliceRequestDef fieldReferenceSlice(String leftField, String op, String rightField) {
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField(leftField);
+        slice.setOp(op);
+        slice.setValue(Map.of(CondRequestDef.FIELD_REFERENCE_KEY, rightField));
+        return slice;
+    }
+
+    private CondRequestDef fieldReferenceCondition(String leftField, String op, String rightField) {
+        CondRequestDef cond = new CondRequestDef();
+        cond.setField(leftField);
+        cond.setOp(op);
+        cond.setValue(Map.of(CondRequestDef.FIELD_REFERENCE_KEY, rightField));
+        return cond;
+    }
+
+    private SliceRequestDef expressionSlice(String expression) {
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setExpr(expression);
+        return slice;
+    }
 
     private ModelResultContext queryContext(DbQueryRequestDef queryRequest, boolean preAggEnabled) {
         return queryContext(queryRequest, preAggEnabled, false);

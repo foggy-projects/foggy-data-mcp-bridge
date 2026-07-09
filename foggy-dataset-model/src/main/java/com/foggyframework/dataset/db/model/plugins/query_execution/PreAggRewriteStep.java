@@ -262,6 +262,13 @@ public class PreAggRewriteStep implements QueryExecutionStep {
                 ctx.getModelResultContext().getExtData().put("preAggAggregateHybrid", aggResult.isHybrid());
                 ctx.getModelResultContext().getExtData().put("preAggAggregateMode", "final-stage-equivalent");
             }
+        } catch (PreAggQueryRewriter.PredicateNotProvableException e) {
+            markAggregatePreAggSkippedByStagePlan(ctx, e.getReason());
+            ctx.setExtData("preAggAggregateSkipDetail", e.getDetail());
+            if (ctx.getModelResultContext() != null && ctx.getModelResultContext().getExtData() != null) {
+                ctx.getModelResultContext().getExtData().put("preAggAggregateSkipDetail", e.getDetail());
+            }
+            log.debug("Equivalent final-stage aggregate pre-aggregation skipped: {}", e.getDetail());
         } catch (Exception e) {
             log.warn("Failed to build equivalent final-stage aggregate SQL using pre-aggregation: {}", e.getMessage());
             if (log.isDebugEnabled()) {

@@ -39,6 +39,7 @@ This audit checks whether the 9.3.0 multi-stage SQL engine work item has enough 
 | PreAgg respects final-stage boundaries | `PreAggregationEdgeCaseTest` | covered |
 | Bounded preAgg `returnTotal` equivalence without result-stage filters | `PreAggregationEdgeCaseTest#testPostAggregateWithoutResultFilterUsesEquivalentPreAggForReturnTotal` | covered_for_fixture |
 | Bounded preAgg equivalence fails closed for hybrid or unprovable mappings | `PreAggregationEdgeCaseTest` orders 23-27 | covered |
+| Final-stage equivalent predicate proof fails closed for `$field`, `$expr`, and logical groups | `PreAggregationEdgeCaseTest` orders 28-31 | covered |
 | Compose preserves stage diagnostics | `ComposePlannerCteWrapTest`, `ComposeSqlCompilerTest`, `ComposedDataSetResultIntegrationTest` | covered |
 | Step loop is not used as planner | static implementation review | covered |
 | SQL Server focused execution | attempted SQL Server profile; blocked by JDBC pre-login connection reset on `localhost:11433` | blocked |
@@ -49,8 +50,8 @@ This audit checks whether the 9.3.0 multi-stage SQL engine work item has enough 
 
 - `mvn -pl foggy-dataset-model -DskipTests compile`: pass.
 - `mvn -pl foggy-dataset-model -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 24 tests.
-- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`: pass, 13 tests, 0 failures, 0 errors, 0 skipped.
-- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 37 tests, 0 failures, 0 errors, 0 skipped; configured second surefire execution also passed 37 tests.
+- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`: pass, 17 tests, 0 failures, 0 errors, 0 skipped.
+- `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 41 tests, 0 failures, 0 errors, 0 skipped; configured second surefire execution also passed 41 tests.
 - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=docker -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 24 tests, 0 failures, 0 errors, 1 skipped.
 - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=sqlserver -Dtest=JdbcModelQueryEngineCteWrapTest test`: blocked by SQL Server pre-login connection reset on `localhost:11433`; Maven reported 24 tests run, 0 failures, 6 errors, 1 skipped.
 - `mvn -pl foggy-dataset-model -Dtest=ComposePlannerCteWrapTest,ComposeSqlCompilerTest,ComposedDataSetResultIntegrationTest test`: pass, 19 tests.
@@ -62,7 +63,8 @@ This audit checks whether the 9.3.0 multi-stage SQL engine work item has enough 
 
 - SQL Server profile was executed far enough to prove the current blocker is datasource connectivity, not an assertion failure; it still needs a successful run before dialect signoff.
 - True MySQL 5.7 server execution remains pending in this checkpoint.
-- Stage-aware preAgg equivalence is covered only for the no-result-filter `returnTotal` fixture. Final-stage filters and mixed post-aggregate/window plans remain intentionally out of scope; hybrid and unprovable preAgg mappings are now covered as fail-closed cases.
+- Stage-aware preAgg equivalence is covered only for the no-result-filter `returnTotal` fixture. Final-stage filters and mixed post-aggregate/window plans remain intentionally out of scope; hybrid, unprovable preAgg mappings, and unprovable slice predicates are now covered as fail-closed cases.
+- Row-level measure predicates remain outside the equivalent predicate proof and are intentionally not treated as aggregate-level preAgg WHERE predicates.
 
 ## Recommended Next Skills
 

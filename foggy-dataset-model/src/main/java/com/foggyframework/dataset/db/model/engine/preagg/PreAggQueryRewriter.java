@@ -15,6 +15,9 @@ import org.springframework.context.ApplicationContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 预聚合查询重写器
@@ -34,6 +37,15 @@ import java.util.Map;
  */
 @Slf4j
 public class PreAggQueryRewriter {
+
+    public static final String FINAL_STAGE_PREDICATE_NOT_PROVABLE =
+            "return-total-equivalent-predicate-not-provable";
+
+    private static final Pattern EXPRESSION_TOKEN_PATTERN = Pattern.compile("([a-zA-Z_][a-zA-Z0-9_$]*)");
+    private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
+            "AND", "OR", "NOT", "NULL", "TRUE", "FALSE"
+    );
+    private static final String[] COMPARISON_OPERATORS = {">=", "<=", "!=", "<>", ">", "<", "="};
 
     private final JdbcQueryModel queryModel;
     private final ApplicationContext applicationContext;
@@ -1069,6 +1081,56 @@ public class PreAggQueryRewriter {
         }
     }
 
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    static class ProvableWhereClauseResult {
+        private boolean applied;
+        private String clause;
+        private List<Object> params;
+        private String unsupportedReason;
+
+        static ProvableWhereClauseResult proven(String clause, List<Object> params) {
+            return new ProvableWhereClauseResult(true, clause, params != null ? params : new ArrayList<>(), null);
+        }
+
+        static ProvableWhereClauseResult unsupported(String reason) {
+            return new ProvableWhereClauseResult(false, "", new ArrayList<>(), reason);
+        }
+    }
+
+    public static class PredicateNotProvableException extends RuntimeException {
+        private final String reason;
+        private final String detail;
+
+        public PredicateNotProvableException(String detail) {
+            super(detail);
+            this.reason = FINAL_STAGE_PREDICATE_NOT_PROVABLE;
+            this.detail = detail;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public String getDetail() {
+            return detail;
+        }
+    }
+
+    private record ProvableExpressionPart(String sql, String unsupportedReason) {
+        static ProvableExpressionPart proven(String sql) {
+            return new ProvableExpressionPart(sql, null);
+        }
+
+        static ProvableExpressionPart unsupported(String reason) {
+            return new ProvableExpressionPart("", reason);
+        }
+
+        boolean isApplied() {
+            return unsupportedReason == null;
+        }
+    }
+
     /**
      * 从 Slices 构建 WHERE 子句
      *
@@ -1101,6 +1163,86 @@ public class PreAggQueryRewriter {
         }
 
         return new WhereClauseResult(String.join(" AND ", conditions), params);
+    }
+
+    ProvableWhereClauseResult buildProvableWhereClauseFromSlices(PreAggregation preAgg,
+                                                                 DbQueryRequestDef queryRequest,
+                                                                 String alias) {
+        if (queryRequest == null || queryRequest.getSlice() == null || queryRequest.getSlice().isEmpty()) {
+            return ProvableWhereClauseResult.proven("", new ArrayList<>());
+        }
+
+        List<String> conditions = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+
+        for (SliceRequestDef slice : queryRequest.getSlice()) {
+            ProvableWhereClauseResult sliceResult = buildProvableConditionFromSlice(preAgg, slice, alias);
+            if (!sliceResult.isApplied()) {
+                return sliceResult;
+            }
+            if (!StringUtils.isEmpty(sliceResult.getClause())) {
+                conditions.add(sliceResult.getClause());
+                params.addAll(sliceResult.getParams());
+            }
+        }
+
+        return ProvableWhereClauseResult.proven(String.join(" AND ", conditions), params);
+    }
+
+    private ProvableWhereClauseResult buildProvableConditionFromSlice(PreAggregation preAgg,
+                                                                      CondRequestDef cond,
+                                                                      String alias) {
+        if (cond == null) {
+            return ProvableWhereClauseResult.unsupported("null-slice-condition");
+        }
+
+        if (cond._isExpressionCondition()) {
+            return buildProvableExpressionConditionForPreAgg(preAgg, cond.getExpr(), alias);
+        }
+
+        if (cond._isFieldReference()) {
+            return buildProvableFieldReferenceConditionForPreAgg(preAgg, cond, alias);
+        }
+
+        if (cond._isLogicalGroup()) {
+            List<CondRequestDef> children = cond._getGroupChildren();
+            if (children == null || children.isEmpty()) {
+                return ProvableWhereClauseResult.unsupported("empty-logical-group");
+            }
+
+            List<String> subConditions = new ArrayList<>();
+            List<Object> params = new ArrayList<>();
+            String link = cond._getGroupLink();
+
+            for (CondRequestDef child : children) {
+                ProvableWhereClauseResult childResult = buildProvableConditionFromSlice(preAgg, child, alias);
+                if (!childResult.isApplied()) {
+                    return childResult;
+                }
+                if (StringUtils.isEmpty(childResult.getClause())) {
+                    return ProvableWhereClauseResult.unsupported("empty-logical-group-child");
+                }
+                subConditions.add(childResult.getClause());
+                params.addAll(childResult.getParams());
+            }
+
+            return ProvableWhereClauseResult.proven(
+                    "(" + String.join(" " + link + " ", subConditions) + ")",
+                    params
+            );
+        }
+
+        String field = cond.getField();
+        if (StringUtils.isEmpty(field)) {
+            return ProvableWhereClauseResult.unsupported("empty-slice-field");
+        }
+
+        String columnName = resolveProvablePreAggColumn(preAgg, field);
+        if (StringUtils.isEmpty(columnName)) {
+            return ProvableWhereClauseResult.unsupported("unmapped-slice-field:" + field);
+        }
+
+        return buildProvableSqlCondition(alias, columnName, cond.getOp(), cond.getValue());
     }
 
     /**
@@ -1307,6 +1449,243 @@ public class PreAggQueryRewriter {
         }
 
         return new WhereClauseResult(sql, new ArrayList<>());
+    }
+
+    private ProvableWhereClauseResult buildProvableExpressionConditionForPreAgg(PreAggregation preAgg,
+                                                                                String expression,
+                                                                                String alias) {
+        if (StringUtils.isEmpty(expression)) {
+            return ProvableWhereClauseResult.unsupported("empty-expression");
+        }
+
+        for (String sqlOp : COMPARISON_OPERATORS) {
+            int opIndex = expression.indexOf(sqlOp);
+            if (opIndex <= 0) {
+                continue;
+            }
+
+            String leftPart = expression.substring(0, opIndex).trim();
+            String rightPart = expression.substring(opIndex + sqlOp.length()).trim();
+            if (StringUtils.isEmpty(leftPart) || StringUtils.isEmpty(rightPart)) {
+                return ProvableWhereClauseResult.unsupported("malformed-expression:" + expression);
+            }
+
+            String leftColumn = resolveProvablePreAggColumn(preAgg, leftPart);
+            if (StringUtils.isEmpty(leftColumn)) {
+                return ProvableWhereClauseResult.unsupported("unmapped-expression-left:" + leftPart);
+            }
+
+            ProvableExpressionPart right = processProvableExpressionPart(preAgg, rightPart, alias);
+            if (!right.isApplied()) {
+                return ProvableWhereClauseResult.unsupported(right.unsupportedReason());
+            }
+
+            return ProvableWhereClauseResult.proven(
+                    alias + "." + leftColumn + " " + sqlOp + " " + right.sql(),
+                    new ArrayList<>()
+            );
+        }
+
+        return ProvableWhereClauseResult.unsupported("unsupported-expression:" + expression);
+    }
+
+    private ProvableExpressionPart processProvableExpressionPart(PreAggregation preAgg,
+                                                                 String part,
+                                                                 String alias) {
+        if (StringUtils.isEmpty(part)) {
+            return ProvableExpressionPart.unsupported("empty-expression-part");
+        }
+        if (!part.matches("[A-Za-z0-9_$\\s+\\-*/().]+")) {
+            return ProvableExpressionPart.unsupported("unsupported-expression-token:" + part);
+        }
+
+        Matcher matcher = EXPRESSION_TOKEN_PATTERN.matcher(part);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String token = matcher.group(1);
+            if (EXPRESSION_KEYWORDS.contains(token.toUpperCase())) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(token));
+                continue;
+            }
+
+            String mapped = resolveProvablePreAggColumn(preAgg, token);
+            if (StringUtils.isEmpty(mapped)) {
+                return ProvableExpressionPart.unsupported("unmapped-expression-token:" + token);
+            }
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(alias + "." + mapped));
+        }
+        matcher.appendTail(sb);
+        return ProvableExpressionPart.proven(sb.toString());
+    }
+
+    private ProvableWhereClauseResult buildProvableFieldReferenceConditionForPreAgg(PreAggregation preAgg,
+                                                                                   CondRequestDef cond,
+                                                                                   String alias) {
+        String leftField = cond.getField();
+        String rightField = cond._getReferencedField();
+        String sqlOp = normalizeComparisonOperatorForPreAgg(cond.getOp());
+
+        if (StringUtils.isEmpty(leftField) || StringUtils.isEmpty(rightField)) {
+            return ProvableWhereClauseResult.unsupported("empty-field-reference");
+        }
+        if (StringUtils.isEmpty(sqlOp)) {
+            return ProvableWhereClauseResult.unsupported("unsupported-field-reference-op:" + cond.getOp());
+        }
+
+        String leftColumn = resolveProvablePreAggColumn(preAgg, leftField);
+        if (StringUtils.isEmpty(leftColumn)) {
+            return ProvableWhereClauseResult.unsupported("unmapped-field-reference-left:" + leftField);
+        }
+        String rightColumn = resolveProvablePreAggColumn(preAgg, rightField);
+        if (StringUtils.isEmpty(rightColumn)) {
+            return ProvableWhereClauseResult.unsupported("unmapped-field-reference-right:" + rightField);
+        }
+
+        return ProvableWhereClauseResult.proven(
+                alias + "." + leftColumn + " " + sqlOp + " " + alias + "." + rightColumn,
+                new ArrayList<>()
+        );
+    }
+
+    private ProvableWhereClauseResult buildProvableSqlCondition(String alias,
+                                                                String columnName,
+                                                                String op,
+                                                                Object value) {
+        List<Object> params = new ArrayList<>();
+        String normalizedOp = op == null ? "=" : op.toLowerCase();
+        String condition;
+
+        switch (normalizedOp) {
+            case "=":
+            case "eq":
+                condition = alias + "." + columnName + " = ?";
+                params.add(value);
+                break;
+
+            case "!=":
+            case "<>":
+            case "ne":
+                condition = alias + "." + columnName + " != ?";
+                params.add(value);
+                break;
+
+            case ">":
+            case "gt":
+                condition = alias + "." + columnName + " > ?";
+                params.add(value);
+                break;
+
+            case ">=":
+            case "gte":
+                condition = alias + "." + columnName + " >= ?";
+                params.add(value);
+                break;
+
+            case "<":
+            case "lt":
+                condition = alias + "." + columnName + " < ?";
+                params.add(value);
+                break;
+
+            case "<=":
+            case "lte":
+                condition = alias + "." + columnName + " <= ?";
+                params.add(value);
+                break;
+
+            case "in":
+                if (!(value instanceof List<?> values) || values.isEmpty()) {
+                    return ProvableWhereClauseResult.unsupported("invalid-in-range:" + columnName);
+                }
+                condition = alias + "." + columnName + " IN ("
+                        + String.join(", ", values.stream().map(v -> "?").toList())
+                        + ")";
+                params.addAll(values);
+                break;
+
+            case "like":
+                condition = alias + "." + columnName + " LIKE ?";
+                params.add(value);
+                break;
+
+            case "[)":
+                if (!(value instanceof List<?> range) || range.size() < 2) {
+                    return ProvableWhereClauseResult.unsupported("invalid-range:" + columnName);
+                }
+                condition = alias + "." + columnName + " >= ? AND " + alias + "." + columnName + " < ?";
+                params.add(range.get(0));
+                params.add(range.get(1));
+                break;
+
+            case "[]":
+                if (!(value instanceof List<?> range) || range.size() < 2) {
+                    return ProvableWhereClauseResult.unsupported("invalid-range:" + columnName);
+                }
+                condition = alias + "." + columnName + " >= ? AND " + alias + "." + columnName + " <= ?";
+                params.add(range.get(0));
+                params.add(range.get(1));
+                break;
+
+            default:
+                return ProvableWhereClauseResult.unsupported("unsupported-slice-op:" + op);
+        }
+
+        return ProvableWhereClauseResult.proven(condition, params);
+    }
+
+    private String normalizeComparisonOperatorForPreAgg(String op) {
+        String normalized = normalizeOperatorForPreAgg(op);
+        if ("=".equals(normalized) || "!=".equals(normalized)
+                || ">".equals(normalized) || ">=".equals(normalized)
+                || "<".equals(normalized) || "<=".equals(normalized)) {
+            return normalized;
+        }
+        return null;
+    }
+
+    private String resolveProvablePreAggColumn(PreAggregation preAgg, String field) {
+        if (preAgg == null || StringUtils.isEmpty(field)) {
+            return null;
+        }
+
+        int dollarIndex = field.indexOf('$');
+        if (dollarIndex <= 0) {
+            return null;
+        }
+
+        String dimName = field.substring(0, dollarIndex);
+        String propName = field.substring(dollarIndex + 1);
+        if (StringUtils.isEmpty(dimName) || StringUtils.isEmpty(propName) || !preAgg.hasDimension(dimName)) {
+            return null;
+        }
+
+        if (!isProvableDimensionProperty(preAgg, dimName, propName, field)) {
+            return null;
+        }
+
+        String columnName = mapFieldToPreAggColumn(preAgg, field);
+        return StringUtils.isEmpty(columnName) ? null : columnName;
+    }
+
+    private boolean isProvableDimensionProperty(PreAggregation preAgg,
+                                                String dimName,
+                                                String propName,
+                                                String field) {
+        if ("caption".equals(propName) || "id".equals(propName)) {
+            return true;
+        }
+
+        Map<String, String> columnNames = preAgg.getDimensionPropertyColumnNames();
+        if (columnNames != null && columnNames.containsKey(field)) {
+            return true;
+        }
+
+        Set<String> properties = preAgg.getDimensionProperties(dimName);
+        if (properties == null || properties.isEmpty()) {
+            return false;
+        }
+        String normalizedPropName = normalizePropertyName(propName);
+        return properties.contains(propName) || properties.contains(normalizedPropName);
     }
 
     /**

@@ -86,8 +86,11 @@ final class FinalStagePreAggAggregateSqlBuilder {
                 .append(" ")
                 .append(alias);
 
-        PreAggQueryRewriter.WhereClauseResult whereResult =
-                rewriter.buildWhereClauseFromSlices(preAgg, queryRequest, alias);
+        PreAggQueryRewriter.ProvableWhereClauseResult whereResult =
+                rewriter.buildProvableWhereClauseFromSlices(preAgg, queryRequest, alias);
+        if (!whereResult.isApplied()) {
+            throw new PreAggQueryRewriter.PredicateNotProvableException(whereResult.getUnsupportedReason());
+        }
         List<Object> params = new ArrayList<>();
         if (whereResult.getClause() != null && !whereResult.getClause().isEmpty()) {
             innerSql.append(" WHERE ").append(whereResult.getClause());

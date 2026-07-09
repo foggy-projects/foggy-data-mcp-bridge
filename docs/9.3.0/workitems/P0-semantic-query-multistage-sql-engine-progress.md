@@ -96,6 +96,7 @@ experience: N/A
   - ReturnTotal preAgg aggregate SQL is restored for the bounded equivalent path by rebuilding a preAgg-backed grouped rollup and counting that rollup result set.
   - Final-stage plans with post-aggregate/window result filters still skip both main and aggregate preAgg paths.
   - The final-stage equivalent builder fails closed when it cannot map the actual planned group fields/measures to preAgg columns, when a same-dimension property is not declared by the preAgg, when only part of the groupBy can be mapped, or when the matched preAgg path is hybrid.
+  - Final-stage equivalent slice predicates now use a strict proof path; unprovable `$field`, `$expr`, logical group, unsupported operator, or invalid range predicates skip aggregate preAgg with `return-total-equivalent-predicate-not-provable`.
   - Equivalent aggregate diagnostics distinguish `preAggAggregateUsed`, `preAggAggregateMode=final-stage-equivalent`, `preAggAggregateSkippedByStagePlan`, and `preAggAggregateSkipReason`.
 - Stage 5 default enablement cleanup is implemented:
   - `QueryStagePlanner` owns window, post-aggregate, and postSlice feature detection.
@@ -152,9 +153,9 @@ experience: N/A
   - result: pass, 31 tests.
 - P0-P2 follow-up preAgg strictness and stage evidence:
   - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`
-  - result: pass, 13 tests, 0 failures, 0 errors, 0 skipped.
+  - result: pass, 17 tests, 0 failures, 0 errors, 0 skipped.
   - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`
-  - result: pass, 37 tests, 0 failures, 0 errors, 0 skipped; the configured second surefire execution also passed 37 tests.
+  - result: pass, 41 tests, 0 failures, 0 errors, 0 skipped; the configured second surefire execution also passed 41 tests.
   - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=docker -Dtest=JdbcModelQueryEngineCteWrapTest test`
   - result: pass, 24 tests, 0 failures, 0 errors, 1 skipped.
   - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=sqlserver -Dtest=JdbcModelQueryEngineCteWrapTest test`
@@ -392,6 +393,7 @@ experience: N/A
   - Built final-stage equivalent aggregate SQL from mapped preAgg dimensions/measures and fail closed when the mapping cannot be proven.
   - Tightened the final-stage preAgg proof to use actual JDBC group columns before request `groupBy`, avoiding `AutoGroupByStep` helper aliases from polluting the equivalence check.
   - Added negative coverage for hybrid preAgg, unmappable group fields, undeclared same-dimension properties, undeclared measures, and partially mappable groupBy lists.
+  - Added strict final-stage slice predicate proof for `$field` right-side references, `$expr` tokens, and logical groups; unprovable predicates now skip aggregate preAgg with `return-total-equivalent-predicate-not-provable`.
   - Preserved the existing skip behavior for result-filter final-stage plans.
 - touched code paths:
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlan.java`
@@ -405,15 +407,17 @@ experience: N/A
   - safe no-result-filter returnTotal equivalent preAgg is restored: completed for covered fixture.
   - final-stage equivalent SQL does not count raw preAgg physical rows directly: completed.
   - unsupported/unprovable preAgg equivalent cases fail closed: completed.
+  - unprovable final-stage equivalent slice predicates fail closed: completed.
   - external docker profile evidence captured: completed for available docker profile.
   - true SQL Server and MySQL 5.7 execution evidence captured: SQL Server attempted-blocked; true MySQL 5.7 pending follow-up.
 - verification:
-  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`: pass, 13 tests, 0 failures, 0 errors, 0 skipped.
-  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 37 tests, 0 failures, 0 errors, 0 skipped; configured second surefire execution also passed 37 tests.
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest test`: pass, 17 tests, 0 failures, 0 errors, 0 skipped.
+  - `mvn -pl foggy-dataset-model -Dtest=PreAggregationEdgeCaseTest,JdbcModelQueryEngineCteWrapTest test`: pass, 41 tests, 0 failures, 0 errors, 0 skipped; configured second surefire execution also passed 41 tests.
   - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=docker -Dtest=JdbcModelQueryEngineCteWrapTest test`: pass, 24 tests, 0 failures, 0 errors, 1 skipped.
   - `mvn -pl foggy-dataset-model -P!multi-db -Dspring.profiles.active=sqlserver -Dtest=JdbcModelQueryEngineCteWrapTest test`: blocked by SQL Server pre-login connection reset on `localhost:11433`; Maven reported 24 tests run, 0 failures, 6 errors, 1 skipped.
 - remaining risks / blockers:
   - The restored preAgg equivalence path is intentionally narrow; it does not cover final-stage filters, mixed post-aggregate/window plans, hybrid preAgg, or cases where preAgg group/measure mapping is not provable.
+  - Row-level measure predicates are intentionally not considered provable as aggregate-level preAgg WHERE predicates.
   - SQL Server profile cannot be signed off until the `localhost:11433` datasource accepts connections and model loading succeeds.
   - True MySQL 5.7 server execution evidence remains pending.
 - acceptance readiness: ready-with-risks for the bounded P1 preAgg restoration.
