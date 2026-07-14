@@ -3,9 +3,21 @@ package com.foggyframework.runtime.api.service;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionBlockedException;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionState;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.ModelProvenance;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshDiagnostic;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshException;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshRequest;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshResult;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshTrigger;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -13,21 +25,25 @@ import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalog
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.runtime.api.dto.DatasourceBindingGenerationSummary;
 import com.foggyframework.runtime.api.dto.ModelDescribeRequest;
 import com.foggyframework.runtime.api.dto.ModelDescribeResponse;
-import com.foggyframework.runtime.api.dto.ModelRefreshFailure;
 import com.foggyframework.runtime.api.dto.ModelRefreshRequest;
 import com.foggyframework.runtime.api.dto.ModelRefreshResponse;
 import com.foggyframework.runtime.api.dto.ModelValidateIssue;
 import com.foggyframework.runtime.api.dto.ModelValidateRequest;
 import com.foggyframework.runtime.api.dto.ModelValidateResponse;
+import com.foggyframework.runtime.api.dto.RuntimeCatalogState;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
+import com.foggyframework.runtime.api.dto.RuntimeLifecycleErrorCode;
+import com.foggyframework.runtime.api.dto.RuntimeLifecycleFailureContext;
+import com.foggyframework.runtime.api.dto.RuntimeLifecycleFailureDiagnostic;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -39,6 +55,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 @Service
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
@@ -50,6 +68,8 @@ public class RuntimeModelOperations {
     private final QueryModelLoader queryModelLoader;
     private final TableModelLoaderManager tableModelLoaderManager;
     private final DatasetProperties datasetProperties;
+    private final CatalogSnapshotStore catalogSnapshotStore;
+    private final CatalogRefreshCoordinator catalogRefreshCoordinator;
 
     public RuntimeModelOperations(
             SemanticModelCatalogService catalogService,
@@ -59,12 +79,62 @@ public class RuntimeModelOperations {
             TableModelLoaderManager tableModelLoaderManager,
             ObjectProvider<DatasetProperties> datasetPropertiesProvider
     ) {
+        this(
+                catalogService,
+                semanticServiceV3,
+                systemBundlesContext,
+                queryModelLoader,
+                tableModelLoaderManager,
+                datasetPropertiesProvider,
+                null,
+                null
+        );
+    }
+
+    public RuntimeModelOperations(
+            SemanticModelCatalogService catalogService,
+            SemanticServiceV3 semanticServiceV3,
+            SystemBundlesContext systemBundlesContext,
+            QueryModelLoader queryModelLoader,
+            TableModelLoaderManager tableModelLoaderManager,
+            ObjectProvider<DatasetProperties> datasetPropertiesProvider,
+            ObjectProvider<CatalogSnapshotStore> catalogSnapshotStoreProvider
+    ) {
+        this(
+                catalogService,
+                semanticServiceV3,
+                systemBundlesContext,
+                queryModelLoader,
+                tableModelLoaderManager,
+                datasetPropertiesProvider,
+                catalogSnapshotStoreProvider,
+                null
+        );
+    }
+
+    @Autowired
+    public RuntimeModelOperations(
+            SemanticModelCatalogService catalogService,
+            SemanticServiceV3 semanticServiceV3,
+            SystemBundlesContext systemBundlesContext,
+            QueryModelLoader queryModelLoader,
+            TableModelLoaderManager tableModelLoaderManager,
+            ObjectProvider<DatasetProperties> datasetPropertiesProvider,
+            ObjectProvider<CatalogSnapshotStore> catalogSnapshotStoreProvider,
+            ObjectProvider<CatalogRefreshCoordinator> catalogRefreshCoordinatorProvider
+    ) {
         this.catalogService = catalogService;
         this.semanticServiceV3 = semanticServiceV3;
         this.systemBundlesContext = systemBundlesContext;
         this.queryModelLoader = queryModelLoader;
         this.tableModelLoaderManager = tableModelLoaderManager;
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
+        this.catalogSnapshotStore = catalogSnapshotStoreProvider == null
+                ? null
+                : catalogSnapshotStoreProvider.getIfAvailable();
+        this.catalogRefreshCoordinator = catalogRefreshCoordinatorProvider == null
+                ? null
+                : catalogRefreshCoordinatorProvider.getIfAvailable();
     }
 
     public Map<String, Object> listModels(Map<String, String> query, String namespace) {
@@ -129,34 +199,44 @@ public class RuntimeModelOperations {
 
         File pathFile = new File(path);
         if (!pathFile.exists() || !pathFile.isDirectory()) {
-            throw failure("INVALID_REQUEST", "models.validate", "Path must be an existing directory: " + path,
+            throw failure("INVALID_REQUEST", "models.validate",
+                    "Path must be an existing directory.",
                     null, "Provide a directory path containing TM/QM files.", false);
         }
 
+        String effectiveNamespace = resolveNamespace(
+                namespace, request != null ? request.namespace() : null);
+        CatalogObservation before;
+        try {
+            before = observeCatalog(effectiveNamespace);
+        } catch (RuntimeException observationFailure) {
+            throw validationFailure(
+                    effectiveNamespace,
+                    CatalogObservation.absent(),
+                    null,
+                    "Detached model validation could not capture the live catalog state.");
+        }
         ModelValidateResponse response;
         try {
             response = validateModelDirectory(
                     path,
-                    resolveNamespace(namespace, request != null ? request.namespace() : null),
-                    booleanOr(request != null ? request.watch() : null, false),
-                    booleanOr(request != null ? request.clearExisting() : null, true),
+                    effectiveNamespace,
                     booleanOr(request != null ? request.includeStackTrace() : null, false)
             );
         } catch (Exception e) {
-            throw failure("MODEL_VALIDATE_FAILED", "models.validate", e.getMessage(),
-                    null, "Check the model directory and retry.", false);
+            throw validationFailure(
+                    effectiveNamespace,
+                    before,
+                    null,
+                    "Detached model validation failed.");
         }
 
         if (!response.valid()) {
-            throw failure(
-                    "MODEL_VALIDATE_FAILED",
-                    "models.validate",
-                    firstValidationMessage(response),
-                    null,
-                    "Inspect diagnostics.attributes.validation.errors and fix the TM/QM files.",
-                    false,
-                    diagnosticsForValidation(response)
-            );
+            throw validationFailure(
+                    effectiveNamespace,
+                    before,
+                    response,
+                    "Detached model validation rejected the candidate.");
         }
 
         return response;
@@ -166,62 +246,88 @@ public class RuntimeModelOperations {
             ModelRefreshRequest request,
             String namespace
     ) {
-        String effectiveNamespace = resolveNamespace(namespace, request != null ? request.namespace() : null);
+        String effectiveNamespace = resolveNamespace(
+                namespace, request != null ? request.namespace() : null);
         List<String> requestedModels = dedupe(request != null ? request.models() : null);
-        List<String> warnings = new ArrayList<>();
-
-        try {
-            tableModelLoaderManager.clearByNamespace(effectiveNamespace);
-            queryModelLoader.clearByNamespace(effectiveNamespace);
-            clearCatalogCacheIfSupported();
-        } catch (Exception e) {
-            throw failure("MODEL_REFRESH_FAILED", "models.refresh", e.getMessage(),
-                    null, "Check model loader state and retry.", false);
-        }
-
-        List<String> modelsToLoad = requestedModels;
-        String scope = requestedModels.isEmpty() ? "namespace" : "models";
-        if (modelsToLoad.isEmpty()) {
-            Map<String, Object> catalog = catalogService.buildCatalog(Map.of("fieldLimit", 0), effectiveNamespace, null);
-            modelsToLoad = optionalStringList(catalog.get("models"));
-            if (modelsToLoad.isEmpty()) {
-                warnings.add("No QM models were discovered for refresh warmup.");
-            }
-        }
-
-        List<String> refreshedModels = new ArrayList<>();
-        List<ModelRefreshFailure> failures = new ArrayList<>();
-        for (String modelName : modelsToLoad) {
-            try {
-                queryModelLoader.getJdbcQueryModel(modelName, effectiveNamespace);
-                refreshedModels.add(modelName);
-            } catch (Exception e) {
-                failures.add(new ModelRefreshFailure(modelName, e.getMessage()));
-            }
-        }
-
-        ModelRefreshResponse response = new ModelRefreshResponse(
+        CatalogRefreshRequest refreshRequest = requestedModels.isEmpty()
+                ? CatalogRefreshRequest.namespace(
+                effectiveNamespace, CatalogRefreshTrigger.RUNTIME_API)
+                : CatalogRefreshRequest.models(
                 effectiveNamespace,
-                scope,
-                List.of("table-model", "query-model", "model-catalog"),
-                refreshedModels,
-                refreshedModels.size(),
-                failures.size(),
-                failures,
-                warnings
-        );
-        if (!failures.isEmpty()) {
-            throw failure(
-                    "MODEL_REFRESH_FAILED",
-                    "models.refresh",
-                    firstRefreshFailureMessage(response),
-                    failures.get(0).model(),
-                    "Inspect diagnostics.attributes.refresh.failures and fix or register the requested QM model.",
-                    false,
-                    diagnosticsForRefresh(response)
-            );
+                requestedModels.stream()
+                        .map(RuntimeModelOperations::runtimeModelKey)
+                        .toList(),
+                CatalogRefreshTrigger.RUNTIME_API);
+        CatalogObservation before;
+        try {
+            before = observeCatalog(effectiveNamespace);
+        } catch (RuntimeException observationFailure) {
+            throw refreshFailure(
+                    refreshRequest,
+                    CatalogObservation.absent(),
+                    RuntimeLifecycleErrorCode.CATALOG_BUILD_FAILED,
+                    "Catalog refresh could not capture the live catalog state.",
+                    List.of());
         }
-        return response;
+
+        if (catalogRefreshCoordinator == null) {
+            throw refreshFailure(
+                    refreshRequest,
+                    before,
+                    RuntimeLifecycleErrorCode.CATALOG_BUILD_FAILED,
+                    "Catalog refresh authority is unavailable.",
+                    List.of());
+        }
+
+        CatalogRefreshResult result;
+        try {
+            result = catalogRefreshCoordinator.refresh(refreshRequest);
+        } catch (CatalogRefreshException failure) {
+            CatalogObservation failureBefore = failure.beforeIdentity() == null
+                    ? before
+                    : new CatalogObservation(
+                    failure.beforeIdentity().generation().value(),
+                    failure.beforeIdentity().sourceRevision().value(),
+                    runtimeCatalogState(failure.catalogState()));
+            throw refreshFailure(refreshRequest, failureBefore,
+                    lifecycleCode(failure.code()),
+                    "Catalog refresh failed without publication.",
+                    failure.diagnostics());
+        } catch (RuntimeException failure) {
+            throw refreshFailure(refreshRequest, before,
+                    lifecycleCode(failure),
+                    "Catalog refresh failed without publication.",
+                    List.of());
+        }
+
+        List<String> refreshedModels = result.refreshedModels().stream()
+                .map(CatalogModelKey::canonicalName)
+                .distinct()
+                .sorted()
+                .toList();
+        List<DatasourceBindingGenerationSummary> bindings =
+                bindingSummaries(result.affectedBindings());
+        String scope = result.scope().name().toLowerCase(java.util.Locale.ROOT);
+        return new ModelRefreshResponse(
+                result.namespace(),
+                scope,
+                List.of(),
+                refreshedModels,
+                result.refreshedCount(),
+                0,
+                List.of(),
+                List.of(),
+                result.beforeIdentity() == null
+                        ? null
+                        : result.beforeIdentity().generation().value(),
+                result.afterIdentity().generation().value(),
+                result.sourceRevision().value(),
+                bindings,
+                result.refreshedCount(),
+                result.preservedCount(),
+                result.durationMs(),
+                runtimeCatalogState(result.catalogState())
+        );
     }
 
     private RuntimeModelOperationException failure(
@@ -255,54 +361,396 @@ public class RuntimeModelOperations {
         );
     }
 
+    private RuntimeModelOperationException refreshFailure(
+            CatalogRefreshRequest request,
+            CatalogObservation before,
+            RuntimeLifecycleErrorCode lifecycleCode,
+            String message,
+            List<CatalogRefreshDiagnostic> coreDiagnostics
+    ) {
+        RuntimeCatalogState failureState = observeCatalogStateSafely(
+                request.namespace(), before.state());
+        List<String> failedTargets = request.targets().stream()
+                .map(CatalogModelKey::canonicalName)
+                .toList();
+        String primaryTarget = failedTargets.isEmpty()
+                ? null
+                : failedTargets.get(0);
+        String diagnosticCode = coreDiagnostics == null
+                || coreDiagnostics.isEmpty()
+                ? lifecycleCode.name()
+                : coreDiagnostics.get(0).code();
+        RuntimeLifecycleFailureDiagnostic diagnostic =
+                new RuntimeLifecycleFailureDiagnostic(
+                        primaryTarget,
+                        "refresh",
+                        "Catalog refresh published no candidate ("
+                                + diagnosticCode + ").",
+                        "Fix the requested model or binding and retry the atomic refresh.");
+        RuntimeLifecycleFailureContext lifecycle =
+                new RuntimeLifecycleFailureContext(
+                        request.namespace(),
+                        before.catalogGeneration(),
+                        null,
+                        failureSourceRevision(request.namespace(), before),
+                        failureState,
+                        bindingSummariesForNamespace(request.namespace()),
+                        failedTargets,
+                        List.of(diagnostic));
+        RuntimeDiagnostics diagnostics = new RuntimeDiagnostics(
+                null,
+                null,
+                List.of("Catalog refresh published no candidate."),
+                refreshFailureAttributes(
+                        request, failedTargets, lifecycleCode, diagnosticCode));
+        return new RuntimeModelOperationException(
+                "MODEL_REFRESH_FAILED",
+                "models.refresh",
+                message,
+                primaryTarget,
+                "Fix the requested model or binding and retry the atomic refresh.",
+                false,
+                diagnostics,
+                lifecycleCode,
+                lifecycle);
+    }
+
+    private RuntimeModelOperationException validationFailure(
+            String namespace,
+            CatalogObservation before,
+            ModelValidateResponse response,
+            String message
+    ) {
+        List<ModelValidateIssue> safeIssues = response == null
+                ? List.of()
+                : response.errors();
+        TreeSet<String> failedTargets = new TreeSet<>();
+        List<RuntimeLifecycleFailureDiagnostic> lifecycleDiagnostics =
+                new ArrayList<>();
+        for (ModelValidateIssue issue : safeIssues) {
+            String target = issue == null
+                    ? null
+                    : extractModelName(stringOr(issue.file(), "unknown"));
+            if (target != null && !"unknown".equals(target)) {
+                failedTargets.add(target);
+            }
+            String type = issue == null ? "model" : stringOr(issue.type(), "model");
+            String code = issue == null ? "VALIDATION_FAILED" : stringOr(
+                    issue.code(), "VALIDATION_FAILED");
+            lifecycleDiagnostics.add(new RuntimeLifecycleFailureDiagnostic(
+                    target,
+                    "validate." + type.toLowerCase(java.util.Locale.ROOT),
+                    "Detached model validation failed (" + code + ").",
+                    "Fix the model definition and retry validation."));
+        }
+        if (lifecycleDiagnostics.isEmpty()) {
+            lifecycleDiagnostics.add(new RuntimeLifecycleFailureDiagnostic(
+                    null,
+                    "validate",
+                    "Detached model validation failed.",
+                    "Fix the model definition and retry validation."));
+        }
+        CatalogObservation current = observeCatalogSafely(namespace);
+        RuntimeLifecycleFailureContext lifecycle =
+                new RuntimeLifecycleFailureContext(
+                        namespace,
+                        before.catalogGeneration(),
+                        null,
+                        before.sourceRevision(),
+                        current.state(),
+                        bindingSummariesForNamespace(namespace),
+                        List.copyOf(failedTargets),
+                        lifecycleDiagnostics);
+        RuntimeDiagnostics diagnostics = new RuntimeDiagnostics(
+                null,
+                null,
+                List.of("Detached model validation rejected the candidate."),
+                validationFailureAttributes(
+                        namespace, response, safeIssues));
+        return new RuntimeModelOperationException(
+                "MODEL_VALIDATE_FAILED",
+                "models.validate",
+                message,
+                failedTargets.isEmpty() ? null : failedTargets.first(),
+                "Fix the model definition and retry validation.",
+                false,
+                diagnostics,
+                RuntimeLifecycleErrorCode.CATALOG_VALIDATION_FAILED,
+                lifecycle);
+    }
+
+    private static Map<String, Object> refreshFailureAttributes(
+            CatalogRefreshRequest request,
+            List<String> failedTargets,
+            RuntimeLifecycleErrorCode lifecycleCode,
+            String diagnosticCode
+    ) {
+        List<Map<String, Object>> failures = failedTargets.stream()
+                .map(target -> {
+                    Map<String, Object> failure = new LinkedHashMap<>();
+                    failure.put("model", target);
+                    failure.put("message", "Catalog refresh published no candidate ("
+                            + diagnosticCode + ").");
+                    return java.util.Collections.unmodifiableMap(failure);
+                })
+                .toList();
+        Map<String, Object> refresh = new LinkedHashMap<>();
+        refresh.put("namespace", request.namespace());
+        refresh.put("scope", request.scope().name().toLowerCase(
+                java.util.Locale.ROOT));
+        refresh.put("clearedCaches", List.of());
+        refresh.put("refreshedModels", List.of());
+        refresh.put("loadedCount", 0);
+        refresh.put("failedCount", failures.size());
+        refresh.put("failures", failures);
+        refresh.put("warnings", List.of());
+
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("lifecycleCode", lifecycleCode.name());
+        attributes.put("refresh",
+                java.util.Collections.unmodifiableMap(refresh));
+        return java.util.Collections.unmodifiableMap(attributes);
+    }
+
+    private static Map<String, Object> validationFailureAttributes(
+            String namespace,
+            ModelValidateResponse response,
+            List<ModelValidateIssue> issues
+    ) {
+        List<Map<String, Object>> errors = issues.stream()
+                .map(RuntimeModelOperations::validationIssueProjection)
+                .toList();
+        List<Map<String, Object>> warnings = response == null
+                ? List.of()
+                : response.warnings().stream()
+                .map(RuntimeModelOperations::validationIssueProjection)
+                .toList();
+
+        Map<String, Object> validation = new LinkedHashMap<>();
+        validation.put("valid", false);
+        validation.put("namespace", response == null
+                ? namespace
+                : response.namespace());
+        validation.put("path", response == null ? null : response.path());
+        validation.put("totalFiles", response == null
+                ? issues.size()
+                : response.totalFiles());
+        validation.put("validFiles", response == null
+                ? 0
+                : response.validFiles());
+        validation.put("invalidFiles", response == null
+                ? issues.size()
+                : response.invalidFiles());
+        validation.put("cascadingErrors", response == null
+                ? 0
+                : response.cascadingErrors());
+        validation.put("durationMs", response == null
+                ? null
+                : response.durationMs());
+        validation.put("errors", errors);
+        validation.put("warnings", warnings);
+
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("invalidFiles", issues.size());
+        attributes.put("validation",
+                java.util.Collections.unmodifiableMap(validation));
+        return java.util.Collections.unmodifiableMap(attributes);
+    }
+
+    private static Map<String, Object> validationIssueProjection(
+            ModelValidateIssue issue
+    ) {
+        Map<String, Object> projection = new LinkedHashMap<>();
+        if (issue == null) {
+            return java.util.Collections.unmodifiableMap(projection);
+        }
+        projection.put("file", issue.file());
+        projection.put("type", issue.type());
+        projection.put("line", issue.line());
+        projection.put("column", issue.column());
+        projection.put("severity", issue.severity());
+        projection.put("code", issue.code());
+        projection.put("message", issue.message());
+        projection.put("suggestion", issue.suggestion());
+        projection.put("category", issue.category());
+        projection.put("stackTrace", issue.stackTrace());
+        return java.util.Collections.unmodifiableMap(projection);
+    }
+
+    private String failureSourceRevision(
+            String namespace,
+            CatalogObservation before
+    ) {
+        if (before.sourceRevision() != null) {
+            return before.sourceRevision();
+        }
+        if (catalogSnapshotStore == null) {
+            return null;
+        }
+        try {
+            return catalogSnapshotStore.currentSourceRevision(namespace).value();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private List<DatasourceBindingGenerationSummary> bindingSummariesForNamespace(
+            String namespace
+    ) {
+        if (catalogSnapshotStore == null) {
+            return List.of();
+        }
+        CatalogSnapshot snapshot;
+        try {
+            snapshot = catalogSnapshotStore.current(namespace).orElse(null);
+        } catch (RuntimeException ignored) {
+            return List.of();
+        }
+        if (snapshot == null) {
+            return List.of();
+        }
+        TreeMap<String, DatasourceBindingIdentity> bindings = new TreeMap<>();
+        for (ModelProvenance provenance : snapshot.provenance().values()) {
+            provenance.datasourceBindings().forEach(bindings::putIfAbsent);
+        }
+        return bindingSummaries(bindings.values());
+    }
+
+    private static List<DatasourceBindingGenerationSummary> bindingSummaries(
+            java.util.Collection<DatasourceBindingIdentity> bindings
+    ) {
+        if (bindings == null || bindings.isEmpty()) {
+            return List.of();
+        }
+        return bindings.stream()
+                .map(identity -> new DatasourceBindingGenerationSummary(
+                        identity.bindingKey(),
+                        identity.backendId(),
+                        identity.generation().value()))
+                .distinct()
+                .sorted(java.util.Comparator
+                        .comparing(DatasourceBindingGenerationSummary::bindingKey)
+                        .thenComparing(DatasourceBindingGenerationSummary::backendId))
+                .toList();
+    }
+
+    private static CatalogModelKey runtimeModelKey(String model) {
+        return model.contains("#")
+                ? CatalogModelKey.syntheticQuery(model)
+                : CatalogModelKey.query(model);
+    }
+
+    private static RuntimeLifecycleErrorCode lifecycleCode(String code) {
+        return switch (code) {
+            case "SOURCE_REVISION_STALE" ->
+                    RuntimeLifecycleErrorCode.SOURCE_REVISION_STALE;
+            case "CATALOG_GENERATION_STALE" ->
+                    RuntimeLifecycleErrorCode.CATALOG_CANDIDATE_STALE;
+            case "DATASOURCE_BINDING_NOT_CURRENT" ->
+                    RuntimeLifecycleErrorCode.DATASOURCE_BINDING_NOT_CURRENT;
+            case "REFRESH_SCOPE_UNKNOWN" ->
+                    RuntimeLifecycleErrorCode.REFRESH_SCOPE_UNKNOWN;
+            default -> RuntimeLifecycleErrorCode.CATALOG_BUILD_FAILED;
+        };
+    }
+
+    static RuntimeLifecycleErrorCode lifecycleCode(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            String type = current.getClass().getSimpleName();
+            if ("ModelBuildCyclicDependencyException".equals(type)) {
+                return RuntimeLifecycleErrorCode.SINGLE_FLIGHT_CYCLIC_DEPENDENCY;
+            }
+            if ("StaleDatasourceBindingException".equals(type)) {
+                return RuntimeLifecycleErrorCode.DATASOURCE_BINDING_NOT_CURRENT;
+            }
+            if ("StaleCatalogBuildException".equals(type)) {
+                return RuntimeLifecycleErrorCode.CATALOG_CANDIDATE_STALE;
+            }
+            if (current instanceof CatalogAdmissionBlockedException blocked) {
+                return lifecycleCode(blocked.code());
+            }
+            current = current.getCause();
+        }
+        return RuntimeLifecycleErrorCode.CATALOG_BUILD_FAILED;
+    }
+
     private String resolveNamespace(String headerNamespace, String bodyNamespace) {
         return DatasetRequestNamespaceResolver.resolve(datasetProperties, headerNamespace, bodyNamespace);
     }
 
-    private void clearCatalogCacheIfSupported() {
-        try {
-            catalogService.getClass().getMethod("clearCachedModelNames").invoke(catalogService);
-        } catch (NoSuchMethodException ignored) {
-            // Older dataset-model builds do not expose an explicit catalog cache reset.
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to clear model catalog cache", e);
+    private CatalogObservation observeCatalog(String namespace) {
+        if (catalogSnapshotStore == null) {
+            return CatalogObservation.absent();
         }
+
+        CatalogAdmissionState admissionState = catalogSnapshotStore.admissionState(namespace);
+        CatalogSnapshot snapshot = catalogSnapshotStore.current(namespace).orElse(null);
+        CatalogAdmissionState confirmedState = catalogSnapshotStore.admissionState(namespace);
+        if (admissionState != confirmedState) {
+            admissionState = confirmedState;
+            snapshot = catalogSnapshotStore.current(namespace).orElse(null);
+        }
+
+        String generation = snapshot == null
+                ? null
+                : snapshot.identity().generation().value();
+        String sourceRevision = snapshot == null
+                ? null
+                : snapshot.identity().sourceRevision().value();
+        return new CatalogObservation(
+                generation,
+                sourceRevision,
+                runtimeCatalogState(admissionState)
+        );
+    }
+
+    private CatalogObservation observeCatalogSafely(String namespace) {
+        try {
+            return observeCatalog(namespace);
+        } catch (RuntimeException ignored) {
+            return CatalogObservation.absent();
+        }
+    }
+
+    private RuntimeCatalogState observeCatalogStateSafely(
+            String namespace,
+            RuntimeCatalogState fallback
+    ) {
+        try {
+            return observeCatalog(namespace).state();
+        } catch (RuntimeException ignored) {
+            return fallback;
+        }
+    }
+
+    private static RuntimeCatalogState runtimeCatalogState(
+            CatalogAdmissionState admissionState
+    ) {
+        return switch (admissionState) {
+            case ACTIVE -> RuntimeCatalogState.ACTIVE;
+            case ACTIVE_OLD_PRESERVED -> RuntimeCatalogState.ACTIVE_OLD_PRESERVED;
+            case STALE_ADMISSION_BLOCKED -> RuntimeCatalogState.STALE_ADMISSION_BLOCKED;
+            case ABSENT -> RuntimeCatalogState.ABSENT;
+        };
     }
 
     private ModelValidateResponse validateModelDirectory(
             String path,
             String namespace,
-            boolean watch,
-            boolean clearExisting,
             boolean includeStackTrace
     ) {
         Instant startedAt = Instant.now();
-        String bundleName = validationBundleName(namespace);
-        boolean registered = false;
-        try {
-            if (clearExisting && systemBundlesContext.containBundle(bundleName)) {
-                systemBundlesContext.removeBundle(bundleName);
-            }
-            Bundle bundle = findExistingBundleForPath(namespace, path);
-            List<ModelValidateIssue> warnings = new ArrayList<>();
-            if (bundle == null) {
-                registered = systemBundlesContext.addExternalBundle(bundleName, namespace, path, watch);
-                if (!registered) {
-                    throw new IllegalStateException("Bundle registration failed: " + bundleName);
-                }
-
-                bundle = systemBundlesContext.getBundleByName(bundleName);
-                if (bundle == null) {
-                    throw new IllegalStateException("Registered bundle was not found: " + bundleName);
-                }
-            } else {
-                warnings.add(warning(
-                        "BUNDLE_ALREADY_REGISTERED",
-                        "Validation reused existing bundle '" + bundle.getName()
-                                + "' for the same namespace and path instead of registering a duplicate temporary bundle."
-                ));
-            }
-
+        CatalogObservation before = observeCatalog(namespace);
+        try (RuntimeDetachedModelValidator validator = new RuntimeDetachedModelValidator(
+                systemBundlesContext,
+                tableModelLoaderManager,
+                queryModelLoader,
+                validationBundleName(namespace),
+                namespace,
+                path
+        )) {
+            Bundle bundle = validator.sourceBundle();
             List<ModelValidateIssue> errors = new ArrayList<>();
             Set<String> failedTmNames = new HashSet<>();
             int totalFiles = 0;
@@ -311,7 +759,13 @@ public class RuntimeModelOperations {
             totalFiles += tmResources.length;
             for (BundleResource tmResource : tmResources) {
                 int beforeSize = errors.size();
-                validateTmResource(tmResource, namespace, includeStackTrace, errors);
+                validateTmResource(
+                        validator,
+                        tmResource,
+                        namespace,
+                        includeStackTrace,
+                        errors
+                );
                 if (errors.size() > beforeSize) {
                     failedTmNames.add(extractModelName(relativePath(tmResource)));
                 }
@@ -321,7 +775,7 @@ public class RuntimeModelOperations {
             totalFiles += qmResources.length;
             for (BundleResource qmResource : qmResources) {
                 int beforeSize = errors.size();
-                validateQmResource(qmResource, includeStackTrace, errors);
+                validateQmResource(validator, qmResource, includeStackTrace, errors);
                 if (errors.size() > beforeSize && !failedTmNames.isEmpty()) {
                     markCascadingErrors(errors, beforeSize, failedTmNames);
                 }
@@ -340,46 +794,18 @@ public class RuntimeModelOperations {
                     cascadingErrors,
                     Duration.between(startedAt, Instant.now()).toMillis(),
                     List.copyOf(errors),
-                    List.copyOf(warnings)
+                    List.of(),
+                    before.catalogGeneration(),
+                    before.catalogGeneration(),
+                    before.sourceRevision(),
+                    List.of(),
+                    before.state()
             );
-        } finally {
-            if (registered) {
-                try {
-                    systemBundlesContext.removeBundle(bundleName);
-                } catch (Exception ignored) {
-                    // Validation must report model issues; cleanup failure should not mask that result.
-                }
-            }
         }
-    }
-
-    private Bundle findExistingBundleForPath(String namespace, String path) {
-        List<Bundle> bundles = systemBundlesContext.getBundleList();
-        if (bundles == null || bundles.isEmpty()) {
-            return null;
-        }
-
-        String normalizedNamespace = normalizeNamespace(namespace);
-        String normalizedPath = normalizeBundlePath(path);
-        for (Bundle bundle : bundles) {
-            if (bundle == null) {
-                continue;
-            }
-            BundleDefinition definition = bundle.getDefinition();
-            if (definition == null) {
-                continue;
-            }
-            if (!normalizedNamespace.equals(normalizeNamespace(definition.getNamespace()))) {
-                continue;
-            }
-            if (normalizedPath.equals(normalizeBundlePath(bundle.getRootPath()))) {
-                return bundle;
-            }
-        }
-        return null;
     }
 
     private void validateTmResource(
+            RuntimeDetachedModelValidator validator,
             BundleResource tmResource,
             String namespace,
             boolean includeStackTrace,
@@ -387,20 +813,21 @@ public class RuntimeModelOperations {
     ) {
         String file = relativePath(tmResource);
         try {
-            tableModelLoaderManager.load(extractModelName(file), namespace);
+            validator.validateTableModel(tmResource, namespace);
         } catch (Exception e) {
             errors.add(issue(file, "TM", e, "MODEL", includeStackTrace));
         }
     }
 
     private void validateQmResource(
+            RuntimeDetachedModelValidator validator,
             BundleResource qmResource,
             boolean includeStackTrace,
             List<ModelValidateIssue> errors
     ) {
         String file = relativePath(qmResource);
         try {
-            queryModelLoader.loadJdbcQueryModel(qmResource);
+            validator.validateQueryModel(qmResource);
         } catch (Exception e) {
             errors.add(issue(file, "QM", e, "MODEL", includeStackTrace));
         }
@@ -432,21 +859,6 @@ public class RuntimeModelOperations {
         );
     }
 
-    private static ModelValidateIssue warning(String code, String message) {
-        return new ModelValidateIssue(
-                null,
-                "BUNDLE",
-                null,
-                null,
-                "WARNING",
-                code,
-                message,
-                null,
-                "RUNTIME",
-                null
-        );
-    }
-
     private static void markCascadingErrors(
             List<ModelValidateIssue> errors,
             int fromIndex,
@@ -471,66 +883,9 @@ public class RuntimeModelOperations {
         }
     }
 
-    private static RuntimeDiagnostics diagnosticsForValidation(ModelValidateResponse response) {
-        List<String> warnings = response.warnings().stream()
-                .map(ModelValidateIssue::message)
-                .filter(message -> message != null && !message.isBlank())
-                .toList();
-        return new RuntimeDiagnostics(null, null, warnings, Map.of("validation", response));
-    }
-
-    private static RuntimeDiagnostics diagnosticsForRefresh(ModelRefreshResponse response) {
-        return new RuntimeDiagnostics(null, null, response.warnings(), Map.of("refresh", response));
-    }
-
-    private static String firstValidationMessage(ModelValidateResponse response) {
-        if (response.errors() != null && !response.errors().isEmpty()) {
-            String message = response.errors().get(0).message();
-            if (message != null && !message.isBlank()) {
-                return message;
-            }
-        }
-        return "Model validation failed.";
-    }
-
-    private static String firstRefreshFailureMessage(ModelRefreshResponse response) {
-        if (response.failures() != null && !response.failures().isEmpty()) {
-            ModelRefreshFailure failure = response.failures().get(0);
-            if (failure.message() != null && !failure.message().isBlank()) {
-                return failure.message();
-            }
-        }
-        return "Model refresh failed.";
-    }
-
     private static String validationBundleName(String namespace) {
         String normalized = blankToNull(namespace);
         return normalized != null ? "runtime-validation-" + normalized : "runtime-validation";
-    }
-
-    private static String normalizeNamespace(String namespace) {
-        String normalized = blankToNull(namespace);
-        return normalized != null ? normalized : "";
-    }
-
-    private static String normalizeBundlePath(String path) {
-        String normalized = blankToNull(path);
-        if (normalized == null) {
-            return "";
-        }
-        try {
-            return Paths.get(normalized).toAbsolutePath().normalize().toString();
-        } catch (InvalidPathException e) {
-            return trimTrailingSlashes(normalized.replace('\\', '/'));
-        }
-    }
-
-    private static String trimTrailingSlashes(String value) {
-        int end = value.length();
-        while (end > 1 && value.charAt(end - 1) == '/') {
-            end--;
-        }
-        return value.substring(0, end);
     }
 
     private static String relativePath(BundleResource resource) {
@@ -642,17 +997,13 @@ public class RuntimeModelOperations {
         return List.copyOf(result);
     }
 
-    private static List<String> optionalStringList(Object value) {
-        if (!(value instanceof List<?> values) || values.isEmpty()) {
-            return List.of();
+    private record CatalogObservation(
+            String catalogGeneration,
+            String sourceRevision,
+            RuntimeCatalogState state
+    ) {
+        private static CatalogObservation absent() {
+            return new CatalogObservation(null, null, RuntimeCatalogState.ABSENT);
         }
-        List<String> result = new ArrayList<>();
-        for (Object item : values) {
-            String text = blankToNull(stringValue(item));
-            if (text != null) {
-                result.add(text);
-            }
-        }
-        return List.copyOf(result);
     }
 }

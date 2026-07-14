@@ -6,8 +6,11 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.db.model.spi.NamespaceContext;
+import com.foggyframework.dataset.db.model.spi.NamespaceScope;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.fsscript.loadder.FsscriptRemoveEvent;
@@ -29,7 +32,7 @@ import static org.mockito.Mockito.*;
 /**
  * SemanticServiceResolverImpl 单元测试
  *
- * <p>测试缓存机制、失效逻辑和 namespace 传播
+ * <p>测试共享 catalog authority、兼容扫描和 namespace 传播
  */
 class SemanticServiceResolverImplTest {
 
@@ -44,6 +47,9 @@ class SemanticServiceResolverImplTest {
 
     @Mock
     private QueryModelLoader queryModelLoader;
+
+    @Mock
+    private SemanticModelCatalogService semanticModelCatalogService;
 
     @Mock
     private Bundle bundle;
@@ -68,7 +74,8 @@ class SemanticServiceResolverImplTest {
                 semanticServiceV3,
                 semanticQueryServiceV3,
                 systemBundlesContext,
-                queryModelLoader
+                queryModelLoader,
+                semanticModelCatalogService
         );
     }
 
@@ -80,114 +87,85 @@ class SemanticServiceResolverImplTest {
     }
 
     @Test
-    @DisplayName("首次调用 getAllModelNames 应该扫描并缓存")
-    void testGetAllModelNames_FirstCall_ShouldScan() {
-        setupMockBundles("TestModel");
+    @DisplayName("无参 discovery 应把当前 namespace 委托给共享 catalog authority")
+    void noArgDiscoveryShouldDelegateCurrentNamespace() {
+        when(semanticModelCatalogService.getAllModelNames("tenant-a"))
+                .thenReturn(List.of("TenantAModel"));
 
-        List<String> result = resolver.getAllModelNames();
+        try (NamespaceScope ignored = NamespaceContext.open("tenant-a")) {
+            assertEquals(List.of("TenantAModel"), resolver.getAllModelNames());
+        }
 
-        assertEquals(1, result.size());
-        assertEquals("TestModel", result.get(0));
-        verify(systemBundlesContext, times(1)).getBundleList();
-        verify(queryModelLoader, times(1)).loadJdbcQueryModel(any(BundleResource.class));
+        verify(semanticModelCatalogService).getAllModelNames("tenant-a");
+        verifyNoInteractions(systemBundlesContext, queryModelLoader);
     }
 
     @Test
-    @DisplayName("第二次调用 getAllModelNames 应该返回缓存")
-    void testGetAllModelNames_SecondCall_ShouldReturnCache() {
-        setupMockBundles("TestModel");
+    @DisplayName("显式 namespace discovery 不依赖 ambient scope")
+    void explicitNamespaceShouldDelegateExactly() {
+        when(semanticModelCatalogService.getAllModelNames("tenant-b"))
+                .thenReturn(List.of("TenantBModel"));
 
-        resolver.getAllModelNames();
-        reset(systemBundlesContext);
-        reset(queryModelLoader);
+        try (NamespaceScope ignored = NamespaceContext.open("tenant-a")) {
+            assertEquals(List.of("TenantBModel"), resolver.getAllModelNames(" tenant-b "));
+        }
 
-        List<String> result = resolver.getAllModelNames();
-
-        assertEquals(1, result.size());
-        assertEquals("TestModel", result.get(0));
-        verify(systemBundlesContext, never()).getBundleList();
-        verify(queryModelLoader, never()).loadJdbcQueryModel(any());
+        verify(semanticModelCatalogService).getAllModelNames("tenant-b");
     }
 
     @Test
-    @DisplayName("invalidateModelCache 应该清除缓存")
-    void testInvalidateModelCache_ShouldClearCache() {
-        setupMockBundles("Model1");
-        resolver.getAllModelNames();
+    @DisplayName("重复 discovery 不经过 MCP names cache")
+    void repeatedDiscoveryShouldObservePublishedCatalogWithoutInvalidation() {
+        when(semanticModelCatalogService.getAllModelNames(""))
+                .thenReturn(List.of("OldModel"), List.of("NewModel"));
 
+        assertEquals(List.of("OldModel"), resolver.getAllModelNames());
+        assertEquals(List.of("NewModel"), resolver.getAllModelNames());
+
+        verify(semanticModelCatalogService, times(2)).getAllModelNames("");
+    }
+
+    @Test
+    @DisplayName("legacy invalidateModelCache 是共享 catalog authority 下的兼容 no-op")
+    void legacyInvalidationShouldNotOwnCatalogState() {
+        when(semanticModelCatalogService.getAllModelNames(""))
+                .thenReturn(List.of("Before"), List.of("After"));
+
+        assertEquals(List.of("Before"), resolver.getAllModelNames());
         resolver.invalidateModelCache();
-        setupMockBundles("Model2");
+        assertEquals(List.of("After"), resolver.getAllModelNames());
 
-        List<String> result = resolver.getAllModelNames();
-
-        assertEquals(1, result.size());
-        assertEquals("Model2", result.get(0));
-        verify(systemBundlesContext, times(2)).getBundleList();
+        verify(semanticModelCatalogService, times(2)).getAllModelNames("");
     }
 
     @Test
-    @DisplayName("FsscriptRemoveEvent 包含 QM 文件变化时应该清除缓存")
-    void testOnApplicationEvent_QmFileChange_ShouldInvalidateCache() {
-        setupMockBundles("InitialModel");
-        resolver.getAllModelNames();
+    @DisplayName("QM source event 不触发 MCP 侧第二套 catalog 读取或失效")
+    void sourceEventShouldNotInvokeIndependentCatalogAuthority() {
+        Fsscript qm = mock(Fsscript.class);
+        when(qm.getPath()).thenReturn("/some/path/model.qm");
 
-        Fsscript mockFsscript = mock(Fsscript.class);
-        when(mockFsscript.getPath()).thenReturn("/some/path/model.qm");
-        FsscriptRemoveEvent event = new FsscriptRemoveEvent(List.of(mockFsscript));
+        resolver.onApplicationEvent(new FsscriptRemoveEvent(List.of(qm)));
 
-        reset(systemBundlesContext);
-        setupMockBundles("NewModel");
-
-        resolver.onApplicationEvent(event);
-
-        List<String> result = resolver.getAllModelNames();
-        assertEquals("NewModel", result.get(0));
-        verify(systemBundlesContext, times(1)).getBundleList();
+        verifyNoInteractions(semanticModelCatalogService, systemBundlesContext, queryModelLoader);
     }
 
     @Test
-    @DisplayName("FsscriptRemoveEvent 不包含 QM 文件时不应该清除缓存")
-    void testOnApplicationEvent_NonQmFileChange_ShouldNotInvalidateCache() {
-        setupMockBundles("CachedModel");
-        resolver.getAllModelNames();
+    @DisplayName("非 QM 与空 source event 不触发 catalog authority")
+    void unrelatedSourceEventsShouldRemainNoOps() {
+        Fsscript tm = mock(Fsscript.class);
+        when(tm.getPath()).thenReturn("/some/path/model.tm");
 
-        Fsscript mockFsscript = mock(Fsscript.class);
-        when(mockFsscript.getPath()).thenReturn("/some/path/model.tm");
-        FsscriptRemoveEvent event = new FsscriptRemoveEvent(List.of(mockFsscript));
+        resolver.onApplicationEvent(new FsscriptRemoveEvent(List.of(tm)));
+        resolver.onApplicationEvent(new FsscriptRemoveEvent(new ArrayList<>()));
 
-        reset(systemBundlesContext);
-        resolver.onApplicationEvent(event);
-
-        List<String> result = resolver.getAllModelNames();
-        assertEquals("CachedModel", result.get(0));
-        verify(systemBundlesContext, never()).getBundleList();
+        verifyNoInteractions(semanticModelCatalogService, systemBundlesContext, queryModelLoader);
     }
 
     @Test
-    @DisplayName("FsscriptRemoveEvent 为空时不应该清除缓存")
-    void testOnApplicationEvent_EmptyEvent_ShouldNotInvalidateCache() {
-        setupMockBundles("CachedModel");
-        resolver.getAllModelNames();
-
-        FsscriptRemoveEvent event = new FsscriptRemoveEvent(new ArrayList<>());
-        reset(systemBundlesContext);
-        resolver.onApplicationEvent(event);
-
-        verify(systemBundlesContext, never()).getBundleList();
-    }
-
-    @Test
-    @DisplayName("并发调用 getAllModelNames 应该线程安全")
-    void testGetAllModelNames_ConcurrentCalls_ShouldBeThreadSafe() throws Exception {
-        when(systemBundlesContext.getBundleList()).thenAnswer(inv -> {
-            Thread.sleep(50);
-            return List.of(bundle);
-        });
-        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{bundleResource});
-        when(bundleResource.getResource()).thenReturn(resource);
-        when(resource.getDescription()).thenReturn("test.qm");
-        when(queryModelLoader.loadJdbcQueryModel(any(BundleResource.class))).thenReturn(queryModel);
-        when(queryModel.getName()).thenReturn("ConcurrentModel");
+    @DisplayName("并发 discovery 共享同一 model authority 且不使用 sleep")
+    void concurrentCallsShouldDelegateWithoutMcpCache() throws Exception {
+        when(semanticModelCatalogService.getAllModelNames(""))
+                .thenReturn(List.of("ConcurrentModel"));
 
         int threadCount = 10;
         Thread[] threads = new Thread[threadCount];
@@ -205,12 +183,16 @@ class SemanticServiceResolverImplTest {
             assertEquals(1, results[i].size());
             assertEquals("ConcurrentModel", results[i].get(0));
         }
-        verify(systemBundlesContext, times(1)).getBundleList();
+        verify(semanticModelCatalogService, times(threadCount)).getAllModelNames("");
+        verifyNoInteractions(systemBundlesContext, queryModelLoader);
     }
 
     @Test
     @DisplayName("扫描时加载失败的 QM 文件应该被忽略")
     void testGetAllModelNames_FailedQmLoad_ShouldBeIgnored() {
+        SemanticServiceResolverImpl legacyResolver = new SemanticServiceResolverImpl(
+                semanticServiceV3, semanticQueryServiceV3,
+                systemBundlesContext, queryModelLoader);
         BundleResource goodResource = mock(BundleResource.class);
         BundleResource badResource = mock(BundleResource.class);
         Resource goodFile = mock(Resource.class);
@@ -230,7 +212,7 @@ class SemanticServiceResolverImplTest {
         when(queryModelLoader.loadJdbcQueryModel(goodResource)).thenReturn(goodModel);
         when(queryModelLoader.loadJdbcQueryModel(badResource)).thenThrow(new RuntimeException("Parse error"));
 
-        List<String> result = resolver.getAllModelNames();
+        List<String> result = legacyResolver.getAllModelNames();
         assertEquals(1, result.size());
         assertEquals("GoodModel", result.get(0));
     }

@@ -47,4 +47,13 @@ public interface DirectoryChangeListener {
     default void onFileDeleted(File file) {
         // 默认空实现，子类可覆盖
     }
+
+    /**
+     * Signals that the watcher can no longer prove a directory's event stream
+     * is complete. The default keeps existing listener implementations source
+     * compatible; source-authority owners should fail closed when notified.
+     */
+    default void onWatchAuthorityLost(File directory, WatchAuthorityLossReason reason) {
+        // 默认空实现，只有拥有 source authority 的 listener 需要覆盖
+    }
 }

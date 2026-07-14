@@ -94,7 +94,9 @@ public class RuntimeModelsController {
                 null,
                 e.suggestedNextAction(),
                 e.safeToAutoRepair(),
-                e.diagnostics()
+                e.diagnostics(),
+                e.lifecycleCode(),
+                e.lifecycle()
         );
     }
 }

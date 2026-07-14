@@ -2,7 +2,8 @@ package com.foggyframework.dataset.mcp.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.BeanNotOfRequiredTypeException;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +17,7 @@ import java.util.*;
  * 开发者工具控制器 - 提供表结构查询 API
  * <p>
  * 用于本地开发时快速获取数据库表结构，辅助 TM/QM 文件编写。
- * 默认启用，可通过配置 foggy.dev-tools.enabled=false 禁用。
+ * 默认关闭，仅可通过配置 foggy.dev-tools.enabled=true 显式启用。
  * </p>
  *
  * <h3>API 端点:</h3>
@@ -29,7 +30,7 @@ import java.util.*;
 @RestController
 @RequestMapping("/dev")
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "foggy.dev-tools.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "foggy.dev-tools.enabled", havingValue = "true", matchIfMissing = false)
 public class DevToolsController {
 
     private final DataSource dataSource;
@@ -39,13 +40,13 @@ public class DevToolsController {
      * 列出所有表
      *
      * @param schema      数据库 schema（可选，默认使用当前连接的 schema）
-     * @param dataSourceName 数据源 Bean 名称（可选，默认 defaultDataSource）
+     * @param dataSourceName 数据源 Bean 名称（可选；未指定时使用注入的主数据源）
      * @return 表列表
      */
     @GetMapping("/tables")
     public ResponseEntity<Map<String, Object>> listTables(
             @RequestParam(required = false) String schema,
-            @RequestParam(required = false, name = "datasource", defaultValue = "defaultDataSource") String dataSourceName) {
+            @RequestParam(required = false, name = "datasource") String dataSourceName) {
 
         try {
             DataSource targetDataSource = resolveDataSource(dataSourceName);
@@ -85,6 +86,12 @@ public class DevToolsController {
 
                 return ResponseEntity.ok(result);
             }
+        } catch (IllegalArgumentException e) {
+            log.warn("Rejected table listing for unresolved datasource: {}", dataSourceName);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", true,
+                    "message", e.getMessage()
+            ));
         } catch (SQLException e) {
             log.error("Failed to list tables", e);
             return ResponseEntity.internalServerError().body(Map.of(
@@ -99,7 +106,7 @@ public class DevToolsController {
      *
      * @param tableName       表名
      * @param schema          数据库 schema（可选）
-     * @param dataSourceName  数据源 Bean 名称（可选，默认 defaultDataSource）
+     * @param dataSourceName  数据源 Bean 名称（可选；未指定时使用注入的主数据源）
      * @param includeIndexes  是否包含索引信息（默认 false）
      * @param includeForeignKeys 是否包含外键信息（默认 true）
      * @param includeSampleData 是否包含一条示例数据（默认 true）
@@ -109,7 +116,7 @@ public class DevToolsController {
     public ResponseEntity<Map<String, Object>> inspectTable(
             @PathVariable String tableName,
             @RequestParam(required = false) String schema,
-            @RequestParam(required = false, name = "datasource", defaultValue = "defaultDataSource") String dataSourceName,
+            @RequestParam(required = false, name = "datasource") String dataSourceName,
             @RequestParam(required = false, defaultValue = "false") boolean includeIndexes,
             @RequestParam(required = false, defaultValue = "true") boolean includeForeignKeys,
             @RequestParam(required = false, defaultValue = "true") boolean includeSampleData) {
@@ -121,6 +128,13 @@ public class DevToolsController {
             Map<String, Object> result = inspectTableInternal(
                     targetDataSource, tableName, schema, includeIndexes, includeForeignKeys, includeSampleData);
             return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            log.warn("Rejected table inspection for unresolved datasource: {}, table={}",
+                    dataSourceName, tableName);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", true,
+                    "message", e.getMessage()
+            ));
         } catch (SQLException e) {
             log.error("Failed to inspect table: {}", tableName, e);
             return ResponseEntity.internalServerError().body(Map.of(
@@ -138,12 +152,15 @@ public class DevToolsController {
      * @return DataSource 实例
      */
     private DataSource resolveDataSource(String dataSourceName) {
-        try {
-            return applicationContext.getBean(dataSourceName, DataSource.class);
-        } catch (Exception e) {
-            // fallback 到注入的主数据源
-            log.warn("DataSource '{}' not found, fallback to primary dataSource", dataSourceName);
+        if (dataSourceName == null || dataSourceName.trim().isEmpty()) {
             return dataSource;
+        }
+
+        String beanName = dataSourceName.trim();
+        try {
+            return applicationContext.getBean(beanName, DataSource.class);
+        } catch (NoSuchBeanDefinitionException | BeanNotOfRequiredTypeException e) {
+            throw new IllegalArgumentException("DataSource not found: " + beanName, e);
         }
     }
 

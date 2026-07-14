@@ -72,6 +72,9 @@
     <properties>
         <java.version>17</java.version>
         <argLine>-Dfile.encoding=UTF-8</argLine>
+        <!-- Unit and integration runners must be independently skippable. -->
+        <skipUnitTests>false</skipUnitTests>
+        <skipITs>false</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -336,6 +339,19 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skipTests>${skipUnitTests}</skipTests>
+                    <excludes>
+                        <exclude>**/IT*.java</exclude>
+                        <exclude>**/*IT.java</exclude>
+                        <exclude>**/*ITCase.java</exclude>
+                        <exclude>**/*E2E.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>

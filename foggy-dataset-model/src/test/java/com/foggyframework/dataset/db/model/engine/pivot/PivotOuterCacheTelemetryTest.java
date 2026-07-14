@@ -1,6 +1,10 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -16,7 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PivotOuterCacheTelemetryTest {
 
@@ -42,6 +49,7 @@ class PivotOuterCacheTelemetryTest {
         assertNotEquals(userA.keyHash(), userB.keyHash(), "different users must not share cache keys");
         assertNotEquals(userA.keyHash(), narrowerFieldAccess.keyHash(), "fieldAccess must affect cache keys");
         assertNotEquals(userA.keyHash(), differentDeniedColumn.keyHash(), "denied physical columns must affect cache keys");
+        assertFalse(userA.refused(), "a complete catalog identity must be cache eligible");
     }
 
     @Test
@@ -69,11 +77,11 @@ class PivotOuterCacheTelemetryTest {
         SemanticRequestContext context = context("user-a", Set.of("product$categoryName", "salesAmount"), null);
 
         PivotOuterCacheTelemetry.Evaluation first = evaluate(queryModel, request, context,
-                PivotOuterCacheTelemetry.ModelIdentity.of("bundle-sha:aaa", "freshness:1"));
+                modelIdentity(queryModel, "bundle-sha:aaa", "freshness:1"));
         PivotOuterCacheTelemetry.Evaluation changedBundle = evaluate(queryModel, request, context,
-                PivotOuterCacheTelemetry.ModelIdentity.of("bundle-sha:bbb", "freshness:1"));
+                modelIdentity(queryModel, "bundle-sha:bbb", "freshness:1"));
         PivotOuterCacheTelemetry.Evaluation changedFreshness = evaluate(queryModel, request, context,
-                PivotOuterCacheTelemetry.ModelIdentity.of("bundle-sha:aaa", "freshness:2"));
+                modelIdentity(queryModel, "bundle-sha:aaa", "freshness:2"));
 
         assertNotEquals(first.keyHash(), changedBundle.keyHash(),
                 "deployment bundle fingerprint must affect cache keys");
@@ -81,10 +89,47 @@ class PivotOuterCacheTelemetryTest {
                 "model freshness token must affect cache keys");
     }
 
+    @Test
+    @DisplayName("E1a request refusal remains primary while incomplete identity stays fail-closed")
+    void requestShapeReasonPrecedesLifecycleIdentityReason() {
+        QueryModel queryModel = queryModel("FactSalesQueryModel", "FS", "FactSalesTableModel");
+        SemanticQueryRequest request = request();
+        CatalogResolution<QueryModel> incompleteResolution = new CatalogResolution<>(
+                queryModel.getName(),
+                queryModel,
+                new CatalogIdentity(
+                        "",
+                        new CatalogGeneration("catalog-generation-a"),
+                        new SourceRevision("source-revision-a")),
+                Map.of(),
+                false);
+        PivotOuterCacheTelemetry.ModelIdentity incompleteIdentity =
+                PivotOuterCacheTelemetry.ModelIdentity.from(
+                        PivotOuterCacheStrongIdentity.assess(incompleteResolution, null),
+                        PivotOuterCacheModelIdentity.empty(),
+                        "",
+                        "");
+
+        PivotOuterCacheTelemetry.Evaluation evaluation = PivotOuterCacheTelemetry.evaluate(
+                "FactSalesQueryModel",
+                queryModel,
+                request,
+                context("user-a", Set.of("product$categoryName", "salesAmount"), null),
+                false,
+                true,
+                PivotOuterCacheTelemetry.TELEMETRY_STAGE,
+                incompleteIdentity);
+
+        assertEquals("cascade_shape", evaluation.refusalReason());
+        assertEquals(PivotOuterCacheStrongIdentity.STATUS_INCOMPLETE, evaluation.identityStatus());
+        assertEquals("cascade", evaluation.shapeClass());
+        assertTrue(evaluation.refused(), "incomplete lifecycle identity must still refuse cache I/O");
+    }
+
     private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
                                                          SemanticQueryRequest request,
                                                          SemanticRequestContext context) {
-        return evaluate(queryModel, request, context, PivotOuterCacheTelemetry.ModelIdentity.empty());
+        return evaluate(queryModel, request, context, modelIdentity(queryModel, "", ""));
     }
 
     private PivotOuterCacheTelemetry.Evaluation evaluate(QueryModel queryModel,
@@ -93,6 +138,25 @@ class PivotOuterCacheTelemetryTest {
                                                          PivotOuterCacheTelemetry.ModelIdentity modelIdentity) {
         return PivotOuterCacheTelemetry.evaluate("FactSalesQueryModel", queryModel, request, context,
                 false, false, PivotOuterCacheTelemetry.CACHE_STAGE, modelIdentity);
+    }
+
+    private PivotOuterCacheTelemetry.ModelIdentity modelIdentity(QueryModel queryModel,
+                                                                 String bundleFingerprint,
+                                                                 String freshnessToken) {
+        CatalogResolution<QueryModel> resolution = new CatalogResolution<>(
+                queryModel.getName(),
+                queryModel,
+                new CatalogIdentity(
+                        "",
+                        new CatalogGeneration("catalog-generation-a"),
+                        new SourceRevision("source-revision-a")),
+                Map.of(),
+                true);
+        return PivotOuterCacheTelemetry.ModelIdentity.from(
+                PivotOuterCacheStrongIdentity.assess(resolution, null),
+                new PivotOuterCacheModelIdentity(bundleFingerprint, freshnessToken),
+                "",
+                "");
     }
 
     private SemanticRequestContext context(String userId,

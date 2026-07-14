@@ -79,6 +79,43 @@
             <artifactId>mockito-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.45.1.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <profiles>
+        <!--
+            9.3.3 cache real-query lane only. Keep the normal addon test
+            surface unchanged; the coordinated runner opts into this profile.
+        -->
+        <profile>
+            <id>query-cache-real-query</id>
+            <properties>
+                <v933.reportsDirectory>${project.build.directory}/v933-entry-gate/default</v933.reportsDirectory>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/QueryCacheLifecycleRealQueryIT.java</include>
+                            </includes>
+                            <skipITs>${skipITs}</skipITs>
+                            <failIfNoTests>true</failIfNoTests>
+                            <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+                            <reportsDirectory>${v933.reportsDirectory}/failsafe-reports</reportsDirectory>
+                            <summaryFile>${v933.reportsDirectory}/failsafe-reports/failsafe-summary.xml</summaryFile>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

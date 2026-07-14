@@ -6,7 +6,9 @@ import com.foggyframework.bundle.fsscript.BundleFsscriptLoader;
 import com.foggyframework.bundle.loader.ClassBundleLoader;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
+import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,8 +29,17 @@ public class FoggyBundleConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
+    public CommittedSourceRevisionRegistry committedSourceRevisionRegistry() {
+        return new CommittedSourceRevisionRegistry();
+    }
+
+    @Bean
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public SystemBundlesContextImpl systemBundlesContext(ClassBundleLoader classBundleLoader) {
+    public SystemBundlesContextImpl systemBundlesContext(
+            ClassBundleLoader classBundleLoader,
+            CommittedSourceRevisionRegistry committedSourceRevisionRegistry
+    ) {
         List loaders = new ArrayList<>();
         loaders.add(classBundleLoader);
 
@@ -38,7 +49,7 @@ public class FoggyBundleConfiguration {
             loaders.add(externalLoader);
         }
 
-        return new SystemBundlesContextImpl(loaders);
+        return new SystemBundlesContextImpl(loaders, committedSourceRevisionRegistry);
     }
 
     @Bean

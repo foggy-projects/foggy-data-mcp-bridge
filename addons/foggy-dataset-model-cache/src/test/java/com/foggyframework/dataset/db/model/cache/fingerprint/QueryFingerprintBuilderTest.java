@@ -6,13 +6,17 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import org.junit.jupiter.api.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -321,6 +325,146 @@ class QueryFingerprintBuilderTest {
         assertNotEquals(fp1.toCacheKey(), fp2.toCacheKey(), "不同条件值应该生成不同的缓存键");
     }
 
+    @Test
+    @Order(12)
+    @DisplayName("build - fieldAccess、deniedColumns、systemSlice 均进入安全指纹")
+    void testBuild_EffectiveSecurityPolicyChangesFingerprint() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("TestModel");
+        queryRequest.setColumns(Arrays.asList("id", "name"));
+
+        ModelResultContext base = createContext(queryRequest);
+        QueryFingerprint unrestricted = builder.build(base);
+
+        base.setFieldAccess(new LinkedHashSet<>(Collections.singletonList("id")));
+        QueryFingerprint fieldLimited = builder.build(base);
+        assertNotEquals(unrestricted.toCacheKey(), fieldLimited.toCacheKey(),
+                "fieldAccess 变化必须改变指纹");
+
+        base.setFieldAccess(null);
+        base.setDeniedColumns(Collections.singletonList(
+                new DeniedPhysicalColumn("public", "test", "secret")));
+        QueryFingerprint physicalColumnDenied = builder.build(base);
+        assertNotEquals(unrestricted.toCacheKey(), physicalColumnDenied.toCacheKey(),
+                "deniedColumns 变化必须改变指纹");
+
+        base.setDeniedColumns(null);
+        SliceRequestDef systemFilter = new SliceRequestDef();
+        systemFilter.setField("tenant_id");
+        systemFilter.setOp("=");
+        systemFilter.setValue("tenant-a");
+        base.setSystemSlice(Collections.singletonList(systemFilter));
+        QueryFingerprint systemFiltered = builder.build(base);
+        assertNotEquals(unrestricted.toCacheKey(), systemFiltered.toCacheKey(),
+                "systemSlice 变化必须改变指纹");
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("build - 缺少显式安全上下文时不可缓存")
+    void testBuild_MissingSecurityContext_FailClosed() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("TestModel");
+        ModelResultContext context = createContext(queryRequest);
+        context.setSecurityContext(null);
+
+        QueryFingerprint fingerprint = builder.build(context);
+
+        assertFalse(fingerprint.isCacheable());
+        assertTrue(fingerprint.isHasIncompleteSecurityPolicy());
+        assertNull(fingerprint.toCacheKey());
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("build - 空安全上下文不得隐式当作 PUBLIC 身份")
+    void testBuild_EmptySecurityContext_FailClosed() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("TestModel");
+        ModelResultContext context = createContext(queryRequest);
+        context.setSecurityContext(new ModelResultContext.SecurityContext());
+
+        QueryFingerprint fingerprint = builder.build(context);
+
+        assertFalse(fingerprint.isCacheable());
+        assertTrue(fingerprint.isHasIncompleteSecurityPolicy());
+        assertNull(fingerprint.toCacheKey());
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("build - 布尔条件树保留递归括号结构")
+    void testBuild_DifferentBooleanTreesDoNotCollide() {
+        DbQueryRequestDef leftGrouped = new DbQueryRequestDef();
+        leftGrouped.setQueryModel("TestModel");
+        leftGrouped.setColumns(Collections.singletonList("id"));
+        leftGrouped.setSlice(Collections.singletonList(SliceRequestDef.and(Arrays.asList(
+                SliceRequestDef.or(Arrays.asList(
+                        condition("a", 1),
+                        condition("b", 2))),
+                condition("c", 3)))));
+
+        DbQueryRequestDef rightGrouped = new DbQueryRequestDef();
+        rightGrouped.setQueryModel("TestModel");
+        rightGrouped.setColumns(Collections.singletonList("id"));
+        rightGrouped.setSlice(Collections.singletonList(SliceRequestDef.or(Arrays.asList(
+                condition("a", 1),
+                SliceRequestDef.and(Arrays.asList(
+                        condition("b", 2),
+                        condition("c", 3)))))));
+
+        QueryFingerprint first = builder.build(createContext(leftGrouped));
+        QueryFingerprint second = builder.build(createContext(rightGrouped));
+
+        assertNotEquals(first.getConditionSignatures(), second.getConditionSignatures());
+        assertNotEquals(first.toCacheKey(), second.toCacheKey(),
+                "(A OR B) AND C 与 A OR (B AND C) 必须产生不同缓存键");
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("build - JdbcQuery 显式原生 SQL 即使带参也 fail closed")
+    void testBuild_RawJdbcSqlWithValue_FailClosed() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("TestModel");
+        ModelResultContext context = createContext(queryRequest);
+        JdbcQuery jdbcQuery = new JdbcQuery();
+        jdbcQuery.andSql("tenant_id = ?", "tenant-a");
+        context.setQuery(jdbcQuery);
+
+        QueryFingerprint fingerprint = builder.build(context);
+
+        assertTrue(fingerprint.isHasRawSql());
+        assertFalse(fingerprint.isCacheable());
+        assertNull(fingerprint.toCacheKey());
+    }
+
+    @Test
+    @Order(17)
+    @DisplayName("build - 非确定性函数检测不受默认 Locale 影响")
+    void testBuild_NonDeterministicFunctionIsLocaleIndependent() {
+        Locale previous = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("TestModel");
+            SliceRequestDef expression = new SliceRequestDef();
+            expression.setExpr("current_timestamp() > created_at");
+            queryRequest.setSlice(Collections.singletonList(expression));
+
+            QueryFingerprint fingerprint = builder.build(createContext(queryRequest));
+
+            assertTrue(fingerprint.isHasNonDeterministic());
+            assertFalse(fingerprint.isCacheable());
+        } finally {
+            Locale.setDefault(previous);
+        }
+    }
+
+    private SliceRequestDef condition(String field, Object value) {
+        return new SliceRequestDef(field, "=", value);
+    }
+
     /**
      * 创建测试用的 ModelResultContext
      */
@@ -330,6 +474,13 @@ class QueryFingerprintBuilderTest {
         pagingRequest.setPage(1);
         pagingRequest.setPageSize(10);
 
-        return new ModelResultContext(pagingRequest, null);
+        ModelResultContext context = new ModelResultContext(pagingRequest, null);
+        context.setSecurityContext(ModelResultContext.SecurityContext.builder()
+                .authorization("Bearer fingerprint-test")
+                .userId("test-user")
+                .tenantId("test-tenant")
+                .roles(Arrays.asList("reader", "analyst"))
+                .build());
+        return context;
     }
 }

@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
 /**
- * Deployment/model identity used by the Pivot outer-cache key.
+ * Supplementary deployment/model tokens used by the Pivot outer-cache key.
  */
 public record PivotOuterCacheModelIdentity(String bundleFingerprint,
                                            String modelFreshnessToken) {

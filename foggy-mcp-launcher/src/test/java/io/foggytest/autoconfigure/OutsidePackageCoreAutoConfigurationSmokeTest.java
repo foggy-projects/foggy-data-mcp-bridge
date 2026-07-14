@@ -1,0 +1,66 @@
+package io.foggytest.autoconfigure;
+
+import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.fsscript.DataSetFsscriptUtils;
+import com.foggyframework.dataset.utils.DataSourceFactory;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class OutsidePackageCoreAutoConfigurationSmokeTest {
+
+    private static final String[] EXCLUDED_AUTO_CONFIGURATIONS = {
+            "com.foggyframework.dataset.db.model.DbModelAutoConfiguration",
+            "com.foggyframework.dataset.mcp.DatasetMcpAutoConfiguration",
+            "com.foggyframework.dataset.db.model.demo.JdbcModelDemoAutoConfiguration",
+            "com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridBridgeConfiguration",
+            "com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration",
+            "com.foggyframework.dataviewer.config.DataViewerAutoConfiguration",
+            "com.foggyframework.dataset.mcp.storage.cloud.CloudStorageAutoConfiguration",
+            "com.foggyframework.dataset.mongo.DataSetMongoAutoConfiguration",
+            "com.foggyframework.dataset.db.model.mongo.MongoModelAutoConfiguration",
+            "com.foggyframework.dataset.vector.DataSetVectorAutoConfiguration",
+            "com.foggyframework.dataset.db.model.vector.VectorModelAutoConfiguration",
+            "com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration",
+            "com.foggyframework.dataset.db.model.cache.config.QueryCacheEvictionAutoConfiguration",
+            "com.foggyframework.dataset.db.model.cache.config.QueryCacheWebAutoConfiguration",
+            "com.foggyframework.dataset.graphql.GraphqlAddonAutoConfiguration",
+            "com.foggyframework.dataset.db.model.preagg.config.PreAggAutoConfiguration",
+            "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
+            "org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration",
+            "org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration",
+            "org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration"
+    };
+
+    @Test
+    void applicationOutsideFoggyRootDiscoversCoreAutoConfigurationsWithoutComponentScanning() {
+        assertThat(OutsidePackageApplication.class.getPackageName())
+                .doesNotStartWith("com.foggyframework");
+
+        new ApplicationContextRunner()
+                .withUserConfiguration(OutsidePackageApplication.class)
+                .withPropertyValues(
+                        "spring.autoconfigure.exclude=" + String.join(",", EXCLUDED_AUTO_CONFIGURATIONS),
+                        "spring.ai.openai.api-key=test-key",
+                        "spring.ai.model.chat=none",
+                        "spring.ai.model.embedding=none",
+                        "spring.ai.model.image=none",
+                        "spring.ai.model.audio.transcription=none",
+                        "spring.ai.model.audio.speech=none",
+                        "spring.ai.model.moderation=none")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(DataSetFsscriptUtils.class);
+                    assertThat(context).hasSingleBean(DataSourceFactory.class);
+                    assertThat(context).doesNotHaveBean(QueryFacade.class);
+                });
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableAutoConfiguration
+    static class OutsidePackageApplication {
+    }
+}

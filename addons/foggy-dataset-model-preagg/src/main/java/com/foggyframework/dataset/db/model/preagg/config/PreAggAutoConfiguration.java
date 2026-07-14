@@ -1,15 +1,21 @@
 package com.foggyframework.dataset.db.model.preagg.config;
 
+import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
+import com.foggyframework.dataset.db.model.preagg.controller.PreAggController;
 import com.foggyframework.dataset.db.model.preagg.refresh.PreAggRefreshService;
 import com.foggyframework.dataset.db.model.preagg.scheduler.PreAggScheduler;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.web.servlet.DispatcherServlet;
 
 /**
  * 预聚合模块自动配置
@@ -21,9 +27,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
  * @since 8.2.0
  */
 @Slf4j
-@Configuration
+@AutoConfiguration(after = DbModelAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "foggy.preagg", name = "enabled", havingValue = "true", matchIfMissing = false)
-@ComponentScan(basePackages = "com.foggyframework.dataset.db.model.preagg.controller")
 public class PreAggAutoConfiguration {
 
     /**
@@ -61,5 +66,12 @@ public class PreAggAutoConfiguration {
         scheduler.initialize();
         log.info("Created pre-aggregation TaskScheduler with pool size 2");
         return scheduler;
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @ConditionalOnClass(DispatcherServlet.class)
+    @Import(PreAggController.class)
+    static class PreAggWebConfiguration {
     }
 }

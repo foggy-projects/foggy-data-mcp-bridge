@@ -144,6 +144,11 @@ public class FoggyRuntimeApiProperties {
         private long connectionTimeoutMs = 10000;
         private long idleTimeoutMs = 120000;
         private long maxLifetimeMs = 1800000;
+        /**
+         * Maximum time an old datasource binding may drain existing leases.
+         * Values outside 1000..300000 fail Runtime API startup.
+         */
+        private long leaseDrainTimeoutMs = 60000;
 
         public boolean isCleanupEnabled() {
             return cleanupEnabled;
@@ -207,6 +212,14 @@ public class FoggyRuntimeApiProperties {
 
         public void setMaxLifetimeMs(long maxLifetimeMs) {
             this.maxLifetimeMs = maxLifetimeMs;
+        }
+
+        public long getLeaseDrainTimeoutMs() {
+            return leaseDrainTimeoutMs;
+        }
+
+        public void setLeaseDrainTimeoutMs(long leaseDrainTimeoutMs) {
+            this.leaseDrainTimeoutMs = leaseDrainTimeoutMs;
         }
     }
 }

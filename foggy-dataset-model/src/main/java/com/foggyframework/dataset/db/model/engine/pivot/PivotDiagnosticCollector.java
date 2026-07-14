@@ -63,6 +63,23 @@ final class PivotDiagnosticCollector {
         diagnostics.add(item);
     }
 
+    void cacheIdentity(PivotOuterCacheTelemetry.Evaluation evaluation) {
+        if (evaluation == null) {
+            return;
+        }
+        Map<String, Object> item = event("pivot.cache.identity", evaluation.identityStatus());
+        item.put("identityHash", evaluation.identityHash());
+        item.put("status", evaluation.identityStatus());
+        item.put("bindingCount", evaluation.bindingCount());
+        item.put("manualTokenPresent", evaluation.manualTokenPresent());
+        item.put("supplementaryProviderFailed", evaluation.supplementaryProviderFailed());
+        if (evaluation.supplementaryProviderFailed()) {
+            item.put("supplementaryProviderFailureClass",
+                    evaluation.supplementaryProviderFailureClass());
+        }
+        diagnostics.add(item);
+    }
+
     void cacheLookup(String keyHash, String eligibilityStage, String shapeClass) {
         Map<String, Object> item = event("pivot.cache.lookup", "started");
         item.put("keyHash", keyHash);

@@ -76,6 +76,9 @@ public class WatchServiceFileTracer {
      */
     private final Map<Path, Set<String>> directoryExtensionFilters = new ConcurrentHashMap<>();
 
+    /** One loss notification per directory-authority epoch. */
+    private final Set<Path> lostDirectoryAuthorities = ConcurrentHashMap.newKeySet();
+
     private WatchServiceFileTracer() {
         try {
             this.watchService = FileSystems.getDefault().newWatchService();
@@ -109,9 +112,18 @@ public class WatchServiceFileTracer {
      * @param listener 变化监听器
      */
     public void watchFile(File file, FileChangeListener listener) {
+        tryWatchFile(file, listener);
+    }
+
+    /**
+     * Attempts to add a file listener without changing the legacy void API.
+     *
+     * @return true only when both the listener and its parent WatchKey are live
+     */
+    public synchronized boolean tryWatchFile(File file, FileChangeListener listener) {
         if (watchService == null || file == null || !file.exists()) {
             log.debug("无法监听文件: {}", file);
-            return;
+            return false;
         }
 
         Path filePath = file.toPath().toAbsolutePath().normalize();
@@ -119,16 +131,19 @@ public class WatchServiceFileTracer {
 
         if (dirPath == null) {
             log.warn("无法获取文件的父目录: {}", file);
-            return;
+            return false;
         }
 
-        // 注册监听器
+        // 注册监听器并确保目录底层 WatchKey 已成功建立。
         fileListeners.put(filePath, listener);
-
-        // 确保目录被监听
-        watchDirectory(dirPath);
+        if (!watchDirectory(dirPath)) {
+            fileListeners.remove(filePath, listener);
+            log.warn("无法建立文件父目录监听: {}", dirPath);
+            return false;
+        }
 
         log.debug("已添加文件监听: {}", filePath);
+        return true;
     }
 
     /**
@@ -139,7 +154,11 @@ public class WatchServiceFileTracer {
      * @param listener   变化监听器
      * @return true 如果成功添加监听，false 如果目录不存在或不是真实目录
      */
-    public boolean watchDirectory(File directory, Set<String> extensions, DirectoryChangeListener listener) {
+    public synchronized boolean watchDirectory(
+            File directory,
+            Set<String> extensions,
+            DirectoryChangeListener listener
+    ) {
         if (watchService == null) {
             log.debug("WatchService 不可用，无法监听目录: {}", directory);
             return false;
@@ -152,14 +171,22 @@ public class WatchServiceFileTracer {
 
         Path dirPath = directory.toPath().toAbsolutePath().normalize();
 
-        // 注册目录监听器
+        // 注册目录监听器。先放入映射可避免 WatchKey 建立后到 listener
+        // 可见前的创建事件窗口；底层注册失败时必须完整回滚。
         directoryListeners.put(dirPath, listener);
         if (extensions != null && !extensions.isEmpty()) {
             directoryExtensionFilters.put(dirPath, extensions);
+        } else {
+            directoryExtensionFilters.remove(dirPath);
         }
 
         // 确保目录被监听
-        watchDirectory(dirPath);
+        if (!watchDirectory(dirPath)) {
+            directoryListeners.remove(dirPath, listener);
+            directoryExtensionFilters.remove(dirPath);
+            return false;
+        }
+        lostDirectoryAuthorities.remove(dirPath);
 
         log.info("已添加目录监听: {}, 扩展名过滤: {}", dirPath, extensions);
         return true;
@@ -168,9 +195,9 @@ public class WatchServiceFileTracer {
     /**
      * 监听目录
      */
-    private void watchDirectory(Path dirPath) {
+    private synchronized boolean watchDirectory(Path dirPath) {
         if (watchedDirs.containsKey(dirPath)) {
-            return;
+            return true;
         }
 
         try {
@@ -183,18 +210,21 @@ public class WatchServiceFileTracer {
             keyToDirMap.put(key, dirPath);
 
             log.debug("已注册目录监听: {}", dirPath);
+            return true;
         } catch (IOException e) {
             log.warn("注册目录监听失败: {}, error: {}", dirPath, e.getMessage());
+            return false;
         }
     }
 
     /**
      * 移除文件监听
      */
-    public void unwatchFile(File file) {
+    public synchronized void unwatchFile(File file) {
         if (file == null) return;
         Path filePath = file.toPath().toAbsolutePath().normalize();
         fileListeners.remove(filePath);
+        cancelDirectoryKeyIfUnused(filePath.getParent());
         log.debug("已移除文件监听: {}", filePath);
     }
 
@@ -203,7 +233,7 @@ public class WatchServiceFileTracer {
      *
      * @return 被移除的文件监听数量
      */
-    public int unwatchFilesUnderRoot(File root) {
+    public synchronized int unwatchFilesUnderRoot(File root) {
         if (root == null) {
             return 0;
         }
@@ -227,20 +257,14 @@ public class WatchServiceFileTracer {
     /**
      * 移除目录监听
      */
-    public void unwatchDirectory(File directory) {
+    public synchronized void unwatchDirectory(File directory) {
         if (directory == null) return;
         Path dirPath = directory.toPath().toAbsolutePath().normalize();
         directoryListeners.remove(dirPath);
         directoryExtensionFilters.remove(dirPath);
 
         // 如果该目录下没有其他文件监听，则取消监听
-        if (!hasListenerForDirectory(dirPath)) {
-            WatchKey key = watchedDirs.remove(dirPath);
-            if (key != null) {
-                key.cancel();
-                keyToDirMap.remove(key);
-            }
-        }
+        cancelDirectoryKeyIfUnused(dirPath);
 
         log.debug("已移除目录监听: {}", dirPath);
     }
@@ -267,6 +291,17 @@ public class WatchServiceFileTracer {
                 .anyMatch(dirPath::equals);
     }
 
+    private synchronized void cancelDirectoryKeyIfUnused(Path dirPath) {
+        if (dirPath == null || hasListenerForDirectory(dirPath)) {
+            return;
+        }
+        WatchKey key = watchedDirs.remove(dirPath);
+        if (key != null) {
+            key.cancel();
+            keyToDirMap.remove(key);
+        }
+    }
+
     /**
      * 事件处理循环
      */
@@ -288,18 +323,35 @@ public class WatchServiceFileTracer {
                 continue;
             }
 
-            Path dir = keyToDirMap.get(key);
-            if (dir == null) {
-                key.cancel();
-                continue;
-            }
+            processWatchKey(key);
+        }
 
-            for (WatchEvent<?> event : key.pollEvents()) {
+        log.info("WatchServiceFileTracer 事件处理线程已停止");
+    }
+
+    /** Single-key boundary kept package-visible for deterministic contract tests. */
+    void processWatchKey(WatchKey key) {
+        Path dir = keyToDirMap.get(key);
+        if (dir == null) {
+            dir = watchedDirs.entrySet().stream()
+                    .filter(entry -> entry.getValue() == key)
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (dir == null) {
+            key.cancel();
+            return;
+        }
+
+        for (WatchEvent<?> event : key.pollEvents()) {
                 WatchEvent.Kind<?> kind = event.kind();
 
                 if (kind == StandardWatchEventKinds.OVERFLOW) {
                     log.warn("文件系统事件溢出，可能丢失部分事件");
-                    continue;
+                    loseDirectoryAuthority(
+                            dir, WatchAuthorityLossReason.EVENT_OVERFLOW);
+                    return;
                 }
 
                 @SuppressWarnings("unchecked")
@@ -319,18 +371,15 @@ public class WatchServiceFileTracer {
                 } catch (Exception e) {
                     log.error("处理文件事件时出错: {} - {}", fullPath, e.getMessage(), e);
                 }
-            }
-
-            // 重置 key，如果失败则该目录不再可访问
-            boolean valid = key.reset();
-            if (!valid) {
-                log.warn("目录不再可访问，移除监听: {}", dir);
-                watchedDirs.remove(dir);
-                keyToDirMap.remove(key);
-            }
         }
 
-        log.info("WatchServiceFileTracer 事件处理线程已停止");
+        // 重置 key，如果失败则该目录不再可访问
+        boolean valid = key.reset();
+        if (!valid) {
+            log.warn("目录不再可访问，移除监听: {}", dir);
+            loseDirectoryAuthority(
+                    dir, WatchAuthorityLossReason.WATCH_KEY_INVALID);
+        }
     }
 
     private void handleFileCreated(Path dir, Path fullPath, File file) {
@@ -370,12 +419,19 @@ public class WatchServiceFileTracer {
     private void handleFileDeleted(Path fullPath, File file) {
         log.debug("检测到文件删除: {}", fullPath);
 
+        if (directoryListeners.containsKey(fullPath)
+                || watchedDirs.containsKey(fullPath)) {
+            loseDirectoryAuthority(
+                    fullPath, WatchAuthorityLossReason.WATCHED_DIRECTORY_DELETED);
+        }
+
         // 检查文件监听器
         FileChangeListener listener = fileListeners.get(fullPath);
         if (listener != null) {
             listener.fileDeleted(file);
             // 文件删除后移除监听
             fileListeners.remove(fullPath);
+            cancelDirectoryKeyIfUnused(fullPath.getParent());
         }
 
         // 也通知目录监听器
@@ -396,6 +452,44 @@ public class WatchServiceFileTracer {
             }
         }
         return false;
+    }
+
+    private void loseDirectoryAuthority(
+            Path directory,
+            WatchAuthorityLossReason reason
+    ) {
+        Path normalized = directory.toAbsolutePath().normalize();
+        DirectoryChangeListener listener;
+        boolean firstLoss;
+        synchronized (this) {
+            listener = directoryListeners.get(normalized);
+            firstLoss = lostDirectoryAuthorities.add(normalized);
+            cleanupAuthoritySubtree(normalized);
+        }
+        if (!firstLoss || listener == null) {
+            return;
+        }
+        try {
+            listener.onWatchAuthorityLost(normalized.toFile(), reason);
+        } catch (RuntimeException e) {
+            log.error("处理目录authority-loss回调失败: directory={}, reason={}",
+                    normalized, reason, e);
+        }
+    }
+
+    private void cleanupAuthoritySubtree(Path root) {
+        fileListeners.keySet().removeIf(path -> path.startsWith(root));
+        directoryListeners.keySet().removeIf(path -> path.startsWith(root));
+        directoryExtensionFilters.keySet().removeIf(path -> path.startsWith(root));
+        for (Map.Entry<Path, WatchKey> entry
+                : new ArrayList<>(watchedDirs.entrySet())) {
+            if (!entry.getKey().startsWith(root)
+                    || !watchedDirs.remove(entry.getKey(), entry.getValue())) {
+                continue;
+            }
+            entry.getValue().cancel();
+            keyToDirMap.remove(entry.getValue(), entry.getKey());
+        }
     }
 
     /**

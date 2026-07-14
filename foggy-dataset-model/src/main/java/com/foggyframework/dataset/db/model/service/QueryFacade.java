@@ -33,6 +33,7 @@ public interface QueryFacade {
      * 执行查询（简化版）
      * <p>
      * 内部完成完整的查询生命周期：beforeQuery -> query -> process
+     * 未显式提供 namespace：嵌套调用继承当前 scope，root 调用使用默认 namespace。
      * </p>
      *
      * @param form 查询请求
@@ -44,7 +45,7 @@ public interface QueryFacade {
      * 执行查询(带命名空间)
      *
      * @param form      查询请求
-     * @param namespace 命名空间（空字符串或null表示默认命名空间）
+     * @param namespace 显式命名空间（空字符串或null表示默认命名空间）
      * @return 查询结果
      */
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form, String namespace);
@@ -54,13 +55,14 @@ public interface QueryFacade {
      *
      * @param form          查询请求
      * @param authorization 认证令牌
-     * @param namespace     命名空间（空字符串或null表示默认命名空间）
+     * @param namespace     显式命名空间（空字符串或null表示默认命名空间）
      * @return 查询结果
      */
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form, String authorization, String namespace);
 
     /**
      * 执行查询（带查询类型）
+     * <p>未显式提供 namespace：嵌套调用继承当前 scope，root 调用使用默认 namespace。</p>
      *
      * @param form      查询请求
      * @param queryType 查询类型（NORMAL、SEMANTIC）
@@ -73,6 +75,7 @@ public interface QueryFacade {
      * 执行查询（完整版，返回 JdbcQueryResult）
      * <p>
      * 内部完成完整的查询生命周期，返回包含查询引擎信息的结果。
+     * 未显式提供 namespace：嵌套调用继承当前 scope，root 调用使用默认 namespace。
      * </p>
      *
      * @param form 查询请求
@@ -85,6 +88,7 @@ public interface QueryFacade {
      * <p>
      * 允许调用方提供预配置的 ModelResultContext，
      * 用于 SemanticQueryService 等需要设置 SecurityContext 的场景。
+     * context 中 null/blank namespace 按显式默认 namespace 处理。
      * </p>
      *
      * @param context 预配置的上下文（必须已设置 request）

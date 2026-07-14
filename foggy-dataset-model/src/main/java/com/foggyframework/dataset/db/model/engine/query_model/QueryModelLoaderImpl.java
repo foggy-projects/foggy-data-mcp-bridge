@@ -21,6 +21,24 @@ import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
+import com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogBuildView;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogCandidate;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.ModelProvenance;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.StaleCatalogBuildException;
+import com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildKey;
+import com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildSingleFlight;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
+import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
+import com.foggyframework.dataset.db.model.lifecycle.port.StaleDatasourceBindingException;
+import com.foggyframework.dataset.db.model.proxy.JoinBuilder;
+import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
 import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelDescriptor;
 import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelFactory;
 import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelResolver;
@@ -37,13 +55,13 @@ import org.springframework.beans.BeanUtils;
 
 import javax.sql.DataSource;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Setter
 @Getter
 public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoader {
+
+    private static final int MAX_STALE_BUILD_ATTEMPTS = 3;
 
     private TableModelLoaderManager tableModelLoaderManager;
 
@@ -52,79 +70,55 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
     private DbModelFileChangeHandler fileChangeHandler;
 
-    /**
-     * 命名空间级别的缓存结构
-     * Key: namespace (空字符串表示默认命名空间)
-     * Value: NamespaceCache（包含该命名空间下的所有模型缓存）
-     */
-    private Map<String, NamespaceCache> namespaceCaches = new HashMap<>();
-
-
     private List<QueryModelBuilder> queryModelBuilders;
+
+    private CatalogSnapshotStore catalogSnapshotStore;
+
+    private ModelBuildSingleFlight modelBuildSingleFlight;
 
     @Resource
     private SyntheticMemberQueryModelFactory syntheticMemberQueryModelFactory;
 
     private final SyntheticMemberQueryModelResolver syntheticMemberQueryModelResolver = new SyntheticMemberQueryModelResolver();
-    /**
-     * 驼峰命名模式，用于提取大写字母
-     */
-    private static final Pattern CAMEL_CASE_PATTERN = Pattern.compile("[A-Z][a-z]*");
-
-    /**
-     * 命名空间缓存内部类
-     * 封装单个命名空间下的所有缓存数据
-     */
-    private static class NamespaceCache {
-        /**
-         * 模型名称到模型实例的映射
-         */
-        Map<String, QueryModel> name2QueryModel = new HashMap<>();
-
-        /**
-         * 简称到模型名称的映射
-         */
-        Map<String, String> shortAlias2Name = new HashMap<>();
-
-        /**
-         * 已使用的简称集合（包括模型全名）
-         */
-        Set<String> usedAliases = new HashSet<>();
-
-        void clear() {
-            name2QueryModel.clear();
-            shortAlias2Name.clear();
-            usedAliases.clear();
-        }
+    public QueryModelLoaderImpl(TableModelLoaderManager tableModelLoaderManager,
+                                SystemBundlesContext systemBundlesContext,
+                                FileFsscriptLoader fileFsscriptLoader,
+                                List<QueryModelBuilder> queryModelBuilders) {
+        this(tableModelLoaderManager, systemBundlesContext, fileFsscriptLoader, queryModelBuilders,
+                tableModelLoaderManager instanceof com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl manager
+                        ? manager.getCatalogSnapshotStore()
+                        : new CatalogSnapshotStore());
     }
 
     public QueryModelLoaderImpl(TableModelLoaderManager tableModelLoaderManager,
                                 SystemBundlesContext systemBundlesContext,
                                 FileFsscriptLoader fileFsscriptLoader,
-                                List<QueryModelBuilder> queryModelBuilders) {
+                                List<QueryModelBuilder> queryModelBuilders,
+                                CatalogSnapshotStore catalogSnapshotStore) {
         super(systemBundlesContext, fileFsscriptLoader);
         this.tableModelLoaderManager = tableModelLoaderManager;
-        this.queryModelBuilders = queryModelBuilders;
+        this.queryModelBuilders = queryModelBuilders == null ? List.of() : List.copyOf(queryModelBuilders);
+        this.catalogSnapshotStore = Objects.requireNonNull(catalogSnapshotStore, "catalogSnapshotStore");
+        this.modelBuildSingleFlight = tableModelLoaderManager instanceof TableModelLoaderManagerImpl manager
+                ? manager.getModelBuildSingleFlight()
+                : new ModelBuildSingleFlight();
     }
 
     @Override
     public void clearAll() {
-        namespaceCaches.clear();
+        catalogSnapshotStore.clearAll();
         log.debug("已清除所有命名空间的QueryModel缓存");
     }
 
     @Override
     public void clearByNamespace(String namespace) {
         String normalizedNs = normalizeNamespace(namespace);
-        NamespaceCache removed = namespaceCaches.remove(normalizedNs);
-        if (removed != null) {
-            log.info("已清除命名空间 [{}] 的QueryModel缓存，包含 {} 个模型",
-                    normalizedNs.isEmpty() ? "默认" : normalizedNs,
-                    removed.name2QueryModel.size());
-        } else {
-            log.debug("命名空间 [{}] 的缓存不存在，无需清除",
-                    normalizedNs.isEmpty() ? "默认" : normalizedNs);
-        }
+        int previousCount = catalogSnapshotStore.current(normalizedNs)
+                .map(snapshot -> snapshot.queryModels().size() + snapshot.syntheticQueryModels().size())
+                .orElse(0);
+        catalogSnapshotStore.clearNamespace(normalizedNs);
+        log.info("已清除命名空间 [{}] 的QueryModel catalog，包含 {} 个模型",
+                normalizedNs.isEmpty() ? "默认" : normalizedNs, previousCount);
     }
 
     /**
@@ -132,14 +126,6 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
      */
     private String normalizeNamespace(String namespace) {
         return (namespace == null || namespace.trim().isEmpty()) ? "" : namespace.trim();
-    }
-
-    /**
-     * 获取或创建命名空间缓存
-     */
-    private NamespaceCache getOrCreateCache(String namespace) {
-        String normalizedNs = normalizeNamespace(namespace);
-        return namespaceCaches.computeIfAbsent(normalizedNs, k -> new NamespaceCache());
     }
 
     /**
@@ -153,75 +139,576 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
      */
     @Override
     public QueryModel getJdbcQueryModel(String queryModelNameOrAlias, String namespace) {
+        return resolveJdbcQueryModel(queryModelNameOrAlias, namespace).model();
+    }
+
+    @Override
+    public CatalogResolution<QueryModel> resolveJdbcQueryModel(
+            String queryModelNameOrAlias,
+            String namespace
+    ) {
         String normalizedNs = normalizeNamespace(namespace);
-        NamespaceCache cache = getOrCreateCache(normalizedNs);
-
-        // 1. 先尝试通过全名查找
-        QueryModel tm = cache.name2QueryModel.get(queryModelNameOrAlias);
-        if (tm != null) {
-            return tm;
+        try (NamespaceScope ignored = NamespaceContext.open(normalizedNs)) {
+            return resolveWithSingleFlight(queryModelNameOrAlias, normalizedNs, null);
         }
+    }
 
-        // 2. 尝试通过简称查找
-        String fullName = cache.shortAlias2Name.get(queryModelNameOrAlias);
-        if (fullName != null) {
-            return cache.name2QueryModel.get(fullName);
-        }
-
-        QueryModel syntheticModel = tryLoadSyntheticMemberQueryModel(queryModelNameOrAlias, normalizedNs);
-        if (syntheticModel != null) {
-            registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) syntheticModel, normalizedNs);
-            return syntheticModel;
-        }
-
-        // 3. 加载新模型（此时 queryModelNameOrAlias 应该是全名）
-        Fsscript fsscript = findFsscriptWithNamespace(queryModelNameOrAlias, normalizedNs, "qm");
-
-        // 设置 NamespaceContext，确保 QM 脚本中的 loadTableModel 能在正确命名空间中查找 TM
-        String previousNs = NamespaceContext.getNamespace();
-        try {
-            if (!normalizedNs.isEmpty()) {
-                NamespaceContext.setNamespace(normalizedNs);
+    private CatalogResolution<QueryModel> resolveWithSingleFlight(
+            String requestedNameOrAlias,
+            String namespace,
+            BundleResource explicitResource
+    ) {
+        String requested = requireQueryModelName(requestedNameOrAlias);
+        RuntimeException lastStaleFailure = null;
+        for (int attempt = 1; attempt <= MAX_STALE_BUILD_ATTEMPTS; attempt++) {
+            CatalogSnapshot active = catalogSnapshotStore.readCurrent(namespace).orElse(null);
+            if (active != null && active.resolveQueryModel(requested).isPresent()) {
+                return resolution(active, requested);
             }
-            ExpEvaluator ee = evalQmScript(fsscript);
-            Object queryModel = ee.getExportObject("queryModel");
 
-            DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
+            SourceRevision sourceAtPrepareStart =
+                    catalogSnapshotStore.currentSourceRevision(namespace);
+            Set<String> discovery = discoverQueryModelNames(namespace);
+            Fsscript explicitFsscript = null;
+            String canonicalName;
+            if (explicitResource == null) {
+                canonicalName = canonicalizeQueryModelName(
+                        requested, namespace, discovery);
+            } else {
+                // Preserve the legacy observable order: script acquisition is
+                // attempted before filename validation.
+                explicitFsscript = fileFsscriptLoader.findLoadFsscript(explicitResource);
+                canonicalName = canonicalResourceModelName(explicitResource);
+            }
+            try {
+                PreparedQueryModel prepared;
+                if (isSyntheticName(canonicalName)) {
+                    prepared = prepareSyntheticQueryModel(
+                            canonicalName, namespace, discovery, sourceAtPrepareStart);
+                } else {
+                    prepared = prepareQueryModel(
+                            canonicalName,
+                            namespace,
+                            discovery,
+                            sourceAtPrepareStart,
+                            explicitFsscript);
+                }
+                return modelBuildSingleFlight.execute(
+                        prepared.buildKey(),
+                        () -> buildAndPublish(prepared));
+            } catch (StaleCatalogBuildException | StaleDatasourceBindingException stale) {
+                lastStaleFailure = stale;
+            }
+        }
+        throw new IllegalStateException(
+                "MODEL_BUILD_STALE_RETRY_EXHAUSTED: query model " + requested
+                        + " in namespace '" + namespace + "'",
+                lastStaleFailure);
+    }
 
-            tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-            registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) tm, normalizedNs);
-            return tm;
-        } finally {
-            // 恢复之前的 namespace（避免影响调用方）
-            if (previousNs != null) {
-                NamespaceContext.setNamespace(previousNs);
-            } else if (!normalizedNs.isEmpty()) {
-                NamespaceContext.clear();
+    private PreparedQueryModel prepareQueryModel(
+            String canonicalName,
+            String namespace,
+            Set<String> discovery,
+            SourceRevision sourceAtPrepareStart,
+            Fsscript explicitFsscript
+    ) {
+        Fsscript fsscript = explicitFsscript == null
+                ? findFsscriptWithNamespace(canonicalName, namespace, "qm")
+                : explicitFsscript;
+        ExpEvaluator evaluator = evalQmScript(fsscript);
+        Object exported = evaluator.getExportObject("queryModel");
+        DbQueryModelDef definition = FsscriptConversionService.getSharedInstance()
+                .convert(exported, DbQueryModelDef.class);
+
+        Set<String> tableDependencies = tableDependencies(definition);
+        if (tableModelLoaderManager != null) {
+            for (String tableDependency : tableDependencies) {
+                tableModelLoaderManager.load(tableDependency, namespace);
+            }
+        }
+
+        CatalogBuildView buildView = catalogSnapshotStore.capture(namespace);
+        ensureSourceDidNotChange(namespace, sourceAtPrepareStart, buildView);
+        DependencyIdentity dependencyIdentity = tableDependencyIdentity(
+                buildView.baseSnapshot(), tableDependencies);
+        ModelBuildKey buildKey = ModelBuildKey.of(
+                CatalogModelKey.query(canonicalName),
+                namespace,
+                buildView.catalogGeneration().orElse(null),
+                buildView.sourceRevision(),
+                dependencyIdentity.bindings().values(),
+                dependencyIdentity.complete());
+        return new PreparedQueryModel(
+                canonicalName,
+                namespace,
+                discovery,
+                buildView,
+                false,
+                fsscript,
+                evaluator,
+                definition,
+                null,
+                null,
+                dependencyIdentity.dependencies(),
+                dependencyIdentity.bindings(),
+                dependencyIdentity.complete(),
+                buildKey);
+    }
+
+    private PreparedQueryModel prepareSyntheticQueryModel(
+            String canonicalName,
+            String namespace,
+            Set<String> discovery,
+            SourceRevision sourceAtPrepareStart
+    ) {
+        int separator = canonicalName.indexOf(
+                SyntheticMemberQueryModelResolver.MODEL_SEPARATOR);
+        if (separator <= 0 || separator == canonicalName.length() - 1) {
+            throw new IllegalArgumentException(
+                    "invalid synthetic query model name: " + canonicalName);
+        }
+        String sourceName = canonicalName.substring(0, separator);
+        String selector = canonicalName.substring(separator + 1);
+        resolveJdbcQueryModel(sourceName, namespace);
+
+        CatalogBuildView buildView = catalogSnapshotStore.capture(namespace);
+        ensureSourceDidNotChange(namespace, sourceAtPrepareStart, buildView);
+        CatalogSnapshot base = buildView.baseSnapshot();
+        if (base == null) {
+            throw new IllegalStateException(
+                    "synthetic source catalog is absent: " + sourceName);
+        }
+        ModelProvenance sourceProvenance = base.queryModelProvenance(sourceName)
+                .orElseThrow(() -> new IllegalStateException(
+                        "synthetic source provenance is absent: " + sourceName));
+        CatalogModelKey sourceKey = sourceProvenance.key();
+        Map<String, DatasourceBindingIdentity> bindings =
+                new TreeMap<>(sourceProvenance.datasourceBindings());
+        boolean complete = sourceProvenance.bindingIdentityComplete();
+        ModelBuildKey buildKey = ModelBuildKey.of(
+                CatalogModelKey.syntheticQuery(canonicalName),
+                namespace,
+                buildView.catalogGeneration().orElse(null),
+                buildView.sourceRevision(),
+                bindings.values(),
+                complete);
+        return new PreparedQueryModel(
+                canonicalName,
+                namespace,
+                discovery,
+                buildView,
+                true,
+                null,
+                null,
+                null,
+                sourceName,
+                selector,
+                Set.of(sourceKey),
+                Collections.unmodifiableMap(bindings),
+                complete,
+                buildKey);
+    }
+
+    private CatalogResolution<QueryModel> buildAndPublish(PreparedQueryModel prepared) {
+        try (CatalogSnapshotStore.CandidateScope scope =
+                     catalogSnapshotStore.openCandidate(prepared.buildView())) {
+            if (!scope.isOwner()) {
+                throw new IllegalStateException(
+                        "query root unexpectedly joined another catalog candidate");
+            }
+            CatalogCandidate candidate = scope.candidate();
+            candidate.discoverQueryModels(prepared.discovery());
+            QueryModel existing = candidate.findQueryModel(prepared.canonicalName());
+            if (existing != null) {
+                CatalogSnapshot base = prepared.buildView().baseSnapshot();
+                if (base == null) {
+                    throw new IllegalStateException(
+                            "candidate contains a query model absent from its base snapshot");
+                }
+                return resolution(base, prepared.canonicalName());
+            }
+
+            CatalogSnapshot published;
+            try {
+                QueryModelSupport built;
+                if (prepared.synthetic()) {
+                    QueryModel sourceModel = candidate.findQueryModel(prepared.sourceModelName());
+                    if (sourceModel == null) {
+                        throw new IllegalStateException(
+                                "synthetic source model is absent: "
+                                        + prepared.sourceModelName());
+                    }
+                    SyntheticMemberQueryModelDescriptor descriptor =
+                            syntheticMemberQueryModelResolver.resolve(
+                                    sourceModel,
+                                    prepared.syntheticSelector(),
+                                    prepared.namespace());
+                    QueryModel synthetic = syntheticMemberQueryModelFactory.build(
+                            sourceModel, descriptor);
+                    if (!(synthetic instanceof QueryModelSupport support)) {
+                        throw new IllegalStateException(
+                                "synthetic query model must extend QueryModelSupport");
+                    }
+                    built = support;
+                    stageQueryModel(
+                            candidate,
+                            prepared.canonicalName(),
+                            built,
+                            true,
+                            Set.of(prepared.sourceModelName()));
+                } else {
+                    built = loadJdbcQueryModel(
+                            prepared.evaluator(),
+                            prepared.fsscript(),
+                            prepared.definition());
+                    if (built.getName() != null
+                            && !prepared.canonicalName().equals(built.getName())) {
+                        throw new IllegalStateException("QM resource name '"
+                                + prepared.canonicalName()
+                                + "' does not match exported canonical name '"
+                                + built.getName() + "'");
+                    }
+                    stageQueryModel(
+                            candidate,
+                            prepared.canonicalName(),
+                            built,
+                            false,
+                            Set.of());
+                }
+                verifyPreparedProvenance(candidate, prepared);
+                Map<String, DatasourceBindingIdentity> effectiveBindings =
+                        candidate.effectiveDatasourceBindings();
+                ensureBindingsStillCurrent(effectiveBindings);
+                published = commitIfBindingsCurrent(
+                        scope, effectiveBindings.values());
+            } catch (Throwable failure) {
+                candidate.fail("query model build failed");
+                throw ErrorUtils.toRuntimeException(failure);
+            }
+            return resolution(published, prepared.canonicalName());
+        }
+    }
+
+    /**
+     * Builds and stages one canonical QM in an already-open refresh candidate.
+     * This method never commits; the namespace refresh coordinator owns the
+     * single atomic publication.
+     */
+    public QueryModel stageForRefresh(
+            String canonicalName,
+            String namespace,
+            Set<String> discovery,
+            CatalogBuildView buildView,
+            CatalogCandidate candidate
+    ) {
+        String canonicalNamespace = normalizeNamespace(namespace);
+        String modelName = requireQueryModelName(canonicalName);
+        if (candidate == null
+                || !canonicalNamespace.equals(candidate.namespace())
+                || !candidate.sourceRevision().equals(buildView.sourceRevision())) {
+            throw new IllegalArgumentException(
+                    "refresh QM stage does not match its candidate/build view");
+        }
+        candidate.discoverQueryModels(discovery);
+        QueryModel existing = candidate.findQueryModel(modelName);
+        if (existing != null) {
+            return existing;
+        }
+
+        try {
+            QueryModelSupport built;
+            if (isSyntheticName(modelName)) {
+                int separator = modelName.indexOf(
+                        SyntheticMemberQueryModelResolver.MODEL_SEPARATOR);
+                String sourceName = modelName.substring(0, separator);
+                String selector = modelName.substring(separator + 1);
+                QueryModel sourceModel = candidate.findQueryModel(sourceName);
+                if (sourceModel == null) {
+                    throw new IllegalStateException(
+                            "synthetic source model is absent: " + sourceName);
+                }
+                SyntheticMemberQueryModelDescriptor descriptor =
+                        syntheticMemberQueryModelResolver.resolve(
+                                sourceModel, selector, canonicalNamespace);
+                QueryModel synthetic = syntheticMemberQueryModelFactory.build(
+                        sourceModel, descriptor);
+                if (!(synthetic instanceof QueryModelSupport support)) {
+                    throw new IllegalStateException(
+                            "synthetic query model must extend QueryModelSupport");
+                }
+                built = support;
+                stageQueryModel(candidate, modelName, built, true, Set.of(sourceName));
+                return built;
+            }
+
+            Fsscript fsscript = findFsscriptWithNamespace(
+                    modelName, canonicalNamespace, "qm");
+            ExpEvaluator evaluator = evalQmScript(fsscript);
+            Object exported = evaluator.getExportObject("queryModel");
+            DbQueryModelDef definition = FsscriptConversionService.getSharedInstance()
+                    .convert(exported, DbQueryModelDef.class);
+            Set<String> tableDependencies = tableDependencies(definition);
+            for (String tableDependency : tableDependencies) {
+                if (tableModelLoaderManager instanceof TableModelLoaderManagerImpl manager) {
+                    manager.stageForRefresh(
+                            tableDependency,
+                            canonicalNamespace,
+                            buildView,
+                            candidate);
+                } else if (tableModelLoaderManager != null) {
+                    tableModelLoaderManager.load(tableDependency, canonicalNamespace);
+                }
+            }
+
+            built = loadJdbcQueryModel(evaluator, fsscript, definition);
+            if (built.getName() != null && !modelName.equals(built.getName())) {
+                throw new IllegalStateException("QM resource name '" + modelName
+                        + "' does not match exported canonical name '"
+                        + built.getName() + "'");
+            }
+            stageQueryModel(candidate, modelName, built, false, Set.of());
+            return built;
+        } catch (Throwable failure) {
+            candidate.fail("query model refresh build failed: " + modelName);
+            throw ErrorUtils.toRuntimeException(failure);
+        }
+    }
+
+    private CatalogSnapshot commitIfBindingsCurrent(
+            CatalogSnapshotStore.CandidateScope scope,
+            Collection<DatasourceBindingIdentity> bindings
+    ) {
+        if (bindings.isEmpty()) {
+            return scope.commit();
+        }
+        DatasourceBindingResolver resolver = bindingResolver();
+        if (resolver == null) {
+            throw new IllegalStateException(
+                    "DATASOURCE_BINDING_PUBLICATION_GUARD_UNAVAILABLE");
+        }
+        return resolver.publishIfCurrent(bindings, scope::commit);
+    }
+
+    private void verifyPreparedProvenance(
+            CatalogCandidate candidate,
+            PreparedQueryModel prepared
+    ) {
+        ModelProvenance.ModelKind kind = prepared.synthetic()
+                ? ModelProvenance.ModelKind.SYNTHETIC_QUERY
+                : ModelProvenance.ModelKind.QUERY;
+        ModelProvenance actual = candidate.modelProvenance(
+                kind, prepared.canonicalName());
+        if (actual == null
+                || actual.bindingIdentityComplete()
+                != prepared.bindingIdentityComplete()
+                || !actual.datasourceBindings().equals(prepared.bindings())
+                || !actual.modelDependencies().equals(prepared.dependencies())) {
+            throw new IllegalStateException(
+                    "MODEL_BUILD_KEY_PROVENANCE_MISMATCH: "
+                            + prepared.canonicalName());
+        }
+    }
+
+    private void ensureBindingsStillCurrent(
+            Map<String, DatasourceBindingIdentity> bindings
+    ) {
+        if (bindings.isEmpty()) {
+            return;
+        }
+        DatasourceBindingResolver resolver = bindingResolver();
+        if (resolver == null) {
+            throw new IllegalStateException(
+                    "DATASOURCE_BINDING_CURRENTNESS_UNKNOWN: resolver unavailable");
+        }
+        for (DatasourceBindingIdentity binding : bindings.values()) {
+            BindingCurrentness currentness = resolver.currentness(binding);
+            if (currentness == BindingCurrentness.STALE) {
+                throw new StaleDatasourceBindingException(binding.bindingKey());
+            }
+            if (currentness != BindingCurrentness.CURRENT) {
+                throw new IllegalStateException(
+                        "DATASOURCE_BINDING_CURRENTNESS_UNKNOWN: "
+                                + binding.bindingKey());
             }
         }
     }
 
-    private QueryModel tryLoadSyntheticMemberQueryModel(String queryModelNameOrAlias, String namespace) {
-        if (StringUtils.isEmpty(queryModelNameOrAlias)
-                || !queryModelNameOrAlias.contains(SyntheticMemberQueryModelResolver.MODEL_SEPARATOR)) {
-            return null;
+    private DatasourceBindingResolver bindingResolver() {
+        return tableModelLoaderManager instanceof TableModelLoaderManagerImpl manager
+                ? manager.getNamedDataSourceResolver()
+                : null;
+    }
+
+    private DependencyIdentity tableDependencyIdentity(
+            CatalogSnapshot snapshot,
+            Set<String> tableDependencies
+    ) {
+        LinkedHashSet<CatalogModelKey> dependencies = new LinkedHashSet<>();
+        TreeMap<String, DatasourceBindingIdentity> bindings = new TreeMap<>();
+        boolean complete = true;
+        for (String dependencyName : tableDependencies) {
+            CatalogModelKey key = CatalogModelKey.table(dependencyName);
+            dependencies.add(key);
+            ModelProvenance provenance = snapshot == null
+                    ? null
+                    : snapshot.provenance().get(key);
+            if (provenance == null) {
+                complete = false;
+                continue;
+            }
+            complete &= provenance.bindingIdentityComplete();
+            mergeBindings(bindings, provenance.datasourceBindings());
+        }
+        return new DependencyIdentity(
+                Collections.unmodifiableSet(dependencies),
+                Collections.unmodifiableMap(bindings),
+                complete);
+    }
+
+    private void mergeBindings(
+            Map<String, DatasourceBindingIdentity> target,
+            Map<String, DatasourceBindingIdentity> additions
+    ) {
+        for (Map.Entry<String, DatasourceBindingIdentity> entry : additions.entrySet()) {
+            DatasourceBindingIdentity previous = target.putIfAbsent(
+                    entry.getKey(), entry.getValue());
+            if (previous != null && !previous.equals(entry.getValue())) {
+                throw RX.throwAUserTip(
+                        "不同 datasource binding generation 的 TM 不能配置在同一 QM 中");
+            }
+        }
+    }
+
+    private Set<String> tableDependencies(DbQueryModelDef definition) {
+        LinkedHashSet<String> dependencies = new LinkedHashSet<>();
+        if (definition == null) {
+            return Collections.unmodifiableSet(dependencies);
+        }
+        addTableDependency(dependencies, definition.getModel());
+        if (definition.getJoins() != null) {
+            for (Object join : definition.getJoins()) {
+                if (join instanceof JoinBuilder joinBuilder) {
+                    addTableDependency(dependencies, joinBuilder.getLeft());
+                    addTableDependency(dependencies, joinBuilder.getRight());
+                }
+            }
+        }
+        return Collections.unmodifiableSet(dependencies);
+    }
+
+    private void addTableDependency(
+            Set<String> dependencies,
+            TableModelProxy proxy
+    ) {
+        if (proxy != null
+                && proxy.getModelName() != null
+                && !proxy.getModelName().isBlank()) {
+            dependencies.add(proxy.getModelName().trim());
+        }
+    }
+
+    private String canonicalizeQueryModelName(
+            String requested,
+            String namespace,
+            Set<String> discovery
+    ) {
+        CatalogSnapshot active = catalogSnapshotStore.readCurrent(namespace).orElse(null);
+        if (active != null && active.resolveQueryModel(requested).isPresent()) {
+            return active.canonicalQueryModelName(requested);
+        }
+        int separator = requested.indexOf(
+                SyntheticMemberQueryModelResolver.MODEL_SEPARATOR);
+        String sourceOrName = separator < 0
+                ? requested
+                : requested.substring(0, separator);
+        String suffix = separator < 0 ? "" : requested.substring(separator);
+        CatalogBuildView view = catalogSnapshotStore.capture(namespace);
+        try (CatalogSnapshotStore.CandidateScope scope =
+                     catalogSnapshotStore.openCandidate(view)) {
+            CatalogCandidate candidate = scope.candidate();
+            candidate.discoverQueryModels(discovery);
+            return candidate.resolveCanonicalName(sourceOrName) + suffix;
+        }
+    }
+
+    private void ensureSourceDidNotChange(
+            String namespace,
+            SourceRevision expected,
+            CatalogBuildView actual
+    ) {
+        if (!expected.equals(actual.sourceRevision())) {
+            throw new StaleCatalogBuildException(
+                    namespace,
+                    StaleCatalogBuildException.Reason.SOURCE_REVISION_CHANGED);
+        }
+    }
+
+    private boolean isSyntheticName(String canonicalName) {
+        return canonicalName.indexOf(
+                SyntheticMemberQueryModelResolver.MODEL_SEPARATOR) > 0;
+    }
+
+    private String requireQueryModelName(String requested) {
+        if (requested == null || requested.isBlank()) {
+            throw new IllegalArgumentException(
+                    "query model name or alias must not be blank");
+        }
+        return requested.trim();
+    }
+
+    private record DependencyIdentity(
+            Set<CatalogModelKey> dependencies,
+            Map<String, DatasourceBindingIdentity> bindings,
+            boolean complete
+    ) {
+    }
+
+    private record PreparedQueryModel(
+            String canonicalName,
+            String namespace,
+            Set<String> discovery,
+            CatalogBuildView buildView,
+            boolean synthetic,
+            Fsscript fsscript,
+            ExpEvaluator evaluator,
+            DbQueryModelDef definition,
+            String sourceModelName,
+            String syntheticSelector,
+            Set<CatalogModelKey> dependencies,
+            Map<String, DatasourceBindingIdentity> bindings,
+            boolean bindingIdentityComplete,
+            ModelBuildKey buildKey
+    ) {
+    }
+
+    @Override
+    public Map<String, CatalogResolution<QueryModel>> resolveJdbcQueryModels(
+            Collection<String> queryModelNames,
+            String namespace
+    ) {
+        if (queryModelNames == null || queryModelNames.isEmpty()) {
+            return Map.of();
+        }
+        String normalizedNs = normalizeNamespace(namespace);
+        LinkedHashSet<String> requested = new LinkedHashSet<>();
+        queryModelNames.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .forEach(requested::add);
+        for (String name : requested) {
+            resolveJdbcQueryModel(name, normalizedNs);
         }
 
-        int separatorIndex = queryModelNameOrAlias.indexOf(SyntheticMemberQueryModelResolver.MODEL_SEPARATOR);
-        if (separatorIndex <= 0 || separatorIndex == queryModelNameOrAlias.length() - 1) {
-            return null;
+        CatalogSnapshot pinned = catalogSnapshotStore.readCurrent(normalizedNs)
+                .orElseThrow(() -> new IllegalStateException(
+                        "catalog disappeared before metadata snapshot capture"));
+        LinkedHashMap<String, CatalogResolution<QueryModel>> resolutions = new LinkedHashMap<>();
+        for (String name : requested) {
+            resolutions.put(name, resolution(pinned, name));
         }
-
-        String sourceModelName = queryModelNameOrAlias.substring(0, separatorIndex);
-        String dimFieldBase = queryModelNameOrAlias.substring(separatorIndex + 1);
-
-        QueryModel sourceModel = getJdbcQueryModel(sourceModelName, namespace);
-        SyntheticMemberQueryModelDescriptor descriptor = syntheticMemberQueryModelResolver.resolve(
-                sourceModel,
-                dimFieldBase,
-                namespace
-        );
-        return syntheticMemberQueryModelFactory.build(sourceModel, descriptor);
+        return Collections.unmodifiableMap(resolutions);
     }
 
     /**
@@ -233,43 +720,162 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         return fileFsscriptLoader.findLoadFsscript(resource);
     }
 
-    @Override
-    public QueryModel loadJdbcQueryModel(BundleResource bundleResource) {
-        // 从BundleResource中提取namespace
-        String namespace = getNamespaceFromBundleResource(bundleResource);
-        String normalizedNs = normalizeNamespace(namespace);
-
-        Fsscript fsscript = fileFsscriptLoader.findLoadFsscript(bundleResource);
-
-        // 设置 NamespaceContext，确保 QM 脚本中的 loadTableModel 能在正确命名空间中查找 TM
-        String previousNs = NamespaceContext.getNamespace();
-        try {
-            if (!normalizedNs.isEmpty()) {
-                NamespaceContext.setNamespace(normalizedNs);
+    private void stageQueryModel(
+            CatalogCandidate candidate,
+            String canonicalName,
+            QueryModelSupport model,
+            boolean synthetic,
+            Set<String> additionalDependencies
+    ) {
+        model.setShortAlias(candidate.aliasFor(canonicalName));
+        LinkedHashSet<CatalogModelKey> dependencies = new LinkedHashSet<>();
+        for (String queryDependency : additionalDependencies) {
+            CatalogModelKey queryKey = CatalogModelKey.query(queryDependency);
+            if (candidate.modelProvenance(queryKey) == null) {
+                queryKey = CatalogModelKey.syntheticQuery(queryDependency);
             }
-            ExpEvaluator ee = evalQmScript(fsscript);
-            Object queryModel = ee.getExportObject("queryModel");
-            DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
-            try {
-                QueryModelSupport qm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-                // 注册模型并分配简称（使用提取的namespace）
-                String modelName = qm.getName();
-                NamespaceCache cache = getOrCreateCache(normalizedNs);
-                if (!cache.name2QueryModel.containsKey(modelName)) {
-                    registerQueryModel(modelName, qm, normalizedNs);
+            dependencies.add(queryKey);
+        }
+        if (model.getJdbcModelList() != null) {
+            for (TableModel tableModel : model.getJdbcModelList()) {
+                if (tableModel != null && tableModel.getName() != null && !tableModel.getName().isBlank()) {
+                    CatalogModelKey tableKey = CatalogModelKey.table(tableModel.getName());
+                    if (!synthetic) {
+                        ModelProvenance stagedProvenance = candidate.modelProvenance(tableKey);
+                        boolean externalManager = !(tableModelLoaderManager instanceof
+                                com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl);
+                        if (stagedProvenance == null && externalManager) {
+                            candidate.putTableModel(
+                                    tableModel.getName(),
+                                    tableModel,
+                                    new ModelProvenance(
+                                            tableModel.getName(),
+                                            ModelProvenance.ModelKind.TABLE,
+                                            candidate.sourceRevision(),
+                                            Set.of(),
+                                            Map.of(),
+                                            false,
+                                            List.of("external table model binding identity unavailable")));
+                            stagedProvenance = candidate.modelProvenance(tableKey);
+                        }
+                        if (externalManager
+                                && stagedProvenance != null
+                                && candidate.findTableModel(tableModel.getName()) != tableModel) {
+                            throw new IllegalStateException(
+                                    "query model references a different table model instance for "
+                                            + tableModel.getName());
+                        }
+                    }
+                    // A synthetic member QM may expose a request-local derived
+                    // table wrapper that is not itself a catalog slot. Its
+                    // canonical source QM below already carries the complete
+                    // transitive TM/binding provenance.
+                    if (!synthetic || candidate.modelProvenance(tableKey) != null) {
+                        dependencies.add(tableKey);
+                    }
                 }
-                return qm;
-            } catch (Throwable t) {
-                log.error(String.format("加载%s时出现异常", bundleResource));
-                throw ErrorUtils.toRuntimeException(t);
-            }
-        } finally {
-            if (previousNs != null) {
-                NamespaceContext.setNamespace(previousNs);
-            } else if (!normalizedNs.isEmpty()) {
-                NamespaceContext.clear();
             }
         }
+
+        Map<String, DatasourceBindingIdentity> bindings = new TreeMap<>();
+        boolean complete = true;
+        for (CatalogModelKey dependency : dependencies) {
+            ModelProvenance dependencyProvenance = candidate.modelProvenance(dependency);
+            if (dependencyProvenance == null) {
+                complete = false;
+                continue;
+            }
+            complete &= dependencyProvenance.bindingIdentityComplete();
+            for (Map.Entry<String, DatasourceBindingIdentity> binding
+                    : dependencyProvenance.datasourceBindings().entrySet()) {
+                DatasourceBindingIdentity previous = bindings.putIfAbsent(
+                        binding.getKey(), binding.getValue());
+                if (previous != null && !previous.equals(binding.getValue())) {
+                    throw RX.throwAUserTip("不同 datasource binding generation 的 TM 不能配置在同一 QM 中");
+                }
+            }
+        }
+
+        ModelProvenance provenance = new ModelProvenance(
+                canonicalName,
+                synthetic ? ModelProvenance.ModelKind.SYNTHETIC_QUERY : ModelProvenance.ModelKind.QUERY,
+                candidate.sourceRevision(),
+                dependencies,
+                bindings,
+                complete,
+                List.of()
+        );
+        if (synthetic) {
+            candidate.putSyntheticQueryModel(canonicalName, model, provenance);
+        } else {
+            candidate.putQueryModel(canonicalName, model, provenance);
+        }
+    }
+
+    private CatalogResolution<QueryModel> resolution(
+            CatalogSnapshot snapshot,
+            String nameOrAlias
+    ) {
+        String canonical = snapshot.canonicalQueryModelName(nameOrAlias);
+        QueryModel model = snapshot.resolveQueryModel(canonical)
+                .orElseThrow(() -> new IllegalStateException(
+                        "committed catalog does not contain query model " + canonical));
+        ModelProvenance modelProvenance = snapshot.queryModelProvenance(canonical).orElse(null);
+        return new CatalogResolution<>(
+                canonical,
+                model,
+                snapshot.identity(),
+                modelProvenance == null ? Map.of() : modelProvenance.datasourceBindings(),
+                modelProvenance != null && modelProvenance.bindingIdentityComplete()
+        );
+    }
+
+    public Set<String> discoverQueryModelNames(String namespace) {
+        String canonicalNamespace = normalizeNamespace(namespace);
+        TreeSet<String> names = new TreeSet<>();
+        if (systemBundlesContext == null || systemBundlesContext.getBundleList() == null) {
+            return Collections.unmodifiableSet(names);
+        }
+        for (Bundle bundle : systemBundlesContext.getBundleList()) {
+            String bundleNamespace = bundle == null || bundle.getDefinition() == null
+                    ? ""
+                    : normalizeNamespace(bundle.getDefinition().getNamespace());
+            if (bundle == null || !canonicalNamespace.equals(bundleNamespace)) {
+                continue;
+            }
+            BundleResource[] resources = bundle.findBundleResources("**/*.qm");
+            if (resources == null) {
+                continue;
+            }
+            for (BundleResource resource : resources) {
+                String canonicalName = canonicalResourceModelName(resource);
+                if (!names.add(canonicalName)) {
+                    throw new IllegalStateException(
+                            "duplicate query model resource in namespace: " + canonicalName);
+                }
+            }
+        }
+        return Collections.unmodifiableSet(names);
+    }
+
+    @Override
+    public QueryModel loadJdbcQueryModel(BundleResource bundleResource) {
+        String namespace = getNamespaceFromBundleResource(bundleResource);
+        String normalizedNs = normalizeNamespace(namespace);
+        try (NamespaceScope ignored = NamespaceContext.open(normalizedNs)) {
+            return resolveWithSingleFlight(
+                    "<bundle-resource>", normalizedNs, bundleResource).model();
+        }
+    }
+
+    private String canonicalResourceModelName(BundleResource bundleResource) {
+        String filename = bundleResource == null || bundleResource.getResource() == null
+                ? null
+                : bundleResource.getResource().getFilename();
+        if (filename == null || !filename.endsWith(".qm") || filename.length() <= 3) {
+            throw new IllegalStateException("query model resource must have a canonical .qm filename");
+        }
+        return filename.substring(0, filename.length() - 3);
     }
 
     /**
@@ -798,97 +1404,6 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             return;
         }
         qm.setMemberPermissions(memberPermissions);
-    }
-
-    // ==================== 简称分配相关方法 ====================
-
-    /**
-     * 注册查询模型并分配简称（在指定命名空间中）
-     *
-     * @param modelName 模型全名
-     * @param qm        查询模型实例
-     * @param namespace 命名空间
-     */
-    private void registerQueryModel(String modelName, QueryModelSupport qm, String namespace) {
-        NamespaceCache cache = getOrCreateCache(namespace);
-
-        // 先将模型全名加入已使用集合，防止简称与全名冲突
-        cache.usedAliases.add(modelName);
-
-        // 分配简称（在namespace范围内）
-        String shortAlias = allocateShortAlias(modelName, cache);
-        qm.setShortAlias(shortAlias);
-
-        // 注册映射
-        cache.name2QueryModel.put(modelName, qm);
-        cache.shortAlias2Name.put(shortAlias, modelName);
-
-        log.debug("已为模型 {} 分配简称: {} (namespace: {})", modelName, shortAlias,
-                namespace.isEmpty() ? "默认" : namespace);
-    }
-
-    /**
-     * 为模型分配唯一简称（在指定命名空间范围内）
-     *
-     * <p>算法规则：
-     * <ol>
-     *   <li>去掉 QueryModel 后缀</li>
-     *   <li>提取驼峰词的首字母组合（如 FactSales → FS）</li>
-     *   <li>如果简称已存在或与模型全名冲突，追加数字后缀</li>
-     * </ol>
-     *
-     * @param modelName 模型全名
-     * @param cache     命名空间缓存
-     * @return 分配的唯一简称
-     */
-    private String allocateShortAlias(String modelName, NamespaceCache cache) {
-        // 1. 去掉 QueryModel 后缀
-        String baseName = modelName;
-        if (baseName.endsWith("QueryModel")) {
-            baseName = baseName.substring(0, baseName.length() - "QueryModel".length());
-        } else if (baseName.endsWith("Model")) {
-            baseName = baseName.substring(0, baseName.length() - "Model".length());
-        }
-
-        // 2. 提取驼峰词首字母
-        String baseAlias = extractCamelCaseInitials(baseName);
-
-        // 3. 确保唯一性（在namespace范围内）
-        String alias = baseAlias;
-        int suffix = 2;
-        while (cache.usedAliases.contains(alias)) {
-            alias = baseAlias + suffix;
-            suffix++;
-        }
-
-        cache.usedAliases.add(alias);
-        return alias;
-    }
-
-    /**
-     * 提取驼峰命名中各单词的首字母
-     *
-     * <p>示例：
-     * <ul>
-     *   <li>FactSales → FS</li>
-     *   <li>DimProduct → DP</li>
-     *   <li>FactInventorySnapshot → FIS</li>
-     * </ul>
-     *
-     * @param name 驼峰命名的字符串
-     * @return 首字母组合（大写）
-     */
-    private String extractCamelCaseInitials(String name) {
-        StringBuilder initials = new StringBuilder();
-        Matcher matcher = CAMEL_CASE_PATTERN.matcher(name);
-        while (matcher.find()) {
-            initials.append(matcher.group().charAt(0));
-        }
-        // 如果没有匹配到（如全小写），使用前两个字符
-        if (initials.length() == 0 && name.length() > 0) {
-            initials.append(name.substring(0, Math.min(2, name.length())).toUpperCase());
-        }
-        return initials.toString();
     }
 
 }

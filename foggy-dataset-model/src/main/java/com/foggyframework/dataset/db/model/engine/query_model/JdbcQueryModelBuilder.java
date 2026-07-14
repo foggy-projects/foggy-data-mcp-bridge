@@ -84,8 +84,13 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
             // 1. 解析 model 和 joins，获取模型列表
             List<TableModel> parsedModels = parseModelAndJoins(queryModelDef);
 
+            // A QM is an all-or-nothing publication unit.  The parser deliberately
+            // accumulates dependency errors so callers get one useful diagnostic,
+            // but none of those errors may be downgraded to a partially usable QM.
+            // In particular, a valid root TM must not hide a failed joined TM.
+            throwIfHasErrors(queryModelDef.getName());
+
             if (parsedModels.isEmpty()) {
-                throwIfHasErrors(queryModelDef.getName());
                 throw RX.throwAUserTip(DatasetMessages.querymodelModelMissing(queryModelDef.getName()));
             }
 
@@ -198,9 +203,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
         if (joinItem instanceof JoinBuilder joinBuilder) {
             return parseJoinBuilder(joinBuilder, result, aliasCounter, qmName);
         }
-        if (joinItem != null) {
-            log.warn("QM [{}] joins 数组中包含不支持的类型: {}", qmName, joinItem.getClass().getName());
-        }
+        String typeName = joinItem == null ? "null" : joinItem.getClass().getName();
+        addError(qmName, "joins", "不支持的 JOIN 类型: " + typeName);
+        log.warn("QM [{}] joins 数组中包含不支持的类型: {}", qmName, typeName);
         return aliasCounter;
     }
 
@@ -238,6 +243,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
         TableModel dependsOn = findParsedModelByAlias(result, leftProxy.getAlias());
         if (dependsOn != null) {
             dx.addDependsOn(dependsOn);
+        } else {
+            addError(qmName, "aggregateJoin('" + alias + "')",
+                    "找不到左侧依赖模型: " + leftProxy.getModelName());
         }
         result.add(dx);
 
@@ -281,6 +289,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
         TableModel dependsOn = findParsedModelByAlias(result, leftProxy.getAlias());
         if (dependsOn != null) {
             dx.addDependsOn(dependsOn);
+        } else {
+            addError(qmName, "join('" + alias + "')",
+                    "找不到左侧依赖模型: " + leftProxy.getModelName());
         }
         result.add(dx);
 

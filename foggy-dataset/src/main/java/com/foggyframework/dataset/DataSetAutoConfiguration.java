@@ -8,15 +8,15 @@ import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import com.foggyframework.fsscript.exp.FunTable;
 import com.foggyframework.fsscript.parser.FunDef;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
 
-@Configuration
+@AutoConfiguration
 public class DataSetAutoConfiguration implements InitializingBean {
 
     @Resource

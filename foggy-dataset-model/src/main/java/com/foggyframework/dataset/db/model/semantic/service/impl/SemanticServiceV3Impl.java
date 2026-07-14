@@ -9,6 +9,8 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.db.model.semantic.domain.DictionaryDiscoveryResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
@@ -63,16 +65,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     @Override
     public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
                                                 SemanticRequestContext context) {
-        String namespace = context.getNamespace();
         Set<String> fieldAccess = context.getFieldAccess();
         // deniedColumns → denied QM 字段集合（延迟解析，需要 QueryModel）
         java.util.List<com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn> deniedColumns =
                 context.getDeniedColumns();
-        try {
-            // 设置namespace到ThreadLocal（供模型加载使用）
-            if (namespace != null) {
-                NamespaceContext.setNamespace(namespace);
-            }
+        try (NamespaceScope ignored = NamespaceContext.open(context.getNamespace())) {
+            String namespace = NamespaceContext.getNamespace();
 
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setFormat(format);
@@ -88,11 +86,6 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             return response;
-        } finally {
-            // 清理namespace ThreadLocal
-            if (namespace != null) {
-                NamespaceContext.clear();
-            }
         }
     }
 
@@ -114,13 +107,14 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> models = new LinkedHashMap<>();
         List<Map<String, String>> physicalTables = new ArrayList<>();
         List<Map<String, String>> modelErrors = new ArrayList<>();
+        ResolvedCatalogModels resolvedModels = resolveCatalogModels(
+                request.getQmModels(), namespace, true);
+        modelErrors.addAll(resolvedModels.modelErrors());
 
         for (String qmModelName : request.getQmModels()) {
             try {
-                QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
+                QueryModel queryModel = resolvedModels.models().get(qmModelName);
                 if (queryModel == null) {
-                    log.warn("metadata 构建跳过模型 '{}': 模型不存在或加载返回 null", qmModelName);
-                    recordModelLoadError(modelErrors, qmModelName, MODEL_LOAD_NULL_MESSAGE);
                     continue;
                 }
 
@@ -164,6 +158,135 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         return md.toString();
     }
 
+    private QueryModel resolveCatalogModel(String modelName, String namespace) {
+        CatalogResolution<QueryModel> resolution =
+                queryModelLoader.resolveJdbcQueryModel(modelName, namespace);
+        return resolution != null
+                ? resolution.model()
+                : queryModelLoader.getJdbcQueryModel(modelName, namespace);
+    }
+
+    private ResolvedCatalogModels resolveCatalogModels(
+            Collection<String> modelNames,
+            String namespace,
+            boolean tolerateModelLoadErrors
+    ) {
+        LinkedHashMap<String, QueryModel> materialized = new LinkedHashMap<>();
+        List<Map<String, String>> modelErrors = new ArrayList<>();
+        if (modelNames == null) {
+            return ResolvedCatalogModels.untracked(materialized, modelErrors);
+        }
+
+        for (String modelName : modelNames) {
+            try {
+                QueryModel model = resolveCatalogModel(modelName, namespace);
+                if (model == null) {
+                    log.warn("metadata 构建跳过模型 '{}': {}", modelName, MODEL_LOAD_NULL_MESSAGE);
+                    recordModelLoadError(modelErrors, modelName, MODEL_LOAD_NULL_MESSAGE);
+                } else {
+                    materialized.put(modelName, model);
+                }
+            } catch (Exception failure) {
+                if (!tolerateModelLoadErrors) {
+                    throw failure;
+                }
+                log.warn("metadata 构建跳过模型 '{}': {}", modelName, failure.getMessage());
+                recordModelLoadError(modelErrors, modelName, modelLoadErrorMessage(failure));
+            }
+        }
+
+        if (materialized.isEmpty()) {
+            return ResolvedCatalogModels.untracked(materialized, modelErrors);
+        }
+
+        Map<String, CatalogResolution<QueryModel>> pinned =
+                queryModelLoader.resolveJdbcQueryModels(materialized.keySet(), namespace);
+        if (pinned == null) {
+            // Compatibility for third-party/Mockito loaders without lifecycle authority.
+            return ResolvedCatalogModels.untracked(materialized, modelErrors);
+        }
+
+        LinkedHashMap<String, QueryModel> finalModels = new LinkedHashMap<>();
+        LinkedHashMap<String, CatalogResolution<QueryModel>> finalResolutions =
+                new LinkedHashMap<>();
+        CatalogIdentity pinnedIdentity = null;
+        String canonicalNamespace = CatalogIdentity.canonicalNamespace(namespace);
+        for (String modelName : materialized.keySet()) {
+            CatalogResolution<QueryModel> resolution = pinned.get(modelName);
+            if (resolution == null) {
+                throw new IllegalStateException(
+                        "metadata snapshot is missing resolved model " + modelName);
+            }
+            if (!canonicalNamespace.equals(resolution.catalogIdentity().namespace())) {
+                throw new IllegalStateException(
+                        "metadata model resolved from a different namespace");
+            }
+            if (pinnedIdentity == null) {
+                pinnedIdentity = resolution.catalogIdentity();
+            } else if (!pinnedIdentity.equals(resolution.catalogIdentity())) {
+                throw new IllegalStateException(
+                        "metadata models resolved from different catalog generations");
+            }
+            finalModels.put(modelName, resolution.model());
+            finalResolutions.put(modelName, resolution);
+        }
+        return ResolvedCatalogModels.tracked(
+                finalModels, modelErrors, pinnedIdentity, finalResolutions);
+    }
+
+    private record ResolvedCatalogModels(
+            Map<String, QueryModel> models,
+            List<Map<String, String>> modelErrors,
+            CatalogIdentity catalogIdentity,
+            Map<String, CatalogResolution<QueryModel>> resolutions,
+            boolean lifecycleTracked
+    ) {
+        private ResolvedCatalogModels {
+            models = Collections.unmodifiableMap(new LinkedHashMap<>(models));
+            modelErrors = List.copyOf(modelErrors);
+            resolutions = Collections.unmodifiableMap(new LinkedHashMap<>(resolutions));
+            if (!lifecycleTracked) {
+                if (catalogIdentity != null || !resolutions.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "untracked metadata must not expose lifecycle identities");
+                }
+            } else {
+                if (catalogIdentity == null || !models.keySet().equals(resolutions.keySet())) {
+                    throw new IllegalArgumentException(
+                            "tracked metadata must retain one resolution per model");
+                }
+                for (Map.Entry<String, CatalogResolution<QueryModel>> entry
+                        : resolutions.entrySet()) {
+                    String modelName = entry.getKey();
+                    CatalogResolution<QueryModel> resolution = entry.getValue();
+                    if (!catalogIdentity.equals(resolution.catalogIdentity())
+                            || models.get(modelName) != resolution.model()) {
+                        throw new IllegalArgumentException(
+                                "tracked metadata resolution does not match the final snapshot");
+                    }
+                }
+            }
+        }
+
+        private static ResolvedCatalogModels untracked(
+                Map<String, QueryModel> models,
+                List<Map<String, String>> modelErrors
+        ) {
+            return new ResolvedCatalogModels(
+                    models, modelErrors, null, Map.of(), false);
+        }
+
+        private static ResolvedCatalogModels tracked(
+                Map<String, QueryModel> models,
+                List<Map<String, String>> modelErrors,
+                CatalogIdentity catalogIdentity,
+                Map<String, CatalogResolution<QueryModel>> resolutions
+        ) {
+            return new ResolvedCatalogModels(
+                    models, modelErrors, catalogIdentity, resolutions, true);
+        }
+    }
+
     /**
      * 构建Markdown格式的元数据（V3版本）
      *
@@ -176,16 +299,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     private String buildMarkdownMetadata(SemanticMetadataRequest request, String namespace,
                                          Set<String> fieldAccess, SemanticRequestContext context) {
         List<String> qmModels = request.getQmModels();
+        boolean tolerateModelLoadErrors = request.isTolerateModelLoadErrors();
+        ResolvedCatalogModels resolvedModels = resolveCatalogModels(
+                qmModels, namespace, tolerateModelLoadErrors);
 
         // 单模型：使用详细格式
         if (qmModels != null && qmModels.size() == 1) {
             return buildSingleModelMarkdown(qmModels.get(0), request, namespace, fieldAccess, context,
-                    request.isTolerateModelLoadErrors());
+                    tolerateModelLoadErrors, resolvedModels);
         }
 
         // 多模型：使用精简索引格式
         return buildMultiModelMarkdown(request, namespace, fieldAccess, context,
-                request.isTolerateModelLoadErrors());
+                tolerateModelLoadErrors, resolvedModels);
     }
 
     /**
@@ -202,27 +328,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      */
     private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request, String namespace,
                                               Set<String> fieldAccess, SemanticRequestContext context,
-                                              boolean tolerateModelLoadErrors) {
-        QueryModel queryModel;
-        try {
-            queryModel = queryModelLoader.getJdbcQueryModel(modelName, namespace);
-        } catch (Exception e) {
-            if (!tolerateModelLoadErrors) {
-                throw e;
-            }
-            log.warn("metadata 构建跳过模型 '{}': {}", modelName, e.getMessage());
+                                              boolean tolerateModelLoadErrors,
+                                              ResolvedCatalogModels resolvedModels) {
+        QueryModel queryModel = resolvedModels.models().get(modelName);
+        if (queryModel == null && tolerateModelLoadErrors) {
             StringBuilder md = new StringBuilder();
             md.append("# 数据模型语义索引 V3\n\n");
-            appendModelLoadDiagnostics(md, List.of(modelLoadError(modelName, modelLoadErrorMessage(e))));
+            appendModelLoadDiagnostics(md, resolvedModels.modelErrors());
             return md.toString();
         }
         if (queryModel == null) {
-            if (tolerateModelLoadErrors) {
-                StringBuilder md = new StringBuilder();
-                md.append("# 数据模型语义索引 V3\n\n");
-                appendModelLoadDiagnostics(md, List.of(modelLoadError(modelName, MODEL_LOAD_NULL_MESSAGE)));
-                return md.toString();
-            }
             return "# 错误\n\n模型不存在: " + modelName;
         }
         Set<String> effectiveFieldAccess = resolveEffectiveFieldAccess(queryModel, namespace, fieldAccess,
@@ -732,7 +847,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      */
     private String buildMultiModelMarkdown(SemanticMetadataRequest request, String namespace,
                                            Set<String> fieldAccess, SemanticRequestContext context,
-                                           boolean tolerateModelLoadErrors) {
+                                           boolean tolerateModelLoadErrors,
+                                           ResolvedCatalogModels resolvedModels) {
         StringBuilder md = new StringBuilder();
 
         md.append("# 数据模型语义索引 V3\n\n");
@@ -743,14 +859,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         // 收集被引用的字典（包括 fsscript 字典和 Java 类字典）
         Set<String> referencedDictIds = new LinkedHashSet<>();
         Set<DictInfo> referencedDictClasses = new LinkedHashSet<>();
-        List<Map<String, String>> modelErrors = new ArrayList<>();
+        List<Map<String, String>> modelErrors = new ArrayList<>(resolvedModels.modelErrors());
 
         for (String qmModelName : request.getQmModels()) {
             try {
-                QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
+                QueryModel queryModel = resolvedModels.models().get(qmModelName);
                 if (queryModel == null) {
-                    log.warn("metadata 构建跳过模型 '{}': 模型不存在或加载返回 null", qmModelName);
-                    recordModelLoadError(modelErrors, qmModelName, MODEL_LOAD_NULL_MESSAGE);
                     continue;
                 }
                 modelMap.put(qmModelName, queryModel);

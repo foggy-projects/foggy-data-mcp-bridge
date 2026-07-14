@@ -86,7 +86,8 @@ public class DataSourceConfigPersistence {
             objectMapper.writeValue(file, wrapper);
             log.info("Saved data source config: {} -> {}", name, file.getAbsolutePath());
         } catch (IOException e) {
-            log.error("Failed to save data source config: {}", name, e);
+            log.error("Failed to save data source config: {}, reason={}",
+                    name, e.getClass().getSimpleName());
             throw new RuntimeException("Failed to save data source config: " + name, e);
         }
     }
@@ -114,7 +115,8 @@ public class DataSourceConfigPersistence {
             config.setDriver(wrapper.getDriver());
             return config;
         } catch (IOException e) {
-            log.error("Failed to load data source config: {}", name, e);
+            log.error("Failed to load data source config: {}, reason={}",
+                    name, e.getClass().getSimpleName());
             return null;
         }
     }
@@ -150,7 +152,8 @@ public class DataSourceConfigPersistence {
                 result.put(wrapper.getName(), config);
                 log.info("Loaded data source config: {}", wrapper.getName());
             } catch (IOException e) {
-                log.warn("Failed to load config file: {}", file.getName(), e);
+                log.warn("Failed to load config file: {}, reason={}",
+                        file.getName(), e.getClass().getSimpleName());
             }
         }
 
@@ -161,15 +164,18 @@ public class DataSourceConfigPersistence {
      * Delete a data source configuration
      *
      * @param name Data source name
+     * @throws IllegalStateException when an existing file cannot be deleted
      */
     public void delete(String name) {
         File file = getConfigFile(name);
-        if (file.exists()) {
-            if (file.delete()) {
+        try {
+            boolean deleted = Files.deleteIfExists(file.toPath());
+            if (deleted) {
                 log.info("Deleted data source config: {}", name);
-            } else {
-                log.warn("Failed to delete data source config: {}", name);
             }
+        } catch (IOException e) {
+            log.error("Failed to delete data source config: {}", name);
+            throw new IllegalStateException("Failed to delete data source config: " + name, e);
         }
     }
 

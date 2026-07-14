@@ -1,24 +1,26 @@
 package com.foggyframework.dataset.db.model.cache.config;
 
-import com.foggyframework.dataset.db.model.cache.controller.QueryCacheController;
-import com.foggyframework.dataset.db.model.cache.eviction.CacheEvictionAspect;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider;
 import com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProvider;
+import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.annotation.Aspect;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
  * 查询缓存自动配置
@@ -35,31 +37,57 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * @since 8.2.0
  */
 @Slf4j
-@Configuration
+@AutoConfiguration(
+        after = DbModelAutoConfiguration.class,
+        afterName = "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration")
 @EnableConfigurationProperties(QueryCacheProperties.class)
 @ConditionalOnProperty(name = "foggy.query-cache.enabled", havingValue = "true", matchIfMissing = true)
 public class QueryCacheAutoConfiguration {
-
-    /**
-     * 查询指纹构建器
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public QueryFingerprintBuilder queryFingerprintBuilder() {
-        return new QueryFingerprintBuilder();
-    }
 
     /**
      * Redis 缓存配置
      */
     @Configuration
     @ConditionalOnProperty(name = "foggy.query-cache.type", havingValue = "redis", matchIfMissing = true)
-    @ConditionalOnClass(RedisTemplate.class)
+    @ConditionalOnClass({RedisTemplate.class, GenericJackson2JsonRedisSerializer.class})
+    @ConditionalOnBean(RedisConnectionFactory.class)
+    @ConditionalOnMissingBean(QueryCacheProvider.class)
     static class RedisQueryCacheConfiguration {
 
+        static final String CACHE_REDIS_TEMPLATE_BEAN = "foggyQueryCacheRedisTemplate";
+
+        /**
+         * Query results are not Java-serializable, so the Boot default
+         * RedisTemplate value serializer cannot safely be reused. Keep a
+         * dedicated template whose wire format is stable across JVM restarts.
+         */
+        @Bean(name = CACHE_REDIS_TEMPLATE_BEAN)
+        @ConditionalOnMissingBean(name = CACHE_REDIS_TEMPLATE_BEAN)
+        public RedisTemplate<String, Object> foggyQueryCacheRedisTemplate(
+                RedisConnectionFactory connectionFactory) {
+            RedisTemplate<String, Object> template = new RedisTemplate<>();
+            template.setConnectionFactory(connectionFactory);
+            StringRedisSerializer keySerializer = new StringRedisSerializer();
+            GenericJackson2JsonRedisSerializer valueSerializer =
+                    new GenericJackson2JsonRedisSerializer()
+                            .configure(mapper -> mapper.disable(
+                                    DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES));
+            template.setKeySerializer(keySerializer);
+            template.setHashKeySerializer(keySerializer);
+            template.setValueSerializer(valueSerializer);
+            template.setHashValueSerializer(valueSerializer);
+            return template;
+        }
+
         @Bean
-        @ConditionalOnMissingBean(QueryCacheProvider.class)
+        @ConditionalOnMissingBean(QueryFingerprintBuilder.class)
+        public QueryFingerprintBuilder queryFingerprintBuilder() {
+            return new QueryFingerprintBuilder();
+        }
+
+        @Bean
         public RedisQueryCacheProvider redisQueryCacheProvider(
+                @Qualifier(CACHE_REDIS_TEMPLATE_BEAN)
                 RedisTemplate<String, Object> redisTemplate,
                 QueryFingerprintBuilder fingerprintBuilder,
                 QueryCacheProperties properties) {
@@ -74,10 +102,16 @@ public class QueryCacheAutoConfiguration {
     @Configuration
     @ConditionalOnProperty(name = "foggy.query-cache.type", havingValue = "caffeine")
     @ConditionalOnClass(Caffeine.class)
+    @ConditionalOnMissingBean(QueryCacheProvider.class)
     static class CaffeineQueryCacheConfiguration {
 
         @Bean
-        @ConditionalOnMissingBean(QueryCacheProvider.class)
+        @ConditionalOnMissingBean(QueryFingerprintBuilder.class)
+        public QueryFingerprintBuilder queryFingerprintBuilder() {
+            return new QueryFingerprintBuilder();
+        }
+
+        @Bean
         public CaffeineQueryCacheProvider caffeineQueryCacheProvider(
                 QueryFingerprintBuilder fingerprintBuilder,
                 QueryCacheProperties properties) {
@@ -86,50 +120,4 @@ public class QueryCacheAutoConfiguration {
         }
     }
 
-    // ==================== REST API 配置 ====================
-
-    /**
-     * 缓存管理 REST API 配置
-     * <p>
-     * 仅在 Web 应用中启用。
-     * </p>
-     */
-    @Configuration
-    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-    @ConditionalOnClass(WebMvcConfigurer.class)
-    @ConditionalOnProperty(name = "foggy.query-cache.api.enabled", havingValue = "true", matchIfMissing = true)
-    static class QueryCacheApiConfiguration {
-
-        @Bean
-        @ConditionalOnBean(QueryCacheProvider.class)
-        @ConditionalOnMissingBean(QueryCacheController.class)
-        public QueryCacheController queryCacheController(
-                QueryCacheProvider queryCacheProvider,
-                QueryCacheProperties properties) {
-            log.info("Initializing Query Cache REST API controller");
-            return new QueryCacheController(queryCacheProvider, properties);
-        }
-    }
-
-    // ==================== 缓存自动失效配置 ====================
-
-    /**
-     * 缓存自动失效 AOP 配置
-     * <p>
-     * 仅在 AOP 可用时启用。
-     * </p>
-     */
-    @Configuration
-    @ConditionalOnClass(Aspect.class)
-    @ConditionalOnProperty(name = "foggy.query-cache.eviction.enabled", havingValue = "true", matchIfMissing = true)
-    static class CacheEvictionConfiguration {
-
-        @Bean
-        @ConditionalOnBean(QueryCacheProvider.class)
-        @ConditionalOnMissingBean(CacheEvictionAspect.class)
-        public CacheEvictionAspect cacheEvictionAspect(QueryCacheProvider queryCacheProvider) {
-            log.info("Initializing Cache Eviction AOP aspect");
-            return new CacheEvictionAspect(queryCacheProvider);
-        }
-    }
 }

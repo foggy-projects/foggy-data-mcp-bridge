@@ -4,6 +4,9 @@ import com.foggyframework.dataset.db.model.cache.config.QueryCacheProperties;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +34,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/query-cache")
 @RequiredArgsConstructor
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(
+        prefix = "foggy.query-cache",
+        name = {"enabled", "api.enabled"},
+        havingValue = "true",
+        matchIfMissing = true)
+@ConditionalOnBean(QueryCacheProvider.class)
 public class QueryCacheController {
 
     private final QueryCacheProvider queryCacheProvider;

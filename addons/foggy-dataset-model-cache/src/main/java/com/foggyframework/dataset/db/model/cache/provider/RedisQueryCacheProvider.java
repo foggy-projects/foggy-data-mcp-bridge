@@ -1,13 +1,11 @@
 package com.foggyframework.dataset.db.model.cache.provider;
 
 import com.foggyframework.dataset.db.model.cache.config.QueryCacheProperties;
-import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprint;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
@@ -42,7 +40,7 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
     private static final String L2_PREFIX = "l2:";
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final QueryFingerprintBuilder fingerprintBuilder;
+    private final QueryCacheKeyBuilder cacheKeyBuilder;
     private final QueryCacheProperties properties;
 
     // L1 缓存统计
@@ -61,8 +59,8 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
             QueryFingerprintBuilder fingerprintBuilder,
             QueryCacheProperties properties) {
         this.redisTemplate = redisTemplate;
-        this.fingerprintBuilder = fingerprintBuilder;
         this.properties = properties;
+        this.cacheKeyBuilder = new QueryCacheKeyBuilder(fingerprintBuilder, properties);
     }
 
     // ==================== L1 缓存：Token 级别 ====================
@@ -73,7 +71,11 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
             return null;
         }
 
-        String modelName = context.getRequest().getParam().getQueryModel();
+        String modelName = cacheKeyBuilder.contextModelName(context);
+        if (modelName == null) {
+            l1MissCount.incrementAndGet();
+            return null;
+        }
 
         // 检查是否排除
         if (properties.isExcluded(modelName)) {
@@ -82,7 +84,7 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 构建 L1 缓存键：authorization + 请求指纹
-        String l1Key = buildL1CacheKey(context, authorization);
+        String l1Key = cacheKeyBuilder.buildL1CacheKey(context, authorization);
         if (l1Key == null) {
             l1MissCount.incrementAndGet();
             return null;
@@ -114,7 +116,10 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
             return;
         }
 
-        String modelName = context.getRequest().getParam().getQueryModel();
+        String modelName = cacheKeyBuilder.contextModelName(context);
+        if (modelName == null) {
+            return;
+        }
 
         // 检查是否排除
         if (properties.isExcluded(modelName)) {
@@ -136,7 +141,7 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 构建 L1 缓存键
-        String l1Key = buildL1CacheKey(context, authorization);
+        String l1Key = cacheKeyBuilder.buildL1CacheKey(context, authorization);
         if (l1Key == null) {
             return;
         }
@@ -168,8 +173,11 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
             return null;
         }
 
-        // 构建 L2 缓存键：SQL + params 的 MD5
-        String l2Key = buildL2CacheKey(modelName, sql, params);
+        String l2Key = cacheKeyBuilder.buildL2CacheKey(modelName, sql, params, context);
+        if (l2Key == null) {
+            l2MissCount.incrementAndGet();
+            return null;
+        }
 
         try {
             Object cached = redisTemplate.opsForValue().get(l2Key);
@@ -217,7 +225,10 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 构建 L2 缓存键
-        String l2Key = buildL2CacheKey(modelName, sql, params);
+        String l2Key = cacheKeyBuilder.buildL2CacheKey(modelName, sql, params, context);
+        if (l2Key == null) {
+            return;
+        }
 
         // 计算 TTL
         Duration ttl = calculateTtl(modelName);
@@ -306,69 +317,6 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
     }
 
     // ==================== 私有方法 ====================
-
-    /**
-     * 构建 L1 缓存键（Token + 请求指纹）
-     *
-     * @param context       查询上下文
-     * @param authorization 授权令牌
-     * @return 缓存键，如果无法构建返回 null
-     */
-    private String buildL1CacheKey(ModelResultContext context, String authorization) {
-        if (authorization == null || authorization.isEmpty()) {
-            return null;
-        }
-
-        try {
-            // 构建指纹
-            QueryFingerprint fingerprint = fingerprintBuilder.build(context);
-
-            // 检查是否可缓存
-            if (!fingerprint.isCacheable()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("L1 query not cacheable: {}", fingerprint.toDebugKey());
-                }
-                return null;
-            }
-
-            // L1 key = prefix + l1: + modelName + : + hash(authorization + fingerprint)
-            String modelName = context.getRequest().getParam().getQueryModel();
-            String fingerprintKey = fingerprint.toCacheKey();
-            if (fingerprintKey == null) {
-                return null;
-            }
-
-            String combined = authorization + "|" + fingerprintKey;
-            String hash = DigestUtils.md5Hex(combined);
-            return properties.getKeyPrefix() + L1_PREFIX + modelName + ":" + hash;
-        } catch (Exception e) {
-            log.warn("Failed to build L1 cache key: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 构建 L2 缓存键（SQL + params）
-     *
-     * @param modelName 模型名称
-     * @param sql       SQL 语句或 Pipeline 字符串
-     * @param params    参数列表
-     * @return 缓存键
-     */
-    private String buildL2CacheKey(String modelName, String sql, List<?> params) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(sql);
-
-        if (params != null && !params.isEmpty()) {
-            sb.append("|params:");
-            for (Object param : params) {
-                sb.append(param != null ? param.toString() : "null").append(",");
-            }
-        }
-
-        String hash = DigestUtils.md5Hex(sb.toString());
-        return properties.getKeyPrefix() + L2_PREFIX + modelName + ":" + hash;
-    }
 
     /**
      * 计算 TTL，支持随机偏移

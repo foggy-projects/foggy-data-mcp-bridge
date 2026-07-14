@@ -15,19 +15,6 @@ import org.springframework.context.ApplicationContext;
  */
 public class VectorFileFsscriptLoader extends AbstractFileFsscriptLoader {
 
-    private static AbstractFileFsscriptLoader instance;
-
-    public static AbstractFileFsscriptLoader getInstance() {
-        return instance;
-    }
-
-    public static void setInstance(AbstractFileFsscriptLoader instance) {
-        if (VectorFileFsscriptLoader.instance != null) {
-            throw new UnsupportedOperationException("VectorFileFsscriptLoader只能被初始化一次");
-        }
-        VectorFileFsscriptLoader.instance = instance;
-    }
-
     public VectorFileFsscriptLoader(ApplicationContext appCtx, FsscriptLoader parent, FsscriptFileChangeHandler changeHandler) {
         super(appCtx, parent, changeHandler);
     }

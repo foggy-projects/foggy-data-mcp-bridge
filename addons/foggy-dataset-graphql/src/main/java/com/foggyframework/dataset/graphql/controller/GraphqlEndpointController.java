@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.annotation.Resource;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,11 +43,17 @@ import java.util.Map;
 @ConditionalOnProperty(name = "foggy.dataset.graphql.enabled", havingValue = "true", matchIfMissing = true)
 public class GraphqlEndpointController {
 
-    @Resource
-    private QueryFacade queryFacade;
+    private final QueryFacade queryFacade;
+    private final GraphqlToDslConverter converter;
+    private final ObjectMapper objectMapper;
 
-    private final GraphqlToDslConverter converter = new GraphqlToDslConverter();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public GraphqlEndpointController(QueryFacade queryFacade,
+                                     GraphqlToDslConverter converter,
+                                     ObjectMapper objectMapper) {
+        this.queryFacade = queryFacade;
+        this.converter = converter;
+        this.objectMapper = objectMapper;
+    }
 
     /**
      * GraphQL 查询端点

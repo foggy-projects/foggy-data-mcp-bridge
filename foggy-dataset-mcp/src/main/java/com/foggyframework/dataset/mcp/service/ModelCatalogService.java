@@ -7,6 +7,9 @@ import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService.NamespaceCatalogView;
 import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
@@ -22,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -31,22 +35,37 @@ import java.util.Set;
 @Service
 public class ModelCatalogService {
 
+    private static final int MAX_CATALOG_VIEW_ATTEMPTS = 3;
+
     private final SemanticServiceResolver semanticServiceResolver;
     private final QueryModelLoader queryModelLoader;
     private final ObjectMapper objectMapper;
     private final McpProperties mcpProperties;
+    private final SemanticModelCatalogService semanticModelCatalogService;
 
     @Autowired
     public ModelCatalogService(
             SemanticServiceResolver semanticServiceResolver,
             QueryModelLoader queryModelLoader,
             ObjectMapper objectMapper,
-            McpProperties mcpProperties
+            McpProperties mcpProperties,
+            SemanticModelCatalogService semanticModelCatalogService
     ) {
         this.semanticServiceResolver = semanticServiceResolver;
         this.queryModelLoader = queryModelLoader;
         this.objectMapper = objectMapper;
         this.mcpProperties = mcpProperties;
+        this.semanticModelCatalogService = semanticModelCatalogService;
+    }
+
+    public ModelCatalogService(
+            SemanticServiceResolver semanticServiceResolver,
+            QueryModelLoader queryModelLoader,
+            ObjectMapper objectMapper,
+            McpProperties mcpProperties
+    ) {
+        this(semanticServiceResolver, queryModelLoader, objectMapper,
+                mcpProperties, null);
     }
 
     public ModelCatalogService(
@@ -54,7 +73,8 @@ public class ModelCatalogService {
             QueryModelLoader queryModelLoader,
             ObjectMapper objectMapper
     ) {
-        this(semanticServiceResolver, queryModelLoader, objectMapper, new McpProperties());
+        this(semanticServiceResolver, queryModelLoader, objectMapper,
+                new McpProperties(), null);
     }
 
     public Map<String, Object> buildCatalogResponse(Map<String, Object> options, String namespace, String authorization) {
@@ -79,15 +99,62 @@ public class ModelCatalogService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> buildCatalog(Map<String, Object> options, String namespace, String authorization) {
         Map<String, Object> safeOptions = options != null ? options : Collections.emptyMap();
+        if (semanticModelCatalogService == null) {
+            return buildCatalogOnce(safeOptions, namespace, authorization, null);
+        }
+
+        NamespaceCatalogView namespaceView = semanticModelCatalogService
+                .namespaceCatalogView(namespace);
+        if (namespaceView.identity() == null) {
+            return buildCatalogOnce(
+                    safeOptions, namespace, authorization, namespaceView);
+        }
+
+        // Metadata is produced through the semantic service and may observe a
+        // concurrent publication. The post-read turns the whole catalog build
+        // into a bounded seqlock: return one generation or fail closed.
+        for (int attempt = 1; attempt <= MAX_CATALOG_VIEW_ATTEMPTS; attempt++) {
+            Map<String, Object> catalog = buildCatalogOnce(
+                    safeOptions, namespace, authorization, namespaceView);
+            NamespaceCatalogView observedAfterBuild = semanticModelCatalogService
+                    .namespaceCatalogView(namespace);
+            if (namespaceView.identity().equals(observedAfterBuild.identity())) {
+                return catalog;
+            }
+            if (observedAfterBuild.identity() == null) {
+                throw new IllegalStateException(
+                        "CATALOG_AUTHORITY_IDENTITY_LOST: namespace='"
+                                + namespaceView.identity().namespace() + "'");
+            }
+            namespaceView = observedAfterBuild;
+        }
+
+        throw new IllegalStateException(
+                "CATALOG_VIEW_STALE_RETRY_EXHAUSTED: namespace='"
+                        + namespaceView.identity().namespace() + "'");
+    }
+
+    private Map<String, Object> buildCatalogOnce(
+            Map<String, Object> safeOptions,
+            String namespace,
+            String authorization,
+            NamespaceCatalogView namespaceView
+    ) {
         ModelNameSelection selection = selectModelNames(safeOptions, namespace);
-        List<String> modelNames = resolveModelNames(selection);
+        List<String> modelNames = resolveModelNames(selection, namespace, namespaceView);
         int fieldLimit = Math.max(0, intOr(safeOptions.get("fieldLimit"), 10));
-        CatalogData catalogData = buildCatalogData(modelNames, namespace, authorization, safeOptions, fieldLimit);
+        CatalogData catalogData = buildCatalogData(
+                modelNames, namespace, authorization, safeOptions, fieldLimit, namespaceView);
 
         if (shouldFallbackToDynamicDiscovery(selection, namespace, catalogData)) {
-            List<String> dynamicModelNames = resolveModelNames(new ModelNameSelection(null, ModelNameSource.DYNAMIC));
+            List<String> dynamicModelNames = resolveModelNames(
+                    new ModelNameSelection(null, ModelNameSource.DYNAMIC),
+                    namespace,
+                    namespaceView);
             if (!dynamicModelNames.isEmpty() && !dynamicModelNames.equals(modelNames)) {
-                CatalogData fallbackData = buildCatalogData(dynamicModelNames, namespace, authorization, safeOptions, fieldLimit);
+                CatalogData fallbackData = buildCatalogData(
+                        dynamicModelNames, namespace, authorization, safeOptions,
+                        fieldLimit, namespaceView);
                 if (!fallbackData.visibleModels().isEmpty()) {
                     log.info("Configured MCP model-list resolved no models for namespace {}; using dynamic model discovery",
                             namespace);
@@ -110,7 +177,8 @@ public class ModelCatalogService {
             String namespace,
             String authorization,
             Map<String, Object> safeOptions,
-            int fieldLimit
+            int fieldLimit,
+            NamespaceCatalogView namespaceView
     ) {
         Map<String, Object> metadata = fetchCatalogMetadata(modelNames, namespace, authorization, safeOptions);
         Map<String, Object> fields = metadata != null && metadata.get("fields") instanceof Map<?, ?>
@@ -124,7 +192,9 @@ public class ModelCatalogService {
         List<Map<String, Object>> items = new ArrayList<>();
         for (String modelName : modelNames) {
             try {
-                QueryModel qm = queryModelLoader.getJdbcQueryModel(modelName, namespace);
+                QueryModel qm = namespaceView == null
+                        ? queryModelLoader.getJdbcQueryModel(modelName, namespace)
+                        : modelFromView(namespaceView, modelName);
                 if (qm == null) {
                     continue;
                 }
@@ -137,8 +207,11 @@ public class ModelCatalogService {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("model", modelName);
                 item.put("caption", stringOr(modelInfo.get("name"), caption.isEmpty() ? modelName : caption));
-                if (qm.getShortAlias() != null && !qm.getShortAlias().isBlank()) {
-                    item.put("shortAlias", qm.getShortAlias());
+                String shortAlias = namespaceView == null
+                        ? qm.getShortAlias()
+                        : aliasFromView(namespaceView, modelName);
+                if (shortAlias != null && !shortAlias.isBlank()) {
+                    item.put("shortAlias", shortAlias);
                 }
                 item.put("description", stringOr(modelDescription(qm), stringOr(modelInfo.get("purpose"), "")));
                 String itemNamespace = inferNamespace(modelName);
@@ -213,12 +286,62 @@ public class ModelCatalogService {
         return semantic.getNamespaces().get(namespace.trim());
     }
 
-    private List<String> resolveModelNames(ModelNameSelection selection) {
+    private List<String> resolveModelNames(
+            ModelNameSelection selection,
+            String namespace,
+            NamespaceCatalogView namespaceView
+    ) {
         List<String> modelNames = selection.modelNames();
         if (modelNames == null) {
-            modelNames = semanticServiceResolver.getAllModelNames();
+            if (namespaceView != null) {
+                modelNames = namespaceView.modelNames();
+            } else if (isBlank(namespace)) {
+                modelNames = semanticServiceResolver.getAllModelNames();
+            } else {
+                modelNames = semanticServiceResolver.getAllModelNames(namespace);
+            }
         }
         return dedupe(modelNames);
+    }
+
+    private static QueryModel modelFromView(
+            NamespaceCatalogView view,
+            String nameOrAlias
+    ) {
+        String canonicalName = canonicalNameFromView(view, nameOrAlias);
+        if (canonicalName == null) {
+            return null;
+        }
+        if (view.identity() != null) {
+            CatalogResolution<QueryModel> resolution = view.resolutionsByModel()
+                    .get(canonicalName);
+            return resolution == null ? null : resolution.model();
+        }
+        return view.queryModels().get(canonicalName);
+    }
+
+    private static String aliasFromView(
+            NamespaceCatalogView view,
+            String nameOrAlias
+    ) {
+        String canonicalName = canonicalNameFromView(view, nameOrAlias);
+        return canonicalName == null
+                ? null
+                : view.aliasesByModel().get(canonicalName);
+    }
+
+    private static String canonicalNameFromView(
+            NamespaceCatalogView view,
+            String nameOrAlias
+    ) {
+        if (view.queryModels().containsKey(nameOrAlias)) {
+            return nameOrAlias;
+        }
+        return view.aliasesByModel().entrySet().stream()
+                .filter(entry -> Objects.equals(entry.getValue(), nameOrAlias))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
     }
 
     private static boolean shouldFallbackToDynamicDiscovery(

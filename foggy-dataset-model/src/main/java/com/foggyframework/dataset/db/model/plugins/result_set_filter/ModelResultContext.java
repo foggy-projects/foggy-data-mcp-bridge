@@ -7,20 +7,26 @@ import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.AllArgsConstructor;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Data
@@ -35,6 +41,23 @@ public class ModelResultContext {
      * 本次查询用到的模型
      */
     QueryModel queryModel;
+
+    /** Canonical model name resolved by the same catalog view as {@link #queryModel}. */
+    @Setter(AccessLevel.NONE)
+    String canonicalModelName;
+
+    /** Exact immutable catalog view that supplied {@link #queryModel}. */
+    CatalogIdentity catalogIdentity;
+
+    /**
+     * Canonical binding-key to generation-pinned datasource identity for the
+     * resolved model.  An empty map is valid; {@code bindingIdentityComplete}
+     * distinguishes a genuinely datasource-free model from an untracked
+     * routing/legacy datasource whose identity cannot safely key a cache.
+     */
+    Map<String, DatasourceBindingIdentity> datasourceBindingIdentities = Map.of();
+
+    boolean bindingIdentityComplete;
     /**
      * 本次查询生成的查询对象
      */
@@ -67,6 +90,51 @@ public class ModelResultContext {
             }
             extData.put(String.valueOf(entry.getKey()), entry.getValue());
         }
+    }
+
+    public void setDatasourceBindingIdentities(
+            Map<String, DatasourceBindingIdentity> datasourceBindingIdentities) {
+        this.datasourceBindingIdentities = datasourceBindingIdentities == null
+                ? Map.of()
+                : Map.copyOf(datasourceBindingIdentities);
+    }
+
+    /** Validate and install one lifecycle pin as a single request-local operation. */
+    public synchronized void pinCatalogResolution(
+            CatalogResolution<QueryModel> resolution,
+            String expectedNamespace
+    ) {
+        if (resolution == null) {
+            throw new IllegalArgumentException("catalog resolution must not be null");
+        }
+        String canonicalNamespace = CatalogIdentity.canonicalNamespace(expectedNamespace);
+        if (!canonicalNamespace.equals(resolution.catalogIdentity().namespace())) {
+            throw new IllegalArgumentException("catalog resolution namespace mismatch");
+        }
+        if (catalogIdentity != null
+                && (!catalogIdentity.equals(resolution.catalogIdentity())
+                || queryModel != resolution.model()
+                || !Objects.equals(canonicalModelName, resolution.canonicalName())
+                || !datasourceBindingIdentities.equals(resolution.dependencyBindings())
+                || bindingIdentityComplete != resolution.bindingIdentityComplete())) {
+            throw new IllegalStateException("CONFLICTING_CATALOG_REPIN");
+        }
+        queryModel = resolution.model();
+        canonicalModelName = resolution.canonicalName();
+        catalogIdentity = resolution.catalogIdentity();
+        datasourceBindingIdentities = Map.copyOf(resolution.dependencyBindings());
+        bindingIdentityComplete = resolution.bindingIdentityComplete();
+    }
+
+    /** Compatibility pin for a loader that cannot supply lifecycle identity. */
+    public synchronized void pinUntrackedQueryModel(QueryModel model) {
+        if (catalogIdentity != null) {
+            throw new IllegalStateException("CONFLICTING_CATALOG_REPIN");
+        }
+        queryModel = model;
+        canonicalModelName = null;
+        datasourceBindingIdentities = Map.of();
+        bindingIdentityComplete = false;
     }
 
     /**

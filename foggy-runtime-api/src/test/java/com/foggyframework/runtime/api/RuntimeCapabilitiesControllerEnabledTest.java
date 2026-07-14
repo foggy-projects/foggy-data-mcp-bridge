@@ -1,11 +1,20 @@
 package com.foggyframework.runtime.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.foggyframework.bundle.Bundle;
-import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionState;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshDiagnostic;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshException;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshRequest;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshResult;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshScope;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
@@ -13,7 +22,6 @@ import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalog
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
-import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
@@ -23,7 +31,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.core.io.Resource;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -40,6 +48,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -90,11 +99,17 @@ class RuntimeCapabilitiesControllerEnabledTest {
     @MockitoBean
     private DataSource dataSource;
 
+    @MockitoBean
+    private CatalogRefreshCoordinator catalogRefreshCoordinator;
+
     @Autowired
     private NamedDataSourceResolver namedDataSourceResolver;
 
     @Autowired
     private RuntimeDatasourceRegistryService datasourceRegistryService;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     private final TestRestTemplate restTemplate = new TestRestTemplate();
 
@@ -192,19 +207,12 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
-    void shouldValidateModelsThroughRuntimeEnvelope() {
-        Bundle bundle = mock(Bundle.class);
-        BundleResource tmResource = bundleResource("Order.tm");
-        BundleResource qmResource = bundleResource("OrderModel.qm");
-        when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
-        when(systemBundlesContext.getBundleByName("runtime-validation-dev")).thenReturn(bundle);
-        when(bundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[]{tmResource});
-        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{qmResource});
-        when(queryModelLoader.loadJdbcQueryModel(qmResource)).thenReturn(mock(QueryModel.class));
+    void shouldValidateModelsThroughRuntimeEnvelope() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-detached-validation");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/validate",
-                Map.of("path", ".", "namespace", "dev"),
+                Map.of("path", modelsDir.toString(), "namespace", "dev"),
                 JsonNode.class
         );
 
@@ -214,25 +222,23 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("valid").asBoolean()).isTrue();
         assertThat(body.path("data").path("namespace").asText()).isEqualTo("dev");
-        assertThat(body.path("data").path("totalFiles").asInt()).isEqualTo(2);
+        assertThat(body.path("data").path("totalFiles").asInt()).isZero();
         assertThat(body.path("data").path("errors").isArray()).isTrue();
-        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+        verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
+        verify(systemBundlesContext, never()).removeBundle(any());
     }
 
     @Test
-    void shouldReturnModelValidateFailedWithDiagnosticsWhenValidationFails() {
-        Bundle bundle = mock(Bundle.class);
-        BundleResource qmResource = bundleResource("OrderModel.qm");
-        when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
-        when(systemBundlesContext.getBundleByName("runtime-validation-dev")).thenReturn(bundle);
-        when(bundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[0]);
-        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{qmResource});
-        when(queryModelLoader.loadJdbcQueryModel(qmResource))
-                .thenThrow(new IllegalArgumentException("Unknown table model: Order"));
+    void shouldReturnModelValidateFailedWithDiagnosticsWhenValidationFails() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-detached-invalid-validation");
+        Files.writeString(modelsDir.resolve("BrokenModel.tm"), """
+                export const model = { name: ; };
+                """);
+        when(systemBundlesContext.getApplicationContext()).thenReturn(applicationContext);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/validate",
-                Map.of("path", ".", "namespace", "dev"),
+                Map.of("path", modelsDir.toString(), "namespace", "dev"),
                 JsonNode.class
         );
 
@@ -245,23 +251,20 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("diagnostics").path("attributes").path("validation").path("valid").asBoolean())
                 .isFalse();
         assertThat(body.path("diagnostics").path("attributes").path("validation").path("errors").get(0)
-                .path("message").asText()).isEqualTo("Unknown table model: Order");
-        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+                .path("file").asText()).isEqualTo("BrokenModel.tm");
+        assertThat(body.path("diagnostics").path("attributes").path("validation").path("errors").get(0)
+                .path("line").isNull()).isTrue();
+        verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
+        verify(systemBundlesContext, never()).removeBundle(any());
     }
 
     @Test
-    void shouldCleanupValidationBundleWhenClearExistingIsFalse() {
-        Bundle bundle = mock(Bundle.class);
-        BundleResource qmResource = bundleResource("OrderModel.qm");
-        when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
-        when(systemBundlesContext.getBundleByName("runtime-validation-dev")).thenReturn(bundle);
-        when(bundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[0]);
-        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{qmResource});
-        when(queryModelLoader.loadJdbcQueryModel(qmResource)).thenReturn(mock(QueryModel.class));
+    void shouldRemainDetachedWhenClearExistingIsFalse() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-detached-clear-false");
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/validate",
-                Map.of("path", ".", "namespace", "dev", "clearExisting", false),
+                Map.of("path", modelsDir.toString(), "namespace", "dev", "clearExisting", false),
                 JsonNode.class
         );
 
@@ -269,23 +272,21 @@ class RuntimeCapabilitiesControllerEnabledTest {
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.path("success").asBoolean()).isTrue();
-        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+        verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
+        verify(systemBundlesContext, never()).removeBundle(any());
     }
 
     @Test
-    void shouldCleanupValidationBundleWhenClearExistingIsFalseAndValidationFails() {
-        Bundle bundle = mock(Bundle.class);
-        BundleResource qmResource = bundleResource("OrderModel.qm");
-        when(systemBundlesContext.addExternalBundle("runtime-validation-dev", "dev", ".", false)).thenReturn(true);
-        when(systemBundlesContext.getBundleByName("runtime-validation-dev")).thenReturn(bundle);
-        when(bundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[0]);
-        when(bundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[]{qmResource});
-        when(queryModelLoader.loadJdbcQueryModel(qmResource))
-                .thenThrow(new IllegalArgumentException("Unknown table model: Order"));
+    void shouldRemainDetachedWhenClearExistingIsFalseAndValidationFails() throws Exception {
+        Path modelsDir = Files.createTempDirectory("runtime-api-detached-clear-false-invalid");
+        Files.writeString(modelsDir.resolve("BrokenModel.tm"), """
+                export const model = { name: ; };
+                """);
+        when(systemBundlesContext.getApplicationContext()).thenReturn(applicationContext);
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/validate",
-                Map.of("path", ".", "namespace", "dev", "clearExisting", false),
+                Map.of("path", modelsDir.toString(), "namespace", "dev", "clearExisting", false),
                 JsonNode.class
         );
 
@@ -294,26 +295,13 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body).isNotNull();
         assertThat(body.path("success").asBoolean()).isFalse();
         assertThat(body.path("error").path("code").asText()).isEqualTo("MODEL_VALIDATE_FAILED");
-        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+        verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
+        verify(systemBundlesContext, never()).removeBundle(any());
     }
 
     @Test
-    void shouldReuseExistingBundleForSameNamespaceAndPathDuringValidation() throws Exception {
+    void shouldNotReuseExistingLiveBundleForSameNamespaceAndPathDuringValidation() throws Exception {
         Path modelsDir = Files.createTempDirectory("runtime-api-existing-validation-bundle");
-        Bundle existingBundle = mock(Bundle.class);
-        BundleResource tmResource = bundleResource("Order.tm");
-        ExternalBundleDefinition definition = new ExternalBundleDefinition(
-                "host-loaded-models",
-                "dev",
-                modelsDir.toString(),
-                true
-        );
-        when(existingBundle.getName()).thenReturn("host-loaded-models");
-        when(existingBundle.getDefinition()).thenReturn(definition);
-        when(existingBundle.getRootPath()).thenReturn(modelsDir.toString());
-        when(existingBundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[]{tmResource});
-        when(existingBundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[0]);
-        when(systemBundlesContext.getBundleList()).thenReturn(List.of(existingBundle));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/validate",
@@ -326,31 +314,16 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body).isNotNull();
         assertThat(body.path("success").asBoolean()).isTrue();
         assertThat(body.path("data").path("valid").asBoolean()).isTrue();
-        assertThat(body.path("data").path("totalFiles").asInt()).isEqualTo(1);
-        assertThat(body.path("data").path("warnings").get(0).path("code").asText())
-                .isEqualTo("BUNDLE_ALREADY_REGISTERED");
+        assertThat(body.path("data").path("totalFiles").asInt()).isZero();
+        assertThat(body.path("data").path("warnings")).isEmpty();
+        verify(systemBundlesContext, never()).getBundleList();
         verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
-        verify(systemBundlesContext, never()).removeBundle("runtime-validation-dev");
+        verify(systemBundlesContext, never()).removeBundle(any());
     }
 
     @Test
-    void shouldClearStaleValidationBundleBeforeReusingExistingHostBundle() throws Exception {
+    void shouldNotClearStaleLiveValidationBundle() throws Exception {
         Path modelsDir = Files.createTempDirectory("runtime-api-clear-stale-validation-bundle");
-        Bundle existingBundle = mock(Bundle.class);
-        BundleResource tmResource = bundleResource("Order.tm");
-        ExternalBundleDefinition definition = new ExternalBundleDefinition(
-                "host-loaded-models",
-                "dev",
-                modelsDir.toString(),
-                true
-        );
-        when(existingBundle.getName()).thenReturn("host-loaded-models");
-        when(existingBundle.getDefinition()).thenReturn(definition);
-        when(existingBundle.getRootPath()).thenReturn(modelsDir.toString());
-        when(existingBundle.findBundleResources("**/*.tm")).thenReturn(new BundleResource[]{tmResource});
-        when(existingBundle.findBundleResources("**/*.qm")).thenReturn(new BundleResource[0]);
-        when(systemBundlesContext.containBundle("runtime-validation-dev")).thenReturn(true);
-        when(systemBundlesContext.getBundleList()).thenReturn(List.of(existingBundle));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/validate",
@@ -362,9 +335,8 @@ class RuntimeCapabilitiesControllerEnabledTest {
         JsonNode body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.path("success").asBoolean()).isTrue();
-        assertThat(body.path("data").path("warnings").get(0).path("code").asText())
-                .isEqualTo("BUNDLE_ALREADY_REGISTERED");
-        verify(systemBundlesContext).removeBundle("runtime-validation-dev");
+        verify(systemBundlesContext, never()).containBundle(any());
+        verify(systemBundlesContext, never()).removeBundle(any());
         verify(systemBundlesContext, never()).addExternalBundle(any(), any(), any(), anyBoolean());
     }
 
@@ -1765,14 +1737,6 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 + "return { plans: plan };";
     }
 
-    private static BundleResource bundleResource(String filename) {
-        Resource resource = mock(Resource.class);
-        when(resource.getFilename()).thenReturn(filename);
-        BundleResource bundleResource = mock(BundleResource.class);
-        when(bundleResource.getResource()).thenReturn(resource);
-        return bundleResource;
-    }
-
     private static JsonNode findDatasource(JsonNode body, String name) {
         assertThat(body).isNotNull();
         for (JsonNode datasource : body.path("data").path("datasources")) {
@@ -1785,7 +1749,23 @@ class RuntimeCapabilitiesControllerEnabledTest {
 
     @Test
     void shouldRefreshRequestedModelsThroughRuntimeEnvelope() {
-        when(queryModelLoader.getJdbcQueryModel(eq("OrderModel"), isNull())).thenReturn(mock(QueryModel.class));
+        CatalogIdentity after = new CatalogIdentity(
+                "",
+                new CatalogGeneration("controller-refresh-after"),
+                new SourceRevision("controller-refresh-source"));
+        when(catalogRefreshCoordinator.refresh(any(CatalogRefreshRequest.class)))
+                .thenReturn(new CatalogRefreshResult(
+                        "",
+                        CatalogRefreshScope.MODELS,
+                        null,
+                        after,
+                        after.sourceRevision(),
+                        Set.of(CatalogModelKey.query("OrderModel")),
+                        Set.of(),
+                        List.of(),
+                        1L,
+                        CatalogAdmissionState.ACTIVE,
+                        List.of()));
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/refresh",
@@ -1801,14 +1781,29 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(body.path("data").path("loadedCount").asInt()).isEqualTo(1);
         assertThat(body.path("data").path("failedCount").asInt()).isZero();
         assertThat(body.path("data").path("refreshedModels").get(0).asText()).isEqualTo("OrderModel");
-        verify(tableModelLoaderManager).clearByNamespace(null);
-        verify(queryModelLoader).clearByNamespace(null);
+        verify(catalogRefreshCoordinator).refresh(any(CatalogRefreshRequest.class));
+        verify(tableModelLoaderManager, never()).clearByNamespace(any());
+        verify(queryModelLoader, never()).clearByNamespace(any());
+        verify(queryModelLoader, never()).getJdbcQueryModel(any(), any());
     }
 
     @Test
     void shouldReturnModelRefreshFailedWhenRequestedModelFails() {
-        when(queryModelLoader.getJdbcQueryModel(eq("MissingModel"), isNull()))
-                .thenThrow(new IllegalArgumentException("QM model was not found."));
+        when(catalogRefreshCoordinator.refresh(any(CatalogRefreshRequest.class)))
+                .thenAnswer(invocation -> {
+                    CatalogRefreshRequest request = invocation.getArgument(0);
+                    throw new CatalogRefreshException(
+                            "CATALOG_BUILD_FAILED",
+                            request,
+                            null,
+                            CatalogAdmissionState.ABSENT,
+                            List.of(new CatalogRefreshDiagnostic(
+                                    "CATALOG_BUILD_FAILED",
+                                    "MissingModel",
+                                    "The requested model could not be built.")),
+                            new IllegalArgumentException(
+                                    "QM model was not found."));
+                });
 
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "http://localhost:" + port + "/api/v1/models/refresh",
@@ -1827,6 +1822,10 @@ class RuntimeCapabilitiesControllerEnabledTest {
                 .isEqualTo(1);
         assertThat(body.path("diagnostics").path("attributes").path("refresh").path("failures").get(0)
                 .path("model").asText()).isEqualTo("MissingModel");
+        verify(catalogRefreshCoordinator).refresh(any(CatalogRefreshRequest.class));
+        verify(tableModelLoaderManager, never()).clearByNamespace(any());
+        verify(queryModelLoader, never()).clearByNamespace(any());
+        verify(queryModelLoader, never()).getJdbcQueryModel(any(), any());
     }
 
     @SpringBootApplication(scanBasePackages = "com.foggyframework.runtime.api")

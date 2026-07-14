@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model;
 
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.DataSetAutoConfiguration;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.SemanticProperties;
 import com.foggyframework.dataset.db.model.engine.pivot.LocalPivotOuterCacheInvalidationBroadcaster;
@@ -14,6 +15,11 @@ import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderIm
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.impl.loader.JdbcTableModelLoaderImpl;
 import com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
+import com.foggyframework.dataset.db.model.lifecycle.port.CommittedSourceRevisionGuard;
+import com.foggyframework.dataset.db.model.lifecycle.port.StaleSourceRevisionException;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStep;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DefaultDataSetResultFilterManagerImpl;
@@ -26,19 +32,70 @@ import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
+import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Configuration
-@ComponentScan("com.foggyframework.dataset.db.model")
+@AutoConfiguration(
+        after = DataSetAutoConfiguration.class,
+        afterName = {
+                "com.foggyframework.bundle.FoggyBundleConfiguration",
+                "com.foggyframework.fsscript.FoggyFscriptAutoConfiguration"
+        })
+@Import({
+        com.foggyframework.dataset.db.model.config.QmValidationOnStartup.class,
+        com.foggyframework.dataset.db.model.controller.DimensionDataStoreController.class,
+        com.foggyframework.dataset.db.model.controller.FoggyDatasetExceptionHandler.class,
+        com.foggyframework.dataset.db.model.controller.QueryModelDataStoreController.class,
+        com.foggyframework.dataset.db.model.controller.SemanticController.class,
+        com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelBuilder.class,
+        com.foggyframework.dataset.db.model.event.BundleLifecycleListener.class,
+        com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor.class,
+        com.foggyframework.dataset.db.model.plugins.query_execution.L2CacheStep.class,
+        com.foggyframework.dataset.db.model.plugins.query_execution.PhysicalColumnPermissionStep.class,
+        com.foggyframework.dataset.db.model.plugins.query_execution.PreAggRewriteStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.AggregateMemberFilterRewriteStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.AutoGroupByStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.FieldAccessPermissionStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.InlineExpressionPreprocessStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.L1CacheStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelFieldPermissionResolveStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.QueryRequestValidationStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.SchemaAwareFieldValidationStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.SubtotalStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.SyntheticMemberExternalPatchStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.SyntheticMemberInternalPatchStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.SyntheticMemberQueryBuilderStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.SystemSliceMergeStep.class,
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.TimeWindowInterceptor.class,
+        com.foggyframework.dataset.db.model.semantic.controller.NativeDatasetController.class,
+        com.foggyframework.dataset.db.model.semantic.controller.PivotOuterCacheAdminController.class,
+        com.foggyframework.dataset.db.model.semantic.controller.SemanticServiceV3TestController.class,
+        com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelFactory.class,
+        com.foggyframework.dataset.db.model.semantic.permission.FieldPermissionResolver.class,
+        com.foggyframework.dataset.db.model.semantic.service.NativeComposeQueryService.class,
+        com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService.class,
+        com.foggyframework.dataset.db.model.semantic.service.impl.DictionaryDiscoveryServiceImpl.class,
+        com.foggyframework.dataset.db.model.semantic.service.impl.DimensionMemberLoaderImpl.class,
+        com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl.class,
+        com.foggyframework.dataset.db.model.semantic.service.impl.SemanticServiceV3Impl.class,
+        com.foggyframework.dataset.db.model.semantic.support.SemanticQueryPayloadMapper.class,
+        com.foggyframework.dataset.db.model.service.impl.DbModelDictServiceImpl.class,
+        com.foggyframework.dataset.db.model.service.impl.QueryFacadeImpl.class
+})
+@Slf4j
 public class DbModelAutoConfiguration {
 
     @Bean
@@ -46,26 +103,81 @@ public class DbModelAutoConfiguration {
         return new JdbcTableModelLoaderImpl(systemBundlesContext, fileFsscriptLoader );
     }
     @Bean
+    @ConditionalOnMissingBean(CatalogSnapshotStore.class)
+    public CatalogSnapshotStore catalogSnapshotStore(
+            ObjectProvider<CommittedSourceRevisionRegistry> sourceRegistryProvider
+    ) {
+        CommittedSourceRevisionRegistry sourceRegistry =
+                sourceRegistryProvider.getIfAvailable();
+        if (sourceRegistry == null) {
+            return new CatalogSnapshotStore();
+        }
+        CommittedSourceRevisionGuard guard = new CommittedSourceRevisionGuard() {
+            @Override
+            public SourceRevision currentSourceRevision(String namespace) {
+                return new SourceRevision(sourceRegistry.currentRevision(namespace));
+            }
+
+            @Override
+            public <T> T publishIfCurrent(
+                    String namespace,
+                    SourceRevision expected,
+                    java.util.function.Supplier<T> publication
+            ) {
+                try {
+                    return sourceRegistry.publishIfCurrent(
+                            namespace, expected.value(), publication);
+                } catch (CommittedSourceRevisionRegistry
+                        .CommittedSourceRevisionChangedException stale) {
+                    throw new StaleSourceRevisionException(
+                            namespace,
+                            expected,
+                            currentSourceRevision(namespace));
+                }
+            }
+        };
+        return new CatalogSnapshotStore(guard);
+    }
+
+    @Bean
     public TableModelLoaderManagerImpl tableModelLoaderManager(SystemBundlesContext systemBundlesContext,
                                                                FileFsscriptLoader fileFsscriptLoader,
                                                                List<DbModelLoadProcessor> processors,
                                                                List<TableModelLoader> loaders,
                                                                @org.springframework.beans.factory.annotation.Autowired(required = false) com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver namedDataSourceResolver,
-                                                               DatasetProperties datasetProperties) {
+                                                               DatasetProperties datasetProperties,
+                                                               CatalogSnapshotStore catalogSnapshotStore) {
         return new TableModelLoaderManagerImpl(systemBundlesContext, fileFsscriptLoader, processors, loaders,
-                namedDataSourceResolver, datasetProperties);
+                namedDataSourceResolver, datasetProperties, catalogSnapshotStore);
     }
     @Bean
     public QueryModelLoaderImpl jdbcQueryModelLoader(TableModelLoaderManager tableModelLoaderManager,
                                                      SystemBundlesContext systemBundlesContext,
                                                      FileFsscriptLoader fileFsscriptLoader,
-                                                     List<QueryModelBuilder> queryModelBuilders) {
-        return new QueryModelLoaderImpl(tableModelLoaderManager,  systemBundlesContext, fileFsscriptLoader,queryModelBuilders);
+                                                     List<QueryModelBuilder> queryModelBuilders,
+                                                     CatalogSnapshotStore catalogSnapshotStore) {
+        return new QueryModelLoaderImpl(tableModelLoaderManager, systemBundlesContext, fileFsscriptLoader,
+                queryModelBuilders, catalogSnapshotStore);
     }
 
     @Bean
-    public DbModelFileChangeHandler jdbcModelFileChangeHandler(QueryModelLoaderImpl jdbcQueryModelLoader, TableModelLoaderManagerImpl jdbcModelLoader) {
-        return new DbModelFileChangeHandler(jdbcQueryModelLoader, jdbcModelLoader);
+    public CatalogRefreshCoordinator catalogRefreshCoordinator(
+            CatalogSnapshotStore catalogSnapshotStore,
+            TableModelLoaderManagerImpl tableModelLoaderManager,
+            QueryModelLoaderImpl queryModelLoader
+    ) {
+        return new CatalogRefreshCoordinator(
+                catalogSnapshotStore, tableModelLoaderManager, queryModelLoader);
+    }
+
+    @Bean
+    public DbModelFileChangeHandler jdbcModelFileChangeHandler(
+            QueryModelLoaderImpl jdbcQueryModelLoader,
+            TableModelLoaderManagerImpl jdbcModelLoader,
+            CatalogRefreshCoordinator catalogRefreshCoordinator
+    ) {
+        return new DbModelFileChangeHandler(
+                jdbcQueryModelLoader, jdbcModelLoader, catalogRefreshCoordinator);
     }
 
     @Bean
@@ -94,6 +206,17 @@ public class DbModelAutoConfiguration {
     @ConfigurationProperties(prefix = "foggy.dataset")
     public DatasetProperties datasetProperties() {
         return new DatasetProperties();
+    }
+
+    @Bean
+    @ConditionalOnProperty(
+            name = "foggy.dataset.datasource.allow-global-fallback-for-namespace",
+            havingValue = "true")
+    public SmartInitializingSingleton globalNamespaceFallbackRiskDiagnostic(Environment environment) {
+        return () -> log.warn(
+                "FOGGY-SEC-932-001: global datasource fallback for a non-empty namespace is enabled; "
+                        + "this compatibility mode can broaden production data access. activeProfiles={}",
+                String.join(",", environment.getActiveProfiles()));
     }
 
     @Bean

@@ -320,11 +320,11 @@ class AuthorizationStepTest {
 
         executor.executeBeforeQuery(ctx);
 
-        // 按 order 降序执行：step2(1000) -> step1(100) -> step3(50)
+        // 与 Spring @Order 一致，按 order 升序执行：step3(50) -> step1(100) -> step2(1000)
         assertEquals(3, executionOrder.size());
-        assertEquals("step2", executionOrder.get(0));
+        assertEquals("step3", executionOrder.get(0));
         assertEquals("step1", executionOrder.get(1));
-        assertEquals("step3", executionOrder.get(2));
+        assertEquals("step2", executionOrder.get(2));
     }
 
     @Test
@@ -333,8 +333,8 @@ class AuthorizationStepTest {
     void testStepExecutorAbort() {
         List<String> executionOrder = new ArrayList<>();
 
-        DataSetResultStep step1 = createStep("step1", executionOrder, ABORT, 1000);
-        DataSetResultStep step2 = createStep("step2", executionOrder, CONTINUE, 100);
+        DataSetResultStep step1 = createStep("step1", executionOrder, ABORT, 100);
+        DataSetResultStep step2 = createStep("step2", executionOrder, CONTINUE, 1000);
 
         DataSetResultStepExecutor executor = new DataSetResultStepExecutor(Arrays.asList(step1, step2));
         ModelResultContext ctx = createMockContext(null);
@@ -362,8 +362,8 @@ class AuthorizationStepTest {
         executor.executeProcess(ctx);
 
         assertEquals(2, processOrder.size());
-        assertEquals("process2", processOrder.get(0)); // 高优先级先执行
-        assertEquals("process1", processOrder.get(1));
+        assertEquals("process1", processOrder.get(0)); // 小值优先
+        assertEquals("process2", processOrder.get(1));
     }
 
     // ==========================================
@@ -522,9 +522,9 @@ class AuthorizationStepTest {
     void testStepExecutorAbortChain() {
         List<String> executionOrder = new ArrayList<>();
 
-        DataSetResultStep step1 = createStep("step1", executionOrder, CONTINUE, 1000);
+        DataSetResultStep step1 = createStep("step1", executionOrder, CONTINUE, 100);
         DataSetResultStep step2 = createStep("step2", executionOrder, ABORT, 500);
-        DataSetResultStep step3 = createStep("step3", executionOrder, CONTINUE, 100);
+        DataSetResultStep step3 = createStep("step3", executionOrder, CONTINUE, 1000);
 
         DataSetResultStepExecutor executor = new DataSetResultStepExecutor(Arrays.asList(step1, step2, step3));
         ModelResultContext ctx = createMockContext(null);
@@ -532,7 +532,7 @@ class AuthorizationStepTest {
         int result = executor.executeBeforeQuery(ctx);
 
         assertEquals(ABORT, result);
-        // step1(1000) 先执行 → CONTINUE, step2(500) → ABORT, step3 不执行
+        // step1(100) 先执行 → CONTINUE, step2(500) → ABORT, step3 不执行
         assertEquals(2, executionOrder.size());
         assertEquals("step1", executionOrder.get(0));
         assertEquals("step2", executionOrder.get(1));

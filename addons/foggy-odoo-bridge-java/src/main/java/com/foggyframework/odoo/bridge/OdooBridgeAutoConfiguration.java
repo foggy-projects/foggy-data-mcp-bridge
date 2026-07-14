@@ -1,8 +1,9 @@
 package com.foggyframework.odoo.bridge;
 
 import com.foggyframework.core.annotates.EnableFoggyFramework;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
+import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 /**
  * Foggy Odoo Bridge Auto Configuration
@@ -52,8 +53,8 @@ import org.springframework.context.annotation.Configuration;
  * @author foggy-framework
  * @since 8.2.0
  */
-@Configuration
-@ComponentScan("com.foggyframework.odoo.bridge")
+@AutoConfiguration(after = DbModelAutoConfiguration.class)
+@ConditionalOnProperty(prefix = "foggy.odoo", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableFoggyFramework(bundleName = "odoo", namespace = "odoo")
 public class OdooBridgeAutoConfiguration {
 

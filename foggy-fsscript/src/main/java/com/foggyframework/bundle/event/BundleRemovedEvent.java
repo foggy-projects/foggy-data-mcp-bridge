@@ -17,6 +17,8 @@ public class BundleRemovedEvent extends ApplicationEvent {
     private final String bundleName;
     private final String namespace;
     private final Bundle removedBundle;
+    private final String committedSourceRevision;
+    private final boolean scopeKnown;
 
     /**
      * 构造Bundle移除事件
@@ -27,10 +29,23 @@ public class BundleRemovedEvent extends ApplicationEvent {
      * @param removedBundle 被移除的Bundle实例
      */
     public BundleRemovedEvent(Object source, String bundleName, String namespace, Bundle removedBundle) {
+        this(source, bundleName, namespace, removedBundle, null, true);
+    }
+
+    public BundleRemovedEvent(
+            Object source,
+            String bundleName,
+            String namespace,
+            Bundle removedBundle,
+            String committedSourceRevision,
+            boolean scopeKnown
+    ) {
         super(source);
         this.bundleName = bundleName;
         this.namespace = namespace;
         this.removedBundle = removedBundle;
+        this.committedSourceRevision = committedSourceRevision;
+        this.scopeKnown = scopeKnown;
     }
 
     public String getBundleName() {
@@ -43,6 +58,19 @@ public class BundleRemovedEvent extends ApplicationEvent {
 
     public Bundle getRemovedBundle() {
         return removedBundle;
+    }
+
+    public String getCommittedSourceRevision() {
+        return committedSourceRevision;
+    }
+
+    /** Additive shorthand retained for source-event consumers. */
+    public String getSourceRevision() {
+        return committedSourceRevision;
+    }
+
+    public boolean isScopeKnown() {
+        return scopeKnown;
     }
 
     @Override

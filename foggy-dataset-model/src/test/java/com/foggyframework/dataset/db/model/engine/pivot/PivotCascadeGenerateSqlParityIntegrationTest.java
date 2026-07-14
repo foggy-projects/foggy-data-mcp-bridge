@@ -95,10 +95,17 @@ class PivotCascadeGenerateSqlParityIntegrationTest extends EcommerceTestSupport 
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
-        Map<String, Object> cacheRefused = diagnosticEvent(pivotDiagnostics(response), "pivot.cache.refused");
+        List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
+        Map<String, Object> cacheIdentity = diagnosticEvent(diagnostics, "pivot.cache.identity");
+        Map<String, Object> cacheRefused = diagnosticEvent(diagnostics, "pivot.cache.refused");
+        assertEquals(PivotOuterCacheStrongIdentity.STATUS_INCOMPLETE, cacheIdentity.get("status"));
         assertEquals("E1a", cacheRefused.get("eligibilityStage"));
         assertEquals("cascade_shape", cacheRefused.get("reason"));
         assertEquals("cascade", cacheRefused.get("shapeClass"));
+        assertTrue(diagnostics.stream().noneMatch(item -> "pivot.cache.lookup".equals(item.get("event"))),
+                "incomplete lifecycle identity must not allow cache lookup");
+        assertTrue(diagnostics.stream().noneMatch(item -> "pivot.cache.store".equals(item.get("event"))),
+                "incomplete lifecycle identity must not allow cache store");
 
         // SQL Oracle
         String sql = "WITH _base_relation AS (" +

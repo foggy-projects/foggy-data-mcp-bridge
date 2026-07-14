@@ -1,5 +1,6 @@
 package com.foggyframework.fsscript;
 
+import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.fsscript.exp.DefaultExpFactory;
 import com.foggyframework.fsscript.exp.FunTable;
 import com.foggyframework.fsscript.jsr223.FsscriptEngineFactory;
@@ -7,6 +8,7 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.loadder.FileTxtFsscriptLoader;
 import com.foggyframework.fsscript.loadder.FsscriptFileChangeHandler;
 import com.foggyframework.fsscript.loadder.RootFsscriptLoader;
+import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 import com.foggyframework.fsscript.parser.spi.ExpFactory;
 import com.foggyframework.fsscript.spring.cloud.GetFunDef;
 import com.foggyframework.fsscript.spring.cloud.PostFunDef;
@@ -36,9 +38,15 @@ public class FoggyFscriptAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name="fsscriptFileChangeHandler")
-    public FsscriptFileChangeHandler fsscriptFileChangeHandler(RootFsscriptLoader rootFsscriptLoader) {
-
-        return new FsscriptFileChangeHandler(rootFsscriptLoader);
+    public FsscriptFileChangeHandler fsscriptFileChangeHandler(
+            RootFsscriptLoader rootFsscriptLoader,
+            CommittedSourceRevisionRegistry committedSourceRevisionRegistry,
+            SystemBundlesContext systemBundlesContext
+    ) {
+        FsscriptFileChangeHandler handler = new FsscriptFileChangeHandler(
+                rootFsscriptLoader, committedSourceRevisionRegistry);
+        handler.watchExistingExternalBundles(systemBundlesContext);
+        return handler;
     }
 
     @Bean

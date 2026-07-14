@@ -6,8 +6,6 @@ import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,7 +20,6 @@ import java.util.stream.Collectors;
  * @author foggy-framework
  * @since 8.2.0
  */
-@Component
 public class QueryFingerprintBuilder {
 
     /**
@@ -52,6 +49,18 @@ public class QueryFingerprintBuilder {
                 .pageNo(context.getRequest().getPage())
                 .pageSize(context.getRequest().getPageSize());
 
+        Optional<SecurityPolicyFingerprint> securityPolicy = SecurityPolicyFingerprint.from(context);
+        if (securityPolicy.isPresent()) {
+            SecurityPolicyFingerprint policy = securityPolicy.get();
+            builder.fieldAccessHash(policy.fieldAccessHash())
+                    .deniedColumnsHash(policy.deniedColumnsHash())
+                    .systemSliceHash(policy.systemSliceHash())
+                    .securityContextHash(policy.securityContextHash())
+                    .securityPolicyHash(policy.combinedHash());
+        } else {
+            builder.hasIncompleteSecurityPolicy(true);
+        }
+
         // 提取列
         builder.columns(extractColumns(request, context));
 
@@ -73,12 +82,14 @@ public class QueryFingerprintBuilder {
             builder.conditionSignatures(result.signatures);
             builder.hasRawSql(result.hasRawSql);
             builder.hasNonDeterministic(result.hasNonDeterministic);
+            builder.hasUnsupportedValue(result.hasUnsupportedValue);
         } else {
             // 回退：从 request 提取
             ConditionExtractResult result = extractConditionsFromRequest(request);
             builder.conditionSignatures(result.signatures);
             builder.hasRawSql(result.hasRawSql);
             builder.hasNonDeterministic(result.hasNonDeterministic);
+            builder.hasUnsupportedValue(result.hasUnsupportedValue);
         }
 
         return builder.build();
@@ -99,7 +110,7 @@ public class QueryFingerprintBuilder {
         if (context.getCalculatedColumns() != null) {
             for (CalculatedDbColumn calc : context.getCalculatedColumns()) {
                 // 使用计算字段的表达式哈希，因为相同名称可能有不同表达式
-                String calcHash = calc.getName() + ":" + DigestUtils.md5Hex(calc.getDeclare());
+                String calcHash = calc.getName() + ":" + StableCanonicalEncoder.sha256(calc.getDeclare());
                 columns.add(calcHash);
             }
         }
@@ -140,63 +151,100 @@ public class QueryFingerprintBuilder {
      */
     private ConditionExtractResult extractConditionsFromJdbcQuery(JdbcQuery query) {
         ConditionExtractResult result = new ConditionExtractResult();
+        result.hasRawSql = query.isRawSqlConditionAdded();
 
-        // 提取 WHERE 条件
-        extractConditionsRecursive(query.getWhere(), result);
+        String where = canonicalizeJdbcList(query.getWhere(), result);
+        if (where != null) {
+            result.signatures.add(nodeSignature("where", where));
+        }
 
-        // 提取 HAVING 条件
-        extractConditionsRecursive(query.getHaving(), result);
-
-        // 排序确保一致性
-        Collections.sort(result.signatures);
+        String having = canonicalizeJdbcList(query.getHaving(), result);
+        if (having != null) {
+            result.signatures.add(nodeSignature("having", having));
+        }
         return result;
     }
 
     /**
-     * 递归提取条件
+     * Canonicalizes a JDBC condition list while preserving its tree and
+     * sequence. JDBC links are stored on each child, so globally sorting leaf
+     * signatures would erase parentheses and may also change link semantics.
      */
-    private void extractConditionsRecursive(JdbcQuery.JdbcListCond cond, ConditionExtractResult result) {
-        if (cond == null || cond.getConds() == null) {
-            return;
+    private String canonicalizeJdbcList(JdbcQuery.JdbcListCond cond, ConditionExtractResult result) {
+        if (cond == null || cond.getConds() == null || cond.getConds().isEmpty()) {
+            return null;
         }
 
+        List<String> children = new ArrayList<>(cond.getConds().size());
         for (JdbcQuery.JdbcCond c : cond.getConds()) {
-            if (c instanceof JdbcQuery.SqlFragmentCond sqlFrag) {
-                // 原始 SQL 片段 → 标记不可缓存
-                result.hasRawSql = true;
-                // 仍然记录签名（用于调试）
-                result.signatures.add("raw:" + DigestUtils.md5Hex(sqlFrag.getSqlFragment()));
-
-                // 检查是否包含非确定性函数
-                if (containsNonDeterministicFunction(sqlFrag.getSqlFragment())) {
-                    result.hasNonDeterministic = true;
-                }
-            } else if (c instanceof JdbcQuery.QueryTypeValueCond qtvc) {
-                // 结构化条件（如 Mongo 风格）
-                String valueHash = computeValueHash(qtvc.getValue());
-                result.signatures.add(qtvc.getName() + ":" + qtvc.getQueryType() + ":" + valueHash);
-            } else if (c instanceof JdbcQuery.ValueCond vc) {
-                // 带值的 SQL 条件
-                String valueHash = computeValueHash(vc.getValue());
-                String fragHash = DigestUtils.md5Hex(vc.getSqlFragment());
-                result.signatures.add("sql:" + fragHash + ":" + valueHash);
-
-                // 检查是否包含非确定性函数
-                if (containsNonDeterministicFunction(vc.getSqlFragment())) {
-                    result.hasNonDeterministic = true;
-                }
-            } else if (c instanceof JdbcQuery.ListValueCond lvc) {
-                // IN 条件
-                String valueHash = computeValueHash(lvc.getValue());
-                String fragHash = DigestUtils.md5Hex(lvc.getSqlFragment());
-                result.signatures.add("list:" + fragHash + ":" + valueHash);
-            } else if (c instanceof JdbcQuery.JdbcGroupCond gc) {
-                // 分组条件，递归处理
-                result.signatures.add("group:" + gc.getLink() + ":(");
-                extractConditionsRecursive(gc, result);
-                result.signatures.add(")");
+            String child = canonicalizeJdbcCondition(c, result);
+            if (child != null) {
+                children.add(child);
             }
         }
+        return encodeSignatures(children);
+    }
+
+    private String canonicalizeJdbcCondition(JdbcQuery.JdbcCond condition,
+                                             ConditionExtractResult result) {
+        if (condition == null) {
+            result.hasUnsupportedValue = true;
+            return nodeSignature("unsupported", encodeCanonical(null, result));
+        }
+
+        String link = StableCanonicalEncoder.segment("link",
+                encodeCanonical(condition.getLink(), result));
+        if (condition instanceof JdbcQuery.SqlFragmentCond sqlFragment) {
+            result.hasRawSql = true;
+            if (containsNonDeterministicFunction(sqlFragment.getSqlFragment())) {
+                result.hasNonDeterministic = true;
+            }
+            return nodeSignature("raw-sql", link
+                    + StableCanonicalEncoder.segment("sql",
+                    encodeCanonical(sqlFragment.getSqlFragment(), result)));
+        }
+        if (condition instanceof JdbcQuery.QueryTypeValueCond queryTypeValue) {
+            return nodeSignature("query-type-value", link
+                    + StableCanonicalEncoder.segment("name",
+                    encodeCanonical(queryTypeValue.getName(), result))
+                    + StableCanonicalEncoder.segment("queryType",
+                    encodeCanonical(queryTypeValue.getQueryType(), result))
+                    + StableCanonicalEncoder.segment("value",
+                    encodeCanonical(queryTypeValue.getValue(), result)));
+        }
+        if (condition instanceof JdbcQuery.ValueCond valueCondition) {
+            if (containsNonDeterministicFunction(valueCondition.getSqlFragment())) {
+                result.hasNonDeterministic = true;
+            }
+            return nodeSignature("sql-value", link
+                    + StableCanonicalEncoder.segment("sql",
+                    encodeCanonical(valueCondition.getSqlFragment(), result))
+                    + StableCanonicalEncoder.segment("value",
+                    encodeCanonical(valueCondition.getValue(), result)));
+        }
+        if (condition instanceof JdbcQuery.ListValueCond listValueCondition) {
+            if (containsNonDeterministicFunction(listValueCondition.getSqlFragment())) {
+                result.hasNonDeterministic = true;
+            }
+            return nodeSignature("sql-list-value", link
+                    + StableCanonicalEncoder.segment("sql",
+                    encodeCanonical(listValueCondition.getSqlFragment(), result))
+                    + StableCanonicalEncoder.segment("value",
+                    encodeCanonical(listValueCondition.getValue(), result)));
+        }
+        if (condition instanceof JdbcQuery.JdbcGroupCond group) {
+            String children = canonicalizeJdbcList(group, result);
+            if (children == null) {
+                children = encodeSignatures(Collections.emptyList());
+            }
+            return nodeSignature("jdbc-group", link
+                    + StableCanonicalEncoder.segment("children", children));
+        }
+
+        result.hasUnsupportedValue = true;
+        return nodeSignature("unsupported", link
+                + StableCanonicalEncoder.segment("type",
+                encodeCanonical(condition.getClass(), result)));
     }
 
     /**
@@ -207,49 +255,83 @@ public class QueryFingerprintBuilder {
 
         if (request.getSlice() != null) {
             for (SliceRequestDef slice : request.getSlice()) {
-                extractSliceRecursive(slice, result);
+                result.signatures.add(canonicalizeSlice(slice, result));
             }
         }
 
+        // Top-level slices are implicitly combined with AND, so only this
+        // level is safely commutative. Nested group boundaries remain inside
+        // each recursively computed subtree signature.
         Collections.sort(result.signatures);
         return result;
     }
 
     /**
-     * 递归提取 slice 条件
+     * Recursively canonicalizes one slice subtree. Each node is hashed before
+     * it is returned so structurally different boolean expressions cannot
+     * collapse merely because they contain the same leaves.
      */
-    private void extractSliceRecursive(CondRequestDef cond, ConditionExtractResult result) {
-        if (cond._isLogicalGroup()) {
-            result.signatures.add("group:" + cond._getGroupLink() + ":(");
-            for (CondRequestDef child : cond._getGroupChildren()) {
-                extractSliceRecursive(child, result);
-            }
-            result.signatures.add(")");
-        } else {
-            String valueHash = computeValueHash(cond.getValue());
-            result.signatures.add(cond.getField() + ":" + cond.getOp() + ":" + valueHash);
+    private String canonicalizeSlice(CondRequestDef cond, ConditionExtractResult result) {
+        if (cond == null) {
+            result.hasUnsupportedValue = true;
+            return nodeSignature("unsupported", encodeCanonical(null, result));
         }
+        if (cond._isExpressionCondition()) {
+            result.hasRawSql = true;
+            if (containsNonDeterministicFunction(cond.getExpr())) {
+                result.hasNonDeterministic = true;
+            }
+            return nodeSignature("expression", StableCanonicalEncoder.segment("expression",
+                    encodeCanonical(cond.getExpr(), result)));
+        }
+        if (cond._isLogicalGroup()) {
+            List<String> children = new ArrayList<>(cond._getGroupChildren().size());
+            for (CondRequestDef child : cond._getGroupChildren()) {
+                children.add(canonicalizeSlice(child, result));
+            }
+            // AND and OR operands are commutative, but only within this exact
+            // subtree. Sorting globally would erase parenthesis structure.
+            Collections.sort(children);
+            return nodeSignature("request-group",
+                    StableCanonicalEncoder.segment("link",
+                            encodeCanonical(cond._getGroupLink(), result))
+                            + StableCanonicalEncoder.segment("children",
+                            encodeSignatures(children)));
+        }
+
+        return nodeSignature("request-leaf",
+                StableCanonicalEncoder.segment("field",
+                        encodeCanonical(cond.getField(), result))
+                        + StableCanonicalEncoder.segment("op",
+                        encodeCanonical(cond.getOp(), result))
+                        + StableCanonicalEncoder.segment("value",
+                        encodeCanonical(cond.getValue(), result))
+                        + StableCanonicalEncoder.segment("maxDepth",
+                        encodeCanonical(cond.getMaxDepth(), result)));
     }
 
-    /**
-     * 计算值的哈希
-     */
-    private String computeValueHash(Object value) {
-        if (value == null) {
-            return "null";
+    private String encodeCanonical(Object value, ConditionExtractResult result) {
+        Optional<String> encoded = StableCanonicalEncoder.encode(value);
+        if (encoded.isEmpty()) {
+            result.hasUnsupportedValue = true;
+            return StableCanonicalEncoder.segment("unsupported", "");
         }
-        if (value instanceof List) {
-            List<?> list = (List<?>) value;
-            if (list.isEmpty()) {
-                return "[]";
-            }
-            String joined = list.stream()
-                    .map(Object::toString)
-                    .sorted()
-                    .collect(Collectors.joining(","));
-            return DigestUtils.md5Hex(joined);
+        return encoded.get();
+    }
+
+    private String encodeSignatures(List<String> signatures) {
+        StringBuilder encoded = new StringBuilder(
+                StableCanonicalEncoder.segment("size", Integer.toString(signatures.size())));
+        for (String signature : signatures) {
+            encoded.append(StableCanonicalEncoder.segment("child", signature));
         }
-        return DigestUtils.md5Hex(value.toString());
+        return encoded.toString();
+    }
+
+    private String nodeSignature(String type, String payload) {
+        return type + ":" + StableCanonicalEncoder.sha256(
+                StableCanonicalEncoder.segment("type", type)
+                        + StableCanonicalEncoder.segment("payload", payload));
     }
 
     /**
@@ -259,7 +341,7 @@ public class QueryFingerprintBuilder {
         if (sql == null || sql.isEmpty()) {
             return false;
         }
-        String upperSql = sql.toUpperCase();
+        String upperSql = sql.toUpperCase(Locale.ROOT);
         for (String func : NON_DETERMINISTIC_FUNCTIONS) {
             if (upperSql.contains(func + "(")) {
                 return true;
@@ -275,5 +357,6 @@ public class QueryFingerprintBuilder {
         List<String> signatures = new ArrayList<>();
         boolean hasRawSql = false;
         boolean hasNonDeterministic = false;
+        boolean hasUnsupportedValue = false;
     }
 }

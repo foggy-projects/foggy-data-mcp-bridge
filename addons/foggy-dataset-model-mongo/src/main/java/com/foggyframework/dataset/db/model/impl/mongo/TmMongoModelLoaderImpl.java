@@ -18,7 +18,6 @@ import com.foggyframework.fsscript.parser.spi.Fsscript;
 import com.mongodb.client.MongoClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
 
@@ -33,7 +32,6 @@ import java.util.Set;
  * <p>仅当 MongoDB 客户端存在时才会加载此 Bean。
  * 目前 mongo 不考虑维度的实现。
  */
-@Service
 @Slf4j
 public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader, QueryModelBuilder {
 

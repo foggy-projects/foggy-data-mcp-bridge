@@ -44,8 +44,9 @@ public interface SemanticServiceResolver {
     /**
      * 获取所有可用的模型名称（动态发现）
      *
-     * <p>扫描所有 bundle 中的 .qm 文件，返回有效的模型名称列表。
-     * 实现类应使用缓存机制，通过 {@link #invalidateModelCache()} 失效。
+     * <p>生命周期感知实现从当前 {@code NamespaceContext} 对应的 immutable
+     * catalog snapshot 读取。兼容实现可以动态扫描，但不得建立第二套全局
+     * names/alias authority。
      *
      * @return 模型名称列表
      */
@@ -54,8 +55,8 @@ public interface SemanticServiceResolver {
     /**
      * 获取指定 namespace 下可见的模型名称。
      *
-     * <p>默认实现保持历史行为，具体实现可以按 namespace 过滤 runtime bundle/registry
-     * 中实际可加载的查询模型，避免命名空间之间的静态 model-list 污染。</p>
+     * <p>默认实现保持历史兼容；生命周期感知实现必须读取指定 namespace 的同一
+     * catalog snapshot，不能从无 namespace 的全局列表二次过滤。</p>
      *
      * @param namespace 命名空间；null 或空字符串表示底层默认命名空间
      * @return 模型名称列表
@@ -65,10 +66,10 @@ public interface SemanticServiceResolver {
     }
 
     /**
-     * 清除模型名称缓存
+     * 兼容的模型名称失效入口
      *
-     * <p>当 QM 文件发生变化时调用此方法，下次 {@link #getAllModelNames()}
-     * 调用将重新扫描文件系统。
+     * <p>共享 lifecycle catalog 的实现应保持 no-op；source mutation 由核心
+     * authority 发布新 snapshot。该方法只为旧调用方保留。
      */
     default void invalidateModelCache() {
         // 默认空实现，子类可覆盖

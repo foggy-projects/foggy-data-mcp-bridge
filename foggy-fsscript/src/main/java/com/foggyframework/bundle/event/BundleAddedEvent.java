@@ -17,6 +17,8 @@ public class BundleAddedEvent extends ApplicationEvent {
     private final String bundleName;
     private final String namespace;
     private final Bundle addedBundle;
+    private final String committedSourceRevision;
+    private final boolean scopeKnown;
 
     /**
      * 构造Bundle添加事件
@@ -27,10 +29,23 @@ public class BundleAddedEvent extends ApplicationEvent {
      * @param addedBundle 新添加的Bundle实例
      */
     public BundleAddedEvent(Object source, String bundleName, String namespace, Bundle addedBundle) {
+        this(source, bundleName, namespace, addedBundle, null, true);
+    }
+
+    public BundleAddedEvent(
+            Object source,
+            String bundleName,
+            String namespace,
+            Bundle addedBundle,
+            String committedSourceRevision,
+            boolean scopeKnown
+    ) {
         super(source);
         this.bundleName = bundleName;
         this.namespace = namespace;
         this.addedBundle = addedBundle;
+        this.committedSourceRevision = committedSourceRevision;
+        this.scopeKnown = scopeKnown;
     }
 
     public String getBundleName() {
@@ -43,6 +58,19 @@ public class BundleAddedEvent extends ApplicationEvent {
 
     public Bundle getAddedBundle() {
         return addedBundle;
+    }
+
+    public String getCommittedSourceRevision() {
+        return committedSourceRevision;
+    }
+
+    /** Additive shorthand retained for source-event consumers. */
+    public String getSourceRevision() {
+        return committedSourceRevision;
+    }
+
+    public boolean isScopeKnown() {
+        return scopeKnown;
     }
 
     @Override

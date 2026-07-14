@@ -3,6 +3,10 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -17,18 +21,28 @@ import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.db.model.semantic.exception.TooManyPivotCellsException;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
+import com.foggyframework.dataset.db.model.spi.ProcessLocalDefaultDataSourceResolver;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.sql.DataSource;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -40,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Slf4j
 @DisplayName("Pivot Pipeline 端到端集成验收")
+@Import(PivotIntegrationTest.TrackedPivotDatasourceConfiguration.class)
 class PivotIntegrationTest extends EcommerceTestSupport {
 
     private static final String TEST_MODEL = "FactSalesQueryModel";
@@ -48,6 +63,88 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     private static final String PARENT_CHILD_WINDOW_STATUS_A = "PDS_WINDOW_A";
     private static final String PARENT_CHILD_WINDOW_STATUS_B = "PDS_WINDOW_B";
     private static final String BASELINE_RATIO_SCOPE_STATUS = "PDS_BR_SCOPE";
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class TrackedPivotDatasourceConfiguration {
+
+        @Bean
+        @Primary
+        NamedDataSourceResolver pivotTrackedDatasourceResolver(DataSource dataSource) {
+            return new TrackedPivotDatasourceResolver(dataSource);
+        }
+    }
+
+    private static final class TrackedPivotDatasourceResolver
+            implements NamedDataSourceResolver, ProcessLocalDefaultDataSourceResolver {
+
+        private static final DatasourceBindingIdentity DEFAULT_IDENTITY =
+                new DatasourceBindingIdentity(
+                        "test:pivot:process-local-default",
+                        "test:pivot:ecommerce-backend",
+                        new DatasourceBindingGeneration("test-pivot-binding-v1"));
+        private static final DatasourceBindingIdentity ODOO_IDENTITY =
+                new DatasourceBindingIdentity(
+                        "test:pivot:named:odoo",
+                        "test:pivot:ecommerce-backend",
+                        new DatasourceBindingGeneration("test-pivot-binding-v1"));
+
+        private final DataSource dataSource;
+        private final Object publicationMonitor = new Object();
+
+        private TrackedPivotDatasourceResolver(DataSource dataSource) {
+            this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
+        }
+
+        @Override
+        public DataSource resolve(String name) {
+            return "odoo".equals(name) ? dataSource : null;
+        }
+
+        @Override
+        public ResolvedDatasourceBinding resolveBinding(String name) {
+            return "odoo".equals(name)
+                    ? ResolvedDatasourceBinding.tracked(dataSource, ODOO_IDENTITY)
+                    : null;
+        }
+
+        @Override
+        public ResolvedDatasourceBinding resolveDefaultBinding(String namespace) {
+            return namespace == null || namespace.isBlank()
+                    ? ResolvedDatasourceBinding.tracked(dataSource, DEFAULT_IDENTITY)
+                    : null;
+        }
+
+        @Override
+        public ResolvedDatasourceBinding resolveProcessLocalDefaultBinding() {
+            return ResolvedDatasourceBinding.tracked(dataSource, DEFAULT_IDENTITY);
+        }
+
+        @Override
+        public BindingCurrentness currentness(DatasourceBindingIdentity identity) {
+            return DEFAULT_IDENTITY.equals(identity) || ODOO_IDENTITY.equals(identity)
+                    ? BindingCurrentness.CURRENT
+                    : BindingCurrentness.STALE;
+        }
+
+        @Override
+        public <T> T publishIfCurrent(Collection<DatasourceBindingIdentity> identities,
+                                      Supplier<T> publication) {
+            Objects.requireNonNull(identities, "identities");
+            Objects.requireNonNull(publication, "publication");
+            synchronized (publicationMonitor) {
+                if (!identities.stream()
+                        .allMatch(identity -> currentness(identity) == BindingCurrentness.CURRENT)) {
+                    throw new IllegalStateException("stale Pivot test datasource binding");
+                }
+                return publication.get();
+            }
+        }
+
+        @Override
+        public boolean isConfigured(String name) {
+            return "odoo".equals(name);
+        }
+    }
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -89,6 +186,11 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                 "tree_axis_domainSlice_start_offset");
 
         List<Map<String, Object>> diagnostics = pivotDiagnostics(response);
+        Map<String, Object> cacheIdentity = diagnosticEvent(diagnostics, "pivot.cache.identity");
+        assertEquals(PivotOuterCacheStrongIdentity.STATUS_COMPLETE, cacheIdentity.get("status"));
+        assertTrue(((Number) cacheIdentity.get("bindingCount")).intValue() > 0);
+        assertEquals(Boolean.FALSE, cacheIdentity.get("manualTokenPresent"));
+        assertEquals(64, String.valueOf(cacheIdentity.get("identityHash")).length());
         Map<String, Object> cacheLookup = diagnosticEvent(diagnostics, "pivot.cache.lookup");
         assertEquals("E1a", cacheLookup.get("eligibilityStage"));
         assertEquals("flat", cacheLookup.get("shapeClass"));
@@ -274,7 +376,8 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         PivotPipeline pipeline = outerCachePipeline(60_000L);
         PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(TEST_MODEL);
         PivotOuterCacheTelemetry.Evaluation evaluation = new PivotOuterCacheTelemetry.Evaluation(
-                "warning-key", "flat", null);
+                "v2:" + "1".repeat(64), "flat", null,
+                "0".repeat(64), PivotOuterCacheStrongIdentity.STATUS_COMPLETE, 1, false);
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(List.of(Map.of("product$categoryName", "Category", "salesAmount", 1)));
         response.setWarnings(List.of("warning"));

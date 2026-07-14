@@ -16,19 +16,6 @@ import org.springframework.context.ApplicationContext;
  */
 public class MongoFileFsscriptLoader extends AbstractFileFsscriptLoader {
 
-    private static AbstractFileFsscriptLoader instance;
-
-    public static AbstractFileFsscriptLoader getInstance() {
-        return instance;
-    }
-
-    public static void setInstance(AbstractFileFsscriptLoader instance) {
-        if (MongoFileFsscriptLoader.instance != null) {
-            throw new UnsupportedOperationException("MongoFileFsscriptLoader只能被初始化一次");
-        }
-        MongoFileFsscriptLoader.instance = instance;
-    }
-
     public MongoFileFsscriptLoader(ApplicationContext appCtx, FsscriptLoader parent, FsscriptFileChangeHandler changeHandler) {
         super(appCtx, parent, changeHandler);
     }

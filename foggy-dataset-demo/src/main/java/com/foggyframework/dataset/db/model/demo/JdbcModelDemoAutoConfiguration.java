@@ -1,9 +1,9 @@
 package com.foggyframework.dataset.db.model.demo;
 
 import com.foggyframework.core.annotates.EnableFoggyFramework;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 /**
  * Demo 数据模型自动配置
@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
  * <p>通过配置 {@code foggy.demo.enabled=false} 可禁用此模块的加载。
  * 默认启用。
  */
-@Configuration
+@AutoConfiguration(afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
 @ConditionalOnProperty(name = "foggy.demo.enabled", havingValue = "true", matchIfMissing = true)
 @EnableFoggyFramework(bundleName = "foggy-dataset-demo")
 public class JdbcModelDemoAutoConfiguration {

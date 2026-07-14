@@ -1,6 +1,10 @@
 package com.foggyframework.dataset.db.model.spi;
 
 import com.foggyframework.bundle.BundleResource;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+
+import java.util.Collection;
+import java.util.Map;
 
 public interface QueryModelLoader {
     /**
@@ -23,6 +27,34 @@ public interface QueryModelLoader {
      * @return 查询模型
      */
     QueryModel getJdbcQueryModel(String queryModelName, String namespace);
+
+    /**
+     * Resolve a query model together with the exact catalog and datasource
+     * binding identities that supplied it.  Consumers that execute work must
+     * use this atomic projection instead of reading a model and then sampling
+     * the active generation in a second step.
+     */
+    default CatalogResolution<QueryModel> resolveJdbcQueryModel(
+            String queryModelName,
+            String namespace
+    ) {
+        return null;
+    }
+
+    /**
+     * Resolve multiple already/materialized models from one final immutable
+     * catalog view. All non-null resolutions returned by a lifecycle-aware
+     * implementation must carry the same CatalogIdentity.
+     *
+     * <p>The null default preserves third-party loader and Mockito compatibility;
+     * such callers remain untracked and must not be used for reusable cache keys.</p>
+     */
+    default Map<String, CatalogResolution<QueryModel>> resolveJdbcQueryModels(
+            Collection<String> queryModelNames,
+            String namespace
+    ) {
+        return null;
+    }
 
     /**
      * 从BundleResource加载查询模型

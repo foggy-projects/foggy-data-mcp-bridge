@@ -3,7 +3,7 @@ package com.foggyframework.dataset.mcp.storage.cloud;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
 
 /**
  * 云存储自动配置
@@ -14,7 +14,12 @@ import org.springframework.context.annotation.ComponentScan;
 @Slf4j
 @AutoConfiguration
 @ConditionalOnClass(name = "com.foggyframework.dataset.mcp.storage.ChartStorageAdapter")
-@ComponentScan(basePackageClasses = CloudStorageAutoConfiguration.class)
+@Import({
+        AliyunOssStorageAdapter.class,
+        HuaweiObsStorageAdapter.class,
+        TencentCosStorageAdapter.class,
+        AwsS3StorageAdapter.class
+})
 public class CloudStorageAutoConfiguration {
 
     public CloudStorageAutoConfiguration() {

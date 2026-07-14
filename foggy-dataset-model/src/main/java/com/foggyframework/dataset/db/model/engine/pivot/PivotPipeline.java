@@ -12,6 +12,7 @@ import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTranspor
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -152,6 +153,7 @@ public class PivotPipeline {
      */
     public SemanticQueryResponse execute(String model, SemanticQueryRequest request,
                                           SemanticRequestContext context) {
+        context = context == null ? SemanticRequestContext.empty() : context;
         PivotRequest pivot = request.getPivot();
         long startTime = System.currentTimeMillis();
         PivotDiagnosticCollector diagnostics = new PivotDiagnosticCollector(model);
@@ -160,9 +162,18 @@ public class PivotPipeline {
         validatePivotRequest(request);
 
         // ===== 提前加载 QueryModel（用于 S8.3 度量元数据 + Properties）=====
+        CatalogResolution<QueryModel> catalogResolution = null;
         QueryModel queryModel = null;
         if (queryModelLoader != null) {
-            queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+            catalogResolution = queryModelLoader.resolveJdbcQueryModel(model, context.getNamespace());
+            queryModel = catalogResolution != null
+                    ? catalogResolution.model()
+                    : queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+        }
+        PivotOuterCacheStrongIdentity.Assessment strongIdentityAssessment =
+                PivotOuterCacheStrongIdentity.assess(catalogResolution, context.getNamespace());
+        if (strongIdentityAssessment.pinnable()) {
+            context = context.withCatalogResolution(catalogResolution);
         }
         injectPredefinedCalculatedFields(request, queryModel);
         PivotCascadeRules.validateAdditivity(pivot, queryModel, request.getCalculatedFields());
@@ -211,8 +222,12 @@ public class PivotPipeline {
                 : PivotOuterCacheTelemetry.TELEMETRY_STAGE;
         PivotOuterCacheTelemetry.Evaluation cacheEvaluation = PivotOuterCacheTelemetry.evaluate(
                 model, queryModel, request, context, hierarchyCtx.isTree(), cascadeRequest, cacheEligibilityStage,
-                resolveOuterCacheModelIdentity(context, model, queryModel));
-        diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
+                resolveOuterCacheModelIdentity(
+                        context, model, queryModel, strongIdentityAssessment));
+        diagnostics.cacheIdentity(cacheEvaluation);
+        if (!cacheEvaluation.refused()) {
+            diagnostics.cacheLookup(cacheEvaluation.keyHash(), cacheEligibilityStage, cacheEvaluation.shapeClass());
+        }
         recordOuterCacheProviderUnavailable(diagnostics, cacheEvaluation, cacheEligibilityStage,
                 cacheEnabledUnavailable);
         if (cacheEvaluation.refused()) {
@@ -564,27 +579,27 @@ public class PivotPipeline {
 
     private PivotOuterCacheTelemetry.ModelIdentity resolveOuterCacheModelIdentity(SemanticRequestContext context,
                                                                                   String model,
-                                                                                  QueryModel queryModel) {
+                                                                                  QueryModel queryModel,
+                                                                                  PivotOuterCacheStrongIdentity.Assessment
+                                                                                          strongIdentityAssessment) {
         PivotOuterCacheModelIdentity provided = PivotOuterCacheModelIdentity.empty();
+        Class<? extends Throwable> providerFailureType = null;
         try {
             provided = modelIdentityProvider.resolve(context != null ? context.getNamespace() : null, model, queryModel);
         } catch (Exception e) {
-            logger.warn("[Pivot] Outer cache model identity provider failed, falling back to configured tokens: model={}",
-                    model, e);
+            providerFailureType = e.getClass();
+            logger.warn("[Pivot] Outer cache supplementary identity provider failed: model={}, reasonClass={}",
+                    model, e.getClass().getSimpleName());
         }
         PivotOuterCacheModelIdentity normalized = provided == null
                 ? PivotOuterCacheModelIdentity.empty()
                 : provided.normalized();
-        return PivotOuterCacheTelemetry.ModelIdentity.of(
-                firstNonBlank(outerCacheOptions.bundleFingerprint(), normalized.bundleFingerprint()),
-                firstNonBlank(outerCacheOptions.modelFreshnessToken(), normalized.modelFreshnessToken()));
-    }
-
-    private String firstNonBlank(String preferred, String fallback) {
-        if (preferred != null && !preferred.isBlank()) {
-            return preferred.trim();
-        }
-        return fallback == null ? "" : fallback.trim();
+        return PivotOuterCacheTelemetry.ModelIdentity.from(
+                strongIdentityAssessment,
+                normalized,
+                outerCacheOptions.bundleFingerprint(),
+                outerCacheOptions.modelFreshnessToken(),
+                providerFailureType);
     }
 
     private Set<String> collectSemanticReferences(SemanticQueryRequest request) {
@@ -1487,6 +1502,10 @@ public class PivotPipeline {
         resultContext.setFieldAccess(reqContext.getFieldAccess());
         resultContext.setDeniedColumns(reqContext.getDeniedColumns());
         resultContext.setSystemSlice(reqContext.getSystemSlice());
+        if (reqContext.getCatalogResolution() != null) {
+            resultContext.pinCatalogResolution(
+                    reqContext.getCatalogResolution(), reqContext.getNamespace());
+        }
 
         return resultContext;
     }

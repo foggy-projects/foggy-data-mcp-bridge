@@ -7,6 +7,7 @@ import com.foggyframework.dataviewer.controller.TableDefaultQueryConfigControlle
 import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.controller.ViewerPageController;
 import com.foggyframework.dataviewer.mcp.OpenInViewerTool;
+import com.foggyframework.dataviewer.plugins.LargeResultTruncationStep;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataviewer.repository.ListPresetRepository;
 import com.foggyframework.dataviewer.service.ListPresetService;
@@ -23,11 +24,13 @@ import com.foggyframework.dataviewer.service.listpreset.MongoListPresetStore;
 import com.foggyframework.dataviewer.service.tabledefault.PropertiesTableDefaultQueryConfigProvider;
 import com.foggyframework.dataviewer.service.tabledefault.TableDefaultQueryConfigProvider;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
@@ -45,8 +48,9 @@ import org.springframework.util.StringUtils;
  * <p>
  * 集成 QueryFacade 和使用类型安全的请求类
  */
-@AutoConfiguration(after = {MongoAutoConfiguration.class, MongoDataAutoConfiguration.class})
-//@ConditionalOnClass(MongoTemplate.class)
+@AutoConfiguration(after = {DbModelAutoConfiguration.class, MongoAutoConfiguration.class, MongoDataAutoConfiguration.class})
+@ConditionalOnClass(MongoTemplate.class)
+@ConditionalOnBean({MongoTemplate.class, QueryFacade.class})
 @ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(DataViewerProperties.class)
 @EnableMongoRepositories(basePackages = "com.foggyframework.dataviewer.repository")
@@ -66,6 +70,13 @@ public class DataViewerAutoConfiguration {
     @ConditionalOnMissingBean
     public QueryScopeConstraintService queryScopeConstraintService(DataViewerProperties properties) {
         return new QueryScopeConstraintService(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public LargeResultTruncationStep largeResultTruncationStep(QueryCacheService queryCacheService,
+                                                               DataViewerProperties properties) {
+        return new LargeResultTruncationStep(queryCacheService, properties);
     }
 
     @Bean

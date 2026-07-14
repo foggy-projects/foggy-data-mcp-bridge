@@ -11,6 +11,7 @@ import com.foggyframework.runtime.api.dto.NamespaceDatasourceRequest;
 import com.foggyframework.runtime.api.dto.NamespaceDatasourceResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
+import com.foggyframework.dataset.db.model.lifecycle.port.RevokeMode;
 import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.sql.Connection;
@@ -81,8 +83,11 @@ public class RuntimeDatasourcesController {
     }
 
     @DeleteMapping(RuntimeApiRoutes.V1.DATASOURCE_BY_NAME)
-    public RuntimeEnvelope<DatasourceMutationResponse> removeDatasource(@PathVariable String name) {
-        String normalizedName = blankToNull(name);
+    public RuntimeEnvelope<DatasourceMutationResponse> removeDatasource(
+            @PathVariable String name,
+            @RequestParam(required = false) String revokeMode
+    ) {
+        String normalizedName = canonicalIdentifier(name);
         if (normalizedName == null) {
             return fail("INVALID_REQUEST", "datasources.remove", "Missing required path variable: name",
                     "Provide a runtime-managed dataSource name.", false);
@@ -93,14 +98,26 @@ public class RuntimeDatasourcesController {
                     "DataSource is not managed by Runtime API: " + normalizedName,
                     "Only runtime-managed dataSources can be removed through Runtime API.", false);
         }
-        registryService.remove(normalizedName);
+        RevokeMode effectiveRevokeMode;
+        try {
+            effectiveRevokeMode = parseRevokeMode(revokeMode);
+        } catch (IllegalArgumentException e) {
+            return fail("INVALID_REQUEST", "datasources.remove", e.getMessage(),
+                    "Use revokeMode DRAIN or HARD.", false);
+        }
+        registryService.remove(normalizedName, effectiveRevokeMode);
         DatasourceInfo info = registryService.infoFromRecord(record, "removed", null);
         return responses.ok(new DatasourceMutationResponse(info, List.of()));
     }
 
+    /** Compatibility entry point for callers compiled against the original controller API. */
+    public RuntimeEnvelope<DatasourceMutationResponse> removeDatasource(String name) {
+        return removeDatasource(name, null);
+    }
+
     @PostMapping(RuntimeApiRoutes.V1.DATASOURCE_TEST)
     public RuntimeEnvelope<DatasourceTestResponse> testDatasource(@PathVariable String name) {
-        String normalizedName = blankToNull(name);
+        String normalizedName = canonicalIdentifier(name);
         if (normalizedName == null) {
             return fail("INVALID_REQUEST", "datasources.test", "Missing required path variable: name",
                     "Provide a dataSource name.", false);
@@ -136,7 +153,7 @@ public class RuntimeDatasourcesController {
 
     @GetMapping(RuntimeApiRoutes.V1.NAMESPACE_DATASOURCE)
     public RuntimeEnvelope<NamespaceDatasourceResponse> getNamespaceDatasource(@PathVariable String namespace) {
-        String normalizedNamespace = blankToNull(namespace);
+        String normalizedNamespace = canonicalIdentifier(namespace);
         if (normalizedNamespace == null) {
             return fail("INVALID_REQUEST", "datasources.bind", "Missing required path variable: namespace",
                     "Provide a namespace.", false);
@@ -150,14 +167,14 @@ public class RuntimeDatasourcesController {
             @PathVariable String namespace,
             @RequestBody(required = false) NamespaceDatasourceRequest request
     ) {
-        String normalizedNamespace = blankToNull(request != null && StringUtils.hasText(request.namespace())
+        String normalizedNamespace = canonicalIdentifier(request != null && StringUtils.hasText(request.namespace())
                 ? request.namespace()
                 : namespace);
         if (normalizedNamespace == null) {
             return fail("INVALID_REQUEST", "datasources.bind", "Missing required field: namespace",
                     "Provide a namespace.", false);
         }
-        String dataSource = blankToNull(request != null ? request.dataSource() : null);
+        String dataSource = canonicalIdentifier(request != null ? request.dataSource() : null);
         if (dataSource == null) {
             return fail("INVALID_REQUEST", "datasources.bind", "Missing required field: dataSource",
                     "Provide a dataSource name.", false);
@@ -166,7 +183,14 @@ public class RuntimeDatasourcesController {
             return fail("DATASOURCE_NOT_FOUND", "datasources.bind", "DataSource not found or disabled: " + dataSource,
                     "Add or enable the dataSource before binding it to a namespace.", false);
         }
-        registryService.bindNamespace(normalizedNamespace, dataSource);
+        RevokeMode effectiveRevokeMode;
+        try {
+            effectiveRevokeMode = parseRevokeMode(request != null ? request.revokeMode() : null);
+        } catch (IllegalArgumentException e) {
+            return fail("INVALID_REQUEST", "datasources.bind", e.getMessage(),
+                    "Use revokeMode DRAIN or HARD.", false);
+        }
+        registryService.bindNamespace(normalizedNamespace, dataSource, effectiveRevokeMode);
         return responses.ok(new NamespaceDatasourceResponse(normalizedNamespace, dataSource, List.of()));
     }
 
@@ -175,7 +199,8 @@ public class RuntimeDatasourcesController {
             DatasourceRequest request,
             boolean update
     ) {
-        String name = blankToNull(pathName != null ? pathName : request != null ? request.name() : null);
+        String name = canonicalIdentifier(
+                pathName != null ? pathName : request != null ? request.name() : null);
         if (name == null) {
             return fail("INVALID_REQUEST", update ? "datasources.update" : "datasources.add",
                     "Missing required field: name", "Provide a dataSource name.", false);
@@ -232,7 +257,14 @@ public class RuntimeDatasourcesController {
                 passwordRef,
                 booleanOr(request != null ? request.enabled() : null, true)
         );
-        record = registryService.save(record);
+        RevokeMode effectiveRevokeMode;
+        try {
+            effectiveRevokeMode = parseRevokeMode(request != null ? request.revokeMode() : null);
+        } catch (IllegalArgumentException e) {
+            return fail("INVALID_REQUEST", update ? "datasources.update" : "datasources.add",
+                    e.getMessage(), "Use revokeMode DRAIN or HARD.", false);
+        }
+        record = registryService.save(record, effectiveRevokeMode);
         DatasourceInfo info = registryService.infoFromRecord(record, record.enabled() ? "active" : "disabled", null);
         return responses.ok(new DatasourceMutationResponse(info, List.of()));
     }
@@ -260,8 +292,13 @@ public class RuntimeDatasourcesController {
         return StringUtils.hasText(value) ? value : null;
     }
 
+    private static String canonicalIdentifier(String value) {
+        String present = blankToNull(value);
+        return present == null ? null : present.trim();
+    }
+
     private static String normalizeType(String value, String jdbcUrl) {
-        String requested = blankToNull(value);
+        String requested = canonicalIdentifier(value);
         if (requested != null) {
             return requested.toLowerCase(Locale.ROOT);
         }
@@ -276,6 +313,17 @@ public class RuntimeDatasourcesController {
 
     private static boolean booleanOr(Boolean value, boolean fallback) {
         return value != null ? value : fallback;
+    }
+
+    private static RevokeMode parseRevokeMode(String value) {
+        if (!StringUtils.hasText(value)) {
+            return RevokeMode.DRAIN;
+        }
+        try {
+            return RevokeMode.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unsupported revokeMode; expected DRAIN or HARD", e);
+        }
     }
 
     private static String datasourceResolveFailureCode(Exception e) {

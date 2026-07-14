@@ -27,6 +27,7 @@ import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -43,6 +44,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("semanticScaleFactor 集成测试")
+@TestPropertySource(properties = "foggy.dataset.datasource.allow-global-fallback-for-namespace=true")
 class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
 
     private static final String TABLE_MODEL = "FactSalesSemanticScaleModel";

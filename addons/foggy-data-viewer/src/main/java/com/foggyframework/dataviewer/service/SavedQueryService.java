@@ -9,8 +9,6 @@ import com.foggyframework.dataset.db.model.spi.SecurityIdentityResolver.Resolved
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
@@ -21,8 +19,6 @@ import java.util.UUID;
  * 保存查询服务
  */
 @Slf4j
-@Service
-@ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class SavedQueryService {
 
     @Autowired(required = false)

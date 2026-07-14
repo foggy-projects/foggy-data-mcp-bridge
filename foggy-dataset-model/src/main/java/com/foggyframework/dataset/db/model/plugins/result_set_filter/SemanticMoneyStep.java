@@ -34,8 +34,8 @@ public class SemanticMoneyStep implements DataSetResultStep {
     }
 
     @Override
-    public int order() {
+    public int processOrder() {
         // 金额转换应该在较后执行
-        return -100;
+        return 100;
     }
 }

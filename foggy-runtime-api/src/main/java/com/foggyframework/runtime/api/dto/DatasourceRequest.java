@@ -8,6 +8,19 @@ public record DatasourceRequest(
         String password,
         String passwordRef,
         Boolean replace,
-        Boolean enabled
+        Boolean enabled,
+        String revokeMode
 ) {
+    public DatasourceRequest(
+            String name,
+            String type,
+            String jdbcUrl,
+            String username,
+            String password,
+            String passwordRef,
+            Boolean replace,
+            Boolean enabled
+    ) {
+        this(name, type, jdbcUrl, username, password, passwordRef, replace, enabled, null);
+    }
 }

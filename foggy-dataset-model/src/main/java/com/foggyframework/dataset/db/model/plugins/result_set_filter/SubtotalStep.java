@@ -61,9 +61,9 @@ public class SubtotalStep implements DataSetResultStep {
     }
 
     @Override
-    public int order() {
-        // 在大部分后处理之后执行（越小越靠后）
-        return -200;
+    public int processOrder() {
+        // DataSetResultStep 使用小值优先；小计在大部分后处理之后执行
+        return 200;
     }
 
     @SuppressWarnings("unchecked")

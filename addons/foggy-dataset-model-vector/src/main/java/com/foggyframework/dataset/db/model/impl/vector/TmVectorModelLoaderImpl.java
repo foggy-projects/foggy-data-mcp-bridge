@@ -18,8 +18,6 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
 import java.util.List;
@@ -41,9 +39,7 @@ import java.util.Set;
  * @author foggy-dataset
  * @since 1.0.0
  */
-@Service
 @Slf4j
-@ConditionalOnClass(name = "io.milvus.v2.client.MilvusClientV2")
 public class TmVectorModelLoaderImpl extends LoaderSupport implements TableModelLoader, QueryModelBuilder {
 
     @Value("${foggy.vector.host:localhost}")

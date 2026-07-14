@@ -352,9 +352,8 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         PagingRequest<DbQueryRequestDef> form = executionContext.getModelResultContext().getRequest();
         JdbcModelQueryEngine queryEngine = executionContext.getQueryEngine();
 
-        // 重新生成分页 SQL，因为最终 SQL 已被外层替换
-        String pagingSql = getDialect().generatePagingSql(finalSql, form.getStart(), form.getLimit());
-        executionContext.setPagingSql(pagingSql);
+        // 重新生成分页 SQL，因为最终 SQL 已被外层替换；必须复用物理执行数据源方言。
+        executionContext.refreshPagingSql();
 
         if (executionContext.isSkipExecution() && executionContext.getCachedResult() != null) {
             return DbQueryResult.of(executionContext.getCachedResult(), queryEngine);
@@ -386,13 +385,12 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
     private QueryExecutionContext createExecutionContext(SystemBundlesContext systemBundlesContext,
                                                           ModelResultContext context,
                                                           JdbcModelQueryEngine queryEngine) {
-        PagingRequest<DbQueryRequestDef> form = context.getRequest();
-
         QueryExecutionContext execCtx = new QueryExecutionContext();
         execCtx.setSystemBundlesContext(systemBundlesContext);
         execCtx.setModelResultContext(context);
         execCtx.setQueryEngine(queryEngine);
         execCtx.setDataSource(dataSource);
+        execCtx.setExecutionDialect(DbUtils.getDialect(dataSource));
         execCtx.setModelName(getName());
 
         // 初始 SQL 和参数（可能被 Step 修改）
@@ -400,9 +398,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         execCtx.setParams(queryEngine.getValues());
 
         // 生成分页 SQL
-        String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(
-                execCtx.getSql(), form.getStart(), form.getLimit());
-        execCtx.setPagingSql(pagingSql);
+        execCtx.refreshPagingSql();
 
         return execCtx;
     }
@@ -414,9 +410,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
                                          PagingRequest<DbQueryRequestDef> form,
                                          JdbcModelQueryEngine queryEngine) {
         // 重新生成分页 SQL（因为 SQL 可能被 Step 修改）
-        String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(
-                execCtx.getSql(), form.getStart(), form.getLimit());
-        execCtx.setPagingSql(pagingSql);
+        String pagingSql = execCtx.refreshPagingSql();
 
         // 记录 SQL 日志（明细查询）
         if (sqlLoggingInterceptor != null) {

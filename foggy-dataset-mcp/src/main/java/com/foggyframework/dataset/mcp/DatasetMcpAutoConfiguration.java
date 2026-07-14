@@ -1,10 +1,62 @@
 package com.foggyframework.dataset.mcp;
 
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
+import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.context.annotation.Import;
 
-@Configuration
-@ComponentScan("com.foggyframework.dataset.mcp")
+@AutoConfiguration(after = DbModelAutoConfiguration.class)
+@Import({
+        com.foggyframework.dataset.mcp.audit.ToolAuditAutoConfiguration.class,
+        com.foggyframework.dataset.mcp.auth.AuthInterceptor.class,
+        com.foggyframework.dataset.mcp.auth.AuthProperties.class,
+        com.foggyframework.dataset.mcp.auth.AuthWebMvcConfig.class,
+        com.foggyframework.dataset.mcp.config.DatasetAccessorConfig.class,
+        com.foggyframework.dataset.mcp.config.McpProperties.class,
+        com.foggyframework.dataset.mcp.config.MultiPortConfig.class,
+        com.foggyframework.dataset.mcp.config.WebClientConfig.class,
+        com.foggyframework.dataset.mcp.controller.AdminMcpController.class,
+        com.foggyframework.dataset.mcp.controller.AnalystMcpController.class,
+        com.foggyframework.dataset.mcp.controller.BusinessMcpController.class,
+        com.foggyframework.dataset.mcp.controller.ChartImageController.class,
+        com.foggyframework.dataset.mcp.controller.DevToolsController.class,
+        com.foggyframework.dataset.mcp.controller.HealthController.class,
+        com.foggyframework.dataset.mcp.controller.ListModelsCatalogController.class,
+        com.foggyframework.dataset.mcp.controller.SemanticLayerValidationController.class,
+        com.foggyframework.dataset.mcp.datasource.DataSourceConfigPersistence.class,
+        com.foggyframework.dataset.mcp.datasource.DataSourceController.class,
+        com.foggyframework.dataset.mcp.datasource.DataSourceManager.class,
+        com.foggyframework.dataset.mcp.datasource.NamedDataSourceResolverImpl.class,
+        com.foggyframework.dataset.mcp.experience.ExperienceRecipeArtifactSignatureConfiguration.class,
+        com.foggyframework.dataset.mcp.experience.ExperienceRecipeRegistryManageTool.class,
+        com.foggyframework.dataset.mcp.experience.ExperienceRecipeRegistryProperties.class,
+        com.foggyframework.dataset.mcp.experience.ExperienceRecipeRegistryService.class,
+        com.foggyframework.dataset.mcp.experience.ExperienceRecipeSearchTool.class,
+        com.foggyframework.dataset.mcp.experience.FileSystemExperienceRecipeArtifactResolver.class,
+        com.foggyframework.dataset.mcp.experience.InMemoryExperienceRecipeRegistryStore.class,
+        com.foggyframework.dataset.mcp.experience.JdbcExperienceRecipeRegistryStore.class,
+        com.foggyframework.dataset.mcp.experience.RemoteHttpExperienceRecipeArtifactResolver.class,
+        com.foggyframework.dataset.mcp.service.McpService.class,
+        com.foggyframework.dataset.mcp.service.McpToolCallbackFactory.class,
+        com.foggyframework.dataset.mcp.service.McpToolDispatcher.class,
+        com.foggyframework.dataset.mcp.service.ModelCatalogService.class,
+        com.foggyframework.dataset.mcp.service.QueryExpertService.class,
+        com.foggyframework.dataset.mcp.service.ToolConfigLoader.class,
+        com.foggyframework.dataset.mcp.service.ToolFilterService.class,
+        com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationActionResolver.class,
+        com.foggyframework.dataset.mcp.spi.impl.SemanticServiceResolverImpl.class,
+        com.foggyframework.dataset.mcp.storage.ChartStorageAutoConfiguration.class,
+        com.foggyframework.dataset.mcp.storage.LocalChartStorageAdapter.class,
+        com.foggyframework.dataset.mcp.tools.ChartTool.class,
+        com.foggyframework.dataset.mcp.tools.ComposeScriptTool.class,
+        com.foggyframework.dataset.mcp.tools.DescriptionModelTool.class,
+        com.foggyframework.dataset.mcp.tools.ExportWithChartTool.class,
+        com.foggyframework.dataset.mcp.tools.ListModelsTool.class,
+        com.foggyframework.dataset.mcp.tools.MetadataTool.class,
+        com.foggyframework.dataset.mcp.tools.NaturalLanguageQueryTool.class,
+        com.foggyframework.dataset.mcp.tools.QueryModelTool.class,
+        com.foggyframework.dataset.mcp.tools.SemanticLayerValidationTool.class,
+        com.foggyframework.dataset.mcp.tools.TableInspectionTool.class,
+        com.foggyframework.dataset.mcp.validation.SemanticLayerValidationService.class
+})
 public class DatasetMcpAutoConfiguration {
-
 }

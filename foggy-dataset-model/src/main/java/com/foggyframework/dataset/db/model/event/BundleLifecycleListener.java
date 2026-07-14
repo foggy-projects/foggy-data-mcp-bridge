@@ -1,9 +1,12 @@
 package com.foggyframework.dataset.db.model.event;
 
+import com.foggyframework.bundle.event.BundleAddedEvent;
 import com.foggyframework.bundle.event.BundleRemovedEvent;
 import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheInvalidationBroadcaster;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshRequest;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshTrigger;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -13,7 +16,7 @@ import org.springframework.stereotype.Component;
 /**
  * Bundle生命周期事件监听器
  *
- * <p>监听Bundle的添加和移除事件，自动清理相关的模型缓存。
+ * <p>监听 Bundle 的添加和移除事件，通过不可见候选目录完成原子刷新。
  *
  * @author foggy-framework
  * @since 1.0.0
@@ -23,54 +26,72 @@ import org.springframework.stereotype.Component;
 public class BundleLifecycleListener {
 
     @Resource
-    private TableModelLoaderManager tableModelLoaderManager;
+    private CatalogRefreshCoordinator catalogRefreshCoordinator;
 
     @Resource
-    private QueryModelLoader queryModelLoader;
+    private CatalogSnapshotStore catalogSnapshotStore;
 
     @Resource
     private PivotOuterCacheInvalidationBroadcaster pivotOuterCacheInvalidationBroadcaster;
 
-    /**
-     * 监听Bundle移除事件
-     *
-     * <p>当Bundle被移除时，自动清除该Bundle所属命名空间的所有模型缓存。
-     *
-     * @param event Bundle移除事件
-     */
+    @EventListener
+    @Order(100)
+    public void onBundleAdded(BundleAddedEvent event) {
+        refresh(event.getBundleName(), event.getNamespace(),
+                event.isScopeKnown(), CatalogRefreshTrigger.BUNDLE);
+    }
+
     @EventListener
     @Order(100)
     public void onBundleRemoved(BundleRemovedEvent event) {
-        String bundleName = event.getBundleName();
-        String namespace = event.getNamespace();
+        refresh(event.getBundleName(), event.getNamespace(),
+                event.isScopeKnown(), CatalogRefreshTrigger.BUNDLE);
+    }
+
+    private void refresh(
+            String bundleName,
+            String namespace,
+            boolean scopeKnown,
+            CatalogRefreshTrigger trigger
+    ) {
         String displayNamespace = namespace == null || namespace.isEmpty() ? "默认" : namespace;
 
-        log.info("监听到Bundle移除事件: bundleName={}, namespace={}",
-                bundleName, displayNamespace);
+        if (!scopeKnown) {
+            int blocked = catalogSnapshotStore
+                    .markKnownNamespacesStaleAdmissionBlocked(
+                            "REFRESH_SCOPE_UNKNOWN: committed bundle mutation scope is not provable")
+                    .size();
+            log.warn("Committed bundle mutation has unknown scope: "
+                            + "bundleName={}, blockedNamespaces={}",
+                    bundleName, blocked);
+            return;
+        }
 
         try {
-            // 清除TM缓存（表模型）
-            log.debug("开始清除TableModel缓存: namespace={}", namespace);
-            tableModelLoaderManager.clearByNamespace(namespace);
-
-            // 清除QM缓存（查询模型）
-            log.debug("开始清除QueryModel缓存: namespace={}", namespace);
-            queryModelLoader.clearByNamespace(namespace);
+            var result = catalogRefreshCoordinator.refresh(
+                    CatalogRefreshRequest.namespace(namespace, trigger));
 
             int outerCacheRemoved = 0;
             try {
                 outerCacheRemoved = pivotOuterCacheInvalidationBroadcaster.evict(namespace, null);
             } catch (Exception e) {
-                log.warn("namespace=[{}] 的TM/QM缓存已清理，但Pivot outer-cache失效广播失败: {}",
-                        displayNamespace, e.getMessage(), e);
+                log.warn("namespace=[{}] catalog 已切换，但 Pivot outer-cache "
+                                + "失效广播失败: {}",
+                        displayNamespace, e.getClass().getSimpleName());
             }
 
-            log.info("已清除namespace=[{}] 的所有模型缓存，Pivot outer-cache removed={}",
-                    displayNamespace, outerCacheRemoved);
-
-        } catch (Exception e) {
-            log.error("清除namespace=[{}] 的缓存时发生异常: {}",
-                    displayNamespace, e.getMessage(), e);
+            log.info("Bundle catalog refresh published: bundleName={}, namespace={}, "
+                            + "generation={}, pivotOuterCacheRemoved={}",
+                    bundleName, displayNamespace,
+                    result.afterIdentity().generation().value(),
+                    outerCacheRemoved);
+        } catch (RuntimeException failure) {
+            // Source mutation is already committed. Coordinator failure policy
+            // preserves an admissible old catalog or keeps admission blocked.
+            log.error("Bundle catalog refresh failed after source commit: "
+                            + "bundleName={}, namespace={}, reason={}",
+                    bundleName, displayNamespace,
+                    failure.getClass().getSimpleName());
         }
     }
 }

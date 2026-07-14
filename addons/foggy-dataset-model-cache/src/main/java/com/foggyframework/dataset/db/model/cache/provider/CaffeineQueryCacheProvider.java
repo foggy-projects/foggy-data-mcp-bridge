@@ -1,7 +1,6 @@
 package com.foggyframework.dataset.db.model.cache.provider;
 
 import com.foggyframework.dataset.db.model.cache.config.QueryCacheProperties;
-import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprint;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
@@ -10,7 +9,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.digest.DigestUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,14 +40,14 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
 
     private final Cache<String, PagingResultImpl> l1Cache;
     private final Cache<String, PagingResultImpl> l2Cache;
-    private final QueryFingerprintBuilder fingerprintBuilder;
+    private final QueryCacheKeyBuilder cacheKeyBuilder;
     private final QueryCacheProperties properties;
 
     public CaffeineQueryCacheProvider(
             QueryFingerprintBuilder fingerprintBuilder,
             QueryCacheProperties properties) {
-        this.fingerprintBuilder = fingerprintBuilder;
         this.properties = properties;
+        this.cacheKeyBuilder = new QueryCacheKeyBuilder(fingerprintBuilder, properties);
 
         // 构建 L1 Caffeine 缓存
         Caffeine<Object, Object> l1Builder = Caffeine.newBuilder()
@@ -84,7 +82,10 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
             return null;
         }
 
-        String modelName = context.getRequest().getParam().getQueryModel();
+        String modelName = cacheKeyBuilder.contextModelName(context);
+        if (modelName == null) {
+            return null;
+        }
 
         // 检查是否排除
         if (properties.isExcluded(modelName)) {
@@ -92,7 +93,7 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 构建 L1 缓存键
-        String l1Key = buildL1CacheKey(context, authorization);
+        String l1Key = cacheKeyBuilder.buildL1CacheKey(context, authorization);
         if (l1Key == null) {
             return null;
         }
@@ -118,7 +119,10 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
             return;
         }
 
-        String modelName = context.getRequest().getParam().getQueryModel();
+        String modelName = cacheKeyBuilder.contextModelName(context);
+        if (modelName == null) {
+            return;
+        }
 
         // 检查是否排除
         if (properties.isExcluded(modelName)) {
@@ -139,7 +143,7 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 构建 L1 缓存键
-        String l1Key = buildL1CacheKey(context, authorization);
+        String l1Key = cacheKeyBuilder.buildL1CacheKey(context, authorization);
         if (l1Key == null) {
             return;
         }
@@ -165,7 +169,10 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 构建 L2 缓存键
-        String l2Key = buildL2CacheKey(modelName, sql, params);
+        String l2Key = cacheKeyBuilder.buildL2CacheKey(modelName, sql, params, context);
+        if (l2Key == null) {
+            return null;
+        }
 
         // 查询缓存
         PagingResultImpl cached = l2Cache.getIfPresent(l2Key);
@@ -207,7 +214,10 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         }
 
         // 构建 L2 缓存键
-        String l2Key = buildL2CacheKey(modelName, sql, params);
+        String l2Key = cacheKeyBuilder.buildL2CacheKey(modelName, sql, params, context);
+        if (l2Key == null) {
+            return;
+        }
 
         l2Cache.put(l2Key, result);
 
@@ -284,59 +294,4 @@ public class CaffeineQueryCacheProvider implements QueryCacheProvider {
         return 100;
     }
 
-    // ==================== 私有方法 ====================
-
-    /**
-     * 构建 L1 缓存键（Token + 请求指纹）
-     */
-    private String buildL1CacheKey(ModelResultContext context, String authorization) {
-        if (authorization == null || authorization.isEmpty()) {
-            return null;
-        }
-
-        try {
-            // 构建指纹
-            QueryFingerprint fingerprint = fingerprintBuilder.build(context);
-
-            // 检查是否可缓存
-            if (!fingerprint.isCacheable()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("L1 query not cacheable: {}", fingerprint.toDebugKey());
-                }
-                return null;
-            }
-
-            // L1 key = prefix + l1: + modelName + : + hash(authorization + fingerprint)
-            String modelName = context.getRequest().getParam().getQueryModel();
-            String fingerprintKey = fingerprint.toCacheKey();
-            if (fingerprintKey == null) {
-                return null;
-            }
-
-            String combined = authorization + "|" + fingerprintKey;
-            String hash = DigestUtils.md5Hex(combined);
-            return properties.getKeyPrefix() + L1_PREFIX + modelName + ":" + hash;
-        } catch (Exception e) {
-            log.warn("Failed to build L1 cache key: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 构建 L2 缓存键（SQL + params）
-     */
-    private String buildL2CacheKey(String modelName, String sql, List<?> params) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(sql);
-
-        if (params != null && !params.isEmpty()) {
-            sb.append("|params:");
-            for (Object param : params) {
-                sb.append(param != null ? param.toString() : "null").append(",");
-            }
-        }
-
-        String hash = DigestUtils.md5Hex(sb.toString());
-        return properties.getKeyPrefix() + L2_PREFIX + modelName + ":" + hash;
-    }
 }

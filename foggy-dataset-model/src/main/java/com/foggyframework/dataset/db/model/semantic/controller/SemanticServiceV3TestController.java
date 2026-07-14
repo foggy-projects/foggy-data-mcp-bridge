@@ -11,6 +11,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import jakarta.annotation.Resource;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
@@ -28,6 +29,7 @@ import java.util.Collections;
 @Api(tags = "V3语义服务测试")
 @RestController
 @RequestMapping("/semantic/v3/test")
+@ConditionalOnProperty(prefix = "foggy.test", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class SemanticServiceV3TestController {
 
     @Resource

@@ -1,12 +1,24 @@
 package com.foggyframework.dataset.db.model.semantic.domain;
 
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * SemanticRequestContext 单元测试
@@ -186,5 +198,69 @@ class SemanticRequestContextTest {
         String str = ctx.toString();
         assertTrue(str.contains("fieldAccess="), "toString 应包含 fieldAccess 信息");
         assertTrue(str.contains("2 fields"), "toString 应包含字段数量");
+    }
+
+    @Test
+    @DisplayName("CatalogResolution 为类型化附加上下文并由 domain transport 派生保留")
+    void testCatalogResolutionPreservedByDomainTransportPlans() {
+        QueryModel model = mock(QueryModel.class);
+        when(model.getName()).thenReturn("SalesQM");
+        CatalogResolution<QueryModel> resolution = resolution(model, "catalog-a", "source-a");
+        SemanticRequestContext pinned = SemanticRequestContext.ofNamespace("tenant-a")
+                .withCatalogResolution(resolution);
+        DomainTransportPlan plan = DomainTransportPlan.builder()
+                .fields(List.of(new DomainTransportField("region")))
+                .tuples(List.of(new DomainTransportTuple(List.of("east"))))
+                .build();
+
+        SemanticRequestContext transported = pinned.withDomainTransportPlans(List.of(plan));
+
+        assertSame(resolution, pinned.getCatalogResolution());
+        assertSame(resolution, transported.getCatalogResolution());
+        assertEquals(List.of(plan), transported.getDomainTransportPlans());
+        assertSame(pinned, pinned.withCatalogResolution(new CatalogResolution<>(
+                resolution.canonicalName(),
+                resolution.model(),
+                resolution.catalogIdentity(),
+                resolution.dependencyBindings(),
+                resolution.bindingIdentityComplete())));
+        assertTrue(transported.toString().contains("catalogPinned=true"));
+    }
+
+    @Test
+    @DisplayName("CatalogResolution 禁止 namespace 不一致与生命周期切换")
+    void testCatalogResolutionRejectsNamespaceAndGenerationConflicts() {
+        QueryModel model = mock(QueryModel.class);
+        when(model.getName()).thenReturn("SalesQM");
+        CatalogResolution<QueryModel> first = resolution(model, "catalog-a", "source-a");
+        CatalogResolution<QueryModel> switched = resolution(model, "catalog-b", "source-b");
+        SemanticRequestContext pinned = SemanticRequestContext.ofNamespace("tenant-a")
+                .withCatalogResolution(first);
+
+        IllegalStateException switchedFailure = assertThrows(
+                IllegalStateException.class,
+                () -> pinned.withCatalogResolution(switched));
+        IllegalArgumentException namespaceFailure = assertThrows(
+                IllegalArgumentException.class,
+                () -> SemanticRequestContext.ofNamespace("tenant-b")
+                        .withCatalogResolution(first));
+
+        assertEquals("CONFLICTING_SEMANTIC_CATALOG_REPIN", switchedFailure.getMessage());
+        assertEquals("catalog resolution namespace mismatch", namespaceFailure.getMessage());
+        assertSame(first, pinned.getCatalogResolution());
+    }
+
+    private CatalogResolution<QueryModel> resolution(QueryModel model,
+                                                     String generation,
+                                                     String sourceRevision) {
+        return new CatalogResolution<>(
+                "SalesQM",
+                model,
+                new CatalogIdentity(
+                        "tenant-a",
+                        new CatalogGeneration(generation),
+                        new SourceRevision(sourceRevision)),
+                Map.of(),
+                true);
     }
 }

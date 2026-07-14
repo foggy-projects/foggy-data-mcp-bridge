@@ -31,6 +31,12 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset</artifactId>
         </dependency>

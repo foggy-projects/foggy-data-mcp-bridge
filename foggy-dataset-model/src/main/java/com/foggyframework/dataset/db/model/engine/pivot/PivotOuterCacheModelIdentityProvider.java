@@ -3,11 +3,12 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 
 /**
- * Provides deployment/model identity for Pivot outer-cache keying.
+ * Provides supplementary deployment/model tokens for Pivot outer-cache keying.
  *
- * <p>Production deployments can replace this provider with one backed by a
- * signed model registry hash. The default implementation derives a stable
- * local fingerprint from runtime bundle resources when available.</p>
+ * <p>These tokens are additive key material only. They never replace the
+ * catalog and datasource lifecycle identity resolved atomically by the model
+ * loader. The default implementation derives a stable local fingerprint from
+ * runtime bundle resources when available.</p>
  */
 public interface PivotOuterCacheModelIdentityProvider {
 

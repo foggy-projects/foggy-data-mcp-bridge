@@ -442,6 +442,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             resultContext.setFieldAccess(context.getFieldAccess());
             resultContext.setDeniedColumns(context.getDeniedColumns());
             resultContext.setSystemSlice(context.getSystemSlice());
+            if (context.getCatalogResolution() != null) {
+                resultContext.pinCatalogResolution(
+                        context.getCatalogResolution(), context.getNamespace());
+            }
         }
 
         Map<String, Object> extData = buildSemanticExtData(request, context);

@@ -8,10 +8,20 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataReque
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticQueryPayloadMapper;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionBlockedException;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshRequest;
+import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshTrigger;
+import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
+import com.foggyframework.dataset.db.model.spi.NamespaceContext;
+import com.foggyframework.dataset.db.model.spi.NamespaceScope;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -21,22 +31,114 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * MCP-free model catalog builder for native dataset REST APIs.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SemanticModelCatalogService {
+
+    private static final int MAX_CATALOG_BUILD_ATTEMPTS = 3;
 
     private final SemanticServiceV3 semanticServiceV3;
     private final QueryModelLoader queryModelLoader;
     private final SystemBundlesContext systemBundlesContext;
     private final ObjectMapper objectMapper;
     private final SemanticQueryPayloadMapper payloadMapper;
+    private final CatalogSnapshotStore catalogSnapshotStore;
+    private final CatalogRefreshCoordinator catalogRefreshCoordinator;
 
-    private volatile List<String> cachedModelNames;
+    /**
+     * Immutable namespace catalog projection. A non-null identity means every
+     * name, alias and model in the view was pinned from that exact snapshot.
+     */
+    public record NamespaceCatalogView(
+            CatalogIdentity identity,
+            List<String> modelNames,
+            Map<String, String> aliasesByModel,
+            Map<String, QueryModel> queryModels,
+            Map<String, CatalogResolution<QueryModel>> resolutionsByModel
+    ) {
+        public NamespaceCatalogView {
+            modelNames = modelNames == null ? List.of() : List.copyOf(modelNames);
+            aliasesByModel = immutableLinkedMap(aliasesByModel);
+            queryModels = immutableLinkedMap(queryModels);
+            resolutionsByModel = immutableLinkedMap(resolutionsByModel);
+            if (identity != null) {
+                LinkedHashSet<String> names = new LinkedHashSet<>(modelNames);
+                if (!aliasesByModel.keySet().equals(names)
+                        || !queryModels.keySet().equals(names)
+                        || !resolutionsByModel.keySet().equals(names)) {
+                    throw new IllegalArgumentException(
+                            "tracked namespace view maps must exactly match modelNames");
+                }
+                for (Map.Entry<String, CatalogResolution<QueryModel>> entry
+                        : resolutionsByModel.entrySet()) {
+                    String modelName = entry.getKey();
+                    CatalogResolution<QueryModel> resolution = entry.getValue();
+                    if (!identity.equals(resolution.catalogIdentity())
+                            || !modelName.equals(resolution.canonicalName())
+                            || resolution.model() != queryModels.get(modelName)) {
+                        throw new IllegalArgumentException(
+                                "tracked namespace resolution does not match view: "
+                                        + modelName);
+                    }
+                }
+            } else if (!resolutionsByModel.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "legacy namespace view must not expose tracked resolutions");
+            }
+        }
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SemanticModelCatalogService(
+            SemanticServiceV3 semanticServiceV3,
+            QueryModelLoader queryModelLoader,
+            SystemBundlesContext systemBundlesContext,
+            ObjectMapper objectMapper,
+            SemanticQueryPayloadMapper payloadMapper,
+            CatalogSnapshotStore catalogSnapshotStore,
+            CatalogRefreshCoordinator catalogRefreshCoordinator
+    ) {
+        this.semanticServiceV3 = semanticServiceV3;
+        this.queryModelLoader = queryModelLoader;
+        this.systemBundlesContext = systemBundlesContext;
+        this.objectMapper = objectMapper;
+        this.payloadMapper = payloadMapper;
+        this.catalogSnapshotStore = catalogSnapshotStore;
+        this.catalogRefreshCoordinator = catalogRefreshCoordinator;
+    }
+
+    /** Compatibility constructor for callers that do not own refresh wiring. */
+    public SemanticModelCatalogService(
+            SemanticServiceV3 semanticServiceV3,
+            QueryModelLoader queryModelLoader,
+            SystemBundlesContext systemBundlesContext,
+            ObjectMapper objectMapper,
+            SemanticQueryPayloadMapper payloadMapper,
+            CatalogSnapshotStore catalogSnapshotStore
+    ) {
+        this(semanticServiceV3, queryModelLoader, systemBundlesContext,
+                objectMapper, payloadMapper, catalogSnapshotStore, null);
+    }
+
+    /** Compatibility constructor for non-Spring callers. */
+    public SemanticModelCatalogService(
+            SemanticServiceV3 semanticServiceV3,
+            QueryModelLoader queryModelLoader,
+            SystemBundlesContext systemBundlesContext,
+            ObjectMapper objectMapper,
+            SemanticQueryPayloadMapper payloadMapper
+    ) {
+        this(semanticServiceV3, queryModelLoader, systemBundlesContext, objectMapper, payloadMapper,
+                queryModelLoader instanceof QueryModelLoaderImpl loader
+                        ? loader.getCatalogSnapshotStore()
+                        : null,
+                null);
+    }
 
     public Map<String, Object> buildCatalogResponse(Map<String, Object> options, String namespace,
                                                     String authorization) {
@@ -58,17 +160,41 @@ public class SemanticModelCatalogService {
         return dataMap;
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> buildCatalog(Map<String, Object> options, String namespace, String authorization) {
         Map<String, Object> safeOptions = options != null ? options : Collections.emptyMap();
-        List<String> modelNames = optionalStringList(safeOptions.get("modelNames"));
-        if (modelNames == null) {
-            modelNames = optionalStringList(safeOptions.get("models"));
+        String canonicalNamespace = CatalogIdentity.canonicalNamespace(namespace);
+        for (int attempt = 1; attempt <= MAX_CATALOG_BUILD_ATTEMPTS; attempt++) {
+            NamespaceCatalogView catalogView = namespaceCatalogView(canonicalNamespace);
+            if (catalogView.identity() != null
+                    && !isCurrentCatalogIdentity(
+                    canonicalNamespace, catalogView.identity())) {
+                continue;
+            }
+            Map<String, Object> catalog = buildCatalog(
+                    safeOptions, canonicalNamespace, authorization, catalogView);
+            if (catalogView.identity() == null
+                    || isCurrentCatalogIdentity(
+                    canonicalNamespace, catalogView.identity())) {
+                return catalog;
+            }
         }
-        if (modelNames == null) {
-            modelNames = getAllModelNames();
+        throw new IllegalStateException(
+                "CATALOG_BUILD_STALE_RETRY_EXHAUSTED: namespace='"
+                        + canonicalNamespace + "'");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildCatalog(
+            Map<String, Object> safeOptions,
+            String namespace,
+            String authorization,
+            NamespaceCatalogView catalogView
+    ) {
+        List<String> requestedModelNames = optionalStringList(safeOptions.get("modelNames"));
+        if (requestedModelNames == null) {
+            requestedModelNames = optionalStringList(safeOptions.get("models"));
         }
-        modelNames = dedupe(modelNames);
+        List<String> modelNames = selectModelNames(catalogView, requestedModelNames);
 
         int fieldLimit = Math.max(0, intOr(safeOptions.get("fieldLimit"), 10));
         Map<String, Object> metadata = fetchCatalogMetadata(modelNames, namespace, authorization, safeOptions);
@@ -83,7 +209,7 @@ public class SemanticModelCatalogService {
         List<Map<String, Object>> items = new ArrayList<>();
         for (String modelName : modelNames) {
             try {
-                QueryModel qm = queryModelLoader.getJdbcQueryModel(modelName, namespace);
+                QueryModel qm = catalogView.queryModels().get(modelName);
                 if (qm == null) {
                     continue;
                 }
@@ -95,8 +221,9 @@ public class SemanticModelCatalogService {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("model", modelName);
                 item.put("caption", stringOr(modelInfo.get("name"), caption.isEmpty() ? modelName : caption));
-                if (qm.getShortAlias() != null && !qm.getShortAlias().isBlank()) {
-                    item.put("shortAlias", qm.getShortAlias());
+                String shortAlias = catalogView.aliasesByModel().get(modelName);
+                if (shortAlias != null && !shortAlias.isBlank()) {
+                    item.put("shortAlias", shortAlias);
                 }
                 item.put("description", stringOr(modelDescription(qm), stringOr(modelInfo.get("purpose"), "")));
                 String itemNamespace = inferNamespace(modelName);
@@ -130,22 +257,43 @@ public class SemanticModelCatalogService {
         return catalog;
     }
 
+    private boolean isCurrentCatalogIdentity(
+            String namespace,
+            CatalogIdentity expected
+    ) {
+        return catalogSnapshotStore.readCurrent(namespace)
+                .map(CatalogSnapshot::identity)
+                .filter(expected::equals)
+                .isPresent();
+    }
+
     public List<String> getAllModelNames() {
-        List<String> cached = cachedModelNames;
-        if (cached != null) {
-            return cached;
+        return namespaceCatalogView(NamespaceContext.getNamespace()).modelNames();
+    }
+
+    public List<String> getAllModelNames(String namespace) {
+        return namespaceCatalogView(namespace).modelNames();
+    }
+
+    /**
+     * Returns one immutable namespace catalog view. Lifecycle-aware production
+     * loaders materialize every discovered model, then pin names, aliases and
+     * model objects from one final snapshot. Legacy/custom loaders remain
+     * uncached and expose a null identity.
+     */
+    public NamespaceCatalogView namespaceCatalogView(String namespace) {
+        String canonicalNamespace = CatalogIdentity.canonicalNamespace(namespace);
+        if (catalogSnapshotStore != null
+                && catalogRefreshCoordinator != null
+                && queryModelLoader instanceof QueryModelLoaderImpl) {
+            return lifecycleNamespaceCatalogView(canonicalNamespace);
         }
-        synchronized (this) {
-            if (cachedModelNames == null) {
-                cachedModelNames = scanAllModelNames();
-                log.info("Native dataset catalog scanned {} models: {}", cachedModelNames.size(), cachedModelNames);
-            }
-            return cachedModelNames;
-        }
+        return scanNamespaceCatalogView(canonicalNamespace);
     }
 
     public void clearCachedModelNames() {
-        cachedModelNames = null;
+        // Compatibility no-op. Discovery is part of the immutable catalog and
+        // production invalidation must go through the scoped lifecycle authority.
     }
 
     private Map<String, Object> fetchCatalogMetadata(List<String> modelNames, String namespace,
@@ -165,39 +313,109 @@ public class SemanticModelCatalogService {
             SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json", context);
             return response != null ? response.getData() : null;
         } catch (Exception e) {
+            if (e instanceof CatalogAdmissionBlockedException blocked) {
+                throw blocked;
+            }
             log.warn("Failed to build metadata-backed native list_models catalog: {}", e.getMessage());
             return null;
         }
     }
 
-    private List<String> scanAllModelNames() {
-        LinkedHashSet<String> modelNames = new LinkedHashSet<>();
-        try {
-            systemBundlesContext.getBundleList().forEach(bundle -> {
-                try {
-                    BundleResource[] resources = bundle.findBundleResources("**/*.qm");
-                    if (resources == null) {
-                        return;
-                    }
-                    for (BundleResource resource : resources) {
-                        try {
-                            QueryModel qm = queryModelLoader.loadJdbcQueryModel(resource);
-                            if (qm != null && qm.getName() != null && !qm.getName().isBlank()) {
-                                modelNames.add(qm.getName());
-                            }
-                        } catch (Exception e) {
-                            log.debug("Failed to load QM resource {}: {}",
-                                    resource.getResource().getDescription(), e.getMessage());
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to scan bundle {} for QM files: {}", bundle.getName(), e.getMessage());
-                }
-            });
-        } catch (Exception e) {
-            log.warn("Failed to scan native model catalog: {}", e.getMessage());
+    private NamespaceCatalogView lifecycleNamespaceCatalogView(String namespace) {
+        CatalogSnapshot active = catalogSnapshotStore.readCurrent(namespace)
+                .orElse(null);
+        if (active != null && isCompleteNamespaceSnapshot(active)) {
+            return namespaceView(active);
         }
-        return List.copyOf(modelNames);
+
+        catalogRefreshCoordinator.refresh(CatalogRefreshRequest.namespace(
+                namespace, CatalogRefreshTrigger.EXPLICIT_RECOVERY));
+        CatalogSnapshot recovered = catalogSnapshotStore.readCurrent(namespace)
+                .orElseThrow(() -> new IllegalStateException(
+                        "CATALOG_RECOVERY_PUBLISHED_SNAPSHOT_ABSENT: namespace='"
+                                + namespace + "'"));
+        if (!isCompleteNamespaceSnapshot(recovered)) {
+            throw new IllegalStateException(
+                    "CATALOG_RECOVERY_PUBLISHED_INCOMPLETE_SNAPSHOT: namespace='"
+                            + namespace + "'");
+        }
+        return namespaceView(recovered);
+    }
+
+    private NamespaceCatalogView namespaceView(CatalogSnapshot snapshot) {
+        List<String> snapshotNames = List.copyOf(snapshot.discoveredQueryModelNames());
+        LinkedHashMap<String, String> aliases = new LinkedHashMap<>();
+        LinkedHashMap<String, QueryModel> models = new LinkedHashMap<>();
+        LinkedHashMap<String, CatalogResolution<QueryModel>> resolutions =
+                new LinkedHashMap<>();
+        for (String modelName : snapshotNames) {
+            var provenance = snapshot.queryModelProvenance(modelName)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "CATALOG_QUERY_PROVENANCE_ABSENT: " + modelName));
+            QueryModel model = snapshot.resolveQueryModel(modelName)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "complete catalog snapshot lost query model " + modelName));
+            aliases.put(modelName, snapshot.canonicalToAlias().get(modelName));
+            models.put(modelName, model);
+            resolutions.put(modelName, new CatalogResolution<>(
+                    modelName,
+                    model,
+                    snapshot.identity(),
+                    provenance.datasourceBindings(),
+                    provenance.bindingIdentityComplete()));
+        }
+        return new NamespaceCatalogView(
+                snapshot.identity(), snapshotNames, aliases, models, resolutions);
+    }
+
+    private boolean isCompleteNamespaceSnapshot(CatalogSnapshot snapshot) {
+        LinkedHashSet<String> materialized = new LinkedHashSet<>(
+                snapshot.queryModels().keySet());
+        materialized.addAll(snapshot.syntheticQueryModels().keySet());
+        return snapshot.discoveredQueryModelNames().equals(materialized);
+    }
+
+    private NamespaceCatalogView scanNamespaceCatalogView(String namespace) {
+        LinkedHashMap<String, QueryModel> models = new LinkedHashMap<>();
+        try (NamespaceScope ignored = NamespaceContext.open(namespace)) {
+            try {
+                systemBundlesContext.getBundleList().forEach(bundle -> {
+                    try {
+                        BundleResource[] resources = bundle.findBundleResources("**/*.qm");
+                        if (resources == null) {
+                            return;
+                        }
+                        for (BundleResource resource : resources) {
+                            try {
+                                QueryModel qm = queryModelLoader.loadJdbcQueryModel(resource);
+                                if (qm != null && qm.getName() != null && !qm.getName().isBlank()) {
+                                    models.putIfAbsent(qm.getName(), qm);
+                                }
+                            } catch (Exception e) {
+                                log.debug("Failed to load QM resource {}: {}",
+                                        resource.getResource().getDescription(), e.getMessage());
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to scan bundle {} for QM files: {}", bundle.getName(), e.getMessage());
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("Failed to scan native model catalog: {}", e.getMessage());
+            }
+        }
+
+        LinkedHashMap<String, String> aliases = new LinkedHashMap<>();
+        models.forEach((modelName, model) -> {
+            String alias = model.getShortAlias();
+            if (alias != null && !alias.isBlank()) {
+                aliases.put(modelName, alias);
+            }
+        });
+        log.info("Native legacy catalog scanned {} models for namespace={}: {}",
+                models.size(), namespace, models.keySet());
+        return new NamespaceCatalogView(
+                null, List.copyOf(models.keySet()), aliases, models, Map.of());
     }
 
     private String toJson(Map<String, Object> catalog) {
@@ -342,17 +560,33 @@ public class SemanticModelCatalogService {
         return result.isEmpty() ? null : List.copyOf(result);
     }
 
-    private static List<String> dedupe(List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return List.of();
+    private static List<String> selectModelNames(
+            NamespaceCatalogView catalogView,
+            List<String> requestedNames
+    ) {
+        if (requestedNames == null) {
+            return catalogView.modelNames();
         }
-        LinkedHashSet<String> seen = new LinkedHashSet<>();
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                seen.add(value);
+        LinkedHashSet<String> selected = new LinkedHashSet<>();
+        for (String requested : requestedNames) {
+            if (catalogView.queryModels().containsKey(requested)) {
+                selected.add(requested);
+                continue;
             }
+            catalogView.aliasesByModel().entrySet().stream()
+                    .filter(entry -> entry.getValue().equals(requested))
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .ifPresent(selected::add);
         }
-        return List.copyOf(seen);
+        return List.copyOf(selected);
+    }
+
+    private static <K, V> Map<K, V> immutableLinkedMap(Map<K, V> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(source));
     }
 
     private static String stringOr(Object value, String fallback) {

@@ -7,8 +7,6 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResu
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.List;
@@ -41,9 +39,7 @@ import java.util.Map;
  * @since 1.0.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class LargeResultTruncationStep implements DataSetResultStep {
 
     private final QueryCacheService queryCacheService;

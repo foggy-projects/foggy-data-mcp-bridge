@@ -85,6 +85,9 @@ class DbModelAutoConfigurationTest {
         DatasetProperties props = applicationContext.getBean(DatasetProperties.class);
         assertNotNull(props, "DatasetProperties should be registered");
         assertNotNull(props.getRequest(), "DatasetProperties.request should be registered");
+        assertNotNull(props.getDatasource(), "DatasetProperties.datasource should be registered");
+        assertFalse(props.getDatasource().isAllowGlobalFallbackForNamespace(),
+                "namespace fallback must be fail-closed by default");
         assertEquals("", props.getRequest().getDefaultNamespace());
     }
 

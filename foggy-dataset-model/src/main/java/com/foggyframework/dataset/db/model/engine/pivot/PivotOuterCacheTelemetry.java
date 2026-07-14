@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -18,7 +19,6 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Staged outer Pivot cache eligibility and key telemetry for E1a/E1b.
@@ -32,6 +32,10 @@ final class PivotOuterCacheTelemetry {
     static final String CACHE_EXPIRED_REASON = "ttl_expired";
     static final String CACHE_PROVIDER_UNAVAILABLE_REASON = "provider_unavailable";
     static final String CACHE_STORE_SKIPPED_WARNING_REASON = "response_warning";
+    static final String SUPPLEMENTARY_IDENTITY_PROVIDER_FAILED_REASON =
+            "supplementary_identity_provider_failed";
+    static final String SUPPLEMENTARY_IDENTITY_PROVIDER_FAILED_STATUS =
+            "supplementary_provider_failed";
 
     private static final List<String> VOLATILE_EXPR_MARKERS = List.of(
             "now(",
@@ -75,12 +79,30 @@ final class PivotOuterCacheTelemetry {
                                boolean cascadeRequest,
                                String eligibilityStage,
                                ModelIdentity modelIdentity) {
+        ModelIdentity safeIdentity = ModelIdentity.normalize(modelIdentity);
         PivotRequest pivot = request != null ? request.getPivot() : null;
         String shapeClass = shapeClass(pivot, treeMode, cascadeRequest);
-        String reason = refusalReason(request, pivot, treeMode, cascadeRequest);
+        String requestRefusal = refusalReason(request, pivot, treeMode, cascadeRequest);
+        // Preserve the E1a request-shape diagnostic when the request is already
+        // ineligible. Lifecycle identity remains an independent fail-closed
+        // gate (and is reported by pivot.cache.identity), so an incomplete
+        // identity still prevents lookup/store without masking the earlier
+        // compatibility reason.
+        String reason = requestRefusal != null
+                ? requestRefusal
+                : safeIdentity.identityRefusalReason();
         String keyHash = keyHash(model, queryModel, request, context, shapeClass, eligibilityStage,
-                modelIdentity);
-        return new Evaluation(keyHash, shapeClass, reason);
+                safeIdentity);
+        return new Evaluation(
+                keyHash,
+                shapeClass,
+                reason,
+                safeIdentity.identityHash(),
+                safeIdentity.identityStatus(),
+                safeIdentity.bindingCount(),
+                safeIdentity.manualTokenPresent(),
+                safeIdentity.supplementaryProviderFailed(),
+                safeIdentity.supplementaryProviderFailureClass());
     }
 
     private static String refusalReason(SemanticQueryRequest request,
@@ -177,92 +199,134 @@ final class PivotOuterCacheTelemetry {
                                   String shapeClass,
                                   String eligibilityStage,
                                   ModelIdentity modelIdentity) {
-        ModelIdentity safeModelIdentity = ModelIdentity.normalize(modelIdentity);
-        List<String> parts = new ArrayList<>();
-        parts.add("stage=" + safe(eligibilityStage));
-        parts.add("model=" + safe(model));
-        parts.add("modelIdentity=" + safeModelIdentity.stableValue());
-        parts.add("queryModel=" + queryModelValue(queryModel));
-        parts.add("shape=" + safe(shapeClass));
-        parts.add("namespace=" + safe(context != null ? context.getNamespace() : null));
-        parts.add("pivot=" + stableValue(request != null ? request.getPivot() : null));
-        parts.add("slice=" + stableValue(request != null ? request.getSlice() : null));
-        parts.add("calculatedFields=" + stableValue(request != null ? request.getCalculatedFields() : null));
-        parts.add("extData=" + stableValue(request != null ? request.getExtData() : null));
-        parts.add("systemSlice=" + stableValue(context != null ? context.getSystemSlice() : null));
-        parts.add("security=" + securityValue(context != null ? context.getSecurityContext() : null));
-        parts.add("fieldAccess=" + stableValue(context != null ? context.getFieldAccess() : null));
-        parts.add("deniedColumns=" + stableValue(context != null ? context.getDeniedColumns() : null));
-        return sha256(String.join("|", parts)).substring(0, 16);
+        StringBuilder key = new StringBuilder("pivot-outer-cache-key-v2");
+        append(key, "stage", normalizeToken(eligibilityStage));
+        append(key, "model", normalizeToken(model));
+        append(key, "modelIdentity", modelIdentity.stableValue());
+        append(key, "queryModel", queryModelValue(queryModel));
+        append(key, "shape", normalizeToken(shapeClass));
+        append(key, "namespace", context != null ? normalizeToken(context.getNamespace()) : "");
+        append(key, "pivot", stableValue(request != null ? request.getPivot() : null));
+        append(key, "slice", stableValue(request != null ? request.getSlice() : null));
+        append(key, "calculatedFields", stableValue(request != null ? request.getCalculatedFields() : null));
+        append(key, "extData", stableValue(request != null ? request.getExtData() : null));
+        append(key, "systemSlice", stableValue(context != null ? context.getSystemSlice() : null));
+        append(key, "security", securityValue(context != null ? context.getSecurityContext() : null));
+        append(key, "fieldAccess", stableValue(context != null ? context.getFieldAccess() : null));
+        append(key, "deniedColumns", stableValue(context != null ? context.getDeniedColumns() : null));
+        return "v2:" + sha256(key.toString());
     }
 
     private static String queryModelValue(QueryModel queryModel) {
         if (queryModel == null) {
-            return "<none>";
+            return "N";
         }
-        List<String> parts = new ArrayList<>();
-        parts.add("class=" + queryModel.getClass().getName());
-        parts.add("name=" + safe(queryModel.getName()));
-        parts.add("shortAlias=" + safe(queryModel.getShortAlias()));
-        parts.add("jdbcModel=" + tableModelValue(queryModel.getJdbcModel()));
-        parts.add("jdbcModelList=" + stableValue(queryModel.getJdbcModelList() == null
+        StringBuilder value = new StringBuilder("query-model-v2");
+        append(value, "class", queryModel.getClass().getName());
+        append(value, "name", normalizeToken(queryModel.getName()));
+        append(value, "shortAlias", normalizeToken(queryModel.getShortAlias()));
+        append(value, "jdbcModel", tableModelValue(queryModel.getJdbcModel()));
+        append(value, "jdbcModelList", stableValue(queryModel.getJdbcModelList() == null
                 ? null
                 : queryModel.getJdbcModelList().stream()
                 .map(PivotOuterCacheTelemetry::tableModelValue)
                 .toList()));
-        parts.add("predefinedCalculatedFields=" + stableValue(queryModel.getPredefinedCalculatedFields()));
-        return String.join(",", parts);
+        append(value, "predefinedCalculatedFields",
+                stableValue(queryModel.getPredefinedCalculatedFields()));
+        return value.toString();
     }
 
     private static String tableModelValue(TableModel tableModel) {
         if (tableModel == null) {
-            return "<none>";
+            return "N";
         }
-        return tableModel.getClass().getName() + ":" + safe(tableModel.getName());
+        StringBuilder value = new StringBuilder("table-model-v2");
+        append(value, "class", tableModel.getClass().getName());
+        append(value, "name", normalizeToken(tableModel.getName()));
+        return value.toString();
     }
 
     private static String securityValue(ModelResultContext.SecurityContext securityContext) {
         if (securityContext == null) {
-            return "<none>";
+            return "N";
         }
-        List<String> parts = new ArrayList<>();
-        parts.add("authorization=" + safe(securityContext.getAuthorization()));
-        parts.add("userId=" + safe(securityContext.getUserId()));
-        parts.add("roles=" + stableValue(securityContext.getRoles()));
-        parts.add("tenantId=" + safe(securityContext.getTenantId()));
-        parts.add("deptId=" + safe(securityContext.getDeptId()));
-        parts.add("attributes=" + stableValue(securityContext.getAttributes()));
-        return String.join(",", parts);
+        StringBuilder value = new StringBuilder("security-v2");
+        append(value, "authorization", normalizeToken(securityContext.getAuthorization()));
+        append(value, "userId", normalizeToken(securityContext.getUserId()));
+        append(value, "roles", stableValue(securityContext.getRoles()));
+        append(value, "tenantId", normalizeToken(securityContext.getTenantId()));
+        append(value, "deptId", normalizeToken(securityContext.getDeptId()));
+        append(value, "attributes", stableValue(securityContext.getAttributes()));
+        return value.toString();
     }
 
     private static String stableValue(Object value) {
         if (value == null) {
-            return "<null>";
+            return "N";
         }
         if (value instanceof Map<?, ?> map) {
-            return map.entrySet().stream()
-                    .sorted(Comparator.comparing(entry -> String.valueOf(entry.getKey())))
-                    .map(entry -> safe(entry.getKey()) + "=" + stableValue(entry.getValue()))
-                    .collect(Collectors.joining(",", "{", "}"));
+            List<MapValue> values = new ArrayList<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                values.add(new MapValue(stableValue(entry.getKey()), stableValue(entry.getValue())));
+            }
+            values.sort(Comparator.comparing(MapValue::key).thenComparing(MapValue::value));
+            StringBuilder encoded = new StringBuilder("M");
+            append(encoded, "size", String.valueOf(values.size()));
+            for (MapValue entry : values) {
+                append(encoded, "key", entry.key());
+                append(encoded, "value", entry.value());
+            }
+            return encoded.toString();
         }
         if (value instanceof Set<?> set) {
-            return set.stream()
+            List<String> values = set.stream()
                     .map(PivotOuterCacheTelemetry::stableValue)
                     .sorted()
-                    .collect(Collectors.joining(",", "[", "]"));
+                    .toList();
+            return collectionValue("S", values);
         }
         if (value instanceof Iterable<?> iterable) {
-            List<String> items = new ArrayList<>();
+            List<String> values = new ArrayList<>();
             for (Object item : iterable) {
-                items.add(stableValue(item));
+                values.add(stableValue(item));
             }
-            return items.stream().collect(Collectors.joining(",", "[", "]"));
+            return collectionValue("L", values);
         }
-        return String.valueOf(value);
+        if (value.getClass().isArray()) {
+            List<String> values = new ArrayList<>();
+            for (int i = 0; i < Array.getLength(value); i++) {
+                values.add(stableValue(Array.get(value, i)));
+            }
+            return collectionValue("A", values);
+        }
+        StringBuilder encoded = new StringBuilder("V");
+        append(encoded, "type", value.getClass().getName());
+        append(encoded, "value", String.valueOf(value));
+        return encoded.toString();
     }
 
-    private static String safe(Object value) {
-        return value == null ? "<null>" : String.valueOf(value);
+    private static String collectionValue(String type, List<String> values) {
+        StringBuilder encoded = new StringBuilder(type);
+        append(encoded, "size", String.valueOf(values.size()));
+        for (String value : values) {
+            append(encoded, "item", value);
+        }
+        return encoded.toString();
+    }
+
+    private static void append(StringBuilder encoded, String label, String value) {
+        appendFramed(encoded, label);
+        appendFramed(encoded, value == null ? "" : value);
+    }
+
+    private static void appendFramed(StringBuilder encoded, String value) {
+        encoded.append(value.getBytes(StandardCharsets.UTF_8).length)
+                .append(':')
+                .append(value);
+    }
+
+    private static String normalizeToken(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private static String sha256(String raw) {
@@ -275,19 +339,108 @@ final class PivotOuterCacheTelemetry {
         }
     }
 
-    record Evaluation(String keyHash, String shapeClass, String refusalReason) {
+    record Evaluation(String keyHash,
+                      String shapeClass,
+                      String refusalReason,
+                      String identityHash,
+                      String identityStatus,
+                      int bindingCount,
+                      boolean manualTokenPresent,
+                      boolean supplementaryProviderFailed,
+                      String supplementaryProviderFailureClass) {
+
+        Evaluation(String keyHash,
+                   String shapeClass,
+                   String refusalReason,
+                   String identityHash,
+                   String identityStatus,
+                   int bindingCount,
+                   boolean manualTokenPresent) {
+            this(keyHash, shapeClass, refusalReason, identityHash, identityStatus,
+                    bindingCount, manualTokenPresent, false, null);
+        }
+
+        Evaluation(String keyHash, String shapeClass, String refusalReason) {
+            this(keyHash, shapeClass,
+                    refusalReason == null
+                            ? PivotOuterCacheStrongIdentity.REFUSAL_MISSING
+                            : refusalReason,
+                    null,
+                    PivotOuterCacheStrongIdentity.STATUS_MISSING,
+                    0,
+                    false,
+                    false,
+                    null);
+        }
+
         boolean refused() {
-            return refusalReason != null;
+            return supplementaryProviderFailed
+                    || refusalReason != null
+                    || !PivotOuterCacheStrongIdentity.STATUS_COMPLETE.equals(identityStatus)
+                    || identityHash == null
+                    || !identityHash.matches("[0-9a-f]{64}")
+                    || keyHash == null
+                    || !keyHash.matches("v2:[0-9a-f]{64}");
         }
     }
 
-    record ModelIdentity(String bundleFingerprint, String modelFreshnessToken) {
+    record ModelIdentity(PivotOuterCacheStrongIdentity strongIdentity,
+                         int observedBindingCount,
+                         String providerBundleFingerprint,
+                         String providerModelFreshnessToken,
+                         String manualBundleFingerprint,
+                         String manualModelFreshnessToken,
+                         String identityStatus,
+                         String identityRefusalReason,
+                         boolean supplementaryProviderFailed,
+                         String supplementaryProviderFailureClass) {
+
         static ModelIdentity empty() {
-            return new ModelIdentity("", "");
+            return from(PivotOuterCacheStrongIdentity.assess(null, null),
+                    PivotOuterCacheModelIdentity.empty(), "", "");
         }
 
+        /** Compatibility factory for direct telemetry callers; tokens never establish lifecycle identity. */
         static ModelIdentity of(String bundleFingerprint, String modelFreshnessToken) {
-            return new ModelIdentity(bundleFingerprint, modelFreshnessToken).normalized();
+            return from(PivotOuterCacheStrongIdentity.assess(null, null),
+                    new PivotOuterCacheModelIdentity(bundleFingerprint, modelFreshnessToken), "", "");
+        }
+
+        static ModelIdentity from(PivotOuterCacheStrongIdentity.Assessment assessment,
+                                  PivotOuterCacheModelIdentity providerIdentity,
+                                  String manualBundleFingerprint,
+                                  String manualModelFreshnessToken) {
+            return from(assessment, providerIdentity, manualBundleFingerprint,
+                    manualModelFreshnessToken, null);
+        }
+
+        static ModelIdentity from(PivotOuterCacheStrongIdentity.Assessment assessment,
+                                  PivotOuterCacheModelIdentity providerIdentity,
+                                  String manualBundleFingerprint,
+                                  String manualModelFreshnessToken,
+                                  Class<? extends Throwable> providerFailureType) {
+            PivotOuterCacheStrongIdentity.Assessment safeAssessment = assessment == null
+                    ? PivotOuterCacheStrongIdentity.assess(null, null)
+                    : assessment;
+            PivotOuterCacheModelIdentity safeProvider = providerIdentity == null
+                    ? PivotOuterCacheModelIdentity.empty()
+                    : providerIdentity.normalized();
+            boolean providerFailed = providerFailureType != null;
+            return new ModelIdentity(
+                    safeAssessment.identity(),
+                    safeAssessment.bindingCount(),
+                    safeProvider.bundleFingerprint(),
+                    safeProvider.modelFreshnessToken(),
+                    normalizeToken(manualBundleFingerprint),
+                    normalizeToken(manualModelFreshnessToken),
+                    providerFailed
+                            ? SUPPLEMENTARY_IDENTITY_PROVIDER_FAILED_STATUS
+                            : safeAssessment.status(),
+                    providerFailed
+                            ? SUPPLEMENTARY_IDENTITY_PROVIDER_FAILED_REASON
+                            : safeAssessment.refusalReason(),
+                    providerFailed,
+                    providerFailed ? providerFailureType.getName() : null).normalized();
         }
 
         static ModelIdentity normalize(ModelIdentity modelIdentity) {
@@ -295,16 +448,92 @@ final class PivotOuterCacheTelemetry {
         }
 
         ModelIdentity normalized() {
-            return new ModelIdentity(normalizeToken(bundleFingerprint), normalizeToken(modelFreshnessToken));
+            String status = identityStatus == null || identityStatus.isBlank()
+                    ? (strongIdentity == null
+                    ? PivotOuterCacheStrongIdentity.STATUS_MISSING
+                    : PivotOuterCacheStrongIdentity.STATUS_COMPLETE)
+                    : identityStatus.trim();
+            String refusal = normalizeNullable(identityRefusalReason);
+            if (strongIdentity == null && refusal == null) {
+                refusal = PivotOuterCacheStrongIdentity.REFUSAL_MISSING;
+            }
+            boolean providerFailed = supplementaryProviderFailed;
+            String providerFailureClass = providerFailed
+                    ? normalizeReasonClass(supplementaryProviderFailureClass)
+                    : null;
+            if (providerFailed) {
+                status = SUPPLEMENTARY_IDENTITY_PROVIDER_FAILED_STATUS;
+                refusal = SUPPLEMENTARY_IDENTITY_PROVIDER_FAILED_REASON;
+            }
+            return new ModelIdentity(
+                    strongIdentity,
+                    Math.max(0, observedBindingCount),
+                    normalizeToken(providerBundleFingerprint),
+                    normalizeToken(providerModelFreshnessToken),
+                    normalizeToken(manualBundleFingerprint),
+                    normalizeToken(manualModelFreshnessToken),
+                    status,
+                    refusal,
+                    providerFailed,
+                    providerFailureClass);
         }
 
         String stableValue() {
-            return "bundleFingerprint=" + safe(bundleFingerprint)
-                    + ",modelFreshnessToken=" + safe(modelFreshnessToken);
+            StringBuilder value = new StringBuilder("model-identity-v2");
+            append(value, "strongIdentity",
+                    strongIdentity == null ? "" : strongIdentity.canonicalValue());
+            append(value, "observedBindingCount", String.valueOf(observedBindingCount));
+            append(value, "providerBundleFingerprint", providerBundleFingerprint);
+            append(value, "providerModelFreshnessToken", providerModelFreshnessToken);
+            append(value, "manualBundleFingerprint", manualBundleFingerprint);
+            append(value, "manualModelFreshnessToken", manualModelFreshnessToken);
+            append(value, "identityStatus", identityStatus);
+            append(value, "supplementaryProviderFailed",
+                    String.valueOf(supplementaryProviderFailed));
+            append(value, "supplementaryProviderFailureClass",
+                    supplementaryProviderFailureClass == null ? "" : supplementaryProviderFailureClass);
+            return value.toString();
         }
 
-        private static String normalizeToken(String value) {
-            return value == null ? "" : value.trim();
+        String identityHash() {
+            return strongIdentity == null ? null : strongIdentity.identityHash();
         }
+
+        int bindingCount() {
+            return observedBindingCount;
+        }
+
+        boolean manualTokenPresent() {
+            return !manualBundleFingerprint.isBlank() || !manualModelFreshnessToken.isBlank();
+        }
+
+        @Override
+        public String toString() {
+            return "ModelIdentity[identityHash=" + identityHash()
+                    + ", identityStatus=" + identityStatus
+                    + ", bindingCount=" + bindingCount()
+                    + ", manualTokenPresent=" + manualTokenPresent()
+                    + ", supplementaryProviderFailed=" + supplementaryProviderFailed
+                    + ", supplementaryProviderFailureClass="
+                    + supplementaryProviderFailureClass + "]";
+        }
+
+        private static String normalizeNullable(String value) {
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            return value.trim();
+        }
+
+        private static String normalizeReasonClass(String value) {
+            String normalized = normalizeNullable(value);
+            if (normalized == null || !normalized.matches("[A-Za-z_$][A-Za-z0-9_.$]*")) {
+                return "unknown";
+            }
+            return normalized;
+        }
+    }
+
+    private record MapValue(String key, String value) {
     }
 }

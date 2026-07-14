@@ -4,19 +4,29 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.cache.config.QueryCacheProperties;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
+import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import javax.sql.DataSource;
 import java.time.Duration;
 import java.util.*;
 
@@ -232,6 +242,123 @@ class RedisQueryCacheProviderTest {
         verify(valueOperations).set(anyString(), eq(testResult), eq(Duration.ofHours(1)));
     }
 
+    @Test
+    @Order(10)
+    @DisplayName("L2 缓存 - namespace 不同生成不同 Redis key")
+    void testL2Cache_DifferentNamespace_UsesDifferentKeys() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext tenantA = createContext("TestModel", queryModel, "tenant-a");
+        ModelResultContext tenantB = createContext("TestModel", queryModel, "tenant-b");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), tenantA);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), tenantB);
+
+        ArgumentCaptor<String> keys = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations, times(2)).set(keys.capture(), any(), any(Duration.class));
+        assertNotEquals(keys.getAllValues().get(0), keys.getAllValues().get(1));
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("L2 缓存 - 安全策略和 catalog generation 变化生成不同 Redis key")
+    void testL2Cache_SecurityAndCatalogGeneration_AreIsolated() {
+        JdbcQueryModel firstModel = createResolvedModel("TestModel");
+        ModelResultContext base = createContext("TestModel", firstModel, "tenant-a");
+        ModelResultContext restricted = createContext("TestModel", firstModel, "tenant-a");
+        restricted.setFieldAccess(Collections.singleton("id"));
+        ModelResultContext refreshed = createContext(
+                "TestModel", createResolvedModel("TestModel"), "tenant-a",
+                "catalog:tenant-a:2", "binding:tenant-a:1", true);
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), base);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), restricted);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), refreshed);
+
+        ArgumentCaptor<String> keys = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations, times(3)).set(keys.capture(), any(), any(Duration.class));
+        assertEquals(3, new HashSet<>(keys.getAllValues()).size());
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("L2 缓存 - 参数类型和分隔符边界生成不同 Redis key")
+    void testL2Cache_ParametersUseTypedLengthDelimitedEncoding() {
+        ModelResultContext context = createContext("TestModel");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT ?, ?", Arrays.asList("a,b", "c"), createTestResult(), context);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT ?, ?", Arrays.asList("a", "b,c"), createTestResult(), context);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT ?", Collections.singletonList(1), createTestResult(), context);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT ?", Collections.singletonList("1"), createTestResult(), context);
+
+        ArgumentCaptor<String> keys = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations, times(4)).set(keys.capture(), any(), any(Duration.class));
+        assertEquals(4, new HashSet<>(keys.getAllValues()).size());
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("L2 缓存 - 缺少安全上下文或模型身份时不访问 Redis")
+    void testL2Cache_MissingIdentity_FailsClosed() {
+        ModelResultContext missingSecurity = createContext("TestModel");
+        missingSecurity.setSecurityContext(null);
+        ModelResultContext emptySecurity = createContext("TestModel");
+        emptySecurity.setSecurityContext(new ModelResultContext.SecurityContext());
+        ModelResultContext missingModel = createContext("TestModel");
+        missingModel.setQueryModel(null);
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), missingSecurity);
+        cacheProvider.checkL2Cache("TestModel", "SELECT 1", Collections.emptyList(), missingSecurity);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 3", Collections.emptyList(), createTestResult(), emptySecurity);
+        cacheProvider.checkL2Cache("TestModel", "SELECT 3", Collections.emptyList(), emptySecurity);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 2", Collections.emptyList(), createTestResult(), missingModel);
+        cacheProvider.checkL2Cache("TestModel", "SELECT 2", Collections.emptyList(), missingModel);
+
+        verify(valueOperations, never()).set(anyString(), any(), any(Duration.class));
+        verify(valueOperations, never()).get(anyString());
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("L2 缓存 - 请求 alias 与 resolved model 名称不同时仍使用完整身份")
+    void testL2Cache_ModelAlias_RemainsCacheable() {
+        JdbcQueryModel resolvedModel = createResolvedModel("ResolvedModel");
+        ModelResultContext context = createContext("ModelAlias", resolvedModel, "tenant-a");
+
+        cacheProvider.writeL2Cache(
+                "ResolvedModel", "SELECT 1", Collections.emptyList(), createTestResult(), context);
+
+        verify(valueOperations).set(startsWith("qc:l2:ResolvedModel:"), any(), any(Duration.class));
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("L2 缓存 - 调用方 modelName 不等于 canonical 时不访问 Redis")
+    void testL2Cache_ModelNameMismatch_FailsClosed() {
+        JdbcQueryModel resolvedModel = createResolvedModel("ResolvedModel");
+        ModelResultContext context = createContext("ModelAlias", resolvedModel, "tenant-a");
+
+        cacheProvider.writeL2Cache(
+                "ExpectedA", "SELECT 1", Collections.emptyList(), createTestResult(), context);
+        PagingResultImpl result = cacheProvider.checkL2Cache(
+                "ExpectedA", "SELECT 1", Collections.emptyList(), context);
+
+        assertNull(result);
+        verify(valueOperations, never()).set(anyString(), any(), any(Duration.class));
+        verify(valueOperations, never()).get(anyString());
+    }
+
     // ==================== 缓存管理测试 ====================
 
     @Test
@@ -352,16 +479,103 @@ class RedisQueryCacheProviderTest {
         verify(valueOperations, never()).get(anyString());
     }
 
+    @Test
+    @Order(33)
+    @DisplayName("L1 缓存 - 写入读取使用同一安全 key 且不泄漏 token")
+    void testL1Cache_WriteAndRead_UsesOpaqueKey() {
+        ModelResultContext context = createContext("TestModel");
+        String authorization = "Bearer top-secret-token";
+        PagingResultImpl expected = createTestResult();
+
+        cacheProvider.writeL1Cache(context, authorization, expected);
+
+        ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations).set(key.capture(), eq(expected), any(Duration.class));
+        assertTrue(key.getValue().startsWith("qc:l1:TestModel:"));
+        assertFalse(key.getValue().contains("top-secret-token"));
+        when(valueOperations.get(key.getValue())).thenReturn(expected);
+
+        PagingResultImpl cached = cacheProvider.checkL1Cache(context, authorization);
+
+        assertSame(expected, cached);
+        verify(valueOperations).get(key.getValue());
+    }
+
+    @Test
+    @Order(34)
+    @DisplayName("L1 缓存 - 缺少显式安全上下文时不访问 Redis")
+    void testL1Cache_MissingSecurityContext_FailsClosed() {
+        ModelResultContext context = createContext("TestModel");
+        context.setSecurityContext(null);
+
+        cacheProvider.writeL1Cache(context, "Bearer token", createTestResult());
+        PagingResultImpl cached = cacheProvider.checkL1Cache(context, "Bearer token");
+
+        assertNull(cached);
+        verify(valueOperations, never()).set(anyString(), any(), any(Duration.class));
+        verify(valueOperations, never()).get(anyString());
+    }
+
     // ==================== 辅助方法 ====================
 
     private ModelResultContext createContext(String modelName) {
+        return createContext(modelName, createResolvedModel(modelName), "default");
+    }
+
+    private ModelResultContext createContext(String modelName, QueryModel queryModel, String namespace) {
+        return createContext(
+                modelName,
+                queryModel,
+                namespace,
+                "catalog:" + CatalogIdentity.canonicalNamespace(namespace) + ":1",
+                "binding:" + CatalogIdentity.canonicalNamespace(namespace) + ":1",
+                true);
+    }
+
+    private ModelResultContext createContext(String modelName,
+                                             QueryModel queryModel,
+                                             String namespace,
+                                             String catalogGeneration,
+                                             String bindingGeneration,
+                                             boolean bindingIdentityComplete) {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(modelName);
 
         PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryRequest);
 
-        return new ModelResultContext(pagingRequest, null);
+        ModelResultContext context = new ModelResultContext(pagingRequest, null);
+        context.setNamespace(namespace);
+        context.setSecurityContext(ModelResultContext.SecurityContext.builder()
+                .authorization("Bearer redis-test-token")
+                .userId("test-user")
+                .tenantId("test-tenant")
+                .roles(Arrays.asList("reader", "analyst"))
+                .build());
+        CatalogIdentity identity = new CatalogIdentity(
+                namespace,
+                new CatalogGeneration(catalogGeneration),
+                new SourceRevision("source:boot:1"));
+        DatasourceBindingIdentity bindingIdentity = new DatasourceBindingIdentity(
+                "primary",
+                "runtime-registry",
+                new DatasourceBindingGeneration(bindingGeneration));
+        context.pinCatalogResolution(
+                new CatalogResolution<>(
+                        queryModel.getName(),
+                        queryModel,
+                        identity,
+                        Map.of(bindingIdentity.bindingKey(), bindingIdentity),
+                        bindingIdentityComplete),
+                namespace);
+        return context;
+    }
+
+    private JdbcQueryModel createResolvedModel(String modelName) {
+        JdbcQueryModel queryModel = mock(JdbcQueryModel.class);
+        when(queryModel.getName()).thenReturn(modelName);
+        when(queryModel.getDataSource()).thenReturn(mock(DataSource.class));
+        return queryModel;
     }
 
     private PagingResultImpl createTestResult() {

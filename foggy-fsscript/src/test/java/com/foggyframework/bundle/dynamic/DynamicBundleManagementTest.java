@@ -6,6 +6,7 @@ import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.bundle.external.ExternalFileBundle;
 import com.foggyframework.core.bundle.BundleDefinition;
+import com.foggyframework.fsscript.loadder.FsscriptFileChangeHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,7 +27,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 动态Bundle管理功能测试
@@ -41,10 +44,16 @@ public class DynamicBundleManagementTest {
 
     private SystemBundlesContextImpl context;
     private ApplicationContext mockAppCtx;
+    private FsscriptFileChangeHandler mockChangeHandler;
 
     @BeforeEach
     public void setup() {
         mockAppCtx = mock(ApplicationContext.class);
+        mockChangeHandler = mock(FsscriptFileChangeHandler.class);
+        when(mockAppCtx.getBean(FsscriptFileChangeHandler.class))
+                .thenReturn(mockChangeHandler);
+        when(mockChangeHandler.watchExternalBundle(anyString(), anyString()))
+                .thenReturn(true);
 
         context = new SystemBundlesContextImpl(new ArrayList<>());
         context.setAppCtx(mockAppCtx);
@@ -149,6 +158,26 @@ public class DynamicBundleManagementTest {
 
         assertFalse(success, "添加无效路径的bundle应该失败");
         assertFalse(context.containBundle("invalid-bundle"));
+    }
+
+    @Test
+    public void testWatchRegistrationFailureRollsBackBundleRegistry() throws IOException {
+        Path bundlePath = tempDir.resolve("watch-registration-failure");
+        Files.createDirectories(bundlePath);
+        when(mockChangeHandler.watchExternalBundle(anyString(), anyString()))
+                .thenReturn(false);
+
+        boolean success = context.addExternalBundle(
+                "watch-registration-failure",
+                "dev",
+                bundlePath.toString(),
+                true
+        );
+
+        assertFalse(success);
+        assertFalse(context.containBundle("watch-registration-failure"));
+        assertNull(context.getBundleDefinitionByName("watch-registration-failure"));
+        assertTrue(context.listExternalBundles().isEmpty());
     }
 
     @Test

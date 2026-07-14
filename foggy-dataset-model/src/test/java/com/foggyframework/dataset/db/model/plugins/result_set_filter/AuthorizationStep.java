@@ -142,8 +142,8 @@ public class AuthorizationStep implements DataSetResultStep {
 
     @Override
     public int order() {
-        // 权限过滤应该最先执行
-        return 1000;
+        // DataSetResultStep 使用小值优先，权限过滤应该最先执行
+        return -1000;
     }
 
     // Setter methods for configuration

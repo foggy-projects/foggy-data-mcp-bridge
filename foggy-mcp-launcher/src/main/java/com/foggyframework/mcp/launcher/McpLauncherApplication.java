@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
  *   <li>{@code foggy.demo.enabled=false} - 禁用演示数据模型</li>
  * </ul>
  */
-@SpringBootApplication(scanBasePackages = "com.foggyframework")
+@SpringBootApplication
 @EnableAsync
 public class McpLauncherApplication {
 

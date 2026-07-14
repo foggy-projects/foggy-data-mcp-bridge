@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.spi.NoOpQueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
+import com.foggyframework.dataset.db.model.plugins.cache.CacheResultSnapshot;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +16,8 @@ import org.springframework.stereotype.Component;
  * 在 process 阶段写入 L1 缓存（未命中时）。
  * </p>
  * <p>
- * 执行顺序：900（在 AuthorizationStep 之后，其他 Step 之前）
+ * 查询前 lookup 在所有请求改写和权限步骤之后执行；结果阶段 write 在所有后处理之前执行。
+ * 缓存边界使用结构快照，避免本地缓存持有同一可变结果引用而被后续处理污染。
  * </p>
  *
  * @author foggy-framework
@@ -43,9 +45,13 @@ public class L1CacheStep implements DataSetResultStep {
     }
 
     @Override
-    public int order() {
-        // 在 AuthorizationStep(1000) 之后，其他 Step 之前
-        return 900;
+    public int beforeQueryOrder() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public int processOrder() {
+        return Integer.MIN_VALUE;
     }
 
     @Override
@@ -71,7 +77,8 @@ public class L1CacheStep implements DataSetResultStep {
         }
 
         // 5. 检查 L1 缓存
-        PagingResultImpl cached = queryCacheProvider.checkL1Cache(ctx, authorization);
+        PagingResultImpl cached = safeSnapshot(
+                queryCacheProvider.checkL1Cache(ctx, authorization), "read");
         if (cached != null) {
             // 缓存命中
             if (log.isDebugEnabled()) {
@@ -125,7 +132,11 @@ public class L1CacheStep implements DataSetResultStep {
         // 写入 L1 缓存
         PagingResultImpl result = ctx.getPagingResult();
         if (result != null) {
-            queryCacheProvider.writeL1Cache(ctx, authorization, result);
+            PagingResultImpl snapshot = safeSnapshot(result, "write");
+            if (snapshot == null) {
+                return CONTINUE;
+            }
+            queryCacheProvider.writeL1Cache(ctx, authorization, snapshot);
 
             if (log.isDebugEnabled()) {
                 String modelName = ctx.getRequest() != null && ctx.getRequest().getParam() != null
@@ -136,5 +147,15 @@ public class L1CacheStep implements DataSetResultStep {
         }
 
         return CONTINUE;
+    }
+
+    private PagingResultImpl safeSnapshot(PagingResultImpl source, String operation) {
+        try {
+            return CacheResultSnapshot.copy(source);
+        } catch (CacheResultSnapshot.UnsafeCacheValueException e) {
+            log.warn("Skip L1 cache {} because the result cannot be isolated: {}",
+                    operation, e.getMessage());
+            return null;
+        }
     }
 }

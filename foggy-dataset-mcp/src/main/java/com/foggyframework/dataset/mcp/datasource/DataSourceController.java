@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.mcp.datasource;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.lifecycle.port.RevokeMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -50,7 +51,9 @@ public class DataSourceController {
     public RX<Void> configure(@RequestBody DataSourceConfigRequest request) {
         RX.hasText(request.getName(), "Data source name is required");
 
-        log.info("Configuring data source: {}", request.getName());
+        // Do not echo the raw request name before canonical validation: malformed input could
+        // otherwise smuggle a JDBC URL or credentials into application logs.
+        log.info("Configuring named data source");
 
         DataSourceManager.DataSourceConfig config = DataSourceManager.DataSourceConfig.builder()
                 .host(request.getHost())
@@ -61,7 +64,10 @@ public class DataSourceController {
                 .driver(request.getDriver())
                 .build();
 
-        dataSourceManager.configure(request.getName(), config);
+        dataSourceManager.configure(
+                request.getName(),
+                config,
+                request.getRevokeMode() == null ? RevokeMode.DRAIN : request.getRevokeMode());
 
         return RX.ok();
     }
@@ -74,8 +80,7 @@ public class DataSourceController {
      */
     @PostMapping("/test")
     public RX<DataSourceManager.ConnectionTestResult> testConnection(@RequestBody DataSourceConfigRequest request) {
-        log.info("Testing connection: host={}:{} database={}",
-                request.getHost(), request.getPort(), request.getDatabase());
+        log.info("Testing unpublished datasource configuration");
 
         DataSourceManager.DataSourceConfig config = DataSourceManager.DataSourceConfig.builder()
                 .host(request.getHost())
@@ -159,7 +164,7 @@ public class DataSourceController {
      */
     @GetMapping("/{name}/test")
     public RX<DataSourceManager.ConnectionTestResult> testDataSource(@PathVariable String name) {
-        log.info("Testing configured data source: {}", name);
+        log.info("Testing configured named data source");
 
         DataSourceManager.ConnectionTestResult result = dataSourceManager.testConnection(name);
 
@@ -173,17 +178,28 @@ public class DataSourceController {
      * @return Success response
      */
     @DeleteMapping("/{name}")
-    public RX<Void> remove(@PathVariable String name) {
-        log.info("Removing data source: {}", name);
+    public RX<Void> remove(
+            @PathVariable String name,
+            @RequestParam(required = false) RevokeMode revokeMode) {
+        log.info("Removing named data source");
 
-        boolean removed = dataSourceManager.remove(name);
+        boolean removed = dataSourceManager.remove(
+                name,
+                revokeMode == null ? RevokeMode.DRAIN : revokeMode);
 
         if (removed) {
-            log.info("Data source removed: {}", name);
+            log.info("Named data source removed");
             return RX.ok();
         } else {
             return RX.<Void>notFound().message("Data source not found: " + name).build();
         }
+    }
+
+    /**
+     * Compatibility overload for direct Java callers.
+     */
+    public RX<Void> remove(String name) {
+        return remove(name, RevokeMode.DRAIN);
     }
 
     /**
@@ -225,6 +241,16 @@ public class DataSourceController {
          * Driver type: postgresql, mysql, sqlserver (default: postgresql)
          */
         private String driver;
+
+        /**
+         * Retirement policy for the previous generation. Defaults to DRAIN.
+         */
+        private RevokeMode revokeMode;
+
+        @Override
+        public String toString() {
+            return "DataSourceConfigRequest{credentials=redacted}";
+        }
     }
 
     /**

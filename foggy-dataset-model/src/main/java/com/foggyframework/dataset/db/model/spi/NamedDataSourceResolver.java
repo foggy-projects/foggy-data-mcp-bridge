@@ -1,5 +1,8 @@
 package com.foggyframework.dataset.db.model.spi;
 
+import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
+import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
+
 import javax.sql.DataSource;
 
 /**
@@ -25,7 +28,7 @@ import javax.sql.DataSource;
  * @author foggy-framework
  * @since 8.2.0
  */
-public interface NamedDataSourceResolver {
+public interface NamedDataSourceResolver extends DatasourceBindingResolver {
 
     /**
      * Resolve a named data source
@@ -34,6 +37,12 @@ public interface NamedDataSourceResolver {
      * @return DataSource or null if not found
      */
     DataSource resolve(String name);
+
+    @Override
+    default ResolvedDatasourceBinding resolveBinding(String name) {
+        DataSource resolved = resolve(name);
+        return resolved == null ? null : ResolvedDatasourceBinding.untracked(resolved);
+    }
 
     /**
      * Resolve a default data source for a runtime namespace.
@@ -47,6 +56,12 @@ public interface NamedDataSourceResolver {
      */
     default DataSource resolveDefault(String namespace) {
         return null;
+    }
+
+    @Override
+    default ResolvedDatasourceBinding resolveDefaultBinding(String namespace) {
+        DataSource resolved = resolveDefault(namespace);
+        return resolved == null ? null : ResolvedDatasourceBinding.untracked(resolved);
     }
 
     /**

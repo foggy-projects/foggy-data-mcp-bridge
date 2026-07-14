@@ -1,2 +1,1 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.foggyframework.dataset.graphql.GraphqlAddonAutoConfiguration
+# Spring Boot 3 auto-configuration is registered through AutoConfiguration.imports.

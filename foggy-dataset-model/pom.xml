@@ -88,6 +88,55 @@
 
     <profiles>
         <!--
+            9.3.3 entry gate only. This is intentionally narrower than the
+            full 9.3.4 test/CI split and only owns lifecycle gate probes/ITs.
+        -->
+        <profile>
+            <id>model-lifecycle</id>
+            <properties>
+                <v933.reportsDirectory>${project.build.directory}/v933-entry-gate/default</v933.reportsDirectory>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/lifecycle/**/*Test.java</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/IT*.java</exclude>
+                                <exclude>**/*IT.java</exclude>
+                                <exclude>**/*ITCase.java</exclude>
+                                <exclude>**/*E2E.java</exclude>
+                            </excludes>
+                            <failIfNoTests>true</failIfNoTests>
+                            <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+                            <reportsDirectory>${v933.reportsDirectory}/surefire-reports</reportsDirectory>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/lifecycle/**/IT*.java</include>
+                                <include>**/lifecycle/**/*IT.java</include>
+                                <include>**/lifecycle/**/*ITCase.java</include>
+                                <include>**/lifecycle/**/*E2E.java</include>
+                            </includes>
+                            <skipITs>${skipITs}</skipITs>
+                            <failIfNoTests>true</failIfNoTests>
+                            <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+                            <reportsDirectory>${v933.reportsDirectory}/failsafe-reports</reportsDirectory>
+                            <summaryFile>${v933.reportsDirectory}/failsafe-reports/failsafe-summary.xml</summaryFile>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
             多数据库测试 profile（默认激活）
             默认 mvn test 会依次跑 SQLite + MySQL + PostgreSQL + SQL Server。
             前提: Docker 容器已启动 (docker-compose -f docker/docker-compose.test.yml up -d)

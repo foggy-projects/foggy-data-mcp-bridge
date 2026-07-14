@@ -6,6 +6,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -13,6 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * WatchServiceFileTracer 单元测试
@@ -210,6 +217,74 @@ class WatchServiceFileTracerTest {
     }
 
     @Test
+    @DisplayName("OVERFLOW 必须发出 authority-loss 并清理 watcher")
+    void overflowMustSignalAuthorityLossAndCleanWatchers() {
+        AtomicReference<WatchAuthorityLossReason> loss = new AtomicReference<>();
+        DirectoryChangeListener listener = authorityListener(loss);
+        WatchKey key = installFakeWatchKey(tempDir, listener);
+        WatchEvent<?> overflow = mock(WatchEvent.class);
+        when(overflow.kind()).thenReturn((WatchEvent.Kind) StandardWatchEventKinds.OVERFLOW);
+        when(key.pollEvents()).thenReturn((List) List.of(overflow));
+        when(key.reset()).thenReturn(true);
+
+        tracer.processWatchKey(key);
+
+        assertEquals(WatchAuthorityLossReason.EVENT_OVERFLOW, loss.get());
+        assertFalse(directoryListeners().containsKey(normalize(tempDir)));
+        assertFalse(watchedDirs().containsKey(normalize(tempDir)));
+    }
+
+    @Test
+    @DisplayName("无效 WatchKey 必须发出 authority-loss 并清理 watcher")
+    void invalidWatchKeyMustSignalAuthorityLossAndCleanWatchers() {
+        AtomicReference<WatchAuthorityLossReason> loss = new AtomicReference<>();
+        WatchKey key = installFakeWatchKey(tempDir, authorityListener(loss));
+        when(key.pollEvents()).thenReturn(List.of());
+        when(key.reset()).thenReturn(false);
+
+        tracer.processWatchKey(key);
+
+        assertEquals(WatchAuthorityLossReason.WATCH_KEY_INVALID, loss.get());
+        assertFalse(directoryListeners().containsKey(normalize(tempDir)));
+        assertFalse(watchedDirs().containsKey(normalize(tempDir)));
+    }
+
+    @Test
+    @DisplayName("已监听子目录删除必须发出 authority-loss 并只清理子树")
+    void watchedChildDeletionMustSignalAuthorityLossAndCleanOnlyChildTree()
+            throws IOException {
+        Path child = Files.createDirectory(tempDir.resolve("child"));
+        AtomicReference<WatchAuthorityLossReason> childLoss = new AtomicReference<>();
+        AtomicBoolean parentDeletedCallback = new AtomicBoolean();
+        DirectoryChangeListener parentListener = new DirectoryChangeListener() {
+            @Override
+            public void onFileCreated(File file) {
+            }
+
+            @Override
+            public void onFileDeleted(File file) {
+                parentDeletedCallback.set(true);
+            }
+        };
+        WatchKey parentKey = installFakeWatchKey(tempDir, parentListener);
+        installFakeWatchKey(child, authorityListener(childLoss));
+        WatchEvent<Path> deleted = mock(WatchEvent.class);
+        when(deleted.kind()).thenReturn(StandardWatchEventKinds.ENTRY_DELETE);
+        when(deleted.context()).thenReturn(child.getFileName());
+        when(parentKey.pollEvents()).thenReturn(List.of(deleted));
+        when(parentKey.reset()).thenReturn(true);
+
+        tracer.processWatchKey(parentKey);
+
+        assertTrue(parentDeletedCallback.get());
+        assertEquals(WatchAuthorityLossReason.WATCHED_DIRECTORY_DELETED, childLoss.get());
+        assertTrue(directoryListeners().containsKey(normalize(tempDir)),
+                "parent authority must remain registered");
+        assertFalse(directoryListeners().containsKey(normalize(child)));
+        assertFalse(watchedDirs().containsKey(normalize(child)));
+    }
+
+    @Test
     @DisplayName("移除文件监听")
     void testUnwatchFile() throws Exception {
         File testFile = tempDir.resolve("unwatch.txt").toFile();
@@ -239,5 +314,69 @@ class WatchServiceFileTracerTest {
         // 等待，确认不会触发
         Thread.sleep(2000);
         assertFalse(changed.get(), "移除监听后不应该收到事件");
+    }
+
+    private DirectoryChangeListener authorityListener(
+            AtomicReference<WatchAuthorityLossReason> observed
+    ) {
+        return new DirectoryChangeListener() {
+            @Override
+            public void onFileCreated(File file) {
+            }
+
+            @Override
+            public void onWatchAuthorityLost(
+                    File directory,
+                    WatchAuthorityLossReason reason
+            ) {
+                observed.compareAndSet(null, reason);
+            }
+        };
+    }
+
+    private WatchKey installFakeWatchKey(
+            Path directory,
+            DirectoryChangeListener listener
+    ) {
+        Path normalized = normalize(directory);
+        directoryListeners().put(normalized, listener);
+        WatchKey key = mock(WatchKey.class);
+        WatchKey replaced = watchedDirs().put(normalized, key);
+        if (replaced != null) {
+            replaced.cancel();
+            keyToDirMap().remove(replaced);
+        }
+        keyToDirMap().put(key, normalized);
+        return key;
+    }
+
+    private Path normalize(Path path) {
+        return path.toAbsolutePath().normalize();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Path, DirectoryChangeListener> directoryListeners() {
+        return (Map<Path, DirectoryChangeListener>) readField("directoryListeners");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Path, WatchKey> watchedDirs() {
+        return (Map<Path, WatchKey>) readField("watchedDirs");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<WatchKey, Path> keyToDirMap() {
+        return (Map<WatchKey, Path>) readField("keyToDirMap");
+    }
+
+    private Object readField(String name) {
+        try {
+            java.lang.reflect.Field field = WatchServiceFileTracer.class
+                    .getDeclaredField(name);
+            field.setAccessible(true);
+            return field.get(tracer);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("Unable to read tracer field " + name, e);
+        }
     }
 }

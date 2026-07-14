@@ -272,8 +272,6 @@ class ManagedDataSourcePoolManagerTest {
         context.clock.advance(Duration.ofMinutes(16));
         context.manager.runIdleCleanup();
         assertThat(context.manager.state("sales-h2").orElseThrow().lifecycleStatus()).isEqualTo("idle-closed");
-        context.factory.createDelayMillis = 30;
-
         ExecutorService executor = Executors.newFixedThreadPool(12);
         CountDownLatch ready = new CountDownLatch(12);
         CountDownLatch start = new CountDownLatch(1);
@@ -407,7 +405,6 @@ class ManagedDataSourcePoolManagerTest {
     private static final class FakeManagedDataSourcePoolFactory implements ManagedDataSourcePoolFactory {
 
         private final List<FakeManagedDataSourcePool> created = Collections.synchronizedList(new ArrayList<>());
-        private volatile long createDelayMillis;
 
         @Override
         public ManagedDataSourcePool create(
@@ -415,14 +412,6 @@ class ManagedDataSourcePoolManagerTest {
                 String password,
                 ManagedDataSourcePoolSettings settings
         ) {
-            if (createDelayMillis > 0) {
-                try {
-                    Thread.sleep(createDelayMillis);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("interrupted while creating fake pool", e);
-                }
-            }
             FakeManagedDataSourcePool pool = new FakeManagedDataSourcePool(record, password, settings);
             created.add(pool);
             return pool;

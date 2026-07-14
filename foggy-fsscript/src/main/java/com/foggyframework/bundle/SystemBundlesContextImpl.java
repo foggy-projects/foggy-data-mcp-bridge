@@ -12,6 +12,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.fsscript.loadder.FsscriptFileChangeHandler;
 import com.foggyframework.fsscript.loadder.RootFsscriptLoader;
+import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
@@ -35,6 +36,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
     Map<String, BundleDefinition> name2BundleDefinition;
 
     private final ReentrantReadWriteLock bundleLock = new ReentrantReadWriteLock();
+    private final CommittedSourceRevisionRegistry sourceRevisionRegistry;
 
     @Resource
     ApplicationContext appCtx;
@@ -42,7 +44,16 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
     boolean loadCompleted;
 
     public SystemBundlesContextImpl(List<BundleLoader<BundleDefinition>> loaders) {
+        this(loaders, new CommittedSourceRevisionRegistry());
+    }
+
+    public SystemBundlesContextImpl(
+            List<BundleLoader<BundleDefinition>> loaders,
+            CommittedSourceRevisionRegistry sourceRevisionRegistry
+    ) {
         this.loaders = loaders;
+        this.sourceRevisionRegistry = Objects.requireNonNull(
+                sourceRevisionRegistry, "sourceRevisionRegistry");
     }
 
 
@@ -451,39 +462,72 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
             return false;
         }
 
+        String canonicalNamespace = namespace == null ? "" : namespace.trim();
+        final ExternalFileBundle bundle;
+        final String committedRevision;
         try {
             // 创建ExternalBundleDefinition
             ExternalBundleDefinition definition = new ExternalBundleDefinition(
                     name,
-                    namespace != null ? namespace : "",
+                    canonicalNamespace,
                     path,
                     watch
             );
 
             // 创建ExternalFileBundle
-            ExternalFileBundle bundle = new ExternalFileBundle(this);
+            bundle = new ExternalFileBundle(this);
             bundle.setName(definition.getName());
             bundle.setBundleDefinition(definition);
             bundle.setBasePath(definition.getPath());
             bundle.setRootPath(definition.getPath());
 
-            // 注册Bundle
-            regBundle(bundle);
-            addBundleDefinition(definition);
+            CommittedSourceRevisionRegistry.MutationCommit<Boolean> commit =
+                    sourceRevisionRegistry.commitKnown(Set.of(canonicalNamespace), () -> {
+                        boolean watcherRegistered = false;
+                        try {
+                            regBundle(bundle);
+                            addBundleDefinition(definition);
+                            if (definition.isWatch()) {
+                                watcherRegistered = registerExternalBundleWatcher(definition);
+                                if (!watcherRegistered) {
+                                    throw new IllegalStateException(
+                                            "watch=true external bundle has no source directory authority");
+                                }
+                            }
+                            return true;
+                        } catch (RuntimeException registrationFailure) {
+                            if (watcherRegistered) {
+                                unregisterExternalBundleWatcher(definition);
+                            }
+                            bundleLock.writeLock().lock();
+                            try {
+                                bundleList.remove(bundle);
+                                removeBundleDefinition(name);
+                            } finally {
+                                bundleLock.writeLock().unlock();
+                            }
+                            throw registrationFailure;
+                        }
+                    });
+            committedRevision = commit.revisionFor(canonicalNamespace);
 
             log.info("动态添加外部Bundle成功: {} -> {} (namespace: {})", name, path, namespace);
-
-            // 发布Bundle添加事件
-            BundleAddedEvent event = new BundleAddedEvent(this, name, namespace, bundle);
-            appCtx.publishEvent(event);
-            log.debug("发布BundleAddedEvent: bundleName={}, namespace={}", name, namespace);
-
-            return true;
 
         } catch (Exception e) {
             log.error("动态添加外部Bundle失败: {}", name, e);
             return false;
         }
+
+        // The source registry/cache is committed before synchronous listeners run.
+        BundleAddedEvent event = new BundleAddedEvent(
+                this, name, canonicalNamespace, bundle, committedRevision, true);
+        try {
+            appCtx.publishEvent(event);
+        } catch (RuntimeException listenerFailure) {
+            log.error("Bundle [{}] 已提交，但BundleAddedEvent监听失败", name, listenerFailure);
+        }
+        log.debug("发布BundleAddedEvent: bundleName={}, namespace={}", name, namespace);
+        return true;
     }
 
     @Override
@@ -524,24 +568,40 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
             namespace = bundleDef.getNamespace();
         }
 
-        // 发布Bundle移除事件（在实际移除之前发布，以便监听器可以访问Bundle信息）
-        BundleRemovedEvent event = new BundleRemovedEvent(this, bundleName, namespace, targetBundle);
-        appCtx.publishEvent(event);
-        log.debug("发布BundleRemovedEvent: bundleName={}, namespace={}", bundleName, namespace);
+        String canonicalNamespace = namespace == null ? "" : namespace.trim();
+        Bundle committedTarget = targetBundle;
+        CommittedSourceRevisionRegistry.MutationCommit<Boolean> commit =
+                sourceRevisionRegistry.commitKnown(Set.of(canonicalNamespace), () -> {
+                    // Cache, reverse imports, watchers and registry are one committed
+                    // source mutation from the catalog publisher's point of view.
+                    committedTarget.clearCache();
+                    clearLoadedFsscripts(committedTarget);
+                    clearFileWatchers(committedTarget, canonicalNamespace);
+                    bundleLock.writeLock().lock();
+                    try {
+                        bundleList.remove(committedTarget);
+                        removeBundleDefinition(bundleName);
+                    } finally {
+                        bundleLock.writeLock().unlock();
+                    }
+                    return true;
+                });
 
-        // 清理Bundle内部资源索引和已加载FSScript，避免移除后仍可命中旧脚本。
-        targetBundle.clearCache();
-        clearLoadedFsscripts(targetBundle);
-        clearFileWatchers(targetBundle);
-
-        // 移除Bundle
-        bundleLock.writeLock().lock();
+        // Publish only after every source index/cache reflects the removal.
+        BundleRemovedEvent event = new BundleRemovedEvent(
+                this,
+                bundleName,
+                canonicalNamespace,
+                committedTarget,
+                commit.revisionFor(canonicalNamespace),
+                true);
         try {
-            bundleList.remove(targetBundle);
-            removeBundleDefinition(bundleName);
-        } finally {
-            bundleLock.writeLock().unlock();
+            appCtx.publishEvent(event);
+        } catch (RuntimeException listenerFailure) {
+            log.error("Bundle [{}] 已移除提交，但BundleRemovedEvent监听失败",
+                    bundleName, listenerFailure);
         }
+        log.debug("发布BundleRemovedEvent: bundleName={}, namespace={}", bundleName, namespace);
         log.info("移除外部Bundle成功: {}", bundleName);
         return true;
     }
@@ -591,7 +651,40 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         }
     }
 
-    private void clearFileWatchers(Bundle bundle) {
+    private boolean registerExternalBundleWatcher(ExternalBundleDefinition definition) {
+        if (definition == null || appCtx == null) {
+            return false;
+        }
+        try {
+            FsscriptFileChangeHandler changeHandler =
+                    appCtx.getBean(FsscriptFileChangeHandler.class);
+            return changeHandler != null && changeHandler.watchExternalBundle(
+                    definition.getPath(), definition.getNamespace());
+        } catch (NoSuchBeanDefinitionException e) {
+            log.error("watch=true external bundle缺少FsscriptFileChangeHandler: {}",
+                    definition.getName());
+            return false;
+        }
+    }
+
+    private void unregisterExternalBundleWatcher(ExternalBundleDefinition definition) {
+        if (definition == null || appCtx == null) {
+            return;
+        }
+        try {
+            FsscriptFileChangeHandler changeHandler =
+                    appCtx.getBean(FsscriptFileChangeHandler.class);
+            if (changeHandler != null) {
+                changeHandler.unwatchExternalBundle(
+                        definition.getPath(), definition.getNamespace());
+            }
+        } catch (NoSuchBeanDefinitionException e) {
+            log.debug("回滚external bundle时未找到FsscriptFileChangeHandler: {}",
+                    definition.getName());
+        }
+    }
+
+    private void clearFileWatchers(Bundle bundle, String namespace) {
         if (bundle == null || StringUtils.isEmpty(bundle.getRootPath()) || appCtx == null) {
             return;
         }
@@ -600,7 +693,14 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
             if (changeHandler == null) {
                 return;
             }
-            int removedCount = changeHandler.removeFilesUnderRoot(bundle.getRootPath());
+            int removedCount;
+            if (bundle.getDefinition() instanceof ExternalBundleDefinition definition
+                    && definition.isWatch()) {
+                removedCount = changeHandler.unwatchExternalBundle(
+                        bundle.getRootPath(), namespace);
+            } else {
+                removedCount = changeHandler.removeFilesUnderRoot(bundle.getRootPath());
+            }
             if (removedCount > 0) {
                 log.debug("清理Bundle[{}]下FSScript文件监听: {}", bundle.getName(), removedCount);
             }

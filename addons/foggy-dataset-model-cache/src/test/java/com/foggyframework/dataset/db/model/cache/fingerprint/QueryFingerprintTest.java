@@ -20,6 +20,7 @@ class QueryFingerprintTest {
     void testIsCacheable_Normal_ReturnsTrue() {
         QueryFingerprint fingerprint = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id", "name"))
                 .groupBy(Collections.emptyList())
                 .conditionSignatures(Arrays.asList("status:=:abc123"))
@@ -67,6 +68,7 @@ class QueryFingerprintTest {
     void testToCacheKey_Cacheable_ReturnsKey() {
         QueryFingerprint fingerprint = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id", "name"))
                 .groupBy(Collections.emptyList())
                 .conditionSignatures(Collections.emptyList())
@@ -104,6 +106,7 @@ class QueryFingerprintTest {
     void testToCacheKey_SameParams_SameKey() {
         QueryFingerprint fp1 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id", "name"))
                 .groupBy(Collections.emptyList())
                 .conditionSignatures(Arrays.asList("status:=:active"))
@@ -116,6 +119,7 @@ class QueryFingerprintTest {
 
         QueryFingerprint fp2 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id", "name"))
                 .groupBy(Collections.emptyList())
                 .conditionSignatures(Arrays.asList("status:=:active"))
@@ -135,6 +139,7 @@ class QueryFingerprintTest {
     void testToCacheKey_DifferentParams_DifferentKey() {
         QueryFingerprint fp1 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id", "name"))
                 .conditionSignatures(Arrays.asList("status:=:active"))
                 .pageNo(1)
@@ -145,6 +150,7 @@ class QueryFingerprintTest {
 
         QueryFingerprint fp2 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id", "name"))
                 .conditionSignatures(Arrays.asList("status:=:inactive"))  // 不同条件
                 .pageNo(1)
@@ -162,6 +168,7 @@ class QueryFingerprintTest {
     void testToCacheKey_DifferentPage_DifferentKey() {
         QueryFingerprint fp1 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id"))
                 .pageNo(1)
                 .pageSize(10)
@@ -171,6 +178,7 @@ class QueryFingerprintTest {
 
         QueryFingerprint fp2 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id"))
                 .pageNo(2)  // 不同页码
                 .pageSize(10)
@@ -187,6 +195,7 @@ class QueryFingerprintTest {
     void testToDebugKey_ReturnsReadableKey() {
         QueryFingerprint fingerprint = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("id", "name"))
                 .groupBy(Arrays.asList("category"))
                 .conditionSignatures(Arrays.asList("status:=:active"))
@@ -231,6 +240,7 @@ class QueryFingerprintTest {
         // 注意：columns 在构建时应该已排序
         QueryFingerprint fp1 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("a", "b", "c"))
                 .hasRawSql(false)
                 .hasNonDeterministic(false)
@@ -238,11 +248,24 @@ class QueryFingerprintTest {
 
         QueryFingerprint fp2 = QueryFingerprint.builder()
                 .modelName("TestModel")
+                .securityPolicyHash("test-policy")
                 .columns(Arrays.asList("a", "b", "c"))  // 相同列，相同顺序
                 .hasRawSql(false)
                 .hasNonDeterministic(false)
                 .build();
 
         assertEquals(fp1.toCacheKey(), fp2.toCacheKey());
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("isCacheable - 缺少安全策略身份时返回 false")
+    void testIsCacheable_MissingSecurityPolicy_ReturnsFalse() {
+        QueryFingerprint fingerprint = QueryFingerprint.builder()
+                .modelName("TestModel")
+                .build();
+
+        assertFalse(fingerprint.isCacheable());
+        assertNull(fingerprint.toCacheKey());
     }
 }

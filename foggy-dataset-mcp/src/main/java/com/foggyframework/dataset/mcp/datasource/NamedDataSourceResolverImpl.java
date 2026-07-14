@@ -1,11 +1,18 @@
 package com.foggyframework.dataset.mcp.datasource;
 
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
+import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
 import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
+import com.foggyframework.dataset.db.model.spi.ProcessLocalDefaultDataSourceResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
+import java.util.Collection;
+import java.util.function.Supplier;
 
 /**
  * Implementation of NamedDataSourceResolver using DataSourceManager.
@@ -27,21 +34,45 @@ import javax.sql.DataSource;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class NamedDataSourceResolverImpl implements NamedDataSourceResolver {
+public class NamedDataSourceResolverImpl implements NamedDataSourceResolver, DatasourceBindingResolver,
+        ProcessLocalDefaultDataSourceResolver {
 
     private final DataSourceManager dataSourceManager;
 
     @Override
     public DataSource resolve(String name) {
+        ResolvedDatasourceBinding binding = resolveBinding(name);
+        if (binding == null) {
+            log.debug("Named data source '{}' not found", name);
+            return null;
+        }
+        return binding.dataSource();
+    }
+
+    @Override
+    public ResolvedDatasourceBinding resolveBinding(String name) {
         if (name == null || name.isBlank()) {
             return null;
         }
+        return dataSourceManager.resolveBinding(name);
+    }
 
-        DataSource ds = dataSourceManager.getDataSource(name);
-        if (ds == null) {
-            log.debug("Named data source '{}' not found", name);
-        }
-        return ds;
+    @Override
+    public ResolvedDatasourceBinding resolveProcessLocalDefaultBinding() {
+        return dataSourceManager.resolveBinding("default");
+    }
+
+    @Override
+    public BindingCurrentness currentness(DatasourceBindingIdentity identity) {
+        return dataSourceManager.currentness(identity);
+    }
+
+    @Override
+    public <T> T publishIfCurrent(
+            Collection<DatasourceBindingIdentity> identities,
+            Supplier<T> publication
+    ) {
+        return dataSourceManager.publishIfCurrent(identities, publication);
     }
 
     @Override

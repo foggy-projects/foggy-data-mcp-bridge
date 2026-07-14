@@ -92,7 +92,8 @@ public abstract class AbstractFileFsscriptLoader extends FsscriptLoader {
         //开始加载
         //创建
         synchronized (KEY) {
-            ResourceFsscriptClosureDefinitionSpace space = new ResourceFsscriptClosureDefinitionSpace(fscriptResource);
+            ResourceFsscriptClosureDefinitionSpace space =
+                    new ResourceFsscriptClosureDefinitionSpace(fscriptResource, this);
             FsscriptClosureDefinition d = space.newFsscriptClosureDefinition();
             String str = FileUtils.toString(fscriptResource.getInputStream());
 

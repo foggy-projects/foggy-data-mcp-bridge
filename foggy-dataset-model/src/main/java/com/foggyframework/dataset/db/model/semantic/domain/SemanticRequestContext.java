@@ -4,9 +4,13 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -33,7 +37,8 @@ import java.util.Set;
  */
 public class SemanticRequestContext {
 
-    private static final SemanticRequestContext EMPTY = new SemanticRequestContext(null, null, null, null, null, null);
+    private static final SemanticRequestContext EMPTY =
+            new SemanticRequestContext(null, null, null, null, null, null, null);
 
     private final String namespace;
     private final ModelResultContext.SecurityContext securityContext;
@@ -41,17 +46,20 @@ public class SemanticRequestContext {
     private final List<DeniedPhysicalColumn> deniedColumns;
     private final List<SliceRequestDef> systemSlice;
     private final List<DomainTransportPlan> domainTransportPlans;
+    private final CatalogResolution<QueryModel> catalogResolution;
 
     private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext,
                                    Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
                                    List<SliceRequestDef> systemSlice,
-                                   List<DomainTransportPlan> domainTransportPlans) {
+                                   List<DomainTransportPlan> domainTransportPlans,
+                                   CatalogResolution<QueryModel> catalogResolution) {
         this.namespace = namespace;
         this.securityContext = securityContext;
         this.fieldAccess = fieldAccess != null ? Collections.unmodifiableSet(Set.copyOf(fieldAccess)) : null;
         this.deniedColumns = deniedColumns != null ? List.copyOf(deniedColumns) : null;
         this.systemSlice = systemSlice != null ? List.copyOf(systemSlice) : null;
         this.domainTransportPlans = domainTransportPlans != null ? List.copyOf(domainTransportPlans) : null;
+        this.catalogResolution = catalogResolution;
     }
 
     /** 空上下文 -- 无命名空间、无安全信息、无列权限限制 */
@@ -64,7 +72,7 @@ public class SemanticRequestContext {
         if (namespace == null) {
             return EMPTY;
         }
-        return new SemanticRequestContext(namespace, null, null, null, null, null);
+        return new SemanticRequestContext(namespace, null, null, null, null, null, null);
     }
 
     /** 从 authorization 字符串自动构建 SecurityContext */
@@ -73,12 +81,12 @@ public class SemanticRequestContext {
         if (authorization != null && !authorization.isEmpty()) {
             sc = ModelResultContext.SecurityContext.fromAuthorization(authorization);
         }
-        return new SemanticRequestContext(namespace, sc, null, null, null, null);
+        return new SemanticRequestContext(namespace, sc, null, null, null, null, null);
     }
 
     /** 显式传入 SecurityContext */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext) {
-        return new SemanticRequestContext(namespace, securityContext, null, null, null, null);
+        return new SemanticRequestContext(namespace, securityContext, null, null, null, null, null);
     }
 
     /**
@@ -91,7 +99,7 @@ public class SemanticRequestContext {
      */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, null, null, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, null, null, null, null);
     }
 
     /**
@@ -105,7 +113,7 @@ public class SemanticRequestContext {
     public static SemanticRequestContext ofDeniedColumns(String namespace,
                                                          ModelResultContext.SecurityContext securityContext,
                                                          List<DeniedPhysicalColumn> deniedColumns) {
-        return new SemanticRequestContext(namespace, securityContext, null, deniedColumns, null, null);
+        return new SemanticRequestContext(namespace, securityContext, null, deniedColumns, null, null, null);
     }
 
     /**
@@ -119,7 +127,7 @@ public class SemanticRequestContext {
      */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, null, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, null, null, null);
     }
 
     /**
@@ -135,7 +143,7 @@ public class SemanticRequestContext {
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
                                             List<SliceRequestDef> systemSlice) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, null, null);
     }
 
     public String getNamespace() {
@@ -187,6 +195,34 @@ public class SemanticRequestContext {
     }
 
     /**
+     * Exact immutable model/catalog projection selected at the outer semantic entry.
+     * Downstream execution contexts use this pin to reject a mid-request generation switch.
+     */
+    public CatalogResolution<QueryModel> getCatalogResolution() {
+        return catalogResolution;
+    }
+
+    /**
+     * Return a context carrying one lifecycle pin. Re-applying the exact same
+     * projection is idempotent; replacing it with another projection is rejected.
+     */
+    public SemanticRequestContext withCatalogResolution(CatalogResolution<QueryModel> resolution) {
+        Objects.requireNonNull(resolution, "catalog resolution");
+        String expectedNamespace = CatalogIdentity.canonicalNamespace(namespace);
+        if (!expectedNamespace.equals(resolution.catalogIdentity().namespace())) {
+            throw new IllegalArgumentException("catalog resolution namespace mismatch");
+        }
+        if (catalogResolution != null && !sameCatalogResolution(catalogResolution, resolution)) {
+            throw new IllegalStateException("CONFLICTING_SEMANTIC_CATALOG_REPIN");
+        }
+        if (catalogResolution != null) {
+            return this;
+        }
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
+                systemSlice, domainTransportPlans, resolution);
+    }
+
+    /**
      * 返回带有 Pivot 内部大域传输计划的新上下文，保留原有权限和 systemSlice。
      *
      * @param domainTransportPlans 大域传输计划；null 或空列表表示清空
@@ -197,7 +233,17 @@ public class SemanticRequestContext {
         List<DomainTransportPlan> plans = domainTransportPlans != null && !domainTransportPlans.isEmpty()
                 ? domainTransportPlans
                 : null;
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, plans);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns,
+                systemSlice, plans, catalogResolution);
+    }
+
+    private static boolean sameCatalogResolution(CatalogResolution<QueryModel> left,
+                                                 CatalogResolution<QueryModel> right) {
+        return left.model() == right.model()
+                && Objects.equals(left.canonicalName(), right.canonicalName())
+                && Objects.equals(left.catalogIdentity(), right.catalogIdentity())
+                && Objects.equals(left.dependencyBindings(), right.dependencyBindings())
+                && left.bindingIdentityComplete() == right.bindingIdentityComplete();
     }
 
     /** 便捷方法：委托给 securityContext.getAuthorization() */
@@ -210,6 +256,7 @@ public class SemanticRequestContext {
         return "SemanticRequestContext{namespace='" + namespace + "'" +
                 (fieldAccess != null ? ", fieldAccess=" + fieldAccess.size() + " fields" : "") +
                 (deniedColumns != null ? ", deniedColumns=" + deniedColumns.size() + " cols" : "") +
-                (domainTransportPlans != null ? ", domainTransportPlans=" + domainTransportPlans.size() : "") + "}";
+                (domainTransportPlans != null ? ", domainTransportPlans=" + domainTransportPlans.size() : "") +
+                (catalogResolution != null ? ", catalogPinned=true" : "") + "}";
     }
 }

@@ -366,7 +366,7 @@ class ListModelsToolTest {
 
             when(queryModelLoader.getJdbcQueryModel(eq("FactOrderQueryModel"), eq("salesdrop")))
                     .thenReturn(null);
-            when(semanticServiceResolver.getAllModelNames())
+            when(semanticServiceResolver.getAllModelNames("salesdrop"))
                     .thenReturn(List.of("SalesDropDailyQueryModel"));
             QueryModel salesDropQm = mockQueryModel("SDD", "销售下滑日表", "销售下滑分析", null, null);
             when(queryModelLoader.getJdbcQueryModel(eq("SalesDropDailyQueryModel"), eq("salesdrop")))
@@ -392,7 +392,7 @@ class ListModelsToolTest {
 
             assertEquals(List.of("SalesDropDailyQueryModel"), catalog.get("models"));
             assertEquals(1, catalog.get("count"));
-            verify(semanticServiceResolver).getAllModelNames();
+            verify(semanticServiceResolver).getAllModelNames("salesdrop");
         }
 
         @Test

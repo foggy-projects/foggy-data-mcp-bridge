@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.plugins.query_execution;
 
+import com.foggyframework.dataset.db.model.plugins.cache.CacheResultSnapshot;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.NoOpQueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
@@ -8,7 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * L2 缓存步骤
@@ -24,6 +27,9 @@ import java.util.List;
 @Component
 public class L2CacheStep implements QueryExecutionStep {
 
+    private static final String LOOKUP_PAGING_SQL = L2CacheStep.class.getName() + ".lookupPagingSql";
+    private static final String LOOKUP_PARAMS = L2CacheStep.class.getName() + ".lookupParams";
+
     private QueryCacheProvider queryCacheProvider = NoOpQueryCacheProvider.INSTANCE;
 
     @Autowired(required = false)
@@ -37,9 +43,8 @@ public class L2CacheStep implements QueryExecutionStep {
 
     @Override
     public int order() {
-        // L2 缓存检查在预聚合重写之后
-        // 这样缓存的是重写后的 SQL
-        return 900;
+        // Reserved terminal order: every SQL/parameter rewrite must complete before lookup.
+        return Integer.MIN_VALUE;
     }
 
     @Override
@@ -65,11 +70,14 @@ public class L2CacheStep implements QueryExecutionStep {
         }
 
         String modelName = ctx.getModelName();
-        String pagingSql = ctx.getPagingSql();
+        String pagingSql = ctx.refreshPagingSql();
         List<?> params = ctx.getParams();
+        ctx.setExtData(LOOKUP_PAGING_SQL, pagingSql);
+        ctx.setExtData(LOOKUP_PARAMS, params == null ? null : new ArrayList<>(params));
 
         // 检查 L2 缓存
-        PagingResultImpl cached = cacheProvider.checkL2Cache(modelName, pagingSql, params, modelCtx);
+        PagingResultImpl cached = safeSnapshot(
+                cacheProvider.checkL2Cache(modelName, pagingSql, params, modelCtx), "read");
         if (cached != null) {
             if (log.isDebugEnabled()) {
                 log.debug("L2 cache HIT for model={}", modelName);
@@ -128,10 +136,23 @@ public class L2CacheStep implements QueryExecutionStep {
         PagingResultImpl result = ctx.getExecutionResult();
         if (result != null) {
             String modelName = ctx.getModelName();
-            String pagingSql = ctx.getPagingSql();
-            List<?> params = ctx.getParams();
+            String pagingSql = ctx.getExtData(LOOKUP_PAGING_SQL);
+            List<?> params = ctx.getExtData(LOOKUP_PARAMS);
 
-            cacheProvider.writeL2Cache(modelName, pagingSql, params, result, modelCtx);
+            if (pagingSql == null) {
+                log.warn("Skip L2 cache write for model={}: lookup identity is unavailable", modelName);
+                return CONTINUE;
+            }
+            if (!Objects.equals(pagingSql, ctx.getPagingSql()) || !Objects.equals(params, ctx.getParams())) {
+                log.warn("Skip L2 cache write for model={}: SQL identity changed after cache lookup", modelName);
+                return CONTINUE;
+            }
+
+            PagingResultImpl snapshot = safeSnapshot(result, "write");
+            if (snapshot == null) {
+                return CONTINUE;
+            }
+            cacheProvider.writeL2Cache(modelName, pagingSql, params, snapshot, modelCtx);
 
             if (log.isDebugEnabled()) {
                 log.debug("L2 cache WRITE for model={}", modelName);
@@ -154,5 +175,15 @@ public class L2CacheStep implements QueryExecutionStep {
             return modelCtx.getCacheConfig().getProvider();
         }
         return queryCacheProvider;
+    }
+
+    private PagingResultImpl safeSnapshot(PagingResultImpl source, String operation) {
+        try {
+            return CacheResultSnapshot.copy(source);
+        } catch (CacheResultSnapshot.UnsafeCacheValueException e) {
+            log.warn("Skip L2 cache {} because the result cannot be isolated: {}",
+                    operation, e.getMessage());
+            return null;
+        }
     }
 }

@@ -7,6 +7,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.resource.DefaultResourceFinder;
 import com.foggyframework.core.utils.resource.ResourceFinder;
 import com.foggyframework.fsscript.closure.AbstractFsscriptClosureDefinitionSpace;
+import com.foggyframework.fsscript.loadder.AbstractFileFsscriptLoader;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -23,8 +24,18 @@ import java.nio.file.Paths;
 public class ResourceFsscriptClosureDefinitionSpace extends AbstractFsscriptClosureDefinitionSpace {
 
     public ResourceFsscriptClosureDefinitionSpace(BundleResource bundleResource) {
-        this.bundleResource = bundleResource;
+        this(bundleResource, null);
     }
+
+    public ResourceFsscriptClosureDefinitionSpace(
+            BundleResource bundleResource,
+            AbstractFileFsscriptLoader loader
+    ) {
+        this.bundleResource = bundleResource;
+        this.loader = loader;
+    }
+
+    private final AbstractFileFsscriptLoader loader;
 
     public Resource getResource() {
         return bundleResource.getResource();
@@ -52,7 +63,13 @@ public class ResourceFsscriptClosureDefinitionSpace extends AbstractFsscriptClos
     public Fsscript loadFsscript(ExpEvaluator ee, String path) {
         Resource res = getResource(ee, path);
 
-        return FileFsscriptLoader.getInstance().findLoadFsscript(res,ee.getExpFactory());
+        AbstractFileFsscriptLoader effectiveLoader = loader != null
+                ? loader
+                : FileFsscriptLoader.getInstance();
+        if (effectiveLoader == null) {
+            throw new IllegalStateException("FSScript resource loader is not available");
+        }
+        return effectiveLoader.findLoadFsscript(res,ee.getExpFactory());
 
     }
 

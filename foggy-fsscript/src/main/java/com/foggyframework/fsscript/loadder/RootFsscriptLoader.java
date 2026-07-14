@@ -48,25 +48,65 @@ public class RootFsscriptLoader extends FsscriptLoader {
         }
     }
 
+    /** Removes one script and its complete transitive reverse-import closure atomically. */
+    public List<Fsscript> removePathAndImporters(String path) {
+        synchronized (KEY) {
+            Fsscript root = path2Fsscript.get(path);
+            if (root == null) {
+                return Collections.emptyList();
+            }
+            LinkedHashSet<Fsscript> affected = new LinkedHashSet<>();
+            ArrayDeque<Fsscript> pending = new ArrayDeque<>();
+            affected.add(root);
+            pending.add(root);
+            Fsscript[] loaded = path2Fsscript.values().toArray(new Fsscript[0]);
+            while (!pending.isEmpty()) {
+                Fsscript dependency = pending.removeFirst();
+                for (Fsscript candidate : loaded) {
+                    if (!affected.contains(candidate) && candidate.hasImport(dependency)) {
+                        affected.add(candidate);
+                        pending.addLast(candidate);
+                    }
+                }
+            }
+            for (Fsscript script : affected) {
+                path2Fsscript.remove(script.getPath());
+            }
+            return List.copyOf(affected);
+        }
+    }
+
     public List<Fsscript> removeByRootPath(String rootPath) {
         Path root = toComparablePath(rootPath);
         if (root == null) {
             return Collections.emptyList();
         }
 
-        List<Fsscript> removed = new ArrayList<>();
         synchronized (KEY) {
-            Iterator<Map.Entry<String, Fsscript>> iterator = path2Fsscript.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<String, Fsscript> entry = iterator.next();
+            LinkedHashSet<Fsscript> affected = new LinkedHashSet<>();
+            ArrayDeque<Fsscript> pending = new ArrayDeque<>();
+            for (Map.Entry<String, Fsscript> entry : path2Fsscript.entrySet()) {
                 Path scriptPath = toComparablePath(entry.getKey());
                 if (scriptPath != null && scriptPath.startsWith(root)) {
-                    removed.add(entry.getValue());
-                    iterator.remove();
+                    affected.add(entry.getValue());
+                    pending.add(entry.getValue());
                 }
             }
+            Fsscript[] loaded = path2Fsscript.values().toArray(new Fsscript[0]);
+            while (!pending.isEmpty()) {
+                Fsscript dependency = pending.removeFirst();
+                for (Fsscript candidate : loaded) {
+                    if (!affected.contains(candidate) && candidate.hasImport(dependency)) {
+                        affected.add(candidate);
+                        pending.addLast(candidate);
+                    }
+                }
+            }
+            for (Fsscript script : affected) {
+                path2Fsscript.remove(script.getPath());
+            }
+            return List.copyOf(affected);
         }
-        return removed;
     }
 
     private Path toComparablePath(String path) {

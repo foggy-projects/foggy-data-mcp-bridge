@@ -2,8 +2,6 @@ package com.foggyframework.dataset.db.model.cache.fingerprint;
 
 import lombok.Builder;
 import lombok.Data;
-import org.apache.commons.codec.digest.DigestUtils;
-
 import java.util.List;
 
 /**
@@ -77,12 +75,38 @@ public class QueryFingerprint {
     private int calculatedFieldCount;
 
     /**
+     * Hashes of the effective runtime security policy. Only hashes are kept so
+     * tokens, policy values and tenant attributes never enter a cache key or
+     * debug representation in plain text.
+     */
+    private String fieldAccessHash;
+    private String deniedColumnsHash;
+    private String systemSliceHash;
+    private String securityContextHash;
+    private String securityPolicyHash;
+
+    /**
+     * A policy value could not be encoded without falling back to toString().
+     */
+    private boolean hasIncompleteSecurityPolicy;
+
+    /**
+     * A query condition used an unsupported, non-canonical value type.
+     */
+    private boolean hasUnsupportedValue;
+
+    /**
      * 判断是否可缓存
      *
      * @return true 表示可缓存
      */
     public boolean isCacheable() {
-        return !hasRawSql && !hasNonDeterministic;
+        return modelName != null && !modelName.isBlank()
+                && securityPolicyHash != null && !securityPolicyHash.isBlank()
+                && !hasRawSql
+                && !hasNonDeterministic
+                && !hasIncompleteSecurityPolicy
+                && !hasUnsupportedValue;
     }
 
     /**
@@ -98,15 +122,20 @@ public class QueryFingerprint {
             return null;
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("c:").append(joinOrEmpty(columns)).append("|");
-        sb.append("g:").append(joinOrEmpty(groupBy)).append("|");
-        sb.append("w:").append(joinOrEmpty(conditionSignatures)).append("|");
-        sb.append("o:").append(joinOrEmpty(orderBy)).append("|");
-        sb.append("p:").append(pageNo).append("-").append(pageSize);
+        String payload = StableCanonicalEncoder.segment("columns", joinOrEmpty(columns))
+                + StableCanonicalEncoder.segment("groupBy", joinOrEmpty(groupBy))
+                + StableCanonicalEncoder.segment("conditions", joinOrEmpty(conditionSignatures))
+                + StableCanonicalEncoder.segment("orderBy", joinOrEmpty(orderBy))
+                + StableCanonicalEncoder.segment("pageNo", Integer.toString(pageNo))
+                + StableCanonicalEncoder.segment("pageSize", Integer.toString(pageSize))
+                + StableCanonicalEncoder.segment("calculatedFieldCount", Integer.toString(calculatedFieldCount))
+                + StableCanonicalEncoder.segment("fieldAccess", fieldAccessHash)
+                + StableCanonicalEncoder.segment("deniedColumns", deniedColumnsHash)
+                + StableCanonicalEncoder.segment("systemSlice", systemSliceHash)
+                + StableCanonicalEncoder.segment("securityContext", securityContextHash)
+                + StableCanonicalEncoder.segment("securityPolicy", securityPolicyHash);
 
-        // 使用 MD5 压缩
-        String hash = DigestUtils.md5Hex(sb.toString());
+        String hash = StableCanonicalEncoder.sha256(payload);
         return "qc:" + modelName + ":" + hash;
     }
 
@@ -122,9 +151,12 @@ public class QueryFingerprint {
         sb.append(", conditions=").append(conditionSignatures);
         sb.append(", orderBy=").append(orderBy);
         sb.append(", page=").append(pageNo).append("/").append(pageSize);
+        sb.append(", securityPolicyHash=").append(abbreviate(securityPolicyHash));
         sb.append(", cacheable=").append(isCacheable());
         if (hasRawSql) sb.append(", hasRawSql");
         if (hasNonDeterministic) sb.append(", hasNonDeterministic");
+        if (hasIncompleteSecurityPolicy) sb.append(", hasIncompleteSecurityPolicy");
+        if (hasUnsupportedValue) sb.append(", hasUnsupportedValue");
         sb.append("}");
         return sb.toString();
     }
@@ -133,6 +165,17 @@ public class QueryFingerprint {
         if (list == null || list.isEmpty()) {
             return "";
         }
-        return String.join(",", list);
+        StringBuilder encoded = new StringBuilder();
+        for (String item : list) {
+            encoded.append(StableCanonicalEncoder.segment("item", item));
+        }
+        return encoded.toString();
+    }
+
+    private String abbreviate(String value) {
+        if (value == null || value.length() <= 12) {
+            return value;
+        }
+        return value.substring(0, 12);
     }
 }

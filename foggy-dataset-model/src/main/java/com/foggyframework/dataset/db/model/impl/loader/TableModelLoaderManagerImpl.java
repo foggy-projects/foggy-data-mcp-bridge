@@ -17,6 +17,18 @@ import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogBuildView;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogCandidate;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.ModelProvenance;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.StaleCatalogBuildException;
+import com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildKey;
+import com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildSingleFlight;
+import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
+import com.foggyframework.dataset.db.model.lifecycle.port.StaleDatasourceBindingException;
 import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
@@ -43,12 +55,15 @@ import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Setter
 @Getter
 public class TableModelLoaderManagerImpl extends LoaderSupport implements TableModelLoaderManager {
+    private static final int MAX_STALE_BUILD_ATTEMPTS = 3;
+
     @Resource
     DataSource dataSource;
 
@@ -69,16 +84,13 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     List<DbModelLoadProcessor> processors;
     DatasetProperties datasetProperties;
 
-    Map<String, TableModel> name2JdbcModel = new HashMap<>();
     Map<String, TableModelLoader> typeName2Loader = new HashMap<>();
-    int dimIdx;
-    int modelIdx;
+    CatalogSnapshotStore catalogSnapshotStore;
+    ModelBuildSingleFlight modelBuildSingleFlight;
 
     public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders) {
-        super(systemBundlesContext, fileFsscriptLoader);
-        this.processors = processors;
-        this.datasetProperties = new DatasetProperties();
-        loaders.forEach(loader -> typeName2Loader.put(loader.getTypeName(), loader));
+        this(systemBundlesContext, fileFsscriptLoader, processors, loaders, null,
+                new DatasetProperties(), new CatalogSnapshotStore());
     }
 
     public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders, NamedDataSourceResolver namedDataSourceResolver) {
@@ -91,84 +103,301 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
                                        List<TableModelLoader> loaders,
                                        NamedDataSourceResolver namedDataSourceResolver,
                                        DatasetProperties datasetProperties) {
-        this(systemBundlesContext, fileFsscriptLoader, processors, loaders);
+        this(systemBundlesContext, fileFsscriptLoader, processors, loaders, namedDataSourceResolver,
+                datasetProperties, new CatalogSnapshotStore());
+    }
+
+    public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext,
+                                       FileFsscriptLoader fileFsscriptLoader,
+                                       List<DbModelLoadProcessor> processors,
+                                       List<TableModelLoader> loaders,
+                                       NamedDataSourceResolver namedDataSourceResolver,
+                                       DatasetProperties datasetProperties,
+                                       CatalogSnapshotStore catalogSnapshotStore) {
+        super(systemBundlesContext, fileFsscriptLoader);
+        this.processors = processors == null ? List.of() : List.copyOf(processors);
+        this.datasetProperties = datasetProperties == null ? new DatasetProperties() : datasetProperties;
         this.namedDataSourceResolver = namedDataSourceResolver;
-        if (datasetProperties != null) {
-            this.datasetProperties = datasetProperties;
+        this.catalogSnapshotStore = catalogSnapshotStore == null
+                ? new CatalogSnapshotStore()
+                : catalogSnapshotStore;
+        this.modelBuildSingleFlight = new ModelBuildSingleFlight();
+        Map<String, TableModelLoader> loaderRegistry = new HashMap<>();
+        if (loaders != null) {
+            loaders.forEach(loader -> loaderRegistry.put(loader.getTypeName(), loader));
         }
+        this.typeName2Loader = Map.copyOf(loaderRegistry);
     }
 
     @Override
     public void clearAll() {
-        name2JdbcModel = new HashMap<>();
+        catalogSnapshotStore.clearAll();
         log.debug("已清除所有命名空间的TableModel缓存");
     }
 
     @Override
     public void clearByNamespace(String namespace) {
-        String normalizedNs = (namespace == null || namespace.trim().isEmpty()) ? "" : namespace.trim();
-
-        if (normalizedNs.isEmpty()) {
-            // 清除默认命名空间的缓存（不含冒号的key）
-            // 注意：不能在 stream 遍历 keySet 的同时 remove，HashMap 会抛 ConcurrentModificationException
-            List<String> keysToRemove = name2JdbcModel.keySet().stream()
-                    .filter(key -> !key.contains(":"))
-                    .collect(java.util.stream.Collectors.toList());
-            keysToRemove.forEach(name2JdbcModel::remove);
-            log.info("已清除默认命名空间的TableModel缓存，共 {} 个模型", keysToRemove.size());
-        } else {
-            // 清除指定命名空间的缓存（以 "namespace:" 开头的key）
-            String prefix = normalizedNs + ":";
-            List<String> keysToRemove = name2JdbcModel.keySet().stream()
-                    .filter(key -> key.startsWith(prefix))
-                    .collect(java.util.stream.Collectors.toList());
-            keysToRemove.forEach(name2JdbcModel::remove);
-            log.info("已清除命名空间 [{}] 的TableModel缓存，共 {} 个模型", normalizedNs, keysToRemove.size());
-        }
+        String normalizedNs = normalizeNamespace(namespace);
+        int previousCount = catalogSnapshotStore.current(normalizedNs)
+                .map(snapshot -> snapshot.tableModels().size())
+                .orElse(0);
+        catalogSnapshotStore.clearNamespace(normalizedNs);
+        log.info("已清除命名空间 [{}] 的TableModel catalog，共 {} 个模型",
+                normalizedNs.isEmpty() ? "默认" : normalizedNs, previousCount);
     }
 
     @Override
-    synchronized public TableModel load(String name) {
+    public TableModel load(String name) {
         return load(name, null);
     }
 
     @Override
-    synchronized public TableModel load(String modelName, String namespace) {
-        String fullName = buildFullName(namespace, modelName);
+    public TableModel load(String modelName, String namespace) {
+        String normalizedNamespace = normalizeNamespace(namespace);
+        String canonicalModelName = requireCanonicalModelName(modelName);
 
-        TableModel tm = name2JdbcModel.get(fullName);
-        if (tm != null) {
-            return tm;
+        // A root flight builds before opening a candidate. Any cache miss while
+        // another root candidate is already active therefore means a custom
+        // builder introduced an undeclared dependency. Publishing that object
+        // through a second flight would leak request-local staged state.
+        CatalogCandidate activeCandidate = catalogSnapshotStore
+                .currentCandidate(normalizedNamespace)
+                .orElse(null);
+        if (activeCandidate != null) {
+            TableModel staged = activeCandidate.findTableModel(canonicalModelName);
+            if (staged != null) {
+                return staged;
+            }
+            throw new IllegalStateException(
+                    "MODEL_BUILD_UNPREPARED_DEPENDENCY: table model "
+                            + canonicalModelName);
         }
 
-        Fsscript fScript = this.findFsscript(modelName, "tm", namespace);
-        ExpEvaluator ee = fScript.eval(systemBundlesContext.getApplicationContext());
-        Object model = ee.getExportObject("model");
-        if (model == null) {
+        RuntimeException lastStaleFailure = null;
+        for (int attempt = 1; attempt <= MAX_STALE_BUILD_ATTEMPTS; attempt++) {
+            TableModel current = findCurrentTableModel(normalizedNamespace, canonicalModelName);
+            if (current != null) {
+                return current;
+            }
+
+            CatalogBuildView buildView = catalogSnapshotStore.capture(normalizedNamespace);
+            TableModel captured = findTableModel(buildView.baseSnapshot(), canonicalModelName);
+            if (captured != null) {
+                return captured;
+            }
+            PreparedTableModel prepared = prepareTableModel(
+                    canonicalModelName, normalizedNamespace, buildView);
+            try {
+                return modelBuildSingleFlight.execute(
+                        prepared.buildKey(),
+                        () -> buildAndPublish(prepared));
+            } catch (StaleCatalogBuildException | StaleDatasourceBindingException stale) {
+                lastStaleFailure = stale;
+            }
+        }
+        throw new IllegalStateException(
+                "MODEL_BUILD_STALE_RETRY_EXHAUSTED: table model "
+                        + canonicalModelName + " in namespace '" + normalizedNamespace + "'",
+                lastStaleFailure);
+    }
+
+    private PreparedTableModel prepareTableModel(
+            String modelName,
+            String namespace,
+            CatalogBuildView buildView
+    ) {
+        Fsscript fsscript = this.findFsscript(modelName, "tm", namespace);
+        ExpEvaluator evaluator = fsscript.eval(systemBundlesContext.getApplicationContext());
+        Object exported = evaluator.getExportObject("model");
+        if (exported == null) {
             throw RX.throwAUserTip(DatasetMessages.modelNotFound(modelName));
         }
-        Bundle bundle = fScript.getFsscriptClosureDefinition().getFsscriptClosureDefinitionSpace().getBundle();
-        DbModelDef def = FsscriptConversionService.getSharedInstance().convert(model, DbModelDef.class);
-        applySemanticScalePolicy(def, namespace);
-        fix(def);
+        Bundle bundle = fsscript.getFsscriptClosureDefinition()
+                .getFsscriptClosureDefinitionSpace().getBundle();
+        DbModelDef definition = FsscriptConversionService.getSharedInstance()
+                .convert(exported, DbModelDef.class);
+        applySemanticScalePolicy(definition, namespace);
+        fix(definition);
 
-        // Resolve data source before loading (needed by JdbcTableModelLoaderImpl)
-        DataSource effectiveDataSource = resolveDataSource(def, namespace);
-        if (effectiveDataSource != null) {
-            def.setDataSource(effectiveDataSource);
+        ResolvedDatasourceBinding binding = resolveDatasourceBinding(definition, namespace);
+        definition.setDataSource(binding.dataSource());
+        List<com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity>
+                bindingIdentities = binding.identity() == null
+                ? List.of()
+                : List.of(binding.identity());
+        boolean bindingIdentityComplete = binding.identity() != null && binding.cacheable();
+        ModelBuildKey buildKey = ModelBuildKey.of(
+                CatalogModelKey.table(modelName),
+                namespace,
+                buildView.catalogGeneration().orElse(null),
+                buildView.sourceRevision(),
+                bindingIdentities,
+                bindingIdentityComplete);
+        return new PreparedTableModel(
+                modelName, namespace, buildView, fsscript, definition, bundle,
+                binding, buildKey);
+    }
+
+    private TableModel buildAndPublish(PreparedTableModel prepared) {
+        TableModel built = buildDetachedTableModel(prepared);
+
+        try (CatalogSnapshotStore.CandidateScope scope =
+                     catalogSnapshotStore.openCandidate(prepared.buildView())) {
+            CatalogCandidate candidate = scope.candidate();
+            TableModel existing = candidate.findTableModel(prepared.modelName());
+            if (existing != null) {
+                return existing;
+            }
+            stageBuiltTableModel(candidate, prepared, built);
+            CatalogSnapshot published = commitIfBindingCurrent(prepared.binding(), scope);
+            TableModel committed = published.tableModels().get(prepared.modelName());
+            if (committed == null) {
+                throw new IllegalStateException(
+                        "committed catalog does not contain table model "
+                                + prepared.modelName());
+            }
+            return committed;
         }
+    }
 
-        TableModelLoader tableModelLoader = typeName2Loader.get(def.getType());
+    /**
+     * Builds and stages a TM into an already-open refresh candidate without
+     * publishing. The refresh coordinator remains the sole publisher.
+     */
+    public TableModel stageForRefresh(
+            String modelName,
+            String namespace,
+            CatalogBuildView buildView,
+            CatalogCandidate candidate
+    ) {
+        String canonicalNamespace = normalizeNamespace(namespace);
+        String canonicalModelName = requireCanonicalModelName(modelName);
+        if (candidate == null
+                || !canonicalNamespace.equals(candidate.namespace())
+                || !candidate.sourceRevision().equals(buildView.sourceRevision())) {
+            throw new IllegalArgumentException(
+                    "refresh TM stage does not match its candidate/build view");
+        }
+        TableModel existing = candidate.findTableModel(canonicalModelName);
+        if (existing != null) {
+            return existing;
+        }
+        PreparedTableModel prepared = prepareTableModel(
+                canonicalModelName, canonicalNamespace, buildView);
+        try {
+            TableModel built = buildDetachedTableModel(prepared);
+            stageBuiltTableModel(candidate, prepared, built);
+            return built;
+        } catch (Throwable failure) {
+            candidate.fail("table model refresh build failed: " + canonicalModelName);
+            throw ErrorUtils.toRuntimeException(failure);
+        }
+    }
+
+    private TableModel buildDetachedTableModel(PreparedTableModel prepared) {
+        TableModelLoader tableModelLoader = typeName2Loader.get(prepared.definition().getType());
         if (tableModelLoader == null) {
-            String typeName = def.getType();
-            String hint = getLoaderDependencyHint(typeName);
-            throw RX.throwAUserTip(DatasetMessages.loaderNotFound(typeName, hint));
+            String typeName = prepared.definition().getType();
+            throw RX.throwAUserTip(DatasetMessages.loaderNotFound(
+                    typeName, getLoaderDependencyHint(typeName)));
         }
-        tm = tableModelLoader.load(fScript, def, bundle);
-        tm = initialization(tm, def, bundle);
 
-        name2JdbcModel.put(fullName, tm);
-        return tm;
+        TableModel built = tableModelLoader.load(
+                prepared.fsscript(), prepared.definition(), prepared.bundle());
+        built = initialization(
+                built,
+                prepared.definition(),
+                prepared.bundle(),
+                prepared.binding().dataSource());
+        ensureBindingStillCurrent(prepared.binding());
+        return built;
+    }
+
+    private void stageBuiltTableModel(
+            CatalogCandidate candidate,
+            PreparedTableModel prepared,
+            TableModel built
+    ) {
+        Map<String, com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity>
+                bindings = prepared.binding().identity() == null
+                ? Map.of()
+                : Map.of(prepared.binding().identity().bindingKey(),
+                prepared.binding().identity());
+        candidate.putTableModel(
+                prepared.modelName(),
+                built,
+                new ModelProvenance(
+                        prepared.modelName(),
+                        ModelProvenance.ModelKind.TABLE,
+                        candidate.sourceRevision(),
+                        Set.of(),
+                        bindings,
+                        prepared.binding().identity() != null
+                                && prepared.binding().cacheable(),
+                        List.of()));
+    }
+
+    private void ensureBindingStillCurrent(ResolvedDatasourceBinding binding) {
+        if (binding.identity() == null) {
+            return;
+        }
+        if (namedDataSourceResolver == null) {
+            throw new IllegalStateException(
+                    "DATASOURCE_BINDING_CURRENTNESS_UNKNOWN: resolver unavailable");
+        }
+        BindingCurrentness currentness = namedDataSourceResolver.currentness(binding.identity());
+        if (currentness == BindingCurrentness.STALE) {
+            throw new StaleDatasourceBindingException(binding.identity().bindingKey());
+        }
+        if (currentness != BindingCurrentness.CURRENT) {
+            throw new IllegalStateException(
+                    "DATASOURCE_BINDING_CURRENTNESS_UNKNOWN: "
+                            + binding.identity().bindingKey());
+        }
+    }
+
+    private CatalogSnapshot commitIfBindingCurrent(
+            ResolvedDatasourceBinding binding,
+            CatalogSnapshotStore.CandidateScope scope
+    ) {
+        if (binding.identity() == null) {
+            return scope.commit();
+        }
+        if (namedDataSourceResolver == null) {
+            throw new IllegalStateException(
+                    "DATASOURCE_BINDING_PUBLICATION_GUARD_UNAVAILABLE");
+        }
+        return namedDataSourceResolver.publishIfCurrent(
+                List.of(binding.identity()), scope::commit);
+    }
+
+    private TableModel findCurrentTableModel(String namespace, String modelName) {
+        return catalogSnapshotStore.readCurrent(namespace)
+                .map(snapshot -> snapshot.tableModels().get(modelName))
+                .orElse(null);
+    }
+
+    private TableModel findTableModel(CatalogSnapshot snapshot, String modelName) {
+        return snapshot == null ? null : snapshot.tableModels().get(modelName);
+    }
+
+    private String requireCanonicalModelName(String modelName) {
+        if (modelName == null || modelName.isBlank()) {
+            throw new IllegalArgumentException("canonical table model name must not be blank");
+        }
+        return modelName.trim();
+    }
+
+    private record PreparedTableModel(
+            String modelName,
+            String namespace,
+            CatalogBuildView buildView,
+            Fsscript fsscript,
+            DbModelDef definition,
+            Bundle bundle,
+            ResolvedDatasourceBinding binding,
+            ModelBuildKey buildKey
+    ) {
     }
 
     /**
@@ -282,34 +511,73 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
      * @return Resolved DataSource
      */
     DataSource resolveDataSource(DbModelDef def, String namespace) {
-        // 1. Try to resolve by name
-        if (StringUtils.isNotEmpty(def.getDataSourceName()) && namedDataSourceResolver != null) {
-            DataSource namedDs = namedDataSourceResolver.resolve(def.getDataSourceName());
-            if (namedDs != null) {
-                log.debug("Using named data source: {} for model: {}", def.getDataSourceName(), def.getName());
-                return namedDs;
+        return resolveDatasourceBinding(def, namespace).dataSource();
+    }
+
+    private ResolvedDatasourceBinding resolveDatasourceBinding(DbModelDef def, String namespace) {
+        String dataSourceName = def.getDataSourceName() == null ? null : def.getDataSourceName().trim();
+        String normalizedNamespace = normalizeNamespace(namespace);
+
+        // 1. An explicit data source name is an isolation boundary and must resolve exactly.
+        if (StringUtils.isNotEmpty(dataSourceName)) {
+            if (namedDataSourceResolver == null) {
+                throw new IllegalStateException("Named data source resolver is not configured for model '"
+                        + def.getName() + "', namespace '" + normalizedNamespace
+                        + "', dataSourceName '" + dataSourceName + "'");
             }
-            log.warn("Named data source '{}' not found for model '{}', falling back to default",
-                    def.getDataSourceName(), def.getName());
+            ResolvedDatasourceBinding namedBinding = namedDataSourceResolver.resolveBinding(dataSourceName);
+            if (namedBinding != null) {
+                log.debug("Using named data source: {} for model: {}", dataSourceName, def.getName());
+                return namedBinding;
+            }
+            throw new IllegalArgumentException("Named data source '" + dataSourceName
+                    + "' not found for model '" + def.getName()
+                    + "' in namespace '" + normalizedNamespace + "'");
         }
 
         // 2. Use dataSource from definition
         if (def.getDataSource() != null) {
-            return def.getDataSource();
+            return ResolvedDatasourceBinding.untracked(def.getDataSource());
         }
 
-        // 3. Use namespace default datasource from Runtime API binding when available
-        if (StringUtils.isNotEmpty(namespace) && namedDataSourceResolver != null) {
-            DataSource namespaceDs = namedDataSourceResolver.resolveDefault(namespace);
-            if (namespaceDs != null) {
+        // 3. Preserve the legacy resolver contract for an empty namespace:
+        // resolveDefault historically received only named namespaces. A
+        // process-local default therefore requires an explicit capability.
+        if (namedDataSourceResolver != null) {
+            ResolvedDatasourceBinding namespaceBinding = null;
+            if (StringUtils.isNotEmpty(normalizedNamespace)) {
+                namespaceBinding = namedDataSourceResolver.resolveDefaultBinding(normalizedNamespace);
+            } else if (namedDataSourceResolver
+                    instanceof ProcessLocalDefaultDataSourceResolver resolver) {
+                namespaceBinding = resolver.resolveProcessLocalDefaultBinding();
+            }
+            if (namespaceBinding != null) {
                 log.debug("Using namespace default data source for namespace: {}, model: {}",
-                        namespace, def.getName());
-                return namespaceDs;
+                        normalizedNamespace, def.getName());
+                return namespaceBinding;
             }
         }
 
+        if (StringUtils.isNotEmpty(normalizedNamespace)) {
+            if (allowGlobalDataSourceFallbackForNamespace()) {
+                log.warn("Namespace '{}' has no default data source binding; explicit compatibility "
+                                + "fallback is using the global data source for model '{}'",
+                        normalizedNamespace, def.getName());
+                return ResolvedDatasourceBinding.untracked(this.dataSource);
+            }
+
+            throw new IllegalStateException("No default data source bound for namespace '"
+                    + normalizedNamespace + "' while loading model '" + def.getName() + "'");
+        }
+
         // 4. Use default dataSource
-        return this.dataSource;
+        return ResolvedDatasourceBinding.untracked(this.dataSource);
+    }
+
+    private boolean allowGlobalDataSourceFallbackForNamespace() {
+        return datasetProperties != null
+                && datasetProperties.getDatasource() != null
+                && datasetProperties.getDatasource().isAllowGlobalFallbackForNamespace();
     }
 
     private void fix(DbModelDef def) {
@@ -342,9 +610,19 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
     public TableModel initialization(TableModel jm, DbModelDef def, Bundle bundle) {
         RX.notNull(def, "加载模型时的def不得为空");
+        return initialization(jm, def, bundle, resolveDataSource(def, null));
+    }
 
-        // Resolve data source: dataSourceName > def.dataSource > default dataSource
-        DataSource effectiveDataSource = resolveDataSource(def, null);
+    TableModel initialization(
+            TableModel jm,
+            DbModelDef def,
+            Bundle bundle,
+            DataSource effectiveDataSource
+    ) {
+        RX.notNull(def, "加载模型时的def不得为空");
+        // The caller that builds a catalog candidate supplies the generation-
+        // pinned datasource. Never resolve dataSourceName a second time here:
+        // a concurrent rebind could otherwise mix two generations in one TM.
         RX.notNull(effectiveDataSource, "加载模型时的数据源不得为空");
 
         String tableName = def.getTableName();
@@ -397,29 +675,32 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     }
 
     private void initAlias(JdbcModelLoadContext context) {
-//        idx++;
-        String d = "d";
-        String m = "m";
+        // SQL aliases are build-local state.  Global counters made the same TM
+        // produce different SQL depending on which unrelated model loaded first.
+        int dimensionIndex = 0;
         QueryObject qo = context.getJdbcModel().getQueryObject();
-        qo.getDecorate(QueryObjectSupport.class).setAlias(m + (++modelIdx));
+        qo.getDecorate(QueryObjectSupport.class).setAlias("m1");
 
         for (DbDimension dimension : context.getJdbcModel().getDimensions()) {
             QueryObject dqo = dimension.getQueryObject();
             if (dqo == null) {
                 continue;
             }
-            dqo.getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+            dqo.getDecorate(QueryObjectSupport.class).setAlias("d" + (++dimensionIndex));
             if (dimension.getDecorate(DbModelParentChildDimensionImpl.class) != null) {
                 DbModelParentChildDimensionImpl pcDim = dimension.getDecorate(DbModelParentChildDimensionImpl.class);
                 // 为闭包表分配别名（后代方向）
-                pcDim.getClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                pcDim.getClosureQueryObject().getDecorate(QueryObjectSupport.class)
+                        .setAlias("d" + (++dimensionIndex));
                 // 为闭包表分配别名（祖先方向）
                 if (pcDim.getAncestorClosureQueryObject() != null) {
-                    pcDim.getAncestorClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                    pcDim.getAncestorClosureQueryObject().getDecorate(QueryObjectSupport.class)
+                            .setAlias("d" + (++dimensionIndex));
                 }
                 // 为层级视角维度表分配别名
                 if (pcDim.getHierarchyQueryObject() != null) {
-                    pcDim.getHierarchyQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                    pcDim.getHierarchyQueryObject().getDecorate(QueryObjectSupport.class)
+                            .setAlias("d" + (++dimensionIndex));
                 }
             }
 

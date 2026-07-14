@@ -5,7 +5,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,7 +18,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * 测试ThreadLocal命名空间上下文的正确性和线程隔离性
  * </p>
  */
+@SuppressWarnings("deprecation")
 public class NamespaceContextTest {
+
+    private static final long TIMEOUT_SECONDS = 5;
 
     @AfterEach
     public void cleanup() {
@@ -53,52 +59,35 @@ public class NamespaceContextTest {
     }
 
     @Test
-    public void testThreadIsolation() throws InterruptedException {
-        // 测试线程隔离性
-        CountDownLatch latch = new CountDownLatch(2);
-        AtomicReference<String> thread1Result = new AtomicReference<>();
-        AtomicReference<String> thread2Result = new AtomicReference<>();
+    public void testThreadIsolation() throws Exception {
+        CountDownLatch workersReady = new CountDownLatch(2);
+        CountDownLatch releaseWorkers = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
 
-        // 主线程设置namespace
         NamespaceContext.setNamespace("main");
 
-        // 线程1设置为"dev"
-        Thread thread1 = new Thread(() -> {
-            NamespaceContext.setNamespace("dev");
-            try {
-                Thread.sleep(100); // 等待确保线程2也设置了值
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            thread1Result.set(NamespaceContext.getNamespace());
-            NamespaceContext.clear();
-            latch.countDown();
-        });
+        Future<String> dev = executor.submit(
+                () -> observeNamespaceAfterCoordinatedRelease("dev", workersReady, releaseWorkers));
+        Future<String> test = executor.submit(
+                () -> observeNamespaceAfterCoordinatedRelease("test", workersReady, releaseWorkers));
 
-        // 线程2设置为"test"
-        Thread thread2 = new Thread(() -> {
-            NamespaceContext.setNamespace("test");
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            thread2Result.set(NamespaceContext.getNamespace());
-            NamespaceContext.clear();
-            latch.countDown();
-        });
+        try {
+            assertTrue(workersReady.await(TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    "both workers must establish their namespace before release");
+            assertEquals("main", NamespaceContext.getNamespace(),
+                    "worker mutations must not affect the owning thread");
 
-        thread1.start();
-        thread2.start();
+            releaseWorkers.countDown();
 
-        latch.await();
-
-        // 验证每个线程的namespace互不影响
-        assertEquals("dev", thread1Result.get());
-        assertEquals("test", thread2Result.get());
-
-        // 主线程的namespace应该不受影响
-        assertEquals("main", NamespaceContext.getNamespace());
+            assertEquals("dev", dev.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertEquals("test", test.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertEquals("main", NamespaceContext.getNamespace());
+        } finally {
+            releaseWorkers.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    "worker executor must terminate within the bounded deadline");
+        }
     }
 
     @Test
@@ -133,5 +122,21 @@ public class NamespaceContextTest {
 
         NamespaceContext.clear();
         assertNull(NamespaceContext.getNamespace());
+    }
+
+    private String observeNamespaceAfterCoordinatedRelease(
+            String namespace,
+            CountDownLatch workersReady,
+            CountDownLatch releaseWorkers
+    ) throws InterruptedException {
+        NamespaceContext.setNamespace(namespace);
+        workersReady.countDown();
+        try {
+            assertTrue(releaseWorkers.await(TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    "worker release must arrive within the bounded deadline");
+            return NamespaceContext.getNamespace();
+        } finally {
+            NamespaceContext.clear();
+        }
     }
 }

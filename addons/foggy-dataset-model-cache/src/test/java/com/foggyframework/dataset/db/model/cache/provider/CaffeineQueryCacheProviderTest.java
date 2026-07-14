@@ -4,18 +4,30 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.cache.config.QueryCacheProperties;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
+import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
+import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.junit.jupiter.api.*;
 
+import javax.sql.DataSource;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * CaffeineQueryCacheProvider 单元测试
@@ -271,6 +283,227 @@ class CaffeineQueryCacheProviderTest {
         assertNull(cached, "空结果集配置为不缓存时不应该被缓存");
     }
 
+    @Test
+    @Order(9)
+    @DisplayName("L2 缓存 - namespace 不同必须隔离")
+    void testL2Cache_DifferentNamespace_NoHit() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext tenantA = createContext("TestModel", queryModel, "tenant-a");
+        ModelResultContext tenantB = createContext("TestModel", queryModel, "tenant-b");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), createTestResult(), tenantA);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), tenantB));
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("L2 缓存 - 安全策略不同必须隔离")
+    void testL2Cache_DifferentFieldAccess_NoHit() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext fullAccess = createContext("TestModel", queryModel, "tenant-a");
+        ModelResultContext limitedAccess = createContext("TestModel", queryModel, "tenant-a");
+        fullAccess.setFieldAccess(new LinkedHashSet<>(Arrays.asList("id", "name")));
+        limitedAccess.setFieldAccess(Collections.singleton("id"));
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), createTestResult(), fullAccess);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), limitedAccess));
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("L2 缓存 - authorization 不同必须隔离")
+    void testL2Cache_DifferentAuthorization_NoHit() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext firstUser = createContext("TestModel", queryModel, "tenant-a");
+        ModelResultContext secondUser = createContext("TestModel", queryModel, "tenant-a");
+        secondUser.setSecurityContext(ModelResultContext.SecurityContext.builder()
+                .authorization("Bearer another-token")
+                .userId("another-user")
+                .tenantId("test-tenant")
+                .roles(Arrays.asList("reader", "analyst"))
+                .build());
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), createTestResult(), firstUser);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), secondUser));
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("L2 缓存 - 独立上下文和模型对象的同一强身份可命中")
+    void testL2Cache_IndependentContextsWithSameIdentity_Hit() {
+        ModelResultContext firstContext = createContext("TestModel");
+        ModelResultContext secondContext = createContext("TestModel");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), createTestResult(), firstContext);
+
+        assertNotNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), secondContext));
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("L2 缓存 - 未跟踪 JDBC 模型不得用数据源实例作为身份")
+    void testL2Cache_UntrackedJdbcModel_NoCaching() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext context = createUntrackedContext("TestModel", queryModel, "tenant-a");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), createTestResult(), context);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT * FROM test", Collections.emptyList(), context));
+        assertEquals(0L, cacheProvider.getStats().get("l2EstimatedSize"));
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("L2 缓存 - 参数编码区分分隔符边界")
+    void testL2Cache_DelimitedParameters_NoCollision() {
+        ModelResultContext context = createContext("TestModel");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT * FROM test WHERE a = ? AND b = ?",
+                Arrays.asList("a,b", "c"), createTestResult(), context);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT * FROM test WHERE a = ? AND b = ?",
+                Arrays.asList("a", "b,c"), context));
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("L2 缓存 - 参数编码区分值类型")
+    void testL2Cache_TypedParameters_NoCollision() {
+        ModelResultContext context = createContext("TestModel");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT * FROM test WHERE id = ?",
+                Collections.singletonList(1), createTestResult(), context);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT * FROM test WHERE id = ?",
+                Collections.singletonList("1"), context));
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("L2 缓存 - 缺少安全上下文或模型身份时 fail closed")
+    void testL2Cache_MissingIdentity_NoCaching() {
+        ModelResultContext missingSecurity = createContext("TestModel");
+        missingSecurity.setSecurityContext(null);
+        ModelResultContext emptySecurity = createContext("TestModel");
+        emptySecurity.setSecurityContext(new ModelResultContext.SecurityContext());
+        ModelResultContext missingModel = createContext("TestModel");
+        missingModel.setQueryModel(null);
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), missingSecurity);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 3", Collections.emptyList(), createTestResult(), emptySecurity);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 2", Collections.emptyList(), createTestResult(), missingModel);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), missingSecurity));
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 3", Collections.emptyList(), emptySecurity));
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 2", Collections.emptyList(), missingModel));
+        assertEquals(0L, cacheProvider.getStats().get("l2EstimatedSize"));
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("L2 缓存 - 未跟踪 routing datasource 不触发实例回退")
+    void testL2Cache_UntrackedRoutingDataSource_NoCaching() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext context = createUntrackedContext("TestModel", queryModel, "tenant-a");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), context);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), context));
+        assertEquals(0L, cacheProvider.getStats().get("l2EstimatedSize"));
+    }
+
+    @Test
+    @Order(17)
+    @DisplayName("L2 缓存 - 未跟踪模型不解包 delegating datasource")
+    void testL2Cache_UntrackedDelegatingDataSource_NoCaching() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext context = createUntrackedContext("TestModel", queryModel, "tenant-a");
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), context);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), context));
+        assertEquals(0L, cacheProvider.getStats().get("l2EstimatedSize"));
+    }
+
+    @Test
+    @Order(18)
+    @DisplayName("L2 缓存 - Catalog generation 变化后旧 key 不可达")
+    void testL2Cache_CatalogGenerationChange_NoHit() {
+        ModelResultContext before = createContext(
+                "TestModel", createResolvedModel("TestModel"), "default",
+                "catalog:boot:1", "binding:registry:1", true);
+        ModelResultContext after = createContext(
+                "TestModel", createResolvedModel("TestModel"), "default",
+                "catalog:boot:2", "binding:registry:1", true);
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), before);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), after));
+    }
+
+    @Test
+    @Order(19)
+    @DisplayName("L2 缓存 - datasource binding generation 变化后旧 key 不可达")
+    void testL2Cache_BindingGenerationChange_NoHit() {
+        ModelResultContext before = createContext(
+                "TestModel", createResolvedModel("TestModel"), "default",
+                "catalog:boot:1", "binding:registry:1", true);
+        ModelResultContext after = createContext(
+                "TestModel", createResolvedModel("TestModel"), "default",
+                "catalog:boot:1", "binding:registry:2", true);
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), before);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), after));
+    }
+
+    @Test
+    @Order(20)
+    @DisplayName("L2 缓存 - 已捕获 catalog 但 binding 身份不完整时 fail closed")
+    void testL2Cache_IncompleteBindingIdentity_NoCaching() {
+        ModelResultContext context = createContext(
+                "TestModel", createResolvedModel("TestModel"), "default",
+                "catalog:boot:1", "binding:registry:1", false);
+
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), createTestResult(), context);
+
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT 1", Collections.emptyList(), context));
+        assertEquals(0L, cacheProvider.getStats().get("l2EstimatedSize"));
+    }
+
     // ==================== 缓存管理测试 ====================
 
     @Test
@@ -374,7 +607,9 @@ class CaffeineQueryCacheProviderTest {
         pagingRequest.setPage(1);
         pagingRequest.setPageSize(10);
 
-        ModelResultContext context = new ModelResultContext(pagingRequest, null);
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext context = createContext("TestModel", queryModel, "tenant-a");
+        context.setRequest(pagingRequest);
         context.setCacheConfig(QueryCacheConfig.enableL1());
 
         String authorization = "Bearer test-token-123";
@@ -386,20 +621,131 @@ class CaffeineQueryCacheProviderTest {
         // 读取 L1 缓存
         PagingResultImpl cached = cacheProvider.checkL1Cache(context, authorization);
 
-        // 注意：L1 缓存依赖 QueryFingerprint，如果 fingerprint 不可缓存则返回 null
-        // 这里简化测试，不验证具体命中情况
+        assertNotNull(cached, "可缓存查询写入后必须命中 L1");
+        assertEquals(testResult.getTotal(), cached.getTotal());
+    }
+
+    @Test
+    @Order(32)
+    @DisplayName("L1 缓存 - fieldAccess 不同必须隔离")
+    void testL1Cache_DifferentFieldAccess_NoHit() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext fullAccess = createContext("TestModel", queryModel, "tenant-a");
+        ModelResultContext limitedAccess = createContext("TestModel", queryModel, "tenant-a");
+        fullAccess.setFieldAccess(new LinkedHashSet<>(Arrays.asList("id", "name")));
+        limitedAccess.setFieldAccess(Collections.singleton("id"));
+
+        cacheProvider.writeL1Cache(fullAccess, "Bearer same-token", createTestResult());
+
+        assertNull(cacheProvider.checkL1Cache(limitedAccess, "Bearer same-token"));
+    }
+
+    @Test
+    @Order(32)
+    @DisplayName("L1 缓存 - authorization 不同必须隔离")
+    void testL1Cache_DifferentAuthorization_NoHit() {
+        JdbcQueryModel queryModel = createResolvedModel("TestModel");
+        ModelResultContext context = createContext("TestModel", queryModel, "tenant-a");
+
+        cacheProvider.writeL1Cache(context, "Bearer first-token", createTestResult());
+
+        assertNull(cacheProvider.checkL1Cache(context, "Bearer second-token"));
+    }
+
+    @Test
+    @Order(33)
+    @DisplayName("L1 缓存 - 缺少显式安全上下文时 fail closed")
+    void testL1Cache_MissingSecurityContext_NoCaching() {
+        ModelResultContext context = createContext("TestModel");
+        context.setSecurityContext(null);
+
+        cacheProvider.writeL1Cache(context, "Bearer test-token", createTestResult());
+
+        assertNull(cacheProvider.checkL1Cache(context, "Bearer test-token"));
+        assertEquals(0L, cacheProvider.getStats().get("l1EstimatedSize"));
     }
 
     // ==================== 辅助方法 ====================
 
     private ModelResultContext createContext(String modelName) {
+        return createContext(modelName, createResolvedModel(modelName), "default");
+    }
+
+    private ModelResultContext createContext(String modelName, QueryModel queryModel, String namespace) {
+        return createContext(
+                modelName,
+                queryModel,
+                namespace,
+                "catalog:" + CatalogIdentity.canonicalNamespace(namespace) + ":1",
+                "binding:" + CatalogIdentity.canonicalNamespace(namespace) + ":1",
+                true);
+    }
+
+    private ModelResultContext createContext(String modelName,
+                                             QueryModel queryModel,
+                                             String namespace,
+                                             String catalogGeneration,
+                                             String bindingGeneration,
+                                             boolean bindingIdentityComplete) {
+        ModelResultContext context = baseContext(modelName, namespace);
+        pinStrongIdentity(
+                context, queryModel, catalogGeneration, bindingGeneration, bindingIdentityComplete);
+        return context;
+    }
+
+    private ModelResultContext createUntrackedContext(
+            String modelName, QueryModel queryModel, String namespace) {
+        ModelResultContext context = baseContext(modelName, namespace);
+        context.pinUntrackedQueryModel(queryModel);
+        return context;
+    }
+
+    private ModelResultContext baseContext(String modelName, String namespace) {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(modelName);
 
         PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryRequest);
 
-        return new ModelResultContext(pagingRequest, null);
+        ModelResultContext context = new ModelResultContext(pagingRequest, null);
+        context.setNamespace(namespace);
+        context.setSecurityContext(ModelResultContext.SecurityContext.builder()
+                .authorization("Bearer test-token")
+                .userId("test-user")
+                .tenantId("test-tenant")
+                .roles(Arrays.asList("reader", "analyst"))
+                .build());
+        return context;
+    }
+
+    private JdbcQueryModel createResolvedModel(String modelName) {
+        JdbcQueryModel queryModel = mock(JdbcQueryModel.class);
+        when(queryModel.getName()).thenReturn(modelName);
+        when(queryModel.getDataSource()).thenReturn(mock(DataSource.class));
+        return queryModel;
+    }
+
+    private void pinStrongIdentity(ModelResultContext context,
+                                   QueryModel queryModel,
+                                   String catalogGeneration,
+                                   String bindingGeneration,
+                                   boolean bindingIdentityComplete) {
+        CatalogIdentity identity = new CatalogIdentity(
+                context.getNamespace(),
+                new CatalogGeneration(catalogGeneration),
+                new SourceRevision("source:boot:1"));
+        DatasourceBindingIdentity bindingIdentity = new DatasourceBindingIdentity(
+                "primary",
+                "runtime-registry",
+                new DatasourceBindingGeneration(bindingGeneration));
+        context.pinCatalogResolution(
+                new CatalogResolution<>(
+                        queryModel.getName(),
+                        queryModel,
+                        identity,
+                        Map.of(bindingIdentity.bindingKey(), bindingIdentity),
+                        bindingIdentityComplete),
+                context.getNamespace());
     }
 
     private PagingResultImpl createTestResult() {
@@ -408,4 +754,5 @@ class CaffeineQueryCacheProviderTest {
                 0, 10, null, 2
         );
     }
+
 }

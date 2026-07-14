@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.plugins.query_execution;
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.plugins.pipeline.LoopDecision;
 import com.foggyframework.dataset.db.model.plugins.pipeline.LoopTraceEntry;
@@ -47,6 +48,11 @@ public class QueryExecutionContext implements LoopablePipelineContext {
      * 数据源
      */
     private DataSource dataSource;
+
+    /**
+     * Dialect resolved from the physical execution datasource.
+     */
+    private FDialect executionDialect;
 
     /**
      * 模型名称
@@ -172,6 +178,29 @@ public class QueryExecutionContext implements LoopablePipelineContext {
      */
     public void setExtData(String key, Object value) {
         extData.put(key, value);
+    }
+
+    /**
+     * 根据当前 SQL 和分页请求重新生成分页 SQL。
+     *
+     * <p>任何 beforeExecute Step 修改 SQL 后都必须刷新该值，确保后续缓存、审计和
+     * 实际执行观察到同一个 SQL 身份。缺少生成分页 SQL 所需的上下文时直接失败，
+     * 禁止继续使用旧 pagingSql。</p>
+     */
+    public String refreshPagingSql() {
+        if (sql == null) {
+            throw new IllegalStateException("Cannot refresh pagingSql: current sql is null");
+        }
+        if (modelResultContext == null || modelResultContext.getRequest() == null) {
+            throw new IllegalStateException("Cannot refresh pagingSql: paging request is unavailable");
+        }
+        if (executionDialect == null) {
+            throw new IllegalStateException("Cannot refresh pagingSql: execution datasource dialect is unavailable");
+        }
+        int start = modelResultContext.getRequest().getStart();
+        int limit = modelResultContext.getRequest().getLimit();
+        pagingSql = executionDialect.generatePagingSql(sql, start, limit);
+        return pagingSql;
     }
 
     @Override
