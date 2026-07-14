@@ -1,0 +1,5 @@
+surface	predecessor_expectation	v934_expected_delta	v934_successor_rule	observed_step	owner
+active-reactor-projects	25 including root aggregator	+1 build-only reporter at Step4	26 projects after reporter; no production dependency on reporter	4	root-build
+production-main-jars	24	0	reporter packaging=pom and produces no production main JAR	4	root-build
+launcher-nested-jars	12/12 exact	0	coverage reporter never enters Launcher BOOT-INF/lib	4	foggy-mcp-launcher
+auto-configuration-import-jars	17 JARs / 21 entries	0	test governance adds no production auto-configuration entry	4	root-build

@@ -2,7 +2,7 @@
 doc_role: acceptance-evidence-plan
 doc_purpose: Define required evidence and gate order for 9.3.4 version acceptance.
 version: 9.3.4
-status: ready
+status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
 updated_at: 2026-07-14
@@ -22,13 +22,13 @@ updated_at: 2026-07-14
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | proposed；Step 1 freeze |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | confirmed；Step 1 passed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | planning-only / pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 confirmed / later runtime evidence pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | ready / execution not-started |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | ready / not-run |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Step 1 passed |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | in-progress / Step 1 passed only |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Step 1 present / Steps 2–6 pending |
 | implementation quality | planned `quality/test-ci-evidence-chain-implementation-quality.md` | not-started |
 | coverage audit | planned `coverage/test-ci-evidence-chain-coverage-audit.md` | not-started |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -37,15 +37,22 @@ updated_at: 2026-07-14
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
 
+Current Step 1 evidence：
+`docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`，confirmed summary
+SHA-256=`579e9430bea6f873e7c4465cd1a6e45c49d348d84a89d5d648d25e3a5a4bbc50`。
+
 ## Mandatory Acceptance Evidence
 
 1. reviewed frozen `source-inventory.tsv` + `execution-inventory.tsv`：workspace/
    reactor boundary、helper/non-reactor disposition、nested report 和 DB/provider
    variants 全部明确；execution key orphan/overlap/duplicate/ambiguous=0。predecessor
-   migration group declared/observed cardinality exact、unmapped/edge-duplicate=0。
+   migration group declared/observed cardinality exact、unmapped/edge-duplicate=0；
+   immutable Step 1 pre-rename baseline、rename-plan SHA、confirmed Step 2 successor
+   parent link 与 approved exact delta 均可复算。
 2. Surefire/Failsafe actual execution：Step 2 与 Step 3 raw execution-key sets 分别
-   exact match各自 subset，二者并集覆盖全部 required execution inventory、交集为空；
-   owning nested/variant reports fresh、exact。
+   exact match confirmed Step 2 successor 的各自 subset，二者并集覆盖该 generation
+   全部 required execution inventory、交集为空；owning nested/variant reports fresh、
+   exact。
 3. SQLite、MySQL 5.7、MySQL 8、PostgreSQL 15、SQL Server 2022 全部 required，
    product/version/physical identity/sentinel/fixture/parity 可复算且 S0。
 4. Step 4 带 agent 重跑全部 required lanes；JaCoCo exec provenance、aggregate XML

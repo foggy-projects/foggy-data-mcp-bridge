@@ -30,7 +30,7 @@ updated_at: 2026-07-14
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | ready / Step 1 ready | [执行文档包](../9.3.4/README.md)已就绪；严格按 inventory→runner→五库→coverage→authority→CI/release→final replay 的 Step 1~7 推进 |
+| 9.3.4 | in-progress / Step 1 passed / Step 2 ready | [执行文档包](../9.3.4/README.md)；r8 inventory contract 已双路复核并 confirmed，下一步严格按 frozen rename plan 推进 runner split |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,9 +85,12 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：执行文档包已 `ready`，实现尚未开始；入口为
-[`docs/9.3.4/README.md`](../9.3.4/README.md)，下一动作是 Step 1 契约与静态库存
-冻结。Step 1 contract confirmed 前不得批量修改测试命名、POM 或 workflow。
+当前状态：`in-progress / Step 1 passed / Step 2 ready`；入口为
+[`docs/9.3.4/README.md`](../9.3.4/README.md)。confirmed run
+`step1-candidate-r8-20260714` 已冻结 532 sources、820 discovery rows、829 execution
+keys、519 predecessor nodes/edges，28/28 expected-negative probes 通过；两路独立
+复核 blocker=0。Step 2 只能消费 confirmed manifest + rename-plan SHA，生成独立
+successor 后再实跑 unit/hermetic IT；9.3.5 仍为 queued。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

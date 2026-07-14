@@ -2,7 +2,7 @@
 doc_role: implementation-plan
 doc_purpose: Define the strict Step 1-7 implementation and verification order for 9.3.4.
 version: 9.3.4
-status: ready
+status: in-progress
 created_at: 2026-07-14
 updated_at: 2026-07-14
 ---
@@ -52,7 +52,10 @@ Work：
    owning node 映射 declared-cardinality successor execution keys；1:1 默认，split/
    merge 有 relation/rationale/reviewer；POM-only coverage module 对 reactor/main-JAR/
    Launcher count 的预期 delta 单独冻结。
-6. 记录 worktree/source baseline；不运行 rename 或生产变更。
+6. 冻结 `rename-successor-plan.tsv`：把 33 个真实 `*IntegrationTest` 展开为 62 个
+   report、74 个 old→new execution keys 和 50 个 predecessor edge joins；只规划
+   `IntegrationTest→IT`，所有执行语义列保持不变。
+7. 记录 worktree/source baseline；不运行 rename 或生产变更。
 
 Verification：inventory generator + independent set-difference review；candidate count
 只作 diagnostic，review 后写入 frozen manifest/hash。
@@ -61,28 +64,36 @@ Exit：contract=`confirmed`；workspace source 与 reactor execution manifests/h
 冻结；nested/variant execution key 唯一；orphan/overlap=0；optional/non-reactor 均有
 owner/reason；external execution 有 exact Step 3 owner；migration group declared/
 observed cardinality 一致、unmapped/edge-duplicate=0；negative probes 全生效。
+pre-rename baseline immutable，rename plan/Step 2 successor parent-link 已冻结。
 Progress 回写 Step 1。
+
+Recorded result（2026-07-14）：`passed`。confirmed run=
+`step1-candidate-r8-20260714`；证据见
+`evidence/step-1/inventory-contract-freeze-20260714.md`。Step 2 entry=`ready`。
 
 ## Step 2 — Surefire/Failsafe 全量分层
 
-Inputs：confirmed inventory/contract。
+Inputs：confirmed immutable Step 1 pre-rename inventory/contract + rename successor plan。
 
 Work：
 
 1. root pin Surefire/Failsafe config/version；Failsafe 绑定
    `integration-test/verify`，UT/IT skip property 分离，显式覆盖
    `IT*/*IT/*ITCase/*E2E/*E2ETest`，并从 Surefire 显式排除这些模式。
-2. 逐项处理 `*IntegrationTest`：真 integration→`*IT`，纯 unit→`*Test`；更新
-   references/resources，最终 ambiguous count=0。
+2. 严格按 rename plan 处理 `*IntegrationTest`：当前 33 个真 integration→`*IT`；
+   更新 references/resources，最终 ambiguous count=0，不允许 plan 外 rename。
 3. 移除/禁用 active-by-default multi-db Surefire repeated execution；DB 只由 Step 3
    lane owner执行。
 4. 各 module 只保留必要 owning config；helper 0-test 不得掩盖 owning module。
-5. 同步 predecessor migration manifest 到最终新 FQCN，证明任何 rename/split/
-   merge 没有丢历史 criterion owner。
+5. 不覆盖 Step 1 baseline；在 `scripts/v934/successor/step2/` 生成 post-rename
+   candidate，以 confirmed Step 1 manifest SHA + rename-plan SHA 做 parent link，校验
+   source/report/key exact delta、执行语义列不变，并独立 review/confirm。同步 519
+   predecessor nodes 到新 successor keys，50 个受影响 edges 不得丢失。
 6. 实跑 all-reactor unit 和全部 hermetic Failsafe IT；将 fresh raw report execution
-   keys 与 `execution_step=2` subset 双向核对，校验 freshness、exact testcase count、
+   keys 与 confirmed Step 2 successor inventory 的 `execution_step=2` subset 双向核对，
+   校验 freshness、exact testcase count、
    overlap=0。DB/Redis/other external required IT
-   只允许以 Step 1 frozen exact manifest 标 `deferred-to-step3`，不得标 pass。
+   只允许以 Step 2 successor exact manifest 标 `deferred-to-step3`，不得标 pass。
 
 Exit：每个 Step 2 execution key 恰由一个 runner 执行；ambiguous/orphan/overlap/
 duplicate=0；missing/zero/stale negative 全失败；unit/hermetic IT actual pass；
@@ -173,7 +184,8 @@ Work：
 1. 建 reusable workflow，jobs 分为 inventory+unit、SQLite broad integration、
    five-DB contract matrix、coverage collector/check、package/evidence 和 always-run
    aggregator；coverage job 只下载各 lane exec，不重复执行测试；
-   两个 SQLite job 消费 Step 1 冻结的互斥 FQCN manifests。
+   两个 SQLite job 消费 confirmed Step 2 successor 中冻结的互斥 FQCN manifests，
+   并保留其 Step 1 parent/rename-plan linkage。
 2. 五库每个 matrix cell 上传带 db kind/SHA/run/attempt 的 lane artifact；collector
    断言 exact set/cardinality=`5`、XML/manifest freshness。aggregator 再读取 collector
    与其他 required job results，拒绝 failure/skipped/cancelled；check name 稳定。

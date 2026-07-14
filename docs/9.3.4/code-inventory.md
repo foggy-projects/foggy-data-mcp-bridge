@@ -2,7 +2,7 @@
 doc_role: code-inventory
 doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
-status: ready
+status: in-progress
 created_at: 2026-07-14
 updated_at: 2026-07-14
 ---
@@ -49,10 +49,40 @@ code_inventory:
     expected_change: create
     notes: one row per execution key; nested report FQCN and DB/provider variants may create multiple rows per source
   - module: frozen-contract-data
+    path: scripts/v934/discovery-inventory.tsv
+    role: JUnit discovery-only source to report mapping with source/main/test class hashes
+    expected_change: create
+    notes: ClassSource containers including zero-test outer reports; parameterized invocation cardinality remains runtime-deferred
+  - module: frozen-contract-data
+    path: scripts/v934/discovery-classpath.tsv
+    role: ordered effective classpath and live file/tree hashes for each discovery module
+    expected_change: create
+    notes: active reactor dependencies must resolve to current target/classes, never stale same-version m2 JARs
+  - module: frozen-contract-data
+    path: scripts/v934/predecessor-node-inventory.tsv
+    role: sealed v933 raw XML node and SHA authority
+    expected_change: create
+    notes: exact 9.3.3 authority report set; validator regenerates nodes from raw XML
+  - module: frozen-contract-data
     path: scripts/v934/predecessor-regression-map.tsv
     role: map 9.3.1-9.3.3 historical nodes to current successor execution keys
     expected_change: create
     notes: group/relation/declared old+successor cardinality; unmapped nodes, edge duplicates or count mismatch fail
+  - module: frozen-contract-data
+    path: scripts/v934/rename-successor-plan.tsv
+    role: immutable Step1 pre-rename to Step2 post-rename exact execution-key delta
+    expected_change: create
+    notes: 33 sources / 62 reports / 74 execution rows / 50 predecessor edges; successor inventory is independently confirmed
+  - module: frozen-contract-data
+    path: scripts/v934/maven-variant-inventory.tsv
+    role: current Maven profile/plugin execution owner to v934 successor disposition
+    expected_change: create
+    notes: root default, model multi-db/model-lifecycle and cache real-query owners are explicit
+  - module: frozen-contract-data
+    path: scripts/v934/{database-contract.tsv,package-successor-inventory.tsv,contract-freeze.json,SHA256SUMS}
+    role: DB/package/toolchain/freeze policy and exact integrity manifest
+    expected_change: create
+    notes: freeze is machine-validated and candidate confirmation atomically refreshes summary digests/status
   - module: frozen-contract-data
     path: scripts/v934/coverage-thresholds.json
     role: reviewed aggregate/package/class thresholds and expected set
@@ -97,7 +127,12 @@ code_inventory:
     path: scripts/verify-v934-test-inventory.sh
     role: source/runner/lane inventory and expected-negative authority
     expected_change: create
-    notes: test-compile plus pinned JUnit Platform discovery-only plan and POM variants; no external test execution; emits source/execution candidates for review
+    notes: test-compile plus pinned JUnit Platform discovery-only plan and POM variants; normalizes reactor dependencies to current class trees; no test/external fixture execution
+  - module: v934-runners
+    path: scripts/v934/{inventory_tool.py,JUnitDiscoveryInventory.java,inventory-overrides.json}
+    role: inventory generation, discovery-only report ownership, reviewed manual classifications and fail-closed validation
+    expected_change: create
+    notes: wrapper/tool/source/compiled helper tree and Java/Javac/Maven provenance are frozen
   - module: v934-runners
     path: scripts/verify-v934-unit.sh
     role: all-reactor unit lane

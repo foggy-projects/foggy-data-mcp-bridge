@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Define the 9.3.4 test runner, database, coverage, CI and immutable release evidence requirements.
 version: 9.3.4
 priority: P0
-status: ready
+status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
 updated_at: 2026-07-14

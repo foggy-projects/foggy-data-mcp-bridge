@@ -1,0 +1,118 @@
+{
+  "baseline": {
+    "git_branch": "main",
+    "git_head": "a377937e8e6a6c03afce655396d7363f7db1d7d4",
+    "protected_source_sha256": "2c73b8951dbeda43bde2b0b2aa0ef63cb0fb66e049a5c5bf7d8351e2eae8e9e2",
+    "worktree_dirty": true,
+    "worktree_status_sha256_at_freeze": "f36521247e5033651656c3d1d6b3cb7fc1bec288bb443c7609589765d043aaef"
+  },
+  "counts": {
+    "classpath_entries": 2395,
+    "discovery_modules": 21,
+    "discovery_reports": 804,
+    "execution_keys": 829,
+    "migration_edges": 519,
+    "nested_sources": 65,
+    "predecessor_nodes": 519,
+    "reactor_sources": 530,
+    "rename_execution_keys": 74,
+    "rename_predecessor_edges": 50,
+    "rename_reports": 62,
+    "rename_sources": 33,
+    "required_step2": 785,
+    "required_step3": 43,
+    "workspace_sources": 532
+  },
+  "decision": "passed",
+  "discovery": {
+    "engine": "junit-jupiter",
+    "launcher_sha256": "d7430bd029e7fcced53ee445e4d2d1a8a1e043ea4c4df43b6335a857f79761ae",
+    "mode": "ClassSource containers from Launcher.discover; execute forbidden",
+    "platform_version": "1.11.4",
+    "runtime_invocation_policy": "parameterized/template/factory cardinality deferred to owning lane",
+    "sealed_xml_corroboration": "20260714T084351Z-3271604"
+  },
+  "evidence_layout": {
+    "authority": "target/v934-release-evidence/runs/<commit-sha>-<workflow-run-id>-<attempt>/",
+    "candidate": "target/v934-release-evidence/candidates/<source-state>-<run-id>/"
+  },
+  "execution_key": {
+    "empty_variant": "default",
+    "encoding": "v934|<utf8-byte-len>:runner|<len>:lane|<len>:variant_key|<len>:report_fqcn",
+    "non_database_db_kind": "none"
+  },
+  "generated_at": "2026-07-14T12:07:41.079651+00:00",
+  "generation": "step1-pre-rename",
+  "independent_review_evidence": "docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md",
+  "reactor": {
+    "module_count": 24,
+    "modules": [
+      "addons/foggy-chart-storage-cloud",
+      "addons/foggy-data-viewer",
+      "addons/foggy-dataset-client",
+      "addons/foggy-dataset-graphql",
+      "addons/foggy-dataset-model-cache",
+      "addons/foggy-dataset-model-mongo",
+      "addons/foggy-dataset-model-preagg",
+      "addons/foggy-dataset-model-vector",
+      "addons/foggy-dataset-mongo",
+      "addons/foggy-dataset-vector",
+      "addons/foggy-fsscript-client",
+      "addons/foggy-odoo-bridge-java",
+      "foggy-bean-copy",
+      "foggy-core",
+      "foggy-dataset",
+      "foggy-dataset-demo",
+      "foggy-dataset-mcp",
+      "foggy-dataset-memory-grid-bridge",
+      "foggy-dataset-memory-grid-duckdb",
+      "foggy-dataset-model",
+      "foggy-fsscript",
+      "foggy-mcp-launcher",
+      "foggy-mcp-spi",
+      "foggy-runtime-api"
+    ],
+    "path_policy": "repo-relative POSIX versioned src/test/java; generated roots require override",
+    "profile_policy": "explicit -P!multi-db for discovery/test-compile"
+  },
+  "required_skip_target": 0,
+  "reviewed_at": "2026-07-14T12:16:54.211702+00:00",
+  "reviewer": "dual-independent-review:precommit_scope_audit+v934_step1_contract",
+  "schema_version": 1,
+  "skip_manifest_schema": [
+    "lane",
+    "fqcn#method",
+    "reason",
+    "owner",
+    "expiry",
+    "required"
+  ],
+  "stable_required_check": "required / test-ci-evidence-chain",
+  "status": "confirmed",
+  "step": 1,
+  "successor_policy": {
+    "current_suffix": "IntegrationTest",
+    "refresh_rule": "immutable Step1 pre-rename freeze -> exact approved rename/POM delta -> independent Step2 successor confirmation",
+    "rename_plan": "rename-successor-plan.tsv",
+    "rename_plan_sha256": "acba7a9dc22c9c0fdbaa0438fe91018b61eee8a457a36f1918995f39aa74cfe2",
+    "required_parent_link": "confirmed Step1 summary contract_manifest_sha256 plus rename_plan_sha256",
+    "successor_output": "scripts/v934/successor/step2",
+    "target_suffix": "IT"
+  },
+  "toolchain": {
+    "discovery_source_sha256": "ec58a90d4f02ac1b814a26ac0d8e24a1417b5f33910b6813c585f34330091e41",
+    "generator_class_files": [
+      "JUnitDiscoveryInventory$ReportDiscovery.class",
+      "JUnitDiscoveryInventory.class"
+    ],
+    "generator_classes_sha256": "a9540895b7a8969cf65eae2bde65fc570e1ccf03d3c6a61bf2b2d593f8539561",
+    "inventory_overrides_sha256": "29bdec5c3c7080ba222c943e6f81044e47d4b5f33c3709de13bc899cb67f2cef",
+    "inventory_tool_sha256": "49a044c84356723875c136b243a8613692b5c7a13d6eff1dd36bafc25f0eb752",
+    "java_version": "openjdk version \"17.0.19\" 2026-04-21",
+    "javac_version": "javac 17.0.19",
+    "maven_version": "\u001b[1mApache Maven 3.8.7\u001b[m",
+    "wrapper_path": "scripts/verify-v934-test-inventory.sh",
+    "wrapper_sha256": "941fe622b9b73322eafd08a7f30a98499a8bffc37237e763be2471f08d7c63dd"
+  },
+  "version": "9.3.4"
+}

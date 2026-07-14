@@ -1,0 +1,72 @@
+{
+  "aggregate_thresholds": {
+    "status": "deferred-to-step4-reviewed-observation"
+  },
+  "candidate_floor": {
+    "branch": 0.7,
+    "line": 0.8
+  },
+  "critical_classes": [
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore",
+      "module": "foggy-dataset-model"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildSingleFlight",
+      "module": "foggy-dataset-model"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator",
+      "module": "foggy-dataset-model"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.refresh.DatasourceCatalogConvergence",
+      "module": "foggy-dataset-model"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+      "module": "foggy-dataset-model"
+    },
+    {
+      "fqcn": "com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry",
+      "module": "foggy-fsscript"
+    },
+    {
+      "fqcn": "com.foggyframework.runtime.api.service.RuntimeNamedDataSourceResolver",
+      "module": "foggy-runtime-api"
+    },
+    {
+      "fqcn": "com.foggyframework.core.utils.file.WatchServiceFileTracer",
+      "module": "foggy-core"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder",
+      "module": "addons/foggy-dataset-model-cache"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.cache.fingerprint.SecurityPolicyFingerprint",
+      "module": "addons/foggy-dataset-model-cache"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider",
+      "module": "addons/foggy-dataset-model-cache"
+    },
+    {
+      "fqcn": "com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProvider",
+      "module": "addons/foggy-dataset-model-cache"
+    }
+  ],
+  "jacoco": {
+    "aggregate_check": "versioned-xml-verifier",
+    "aggregate_reporter": "build-only",
+    "version": "0.8.12"
+  },
+  "model_existing_gate": {
+    "branch": 0.62,
+    "exec_policy": "merged-unit-and-it",
+    "line": 0.77,
+    "module": "foggy-dataset-model"
+  },
+  "schema_version": 1,
+  "status": "step1-policy-frozen-observed-baseline-deferred-to-step4"
+}

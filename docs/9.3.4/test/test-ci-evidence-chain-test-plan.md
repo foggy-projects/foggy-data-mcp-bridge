@@ -2,8 +2,9 @@
 doc_role: test-plan
 doc_purpose: Define positive, negative and authority verification for the 9.3.4 test and CI evidence chain.
 version: 9.3.4
-status: ready
-result: not-run
+status: in-progress
+result: in-progress
+step1_result: passed
 created_at: 2026-07-14
 updated_at: 2026-07-14
 ---
@@ -50,12 +51,15 @@ Positive：
   inventory、edge tuple duplicate=0；mapping edges 不参与测试总数求和。
 - historical package inventory 与新 POM-only reporter delta 有 reviewed mapping；
   reporter 不产 main JAR、不进入 Launcher，successor reactor/JAR set 单独冻结。
+- `rename-successor-plan.tsv` exact 覆盖 33 sources、62 reports、74 old/new execution
+  keys 和 50 predecessor edges；target 只做 `IntegrationTest→IT`，执行语义列不变、
+  无碰撞，plan SHA 纳入 confirmed summary。
 - contract freeze 记录 manifest SHA、tool/source SHA、reviewer、decision。
 
 Expected-negative：orphan source、未声明 non-reactor source、nested report missing/
 unexpected、execution key/edge duplicate、同 key 双 runner、missing owner、optional
 无 reason、stale manifest、zero candidate owning module、migration cardinality mismatch/
-unmapped 均被拒绝。
+unmapped、tampered rename successor/policy 均被拒绝。
 
 ## Step 2 — Runner Split
 
@@ -63,18 +67,25 @@ Positive：
 
 - root/reactor unit command只由 Surefire执行 unit；all integration/E2E 只由
   Failsafe `integration-test/verify` 执行。
+- Step 1 pre-rename baseline immutable；post-rename inventory 写入独立 successor
+  目录，parent manifest/rename-plan SHA exact，approved delta 双向差集精确且再次独立
+  confirm；Step 1 baseline validator 变 stale 不能被当作 post-rename 失败或被覆盖。
 - final `*IntegrationTest` ambiguous source count=`0`；Step 2 raw report execution
-  keys 与 frozen `execution_step=2` subset 完全一致，不要求尚未执行的 Step 3 subset。
+  keys 与 confirmed Step 2 successor `execution_step=2` subset 完全一致，不要求尚未
+  执行的 Step 3 subset。
 - fresh XML suite tests 总和等于 testcase nodes；F/E/S 符合 lane contract；同一
   FQCN 不同时出现在 Surefire/Failsafe。
 - SQLite broad integration 与 five-DB parity SQLite 子 lane 的 execution-key subsets
   双向求交为空；相同 `(report_fqcn, sqlite, lane)` execution count 不大于 1。
 - all unit + hermetic IT actual pass；DB/Redis/other external required suites 只以
-  Step 1 exact manifest 标 `deferred-to-step3`，且 owner/preflight 唯一。
-- renamed FQCN 与 predecessor migration map 双向一致，无历史 criterion 丢失。
+  confirmed Step 2 successor exact manifest 标 `deferred-to-step3`，且 owner/preflight
+  唯一。
+- renamed FQCN 与 predecessor migration map 双向一致；50 个受影响 edges 经 plan
+  确定性改写，全部 519 historical nodes 无 criterion 丢失。
 
 Expected-negative：指定 owning test 不存在、0 report、旧 XML、duplicate FQCN、
-Surefire 执行 IT、Failsafe 执行 unit、helper module 放宽掩盖 owner 0 tests 均失败。
+Surefire 执行 IT、Failsafe 执行 unit、helper module 放宽掩盖 owner 0 tests、缺 parent
+link、plan 外 rename、语义列漂移或覆盖 Step 1 baseline 均失败。
 
 ## Step 3 — Required Database / External Matrix
 
@@ -89,8 +100,9 @@ Surefire 执行 IT、Failsafe 执行 unit、helper module 放宽掩盖 owner 0 t
 所有库使用同构 sentinel manifest 和幂等 fixture init。支持能力走 positive；不支持
 能力必须返回被精确断言的 refusal，不产生 `<skipped>`。五库 required skip 总数为 0。
 此外，Step 2 deferred DB/Redis/other external suites 必须全部 actual pass 并清零
-deferred set；raw report keys 与 `execution_step=3` subset exact。Step 2/3 execution
-key 并集等于全部 required execution inventory、交集为空。此 Step 只验证 correctness/identity/
+deferred set；raw report keys 与 confirmed Step 2 successor `execution_step=3` subset
+exact。Step 2/3 execution key 并集等于该 successor generation 全部 required execution
+inventory、交集为空。此 Step 只验证 correctness/identity/
 report，不要求或接受 coverage exec。
 
 ## Step 4 — Coverage
@@ -183,6 +195,14 @@ Final acceptance 至少验证：
 
 ## Current Result
 
-- result: `not-run`
-- planning candidate counts and 9.3.3 predecessor authority are context only。
-- first executable action: Step 1 inventory/contract positive + negative validation。
+- result: `in-progress`
+- step1_result: `passed`
+- confirmed run: `step1-candidate-r8-20260714`
+- Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
+  predecessor nodes/edges；28/28 expected-negative probes 精确通过。
+- Step 1 只做 compile + JUnit discovery-only + static validation，没有执行测试方法或
+  external fixture；因此 unit/hermetic/external/coverage 的全版本结果仍未产生。
+- evidence:
+  `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`
+- next executable action: Step 2 controlled rename + runner split + actual unit/hermetic
+  Failsafe execution。

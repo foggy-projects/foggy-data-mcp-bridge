@@ -1,0 +1,418 @@
+{
+  "schema_version": 1,
+  "reviewer": "v934-step1-independent-review",
+  "predecessor_authority_run_id": "20260714T084351Z-3271604",
+  "toolchain": {
+    "junit_platform_version": "1.11.4",
+    "junit_platform_launcher_sha256": "d7430bd029e7fcced53ee445e4d2d1a8a1e043ea4c4df43b6335a857f79761ae",
+    "junit_jupiter_version": "5.11.4",
+    "junit_jupiter_engine_sha256": "cdf8ac59f3fad774ca738ad03890950eeb91833ef0e8908753177edd26f1581c",
+    "maven_surefire_version": "3.5.3",
+    "maven_surefire_plugin_sha256": "5b5b35523b04916eee85ad6d898b0353dd2ac00793b90d9e7befb79197873d9d"
+  },
+  "rename_contract": {
+    "current_suffix": "IntegrationTest",
+    "target_suffix": "IT",
+    "source_count": 33,
+    "report_count": 62,
+    "execution_count": 74,
+    "predecessor_edge_count": 50,
+    "successor_output": "scripts/v934/successor/step2",
+    "policy": "immutable Step1 pre-rename freeze -> exact approved rename/POM delta -> independent Step2 successor confirmation"
+  },
+  "source_disposition": {
+    "addons/foggy-benchmark-spider2/src/test/java/com/foggyframework/benchmark/spider2/Spider2BenchmarkTest.java": {
+      "kind": "executable",
+      "owner": "addons/foggy-benchmark-spider2",
+      "reason": "WIP benchmark test is outside the active root reactor and cannot be release-required"
+    },
+    "addons/foggy-benchmark-spider2/src/test/java/com/foggyframework/benchmark/spider2/ai/AdventureWorksAiTest.java": {
+      "kind": "executable",
+      "owner": "addons/foggy-benchmark-spider2",
+      "reason": "WIP AI benchmark test is outside the active root reactor and cannot be release-required"
+    },
+    "addons/foggy-dataset-client/src/test/java/com/foggyframework/dataset/client/test/support/TestDataSetClient.java": {
+      "kind": "helper",
+      "reason": "annotation and converter fixture interface; contains no JUnit test"
+    },
+    "addons/foggy-fsscript-client/src/test/java/com/foggyframework/fsscript/client/test/support/FsscriptClientTest.java": {
+      "kind": "helper",
+      "reason": "Fsscript client fixture interface consumed by owning tests"
+    },
+    "foggy-core/src/test/java/com/foggyframework/core/spring/bean/TestFoggyMethodFilter.java": {
+      "kind": "helper",
+      "reason": "Spring test filter fixture; contains no JUnit test"
+    },
+    "foggy-core/src/test/java/com/foggyframework/core/spring/bean/annotation/TestMethod.java": {
+      "kind": "helper",
+      "reason": "test-only annotation fixture; contains no JUnit test"
+    },
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/EcommerceTestCase.java": {
+      "kind": "helper",
+      "reason": "AI question-bank DTO consumed by executable tests"
+    },
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/TestCaseLoader.java": {
+      "kind": "helper",
+      "reason": "AI question-bank loader consumed by executable tests"
+    },
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/base/BaseMcpTest.java": {
+      "kind": "helper",
+      "reason": "abstract MCP integration support base"
+    },
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/rollup/TestableNonAdditiveRollupExecutor.java": {
+      "kind": "helper",
+      "reason": "package-private method adapter consumed by owning tests"
+    },
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheInvalidationBroadcasterContractTest.java": {
+      "kind": "helper",
+      "reason": "abstract reusable contract; inherited methods execute only through concrete broadcaster tests"
+    },
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheProviderContractTest.java": {
+      "kind": "helper",
+      "reason": "abstract reusable contract; inherited methods execute only through concrete provider tests"
+    },
+    "foggy-fsscript/src/test/java/com/foggyframework/fsscript/bugfix/TestBugFixService.java": {
+      "kind": "helper",
+      "reason": "Spring component fixture consumed by bug-fix tests"
+    },
+    "foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/CommonDimsDirectTest.java": {
+      "kind": "generator",
+      "reason": "manual main-based diagnostic; not a JUnit execution owner"
+    },
+    "foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/CommonDimsParseDebugTest.java": {
+      "kind": "generator",
+      "reason": "manual parser diagnostic main; not a JUnit execution owner"
+    },
+    "foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/DestructuringDebugTest.java": {
+      "kind": "generator",
+      "reason": "manual debug main; not a JUnit execution owner"
+    },
+    "foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/DestructuringTest.java": {
+      "kind": "generator",
+      "reason": "manual main-based smoke diagnostic; not a JUnit execution owner"
+    },
+    "foggy-fsscript/src/test/java/com/foggyframework/fsscript/support/ImportStaticClassTest.java": {
+      "kind": "helper",
+      "reason": "data fixture class despite Test suffix; contains no JUnit test"
+    }
+  },
+  "execution": {
+    "addons/foggy-data-viewer/src/test/java/com/foggyframework/dataviewer/service/listpreset/MongoListPresetStoreIntegrationTest.java": [
+      {"runner":"failsafe","lane":"external-mongo","variant_key":"mongo6","db_kind":"none","infra_kind":"mongodb","execution_step":3,"required":true}
+    ],
+    "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/CaffeineQueryCacheProviderDataSourceIsolationIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "addons/foggy-dataset-model-mongo/src/test/java/com/foggyframework/dataset/db/model/mongo/MongoCalculatedFieldIntegrationTest.java": [
+      {"runner":"failsafe","lane":"external-mongo","variant_key":"mongo6","db_kind":"none","infra_kind":"mongodb","execution_step":3,"required":true}
+    ],
+    "addons/foggy-dataset-model-vector/src/test/java/com/foggyframework/dataset/db/model/vector/VectorIntegrationTest.java": [
+      {"runner":"failsafe","lane":"external-vector","variant_key":"milvus24-embedding","db_kind":"none","infra_kind":"vector","execution_step":3,"required":true}
+    ],
+    "addons/foggy-dataset-vector/src/test/java/com/foggyframework/dataset/vector/integration/VectorStoreIntegrationTest.java": [
+      {"runner":"failsafe","lane":"external-vector","variant_key":"milvus24-embedding","db_kind":"none","infra_kind":"vector","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiToolsIntegrationTest.java": [
+      {
+        "runner":"failsafe","lane":"external-mysql","variant_key":"mysql57-direct","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true,
+        "report_regex":"^(?:com\\.foggyframework\\.dataset\\.mcp\\.ai\\.AiToolsIntegrationTest|com\\.foggyframework\\.dataset\\.mcp\\.ai\\.AiToolsIntegrationTest\\$DirectToolCallTest)$"
+      },
+      {
+        "runner":"failsafe","lane":"external-llm","variant_key":"mysql57-llm","db_kind":"mysql57","infra_kind":"llm","execution_step":3,"required":false,
+        "optional_reason":"third-party model quality is non-deterministic and not the required direct-tool correctness contract",
+        "review_at":"2026-08-31",
+        "report_regex":"^com\\.foggyframework\\.dataset\\.mcp\\.ai\\.AiToolsIntegrationTest\\$AiModelCallTest$"
+      }
+    ],
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/ComposeScriptToolIntegrationTest.java": [
+      {"runner":"failsafe","lane":"external-mysql","variant_key":"mysql57-compose","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/McpToolsIntegrationTest.java": [
+      {"runner":"failsafe","lane":"external-mysql","variant_key":"mysql57-mcp","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/CalculateMvpIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/FieldAccessPermissionIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/InOperatorCalcFieldIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/PhysicalColumnMappingIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/PhysicalColumnPermissionIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/SemanticScaleFactorIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/ServiceIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/ComposedDataSetResultIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/F4ColumnObjectIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/F5ColumnObjectIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/capability/ObjectFacadePauseIntegrationTest.java": [
+      {"runner":"failsafe","lane":"hermetic-integration","variant_key":"hermetic","db_kind":"none","infra_kind":"hermetic","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotCascadeGenerateSqlParityIntegrationTest.java": [
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlite","db_kind":"sqlite","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql57","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql8","db_kind":"mysql8","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-postgres15","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlserver2022","db_kind":"sqlserver2022","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"mysql8-targeted","db_kind":"mysql8","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"postgres15-targeted","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIntegrationTest.java": [
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlite","db_kind":"sqlite","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql57","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql8","db_kind":"mysql8","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-postgres15","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlserver2022","db_kind":"sqlserver2022","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/plugins/AutoGroupByIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/plugins/HavingClauseIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/ComparativeExecutionIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/DslCteCrmFunnelFixtureIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/DslCteRelationMetricFixtureIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"postgres15-targeted","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/DslCteResultStageWindowIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"postgres15-targeted","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/DslCteSlaFixtureIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/TimeWindowExecutionIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/member/permission/SyntheticMemberPermissionIntegrationTest.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-broad","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/lifecycle/realquery/QueryCacheLifecycleRealQueryIT.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"caffeine-sqlite","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true},
+      {"runner":"failsafe","lane":"external-redis","variant_key":"redis7-sqlite","db_kind":"sqlite","infra_kind":"redis","execution_step":3,"required":true}
+    ],
+    "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java": [
+      {"runner":"failsafe","lane":"external-redis","variant_key":"redis7","db_kind":"none","infra_kind":"redis","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/gate/DeterministicConcurrencyHarnessProbeIT.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-harness","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/gate/RequiredDatabasePreflightIT.java": [
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlite","db_kind":"sqlite","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql57","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql8","db_kind":"mysql8","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-postgres15","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlserver2022","db_kind":"sqlserver2022","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/realquery/ModelLifecycleRealQueryIT.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-lifecycle","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/realquery/RequiredDatabaseQueryFacadeParityIT.java": [
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlite","db_kind":"sqlite","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql57","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql8","db_kind":"mysql8","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-postgres15","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlserver2022","db_kind":"sqlserver2022","infra_kind":"database","execution_step":3,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshQueryIT.java": [
+      {"runner":"failsafe","lane":"sqlite-broad-integration","variant_key":"sqlite-refresh","db_kind":"sqlite","infra_kind":"sqlite","execution_step":2,"required":true}
+    ],
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/multidb/MultiDatabaseQueryTest.java": [
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlite","db_kind":"sqlite","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql57","db_kind":"mysql57","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-mysql8","db_kind":"mysql8","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-postgres15","db_kind":"postgres15","infra_kind":"database","execution_step":3,"required":true},
+      {"runner":"failsafe","lane":"database-contract-matrix","variant_key":"db-sqlserver2022","db_kind":"sqlserver2022","infra_kind":"database","execution_step":3,"required":true}
+    ]
+  },
+  "database_contract": [
+    {
+      "db_kind":"sqlite","required":"true",
+      "approved_reference":"org.xerial:sqlite-jdbc:3.42.0.0#sha256=53174d76087bb73cc29db9c02766fb921fd7fc652f7952f3609e0018e3dd5ded",
+      "version_contract":"3.42.0.0","digest_policy":"exact artifact SHA-256",
+      "coordinate_contract":"driver-reported jdbc:sqlite coordinate; memory/file mode explicit","catalog":"none","schema":"none",
+      "sentinel_contract":"v934_test_sentinel|contract_version|9.3.4#sha256=cef04c4c1269e1293bf243e61e0a9672697bfd55b0bca48297943026bd82c191",
+      "observed_step":"3","owner":"foggy-dataset-model"
+    },
+    {
+      "db_kind":"mysql57","required":"true",
+      "approved_reference":"mysql@sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb",
+      "version_contract":"5.7.44-log","digest_policy":"exact OCI digest",
+      "coordinate_contract":"127.0.0.1:13306/foggy_test","catalog":"foggy_test","schema":"none",
+      "sentinel_contract":"v934_test_sentinel|contract_version|9.3.4#sha256=cef04c4c1269e1293bf243e61e0a9672697bfd55b0bca48297943026bd82c191",
+      "observed_step":"3","owner":"foggy-dataset-demo/docker"
+    },
+    {
+      "db_kind":"mysql8","required":"true",
+      "approved_reference":"mysql@sha256:f37951fc3753a6a22d6c7bf6978c5e5fefcf6f31814d98c582524f98eae52b21",
+      "version_contract":"8.0.x","digest_policy":"exact OCI digest",
+      "coordinate_contract":"127.0.0.1:13308/foggy_test","catalog":"foggy_test","schema":"none",
+      "sentinel_contract":"v934_test_sentinel|contract_version|9.3.4#sha256=cef04c4c1269e1293bf243e61e0a9672697bfd55b0bca48297943026bd82c191",
+      "observed_step":"3","owner":"foggy-dataset-demo/docker"
+    },
+    {
+      "db_kind":"postgres15","required":"true",
+      "approved_reference":"postgres@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c",
+      "version_contract":"15.x","digest_policy":"exact OCI digest",
+      "coordinate_contract":"127.0.0.1:15432/foggy_test","catalog":"foggy_test","schema":"public",
+      "sentinel_contract":"v934_test_sentinel|contract_version|9.3.4#sha256=cef04c4c1269e1293bf243e61e0a9672697bfd55b0bca48297943026bd82c191",
+      "observed_step":"3","owner":"foggy-dataset-demo/docker"
+    },
+    {
+      "db_kind":"sqlserver2022","required":"true",
+      "approved_reference":"mcr.microsoft.com/mssql/server@sha256:0ec7739e1c5ec2f57861facbe1f2b74f1d3e147c7c97edf91eeea920c5944d9c",
+      "version_contract":"16.0.x SQL Server 2022","digest_policy":"exact OCI digest",
+      "coordinate_contract":"driver-aware 127.0.0.1:11433;databaseName=foggy_test","catalog":"foggy_test","schema":"dbo",
+      "sentinel_contract":"v934_test_sentinel|contract_version|9.3.4#sha256=cef04c4c1269e1293bf243e61e0a9672697bfd55b0bca48297943026bd82c191",
+      "observed_step":"3","owner":"foggy-dataset-demo/docker"
+    }
+  ],
+  "maven_variant_contract": [
+    {
+      "module":"root",
+      "profile":"default",
+      "activation":"always",
+      "plugin":"maven-surefire-plugin",
+      "execution_id":"default-test",
+      "current_owner":"root inherited unit defaults; IT/E2E patterns excluded",
+      "current_variant":"unit",
+      "v934_disposition":"Step 2 retains one Surefire unit owner and adds fail-closed no-test/report verification",
+      "owner":"root-build"
+    },
+    {
+      "module":"foggy-dataset-model",
+      "profile":"multi-db",
+      "activation":"activeByDefault",
+      "plugin":"maven-surefire-plugin",
+      "execution_id":"test-mysql",
+      "current_owner":"spring.profiles.active=docker; profile name does not identify product/version",
+      "current_variant":"mysql57 inferred only from reviewed fixture contract",
+      "v934_disposition":"Step 3 removes broad Surefire replay and replaces it with the explicit MySQL 5.7 Failsafe matrix variant",
+      "owner":"foggy-dataset-model"
+    },
+    {
+      "module":"foggy-dataset-model",
+      "profile":"multi-db",
+      "activation":"activeByDefault",
+      "plugin":"maven-surefire-plugin",
+      "execution_id":"test-postgres",
+      "current_owner":"spring.profiles.active=postgres",
+      "current_variant":"postgres15",
+      "v934_disposition":"Step 3 removes broad Surefire replay and replaces it with the explicit PostgreSQL 15 Failsafe matrix variant",
+      "owner":"foggy-dataset-model"
+    },
+    {
+      "module":"foggy-dataset-model",
+      "profile":"multi-db",
+      "activation":"commented-disabled",
+      "plugin":"maven-surefire-plugin",
+      "execution_id":"test-sqlserver",
+      "current_owner":"no executable owner",
+      "current_variant":"sqlserver profile text only",
+      "v934_disposition":"Step 3 creates the required SQL Server 2022 Failsafe matrix variant with preflight",
+      "owner":"foggy-dataset-model"
+    },
+    {
+      "module":"foggy-dataset-model",
+      "profile":"multi-db",
+      "activation":"missing",
+      "plugin":"none",
+      "execution_id":"test-mysql8",
+      "current_owner":"no executable owner",
+      "current_variant":"none",
+      "v934_disposition":"Step 3 creates the required MySQL 8 Failsafe matrix variant with preflight",
+      "owner":"foggy-dataset-model"
+    },
+    {
+      "module":"foggy-dataset-model",
+      "profile":"model-lifecycle",
+      "activation":"explicit",
+      "plugin":"maven-surefire-plugin",
+      "execution_id":"default-test",
+      "current_owner":"9.3.3 lifecycle *Test entry-gate reports",
+      "current_variant":"lifecycle-unit",
+      "v934_disposition":"historical profile remains predecessor-only; Step 2 unified Surefire unit lane becomes the successor owner",
+      "owner":"foggy-dataset-model"
+    },
+    {
+      "module":"foggy-dataset-model",
+      "profile":"model-lifecycle",
+      "activation":"explicit",
+      "plugin":"maven-failsafe-plugin",
+      "execution_id":"default-integration-test/default-verify",
+      "current_owner":"9.3.3 lifecycle IT entry-gate reports",
+      "current_variant":"lifecycle-real-query",
+      "v934_disposition":"historical profile remains predecessor-only; Step 2 unified hermetic/SQLite Failsafe lanes become the successor owners",
+      "owner":"foggy-dataset-model"
+    },
+    {
+      "module":"addons/foggy-dataset-model-cache",
+      "profile":"query-cache-real-query",
+      "activation":"explicit",
+      "plugin":"maven-failsafe-plugin",
+      "execution_id":"default-integration-test/default-verify",
+      "current_owner":"9.3.3 QueryCacheLifecycleRealQueryIT provider-selected report",
+      "current_variant":"caffeine or redis selected by system property",
+      "v934_disposition":"historical profile remains predecessor-only; Step 2 owns Caffeine and Step 3 owns Redis with distinct execution keys",
+      "owner":"addons/foggy-dataset-model-cache"
+    }
+  ],
+  "package_contract": [
+    {"surface":"active-reactor-projects","predecessor_expectation":"25 including root aggregator","v934_expected_delta":"+1 build-only reporter at Step4","v934_successor_rule":"26 projects after reporter; no production dependency on reporter","observed_step":"4","owner":"root-build"},
+    {"surface":"production-main-jars","predecessor_expectation":"24","v934_expected_delta":"0","v934_successor_rule":"reporter packaging=pom and produces no production main JAR","observed_step":"4","owner":"root-build"},
+    {"surface":"launcher-nested-jars","predecessor_expectation":"12/12 exact","v934_expected_delta":"0","v934_successor_rule":"coverage reporter never enters Launcher BOOT-INF/lib","observed_step":"4","owner":"foggy-mcp-launcher"},
+    {"surface":"auto-configuration-import-jars","predecessor_expectation":"17 JARs / 21 entries","v934_expected_delta":"0","v934_successor_rule":"test governance adds no production auto-configuration entry","observed_step":"4","owner":"root-build"}
+  ],
+  "coverage_contract": {
+    "schema_version": 1,
+    "status": "step1-policy-frozen-observed-baseline-deferred-to-step4",
+    "jacoco": {"version":"0.8.12","aggregate_reporter":"build-only","aggregate_check":"versioned-xml-verifier"},
+    "model_existing_gate": {"module":"foggy-dataset-model","line":0.77,"branch":0.62,"exec_policy":"merged-unit-and-it"},
+    "candidate_floor": {"line":0.80,"branch":0.70},
+    "aggregate_thresholds": {"status":"deferred-to-step4-reviewed-observation"},
+    "critical_classes": [
+      {"module":"foggy-dataset-model","fqcn":"com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore"},
+      {"module":"foggy-dataset-model","fqcn":"com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildSingleFlight"},
+      {"module":"foggy-dataset-model","fqcn":"com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator"},
+      {"module":"foggy-dataset-model","fqcn":"com.foggyframework.dataset.db.model.lifecycle.refresh.DatasourceCatalogConvergence"},
+      {"module":"foggy-dataset-model","fqcn":"com.foggyframework.dataset.db.model.spi.NamespaceScope"},
+      {"module":"foggy-fsscript","fqcn":"com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry"},
+      {"module":"foggy-runtime-api","fqcn":"com.foggyframework.runtime.api.service.RuntimeNamedDataSourceResolver"},
+      {"module":"foggy-core","fqcn":"com.foggyframework.core.utils.file.WatchServiceFileTracer"},
+      {"module":"addons/foggy-dataset-model-cache","fqcn":"com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder"},
+      {"module":"addons/foggy-dataset-model-cache","fqcn":"com.foggyframework.dataset.db.model.cache.fingerprint.SecurityPolicyFingerprint"},
+      {"module":"addons/foggy-dataset-model-cache","fqcn":"com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider"},
+      {"module":"addons/foggy-dataset-model-cache","fqcn":"com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProvider"}
+    ]
+  }
+}

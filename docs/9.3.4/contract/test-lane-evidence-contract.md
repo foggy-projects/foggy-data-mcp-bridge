@@ -2,7 +2,7 @@
 doc_role: contract
 doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and release evidence invariants.
 version: 9.3.4
-status: proposed
+status: confirmed
 created_at: 2026-07-14
 updated_at: 2026-07-14
 ---
@@ -13,14 +13,14 @@ updated_at: 2026-07-14
 
 - doc_type: execution-contract
 - intended_for: project-root-session / build and CI owners / reviewer
-- purpose: 为 Step 1 review 冻结可被 runner 独立断言的 schema 与不变量。
+- purpose: 冻结经 Step 1 双路独立复核、可被 runner 独立断言的 schema 与不变量。
 
 ## 1. Source and Execution Inventory
 
 `source-inventory.tsv` 每个 workspace discovery candidate source 一行：
 
 ```text
-source_id | module | reactor_member | source_root | source_path | top_level_fqcn | kind | discovery_patterns | owner | reason
+source_id | module | reactor_member | source_root | source_path | top_level_fqcn | kind | discovery_patterns | disposition | owner | reason
 ```
 
 - `kind ∈ {executable,helper,generator}`。executable 的
@@ -33,11 +33,55 @@ source_id | module | reactor_member | source_root | source_path | top_level_fqcn
 `execution-inventory.tsv` 每个实际 report execution key 一行：
 
 ```text
-execution_key | source_id | report_fqcn | runner | lane | variant_key | db_kind | infra_kind | execution_step | required | owner
+execution_key | source_id | report_fqcn | runner | lane | variant_key | db_kind | infra_kind | execution_step | required | owner | optional_reason | review_at
 ```
 
-- `execution_key` 是 versioned stable key，至少 length-frame
-  `(runner,lane,variant_key,report_fqcn)`；全表唯一。
+`discovery-inventory.tsv` 每个 reactor source 的 JUnit discovery report owner 一行；
+无 report 的 reviewed helper/generator 使用唯一 `report_fqcn=none` 行：
+
+```text
+module | source_id | source_fqcn | report_fqcn | discovered_test_nodes | runtime_deferred_containers | engine_ids | source_sha256 | test_classes_sha256 | main_classes_sha256
+```
+
+- `module/source_id/source_fqcn` 必须与 source inventory exact 关联；non-reactor source
+  不得有 discovery row。report owner 只能是 top-level FQCN 或其 `$Nested`；实际 report
+  使用固定 `junit-jupiter` engine，`none` 行的 node/deferred 均为 0、engine=`none`。
+- source、当前 owning module `target/test-classes` 与 `target/classes` tree SHA 必须由
+  validator 现场复算；orphan/duplicate/missing/tampered row 全部 fail closed。
+
+`discovery-classpath.tsv` 冻结 discovery 实际使用的有序 effective classpath：
+
+```text
+module | ordinal | entry_identity | entry_sha256
+```
+
+- 每个 discovery module 的 ordinal 从 1 连续递增，module set 与 discovery inventory
+  exact；entry identity 只允许 `m2:<repo-relative>` 或 `repo:<workspace-relative>`，文件/
+  class tree SHA 必须现场复算。
+- Maven 提供依赖顺序；属于 active reactor GAV 的本地仓 JAR 必须原位替换为本次
+  reactor `target/classes`，不得冻结同版本陈旧 `.m2` JAR。raw/normalized cardinality、
+  order、live SHA 任一不一致均失败；classifier 歧义不猜测。
+
+`rename-successor-plan.tsv` 以 execution key 为粒度冻结 Step 2 的受控改名：
+
+```text
+rename_group | current_source_id | current_source_path | current_top_level_fqcn | current_report_fqcn | current_execution_key | target_source_id | target_source_path | target_top_level_fqcn | target_report_fqcn | target_execution_key | runner | lane | variant_key | db_kind | infra_kind | execution_step | required | owner | optional_reason | review_at | rationale | reviewer
+```
+
+- Step 1 baseline 保持 immutable `generation=step1-pre-rename`。当前 33 个真实
+  `*IntegrationTest` 的 target 只能机械改为 `*IT`；nested suffix 原样保留，source ID
+  和 length-framed key 必须重算；runner/lane/variant/DB/infra/step/required/optional/
+  owner 全部不变，target path/FQCN/key 不得碰撞。
+- plan exact 覆盖 33 sources、62 reports、74 execution keys 与 50 predecessor
+  edges。Step 2 不覆盖本目录 baseline；在 `scripts/v934/successor/step2/` 生成 post-
+  rename candidate，以 confirmed Step 1 summary 的 manifest SHA + rename-plan SHA
+  作为 parent link，只允许 approved rename/POM delta，并经独立 review/confirm 后才
+  成为 Step 2/3 exact-compare inventory。
+
+- `execution_key` 是 versioned stable key，精确编码为
+  `v934|<byte-len>:<runner>|<byte-len>:<lane>|<byte-len>:<variant_key>|<byte-len>:<report_fqcn>`；
+  length 按 UTF-8 byte 计算，全表唯一。空语义不使用空字符串：无 profile/provider
+  变体写 `default`，非数据库 lane 的 `db_kind` 写 `none`。
 - 每个 executable reactor source 至少一个 execution row；helper/generator 与
   non-reactor excluded source 为 0 rows。`runner ∈ {surefire,failsafe}` 且对每个
   execution key 恰好一个。
@@ -47,7 +91,9 @@ execution_key | source_id | report_fqcn | runner | lane | variant_key | db_kind 
   discovery-only JUnit test plan + POM variant config + available fresh diagnostic XML
   review/freeze exact mapping；不要求提前执行 Step 3 external fixtures。
 - 数据库/provider/profile 重复使用 `variant_key`；五库 parity 同一 report FQCN 有
-  五个 db-kind execution rows。相同 `(report_fqcn, db_kind, lane)` 不得重复。
+  五个 db-kind execution rows。相同
+  `(report_fqcn, db_kind, lane, variant_key)` 不得重复；同一 DB/lane 只有在 provider/
+  profile 语义确实不同且有 review 记录时才允许多个 variant。
 - `sqlite-broad-integration` 与 `database-contract-matrix[sqlite]` 使用两个显式、
   互斥 execution-key 子集：前者承担广覆盖 integration，后者只承担五库同构
   preflight/parity/capability contract；同一 `(report_fqcn, sqlite)` overlap 必须为 0。
@@ -58,8 +104,18 @@ execution_key | source_id | report_fqcn | runner | lane | variant_key | db_kind 
   `*Tests`、`*TestCase`、`IT*`、`*IT`、`*ITCase`、`*E2E`、`*E2ETest`；prefix-only
   `Test*`/`IT*` 也必须逐项判定 executable 或 helper，不能因 final include 收窄而
   静默消失。
+- active reactor 使用根 POM default-active module graph 推导，XML comments 不计
+  module；Step 1 不激活 release/coverage/multi-db 等额外 profile。source path 使用
+  repo-relative POSIX real path，只扫描 versioned `src/test/java`；generated-test root
+  只有被 active Maven build 显式注册且有独立 disposition 时才进入。
+- discovery authority 是与当前 source SHA 及 `target/test-classes` hash 绑定的 JUnit
+  Platform discovery-only plan；fresh diagnostic XML 仅用于交叉验证 report FQCN，
+  不能覆盖 discovery 结果。动态测试在 discovery 阶段只冻结 owning report FQCN，
+  testcase cardinality 留到 owning execution lane；无法静态发现的 engine/provider
+  必须有 versioned override、理由和 reviewer，不能从旧 XML 猜测。
 - optional 必须有业务原因、owner 和复核时点；“环境可能不可用”不是 release
-  optional 理由。
+  optional 理由。`required=true` 时 `optional_reason/review_at` 固定写 `none`；
+  `required=false` 时两列均非空且 `review_at` 使用 `YYYY-MM-DD`。
 - 9.3.4 最终不保留 `*IntegrationTest` 作为永久双义命名：真 integration 改
   `*IT`，纯 unit 改 `*Test`。
 
@@ -77,9 +133,10 @@ execution_key | source_id | report_fqcn | runner | lane | variant_key | db_kind 
 - reports 必须晚于 run marker，且 testcase node count 等于 suite tests 总和。
 - Step 2 actual exit 由 all unit + hermetic IT 组成；`infra_kind` 为 DB/Redis/other
   external 的 required suite 只能以 reviewed exact manifest defer 到 Step 3，不能
-  标 pass。Step 2 对 `execution_step=2` subset 做 exact compare，Step 3 对
-  `execution_step=3` subset 做 exact compare；两者 execution-key 并集必须等于全部
-  required execution inventory 且交集为空。
+  标 pass。Step 2 对 confirmed Step 2 successor inventory 的 `execution_step=2`
+  subset 做 exact compare，Step 3 对同一 successor inventory 的 `execution_step=3`
+  subset 做 exact compare；两者 execution-key 并集必须等于该 generation 全部 required
+  execution inventory 且交集为空。
 
 ## 3. Skip Contract
 
@@ -149,14 +206,22 @@ CaffeineQueryCacheProvider、RedisQueryCacheProvider。Step 1 可经 review 增�
 ## 6. Predecessor Regression Migration
 
 - 9.3.1–9.3.3 historical runs、raw XML、FQCN/count 和 v933 runner 均 read-only。
+- Step 1 先把 sealed raw XML 规范化到 `predecessor-node-inventory.tsv`：
+
+  ```text
+  predecessor_node | criterion | historical_lane | variant_key | report_fqcn | raw_report_sha256 | authority_run_id
+  ```
+
+  authority run 的 raw XML exact set、suite FQCN、SHA 与 node 必须双向一致；validator
+  从 sealed run 重新生成 nodes，不能只相信 TSV 自述。
 - Step 1 冻结 migration edges：
 
   ```text
-  mapping_group | relation | declared_old_count | declared_successor_count | criterion | predecessor_node | successor_execution_key | disposition | owner | reviewer
+  mapping_group | relation | declared_old_count | declared_successor_count | criterion | predecessor_node | successor_execution_key | disposition | rationale | owner | reviewer
   ```
 
   `relation ∈ {1:1,1:N,N:1}`；1:1 是默认。每个 predecessor node 恰属一个 group；
-  successor execution key 必须存在于 frozen execution inventory。一个 execution
+  successor execution key 必须存在于同 generation 的 frozen execution inventory。一个 execution
   key 可支撑多个不同 criterion group，但同 group 内 old/successor distinct node
   cardinality 必须等于 declared values，edge tuple duplicate=0；9.3.4 新增 key 可不
   进入 edge 表。split/merge 必须写 criterion-preservation rationale/reviewer。
@@ -166,6 +231,8 @@ CaffeineQueryCacheProvider、RedisQueryCacheProvider。Step 1 可经 review 增�
   reactor module count，但不得增加 production main JAR、Launcher nested JAR 或
   auto-configuration surface；新 expected count/hash set 必须单独 review/freeze，不能
   继续硬套 v933 的 25-module常量。
+- package/reactor/JAR/Launcher/auto-configuration successor delta 单独写入
+  `scripts/v934/package-successor-inventory.tsv`，不塞入 execution edge 表。
 - 9.3.4 只运行 current-source successor regression；不得把旧 v933 runner 因新命名
   失败解释为产品回归，也不得修改旧 runner 令其“重新通过”。
 
@@ -219,3 +286,44 @@ summary、inner/outer `SHA256SUMS`、archive digest。
 
 Step 1 结束时把 `status` 改为 `confirmed`，记录 inventory/hash、reviewer 和
 decision。未 confirmed 前只允许 diagnostic inventory，不进入 POM/rename 改造。
+
+Step 1 的机器权威还包括：
+
+- `scripts/v934/discovery-inventory.tsv` 与 `discovery-classpath.tsv`：冻结 report owner、
+  source/class tree hash 和 current-reactor effective classpath；
+- `scripts/v934/rename-successor-plan.tsv`：冻结 Step 1 pre-rename→Step 2 post-rename
+  的 exact source/report/execution/predecessor delta 与 successor confirmation chain；
+- `scripts/v934/predecessor-node-inventory.tsv`：冻结 sealed predecessor raw XML nodes；
+- `scripts/v934/maven-variant-inventory.tsv`：schema 为
+  `module | profile | activation | plugin | execution_id | current_owner | current_variant | v934_disposition | owner`；
+  exact 覆盖 root default、model `multi-db`/`model-lifecycle` 与 cache
+  `query-cache-real-query` 的当前 owner→successor disposition；
+- `scripts/v934/database-contract.tsv`：冻结五库 expected identity/sentinel/schema；
+  Step 3 才写 observed evidence；
+- `scripts/v934/package-successor-inventory.tsv`：冻结 build-only reporter 的 expected
+  delta 和 production surface 不变量；
+- `scripts/v934/contract-freeze.json`：冻结 baseline、profile/path/discovery policy、
+  skip schema、stable check name、evidence layout、reviewer 与 decision；
+- `scripts/v934/SHA256SUMS`：精确覆盖 generator、inventory、migration、DB/package/
+  coverage policy、negative probe 结果与 freeze record；validator 必须拒绝缺行、增行、
+  重复、乱序或内容漂移。`SHA256SUMS` 自身不入表，因此不存在自引用。
+
+freeze/summary 还必须绑定 wrapper、Python inventory tool、override、Java discovery
+source、实际编译出的全部 helper class（含 inner class）tree SHA，以及 Java/Javac/Maven
+版本；summary 在 candidate→confirmed 后必须原子刷新 freeze/manifest digest、reviewer、
+reviewed_at、decision 和 evidence status，candidate digest 不得冒充 confirmed evidence。
+
+`coverage-thresholds.json` 在 Step 1 只冻结 tool version、critical FQCN、既有 model
+门和 candidate floor；aggregate observed baseline/最终 reviewed threshold 只能在
+Step 4 由实际全 lane exec 更新。
+
+状态词固定为：contract `proposed -> confirmed`；Step
+`ready -> in-progress -> passed|blocked`；test plan 在 Step 1 只记录
+`step1_result=passed`，全版本 `result` 在 Step 7 前仍为 `not-run|in-progress`。
+
+Confirmed record（2026-07-14）：run=`step1-candidate-r8-20260714`，decision=`passed`，
+reviewer=`dual-independent-review:precommit_scope_audit+v934_step1_contract`；freeze=
+`ff418e04f6a938a853ce7bbd0700223627f42520705530e819a53e5591e82876`，manifest=
+`e601c6c70ff02e9e50b86fd2b14b14aba9cfede096b42c93ff6e5968a918640f`，summary=
+`579e9430bea6f873e7c4465cd1a6e45c49d348d84a89d5d648d25e3a5a4bbc50`。证据：
+`docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`。
