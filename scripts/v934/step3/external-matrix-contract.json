@@ -1,0 +1,206 @@
+{
+  "bindings": {
+    "authority_runner_lib": {
+      "path": "scripts/v934/authority_runner_lib.sh",
+      "sha256": "865ad2839374e652a68bda9635f8d7fe72c0613446a08428a88aad57730130d9"
+    },
+    "deferred_inventory": {
+      "path": "scripts/v934/successor/step2/deferred-step3.tsv",
+      "sha256": "89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601"
+    },
+    "discovery_inventory": {
+      "path": "scripts/v934/successor/step2/discovery-inventory.tsv",
+      "sha256": "634a5fbc5732676114bb4203498e20c032f8b34e113243705b1306569418404e"
+    },
+    "external_redis_runner": {
+      "path": "scripts/verify-v934-external-redis.sh",
+      "sha256": "a9e898583cf408bee2e2ed4793bfa757f81ecab77492ccb2a41eb869ed89b114"
+    },
+    "external_redis_signal_probe": {
+      "path": "scripts/v934/step3/external_redis_signal_probe.py",
+      "sha256": "edec82c7faf84e8056da34d637d9254992cdbb8ba536bd2a3797642f22a10c6f"
+    },
+    "external_report_tool": {
+      "path": "scripts/v934/step3/external_matrix_report_tool.py",
+      "sha256": "b84aeba02fc64659d04720dee4ac6a731d5b2dfd757014114d7b27124b1cbe5b"
+    },
+    "source_inventory": {
+      "path": "scripts/v934/successor/step2/source-inventory.tsv",
+      "sha256": "b761488311f2e5768dd6190e782c2a7cebcd9f6fa94541d5ae64ebef13956371"
+    }
+  },
+  "execution_order": [
+    "redis7",
+    "redis7-sqlite",
+    "mongo6",
+    "mysql57-mcp",
+    "mysql57-direct",
+    "mysql57-compose",
+    "milvus24-embedding"
+  ],
+  "kind": "v934-step3-external-matrix-contract",
+  "negative_probes": [
+    {
+      "expected_error": "E_MISSING_REPORT",
+      "probe": "missing-report"
+    },
+    {
+      "expected_error": "E_EXTRA_REPORT",
+      "probe": "extra-report"
+    },
+    {
+      "expected_error": "E_DUPLICATE_REPORT",
+      "probe": "duplicate-report-identity"
+    },
+    {
+      "expected_error": "E_REPORT_COUNT",
+      "probe": "wrong-test-count"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "failure-outcome"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "error-outcome"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "skipped-outcome"
+    },
+    {
+      "expected_error": "E_STALE_REPORT",
+      "probe": "stale-report"
+    },
+    {
+      "expected_error": "E_MARKER",
+      "probe": "wrong-variant-marker"
+    },
+    {
+      "expected_error": "E_CROSS_RUN_SPLICE",
+      "probe": "cross-run-manifest-splice"
+    },
+    {
+      "expected_error": "E_REPORT_CONTEXT",
+      "probe": "raw-report-splice"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "flaky-outcome"
+    }
+  ],
+  "optional_execution": {
+    "execution_key": "v934|8:failsafe|12:external-llm|11:mysql57-llm|59:com.foggyframework.dataset.mcp.ai.AiToolsIT$AiModelCallTest",
+    "lane": "external-llm",
+    "optional_reason": "third-party model quality is non-deterministic and not the required direct-tool correctness contract",
+    "owner": "foggy-dataset-mcp",
+    "review_at": "2026-08-31",
+    "variant_key": "mysql57-llm"
+  },
+  "required_totals": {
+    "errors": 0,
+    "failures": 0,
+    "reports": 16,
+    "skipped": 0,
+    "testcase_nodes": 76,
+    "variants": 7
+  },
+  "required": true,
+  "runner": "failsafe",
+  "schema_version": 1,
+  "source_amendments": [
+    {
+      "amended_sha256": "00aecfabddf46b4c6a149cd78624f77bde6f7b611dbc13955108e3e6057410e7",
+      "original_sha256": "40de2bfe938b03a6b9687891be93b324cf3b55b5107b042c710f3c5030c86038",
+      "reason": "required direct-tool JUnit nodes now fail closed on empty or failed case results without changing discovery cardinality",
+      "report_fqcns": [
+        "com.foggyframework.dataset.mcp.ai.AiToolsIT",
+        "com.foggyframework.dataset.mcp.ai.AiToolsIT$AiModelCallTest",
+        "com.foggyframework.dataset.mcp.ai.AiToolsIT$DirectToolCallTest"
+      ],
+      "source_id": "v934-src|80:foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiToolsIT.java",
+      "source_path": "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiToolsIT.java"
+    }
+  ],
+  "variants": [
+    {
+      "expected_reports": 1,
+      "expected_testcase_nodes": 1,
+      "infra_kind": "redis",
+      "lane": "external-redis",
+      "modules": [
+        "addons/foggy-dataset-model-cache"
+      ],
+      "selector": "com.foggyframework.dataset.db.model.cache.provider.RedisCrossJvmCacheIT",
+      "variant_key": "redis7"
+    },
+    {
+      "expected_reports": 1,
+      "expected_testcase_nodes": 2,
+      "infra_kind": "redis",
+      "lane": "external-redis",
+      "modules": [
+        "addons/foggy-dataset-model-cache"
+      ],
+      "selector": "com.foggyframework.dataset.db.model.cache.lifecycle.realquery.QueryCacheLifecycleRealQueryIT",
+      "variant_key": "redis7-sqlite"
+    },
+    {
+      "expected_reports": 4,
+      "expected_testcase_nodes": 30,
+      "infra_kind": "mongodb",
+      "lane": "external-mongo",
+      "modules": [
+        "addons/foggy-data-viewer",
+        "addons/foggy-dataset-model-mongo"
+      ],
+      "selector": "com.foggyframework.dataset.db.model.mongo.McpAuditLogMongoIT,com.foggyframework.dataset.db.model.mongo.MongoCalculatedFieldIT,com.foggyframework.dataset.db.model.mongo.MongoArrayElementAccessIT,com.foggyframework.dataviewer.service.listpreset.MongoListPresetStoreIT",
+      "variant_key": "mongo6"
+    },
+    {
+      "expected_reports": 5,
+      "expected_testcase_nodes": 14,
+      "infra_kind": "database",
+      "lane": "external-mysql",
+      "modules": [
+        "foggy-dataset-mcp"
+      ],
+      "selector": "com.foggyframework.dataset.mcp.integration.McpToolsIT",
+      "variant_key": "mysql57-mcp"
+    },
+    {
+      "expected_reports": 2,
+      "expected_testcase_nodes": 7,
+      "infra_kind": "database",
+      "lane": "external-mysql",
+      "modules": [
+        "foggy-dataset-mcp"
+      ],
+      "selector": "com.foggyframework.dataset.mcp.ai.AiToolsIT#checkAiModelConfiguration+verifyTestCasesLoaded+generateTestReport,com.foggyframework.dataset.mcp.ai.AiToolsIT$DirectToolCallTest",
+      "variant_key": "mysql57-direct"
+    },
+    {
+      "expected_reports": 1,
+      "expected_testcase_nodes": 2,
+      "infra_kind": "database",
+      "lane": "external-mysql",
+      "modules": [
+        "foggy-dataset-mcp"
+      ],
+      "selector": "com.foggyframework.dataset.mcp.integration.ComposeScriptToolIT",
+      "variant_key": "mysql57-compose"
+    },
+    {
+      "expected_reports": 2,
+      "expected_testcase_nodes": 20,
+      "infra_kind": "vector",
+      "lane": "external-vector",
+      "modules": [
+        "addons/foggy-dataset-model-vector",
+        "addons/foggy-dataset-vector"
+      ],
+      "selector": "com.foggyframework.dataset.db.model.vector.VectorIT,com.foggyframework.dataset.vector.integration.VectorStoreIT",
+      "variant_key": "milvus24-embedding"
+    }
+  ]
+}

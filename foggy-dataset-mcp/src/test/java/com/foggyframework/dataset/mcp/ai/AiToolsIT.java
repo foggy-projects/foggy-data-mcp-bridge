@@ -6,6 +6,7 @@ import org.junit.jupiter.api.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,6 +26,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AiToolsIT extends AiIntegrationTestSupport {
+
+    private static final Pattern SENSITIVE_FAILURE_DETAIL = Pattern.compile(
+            "(?i)(authorization|api[-_]?key|password|passwd|secret|token)(\\s*[:=]\\s*)(?:bearer\\s+)?[^\\s,;\\]}]+");
 
     private final List<SpringAiTestExecutor.AiTestResult> allResults = new ArrayList<>();
 
@@ -72,9 +76,11 @@ class AiToolsIT extends AiIntegrationTestSupport {
         @DisplayName("元数据工具 - 直接调用")
         void metadataTool_directCall() {
             List<EcommerceTestCase> testCases = loadTestCases(EcommerceTestCase.TestCategory.METADATA);
+            List<SpringAiTestExecutor.AiTestResult> results = new ArrayList<>();
 
             for (EcommerceTestCase testCase : testCases) {
                 SpringAiTestExecutor.AiTestResult result = testExecutor.executeToolDirectly(testCase);
+                results.add(result);
                 allResults.add(result);
 
                 log.info("{}", result.getSummary());
@@ -83,6 +89,8 @@ class AiToolsIT extends AiIntegrationTestSupport {
                     printJson(result.getToolResult(), "Tool Result: " + testCase.getId());
                 }
             }
+
+            assertDirectToolCallsSucceeded(results);
         }
 
         @Test
@@ -90,9 +98,11 @@ class AiToolsIT extends AiIntegrationTestSupport {
         @DisplayName("简单查询 - 直接调用")
         void simpleQuery_directCall() {
             List<EcommerceTestCase> testCases = loadTestCases(EcommerceTestCase.TestCategory.SIMPLE_QUERY);
+            List<SpringAiTestExecutor.AiTestResult> results = new ArrayList<>();
 
             for (EcommerceTestCase testCase : testCases) {
                 SpringAiTestExecutor.AiTestResult result = testExecutor.executeToolDirectly(testCase);
+                results.add(result);
                 allResults.add(result);
 
                 log.info("{}", result.getSummary());
@@ -101,6 +111,8 @@ class AiToolsIT extends AiIntegrationTestSupport {
                     log.warn("Validation failed: {}", result.getValidationResult().getFailedRules());
                 }
             }
+
+            assertDirectToolCallsSucceeded(results);
         }
 
         @Test
@@ -108,12 +120,16 @@ class AiToolsIT extends AiIntegrationTestSupport {
         @DisplayName("聚合查询 - 直接调用")
         void aggregationQuery_directCall() {
             List<EcommerceTestCase> testCases = loadTestCases(EcommerceTestCase.TestCategory.AGGREGATION);
+            List<SpringAiTestExecutor.AiTestResult> results = new ArrayList<>();
 
             for (EcommerceTestCase testCase : testCases) {
                 SpringAiTestExecutor.AiTestResult result = testExecutor.executeToolDirectly(testCase);
+                results.add(result);
                 allResults.add(result);
                 log.info("{}", result.getSummary());
             }
+
+            assertDirectToolCallsSucceeded(results);
         }
 
         @Test
@@ -134,6 +150,7 @@ class AiToolsIT extends AiIntegrationTestSupport {
             // 断言直接调用应该全部成功（验证工具本身正确性）
             long passedCount = results.stream().filter(SpringAiTestExecutor.AiTestResult::isSuccess).count();
             log.info("Direct tool calls: {}/{} passed", passedCount, results.size());
+            assertDirectToolCallsSucceeded(results);
         }
     }
 
@@ -477,5 +494,73 @@ class AiToolsIT extends AiIntegrationTestSupport {
         objectMapper.writerWithDefaultPrettyPrinter()
                 .writeValue(output.toFile(), AiTestReportSummary.build(results));
         log.info("Structured AI test report written to {}", output.toAbsolutePath());
+    }
+
+    private void assertDirectToolCallsSucceeded(List<SpringAiTestExecutor.AiTestResult> results) {
+        assertFalse(results.isEmpty(),
+                "Direct tool calls failed: no enabled direct test cases were executed");
+
+        List<SpringAiTestExecutor.AiTestResult> failures = results.stream()
+                .filter(result -> !result.isSuccess())
+                .sorted(Comparator.comparing(
+                        SpringAiTestExecutor.AiTestResult::getTestCaseId,
+                        Comparator.nullsFirst(String::compareTo)))
+                .toList();
+
+        assertTrue(failures.isEmpty(), () -> String.format(
+                "Direct tool calls failed: %d/%d failed%n%s",
+                failures.size(),
+                results.size(),
+                failures.stream()
+                        .map(this::formatDirectToolFailure)
+                        .collect(Collectors.joining("\n"))));
+    }
+
+    private String formatDirectToolFailure(SpringAiTestExecutor.AiTestResult result) {
+        List<String> details = new ArrayList<>();
+        addFailureDetail(details, "error", result.getErrorMessage());
+
+        ResultValidator.ValidationResult validation = result.getValidationResult();
+        if (validation != null) {
+            addFailureDetails(details, "failedRules", validation.getFailedRules());
+            addFailureDetails(details, "validationErrors", validation.getErrors());
+        }
+
+        if (details.isEmpty()) {
+            details.add("reason=unknown");
+        }
+
+        return String.format("- case=%s; %s",
+                Objects.toString(result.getTestCaseId(), "<unknown>"),
+                String.join("; ", details));
+    }
+
+    private void addFailureDetails(List<String> details, String label, Collection<String> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        List<String> sortedValues = values.stream()
+                .filter(Objects::nonNull)
+                .map(this::sanitizeFailureDetail)
+                .filter(value -> !value.isBlank())
+                .sorted()
+                .toList();
+        if (!sortedValues.isEmpty()) {
+            details.add(label + "=" + sortedValues);
+        }
+    }
+
+    private void addFailureDetail(List<String> details, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            details.add(label + "=" + sanitizeFailureDetail(value));
+        }
+    }
+
+    private String sanitizeFailureDetail(String value) {
+        String redacted = SENSITIVE_FAILURE_DETAIL.matcher(value)
+                .replaceAll("$1$2<redacted>");
+        return redacted.replace("\r\n", "\\n")
+                .replace('\r', '\n')
+                .replace("\n", "\\n");
     }
 }

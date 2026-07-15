@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Exercise Redis runner INT/TERM/HUP cleanup against a real run-owned service."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import os
+from pathlib import Path
+import re
+import signal
+import subprocess
+import sys
+import time
+
+
+ROOT = Path(__file__).resolve().parents[3]
+RUNNER = ROOT / "scripts/verify-v934-external-redis.sh"
+RUNS_ROOT = ROOT / "target/v934-step3-external-matrix/runs"
+EXPECTED = {"INT": 130, "TERM": 143, "HUP": 129}
+
+
+def fail(message: str) -> None:
+    raise RuntimeError(message)
+
+
+def sha256(path: Path) -> str:
+    if path.is_symlink() or not path.is_file():
+        fail(f"required evidence is not a regular file: {path}")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def parse_env(path: Path) -> dict[str, str]:
+    if path.is_symlink() or not path.is_file():
+        fail(f"environment evidence is missing: {path}")
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line or "=" not in line:
+            fail(f"malformed environment evidence: {path}")
+        key, value = line.split("=", 1)
+        if not key or key in values:
+            fail(f"duplicate environment key: {path}")
+        values[key] = value
+    return values
+
+
+def docker_count(args: list[str]) -> int:
+    result = subprocess.run(
+        ["docker", *args], cwd=ROOT, check=True, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    return len([line for line in result.stdout.splitlines() if line.strip()])
+
+
+def wait_ready(process: subprocess.Popen[str], ready: Path, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if ready.is_file():
+            return
+        code = process.poll()
+        if code is not None:
+            stdout, stderr = process.communicate()
+            fail(f"runner exited before signal readiness: code={code}\n{stdout}\n{stderr}")
+        time.sleep(0.1)
+    fail("runner did not reach signal readiness before timeout")
+
+
+def terminate_probe(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait(timeout=10)
+
+
+def run_probe(prefix: str, signal_name: str) -> dict[str, str]:
+    expected_code = EXPECTED[signal_name]
+    run_id = f"{prefix}-{signal_name.lower()}"
+    if re.fullmatch(r"[A-Za-z0-9._-]+", run_id) is None:
+        fail(f"unsafe signal probe run id: {run_id}")
+    run_root = RUNS_ROOT / run_id
+    if run_root.exists() or run_root.is_symlink():
+        fail(f"signal probe run root already exists: {run_root}")
+    environment = os.environ.copy()
+    environment["V934_EXTERNAL_REDIS_SIGNAL_PROBE"] = "true"
+    process = subprocess.Popen(
+        [str(RUNNER), run_id],
+        cwd=ROOT,
+        env=environment,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        wait_ready(process, run_root / "signal-probe-ready.env", 90)
+        os.kill(process.pid, getattr(signal, f"SIG{signal_name}"))
+        try:
+            stdout, stderr = process.communicate(timeout=45)
+        except subprocess.TimeoutExpired as error:
+            terminate_probe(process)
+            raise RuntimeError(f"{signal_name} runner did not finalize after signal") from error
+    finally:
+        terminate_probe(process)
+    if process.returncode != expected_code:
+        fail(
+            f"{signal_name} runner exit differs: {process.returncode} != {expected_code}\n"
+            f"stdout={stdout[-2000:]}\nstderr={stderr[-2000:]}"
+        )
+    status_path = run_root / "run-status.env"
+    cleanup_path = run_root / "cells/redis7/cleanup.env"
+    ready = parse_env(run_root / "signal-probe-ready.env")
+    status = parse_env(status_path)
+    cleanup = parse_env(cleanup_path)
+    if (
+        status.get("run_id") != run_id
+        or status.get("last_phase") != "signal-probe-ready"
+        or status.get("exit_code") != str(expected_code)
+        or status.get("status") != "failed"
+        or ready.get("run_id") != run_id
+        or ready.get("status") != "ready"
+        or cleanup.get("container") != ready.get("container")
+        or cleanup.get("volume") != ready.get("volume")
+        or cleanup.get("container_residue") != "0"
+        or cleanup.get("volume_residue") != "0"
+        or cleanup.get("status") != "passed"
+    ):
+        fail(f"{signal_name} durable signal evidence differs")
+    absent = {
+        "summary": not (run_root / "summary.env").exists(),
+        "candidate": not (run_root / "candidate-manifest.json").exists(),
+        "fifo": not (run_root / ".run-log.fifo").exists(),
+    }
+    if not all(absent.values()):
+        fail(f"{signal_name} retained forbidden success/FIFO artifacts: {absent}")
+    container_residue = docker_count(
+        ["ps", "-aq", "--filter", f"label=com.foggy.v934.external-run={run_id}"]
+    )
+    volume_residue = docker_count(
+        ["volume", "ls", "-q", "--filter", f"label=com.foggy.v934.external-run={run_id}"]
+    )
+    if container_residue or volume_residue:
+        fail(f"{signal_name} left Docker residue: {container_residue}/{volume_residue}")
+    return {
+        "signal": signal_name,
+        "expected_code": str(expected_code),
+        "actual_code": str(process.returncode),
+        "run_id": run_id,
+        "status_sha256": sha256(status_path),
+        "cleanup_sha256": sha256(cleanup_path),
+        "container_residue": "0",
+        "volume_residue": "0",
+        "summary_absent": "true",
+        "candidate_absent": "true",
+        "fifo_absent": "true",
+        "status": "passed",
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-prefix", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+    output = Path(args.output)
+    if not output.is_absolute():
+        output = ROOT / output
+    if output.exists() or output.is_symlink():
+        fail(f"signal probe output already exists: {output}")
+    started = dt.datetime.now(dt.timezone.utc)
+    rows = [run_probe(args.run_prefix, name) for name in EXPECTED]
+    header = [
+        "signal", "expected_code", "actual_code", "run_id", "status_sha256",
+        "cleanup_sha256", "container_residue", "volume_residue", "summary_absent",
+        "candidate_absent", "fifo_absent", "status",
+    ]
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_name(f".{output.name}.{os.getpid()}.tmp")
+    content = "\t".join(header) + "\n" + "".join(
+        "\t".join(row[key] for key in header) + "\n" for row in rows
+    )
+    temporary.write_text(content, encoding="utf-8")
+    os.replace(temporary, output)
+    elapsed = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
+    print(f"V934_EXTERNAL_REDIS_SIGNAL passed=3 total=3 elapsed_seconds={elapsed:.1f}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+        print(f"[E_SIGNAL_PROBE] {error}", file=sys.stderr)
+        raise SystemExit(1)
