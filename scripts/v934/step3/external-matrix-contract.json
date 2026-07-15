@@ -178,7 +178,7 @@
       "source_path": "addons/foggy-dataset-model-vector/src/test/java/com/foggyframework/dataset/db/model/vector/VectorIT.java"
     },
     {
-      "amended_sha256": "230bda229e791d5c317d1b0ac7f70e25ed063371298936b3eeb52ecfb3e8bd0d",
+      "amended_sha256": "64b8f6a777c7677994ad29cc27187c8d566f4c7baac6034ee2c5d1064d152f1a",
       "original_sha256": "a7d1dd22c757ea094e28bea1479e3a9e1c1a8e28bf18efc710904846d9b87ec5",
       "reason": "required VectorStore integration now uses a deterministic local embedding model, fixed physical schema and fixtures, exact non-empty assertions, and fail-closed cleanup without changing discovery cardinality",
       "report_fqcns": [
