@@ -2,7 +2,7 @@
   "bindings": {
     "authority_runner_lib": {
       "path": "scripts/v934/authority_runner_lib.sh",
-      "sha256": "865ad2839374e652a68bda9635f8d7fe72c0613446a08428a88aad57730130d9"
+      "sha256": "65f50005f0e71489fa263f1bbcf841bb646d89bb35dd6baac44f1c7480ed5434"
     },
     "deferred_inventory": {
       "path": "scripts/v934/successor/step2/deferred-step3.tsv",
@@ -14,7 +14,7 @@
     },
     "external_matrix_runner": {
       "path": "scripts/verify-v934-external-matrix.sh",
-      "sha256": "4a46a1def187ed195709e4c8f9ead07c32da20ee1693f383f86a91a0c08b392f"
+      "sha256": "b4ad164a09dd256118261f4a22d35a46ea7531f71bdbb822ae3992495084227a"
     },
     "external_lane_launcher": {
       "path": "scripts/v934/step3/external_lane_launcher.py",
@@ -32,13 +32,21 @@
       "path": "scripts/verify-v934-external-redis.sh",
       "sha256": "a60f7655ba6fb4dd5aaa9a7390443283acc9c2c824598e233a24e7faa89a0eb3"
     },
+    "external_redis_state_contract": {
+      "path": "scripts/v934/step3/external-redis-state-contract.json",
+      "sha256": "70fdc5756552db2ba0964df94165b2610d957ffb342160b8ca5f03a430b68f31"
+    },
+    "external_redis_state_tool": {
+      "path": "scripts/v934/step3/external_redis_state_tool.py",
+      "sha256": "be3d319c1179fed85626935d4118057acd0ec86827060a666d62e61583c6941c"
+    },
     "external_redis_signal_probe": {
       "path": "scripts/v934/step3/external_redis_signal_probe.py",
       "sha256": "cf042bc137aab190c829f9537b1b90d32b9ceb2adedf53eab5d1171994006850"
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "e54fe202dc2f3d72b43c1189dac2661e866635aaf1bc25e649915f5af6da03be"
+      "sha256": "3500d662e77cbda06dba3a3678b69992431b6ca0ec61212474f853c8b6f62e0e"
     },
     "external_shared_context": {
       "path": "scripts/v934/step3/external_shared_context.sh",

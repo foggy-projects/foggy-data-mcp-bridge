@@ -113,8 +113,8 @@ public class MultiThreadExecutor {
 	}
 
 	private void logProgress() {
-		System.out.println("executorService.getActiveCount():" + executorService.getActiveCount() + "/"
-				+ executorService.getQueue().size() + "/" + executorService.getTaskCount());
+		log.debug("任务执行进度 active={}/queued={}/submitted={}", executorService.getActiveCount(),
+				executorService.getQueue().size(), executorService.getTaskCount());
 	}
 
 	private void throwIfHasError(boolean stopIfHasError) {
@@ -136,7 +136,8 @@ public class MultiThreadExecutor {
 			while (executorService.getQueue().size() > maxQueueSize) {
 				// 待等 执行的任务 太多了，等 等 吧
 				try {
-					System.out.println("等 待执行的任务 太多了，等 6秒后看看");
+					log.debug("待执行任务超过队列阈值，6 秒后重试 queued={}/threshold={}",
+							executorService.getQueue().size(), maxQueueSize);
 					Thread.sleep(6000);
 				} catch (InterruptedException e) {
 					e.printStackTrace();

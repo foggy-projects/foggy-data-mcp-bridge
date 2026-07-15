@@ -415,15 +415,15 @@ public class ModelResultContext {
         /**
          * 是否启用混合查询（Lambda 架构）
          * <p>
-         * 当预聚合数据过期时（watermark < 当前日期），
-         * 系统会生成 UNION ALL SQL，合并预聚合表和原始表的数据。
-         * 默认禁用（因为需要额外配置确保正确性）。
+         * 当增量预聚合发布 exclusive watermark 后，系统生成 UNION ALL SQL，
+         * 合并物化历史和原始表 tail。默认启用以保证迟到数据完整性；只有明确接受
+         * snapshot-only 语义的调用方才应显式关闭。
          * </p>
          *
          * @since 8.2.0
          */
         @Builder.Default
-        private boolean hybridQueryEnabled = false;
+        private boolean hybridQueryEnabled = true;
 
         /**
          * L1 缓存是否命中（查询后由缓存提供者设置）

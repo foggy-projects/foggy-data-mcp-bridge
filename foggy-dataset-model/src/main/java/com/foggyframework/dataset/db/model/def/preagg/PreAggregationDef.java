@@ -26,10 +26,14 @@ import java.util.Map;
  *         tableName: 'preagg_daily_product_sales',
  *         priority: 80,
  *         dimensions: ['salesDate', 'product'],
- *         granularity: { salesDate: 'day' },
- *         dimensionProperties: {
- *             salesDate: ['year', 'quarter', 'month'],
- *             product: ['category_name', 'brand']
+         *         granularity: { salesDate: 'day' },
+         *         dimensionProperties: {
+ *             salesDate: ['caption', 'year', 'quarter', 'month'],
+ *             product: ['id', 'categoryName', 'brand']
+ *         },
+ *         dimensionPropertyColumnNames: {
+ *             salesDate: { caption: 'full_date', year: 'year', quarter: 'quarter', month: 'month' },
+ *             product: { id: 'product_key', categoryName: 'category_name', brand: 'brand' }
  *         },
  *         measures: [
  *             { name: 'quantity', aggregation: 'SUM' },
@@ -38,7 +42,7 @@ import java.util.Map;
  *         refresh: {
  *             strategy: 'INCREMENTAL',
  *             schedule: '0 2 * * *',
- *             watermarkColumn: 'salesDate$id',
+ *             watermarkColumn: 'salesDate$caption',
  *             lookbackDays: 3
  *         },
  *         enabled: true

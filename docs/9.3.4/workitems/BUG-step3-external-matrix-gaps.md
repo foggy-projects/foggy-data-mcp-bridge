@@ -99,8 +99,22 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] prove real Vector INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
 - [x] replay and merge exact external 16/76 under one outer marker/HEAD/contract
 - [x] prove shared outer INT/TERM/HUP parent+child durable cleanup as 130/143/129
-- [ ] finalize optional LLM reviewed disposition
+- [x] finalize optional LLM reviewed disposition
 - [ ] merge external 16/76 with database 29/370 as exact Step 3 45/446/F0/E0/S0
+
+## Optional LLM Reviewed Disposition
+
+- reviewed_at: `2026-07-16`
+- decision: `remain-optional / not-executed / excluded-from-required-union`
+- execution: `AiToolsIT$AiModelCallTest`
+- owner: `foggy-dataset-mcp`
+- rationale: third-party model quality is non-deterministic and is not part of the required
+  direct-tool correctness contract
+- next_review: `2026-08-31`
+
+The reviewed tuple is bound by both `deferred-step3.tsv` and
+`external-matrix-contract.json`. It contributes neither a required report nor a testcase to the
+Step 3 `45/446` union and cannot be used to hide a required failure.
 
 ## Evidence Boundary
 

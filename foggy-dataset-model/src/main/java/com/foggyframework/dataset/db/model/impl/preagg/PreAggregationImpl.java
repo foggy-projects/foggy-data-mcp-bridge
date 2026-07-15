@@ -50,13 +50,13 @@ public class PreAggregationImpl implements PreAggregation {
      * 最后刷新时间
      */
     @Setter
-    private LocalDateTime lastRefreshTime;
+    private volatile LocalDateTime lastRefreshTime;
 
     /**
      * 数据水位线（最后处理的数据时间戳）
      */
     @Setter
-    private Object dataWatermark;
+    private volatile Object dataWatermark;
 
     /**
      * 从定义构建预聚合实例

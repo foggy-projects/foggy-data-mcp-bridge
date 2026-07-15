@@ -1,9 +1,12 @@
 package com.foggyframework.dataset.db.model.preagg.refresh;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
+import com.foggyframework.dataset.db.model.engine.preagg.internal.PreAggWatermarkResolver;
 import com.foggyframework.dataset.db.model.preagg.ddl.ParameterizedSql;
 import com.foggyframework.dataset.db.model.preagg.ddl.PreAggSqlBuilder;
+import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import lombok.extern.slf4j.Slf4j;
@@ -78,12 +81,18 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
             PreAggRefreshDef refreshConfig = preAgg.getRefreshConfig();
 
             // 1. 计算刷新范围
-            LocalDate startDate = calculateStartDate(context, refreshConfig);
-            LocalDate endDate = LocalDate.now();
+            LocalDate endDate = startTime.toLocalDate();
+            LocalDate startDate = calculateStartDate(context, refreshConfig, endDate);
 
-            log.info("Incremental refresh range: {} to {}", startDate, endDate);
+            log.info("Incremental refresh range: {} inclusive to {} exclusive", startDate, endDate);
 
             // 2. 构建参数化 SQL（使用上下文中的方言）
+            PreAggWatermarkResolver.Resolution watermarkResolution =
+                    PreAggWatermarkResolver.resolve(preAgg, sourceModel, refreshConfig);
+            PreAggWatermarkResolver.requireLocalDateBounds(
+                    watermarkResolution, context.getDialect());
+            boolean bindIsoTextDate = usesSqliteTextDate(
+                    watermarkResolution, context.getDialect());
             PreAggSqlBuilder sqlBuilder = createSqlBuilder(context);
             ParameterizedSql deletePSql = sqlBuilder.buildIncrementalDeleteSql(preAgg, refreshConfig, startDate, endDate);
             ParameterizedSql insertPSql = sqlBuilder.buildIncrementalInsertSql(preAgg, sourceModel, refreshConfig, startDate, endDate);
@@ -101,7 +110,7 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
                 try {
                     // 删除受影响的数据（参数化）
                     try (PreparedStatement deleteStmt = conn.prepareStatement(deletePSql.getSql())) {
-                        setParameters(deleteStmt, deletePSql.getParams());
+                        setParameters(deleteStmt, deletePSql.getParams(), bindIsoTextDate);
                         deletedRows = deleteStmt.executeUpdate();
                         log.info("Deleted {} rows from {} for date range {} to {}",
                                 deletedRows, preAggTableName, startDate, endDate);
@@ -109,7 +118,7 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
 
                     // 插入新聚合数据（参数化）
                     try (PreparedStatement insertStmt = conn.prepareStatement(insertPSql.getSql())) {
-                        setParameters(insertStmt, insertPSql.getParams());
+                        setParameters(insertStmt, insertPSql.getParams(), bindIsoTextDate);
                         insertedRows = insertStmt.executeUpdate();
                     }
 
@@ -137,6 +146,8 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
             PreAggRefreshResult result = PreAggRefreshResult.success(
                     getStrategyName(), insertedRows, startTime, endTime);
             result.setExecutedSql(insertPSql.getSql());
+            // The same exclusive bound is consumed by the query-side
+            // `materialized < wm / source >= wm` split.
             result.setNewWatermark(endDate);
             return result;
 
@@ -149,33 +160,63 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
     /**
      * 设置 PreparedStatement 参数
      */
-    private void setParameters(PreparedStatement stmt, List<Object> params) throws java.sql.SQLException {
+    private void setParameters(PreparedStatement stmt,
+                               List<Object> params,
+                               boolean bindIsoTextDate) throws java.sql.SQLException {
         for (int i = 0; i < params.size(); i++) {
-            stmt.setObject(i + 1, params.get(i));
+            Object value = params.get(i);
+            if (value instanceof LocalDate localDate) {
+                // Xerial binds setDate as epoch milliseconds. SQLite demo
+                // models deliberately store governed DATE captions as ISO
+                // TEXT, so those bounds must stay in that same comparison
+                // domain. Native DATE columns continue to use JDBC setDate.
+                if (bindIsoTextDate) {
+                    stmt.setString(i + 1, localDate.toString());
+                } else {
+                    stmt.setDate(i + 1, java.sql.Date.valueOf(localDate));
+                }
+            } else if (value instanceof LocalDateTime localDateTime) {
+                stmt.setTimestamp(i + 1, java.sql.Timestamp.valueOf(localDateTime));
+            } else {
+                stmt.setObject(i + 1, value);
+            }
         }
+    }
+
+    private boolean usesSqliteTextDate(PreAggWatermarkResolver.Resolution resolution,
+                                       FDialect dialect) {
+        DbColumnType type = resolution.sourceColumn().type();
+        return dialect != null
+                && dialect.getDbType() == DbType.SQLITE
+                && (type == DbColumnType.TEXT || type == DbColumnType.STRING);
     }
 
     /**
      * 计算刷新起始日期
      * <p>
-     * 如果有上次水位线，从水位线 - lookbackDays 开始；
-     * 否则退化为全量刷新（从很早的日期开始）。
+     * 如果有上次 DATE 水位线，从水位线 - lookbackDays 开始。
+     * 无水位线时必须由服务层退化为 FULL，策略本身拒绝猜测范围。
      * </p>
      */
-    private LocalDate calculateStartDate(PreAggRefreshContext context, PreAggRefreshDef refreshConfig) {
+    private LocalDate calculateStartDate(PreAggRefreshContext context,
+                                         PreAggRefreshDef refreshConfig,
+                                         LocalDate endDate) {
         int lookbackDays = refreshConfig.getLookbackDays() != null ? refreshConfig.getLookbackDays() : 3;
+        if (lookbackDays < 0) {
+            throw new IllegalArgumentException(
+                    "INCREMENTAL refresh lookbackDays must be non-negative");
+        }
 
         if (context.getLastWatermark() instanceof LocalDate lastDate) {
+            if (lastDate.isAfter(endDate)) {
+                throw new IllegalArgumentException(
+                        "INCREMENTAL refresh watermark must not be after its exclusive end");
+            }
             return lastDate.minusDays(lookbackDays);
         }
 
-        if (context.getLastRefreshTime() != null) {
-            return context.getLastRefreshTime().toLocalDate().minusDays(lookbackDays);
-        }
-
-        // 没有历史记录，从 30 天前开始（避免全量扫描）
-        log.warn("No previous watermark found, using default start date (30 days ago)");
-        return LocalDate.now().minusDays(30);
+        throw new IllegalStateException(
+                "INCREMENTAL refresh requires a published LocalDate watermark; use FULL first");
     }
 
 }

@@ -102,9 +102,9 @@ public class PreAggRewriteResult {
      * 混合查询 SQL 结构：
      * <pre>
      * SELECT ... FROM (
-     *   SELECT ... FROM preagg_table WHERE watermark_col <= ?
+     *   SELECT ... FROM preagg_table WHERE watermark_col < ?
      *   UNION ALL
-     *   SELECT ... FROM source_table WHERE watermark_col > ?
+     *   SELECT ... FROM source_table WHERE watermark_col >= ?
      * ) AS combined
      * GROUP BY ...
      * </pre>
@@ -114,7 +114,7 @@ public class PreAggRewriteResult {
      * @param sql            重写后的 UNION SQL
      * @param params         SQL 参数
      * @param needsRollup    是否需要 rollup（粒度不完全匹配时需要）
-     * @param watermark      数据水位线
+     * @param watermark      物化历史的 exclusive upper bound
      * @return 重写结果
      */
     public static PreAggRewriteResult hybrid(PreAggregation preAggregation, String sql,

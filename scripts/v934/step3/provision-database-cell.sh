@@ -65,6 +65,33 @@ CELL_PARENT="${CELL_ROOT%/*}"
 [[ ! -e "$CELL_ROOT" && ! -L "$CELL_ROOT" ]] || \
   input_fail E_CELL_ROOT "cell root already exists: $CELL_ROOT"
 
+STATE_PROBE_AUTH="${V934_DB_STATE_AUTH:-}"
+STATE_PROBE="${V934_DB_STATE_PROBE:-}"
+if [[ -n "$STATE_PROBE_AUTH" || -n "$STATE_PROBE" ]]; then
+  [[ "$STATE_PROBE_AUTH" == v934-database-state-negative-v1 ]] || \
+    input_fail E_PROBE_AUTH "database-state probe authorization differs"
+  [[ "$RUN_ID" == state-* && "$DATABASE" == mysql57 ]] || \
+    input_fail E_PROBE_SCOPE "database-state probes require a state-* mysql57 child run"
+fi
+if [[ -n "$STATE_PROBE_AUTH" && "$ACTION" == run && -z "$STATE_PROBE" ]]; then
+  input_fail E_PROBE_SCOPE "authorized state run requires an exact dynamic probe"
+fi
+if [[ -n "$STATE_PROBE" ]]; then
+  [[ "$ACTION" == run ]] || input_fail E_PROBE_SCOPE "dynamic probes require the run action"
+  [[ "$#" -eq 2 && "$1" == "$ROOT_DIR/scripts/v934/step3/database_state_probe_callback.sh" ]] || \
+    input_fail E_PROBE_CALLBACK "dynamic probes require the exact versioned callback"
+  [[ -f "$1" && ! -L "$1" ]] || \
+    input_fail E_PROBE_CALLBACK "dynamic probe callback must be a regular non-symlink file"
+  case "$STATE_PROBE:$2" in
+    unavailable:noop|forced-cleanup-failure:noop|fixture-mutation:mutate-fixture|\
+signal-int:wait-signal|signal-term:wait-signal|signal-hup:wait-signal)
+      ;;
+    *)
+      input_fail E_PROBE_CALLBACK "probe/callback mode pair differs: $STATE_PROBE:${2:-<empty>}"
+      ;;
+  esac
+fi
+
 for command_name in cmp cut date docker grep mkdir mv python3 sed seq sha256sum sleep ss tail tr; do
   command -v "$command_name" >/dev/null 2>&1 || \
     input_fail E_TOOL "required command is missing: $command_name"
@@ -232,7 +259,7 @@ cleanup() {
     )" || cleanup_code=1
     if [[ -n "${project_container_output:-}" ]]; then
       mapfile -t project_containers <<< "$project_container_output"
-      docker rm -f -- "${project_containers[@]}" >/dev/null 2>&1 || cleanup_code=1
+      docker rm -fv -- "${project_containers[@]}" >/dev/null 2>&1 || cleanup_code=1
     fi
     project_volume_output="$(
       docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT"
@@ -250,6 +277,10 @@ cleanup() {
     fi
   fi
   resource_absent || cleanup_code=1
+  if [[ "$STATE_PROBE" == forced-cleanup-failure && "$cleanup_code" -eq 0 ]]; then
+    echo "[v934-db-provision] ERROR E_CLEANUP_FORCED: injected cleanup result after zero-residue removal" >&2
+    cleanup_code=1
+  fi
   if [[ "$cleanup_code" -eq 0 ]]; then
     CLEANUP_STATUS=passed
   else
@@ -385,6 +416,10 @@ fi
 PHASE=compose-up
 COMPOSE_ARMED=1
 "${COMPOSE[@]}" up -d --no-build --no-deps "$SERVICE" >/dev/null
+if [[ "$STATE_PROBE" == unavailable ]]; then
+  docker stop --timeout 1 "$CONTAINER" >/dev/null || \
+    fail E_PROBE_INJECTION "could not stop the run-owned unavailable probe container"
+fi
 
 PHASE=health
 health=""
@@ -574,11 +609,11 @@ PHASE=callback
 
 PHASE=fixture-after
 snapshot_to "$CELL_ROOT/fixture-after.txt"
-assert_snapshot "$CELL_ROOT/fixture-after.txt"
 FIXTURE_AFTER_SHA256="$(sha256sum "$CELL_ROOT/fixture-after.txt" | cut -d' ' -f1)"
 [[ "$FIXTURE_BEFORE_SHA256" == "$FIXTURE_AFTER_SHA256" ]] || \
   fail E_FIXTURE_MUTATION "before/after fixture SHA-256 differs"
 cmp -s "$CELL_ROOT/fixture-before.txt" "$CELL_ROOT/fixture-after.txt" || \
   fail E_FIXTURE_MUTATION "before/after canonical fixture differs"
+assert_snapshot "$CELL_ROOT/fixture-after.txt"
 
 PHASE=completed

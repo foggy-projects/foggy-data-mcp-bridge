@@ -52,16 +52,6 @@ public class PreAggRefreshService {
                                         DataSource dataSource) {
         PreAggRefreshContext context = PreAggRefreshContext.of(
                 sourceModel.getName(), preAgg.getName());
-
-        // 从 DataSource 解析方言并设入上下文
-        try {
-            FDialect dialect = DbUtils.getDialect(dataSource);
-            context.setDialect(dialect);
-        } catch (Exception e) {
-            log.warn("Failed to resolve dialect from DataSource, using default MySQL dialect: {}", e.getMessage());
-            context.setDialect(FDialect.MYSQL_DIALECT);
-        }
-
         return refresh(preAgg, sourceModel, dataSource, context);
     }
 
@@ -78,20 +68,58 @@ public class PreAggRefreshService {
                                         TableModel sourceModel,
                                         DataSource dataSource,
                                         PreAggRefreshContext context) {
-        // 选择刷新策略
-        PreAggRefreshStrategy strategy = selectStrategy(preAgg, context);
-
-        if (strategy == null) {
-            log.error("No suitable refresh strategy found for pre-aggregation: {}", preAgg.getName());
+        if (context == null) {
             return PreAggRefreshResult.failure("UNKNOWN",
-                    "No suitable refresh strategy found", null, context.getStartTime());
+                    "Refresh context is required", null, java.time.LocalDateTime.now());
         }
+        if (context.getDialect() == null) {
+            try {
+                FDialect dialect = DbUtils.getDialect(dataSource);
+                context.setDialect(dialect);
+            } catch (Exception e) {
+                log.error("Failed to resolve refresh dialect for '{}': {}",
+                        preAgg != null ? preAgg.getName() : "unknown", e.getMessage());
+                return PreAggRefreshResult.failure("UNKNOWN",
+                        "Failed to resolve refresh dialect: " + e.getMessage(),
+                        e, context.getStartTime() != null
+                                ? context.getStartTime() : java.time.LocalDateTime.now());
+            }
+        }
+        // One runtime PreAggregation is the publication identity used by the
+        // query matcher. Serialize refresh/commit/publication on that identity
+        // so concurrent callers cannot publish an older result after a newer
+        // transaction.
+        synchronized (preAgg) {
+            // The runtime object is the only boundary that has been published
+            // after a committed refresh. Caller-supplied context state is only
+            // transport data and must never bootstrap an incremental refresh or
+            // move the proven boundary backwards/forwards.
+            context.setLastWatermark(preAgg.getDataWatermark());
+            context.setLastRefreshTime(preAgg.getLastRefreshTime());
 
-        log.info("Refreshing pre-aggregation '{}' using strategy '{}'",
-                preAgg.getName(), strategy.getStrategyName());
+            // 选择刷新策略
+            PreAggRefreshStrategy strategy = selectStrategy(preAgg, context);
 
-        // 执行刷新
-        return strategy.refresh(preAgg, sourceModel, dataSource, context);
+            if (strategy == null) {
+                log.error("No suitable refresh strategy found for pre-aggregation: {}", preAgg.getName());
+                return PreAggRefreshResult.failure("UNKNOWN",
+                        "No suitable refresh strategy found", null, context.getStartTime());
+            }
+
+            log.info("Refreshing pre-aggregation '{}' using strategy '{}'",
+                    preAgg.getName(), strategy.getStrategyName());
+
+            // Only a committed successful result is visible to query matching.
+            PreAggRefreshResult result = strategy.refresh(
+                    preAgg, sourceModel, dataSource, context);
+            if (result.isSuccess()) {
+                preAgg.setLastRefreshTime(result.getEndTime());
+                if (result.getNewWatermark() != null) {
+                    preAgg.setDataWatermark(result.getNewWatermark());
+                }
+            }
+            return result;
+        }
     }
 
     /**
@@ -114,6 +142,11 @@ public class PreAggRefreshService {
         // 检查配置的刷新策略
         PreAggRefreshDef refreshConfig = preAgg.getRefreshConfig();
         if (refreshConfig != null && refreshConfig.isIncrementalRefresh()) {
+            if (context.getLastWatermark() == null) {
+                log.info("Incremental pre-aggregation '{}' has no published boundary; "
+                        + "using FULL refresh to establish complete history", preAgg.getName());
+                return strategies.get("FULL");
+            }
             PreAggRefreshStrategy incremental = strategies.get("INCREMENTAL");
             if (incremental != null && incremental.supports(preAgg)) {
                 return incremental;

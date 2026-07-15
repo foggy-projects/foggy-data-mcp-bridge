@@ -6,6 +6,8 @@ SCRIPT_PATH="$ROOT_DIR/scripts/verify-v934-external-matrix.sh"
 STEP3_DIR="$ROOT_DIR/scripts/v934/step3"
 CONTRACT="$STEP3_DIR/external-matrix-contract.json"
 REPORT_TOOL="$STEP3_DIR/external_matrix_report_tool.py"
+REDIS_STATE_CONTRACT="$STEP3_DIR/external-redis-state-contract.json"
+REDIS_STATE_TOOL="$STEP3_DIR/external_redis_state_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
 SHARED_CONTEXT="$STEP3_DIR/external_shared_context.sh"
 LANE_LAUNCHER="$STEP3_DIR/external_lane_launcher.py"
@@ -127,7 +129,7 @@ cleanup_matrix_resources() {
   mkdir -p "$RUN_ROOT/aggregate"
   identifiers="$(docker ps -aq --filter "label=com.foggy.v934.external-run=$RUN_ID")" || cleanup_code=1
   for identifier in $identifiers; do
-    docker rm -f "$identifier" >/dev/null 2>&1 || cleanup_code=1
+    docker rm -fv "$identifier" >/dev/null 2>&1 || cleanup_code=1
   done
   identifiers="$(docker volume ls -q --filter "label=com.foggy.v934.external-run=$RUN_ID")" || cleanup_code=1
   for identifier in $identifiers; do
@@ -233,6 +235,39 @@ run_lane() {
     fail "lane $lane left Docker residue: $containers/$volumes/$networks"
 }
 
+run_redis_state_negatives() {
+  local exit_code=0
+  PHASE="redis-resource-state-negatives"
+  python3 "$REDIS_STATE_TOOL" validate
+  python3 - "$REDIS_STATE_TOOL" "$RUN_ID" \
+    "$RUN_ROOT/aggregate/redis-resource-state-negatives.tsv" <<'PY' &
+import os
+import signal
+import sys
+
+tool, run_id, output = sys.argv[1:]
+for name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGPIPE", "SIGXFZ", "SIGXFSZ"):
+    value = getattr(signal, name, None)
+    if value is not None:
+        signal.signal(value, signal.SIG_DFL)
+os.setsid()
+os.execv(
+    sys.executable,
+    [sys.executable, tool, "run", "--run-id", run_id, "--output", output],
+)
+PY
+  ACTIVE_CHILD_PID=$!
+  if wait "$ACTIVE_CHILD_PID"; then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
+  ACTIVE_CHILD_PID=""
+  [[ "$exit_code" -eq 0 ]] || return "$exit_code"
+  python3 "$REDIS_STATE_TOOL" verify \
+    --input "$RUN_ROOT/aggregate/redis-resource-state-negatives.tsv"
+}
+
 write_aggregates() {
   python3 - "$RUN_ROOT" <<'PY'
 import csv
@@ -297,7 +332,7 @@ for command_name in cmp cut date docker flock git jq mkfifo mv python3 rg sed se
 done
 for required_file in \
   "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" "$SHARED_CONTEXT" \
-  "$LANE_LAUNCHER" \
+  "$LANE_LAUNCHER" "$REDIS_STATE_CONTRACT" "$REDIS_STATE_TOOL" \
   "$DEFERRED_INVENTORY" "$REDIS_RUNNER" "$MONGO_RUNNER" "$MYSQL_RUNNER" "$VECTOR_RUNNER"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
@@ -310,8 +345,7 @@ done
 
 # shellcheck source=scripts/v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
-v934_acquire_authority_lock "$ROOT_DIR" "v934-external-matrix" || exit 1
-export V934_AUTHORITY_LOCK_FD
+v934_acquire_or_validate_authority_lock "$ROOT_DIR" "v934-external-matrix" || exit 1
 
 RUN_ROOT="$RUNS_ROOT/$RUN_ID"
 [[ ! -e "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
@@ -327,6 +361,17 @@ OUTER_MARKER_SHA256=""
 SOURCE_BEFORE=""
 SOURCE_AFTER=""
 PHASE="bootstrap"
+
+if [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == inherited ]]; then
+  atomic_env "$RUN_ROOT/parent-context.env" \
+    "authority_kind=$V934_PARENT_AUTHORITY_KIND" \
+    "run_id=$V934_PARENT_RUN_ID" \
+    "git_head=$V934_PARENT_GIT_HEAD" \
+    "contract_sha256=$V934_PARENT_CONTRACT_SHA256" \
+    "source_sha256=$V934_PARENT_SOURCE_SHA256" \
+    "outer_marker_sha256=$V934_PARENT_OUTER_MARKER_SHA256" \
+    "outer_marker_path=$V934_PARENT_OUTER_MARKER_PATH"
+fi
 
 trap 'record_run_status "$?"' EXIT
 trap 'handle_signal INT 130' INT
@@ -384,6 +429,8 @@ FINAL_REPORT_MANIFEST_SHA256="$(sha256_file "$RUN_ROOT/final/report-manifest.jso
 PHASE="negative-probes"
 python3 "$REPORT_TOOL" negative --output "$RUN_ROOT/negative/probes.tsv"
 write_aggregates
+
+run_redis_state_negatives
 cleanup_matrix_resources || fail "shared matrix resource cleanup failed"
 
 PHASE="source-after"
@@ -440,6 +487,8 @@ atomic_env "$RUN_ROOT/summary.env" \
   "final_report_manifest_sha256=$FINAL_REPORT_MANIFEST_SHA256" \
   "run_status_sha256=$RUN_STATUS_SHA256" \
   "resource_sha256=$(sha256_file "$RUN_ROOT/aggregate/resources.tsv")" \
+  "resource_state_probes=4/4" \
+  "resource_state_sha256=$(sha256_file "$RUN_ROOT/aggregate/redis-resource-state-negatives.tsv")" \
   "fixture_sha256=$(sha256_file "$RUN_ROOT/aggregate/fixtures.tsv")" \
   "cleanup_sha256=$(sha256_file "$RUN_ROOT/aggregate/cleanup.env")" \
   "negative_probes=$NEGATIVE_COUNT/$NEGATIVE_COUNT" \

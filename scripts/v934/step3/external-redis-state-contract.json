@@ -1,0 +1,52 @@
+{
+  "artifact_contract": {
+    "probe_table": "aggregate/redis-resource-state-negatives.tsv"
+  },
+  "bindings": {
+    "tool": {
+      "path": "scripts/v934/step3/external_redis_state_tool.py",
+      "sha256": "be3d319c1179fed85626935d4118057acd0ec86827060a666d62e61583c6941c"
+    }
+  },
+  "image": {
+    "id": "sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d4218573b2a98",
+    "ref": "redis@sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d4218573b2a98",
+    "version": "7.4.6"
+  },
+  "kind": "v934-step3-external-redis-state-negative-contract",
+  "lane": "external-redis-state-negative",
+  "probes": [
+    {
+      "expected_cleanup": "passed",
+      "expected_error": "E_RESOURCE_IDENTITY",
+      "expected_exit": 1,
+      "probe": "wrong-container-identity"
+    },
+    {
+      "expected_cleanup": "passed",
+      "expected_error": "E_RESOURCE_MOUNT",
+      "expected_exit": 1,
+      "probe": "wrong-mount-identity"
+    },
+    {
+      "expected_cleanup": "passed",
+      "expected_error": "E_RESOURCE_DIRTY",
+      "expected_exit": 1,
+      "probe": "dirty-state"
+    },
+    {
+      "expected_cleanup": "failed",
+      "expected_error": "E_RESOURCE_CLEANUP",
+      "expected_exit": 1,
+      "probe": "forced-cleanup-failure"
+    }
+  ],
+  "required": true,
+  "schema_version": 1,
+  "totals": {
+    "failed_as_expected": 4,
+    "probes": 4,
+    "resource_residue": "0/0"
+  },
+  "version": "9.3.4"
+}

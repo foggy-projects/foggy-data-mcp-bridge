@@ -1,0 +1,221 @@
+{
+  "kind": "v934-step3-database-state-negative-contract",
+  "schema_version": 1,
+  "version": "9.3.4",
+  "lane": "database-state-negative",
+  "database": "mysql57",
+  "artifact_contract": {
+    "manifest": "manifest.json",
+    "probe_table": "probes.tsv",
+    "run_context": "run-context.json",
+    "run_status": "run-status.env",
+    "summary": "summary.env"
+  },
+  "cleanup_contract": {
+    "evidence-tamper": "not-applicable",
+    "port-owned": "passed",
+    "stale-run-resource": "failed",
+    "unavailable": "passed",
+    "fixture-mutation": "passed",
+    "forced-cleanup-failure": "failed",
+    "signal-int": "passed",
+    "signal-term": "passed",
+    "signal-hup": "passed"
+  },
+  "residue_contract": {
+    "observation_order": "child-before-safety-cleanup-then-final",
+    "default_child_residue": "0/0/0",
+    "stale-run-resource_child_residue": "0/1/0",
+    "final_residue": "0/0/0"
+  },
+  "scopes": {
+    "standalone": "target/v934-step3-database-state/runs/<run-id>",
+    "database-companion": "target/v934-step3-database-matrix/runs/<run-id>/state-negative"
+  },
+  "runtime_contract": {
+    "dynamic_database": "mysql57",
+    "frozen_host_port": 13306,
+    "dynamic_precondition": "port-free-before-output",
+    "existing_listener_policy": "observe-only-never-stop-or-restart",
+    "resource_policy": "exact-child-run-identity-and-zero-residue",
+    "companion_parent_binding": "database-run-context-sha256",
+    "child_identity_policy": "exact-status-cleanup-resource-env",
+    "external_signal_cleanup_policy": "claimed-child-retry-with-signals-ignored",
+    "child_status_last_phase": {
+      "port-owned": "preflight",
+      "stale-run-resource": "cleanup-failed",
+      "unavailable": "health",
+      "fixture-mutation": "fixture-after",
+      "forced-cleanup-failure": "cleanup-failed",
+      "signal-int": "callback",
+      "signal-term": "callback",
+      "signal-hup": "callback"
+    },
+    "resource_evidence_probes": [
+      "unavailable",
+      "fixture-mutation",
+      "forced-cleanup-failure",
+      "signal-int",
+      "signal-term",
+      "signal-hup"
+    ]
+  },
+  "modes": {
+    "static": {
+      "layers": [
+        "evidence-tamper",
+        "runtime-lightweight"
+      ],
+      "expected_probes": 12
+    },
+    "dynamic": {
+      "layers": [
+        "runtime-dynamic"
+      ],
+      "expected_probes": 6
+    },
+    "all": {
+      "layers": [
+        "evidence-tamper",
+        "runtime-lightweight",
+        "runtime-dynamic"
+      ],
+      "expected_probes": 18
+    }
+  },
+  "probes": [
+    {
+      "probe": "wrong-image-id",
+      "layer": "evidence-tamper",
+      "database": "mysql57",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "wrong-image-ref",
+      "layer": "evidence-tamper",
+      "database": "mysql57",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "wrong-version",
+      "layer": "evidence-tamper",
+      "database": "mysql57",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "wrong-product",
+      "layer": "evidence-tamper",
+      "database": "mysql57",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "wrong-major",
+      "layer": "evidence-tamper",
+      "database": "mysql8",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "wrong-catalog",
+      "layer": "evidence-tamper",
+      "database": "postgres15",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "wrong-schema",
+      "layer": "evidence-tamper",
+      "database": "postgres15",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "wrong-sentinel",
+      "layer": "evidence-tamper",
+      "database": "mysql57",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "sqlite-artifact",
+      "layer": "evidence-tamper",
+      "database": "sqlite",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "sqlite-coordinate",
+      "layer": "evidence-tamper",
+      "database": "sqlite",
+      "expected_error": "E_CELL_EVIDENCE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "port-owned",
+      "layer": "runtime-lightweight",
+      "database": "mysql57",
+      "expected_error": "E_PORT_OWNED",
+      "expected_exit": 1
+    },
+    {
+      "probe": "stale-run-resource",
+      "layer": "runtime-lightweight",
+      "database": "mysql57",
+      "expected_error": "E_RESOURCE_STALE",
+      "expected_exit": 1
+    },
+    {
+      "probe": "unavailable",
+      "layer": "runtime-dynamic",
+      "database": "mysql57",
+      "expected_error": "E_CONTAINER_HEALTH",
+      "expected_exit": 1
+    },
+    {
+      "probe": "fixture-mutation",
+      "layer": "runtime-dynamic",
+      "database": "mysql57",
+      "expected_error": "E_FIXTURE_MUTATION",
+      "expected_exit": 1
+    },
+    {
+      "probe": "forced-cleanup-failure",
+      "layer": "runtime-dynamic",
+      "database": "mysql57",
+      "expected_error": "E_CLEANUP_FORCED",
+      "expected_exit": 1
+    },
+    {
+      "probe": "signal-int",
+      "layer": "runtime-dynamic",
+      "database": "mysql57",
+      "expected_error": "E_SIGNAL_INT",
+      "expected_exit": 130
+    },
+    {
+      "probe": "signal-term",
+      "layer": "runtime-dynamic",
+      "database": "mysql57",
+      "expected_error": "E_SIGNAL_TERM",
+      "expected_exit": 143
+    },
+    {
+      "probe": "signal-hup",
+      "layer": "runtime-dynamic",
+      "database": "mysql57",
+      "expected_error": "E_SIGNAL_HUP",
+      "expected_exit": 129
+    }
+  ],
+  "totals": {
+    "probes": 18,
+    "evidence_tamper": 10,
+    "runtime_lightweight": 2,
+    "runtime_dynamic": 6,
+    "signals": 3
+  }
+}

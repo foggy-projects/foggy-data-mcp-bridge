@@ -62,8 +62,8 @@ public class PreAggregationMatchResult {
     /**
      * 数据水位线（用于混合查询）
      * <p>
-     * 混合查询时，watermark 表示预聚合表已处理的最大时间戳。
-     * 小于等于 watermark 的数据从预聚合表查询，大于 watermark 的数据从原始表查询。
+     * 混合查询时，watermark 是物化历史的 exclusive upper bound。
+     * 小于 watermark 的数据从预聚合表查询，大于等于 watermark 的数据从原始表查询。
      * </p>
      */
     private final Object watermark;

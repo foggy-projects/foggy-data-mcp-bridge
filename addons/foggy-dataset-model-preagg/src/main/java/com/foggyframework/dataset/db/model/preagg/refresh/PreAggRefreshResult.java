@@ -55,7 +55,7 @@ public class PreAggRefreshResult {
     private Throwable exception;
 
     /**
-     * 新的水位线值（用于增量刷新）
+     * 新的水位线值（物化历史的 exclusive upper bound）
      */
     private Object newWatermark;
 

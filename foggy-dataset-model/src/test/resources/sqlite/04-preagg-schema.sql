@@ -35,6 +35,7 @@ CREATE TABLE preagg_daily_product_sales (
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,
+    _preagg_created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
     _preagg_updated_at  TEXT DEFAULT (datetime('now','localtime')),
 
     PRIMARY KEY (date_key, product_key)
@@ -47,8 +48,8 @@ CREATE INDEX idx_preagg_daily_product_sales_product ON preagg_daily_product_sale
 DROP TABLE IF EXISTS preagg_monthly_category_sales;
 CREATE TABLE preagg_monthly_category_sales (
     -- Dimension columns (month level)
-    year_month          TEXT NOT NULL,  -- Format: YYYY-MM
-    category_id         TEXT NOT NULL,
+    year_month          TEXT NOT NULL,  -- DATE value: YYYY-MM-01
+    product_key         INTEGER NOT NULL,
 
     -- Dimension properties (denormalized)
     category_name       TEXT,
@@ -62,9 +63,10 @@ CREATE TABLE preagg_monthly_category_sales (
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,
+    _preagg_created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
     _preagg_updated_at  TEXT DEFAULT (datetime('now','localtime')),
 
-    PRIMARY KEY (year_month, category_id)
+    PRIMARY KEY (year_month, product_key)
 );
 
 -- 3. Daily Customer Channel Sales Pre-aggregation Table
@@ -96,6 +98,7 @@ CREATE TABLE preagg_daily_customer_channel_sales (
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,
+    _preagg_created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
     _preagg_updated_at  TEXT DEFAULT (datetime('now','localtime')),
 
     PRIMARY KEY (date_key, customer_key, channel_key)
@@ -123,6 +126,7 @@ CREATE TABLE preagg_daily_return (
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,
+    _preagg_created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
     _preagg_updated_at  TEXT DEFAULT (datetime('now','localtime')),
 
     PRIMARY KEY (date_key, product_key)

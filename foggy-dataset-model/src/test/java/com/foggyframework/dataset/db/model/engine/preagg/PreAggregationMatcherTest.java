@@ -200,9 +200,26 @@ class PreAggregationMatcherTest {
         assertFalse(matcher.findBestMatch(requirement, List.of(preAgg)).isMatched(),
                 "null watermark cannot define either hybrid SQL branch");
 
+        preAgg.setDataWatermark(LocalDate.now());
+        PreAggregationMatchResult hybrid = matcher.findBestMatch(requirement, List.of(preAgg));
+        assertTrue(hybrid.isMatched());
+        assertTrue(hybrid.isHybridQuery(),
+                "exclusive boundary at today must keep the current DATE bucket on source");
+
+        preAgg.setDataWatermark(LocalDate.now().plusDays(30));
+        assertFalse(matcher.findBestMatch(requirement, List.of(preAgg)).isMatched(),
+                "future watermark cannot prove a complete open DATE bucket");
+
+        preAgg.setDataWatermark(20240101);
+        assertFalse(matcher.findBestMatch(requirement, List.of(preAgg)).isMatched(),
+                "a foreign watermark domain must fail closed");
+
         matcher.setHybridQueryEnabled(false);
-        assertTrue(matcher.findBestMatch(requirement, List.of(preAgg)).isMatched(),
+        PreAggregationMatchResult snapshotOnly = matcher.findBestMatch(
+                requirement, List.of(preAgg));
+        assertTrue(snapshotOnly.isMatched(),
                 "an explicit snapshot-only policy may ignore incremental freshness");
+        assertFalse(snapshotOnly.isHybridQuery());
     }
 
     @Test

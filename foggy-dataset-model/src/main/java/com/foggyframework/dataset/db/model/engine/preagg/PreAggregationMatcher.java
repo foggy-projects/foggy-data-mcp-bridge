@@ -8,7 +8,6 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -93,23 +92,24 @@ public class PreAggregationMatcher {
                 continue;
             }
 
-            // An incremental materialization with no observed watermark has
-            // no provable history boundary. Building `<= null` / `> null`
-            // hybrid predicates would make both SQL branches unknown/empty.
-            // When hybrid mode is enabled, skip this uninitialized candidate
-            // rather than treating it as either complete or mergeable.
-            if (hybridQueryEnabled && preAgg.supportsHybridQuery()
-                    && preAgg.getDataWatermark() == null) {
-                log.debug("Skipping uninitialized hybrid pre-aggregation '{}': watermark is null",
-                        preAgg.getName());
-                continue;
+            // An incremental materialization must carry one valid DATE
+            // exclusive boundary. Null, future, and foreign-domain values
+            // cannot prove a safe materialized/source split.
+            Object dataWatermark = preAgg.getDataWatermark();
+            if (hybridQueryEnabled && preAgg.supportsHybridQuery()) {
+                String invalidWatermark = invalidHybridWatermark(dataWatermark);
+                if (invalidWatermark != null) {
+                    log.debug("Skipping hybrid pre-aggregation '{}': {}",
+                            preAgg.getName(), invalidWatermark);
+                    continue;
+                }
             }
 
             // 检查是否满足需求
             if (requirement.isSatisfiableBy(preAgg)) {
                 int score = calculateScore(preAgg, requirement);
                 boolean needsRollup = checkNeedsRollup(preAgg, requirement);
-                boolean needsHybrid = requiresHybridQuery(preAgg);
+                boolean needsHybrid = requiresHybridQuery(preAgg, dataWatermark);
                 if (needsRollup && !supportsRollupMeasures(preAgg, requirement)) {
                     log.debug("Skipping pre-aggregation '{}': one or more measures cannot be rolled up safely",
                             preAgg.getName());
@@ -127,7 +127,7 @@ public class PreAggregationMatcher {
                             preAgg.getName(), preAgg.getWatermarkColumn());
                     continue;
                 }
-                Object watermark = needsHybrid ? preAgg.getDataWatermark() : null;
+                Object watermark = needsHybrid ? dataWatermark : null;
                 candidates.add(new Candidate(preAgg, score, needsRollup, needsHybrid, watermark));
 
                 if (log.isDebugEnabled()) {
@@ -181,7 +181,7 @@ public class PreAggregationMatcher {
      * <ol>
      *   <li>混合查询功能已启用</li>
      *   <li>预聚合支持混合查询（配置了 watermark 列）</li>
-     *   <li>预聚合数据不是最新的（有 watermark 且不是今天）</li>
+     *   <li>存在已发布的 exclusive watermark；其后的源表 tail 必须合并</li>
      * </ol>
      * </p>
      *
@@ -189,6 +189,10 @@ public class PreAggregationMatcher {
      * @return true 如果需要混合查询
      */
     boolean requiresHybridQuery(PreAggregation preAgg) {
+        return requiresHybridQuery(preAgg, preAgg.getDataWatermark());
+    }
+
+    private boolean requiresHybridQuery(PreAggregation preAgg, Object watermark) {
         // 混合查询未启用
         if (!hybridQueryEnabled) {
             return false;
@@ -199,35 +203,20 @@ public class PreAggregationMatcher {
             return false;
         }
 
-        // 检查数据是否过期
-        Object watermark = preAgg.getDataWatermark();
+        return watermark != null;
+    }
+
+    private String invalidHybridWatermark(Object watermark) {
         if (watermark == null) {
-            // 没有 watermark，可能是第一次加载前，需要混合查询
-            return true;
+            return "watermark is null";
         }
-
-        // 检查 watermark 是否是今天
-        if (watermark instanceof LocalDate) {
-            LocalDate watermarkDate = (LocalDate) watermark;
-            LocalDate today = LocalDate.now();
-            // 如果 watermark 不是今天，需要混合查询获取最新数据
-            return watermarkDate.isBefore(today);
-        } else if (watermark instanceof LocalDateTime) {
-            LocalDateTime watermarkDateTime = (LocalDateTime) watermark;
-            LocalDate watermarkDate = watermarkDateTime.toLocalDate();
-            LocalDate today = LocalDate.now();
-            return watermarkDate.isBefore(today);
-        } else if (watermark instanceof java.util.Date) {
-            java.util.Date watermarkDate = (java.util.Date) watermark;
-            LocalDate watermarkLocalDate = watermarkDate.toInstant()
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDate();
-            LocalDate today = LocalDate.now();
-            return watermarkLocalDate.isBefore(today);
+        if (!(watermark instanceof LocalDate boundary)) {
+            return "watermark is not a LocalDate exclusive boundary";
         }
-
-        // 无法判断，保守起见使用混合查询
-        return true;
+        if (boundary.isAfter(LocalDate.now())) {
+            return "watermark is in the future";
+        }
+        return null;
     }
 
     /**

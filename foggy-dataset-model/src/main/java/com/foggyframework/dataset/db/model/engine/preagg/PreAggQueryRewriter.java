@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.engine.preagg.internal.PreAggWatermarkResolver;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
@@ -13,6 +14,7 @@ import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -79,9 +81,14 @@ public class PreAggQueryRewriter {
         boolean needsRollup = matchResult.isNeedsRollup();
         boolean isHybrid = matchResult.isHybridQuery();
 
-        if (isHybrid && matchResult.getWatermark() == null) {
-            log.debug("Pre-aggregation hybrid rewrite refused because watermark is null");
-            return PreAggRewriteResult.notApplied();
+        if (isHybrid) {
+            Object watermark = matchResult.getWatermark();
+            if (!(watermark instanceof LocalDate boundary)
+                    || boundary.isAfter(LocalDate.now())) {
+                log.debug("Pre-aggregation hybrid rewrite refused because watermark is not "
+                        + "a proven LocalDate exclusive boundary");
+                return PreAggRewriteResult.notApplied();
+            }
         }
 
         // Explicit groupBy replaces SELECT fields with AggregationDbColumn
@@ -203,9 +210,9 @@ public class PreAggQueryRewriter {
      * 当预聚合数据有水位线限制时，使用混合模式：
      * <pre>
      * SELECT COUNT(*), SUM(measure) FROM (
-     *   SELECT measure_sum FROM preagg_table WHERE watermark <= ?
+     *   SELECT measure_sum FROM preagg_table WHERE watermark < ?
      *   UNION ALL
-     *   SELECT measure FROM source_table WHERE watermark > ?
+     *   SELECT measure FROM source_table WHERE watermark >= ?
      * ) AS combined
      * </pre>
      * </p>
@@ -366,9 +373,9 @@ public class PreAggQueryRewriter {
      * <pre>
      * SELECT COUNT(*) AS total, SUM(combined.measure) AS measure
      * FROM (
-     *   SELECT measure_sum AS measure FROM preagg_table WHERE watermark <= ?
+     *   SELECT measure_sum AS measure FROM preagg_table WHERE watermark < ?
      *   UNION ALL
-     *   SELECT measure FROM source_table WHERE watermark > ? [AND slice conditions]
+     *   SELECT measure FROM source_table WHERE watermark >= ? [AND slice conditions]
      * ) AS combined
      * </pre>
      * </p>
@@ -379,8 +386,11 @@ public class PreAggQueryRewriter {
                                                                Object watermark) {
         StringBuilder sql = new StringBuilder();
         String preAggTableName = getFullTableName(preAgg);
-        String sourceTableName = queryModel.getJdbcModel().getTableName();
-        String watermarkColumn = resolveWatermarkPreAggColumn(preAgg);
+        PreAggWatermarkResolver.Resolution watermarkResolution = resolveWatermark(preAgg);
+        String watermarkColumn = watermarkResolution.materializedColumn();
+        String watermarkSourceExpression = resolveSourceWatermarkExpression(
+                watermarkResolution, jdbcQuery);
+        String factTableAlias = queryModel.getAlias(jdbcQuery.getFrom().getFromObject());
 
         // 外层 SELECT：对 UNION 结果做聚合
         sql.append("SELECT COUNT(*) AS total");
@@ -392,7 +402,7 @@ public class PreAggQueryRewriter {
         sql.append("SELECT ");
         sql.append(buildInnerMeasureColumnsForHybrid(preAgg, jdbcQuery, "pa", true));
         sql.append(" FROM ").append(preAggTableName).append(" pa");
-        sql.append(" WHERE ").append("pa.").append(watermarkColumn).append(" <= ?");
+        sql.append(" WHERE ").append("pa.").append(watermarkColumn).append(" < ?");
 
         // 添加预聚合表的 slice 条件
         WhereClauseResult preAggWhereResult = buildWhereClauseFromSlices(preAgg, queryRequest, "pa");
@@ -405,12 +415,14 @@ public class PreAggQueryRewriter {
 
         // 内层 UNION 第二部分：原始表（新鲜数据）
         sql.append("SELECT ");
-        sql.append(buildInnerMeasureColumnsForHybrid(preAgg, jdbcQuery, "src", false));
-        sql.append(" FROM ").append(sourceTableName).append(" src");
-        sql.append(" WHERE ").append("src.").append(watermarkColumn).append(" > ?");
+        sql.append(buildInnerMeasureColumnsForHybrid(
+                preAgg, jdbcQuery, factTableAlias, false));
+        sql.append(" FROM ").append(buildSourceFromClause(jdbcQuery));
+        sql.append(" WHERE ").append(watermarkSourceExpression).append(" >= ?");
 
         // 添加原始表的 slice 条件（需要映射列名）
-        WhereClauseResult sourceWhereResult = buildSourceWhereClauseFromSlices(preAgg, queryRequest, "src");
+        WhereClauseResult sourceWhereResult = buildSourceWhereClauseFromSlices(
+                preAgg, queryRequest, factTableAlias);
         if (sourceWhereResult.getClause() != null && !sourceWhereResult.getClause().isEmpty()) {
             sql.append(" AND ").append(sourceWhereResult.getClause());
         }
@@ -598,9 +610,9 @@ public class PreAggQueryRewriter {
      * <pre>
      * SELECT [columns with aggregation]
      * FROM (
-     *   SELECT [columns] FROM preagg_table WHERE watermark_col <= ?
+     *   SELECT [columns] FROM preagg_table WHERE watermark_col < ?
      *   UNION ALL
-     *   SELECT [columns] FROM source_table WHERE watermark_col > ?
+     *   SELECT [columns] FROM source_table WHERE watermark_col >= ?
      * ) AS combined
      * GROUP BY [dimension columns]
      * ORDER BY ...
@@ -612,11 +624,10 @@ public class PreAggQueryRewriter {
                                    Object watermark, WhereClauseResult originalWhere) {
         StringBuilder sql = new StringBuilder();
         String preAggTableName = getFullTableName(preAgg);
-        String watermarkPreAggColumn = resolveWatermarkPreAggColumn(preAgg);
-
-        // #005/#006 修复：解析源表水位线列（使用事实表的外键，而非维度名称）
-        String watermarkSourceColumn = resolveWatermarkSourceColumn(preAgg);
-        String factTableAlias = queryModel.getAlias(jdbcQuery.getFrom().getFromObject());
+        PreAggWatermarkResolver.Resolution watermarkResolution = resolveWatermark(preAgg);
+        String watermarkPreAggColumn = watermarkResolution.materializedColumn();
+        String watermarkSourceExpression = resolveSourceWatermarkExpression(
+                watermarkResolution, jdbcQuery);
 
         // 外层 SELECT（带聚合函数）
         List<String> outerSelectColumns = buildOuterSelectColumns(preAgg, jdbcQuery, "combined");
@@ -631,7 +642,7 @@ public class PreAggQueryRewriter {
         List<String> preAggInnerColumns = buildInnerSelectColumns(preAgg, jdbcQuery, "pa", true);
         sql.append(String.join(", ", preAggInnerColumns));
         sql.append(" FROM ").append(preAggTableName).append(" pa");
-        sql.append(" WHERE ").append("pa.").append(watermarkPreAggColumn).append(" <= ?");
+        sql.append(" WHERE ").append("pa.").append(watermarkPreAggColumn).append(" < ?");
 
         // UNION ALL
         sql.append(" UNION ALL ");
@@ -645,8 +656,8 @@ public class PreAggQueryRewriter {
         sql.append(" FROM ");
         sql.append(buildSourceFromClause(jdbcQuery));
 
-        // WHERE: 水位线条件（使用事实表外键）
-        sql.append(" WHERE ").append(factTableAlias).append(".").append(watermarkSourceColumn).append(" > ?");
+        // WHERE: 水位线条件（使用经证明的物理源列与 JOIN）
+        sql.append(" WHERE ").append(watermarkSourceExpression).append(" >= ?");
 
         // #005 修复：追加原始查询的 WHERE 条件（如 d1.full_date >= ? AND d1.full_date < ?）
         if (originalWhere != null && originalWhere.getClause() != null && !originalWhere.getClause().isEmpty()) {
@@ -683,8 +694,8 @@ public class PreAggQueryRewriter {
      */
     private List<Object> buildHybridParams(List<Object> whereParams, Object watermark) {
         List<Object> params = new ArrayList<>();
-        params.add(watermark);  // 预聚合表 WHERE: pa.date_key <= ?
-        params.add(watermark);  // 原始表 WHERE: t1.date_key > ?
+        params.add(watermark);  // 预聚合表 WHERE: pa.date_key < ?
+        params.add(watermark);  // 原始表 WHERE: t1.date_key >= ?
         if (whereParams != null) {
             params.addAll(whereParams);  // 原始 WHERE 条件参数
         }
@@ -772,65 +783,74 @@ public class PreAggQueryRewriter {
         return columns;
     }
 
-    private String resolveWatermarkPreAggColumn(PreAggregation preAgg) {
-        String watermarkColumn = preAgg != null ? preAgg.getWatermarkColumn() : null;
-        if (StringUtils.isEmpty(watermarkColumn)) {
-            throw new IllegalStateException("Hybrid pre-aggregation has no watermark column");
+    private PreAggWatermarkResolver.Resolution resolveWatermark(PreAggregation preAgg) {
+        try {
+            PreAggWatermarkResolver.Resolution resolution = PreAggWatermarkResolver.resolve(
+                    preAgg, queryModel.getJdbcModel(), preAgg.getRefreshConfig());
+            // Hybrid query branches bind the same LocalDate domain used by the
+            // Addon refresh boundary. Re-prove the source type here because a
+            // runtime watermark may be restored or injected independently of
+            // the refresh path.
+            PreAggWatermarkResolver.requireLocalDateBounds(
+                    resolution, queryModel.getDialect());
+            return resolution;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
         }
-        if (watermarkColumn.indexOf('$') <= 0) {
-            // A bare refresh watermark is an explicit physical materialization column.
-            return watermarkColumn;
-        }
-        String materializedColumn = mapFieldToPreAggColumn(preAgg, watermarkColumn);
-        if (StringUtils.isEmpty(materializedColumn)) {
-            throw new IllegalStateException(
-                    "Hybrid watermark has no materialized column contract: " + watermarkColumn);
-        }
-        return materializedColumn;
     }
 
     /**
-     * 解析源表水位线列名
-     * <p>
-     * 将水位线列配置（如 salesDate$id）解析为事实表上的物理列名（如 date_key）。
-     * 通过查找维度定义的 foreignKey 获取正确的物理列名。
-     * </p>
-     *
-     * @param preAgg 预聚合配置
-     * @return 事实表上的水位线物理列名
+     * Qualify the physical source watermark only after its table role and
+     * required JoinGraph path have both been proved.
      */
-    private String resolveWatermarkSourceColumn(PreAggregation preAgg) {
-        String watermarkColumn = preAgg.getWatermarkColumn();
-        if (watermarkColumn == null) {
-            return "created_at";
-        }
-
-        int dollarIndex = watermarkColumn.indexOf('$');
-        if (dollarIndex <= 0) {
-            return watermarkColumn;
-        }
-
-        String dimName = watermarkColumn.substring(0, dollarIndex);
-        String propName = watermarkColumn.substring(dollarIndex + 1);
-
-        // 通过 QueryModel 查找维度，获取外键（事实表上的物理列）
-        DbDimension dimension = queryModel.findDimension(dimName);
-        if (dimension != null) {
-            if ("id".equals(propName)) {
-                // $id → 维度外键（事实表上的列）
-                String foreignKey = dimension.getForeignKey();
-                if (StringUtils.isEmpty(foreignKey)) {
-                    throw new IllegalStateException(
-                            "Hybrid watermark dimension has no fact-table foreign key: " + dimName);
-                }
-                return foreignKey;
-            }
+    private String resolveSourceWatermarkExpression(
+            PreAggWatermarkResolver.Resolution resolution,
+            JdbcQuery jdbcQuery) {
+        if (resolution == null || resolution.sourceColumn() == null
+                || resolution.sourceColumn().queryObject() == null
+                || StringUtils.isEmpty(resolution.sourceColumn().physicalName())
+                || jdbcQuery == null || jdbcQuery.getFrom() == null
+                || jdbcQuery.getFrom().getFromObject() == null) {
             throw new IllegalStateException(
-                    "Hybrid source watermark must be a fact-table key or explicit physical column: "
-                            + watermarkColumn);
+                    "Hybrid watermark has no complete physical source contract");
         }
 
-        throw new IllegalStateException("Unknown hybrid watermark dimension: " + dimName);
+        QueryObject sourceObject = resolution.sourceColumn().queryObject();
+        JdbcQuery.JdbcFrom from = jdbcQuery.getFrom();
+        if (!sameQueryObjectRole(from.getFromObject(), sourceObject)) {
+            try {
+                from.join(sourceObject);
+            } catch (RuntimeException e) {
+                throw new IllegalStateException(
+                        "Hybrid watermark source JOIN cannot be proved: "
+                                + resolution.configured(), e);
+            }
+            boolean joined = from.getJoins() != null && from.getJoins().stream()
+                    .anyMatch(join -> sameQueryObjectRole(join.getRight(), sourceObject));
+            if (!joined) {
+                throw new IllegalStateException(
+                        "Hybrid watermark source JOIN cannot be proved: "
+                                + resolution.configured());
+            }
+        }
+
+        String alias = queryModel.getAlias(sourceObject);
+        if (StringUtils.isEmpty(alias)) {
+            throw new IllegalStateException(
+                    "Hybrid watermark source alias cannot be proved: "
+                            + resolution.configured());
+        }
+        return alias + "." + queryModel.getDialect().quoteIdentifierIfNeeded(
+                resolution.sourceColumn().physicalName());
+    }
+
+    private boolean sameQueryObjectRole(QueryObject left, QueryObject right) {
+        if (left == right) {
+            return true;
+        }
+        return left != null && right != null
+                && !StringUtils.isEmpty(left.getAlias())
+                && left.getAlias().equals(right.getAlias());
     }
 
     /**

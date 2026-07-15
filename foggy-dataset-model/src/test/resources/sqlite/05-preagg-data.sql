@@ -41,13 +41,13 @@ GROUP BY fs.date_key, fs.product_key,
          p.product_id, p.product_name, p.category_id, p.category_name, p.brand;
 
 -- 2. Populate preagg_monthly_category_sales
--- Aggregated from fact_sales by (year-month, category_id)
+-- Aggregated from fact_sales by (month DATE bucket, product key)
 INSERT INTO preagg_monthly_category_sales
-    (year_month, category_id, category_name, quantity_sum, sales_amount_sum,
+    (year_month, product_key, category_name, quantity_sum, sales_amount_sum,
      cost_amount_sum, profit_amount_sum, order_count, _preagg_row_count)
 SELECT
-    substr(d.full_date, 1, 7) as year_month,
-    p.category_id,
+    substr(d.full_date, 1, 7) || '-01' as year_month,
+    fs.product_key,
     p.category_name,
     SUM(fs.quantity) as quantity_sum,
     SUM(fs.sales_amount) as sales_amount_sum,
@@ -58,7 +58,7 @@ SELECT
 FROM fact_sales fs
 LEFT JOIN dim_product p ON fs.product_key = p.product_key
 LEFT JOIN dim_date d ON fs.date_key = d.date_key
-GROUP BY substr(d.full_date, 1, 7), p.category_id, p.category_name;
+GROUP BY substr(d.full_date, 1, 7) || '-01', fs.product_key, p.category_name;
 
 -- 3. Populate preagg_daily_customer_channel_sales
 -- Aggregated from fact_sales by (date_key, customer_key, channel_key)

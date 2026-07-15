@@ -126,7 +126,9 @@ public class PreAggScheduler {
      * 获取所有已注册的任务
      */
     public Map<String, ScheduledTaskInfo> getScheduledTasks() {
-        return new ConcurrentHashMap<>(scheduledTasks);
+        Map<String, ScheduledTaskInfo> snapshots = new ConcurrentHashMap<>();
+        scheduledTasks.forEach((key, value) -> snapshots.put(key, snapshot(value)));
+        return snapshots;
     }
 
     /**
@@ -134,7 +136,7 @@ public class PreAggScheduler {
      */
     public ScheduledTaskInfo getTaskStatus(String modelName, String preAggName) {
         String taskKey = buildTaskKey(modelName, preAggName);
-        return scheduledTasks.get(taskKey);
+        return snapshot(scheduledTasks.get(taskKey));
     }
 
     // ==================== 私有方法 ====================
@@ -164,33 +166,77 @@ public class PreAggScheduler {
         PreAggRefreshContext context = PreAggRefreshContext.of(modelName, preAggName);
         context.setForceFullRefresh(forceFullRefresh);
 
-        // 获取上次刷新信息（synchronized 匹配写端锁）
         String taskKey = buildTaskKey(modelName, preAggName);
         ScheduledTaskInfo taskInfo = scheduledTasks.get(taskKey);
-        if (taskInfo != null) {
-            synchronized (taskInfo) {
-                if (taskInfo.getLastRefreshTime() != null) {
-                    context.setLastRefreshTime(taskInfo.getLastRefreshTime());
-                    context.setLastWatermark(taskInfo.getLastWatermark());
-                }
-            }
+        if (taskInfo == null) {
+            return refreshService.refresh(preAgg, model, dataSource, context);
         }
 
-        // 执行刷新
-        PreAggRefreshResult result = refreshService.refresh(preAgg, model, dataSource, context);
-
-        // 更新任务状态（synchronized 保证多字段更新的原子可见性）
-        if (taskInfo != null) {
-            synchronized (taskInfo) {
-                taskInfo.setLastRefreshTime(LocalDateTime.now());
-                taskInfo.setLastResult(result);
-                if (result.isSuccess() && result.getNewWatermark() != null) {
+        // One task lock covers context capture, refresh completion and status
+        // publication. The refresh service also serializes on the runtime
+        // PreAggregation, but keeping this outer lock prevents an older caller
+        // from publishing its scheduler/controller mirror after a newer one.
+        synchronized (taskInfo) {
+            context.setLastRefreshTime(taskInfo.getLastRefreshTime());
+            context.setLastWatermark(taskInfo.getLastWatermark());
+            PreAggRefreshResult result =
+                    refreshService.refresh(preAgg, model, dataSource, context);
+            taskInfo.setLastResult(snapshot(result));
+            if (result.isSuccess()) {
+                taskInfo.setLastRefreshTime(result.getEndTime());
+                if (result.getNewWatermark() != null) {
                     taskInfo.setLastWatermark(result.getNewWatermark());
                 }
             }
+            return result;
         }
+    }
 
-        return result;
+    private ScheduledTaskInfo snapshot(ScheduledTaskInfo taskInfo) {
+        if (taskInfo == null) {
+            return null;
+        }
+        synchronized (taskInfo) {
+            ScheduledTaskInfo copy = new ScheduledTaskInfo();
+            copy.setTaskKey(taskInfo.getTaskKey());
+            copy.setModelName(taskInfo.getModelName());
+            copy.setPreAggName(taskInfo.getPreAggName());
+            copy.setCronExpression(taskInfo.getCronExpression());
+            copy.setRunningSnapshot(taskInfo.isRunning());
+            copy.setRegisteredAt(taskInfo.getRegisteredAt());
+            copy.setLastRefreshTime(taskInfo.getLastRefreshTime());
+            copy.setLastWatermark(taskInfo.getLastWatermark());
+            copy.setLastResult(snapshot(taskInfo.getLastResult()));
+            return copy;
+        }
+    }
+
+    private PreAggRefreshResult snapshot(PreAggRefreshResult result) {
+        if (result == null) {
+            return null;
+        }
+        PreAggRefreshResult copy = new PreAggRefreshResult();
+        copy.setSuccess(result.isSuccess());
+        copy.setStrategy(result.getStrategy());
+        copy.setAffectedRows(result.getAffectedRows());
+        copy.setStartTime(result.getStartTime());
+        copy.setEndTime(result.getEndTime());
+        copy.setDurationMs(result.getDurationMs());
+        copy.setErrorMessage(result.getErrorMessage());
+        copy.setException(snapshot(result.getException()));
+        copy.setNewWatermark(result.getNewWatermark());
+        copy.setExecutedSql(result.getExecutedSql());
+        return copy;
+    }
+
+    private Throwable snapshot(Throwable error) {
+        if (error == null) {
+            return null;
+        }
+        IllegalStateException copy = new IllegalStateException(
+                error.getClass().getName() + ": " + error.getMessage());
+        copy.setStackTrace(error.getStackTrace().clone());
+        return copy;
     }
 
     private PreAggregation findPreAggregation(TableModel model, String preAggName) {
@@ -232,12 +278,16 @@ public class PreAggScheduler {
         private String preAggName;
         private String cronExpression;
         private ScheduledFuture<?> future;
+        private Boolean runningSnapshot;
         private LocalDateTime registeredAt;
         private LocalDateTime lastRefreshTime;
         private Object lastWatermark;
         private PreAggRefreshResult lastResult;
 
         public boolean isRunning() {
+            if (runningSnapshot != null) {
+                return runningSnapshot;
+            }
             return future != null && !future.isDone() && !future.isCancelled();
         }
     }

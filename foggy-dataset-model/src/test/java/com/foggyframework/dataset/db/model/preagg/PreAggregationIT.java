@@ -2,11 +2,13 @@ package com.foggyframework.dataset.db.model.preagg;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.engine.preagg.internal.PreAggWatermarkResolver;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.preagg.*;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
@@ -32,6 +34,8 @@ import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * 预聚合功能集成测试
@@ -122,6 +126,20 @@ class PreAggregationIT {
         assertTrue(dailyProductSales.getDimensionNames().contains("salesDate"), "应包含salesDate维度");
         assertTrue(dailyProductSales.getDimensionNames().contains("product"), "应包含product维度");
         assertEquals("preagg_daily_product_sales", dailyProductSales.getTableName());
+        assertEquals("salesDate$caption", dailyProductSales.getWatermarkColumn(),
+                "增量水位必须绑定 DATE caption，不能将 LocalDate 用于数值代理键");
+        assertEquals("full_date", dailyProductSales.getExplicitDimensionPropertyColumnNames()
+                .get("salesDate$caption"));
+        assertEquals("date_key", dailyProductSales.getExplicitDimensionPropertyColumnNames()
+                .get("salesDate$id"));
+        assertEquals("product_key", dailyProductSales.getExplicitDimensionPropertyColumnNames()
+                .get("product$id"));
+        PreAggWatermarkResolver.Resolution salesWatermark = PreAggWatermarkResolver.resolve(
+                dailyProductSales, tableModel, dailyProductSales.getRefreshConfig());
+        assertDoesNotThrow(() -> PreAggWatermarkResolver.requireLocalDateBounds(
+                salesWatermark, queryModel.getDialect()),
+                "loaded built-in sales TM must expose a governed SQLite date caption");
+        assertEquals("business_date", salesWatermark.dimension().getTimeRole());
 
         // 验证特定预聚合 - monthly_category_sales
         PreAggregation monthlyCategory = preAggregations.stream()
@@ -130,6 +148,12 @@ class PreAggregationIT {
                 .orElse(null);
         assertNotNull(monthlyCategory, "应存在monthly_category_sales预聚合");
         assertEquals(60, monthlyCategory.getPriority(), "monthly_category_sales优先级应为60");
+        assertEquals(Set.of("caption"), monthlyCategory.getDimensionProperties("salesDate"));
+        assertEquals(Set.of("id", "categoryName"), monthlyCategory.getDimensionProperties("product"));
+        assertEquals("year_month", monthlyCategory.getExplicitDimensionPropertyColumnNames()
+                .get("salesDate$caption"));
+        assertEquals("product_key", monthlyCategory.getExplicitDimensionPropertyColumnNames()
+                .get("product$id"));
 
         // 验证特定预聚合 - daily_customer_channel_sales
         PreAggregation dailyCustomerChannel = preAggregations.stream()
@@ -140,6 +164,16 @@ class PreAggregationIT {
         assertEquals(70, dailyCustomerChannel.getPriority());
         assertTrue(dailyCustomerChannel.getDimensionNames().contains("customer"));
         assertTrue(dailyCustomerChannel.getDimensionNames().contains("channel"));
+        assertEquals(Set.of("channelType"),
+                dailyCustomerChannel.getDimensionProperties("channel"),
+                "dimensionProperties 必须使用模型语义名而不是物理 snake_case");
+        assertEquals("salesDate$caption", dailyCustomerChannel.getWatermarkColumn());
+        assertEquals("full_date", dailyCustomerChannel.getExplicitDimensionPropertyColumnNames()
+                .get("salesDate$caption"));
+        assertEquals("customer_key", dailyCustomerChannel.getExplicitDimensionPropertyColumnNames()
+                .get("customer$id"));
+        assertEquals("channel_key", dailyCustomerChannel.getExplicitDimensionPropertyColumnNames()
+                .get("channel$id"));
     }
 
     @Test
@@ -161,6 +195,15 @@ class PreAggregationIT {
         assertEquals(80, dailyReturn.getPriority());
         assertTrue(dailyReturn.getDimensionNames().contains("returnDate"));
         assertTrue(dailyReturn.getDimensionNames().contains("product"));
+        assertEquals("returnDate$caption", dailyReturn.getWatermarkColumn());
+        assertEquals("full_date", dailyReturn.getExplicitDimensionPropertyColumnNames()
+                .get("returnDate$caption"));
+        PreAggWatermarkResolver.Resolution returnWatermark = PreAggWatermarkResolver.resolve(
+                dailyReturn, tableModel, dailyReturn.getRefreshConfig());
+        assertDoesNotThrow(() -> PreAggWatermarkResolver.requireLocalDateBounds(
+                returnWatermark, queryModel.getDialect()),
+                "loaded built-in return TM must expose a governed SQLite date caption");
+        assertEquals("business_date", returnWatermark.dimension().getTimeRole());
 
         log.info("退货模型预聚合: name={}, dimensions={}", dailyReturn.getName(), dailyReturn.getDimensionNames());
     }
@@ -187,7 +230,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         // 严格断言：必须匹配
         assertTrue(result.isApplied(), "按日期+商品查询应匹配预聚合");
@@ -234,7 +277,7 @@ class PreAggregationIT {
         assertFalse(new PreAggregationMatcher().findBestMatch(requirement, List.of(monthly)).isMatched(),
                 "monthly-only candidate must fail closed instead of emitting pa.month");
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         // 严格断言
         assertTrue(result.isApplied(), "按月+品类查询应匹配预聚合");
@@ -268,7 +311,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         // 严格断言
         assertTrue(result.isApplied(), "品类+金额查询应匹配预聚合");
@@ -301,7 +344,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         // 严格断言：必须不匹配
         assertFalse(result.isApplied(), "包含门店维度的查询不应匹配任何预聚合（无预聚合包含store维度）");
@@ -328,7 +371,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         // 严格断言：必须不匹配
         assertFalse(result.isApplied(), "包含unitPrice度量的查询不应匹配预聚合（无预聚合包含此度量）");
@@ -354,7 +397,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         // 严格断言
         assertTrue(result.isApplied(), "客户+渠道查询应匹配预聚合");
@@ -459,7 +502,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         assertTrue(result.isApplied(), "仅查询主模型字段时必须命中主模型预聚合");
         assertEquals("daily_product_sales", result.getPreAggregation().getName());
@@ -484,7 +527,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
+        PreAggRewriteResult result = rewriteWithSnapshotOnlyPolicy(queryModel, queryEngine, queryRequest);
 
         assertFalse(result.isApplied(), "跨模型字段不得命中单表预聚合");
         assertNull(result.getPreAggregation());
@@ -498,6 +541,8 @@ class PreAggregationIT {
     @Order(30)
     @DisplayName("混合查询 - watermark检测应正确标记数据过期")
     void testHybridQueryWatermarkDetection() {
+        assertTrue(ModelResultContext.QueryCacheConfig.defaultConfig().isHybridQueryEnabled(),
+                "production query defaults must preserve the source tail");
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         TableModel tableModel = queryModel.getJdbcModel();
         List<PreAggregation> preAggregations = tableModel.getPreAggregations();
@@ -522,13 +567,17 @@ class PreAggregationIT {
 
             assertTrue(preAgg.isDataStale(), "watermark为过去日期时数据应标记为过期");
 
-            // 测试2: 设置watermark为今天
+            // 测试2: exclusive watermark 为今天时，当天仍由源表 tail 负责
             LocalDate today = LocalDate.now();
             preAgg.setDataWatermark(today);
             log.info("设置watermark为今天: {}", today);
             log.info("数据是否过期: {}", preAgg.isDataStale());
 
-            assertFalse(preAgg.isDataStale(), "watermark为今天时数据不应标记为过期");
+            assertTrue(preAgg.isDataStale(), "exclusive watermark为今天时仍有当天源表tail");
+
+            preAgg.setDataWatermark(today.plusDays(1));
+            assertTrue(preAgg.isDataStale(),
+                    "future boundary is invalid and must not masquerade as a fresh snapshot");
         });
     }
 
@@ -544,10 +593,11 @@ class PreAggregationIT {
         assertFalse(preAggregations.isEmpty());
 
         withRestoredWatermarks(preAggregations, () -> {
-            // 设置watermark为过去日期以触发混合查询
+            LocalDate watermark = LocalDate.of(2024, 1, 2);
+            // 排他边界两侧都必须有夹具数据，才能证明 materialized/source 两分支真实合并。
             for (PreAggregation preAgg : preAggregations) {
                 if (preAgg.supportsHybridQuery()) {
-                    preAgg.setDataWatermark(20240101);
+                    preAgg.setDataWatermark(watermark);
                 }
             }
 
@@ -573,16 +623,23 @@ class PreAggregationIT {
             assertTrue(result.isHybridQuery(), "stale watermark 必须进入 hybrid，而不是静默回落单表模式");
             assertTrue(result.getSql().toUpperCase().contains("UNION ALL"),
                     "混合查询SQL应包含预聚合表与源表两分支");
-            assertEquals(20240101, result.getWatermark());
-            assertIterableEquals(List.of(20240101, 20240101), result.getParams(),
-                    "INTEGER date_key watermark must bind once per branch");
+            assertEquals(watermark, result.getWatermark());
+            assertIterableEquals(List.of(watermark, watermark), result.getParams(),
+                    "DATE watermark must bind once per branch");
+            assertTrue(result.getSql().contains("pa.full_date < ?"),
+                    "history branch must use the materialized DATE column");
+            assertTrue(result.getSql().contains(".full_date >= ?"),
+                    "source branch must use the date-dimension physical column");
 
             Integer materializedRows = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM preagg_daily_product_sales WHERE date_key <= ?",
-                    Integer.class, 20240101);
+                    "SELECT COUNT(*) FROM preagg_daily_product_sales WHERE full_date < ?",
+                    Integer.class, watermark);
             Integer sourceRows = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM fact_sales WHERE date_key > ?",
-                    Integer.class, 20240101);
+                    """
+                    SELECT COUNT(*) FROM fact_sales fs
+                    LEFT JOIN dim_date d ON fs.date_key = d.date_key
+                    WHERE d.full_date >= ?
+                    """, Integer.class, watermark);
             assertNotNull(materializedRows);
             assertNotNull(sourceRows);
             assertTrue(materializedRows > 0, "history branch fixture must contribute rows");
@@ -604,6 +661,51 @@ class PreAggregationIT {
                     metricRowsByKey(hybridRows, "salesAmount"),
                     "hybrid materialized/source UNION must equal native grouped semantics");
 
+            DbQueryRequestDef watermarkOnlyJoinRequest = new DbQueryRequestDef();
+            watermarkOnlyJoinRequest.setQueryModel("FactSalesPreAggQueryModel");
+            watermarkOnlyJoinRequest.setColumns(List.of("product$caption", "salesAmount"));
+            JdbcModelQueryEngine watermarkOnlyJoinEngine =
+                    new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+            watermarkOnlyJoinEngine.analysisQueryRequest(
+                    systemBundlesContext, watermarkOnlyJoinRequest);
+            PreAggRewriteResult watermarkOnlyJoinResult = interceptor.tryRewrite(
+                    watermarkOnlyJoinEngine, queryModel, watermarkOnlyJoinRequest);
+
+            assertTrue(watermarkOnlyJoinResult.isApplied());
+            assertTrue(watermarkOnlyJoinResult.isHybridQuery());
+            assertTrue(watermarkOnlyJoinResult.getSql().toUpperCase(Locale.ROOT)
+                            .contains("JOIN DIM_DATE"),
+                    "caption watermark must add its proven JOIN even when date is not selected");
+            assertTrue(watermarkOnlyJoinResult.getSql().contains(".full_date >= ?"));
+            List<Map<String, Object>> watermarkOnlyJoinRows = jdbcTemplate.queryForList(
+                    watermarkOnlyJoinResult.getSql(),
+                    watermarkOnlyJoinResult.getParams().toArray());
+            List<Map<String, Object>> nativeProductRows = jdbcTemplate.queryForList("""
+                    SELECT p.product_name AS "product$caption",
+                           SUM(fs.sales_amount) AS "salesAmount"
+                    FROM fact_sales fs
+                    LEFT JOIN dim_product p ON fs.product_key = p.product_key
+                    GROUP BY p.product_name
+                    """);
+            assertEquals(metricRowsByKey(nativeProductRows, "salesAmount"),
+                    metricRowsByKey(watermarkOnlyJoinRows, "salesAmount"),
+                    "watermark-only JOIN must retain native product grouping semantics");
+
+            JdbcModelQueryEngine noJoinProofEngine =
+                    new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+            noJoinProofEngine.analysisQueryRequest(
+                    systemBundlesContext, watermarkOnlyJoinRequest);
+            noJoinProofEngine.getJdbcQuery().setJoinGraph(null);
+            PreAggRewriteResult noJoinProofResult = new PreAggQueryRewriter(
+                    queryModel, applicationContext).rewrite(
+                    PreAggregationMatchResult.hybrid(
+                            result.getPreAggregation(), true, watermark, 1),
+                    noJoinProofEngine.getJdbcQuery(), watermarkOnlyJoinRequest,
+                    noJoinProofEngine);
+            assertFalse(noJoinProofResult.isApplied(),
+                    "dimension watermark without a provable JOIN path must fail closed");
+            assertNull(noJoinProofResult.getSql());
+
             log.info("混合查询真实执行通过: watermark={}, rows={}",
                     result.getWatermark(), hybridRows.size());
         });
@@ -621,7 +723,8 @@ class PreAggregationIT {
         TableModel tableModel = queryModel.getJdbcModel();
         List<PreAggregation> preAggregations = tableModel.getPreAggregations();
 
-        withStaleHybridWatermarks(preAggregations, 20240101, () -> {
+        withStaleHybridWatermarks(
+                preAggregations, LocalDate.of(2024, 1, 1), () -> {
             JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
             DbQueryRequestDef queryRequest = new DbQueryRequestDef();
@@ -669,7 +772,8 @@ class PreAggregationIT {
         TableModel tableModel = queryModel.getJdbcModel();
         List<PreAggregation> preAggregations = tableModel.getPreAggregations();
 
-        withStaleHybridWatermarks(preAggregations, 20240101, () -> {
+        withStaleHybridWatermarks(
+                preAggregations, LocalDate.of(2024, 1, 1), () -> {
             JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
             DbQueryRequestDef queryRequest = new DbQueryRequestDef();
@@ -710,8 +814,8 @@ class PreAggregationIT {
 
     @Test
     @Order(34)
-    @DisplayName("public hybrid rewriter 对 null watermark 必须 fail closed")
-    void testHybridRewriteRejectsNullWatermark() {
+    @DisplayName("public hybrid rewriter 对无效 watermark 必须 fail closed")
+    void testHybridRewriteRejectsInvalidWatermark() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         PreAggregation preAgg = queryModel.getJdbcModel().getPreAggregations().stream()
                 .filter(PreAggregation::supportsHybridQuery)
@@ -736,6 +840,25 @@ class PreAggregationIT {
         assertFalse(result.isApplied());
         assertNull(result.getSql());
         assertTrue(result.getParams().isEmpty());
+
+        PreAggregationMatchResult futureMatch = PreAggregationMatchResult.hybrid(
+                preAgg, false, LocalDate.now().plusDays(1), 100);
+        PreAggRewriteResult futureResult = new PreAggQueryRewriter(queryModel, applicationContext)
+                .rewrite(futureMatch, queryEngine.getJdbcQuery(), queryRequest, queryEngine);
+        assertFalse(futureResult.isApplied());
+        assertNull(futureResult.getSql());
+        assertTrue(futureResult.getParams().isEmpty());
+
+        PreAggregation coarsePreAgg = spy(preAgg);
+        when(coarsePreAgg.getGranularity("salesDate")).thenReturn(TimeGranularity.MONTH);
+        PreAggregationMatchResult coarseMatch = PreAggregationMatchResult.hybrid(
+                coarsePreAgg, false, LocalDate.now(), 100);
+        PreAggRewriteResult coarseResult = new PreAggQueryRewriter(queryModel, applicationContext)
+                .rewrite(coarseMatch, queryEngine.getJdbcQuery(), queryRequest, queryEngine);
+        assertFalse(coarseResult.isApplied(),
+                "daily LocalDate split must not be applied to a monthly materialized bucket");
+        assertNull(coarseResult.getSql());
+        assertTrue(coarseResult.getParams().isEmpty());
     }
 
     // ==========================================
@@ -815,27 +938,24 @@ class PreAggregationIT {
         slices.add(dateSlice);
         queryRequest.setSlice(slices);
 
-        List<PreAggregation> preAggregations = queryModel.getJdbcModel().getPreAggregations();
-        withFreshHybridWatermarks(preAggregations, () -> {
-            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-            PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = snapshotOnlyInterceptor()
+                .tryRewrite(queryEngine, queryModel, queryRequest);
 
-            // 已知物化数据完整时，普通 slice 可以安全重建到单表预聚合 SQL。
-            assertTrue(result.isApplied(), "fresh watermark 的 slice 查询应使用预聚合");
-            assertFalse(result.isHybridQuery(), "fresh watermark 不应进入 hybrid");
-            assertNotNull(result.getPreAggregation(), "应匹配预聚合");
-            assertEquals("daily_product_sales", result.getPreAggregation().getName(),
-                    "应匹配daily_product_sales预聚合");
+        // Explicit snapshot-only policy permits a direct materialized query.
+        assertTrue(result.isApplied(), "snapshot-only slice 查询应使用预聚合");
+        assertFalse(result.isHybridQuery(), "snapshot-only policy 不应进入 hybrid");
+        assertNotNull(result.getPreAggregation(), "应匹配预聚合");
+        assertEquals("daily_product_sales", result.getPreAggregation().getName(),
+                "应匹配daily_product_sales预聚合");
 
-            assertNotNull(result.getSql(), "SQL不应为空");
-            assertTrue(result.getSql().contains("preagg_daily_product_sales"), "SQL应查询预聚合表");
-            assertTrue(result.getSql().toUpperCase().contains("WHERE"), "SQL应包含WHERE子句");
+        assertNotNull(result.getSql(), "SQL不应为空");
+        assertTrue(result.getSql().contains("preagg_daily_product_sales"), "SQL应查询预聚合表");
+        assertTrue(result.getSql().toUpperCase().contains("WHERE"), "SQL应包含WHERE子句");
 
-            log.info("带slice过滤条件查询匹配成功: preAgg={}, SQL={}",
-                    result.getPreAggregation().getName(), result.getSql());
-        });
+        log.info("带slice过滤条件查询匹配成功: preAgg={}, SQL={}",
+                result.getPreAggregation().getName(), result.getSql());
     }
 
     // ==========================================
@@ -979,7 +1099,7 @@ class PreAggregationIT {
         assertNotNull(preAggregations);
         assertFalse(preAggregations.isEmpty());
 
-        int pastDate = 20240101;
+        LocalDate pastDate = LocalDate.of(2024, 1, 1);
         withStaleHybridWatermarks(preAggregations, pastDate, () -> {
             JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -1025,7 +1145,7 @@ class PreAggregationIT {
         TableModel tableModel = queryModel.getJdbcModel();
         List<PreAggregation> preAggregations = tableModel.getPreAggregations();
 
-        int pastDate = 20240101;
+        LocalDate pastDate = LocalDate.of(2024, 1, 1);
         withStaleHybridWatermarks(preAggregations, pastDate, () -> {
             JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -1102,7 +1222,7 @@ class PreAggregationIT {
             for (PreAggregation preAgg : preAggregations) {
                 if (preAgg.supportsHybridQuery()) {
                     originalWatermarks.put(preAgg, preAgg.getDataWatermark());
-                    preAgg.setDataWatermark(20240101);
+                    preAgg.setDataWatermark(LocalDate.of(2024, 1, 1));
                 }
             }
             assertFalse(originalWatermarks.isEmpty(), "fixture must contain a hybrid-capable pre-aggregation");
@@ -1140,16 +1260,18 @@ class PreAggregationIT {
         JdbcModelQueryEngine dayEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
         dayEngine.analysisQueryRequest(systemBundlesContext, dayRequest);
 
+        PreAggQueryRequirement dayRequirement = new PreAggQueryRequirementBuilder()
+                .buildFinalStage(dayRequest, dayEngine.getJdbcQuery(), queryModel);
+        assertTrue(dayRequirement.isSatisfiableBy(daily));
+        assertFalse(dayRequirement.isSatisfiableBy(monthly),
+                "MONTH materialization must not serve a DAY caption final stage");
+        PreAggQueryRewriter.PreAggAggregateSqlResult dayBuilt = snapshotOnlyInterceptor()
+                .tryBuildFinalStageAggregateSql(dayEngine, queryModel, dayRequest);
+        assertNotNull(dayBuilt,
+                "explicit snapshot policy should serve a compatible DAY materialization");
+        assertEquals(daily.getName(), dayBuilt.getPreAggName());
         PreAggQueryRewriter dayRewriter = new PreAggQueryRewriter(queryModel, applicationContext);
-        withFreshHybridWatermarks(List.of(daily, monthly), () -> {
-            assertNotNull(dayRewriter.buildFinalStageAggregateSql(
-                            daily, dayEngine.getJdbcQuery(), dayRequest),
-                    "fresh DAY materialization should serve a DAY caption final stage");
-            assertNull(dayRewriter.buildFinalStageAggregateSql(
-                            monthly, dayEngine.getJdbcQuery(), dayRequest),
-                    "MONTH materialization must not serve a DAY caption final stage");
-        });
-        withStaleHybridWatermarks(List.of(daily), 20240101,
+        withStaleHybridWatermarks(List.of(daily), LocalDate.of(2024, 1, 1),
                 () -> assertNull(dayRewriter.buildFinalStageAggregateSql(
                                 daily, dayEngine.getJdbcQuery(), dayRequest),
                         "public final-stage entry must refuse a stale materialization"));
@@ -1162,10 +1284,9 @@ class PreAggregationIT {
         JdbcModelQueryEngine maxEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
         maxEngine.analysisQueryRequest(systemBundlesContext, maxRequest);
 
-        withFreshHybridWatermarks(List.of(daily),
-                () -> assertNull(new PreAggQueryRewriter(queryModel, applicationContext)
-                                .buildFinalStageAggregateSql(daily, maxEngine.getJdbcQuery(), maxRequest),
-                        "SUM materialization must not masquerade as a MAX final-stage measure"));
+        assertNull(snapshotOnlyInterceptor().tryBuildFinalStageAggregateSql(
+                        maxEngine, queryModel, maxRequest),
+                "SUM materialization must not masquerade as a MAX final-stage measure");
     }
 
     @Test
@@ -1204,11 +1325,10 @@ class PreAggregationIT {
         assertFalse(requirement.isSatisfiableBy(monthly),
                 "MONTH materialization must not satisfy a DAY caption predicate");
 
-        PreAggQueryRewriter rewriter = new PreAggQueryRewriter(queryModel, applicationContext);
-        withFreshHybridWatermarks(List.of(daily, monthly), () -> {
-            assertNotNull(rewriter.buildFinalStageAggregateSql(daily, engine.getJdbcQuery(), request));
-            assertNull(rewriter.buildFinalStageAggregateSql(monthly, engine.getJdbcQuery(), request));
-        });
+        PreAggQueryRewriter.PreAggAggregateSqlResult built = snapshotOnlyInterceptor()
+                .tryBuildFinalStageAggregateSql(engine, queryModel, request);
+        assertNotNull(built);
+        assertEquals(daily.getName(), built.getPreAggName());
     }
 
     @Test
@@ -1233,23 +1353,22 @@ class PreAggregationIT {
 
         JdbcModelQueryEngine engine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
         engine.analysisQueryRequest(systemBundlesContext, request);
-        PreAggQueryRewriter.PreAggAggregateSqlResult[] built = new PreAggQueryRewriter.PreAggAggregateSqlResult[1];
-        withFreshHybridWatermarks(List.of(daily), () -> built[0] =
-                new PreAggQueryRewriter(queryModel, applicationContext)
-                        .buildFinalStageAggregateSql(daily, engine.getJdbcQuery(), request));
+        PreAggQueryRewriter.PreAggAggregateSqlResult built = snapshotOnlyInterceptor()
+                .tryBuildFinalStageAggregateSql(engine, queryModel, request);
 
-        assertNotNull(built[0]);
-        assertTrue(built[0].getSql().contains("date_key >= ?"));
-        assertFalse(built[0].getSql().contains("date_key < ?"),
+        assertNotNull(built);
+        assertEquals(daily.getName(), built.getPreAggName());
+        assertTrue(built.getSql().contains("date_key >= ?"));
+        assertFalse(built.getSql().contains("date_key < ?"),
                 "empty range end must remain an open endpoint");
-        assertTrue(built[0].getSql().contains("category_name LIKE ?"));
-        assertEquals(2, built[0].getParams().size());
-        assertEquals(20240102, built[0].getParams().get(0));
-        assertInstanceOf(Integer.class, built[0].getParams().get(0));
-        assertEquals("%数码%", built[0].getParams().get(1));
+        assertTrue(built.getSql().contains("category_name LIKE ?"));
+        assertEquals(2, built.getParams().size());
+        assertEquals(20240102, built.getParams().get(0));
+        assertInstanceOf(Integer.class, built.getParams().get(0));
+        assertEquals("%数码%", built.getParams().get(1));
 
         Map<String, Object> preAggRow = jdbcTemplate.queryForMap(
-                built[0].getSql(), built[0].getParams().toArray());
+                built.getSql(), built.getParams().toArray());
         Map<String, Object> nativeRow = jdbcTemplate.queryForMap("""
                 SELECT COUNT(*) AS total, SUM(native_final.teamSales) AS teamSales
                 FROM (
@@ -1285,15 +1404,16 @@ class PreAggregationIT {
         return group;
     }
 
-    private PreAggRewriteResult rewriteWithFreshWatermarks(JdbcQueryModel queryModel,
-                                                             JdbcModelQueryEngine queryEngine,
-                                                             DbQueryRequestDef queryRequest) {
-        PreAggRewriteResult[] result = new PreAggRewriteResult[1];
-        withFreshHybridWatermarks(queryModel.getJdbcModel().getPreAggregations(), () -> {
-            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-            result[0] = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
-        });
-        return result[0];
+    private PreAggRewriteResult rewriteWithSnapshotOnlyPolicy(JdbcQueryModel queryModel,
+                                                               JdbcModelQueryEngine queryEngine,
+                                                               DbQueryRequestDef queryRequest) {
+        return snapshotOnlyInterceptor().tryRewrite(queryEngine, queryModel, queryRequest);
+    }
+
+    private PreAggregationInterceptor snapshotOnlyInterceptor() {
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(false);
+        return interceptor;
     }
 
     private void withStaleHybridWatermarks(Collection<PreAggregation> preAggregations,
@@ -1303,18 +1423,6 @@ class PreAggregationIT {
             for (PreAggregation preAggregation : preAggregations) {
                 if (preAggregation.supportsHybridQuery()) {
                     preAggregation.setDataWatermark(watermark);
-                }
-            }
-            action.run();
-        });
-    }
-
-    private void withFreshHybridWatermarks(Collection<PreAggregation> preAggregations,
-                                           Runnable action) {
-        withRestoredWatermarks(preAggregations, () -> {
-            for (PreAggregation preAggregation : preAggregations) {
-                if (preAggregation.supportsHybridQuery()) {
-                    preAggregation.setDataWatermark(LocalDate.now());
                 }
             }
             action.run();

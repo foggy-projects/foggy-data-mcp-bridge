@@ -2,11 +2,15 @@
   "bindings": {
     "authority_hash_manifest": {
       "path": "scripts/v934/step3/SHA256SUMS",
-      "sha256": "de67a7daf7935b7dc9b36c5a93010f4f0c3147ad85b113aabdfd7c2b7d83c555"
+      "sha256": "f1aa310103bb99a0b000afc67a7e5ddb5e39d62bc93cc8a48bd63eaa5d461772"
     },
     "database_contract": {
       "path": "scripts/v934/database-contract.tsv",
       "sha256": "6beb3631157ecaf2294f6ab7dd6c338ae15dc45d3544171b11e009c92f636457"
+    },
+    "database_state_contract": {
+      "path": "scripts/v934/step3/database_state_contract.json",
+      "sha256": "0fce8b5b8be15596672530f1d70a51e664a2f4a8e3f4059e7ab4cc496f5a28f1"
     },
     "deferred_inventory": {
       "disposition": "deferred-to-step3",
@@ -16,7 +20,7 @@
     },
     "protected_tree_manifest": {
       "path": "scripts/v934/step3/database-matrix-protected-trees.tsv",
-      "sha256": "040e54412500e28e9275ab4aabe7ee2a3b1903053ca565dbc24e0f3ba74aefe8"
+      "sha256": "12dd3968ee40ce78d28dde49cdba99f5a14c47b6dc519f421c9b384461d97036"
     },
     "source_amendment": {
       "path": "scripts/v934/step3/database-matrix-source-amendment.tsv",

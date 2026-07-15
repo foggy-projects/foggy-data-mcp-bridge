@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.preagg.refresh;
 
 import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
+import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -76,5 +77,72 @@ class IncrementalRefreshStrategyTest {
         when(preAgg.getRefreshConfig()).thenReturn(config);
 
         assertTrue(strategy.supports(preAgg));
+    }
+
+    @Test
+    @DisplayName("Direct incremental execution without a published boundary fails closed")
+    void testRefreshRejectsMissingPublishedWatermark() {
+        PreAggregation preAgg = mock(PreAggregation.class);
+        PreAggRefreshDef config = new PreAggRefreshDef();
+        config.setWatermarkColumn("order_date");
+        config.setLookbackDays(3);
+        when(preAgg.getName()).thenReturn("orders_daily");
+        when(preAgg.getQualifiedTableName()).thenReturn("orders_daily");
+        when(preAgg.getRefreshConfig()).thenReturn(config);
+        javax.sql.DataSource dataSource = mock(javax.sql.DataSource.class);
+
+        PreAggRefreshResult result = strategy.refresh(
+                preAgg,
+                mock(TableModel.class),
+                dataSource,
+                PreAggRefreshContext.of("orders", "orders_daily"));
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("requires a published LocalDate watermark"));
+        verifyNoInteractions(dataSource);
+    }
+
+    @Test
+    @DisplayName("Negative lookback fails before database mutation")
+    void testRefreshRejectsNegativeLookback() {
+        PreAggregation preAgg = mock(PreAggregation.class);
+        PreAggRefreshDef config = new PreAggRefreshDef();
+        config.setWatermarkColumn("order_date");
+        config.setLookbackDays(-1);
+        when(preAgg.getName()).thenReturn("orders_daily");
+        when(preAgg.getQualifiedTableName()).thenReturn("orders_daily");
+        when(preAgg.getRefreshConfig()).thenReturn(config);
+        javax.sql.DataSource dataSource = mock(javax.sql.DataSource.class);
+        PreAggRefreshContext context = PreAggRefreshContext.of("orders", "orders_daily");
+        context.setLastWatermark(java.time.LocalDate.now().minusDays(1));
+
+        PreAggRefreshResult result = strategy.refresh(
+                preAgg, mock(TableModel.class), dataSource, context);
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("lookbackDays must be non-negative"));
+        verifyNoInteractions(dataSource);
+    }
+
+    @Test
+    @DisplayName("Future watermark fails before database mutation")
+    void testRefreshRejectsFutureWatermark() {
+        PreAggregation preAgg = mock(PreAggregation.class);
+        PreAggRefreshDef config = new PreAggRefreshDef();
+        config.setWatermarkColumn("order_date");
+        config.setLookbackDays(3);
+        when(preAgg.getName()).thenReturn("orders_daily");
+        when(preAgg.getQualifiedTableName()).thenReturn("orders_daily");
+        when(preAgg.getRefreshConfig()).thenReturn(config);
+        javax.sql.DataSource dataSource = mock(javax.sql.DataSource.class);
+        PreAggRefreshContext context = PreAggRefreshContext.of("orders", "orders_daily");
+        context.setLastWatermark(java.time.LocalDate.now().plusDays(30));
+
+        PreAggRefreshResult result = strategy.refresh(
+                preAgg, mock(TableModel.class), dataSource, context);
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("must not be after its exclusive end"));
+        verifyNoInteractions(dataSource);
     }
 }

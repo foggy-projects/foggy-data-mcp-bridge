@@ -7,6 +7,8 @@ STEP3_DIR="$ROOT_DIR/scripts/v934/step3"
 CONTRACT="$STEP3_DIR/database-matrix-contract.json"
 SOURCE_AMENDMENT="$STEP3_DIR/database-matrix-source-amendment.tsv"
 REPORT_TOOL="$STEP3_DIR/database_matrix_report_tool.py"
+STATE_NEGATIVE_CONTRACT="$STEP3_DIR/database_state_contract.json"
+STATE_NEGATIVE_TOOL="$STEP3_DIR/database_state_negative_tool.py"
 PROVISIONER="$STEP3_DIR/provision-database-cell.sh"
 SQLITE_TOOL="$STEP3_DIR/sqlite_cell_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
@@ -41,6 +43,14 @@ fail() {
 
 sha256_file() {
   sha256sum "$1" | cut -d' ' -f1
+}
+
+atomic_env() {
+  local output="$1"
+  shift
+  local temporary="${output}.$$.$RANDOM.tmp"
+  printf '%s\n' "$@" > "$temporary"
+  mv -f -- "$temporary" "$output"
 }
 
 matrix_source_hash() {
@@ -211,7 +221,8 @@ for command_name in bash cut docker flock git grep mkfifo mv mvn python3 rg sha2
 done
 for required_file in \
   "$SCRIPT_PATH" "$CONTRACT" "$SOURCE_AMENDMENT" "$REPORT_TOOL" \
-  "$PROVISIONER" "$SQLITE_TOOL" "$AUTHORITY_LIB" "$STEP1_TOOL"; do
+  "$STATE_NEGATIVE_CONTRACT" "$STATE_NEGATIVE_TOOL" "$PROVISIONER" \
+  "$SQLITE_TOOL" "$AUTHORITY_LIB" "$STEP1_TOOL"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
@@ -227,7 +238,7 @@ fi
 
 # shellcheck source=scripts/v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
-v934_acquire_authority_lock "$ROOT_DIR" "v934-database-matrix" || exit 1
+v934_acquire_or_validate_authority_lock "$ROOT_DIR" "v934-database-matrix" || exit 1
 
 [[ ! -e "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
 mkdir -p "$RUN_ROOT/variants" "$RUN_ROOT/preflight" "$RUN_ROOT/cells"
@@ -238,6 +249,9 @@ SOURCE_AFTER=""
 OUTER_MARKER_SHA256=""
 SUCCESSOR_MANIFEST_SHA256="$(sha256_file "$ROOT_DIR/scripts/v934/successor/step2/SHA256SUMS")"
 FINAL_REPORT_MANIFEST_SHA256=""
+STATE_NEGATIVE_MANIFEST="$RUN_ROOT/state-negative/manifest.json"
+STATE_NEGATIVE_MANIFEST_SHA256=""
+STATE_NEGATIVE_CONTRACT_SHA256="$(sha256_file "$STATE_NEGATIVE_CONTRACT")"
 SQLITE_CELL="$RUN_ROOT/cells/sqlite"
 SQLITE_DATABASE="$SQLITE_CELL/database.sqlite"
 SQLITE_CLEANUP_REQUIRED=false
@@ -246,6 +260,17 @@ SQLITE_VERIFIED=false
 RUN_LOG_FIFO="$RUN_ROOT/.run-log.fifo"
 RUN_LOG_TEE_PID=""
 RUN_LOG_OPEN=false
+
+if [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == inherited ]]; then
+  atomic_env "$RUN_ROOT/parent-context.env" \
+    "authority_kind=$V934_PARENT_AUTHORITY_KIND" \
+    "run_id=$V934_PARENT_RUN_ID" \
+    "git_head=$V934_PARENT_GIT_HEAD" \
+    "contract_sha256=$V934_PARENT_CONTRACT_SHA256" \
+    "source_sha256=$V934_PARENT_SOURCE_SHA256" \
+    "outer_marker_sha256=$V934_PARENT_OUTER_MARKER_SHA256" \
+    "outer_marker_path=$V934_PARENT_OUTER_MARKER_PATH"
+fi
 
 matrix_close_run_log() {
   local attempt
@@ -350,6 +375,11 @@ write_outer_marker
 OUTER_MARKER_SHA256="$(sha256_file "$OUTER_MARKER")"
 python3 "$REPORT_TOOL" validate >/dev/null
 
+PHASE="database-state-negative"
+python3 "$STATE_NEGATIVE_TOOL" run --mode all --run-id "$RUN_ID" --companion
+python3 "$STATE_NEGATIVE_TOOL" verify --manifest "$STATE_NEGATIVE_MANIFEST"
+STATE_NEGATIVE_MANIFEST_SHA256="$(sha256_file "$STATE_NEGATIVE_MANIFEST")"
+
 # Every external cell must be possible before the runner compiles tests, creates
 # a container, or executes a positive lane. The provisioner repeats this check
 # immediately before Compose up to close the TOCTOU window.
@@ -450,6 +480,9 @@ python3 "$REPORT_TOOL" verify-final \
   --outer-marker "$OUTER_MARKER" \
   --manifest "$RUN_ROOT/final/report-manifest.json"
 FINAL_REPORT_MANIFEST_SHA256="$(sha256_file "$RUN_ROOT/final/report-manifest.json")"
+python3 "$STATE_NEGATIVE_TOOL" verify --manifest "$STATE_NEGATIVE_MANIFEST"
+[[ "$(sha256_file "$STATE_NEGATIVE_MANIFEST")" == "$STATE_NEGATIVE_MANIFEST_SHA256" ]] || \
+  fail "database-state negative manifest changed during the positive matrix"
 
 PHASE="run-log-flush"
 matrix_close_run_log || fail "run log tee did not flush successfully"
@@ -483,7 +516,8 @@ python3 - \
   "$CONTRACT_SHA256" "$SOURCE_AMENDMENT_SHA256" "$FINAL_REPORT_MANIFEST_SHA256" \
   "$RUN_STATUS_SHA256" "$RUN_ROOT/cells" "$CONTRACT" \
   "$RUN_ROOT/negative/probes.tsv" "$RUN_ROOT/sensitive-scan.env" \
-  "${#SENSITIVE_PATTERNS[@]}" <<'PY'
+  "${#SENSITIVE_PATTERNS[@]}" "$STATE_NEGATIVE_MANIFEST" \
+  "$STATE_NEGATIVE_CONTRACT" "$STATE_NEGATIVE_MANIFEST_SHA256" <<'PY'
 import csv
 import hashlib
 import json
@@ -520,6 +554,9 @@ contract_path = Path(sys.argv[13])
 negative_path = Path(sys.argv[14])
 sensitive_path = Path(sys.argv[15])
 expected_sensitive_patterns = int(sys.argv[16])
+state_manifest_path = Path(sys.argv[17])
+state_contract_path = Path(sys.argv[18])
+expected_state_manifest_sha256 = sys.argv[19]
 
 sqlite_cleanup = read_env(cells_root / "sqlite" / "cleanup.env")
 if sqlite_cleanup.get("database") != "sqlite" or sqlite_cleanup.get("status") != "passed":
@@ -586,6 +623,36 @@ if (
 ):
     raise SystemExit("sensitive scan evidence is not passed or has the wrong pattern count")
 
+state_manifest_sha256 = sha256_file(state_manifest_path)
+state_contract_sha256 = sha256_file(state_contract_path)
+if state_manifest_sha256 != expected_state_manifest_sha256:
+    raise SystemExit("database-state negative manifest digest changed")
+if state_manifest_path.resolve() != cells_root.parent.resolve() / "state-negative" / "manifest.json":
+    raise SystemExit("database-state negative manifest path differs")
+state_manifest = json.loads(state_manifest_path.read_text(encoding="utf-8"))
+expected_state_totals = {
+    "probes": 18,
+    "evidence_tamper": 10,
+    "runtime_lightweight": 2,
+    "runtime_dynamic": 6,
+    "signals": 3,
+    "failed": 0,
+}
+if (
+    state_manifest.get("kind") != "v934-step3-database-state-negative-manifest"
+    or state_manifest.get("run_id") != sys.argv[3]
+    or state_manifest.get("mode") != "all"
+    or state_manifest.get("scope") != "database-companion"
+    or state_manifest.get("lane") != "database-state-negative"
+    or state_manifest.get("git_head") != sys.argv[4]
+    or state_manifest.get("database_contract_sha256") != sys.argv[8]
+    or state_manifest.get("database_outer_marker_sha256") != sys.argv[7]
+    or state_manifest.get("state_contract_sha256") != state_contract_sha256
+    or state_manifest.get("complete") is not True
+    or state_manifest.get("totals") != expected_state_totals
+):
+    raise SystemExit("database-state negative manifest identity or totals differ")
+
 values = {
     "run_id": sys.argv[3],
     "runner": manifest["runner"],
@@ -609,6 +676,10 @@ values = {
     "external_cleanup": f"{external_cleanup_passed}/{len(external_databases)}",
     "report_negative_probes": f"{report_negative_passed}/{len(negative_rows)}",
     "report_negative_sha256": sha256_file(negative_path),
+    "database_state_probes": "18/18",
+    "database_state_complete": "true",
+    "database_state_manifest_sha256": state_manifest_sha256,
+    "database_state_contract_sha256": state_contract_sha256,
     "sensitive_scan": sensitive_scan["status"],
     "sensitive_scan_sha256": sha256_file(sensitive_path),
     "status": "passed",
@@ -623,4 +694,4 @@ os.replace(temporary, output)
 PY
 
 v934_disarm_run_status_traps
-echo "[v934-database-matrix] PASS run=$RUN_ID reports=29 testcase_nodes=370 F0/E0/S0 evidence=$RUN_ROOT"
+echo "[v934-database-matrix] PASS run=$RUN_ID reports=29 testcase_nodes=370 state-negative=18/18 F0/E0/S0 evidence=$RUN_ROOT"

@@ -14,6 +14,11 @@
     <name>Foggy Dataset Model Pre-Aggregation</name>
     <description>Pre-aggregation computation and scheduling module for TM/QM data model engine</description>
 
+    <properties>
+        <v934.preagg.failsafe.reportsDirectory>${project.build.directory}/failsafe-reports</v934.preagg.failsafe.reportsDirectory>
+        <v934.preagg.failsafe.summaryFile>${project.build.directory}/failsafe-reports/failsafe-summary.xml</v934.preagg.failsafe.summaryFile>
+    </properties>
+
     <dependencies>
         <!-- 核心依赖 -->
         <dependency>
@@ -50,6 +55,25 @@
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.42.0.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <reportsDirectory>${v934.preagg.failsafe.reportsDirectory}</reportsDirectory>
+                    <summaryFile>${v934.preagg.failsafe.summaryFile}</summaryFile>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

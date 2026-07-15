@@ -135,7 +135,8 @@ export const model = {
             refresh: {
                 strategy: 'INCREMENTAL',
                 schedule: '0 3 * * *',
-                watermarkColumn: 'returnDate$id',
+                // 增量边界使用真实 DATE 列；数值代理键不能与 LocalDate 参数混用。
+                watermarkColumn: 'returnDate$caption',
                 lookbackDays: 3
             },
 

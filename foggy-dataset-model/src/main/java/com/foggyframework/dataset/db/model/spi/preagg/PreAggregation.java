@@ -6,7 +6,6 @@ import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -258,8 +257,8 @@ public interface PreAggregation {
     /**
      * 获取数据水位线（最后处理的数据时间）
      * <p>
-     * 对于增量刷新的预聚合，水位线表示已处理数据的最大时间戳。
-     * 查询时，水位线之后的数据需要从原始表获取。
+     * 对于增量刷新的预聚合，水位线是物化历史的 exclusive upper bound。
+     * 查询时，小于水位线的数据来自物化表，大于等于水位线的数据来自原始表。
      * </p>
      *
      * @return 水位线值（通常是日期或时间戳），如果没有水位线返回 null
@@ -303,11 +302,10 @@ public interface PreAggregation {
     /**
      * 判断预聚合数据是否过期
      * <p>
-     * 根据数据水位线或最后刷新时间判断数据是否需要重新加载。
+     * 根据数据水位线或最后刷新时间判断数据是否可能需要源表 tail。
      * <ul>
-     *   <li>如果设置了水位线且为日期类型，则根据水位线日期判断</li>
-     *   <li>如果水位线为今天或之后，数据不过期</li>
-     *   <li>如果水位线在今天之前，数据过期</li>
+     *   <li>任何已发布 exclusive 水位线都表示其后仍可能存在源表数据</li>
+     *   <li>未来或非 DATE 水位线不构成完整快照证明</li>
      *   <li>如果没有水位线，则根据最后刷新时间判断（超过24小时视为过期）</li>
      * </ul>
      * </p>
@@ -315,18 +313,12 @@ public interface PreAggregation {
      * @return true 如果数据可能过期
      */
     default boolean isDataStale() {
-        // 优先检查数据水位线
+        // Exclusive boundaries always leave a possible source tail. A caller
+        // that deliberately accepts a materialized snapshot must express that
+        // policy by disabling hybrid matching, not by forging a future value.
         Object watermark = getDataWatermark();
         if (watermark != null) {
-            LocalDate today = LocalDate.now();
-            if (watermark instanceof LocalDate watermarkDate) {
-                // 水位线为今天或之后，数据不过期
-                return watermarkDate.isBefore(today);
-            }
-            if (watermark instanceof LocalDateTime watermarkDateTime) {
-                // 水位线为今天或之后，数据不过期
-                return watermarkDateTime.toLocalDate().isBefore(today);
-            }
+            return true;
         }
 
         // 没有水位线，根据最后刷新时间判断

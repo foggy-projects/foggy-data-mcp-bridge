@@ -13,7 +13,7 @@ INSERT IGNORE INTO `dim_date` (`date_key`, `full_date`, `year`, `quarter`, `mont
     `week_of_year`, `day_of_month`, `day_of_week`, `day_name`, `is_weekend`, `is_holiday`)
 SELECT
     DATE_FORMAT(d, '%Y%m%d') AS date_key,
-    DATE_FORMAT(d, '%Y-%m-%d') AS full_date,
+    DATE(d) AS full_date,
     YEAR(d) AS `year`,
     QUARTER(d) AS `quarter`,
     MONTH(d) AS `month`,
@@ -338,12 +338,13 @@ GROUP BY fs.date_key, fs.product_key,
 -- 9.2 填充月+品类预聚合表
 TRUNCATE TABLE `preagg_monthly_category_sales`;
 INSERT INTO `preagg_monthly_category_sales` (
-    `year_month`, `category_name`,
+    `year_month`, `product_key`, `category_name`,
     `quantity_sum`, `sales_amount_sum`, `cost_amount_sum`, `profit_amount_sum`,
     `order_count`, `_preagg_row_count`
 )
 SELECT
-    FLOOR(fs.date_key / 100) AS `year_month`,
+    DATE_FORMAT(d.full_date, '%Y-%m-01') AS `year_month`,
+    fs.product_key,
     p.category_name,
     SUM(fs.quantity) AS quantity_sum,
     SUM(fs.sales_amount) AS sales_amount_sum,
@@ -353,13 +354,15 @@ SELECT
     COUNT(*) AS _preagg_row_count
 FROM fact_sales fs
 JOIN dim_product p ON fs.product_key = p.product_key
+JOIN dim_date d ON fs.date_key = d.date_key
 WHERE fs.date_key <= 20240320
-GROUP BY FLOOR(fs.date_key / 100), p.category_name;
+GROUP BY DATE_FORMAT(d.full_date, '%Y-%m-01'), fs.product_key, p.category_name;
 
 -- 9.3 填充日+客户+渠道预聚合表
 TRUNCATE TABLE `preagg_daily_customer_channel_sales`;
 INSERT INTO `preagg_daily_customer_channel_sales` (
     `date_key`, `customer_key`, `channel_key`,
+    `full_date`,
     `province`, `city`, `channel_type`,
     `quantity_sum`, `sales_amount_sum`, `order_count`, `_preagg_row_count`
 )
@@ -367,6 +370,7 @@ SELECT
     fs.date_key,
     fs.customer_key,
     fs.channel_key,
+    d.full_date,
     c.province,
     c.city,
     ch.channel_type,
@@ -375,10 +379,12 @@ SELECT
     COUNT(*) AS order_count,
     COUNT(*) AS _preagg_row_count
 FROM fact_sales fs
+JOIN dim_date d ON fs.date_key = d.date_key
 JOIN dim_customer c ON fs.customer_key = c.customer_key
 JOIN dim_channel ch ON fs.channel_key = ch.channel_key
 WHERE fs.date_key <= 20240320
-GROUP BY fs.date_key, fs.customer_key, fs.channel_key, c.province, c.city, ch.channel_type;
+GROUP BY fs.date_key, fs.customer_key, fs.channel_key, d.full_date,
+    c.province, c.city, ch.channel_type;
 
 -- 9.4 填充退货预聚合表
 TRUNCATE TABLE `preagg_daily_return`;
@@ -409,13 +415,13 @@ TRUNCATE TABLE `preagg_watermark`;
 INSERT INTO `preagg_watermark` (`preagg_name`, `model_name`, `last_refresh_time`, `watermark_value`,
     `watermark_type`, `refresh_strategy`, `row_count`)
 VALUES
-('daily_product_sales', 'FactSalesPreAggModel', NOW() - INTERVAL 1 DAY, '20240320', 'DATE', 'INCREMENTAL',
+('daily_product_sales', 'FactSalesPreAggModel', NOW() - INTERVAL 1 DAY, '2024-03-20', 'DATE', 'INCREMENTAL',
     (SELECT COUNT(*) FROM preagg_daily_product_sales)),
 ('monthly_category_sales', 'FactSalesPreAggModel', NOW() - INTERVAL 1 DAY, '202403', 'MONTH', 'FULL',
     (SELECT COUNT(*) FROM preagg_monthly_category_sales)),
-('daily_customer_channel_sales', 'FactSalesPreAggModel', NOW() - INTERVAL 1 DAY, '20240320', 'DATE', 'INCREMENTAL',
+('daily_customer_channel_sales', 'FactSalesPreAggModel', NOW() - INTERVAL 1 DAY, '2024-03-20', 'DATE', 'INCREMENTAL',
     (SELECT COUNT(*) FROM preagg_daily_customer_channel_sales)),
-('daily_return', 'FactReturnPreAggModel', NOW() - INTERVAL 1 DAY, '20240320', 'DATE', 'INCREMENTAL',
+('daily_return', 'FactReturnPreAggModel', NOW() - INTERVAL 1 DAY, '2024-03-20', 'DATE', 'INCREMENTAL',
     (SELECT COUNT(*) FROM preagg_daily_return));
 
 -- ==========================================

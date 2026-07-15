@@ -183,6 +183,9 @@ EXACT_AUTHORITY_FILES = [
     "scripts/v934/step3/database-matrix-protected-trees.tsv",
     "scripts/v934/step3/database-matrix-source-amendment.tsv",
     "scripts/v934/step3/database_matrix_report_tool.py",
+    "scripts/v934/step3/database_state_contract.json",
+    "scripts/v934/step3/database_state_negative_tool.py",
+    "scripts/v934/step3/database_state_probe_callback.sh",
     "scripts/v934/step3/provision-database-cell.sh",
     "scripts/v934/step3/sqlite_cell_tool.py",
     "scripts/verify-v934-database-matrix.sh",
@@ -1151,6 +1154,7 @@ def load_contract(repo: Path, contract_path: Path) -> MatrixContract:
     required_bindings = {
         "authority_hash_manifest",
         "database_contract",
+        "database_state_contract",
         "deferred_inventory",
         "protected_tree_manifest",
         "source_amendment",
@@ -1179,6 +1183,22 @@ def load_contract(repo: Path, contract_path: Path) -> MatrixContract:
     freeze = read_json(resolved_bindings["successor_freeze"])
     if freeze.get("status") != "confirmed" or freeze.get("step") != 2:
         fail("E_BINDING", "successor freeze is not confirmed Step 2")
+    state_contract = read_json(resolved_bindings["database_state_contract"])
+    if (
+        state_contract.get("kind") != "v934-step3-database-state-negative-contract"
+        or state_contract.get("schema_version") != 1
+        or state_contract.get("version") != "9.3.4"
+        or state_contract.get("lane") != "database-state-negative"
+        or state_contract.get("totals")
+        != {
+            "probes": 18,
+            "evidence_tamper": 10,
+            "runtime_lightweight": 2,
+            "runtime_dynamic": 6,
+            "signals": 3,
+        }
+    ):
+        fail("E_BINDING", "database-state negative contract identity differs")
 
     variants, expected = _parse_contract_reports(raw)
     expanded_count = sum(len(reports) for reports in expected.values())

@@ -43,6 +43,7 @@ FRAMEWORK_BINDINGS = {
     "external_shared_context", "external_lane_launcher", "external_redis_runner",
     "external_redis_signal_probe", "external_mongo_runner",
     "external_mysql_runner", "external_vector_runner",
+    "external_redis_state_contract", "external_redis_state_tool",
 }
 EXPECTED_BINDINGS = INVENTORY_BINDINGS | FRAMEWORK_BINDINGS
 OUTER_FIELDS = {
@@ -85,6 +86,9 @@ CANDIDATE_SUMMARY_FIELDS = {
     "sensitive_negative_probes", "sensitive_negative_sha256",
     "sensitive_scan_sha256", "resource_residue", "status",
 }
+MATRIX_CANDIDATE_SUMMARY_FIELDS = CANDIDATE_SUMMARY_FIELDS | {
+    "resource_state_probes", "resource_state_sha256",
+}
 RUN_STATUS_FIELDS = {
     "run_id", "runner", "git_head", "started_at", "finished_at", "last_phase",
     "exit_code", "source_before_sha256", "source_after_sha256",
@@ -93,6 +97,32 @@ RUN_STATUS_FIELDS = {
 }
 REDIS_IMAGE_REF = "redis@sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d4218573b2a98"
 REDIS_IMAGE_ID = "sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d4218573b2a98"
+REDIS_RESOURCE_STATE_ROWS = [
+    {
+        "probe": "wrong-container-identity",
+        "expected_error": "E_RESOURCE_IDENTITY",
+        "actual_error": "E_RESOURCE_IDENTITY",
+        "status": "passed",
+    },
+    {
+        "probe": "wrong-mount-identity",
+        "expected_error": "E_RESOURCE_MOUNT",
+        "actual_error": "E_RESOURCE_MOUNT",
+        "status": "passed",
+    },
+    {
+        "probe": "dirty-state",
+        "expected_error": "E_RESOURCE_DIRTY",
+        "actual_error": "E_RESOURCE_DIRTY",
+        "status": "passed",
+    },
+    {
+        "probe": "forced-cleanup-failure",
+        "expected_error": "E_RESOURCE_CLEANUP",
+        "actual_error": "E_RESOURCE_CLEANUP",
+        "status": "passed",
+    },
+]
 REDIS_CLEAN_MODULES = (
     "foggy-bean-copy", "foggy-core", "foggy-fsscript", "foggy-dataset",
     "foggy-dataset-demo", "foggy-dataset-model", "addons/foggy-dataset-model-cache",
@@ -1664,6 +1694,7 @@ def candidate_required_paths(lane: str) -> set[str]:
             "aggregate/resources.tsv",
             "aggregate/fixtures.tsv",
             "aggregate/cleanup.env",
+            "aggregate/redis-resource-state-negatives.tsv",
             "lanes/external-redis/candidate-manifest.json",
             "lanes/external-mongo/candidate-manifest.json",
             "lanes/external-mysql/candidate-manifest.json",
@@ -3215,7 +3246,9 @@ def verify_matrix_candidate(
         reject("E_CANDIDATE", "full external candidate report identity differs")
 
     summary = parse_env(
-        artifact_by_path["summary.env"], CANDIDATE_SUMMARY_FIELDS, "E_CANDIDATE"
+        artifact_by_path["summary.env"],
+        MATRIX_CANDIDATE_SUMMARY_FIELDS,
+        "E_CANDIDATE",
     )
     status = parse_env(
         artifact_by_path["run-status.env"], RUN_STATUS_FIELDS, "E_CANDIDATE"
@@ -3228,6 +3261,7 @@ def verify_matrix_candidate(
         "contract_sha256": contract["_contract_sha256"],
         "negative_probes": f"{len(contract['negative_probes'])}/{len(contract['negative_probes'])}",
         "sensitive_negative_probes": "24/24",
+        "resource_state_probes": "4/4",
         "resource_residue": "0/0/0", "status": "passed",
     }
     if any(summary.get(key) != value for key, value in expected_scalar.items()):
@@ -3244,6 +3278,7 @@ def verify_matrix_candidate(
         "final_report_manifest_sha256": "final/report-manifest.json",
         "run_status_sha256": "run-status.env",
         "resource_sha256": "aggregate/resources.tsv",
+        "resource_state_sha256": "aggregate/redis-resource-state-negatives.tsv",
         "fixture_sha256": "aggregate/fixtures.tsv",
         "cleanup_sha256": "aggregate/cleanup.env",
         "negative_sha256": "negative/probes.tsv",
@@ -3272,6 +3307,12 @@ def verify_matrix_candidate(
     preclean = parse_env(
         artifact_by_path["preclean.env"], {"lanes", "mode", "status"}, "E_CANDIDATE"
     )
+    resource_state_rows = read_exact_tsv(
+        artifact_by_path["aggregate/redis-resource-state-negatives.tsv"],
+        ["probe", "expected_error", "actual_error", "status"],
+    )
+    if resource_state_rows != REDIS_RESOURCE_STATE_ROWS:
+        reject("E_CANDIDATE", "Redis resource-state negative evidence differs")
     lane_order = (
         "external-redis", "external-mongo", "external-mysql", "external-vector",
     )

@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.preagg.refresh;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.model.engine.preagg.internal.PreAggWatermarkResolver;
 import com.foggyframework.dataset.db.model.preagg.ddl.PreAggSqlBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -63,6 +65,19 @@ public class FullRefreshStrategy implements PreAggRefreshStrategy {
                 preAgg.getName(), preAggTableName);
 
         try {
+            LocalDate exclusiveWatermark = null;
+            if (preAgg.supportsHybridQuery()) {
+                PreAggWatermarkResolver.Resolution watermarkResolution =
+                        PreAggWatermarkResolver.resolve(
+                                preAgg, sourceModel, preAgg.getRefreshConfig());
+                PreAggWatermarkResolver.requireLocalDateBounds(
+                        watermarkResolution, context.getDialect());
+                // Watermarks are exclusive upper bounds. A cutoff at today's
+                // start keeps the still-open current DATE bucket on the source
+                // side of `materialized < wm / source >= wm`.
+                exclusiveWatermark = startTime.toLocalDate();
+            }
+
             // 构建 SQL（使用上下文中的方言）
             PreAggSqlBuilder sqlBuilder = createSqlBuilder(context);
             String deleteSql = buildDeleteSql(preAgg);
@@ -111,6 +126,7 @@ public class FullRefreshStrategy implements PreAggRefreshStrategy {
             PreAggRefreshResult result = PreAggRefreshResult.success(
                     getStrategyName(), affectedRows, startTime, endTime);
             result.setExecutedSql(insertSql);
+            result.setNewWatermark(exclusiveWatermark);
             return result;
 
         } catch (Exception e) {

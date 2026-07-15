@@ -5,7 +5,6 @@ import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -23,8 +22,9 @@ import java.util.*;
  * @author foggy-framework
  * @since 8.2.0
  */
-@Slf4j
 public class PreAggSqlBuilder {
+
+    private static final String SOURCE_ALIAS = "src";
 
     private final FDialect dialect;
 
@@ -59,9 +59,7 @@ public class PreAggSqlBuilder {
         sql.append(String.join(", ", parts.targetColumns));
         sql.append(") SELECT ");
         sql.append(String.join(", ", parts.selectExprs));
-        sql.append(" FROM ").append(sourceModel.getTableName());
-
-        // TODO: 添加 JOIN（如果需要维表属性）
+        appendSourceFromAndJoins(sql, sourceModel, parts);
 
         if (!parts.groupByExprs.isEmpty()) {
             sql.append(" GROUP BY ").append(String.join(", ", parts.groupByExprs));
@@ -79,15 +77,17 @@ public class PreAggSqlBuilder {
      * @param preAgg        预聚合配置
      * @param refreshConfig 刷新配置
      * @param startDate     起始日期
-     * @param endDate       结束日期
-     * @return 参数化 SQL（params: [startDate, endDate]）
+     * @param endDate       结束日期（exclusive）
+     * @return 参数化 SQL（params: [startDateInclusive, endDateExclusive]）
      */
     public ParameterizedSql buildIncrementalDeleteSql(PreAggregation preAgg, PreAggRefreshDef refreshConfig,
                                                        LocalDate startDate, LocalDate endDate) {
         String tableName = preAgg.getQualifiedTableName();
-        String watermarkColumn = parseWatermarkColumnName(refreshConfig.getWatermarkColumn());
+        String watermarkColumn = PreAggPhysicalColumnContract.resolveMaterializedWatermark(
+                preAgg, refreshConfig);
 
-        String sql = "DELETE FROM " + tableName + " WHERE " + watermarkColumn + " >= ? AND " + watermarkColumn + " <= ?";
+        String sql = "DELETE FROM " + tableName + " WHERE " + watermarkColumn
+                + " >= ? AND " + watermarkColumn + " < ?";
         List<Object> params = Arrays.asList(startDate, endDate);
 
         return new ParameterizedSql(sql, params);
@@ -104,24 +104,30 @@ public class PreAggSqlBuilder {
      * @param sourceModel   源模型
      * @param refreshConfig 刷新配置
      * @param startDate     起始日期
-     * @param endDate       结束日期
-     * @return 参数化 SQL（params: [startDate, endDate]）
+     * @param endDate       结束日期（exclusive）
+     * @return 参数化 SQL（params: [startDateInclusive, endDateExclusive]）
      */
     public ParameterizedSql buildIncrementalInsertSql(PreAggregation preAgg, TableModel sourceModel,
                                                        PreAggRefreshDef refreshConfig,
                                                        LocalDate startDate, LocalDate endDate) {
         RefreshSqlParts parts = buildRefreshSqlParts(preAgg, sourceModel);
-        String watermarkColumn = parseWatermarkColumnName(refreshConfig.getWatermarkColumn());
+        PreAggPhysicalColumnContract.WatermarkColumns watermark =
+                PreAggPhysicalColumnContract.resolveWatermark(
+                        preAgg, sourceModel, refreshConfig, dialect);
+        ensureSourceJoin(parts, sourceModel, watermark.sourceColumn(), watermark.dimension());
+        String sourceWatermarkColumn = sourceColumnExpression(
+                sourceModel, watermark.sourceColumn());
 
         StringBuilder sql = new StringBuilder();
         sql.append("INSERT INTO ").append(preAgg.getQualifiedTableName()).append(" (");
         sql.append(String.join(", ", parts.targetColumns));
         sql.append(") SELECT ");
         sql.append(String.join(", ", parts.selectExprs));
-        sql.append(" FROM ").append(sourceModel.getTableName());
+        appendSourceFromAndJoins(sql, sourceModel, parts);
 
         // WHERE 子句使用参数化（防 SQL 注入）
-        sql.append(" WHERE ").append(watermarkColumn).append(" >= ? AND ").append(watermarkColumn).append(" <= ?");
+        sql.append(" WHERE ").append(sourceWatermarkColumn).append(" >= ? AND ")
+                .append(sourceWatermarkColumn).append(" < ?");
 
         if (!parts.groupByExprs.isEmpty()) {
             sql.append(" GROUP BY ").append(String.join(", ", parts.groupByExprs));
@@ -135,6 +141,7 @@ public class PreAggSqlBuilder {
      * 构建创建表 DDL
      */
     public String buildCreateTableDdl(PreAggregation preAgg, TableModel sourceModel) {
+        validateConfiguredWatermark(preAgg, sourceModel);
         StringBuilder ddl = new StringBuilder();
         String tableName = preAgg.getQualifiedTableName();
 
@@ -142,38 +149,57 @@ public class PreAggSqlBuilder {
 
         List<String> columnDefs = new ArrayList<>();
         List<String> pkColumns = new ArrayList<>();
+        Set<String> declaredColumns = new LinkedHashSet<>();
 
         // 维度列
         for (String dimName : preAgg.getDimensionNames()) {
-            DbDimension dimension = sourceModel.findJdbcDimensionByName(dimName);
-            if (dimension == null) continue;
-
-            String dimColumnName = getDimensionColumnName(dimension);
             TimeGranularity granularity = preAgg.getGranularity(dimName);
+            PreAggPhysicalColumnContract.ResolvedColumn dimensionGrain =
+                    PreAggPhysicalColumnContract.resolveDimensionGrain(
+                            preAgg, sourceModel, dimName, granularity);
+            String dimColumnName = dimensionGrain.materializedColumn();
 
-            String dataType = granularity != null
-                    ? dialect.mapColumnType("DATE")
-                    : dialect.mapColumnType(getColumnDataType(dimension));
+            String dataType = dialect.mapColumnType(
+                    getDimensionGrainDataType(granularity, dimensionGrain.sourceColumn().type()));
+            requireUniqueColumn(declaredColumns, dimColumnName, dimensionGrain.semanticField());
             columnDefs.add("    " + dimColumnName + " " + dataType + " NOT NULL");
             pkColumns.add(dimColumnName);
 
             // 维度属性列
-            for (String propName : preAgg.getDimensionProperties(dimName)) {
-                String propColumnName = dimName + "_" + propName;
-                columnDefs.add("    " + propColumnName + " " + dialect.mapColumnType("VARCHAR(255)"));
+            for (String propName : getDeclaredDimensionProperties(preAgg, dimName)) {
+                PreAggPhysicalColumnContract.ResolvedColumn property =
+                        PreAggPhysicalColumnContract.resolveDimensionProperty(
+                                preAgg, sourceModel, dimName, propName);
+                if (property.semanticField().equals(dimensionGrain.semanticField())) {
+                    continue;
+                }
+                rejectUnsafeCoarseIdProperty(granularity, property);
+                requireUniqueColumn(
+                        declaredColumns, property.materializedColumn(), property.semanticField());
+                columnDefs.add("    " + property.materializedColumn() + " "
+                        + dialect.mapColumnType(getColumnDataType(property.sourceColumn().type())));
             }
         }
 
         // 度量列
-        for (Map.Entry<String, String> entry : preAgg.getMeasureColumnNames().entrySet()) {
-            String columnName = entry.getValue();
-            columnDefs.add("    " + columnName + " " + dialect.mapColumnType("DECIMAL(20,4)"));
+        Map<String, String> measureColumns = preAgg.getMeasureColumnNames();
+        for (Map.Entry<String, DbAggregation> entry : preAgg.getMeasureAggregations().entrySet()) {
+            String measureName = entry.getKey();
+            DbAggregation aggregation = entry.getValue();
+            String columnName = requireMeasureColumn(measureColumns, measureName);
+            requireUniqueColumn(declaredColumns, columnName, "measure " + measureName);
+            columnDefs.add("    " + columnName + " "
+                    + dialect.mapColumnType(getMeasureDataType(aggregation)));
         }
 
         // 元数据列
+        requireUniqueColumn(declaredColumns, "_preagg_row_count", "metadata");
         columnDefs.add("    _preagg_row_count " + dialect.mapColumnType("BIGINT") + " DEFAULT 1");
-        columnDefs.add("    _preagg_created_at " + dialect.mapColumnType("TIMESTAMP") + " DEFAULT " + dialect.buildCurrentTimestampExpression());
-        columnDefs.add("    _preagg_updated_at " + dialect.mapColumnType("TIMESTAMP"));
+        requireUniqueColumn(declaredColumns, "_preagg_created_at", "metadata");
+        columnDefs.add("    _preagg_created_at " + dialect.mapColumnType("DATETIME")
+                + " DEFAULT " + buildDdlCurrentTimestampExpression());
+        requireUniqueColumn(declaredColumns, "_preagg_updated_at", "metadata");
+        columnDefs.add("    _preagg_updated_at " + dialect.mapColumnType("DATETIME"));
 
         // 主键
         if (!pkColumns.isEmpty()) {
@@ -198,6 +224,8 @@ public class PreAggSqlBuilder {
         final List<String> targetColumns = new ArrayList<>();
         final List<String> selectExprs = new ArrayList<>();
         final List<String> groupByExprs = new ArrayList<>();
+        final Map<String, String> joins = new LinkedHashMap<>();
+        final Set<String> declaredTargetColumns = new LinkedHashSet<>();
     }
 
     /**
@@ -208,37 +236,49 @@ public class PreAggSqlBuilder {
      * </p>
      */
     private RefreshSqlParts buildRefreshSqlParts(PreAggregation preAgg, TableModel sourceModel) {
+        validateConfiguredWatermark(preAgg, sourceModel);
         RefreshSqlParts parts = new RefreshSqlParts();
 
         // 1. 处理维度列
         for (String dimName : preAgg.getDimensionNames()) {
-            DbDimension dimension = sourceModel.findJdbcDimensionByName(dimName);
-            if (dimension == null) {
-                log.warn("Dimension '{}' not found in source model", dimName);
-                continue;
-            }
-
-            String dimColumnName = getDimensionColumnName(dimension);
             TimeGranularity granularity = preAgg.getGranularity(dimName);
+            PreAggPhysicalColumnContract.ResolvedColumn dimensionGrain =
+                    PreAggPhysicalColumnContract.resolveDimensionGrain(
+                            preAgg, sourceModel, dimName, granularity);
+            String dimColumnName = dimensionGrain.materializedColumn();
+            ensureSourceJoin(
+                    parts, sourceModel, dimensionGrain.sourceColumn(), dimensionGrain.dimension());
+            String sourceDimensionColumn = sourceColumnExpression(
+                    sourceModel, dimensionGrain.sourceColumn());
+            addTargetColumn(parts, dimColumnName, dimensionGrain.semanticField());
 
-            if (granularity != null) {
+            if (shouldTruncateDimensionGrain(granularity, dimensionGrain.sourceColumn().type())) {
                 // 使用方言的日期截断表达式
-                String truncatedExpr = dialect.buildDateTruncateExpression(dimColumnName, granularity.name());
-                parts.targetColumns.add(dimColumnName);
+                String truncatedExpr = dialect.buildDateTruncateExpression(
+                        sourceDimensionColumn, granularity.name());
                 parts.selectExprs.add(truncatedExpr + " AS " + dimColumnName);
                 parts.groupByExprs.add(truncatedExpr);
             } else {
-                parts.targetColumns.add(dimColumnName);
-                parts.selectExprs.add(dimColumnName);
-                parts.groupByExprs.add(dimColumnName);
+                parts.selectExprs.add(sourceDimensionColumn + " AS " + dimColumnName);
+                parts.groupByExprs.add(sourceDimensionColumn);
             }
 
             // 处理维度属性
-            Set<String> props = preAgg.getDimensionProperties(dimName);
+            Set<String> props = getDeclaredDimensionProperties(preAgg, dimName);
             for (String propName : props) {
-                String propColumnName = dimName + "_" + propName;
-                parts.targetColumns.add(propColumnName);
-                parts.selectExprs.add("MAX(" + propName + ") AS " + propColumnName);
+                PreAggPhysicalColumnContract.ResolvedColumn property =
+                        PreAggPhysicalColumnContract.resolveDimensionProperty(
+                                preAgg, sourceModel, dimName, propName);
+                if (property.semanticField().equals(dimensionGrain.semanticField())) {
+                    continue;
+                }
+                rejectUnsafeCoarseIdProperty(granularity, property);
+                ensureSourceJoin(parts, sourceModel, property.sourceColumn(), property.dimension());
+                String sourcePropertyColumn = sourceColumnExpression(
+                        sourceModel, property.sourceColumn());
+                addTargetColumn(parts, property.materializedColumn(), property.semanticField());
+                parts.selectExprs.add("MAX(" + sourcePropertyColumn + ") AS "
+                        + property.materializedColumn());
             }
         }
 
@@ -249,37 +289,187 @@ public class PreAggSqlBuilder {
         for (Map.Entry<String, DbAggregation> entry : measureAggs.entrySet()) {
             String measureName = entry.getKey();
             DbAggregation agg = entry.getValue();
-            String targetColumnName = measureColumns.getOrDefault(measureName, measureName + "_" + agg.name().toLowerCase());
+            String targetColumnName = requireMeasureColumn(measureColumns, measureName);
 
-            DbMeasure measure = sourceModel.findJdbcMeasureByName(measureName);
-            String sourceColumnName = measure != null ? measure.getJdbcColumn().getSqlColumnName() : measureName;
+            String sourceExpression = null;
+            if (agg != DbAggregation.COUNT) {
+                DbMeasure measure = sourceModel.findJdbcMeasureByName(measureName);
+                if (measure == null || measure.getJdbcColumn() == null) {
+                    throw contractError(
+                            "No source measure expression is declared for " + measureName);
+                }
+                sourceExpression = measure.getJdbcColumn().getDeclare(null, SOURCE_ALIAS, dialect);
+                if (isBlank(sourceExpression)) {
+                    throw contractError(
+                            "No source measure expression is declared for " + measureName);
+                }
+            }
 
-            parts.targetColumns.add(targetColumnName);
-            parts.selectExprs.add(buildAggregationExpr(sourceColumnName, agg) + " AS " + targetColumnName);
+            addTargetColumn(parts, targetColumnName, "measure " + measureName);
+            parts.selectExprs.add(buildAggregationExpr(sourceExpression, agg)
+                    + " AS " + targetColumnName);
         }
 
         // 3. 添加行数统计列
-        parts.targetColumns.add("_preagg_row_count");
+        addTargetColumn(parts, "_preagg_row_count", "metadata");
         parts.selectExprs.add("COUNT(*) AS _preagg_row_count");
 
         // 4. 添加时间戳列（使用方言的当前时间戳表达式）
-        parts.targetColumns.add("_preagg_created_at");
+        addTargetColumn(parts, "_preagg_created_at", "metadata");
         parts.selectExprs.add(dialect.buildCurrentTimestampExpression() + " AS _preagg_created_at");
 
         return parts;
     }
 
+    private void validateConfiguredWatermark(PreAggregation preAgg, TableModel sourceModel) {
+        PreAggRefreshDef refreshConfig = preAgg != null ? preAgg.getRefreshConfig() : null;
+        String watermark = refreshConfig != null ? refreshConfig.getWatermarkColumn() : null;
+        if (watermark != null && !watermark.isBlank()) {
+            PreAggPhysicalColumnContract.resolveWatermark(
+                    preAgg, sourceModel, refreshConfig, dialect);
+        }
+    }
+
     // ==================== 辅助方法 ====================
 
-    private String getDimensionColumnName(DbDimension dimension) {
-        DbColumn idColumn = dimension.getPrimaryKeyDbColumn();
-        if (idColumn != null) {
-            return idColumn.getSqlColumnName();
+    private void appendSourceFromAndJoins(StringBuilder sql,
+                                          TableModel sourceModel,
+                                          RefreshSqlParts parts) {
+        QueryObject sourceQueryObject = sourceModel.getQueryObject();
+        String sourceBody = sourceQueryObject != null ? sourceQueryObject.getBody() : null;
+        if (isBlank(sourceBody)) {
+            sourceBody = sourceModel.getTableName();
         }
-        return dimension.getName() + "_id";
+        if (isBlank(sourceBody)) {
+            throw contractError("Source model has no physical query object");
+        }
+        sql.append(" FROM ").append(sourceBody).append(" ").append(SOURCE_ALIAS);
+        for (String join : parts.joins.values()) {
+            sql.append(" ").append(join);
+        }
+    }
+
+    private void ensureSourceJoin(RefreshSqlParts parts,
+                                  TableModel sourceModel,
+                                  PreAggPhysicalColumnContract.SourceColumn sourceColumn,
+                                  DbDimension dimension) {
+        QueryObject sourceQueryObject = sourceModel.getQueryObject();
+        QueryObject columnQueryObject = sourceColumn.queryObject();
+        if (sameQueryObject(sourceQueryObject, columnQueryObject)) {
+            return;
+        }
+        if (columnQueryObject == null || dimension == null
+                || !sameQueryObject(columnQueryObject, dimension.getQueryObject())) {
+            throw contractError(
+                    "Cannot prove source table for physical column " + sourceColumn.physicalName());
+        }
+        if (dimension.getParentDimension() != null) {
+            throw contractError(
+                    "Nested dimension joins are not supported by Addon refresh: " + dimension.getName());
+        }
+
+        String alias = columnQueryObject.getAlias();
+        String body = columnQueryObject.getBody();
+        String primaryKey = columnQueryObject.getPrimaryKey();
+        String foreignKey = dimension.getForeignKey();
+        if (isBlank(foreignKey) && dimension.getForeignKeyDbColumn() != null) {
+            foreignKey = dimension.getForeignKeyDbColumn().getSqlColumnName();
+        }
+        if (isBlank(alias) || isBlank(body) || isBlank(primaryKey) || isBlank(foreignKey)) {
+            throw contractError(
+                    "Incomplete source join contract for dimension " + dimension.getName());
+        }
+        if (SOURCE_ALIAS.equals(alias)) {
+            throw contractError("Dimension alias collides with source alias: " + alias);
+        }
+
+        String join = "LEFT JOIN " + body + " " + alias
+                + " ON " + SOURCE_ALIAS + "." + foreignKey
+                + " = " + alias + "." + primaryKey;
+        String existing = parts.joins.putIfAbsent(alias, join);
+        if (existing != null && !existing.equals(join)) {
+            throw contractError("Conflicting source joins use alias " + alias);
+        }
+    }
+
+    private String sourceColumnExpression(
+            TableModel sourceModel,
+            PreAggPhysicalColumnContract.SourceColumn sourceColumn) {
+        if (sourceColumn == null || isBlank(sourceColumn.physicalName())) {
+            throw contractError("Source physical column must not be blank");
+        }
+        QueryObject sourceQueryObject = sourceModel.getQueryObject();
+        QueryObject columnQueryObject = sourceColumn.queryObject();
+        if (sameQueryObject(sourceQueryObject, columnQueryObject)) {
+            return SOURCE_ALIAS + "." + sourceColumn.physicalName();
+        }
+        if (columnQueryObject == null || isBlank(columnQueryObject.getAlias())) {
+            throw contractError(
+                    "Cannot prove source alias for physical column " + sourceColumn.physicalName());
+        }
+        return columnQueryObject.getAlias() + "." + sourceColumn.physicalName();
+    }
+
+    private boolean sameQueryObject(QueryObject first, QueryObject second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null || second == null) {
+            return false;
+        }
+        Object firstRoot = first.getRoot();
+        Object secondRoot = second.getRoot();
+        return firstRoot != null && firstRoot == secondRoot;
+    }
+
+    private void addTargetColumn(RefreshSqlParts parts, String column, String source) {
+        requireUniqueColumn(parts.declaredTargetColumns, column, source);
+        parts.targetColumns.add(column);
+    }
+
+    private void requireUniqueColumn(Set<String> declaredColumns, String column, String source) {
+        if (isBlank(column)) {
+            throw contractError("Materialized column must not be blank for " + source);
+        }
+        if (!declaredColumns.add(column)) {
+            throw contractError(
+                    "Materialized column " + column + " is declared more than once (" + source + ")");
+        }
+    }
+
+    private String requireMeasureColumn(Map<String, String> measureColumns, String measureName) {
+        String column = measureColumns != null ? measureColumns.get(measureName) : null;
+        if (isBlank(column)) {
+            throw contractError(
+                    "No explicit materialized measure column is declared for " + measureName);
+        }
+        return column;
+    }
+
+    private Set<String> getDeclaredDimensionProperties(PreAggregation preAgg,
+                                                       String dimensionName) {
+        Set<String> properties = new LinkedHashSet<>(
+                preAgg.getDimensionProperties(dimensionName));
+        Map<String, String> explicitMappings =
+                preAgg.getExplicitDimensionPropertyColumnNames();
+        if (explicitMappings == null || explicitMappings.isEmpty()) {
+            return properties;
+        }
+
+        String prefix = dimensionName + "$";
+        for (String semanticField : explicitMappings.keySet()) {
+            if (semanticField != null && semanticField.startsWith(prefix)
+                    && semanticField.length() > prefix.length()) {
+                properties.add(semanticField.substring(prefix.length()));
+            }
+        }
+        return properties;
     }
 
     private String buildAggregationExpr(String column, DbAggregation agg) {
+        if (agg == null) {
+            throw contractError("Measure aggregation must not be null");
+        }
         switch (agg) {
             case SUM:
                 return "SUM(" + column + ")";
@@ -292,45 +482,94 @@ public class PreAggSqlBuilder {
             case AVG:
                 return "AVG(" + column + ")";
             default:
-                return "SUM(" + column + ")";
+                throw contractError("Unsupported materialization aggregation: " + agg);
         }
     }
 
-    private String getColumnDataType(DbDimension dimension) {
-        DbColumn idColumn = dimension.getPrimaryKeyDbColumn();
-        if (idColumn != null && idColumn.getType() != null) {
-            switch (idColumn.getType()) {
-                case INTEGER:
-                    return "INT";
-                case BIGINT:
-                    return "BIGINT";
-                case TEXT:
-                    return "VARCHAR(255)";
-                case DAY:
-                    return "DATE";
-                case DATETIME:
-                    return "DATETIME";
-                default:
-                    return "BIGINT";
-            }
+    private String getMeasureDataType(DbAggregation aggregation) {
+        if (aggregation == null) {
+            throw contractError("Measure aggregation must not be null");
         }
-        return "BIGINT";
+        switch (aggregation) {
+            case COUNT:
+                return "BIGINT";
+            case SUM:
+            case MIN:
+            case MAX:
+            case AVG:
+                return "DECIMAL(20,4)";
+            default:
+                throw contractError("Unsupported materialization aggregation: " + aggregation);
+        }
     }
 
-    /**
-     * 解析水位线列名
-     * <p>
-     * 格式：dimensionName$propertyName 或 dimensionName$id
-     * </p>
-     */
-    private String parseWatermarkColumnName(String watermarkColumn) {
-        if (watermarkColumn == null) {
-            return "created_at";
+    private String buildDdlCurrentTimestampExpression() {
+        if (dialect == FDialect.SQLITE_DIALECT
+                || "SQLite".equalsIgnoreCase(dialect.getProductName())) {
+            return "CURRENT_TIMESTAMP";
         }
-        int dollarIndex = watermarkColumn.indexOf('$');
-        if (dollarIndex > 0) {
-            return watermarkColumn.substring(0, dollarIndex);
+        return dialect.buildCurrentTimestampExpression();
+    }
+
+    private String getDimensionGrainDataType(TimeGranularity granularity,
+                                             DbColumnType sourceType) {
+        if (!shouldTruncateDimensionGrain(granularity, sourceType)) {
+            return getColumnDataType(sourceType);
         }
-        return watermarkColumn;
+        if (granularity == TimeGranularity.MINUTE || granularity == TimeGranularity.HOUR) {
+            return "DATETIME";
+        }
+        return "DATE";
+    }
+
+    private boolean shouldTruncateDimensionGrain(TimeGranularity granularity,
+                                                 DbColumnType sourceType) {
+        return granularity != null
+                && (granularity != TimeGranularity.DAY || sourceType == DbColumnType.DATETIME);
+    }
+
+    private void rejectUnsafeCoarseIdProperty(
+            TimeGranularity granularity,
+            PreAggPhysicalColumnContract.ResolvedColumn property) {
+        if (granularity != null && granularity != TimeGranularity.DAY
+                && property.semanticField().endsWith("$id")) {
+            throw contractError(
+                    "A coarse time bucket cannot materialize a single dimension id: "
+                            + property.semanticField());
+        }
+    }
+
+    private String getColumnDataType(DbColumnType type) {
+        if (type == null) {
+            throw contractError("Source physical column type must not be null");
+        }
+        switch (type) {
+            case DICT:
+            case INTEGER:
+                return "INT";
+            case BIGINT:
+                return "BIGINT";
+            case MONEY:
+            case NUMBER:
+                return "DECIMAL(20,4)";
+            case TEXT:
+            case STRING:
+                return "VARCHAR(255)";
+            case DAY:
+                return "DATE";
+            case DATETIME:
+                return "DATETIME";
+            default:
+                throw contractError("Unsupported materialized column type: " + type);
+        }
+    }
+
+    private IllegalArgumentException contractError(String message) {
+        return new IllegalArgumentException(
+                "Pre-aggregation physical column contract violation: " + message);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }

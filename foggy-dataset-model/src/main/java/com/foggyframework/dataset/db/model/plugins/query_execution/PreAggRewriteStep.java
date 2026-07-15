@@ -347,11 +347,11 @@ public class PreAggRewriteStep implements QueryExecutionStep {
      */
     private boolean isHybridQueryEnabled(QueryExecutionContext ctx) {
         if (ctx.getModelResultContext() == null) {
-            return false;  // 默认禁用混合查询
+            return true;
         }
         ModelResultContext.QueryCacheConfig cacheConfig = ctx.getModelResultContext().getCacheConfig();
         if (cacheConfig == null) {
-            return false;
+            return true;
         }
         return cacheConfig.isHybridQueryEnabled();
     }

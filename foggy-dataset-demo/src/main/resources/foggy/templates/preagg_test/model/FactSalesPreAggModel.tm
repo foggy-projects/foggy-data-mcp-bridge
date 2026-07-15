@@ -205,7 +205,8 @@ export const model = {
             refresh: {
                 strategy: 'INCREMENTAL',
                 schedule: '0 2 * * *',
-                watermarkColumn: 'salesDate$id',
+                // 增量边界使用真实 DATE 列；数值代理键不能与 LocalDate 参数混用。
+                watermarkColumn: 'salesDate$caption',
                 lookbackDays: 3
             },
 
@@ -225,11 +226,13 @@ export const model = {
             },
 
             dimensionProperties: {
-                product: ['category_name']
+                salesDate: ['caption'],
+                product: ['id', 'categoryName']
             },
 
             dimensionPropertyColumnNames: {
-                product: { categoryName: 'category_name' }
+                salesDate: { caption: 'year_month' },
+                product: { id: 'product_key', categoryName: 'category_name' }
             },
 
             measures: [
@@ -261,13 +264,15 @@ export const model = {
             },
 
             dimensionProperties: {
+                salesDate: ['caption'],
                 customer: ['province', 'city'],
-                channel: ['channel_type']
+                channel: ['channelType']
             },
 
             dimensionPropertyColumnNames: {
-                customer: { province: 'province', city: 'city' },
-                channel: { channelType: 'channel_type' }
+                salesDate: { id: 'date_key', caption: 'full_date' },
+                customer: { id: 'customer_key', province: 'province', city: 'city' },
+                channel: { id: 'channel_key', channelType: 'channel_type' }
             },
 
             measures: [
@@ -279,7 +284,8 @@ export const model = {
             refresh: {
                 strategy: 'INCREMENTAL',
                 schedule: '0 2 * * *',
-                watermarkColumn: 'salesDate$id',
+                // 增量边界使用真实 DATE 列；数值代理键不能与 LocalDate 参数混用。
+                watermarkColumn: 'salesDate$caption',
                 lookbackDays: 3
             },
 

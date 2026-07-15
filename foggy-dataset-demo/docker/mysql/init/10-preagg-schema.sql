@@ -44,8 +44,9 @@ CREATE TABLE `preagg_daily_product_sales` (
 -- ==========================================
 DROP TABLE IF EXISTS `preagg_monthly_category_sales`;
 CREATE TABLE `preagg_monthly_category_sales` (
-    `year_month`          INT NOT NULL COMMENT '年月 YYYYMM',
-    `category_name`       VARCHAR(100) NOT NULL COMMENT '品类名称',
+    `year_month`          DATE NOT NULL COMMENT '月份首日 YYYY-MM-01',
+    `product_key`         INT NOT NULL COMMENT '商品维度键',
+    `category_name`       VARCHAR(100) COMMENT '品类名称',
     `quantity_sum`        BIGINT NOT NULL DEFAULT 0 COMMENT '销售数量(SUM)',
     `sales_amount_sum`    DECIMAL(20,4) NOT NULL DEFAULT 0 COMMENT '销售金额(SUM)',
     `cost_amount_sum`     DECIMAL(20,4) DEFAULT 0 COMMENT '成本金额(SUM)',
@@ -54,7 +55,7 @@ CREATE TABLE `preagg_monthly_category_sales` (
     `_preagg_row_count`   BIGINT DEFAULT 1 COMMENT '聚合行数',
     `_preagg_created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `_preagg_updated_at`  TIMESTAMP NULL COMMENT '更新时间',
-    PRIMARY KEY (`year_month`, `category_name`),
+    PRIMARY KEY (`year_month`, `product_key`),
     INDEX `idx_preagg_monthly_category_ym` (`year_month`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='销售月汇总预聚合表（按月+品类）';
 
@@ -66,6 +67,7 @@ CREATE TABLE `preagg_daily_customer_channel_sales` (
     `date_key`            INT NOT NULL COMMENT '日期维度键',
     `customer_key`        INT NOT NULL COMMENT '客户维度键',
     `channel_key`         INT NOT NULL COMMENT '渠道维度键',
+    `full_date`           DATE COMMENT '业务日期',
     `province`            VARCHAR(50) COMMENT '客户省份',
     `city`                VARCHAR(50) COMMENT '客户城市',
     `channel_type`        VARCHAR(50) COMMENT '渠道类型',

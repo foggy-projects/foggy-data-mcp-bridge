@@ -1,0 +1,169 @@
+{
+  "addon_companion": {
+    "included_in_required_totals": false,
+    "required": true,
+    "resource_residue": "0/0/0",
+    "totals": {
+      "errors": 0,
+      "failures": 0,
+      "reports": 2,
+      "skipped": 0,
+      "testcase_nodes": 6,
+      "variants": 2
+    }
+  },
+  "bindings": {
+    "addon_contract": {
+      "path": "scripts/v934/step3/preagg-addon-lifecycle-contract.json",
+      "sha256": "27d8abe4944c3df8694ed37a89388d44058a9fed71080855ab524ebde9ad54e3"
+    },
+    "addon_report_tool": {
+      "path": "scripts/v934/step3/preagg_addon_lifecycle_report_tool.py",
+      "sha256": "3995c3bccdb0d69e5727c184990e4a1d1f9aac531ff981c067ab038cb4690cf1"
+    },
+    "addon_runner": {
+      "path": "scripts/verify-v934-preagg-addon-lifecycle.sh",
+      "sha256": "26b8848a6faabf9eb36454c48ad22790b37024ab4e7d4d68b01398b68f88c351"
+    },
+    "authority_runner_lib": {
+      "path": "scripts/v934/authority_runner_lib.sh",
+      "sha256": "65f50005f0e71489fa263f1bbcf841bb646d89bb35dd6baac44f1c7480ed5434"
+    },
+    "database_contract": {
+      "path": "scripts/v934/step3/database-matrix-contract.json",
+      "sha256": "e58fe19d6bc2fd28a99ea94e8c92010fb800683df48a06fca50622507e14c04b"
+    },
+    "database_report_tool": {
+      "path": "scripts/v934/step3/database_matrix_report_tool.py",
+      "sha256": "99ec9177fb8ff7aba52b6bedd90c5880b8a324ea85c367f19dd8b140bf716dac"
+    },
+    "database_runner": {
+      "path": "scripts/verify-v934-database-matrix.sh",
+      "sha256": "82abd628f3c59d6a1554e7ec67925e03260f5eb096dce5d1a0bfe072f62b8c8c"
+    },
+    "deferred_inventory": {
+      "path": "scripts/v934/successor/step2/deferred-step3.tsv",
+      "sha256": "89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601"
+    },
+    "external_contract": {
+      "path": "scripts/v934/step3/external-matrix-contract.json",
+      "sha256": "c482071451c32e5d68d563bb7b77ea479d0aa12749536e7bf9dee6f7e8483214"
+    },
+    "external_report_tool": {
+      "path": "scripts/v934/step3/external_matrix_report_tool.py",
+      "sha256": "3500d662e77cbda06dba3a3678b69992431b6ca0ec61212474f853c8b6f62e0e"
+    },
+    "external_runner": {
+      "path": "scripts/verify-v934-external-matrix.sh",
+      "sha256": "b4ad164a09dd256118261f4a22d35a46ea7531f71bdbb822ae3992495084227a"
+    },
+    "required_report_tool": {
+      "path": "scripts/v934/step3/step3_required_report_tool.py",
+      "sha256": "7856a5a14aaac2e6b182666097ab035446f98bdbeda6f4eadffbdb7503f17e58"
+    },
+    "required_runner": {
+      "path": "scripts/verify-v934-step3-required-matrix.sh",
+      "sha256": "389824581c500629b4783920fb90dffb7ee857570e94434eb203f586e3fa4de8"
+    },
+    "step4_prereq_multithread_executor": {
+      "path": "foggy-core/src/main/java/com/foggyframework/core/thread/MultiThreadExecutor.java",
+      "sha256": "500c03c5ec2f3c077c557970286ddf320f5080c666443ca2f08f64181be7bff1"
+    },
+    "step4_prereq_multithread_executor_test": {
+      "path": "foggy-core/src/test/java/com/foggyframework/core/thread/MultiThreadExecutorTest.java",
+      "sha256": "d857e64773bc511820c735d342a9f7ea5109478da2f7dc2318eebdcdc938c607"
+    },
+    "successor_manifest": {
+      "path": "scripts/v934/successor/step2/contract-freeze.json",
+      "sha256": "44b11ed756bf41e3b271ac57b59c2c882a0b31a56963f42ae154fdb5d37b2fb6"
+    }
+  },
+  "child_order": [
+    "addon-companion",
+    "database-matrix",
+    "external-matrix"
+  ],
+  "children": {
+    "addon-companion": {
+      "candidate": "candidate-manifest.json",
+      "contract_binding": "addon_contract",
+      "included_in_required_totals": false,
+      "report_tool_binding": "addon_report_tool",
+      "required_subgates": [],
+      "run_root": "target/v934-step3-preagg-addon/runs/{run_id}",
+      "runner_binding": "addon_runner"
+    },
+    "database-matrix": {
+      "candidate": "none",
+      "contract_binding": "database_contract",
+      "included_in_required_totals": true,
+      "report_tool_binding": "database_report_tool",
+      "required_subgates": [
+        "database-resource-state-negatives"
+      ],
+      "run_root": "target/v934-step3-database-matrix/runs/{run_id}",
+      "runner_binding": "database_runner"
+    },
+    "external-matrix": {
+      "candidate": "candidate-manifest.json",
+      "contract_binding": "external_contract",
+      "included_in_required_totals": true,
+      "report_tool_binding": "external_report_tool",
+      "required_subgates": [
+        "redis-resource-state-negatives"
+      ],
+      "run_root": "target/v934-step3-external-matrix/runs/{run_id}",
+      "runner_binding": "external_runner"
+    }
+  },
+  "integration_status": "ready",
+  "kind": "v934-step3-required-matrix-contract",
+  "lane": "step3-required-matrix",
+  "negative_probes": [
+    {"expected_error": "E_REQUIRED_GAP", "probe": "missing-database-key"},
+    {"expected_error": "E_REQUIRED_GAP", "probe": "missing-external-key"},
+    {"expected_error": "E_DUPLICATE_KEY", "probe": "duplicate-database-key"},
+    {"expected_error": "E_KEY_OVERLAP", "probe": "database-external-overlap"},
+    {"expected_error": "E_REQUIRED_GAP", "probe": "extra-required-key"},
+    {"expected_error": "E_OPTIONAL_EXECUTION", "probe": "optional-llm-leak"},
+    {"expected_error": "E_MATRIX_TOTAL", "probe": "wrong-testcase-total"},
+    {"expected_error": "E_REPORT_OUTCOME", "probe": "nonzero-failures"},
+    {"expected_error": "E_REPORT_OUTCOME", "probe": "nonzero-errors"},
+    {"expected_error": "E_REPORT_OUTCOME", "probe": "nonzero-skipped"},
+    {"expected_error": "E_ADDON_COMPANION", "probe": "missing-addon-companion"},
+    {"expected_error": "E_PARENT_CONTEXT", "probe": "wrong-parent-context"},
+    {"expected_error": "E_CHILD_STATUS", "probe": "failed-child-status"},
+    {"expected_error": "E_SOURCE_DRIFT", "probe": "source-drift"},
+    {"expected_error": "E_CHILD_EVIDENCE", "probe": "child-artifact-tamper"},
+    {"expected_error": "E_SENSITIVE", "probe": "sensitive-scan-hit"},
+    {"expected_error": "E_RESOURCE_RESIDUE", "probe": "resource-residue"}
+  ],
+  "optional_execution": {
+    "disposition": "reviewed-optional-excluded",
+    "execution_key": "v934|8:failsafe|12:external-llm|11:mysql57-llm|59:com.foggyframework.dataset.mcp.ai.AiToolsIT$AiModelCallTest",
+    "lane": "external-llm",
+    "optional_reason": "third-party model quality is non-deterministic and not the required direct-tool correctness contract",
+    "owner": "foggy-dataset-mcp",
+    "report_fqcn": "com.foggyframework.dataset.mcp.ai.AiToolsIT$AiModelCallTest",
+    "review_at": "2026-08-31",
+    "variant_key": "mysql57-llm"
+  },
+  "required": true,
+  "required_totals": {
+    "database_variants": 7,
+    "errors": 0,
+    "execution_keys": 45,
+    "external_variants": 7,
+    "failures": 0,
+    "reports": 45,
+    "skipped": 0,
+    "testcase_nodes": 446
+  },
+  "runner": "orchestrator",
+  "schema_version": 1,
+  "source_policy": {
+    "before_after": "byte-identical",
+    "inventory": "git-tracked-plus-unignored-untracked",
+    "special_files": "reject"
+  }
+}
