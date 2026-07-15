@@ -18,11 +18,15 @@
     },
     "external_redis_signal_probe": {
       "path": "scripts/v934/step3/external_redis_signal_probe.py",
-      "sha256": "edec82c7faf84e8056da34d637d9254992cdbb8ba536bd2a3797642f22a10c6f"
+      "sha256": "97d66bd8794d9b2f3b9378dbf9802ba5116089224283b7918f1e89ef8dbf2dac"
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "b84aeba02fc64659d04720dee4ac6a731d5b2dfd757014114d7b27124b1cbe5b"
+      "sha256": "a6d380e5e81575a3d73d1d783a4efe48e413dc2268ed8fc56e31914a100cad8d"
+    },
+    "external_mongo_runner": {
+      "path": "scripts/verify-v934-external-mongo.sh",
+      "sha256": "bde2ea6a2bac600dcbb988c3be155365075de159246c7d8f01f3e9cafcf132c1"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",

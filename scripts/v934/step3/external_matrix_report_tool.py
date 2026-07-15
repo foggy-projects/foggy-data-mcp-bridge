@@ -40,7 +40,7 @@ SOURCE_HEADER = [
 INVENTORY_BINDINGS = {"deferred_inventory", "discovery_inventory", "source_inventory"}
 FRAMEWORK_BINDINGS = {
     "authority_runner_lib", "external_report_tool", "external_redis_runner",
-    "external_redis_signal_probe",
+    "external_redis_signal_probe", "external_mongo_runner",
 }
 EXPECTED_BINDINGS = INVENTORY_BINDINGS | FRAMEWORK_BINDINGS
 OUTER_FIELDS = {
@@ -94,6 +94,14 @@ REDIS_IMAGE_ID = "sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d421
 REDIS_CLEAN_MODULES = (
     "foggy-bean-copy", "foggy-core", "foggy-fsscript", "foggy-dataset",
     "foggy-dataset-demo", "foggy-dataset-model", "addons/foggy-dataset-model-cache",
+)
+MONGO_IMAGE_REF = "mongo@sha256:03cda579c8caad6573cb98c2b3d5ff5ead452a6450561129b89595b4b9c18de2"
+MONGO_IMAGE_ID = "sha256:03cda579c8caad6573cb98c2b3d5ff5ead452a6450561129b89595b4b9c18de2"
+MONGO_GIT_VERSION = "fc88ca137231d7457aed6265d4f32a361ae71716"
+MONGO_CLEAN_MODULES = (
+    "foggy-core", "foggy-bean-copy", "foggy-mcp-spi", "foggy-fsscript",
+    "foggy-dataset", "foggy-dataset-demo", "foggy-dataset-model",
+    "addons/foggy-data-viewer", "addons/foggy-dataset-model-mongo",
 )
 
 
@@ -1280,6 +1288,99 @@ def source_manifest_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def source_seal_inputs(lane: str) -> tuple[str, ...]:
+    if lane == "external-mongo":
+        return (
+            "pom.xml",
+            "foggy-core/pom.xml", "foggy-core/src/main",
+            "foggy-bean-copy/pom.xml", "foggy-bean-copy/src/main",
+            "foggy-mcp-spi/pom.xml", "foggy-mcp-spi/src/main",
+            "foggy-fsscript/pom.xml", "foggy-fsscript/src/main",
+            "foggy-dataset/pom.xml", "foggy-dataset/src/main",
+            "foggy-dataset-demo/pom.xml", "foggy-dataset-demo/src/main",
+            "foggy-dataset-model/pom.xml", "foggy-dataset-model/src/main",
+            "addons/foggy-data-viewer/pom.xml", "addons/foggy-data-viewer/src",
+            "addons/foggy-dataset-model-mongo/pom.xml",
+            "addons/foggy-dataset-model-mongo/src",
+        )
+    reject("E_SEAL", f"unsupported source seal lane: {lane}")
+
+
+def create_source_seal(lane: str, output: Path) -> str:
+    if output.exists() or output.is_symlink():
+        reject("E_OUTPUT", f"source seal output exists: {output}")
+    paths: list[Path] = []
+    for value in source_seal_inputs(lane):
+        candidate = ROOT / value
+        reject_symlink_components(candidate, "E_SEAL")
+        if candidate.is_file():
+            paths.append(candidate)
+        elif candidate.is_dir():
+            for path in candidate.rglob("*"):
+                if path.is_symlink():
+                    reject("E_SEAL", f"protected source tree contains a symlink: {path}")
+                if path.is_file():
+                    paths.append(path)
+        else:
+            reject("E_SEAL", f"protected source path is missing: {value}")
+    rows = []
+    for path in sorted(set(paths), key=lambda item: item.relative_to(ROOT).as_posix()):
+        rows.append((
+            path.relative_to(ROOT).as_posix(), sha256_file(path), path.stat().st_size,
+        ))
+    content = "path\tsha256\tsize_bytes\n" + "".join(
+        f"{relative}\t{digest}\t{size}\n" for relative, digest, size in rows
+    )
+    atomic_text(output, content)
+    return source_manifest_digest(output)
+
+
+def create_bytecode_seal(lane: str, output: Path) -> None:
+    if output.exists() or output.is_symlink():
+        reject("E_OUTPUT", f"bytecode seal output exists: {output}")
+    modules_by_lane = {"external-mongo": MONGO_CLEAN_MODULES}
+    modules = modules_by_lane.get(lane)
+    if modules is None:
+        reject("E_SEAL", f"unsupported bytecode seal lane: {lane}")
+    rows: list[tuple[str, str, int, str]] = []
+    for module in modules:
+        main_root = ROOT / module / "target/classes"
+        reject_symlink_components(main_root, "E_SEAL")
+        if not main_root.is_dir():
+            reject("E_SEAL", f"fresh main bytecode tree is missing: {module}")
+        for tree_name in ("classes", "test-classes"):
+            tree = ROOT / module / "target" / tree_name
+            if not tree.exists():
+                continue
+            reject_symlink_components(tree, "E_SEAL")
+            if not tree.is_dir():
+                reject("E_SEAL", f"bytecode tree is not a directory: {tree}")
+            files = []
+            for path in tree.rglob("*"):
+                if path.is_symlink():
+                    reject("E_SEAL", f"bytecode tree contains a symlink: {path}")
+                if path.is_file():
+                    files.append(path)
+            files.sort(key=lambda item: item.relative_to(tree).as_posix())
+            if tree_name == "classes" and not files:
+                reject("E_SEAL", f"main bytecode tree is empty: {module}")
+            digest = hashlib.sha256()
+            for path in files:
+                for value in (path.relative_to(tree).as_posix(), sha256_file(path)):
+                    encoded = value.encode("utf-8")
+                    digest.update(str(len(encoded)).encode("ascii"))
+                    digest.update(b":")
+                    digest.update(encoded)
+                    digest.update(b"\0")
+            rows.append((module, tree_name, len(files), digest.hexdigest()))
+    content = "module\ttree\tfiles\tsha256\n" + "".join(
+        f"{module}\t{tree}\t{count}\t{digest}\n"
+        for module, tree, count, digest in rows
+    )
+    atomic_text(output, content)
+    validate_bytecode_seal(output, lane)
+
+
 def validate_negative_evidence(path: Path, contract: dict[str, Any]) -> None:
     with ensure_regular(path, "E_CANDIDATE", "negative evidence").open(
         encoding="utf-8", newline=""
@@ -1304,11 +1405,20 @@ def validate_negative_evidence(path: Path, contract: dict[str, Any]) -> None:
         reject("E_CANDIDATE", "negative evidence does not prove the exact contract")
 
 
-def validate_sensitive_negative_evidence(path: Path) -> None:
-    expected = {
-        "redis-env", "json-password", "api-key", "bearer",
-        "redis-uri", "cli-password",
+def validate_sensitive_negative_evidence(path: Path, lane: str) -> None:
+    expected_by_lane = {
+        "external-redis": {
+            "redis-env", "json-password", "api-key", "bearer",
+            "redis-uri", "cli-password",
+        },
+        "external-mongo": {
+            "mongo-env", "json-password", "api-key", "bearer",
+            "mongo-uri", "cli-password",
+        },
     }
+    expected = expected_by_lane.get(lane)
+    if expected is None:
+        reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
     with ensure_regular(path, "E_CANDIDATE", "sensitive negative evidence").open(
         encoding="utf-8", newline=""
     ) as stream:
@@ -1324,7 +1434,7 @@ def validate_sensitive_negative_evidence(path: Path) -> None:
         reject("E_CANDIDATE", "sensitive negative evidence differs")
 
 
-def validate_bytecode_seal(path: Path) -> None:
+def validate_bytecode_seal(path: Path, lane: str) -> None:
     with ensure_regular(path, "E_CANDIDATE", "bytecode seal").open(
         encoding="utf-8", newline=""
     ) as stream:
@@ -1338,14 +1448,29 @@ def validate_bytecode_seal(path: Path) -> None:
     main_modules = {
         row.get("module") for row in rows if row.get("tree") == "classes"
     }
-    if main_modules != set(REDIS_CLEAN_MODULES):
+    clean_modules_by_lane = {
+        "external-redis": REDIS_CLEAN_MODULES,
+        "external-mongo": MONGO_CLEAN_MODULES,
+    }
+    clean_modules = clean_modules_by_lane.get(lane)
+    if clean_modules is None:
+        reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
+    if main_modules != set(clean_modules):
         reject("E_CANDIDATE", "bytecode seal main module set differs")
-    if not any(
-        row.get("module") == "addons/foggy-dataset-model-cache"
-        and row.get("tree") == "test-classes"
-        for row in rows
-    ):
-        reject("E_CANDIDATE", "cache test bytecode seal is missing")
+    required_test_modules = {
+        "external-redis": {"addons/foggy-dataset-model-cache"},
+        "external-mongo": {
+            "addons/foggy-data-viewer", "addons/foggy-dataset-model-mongo",
+        },
+    }[lane]
+    sealed_test_modules = {
+        row.get("module") for row in rows
+        if row.get("tree") == "test-classes"
+        and re.fullmatch(r"[0-9]+", row.get("files", "")) is not None
+        and int(row["files"]) > 0
+    }
+    if not required_test_modules.issubset(sealed_test_modules):
+        reject("E_CANDIDATE", "required test bytecode seal is missing")
     for row in rows:
         if row.get("tree") not in {"classes", "test-classes"}:
             reject("E_CANDIDATE", "bytecode seal tree kind differs")
@@ -1359,16 +1484,51 @@ def validate_bytecode_seal(path: Path) -> None:
             reject("E_CANDIDATE", "bytecode seal SHA-256 is invalid")
 
 
-def candidate_required_paths() -> set[str]:
-    return {
+def candidate_required_paths(lane: str) -> set[str]:
+    common = {
         "run-context.json", "run-status.env", "summary.env", "preclean.env",
         "source-before.tsv", "source-after.tsv", "run.log",
-        "cells/redis7/resource.env", "cells/redis7/fixture.env",
-        "cells/redis7/cleanup.env", "negative/probes.tsv",
+        "negative/probes.tsv",
         "negative/sensitive-probes.tsv", "sensitive-scan.env",
-        "variants/redis7/bytecode.tsv", "variants/redis7-sqlite/bytecode.tsv",
         "final/report-manifest.json",
     }
+    if lane == "external-redis":
+        return common | {
+            "cells/redis7/resource.env", "cells/redis7/fixture.env",
+            "cells/redis7/cleanup.env", "variants/redis7/bytecode.tsv",
+            "variants/redis7-sqlite/bytecode.tsv",
+        }
+    if lane == "external-mongo":
+        return common | {
+            "cells/mongo6/resource.env", "cells/mongo6/fixture.env",
+            "cells/mongo6/cleanup.env", "variants/mongo6/bytecode.tsv",
+        }
+    reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
+
+
+def candidate_definition(lane: str) -> dict[str, Any]:
+    definitions = {
+        "external-redis": {
+            "kind": "v934-step3-external-redis-candidate",
+            "cell": "redis7",
+            "totals": {
+                "variants": 2, "reports": 2, "testcase_nodes": 3,
+                "failures": 0, "errors": 0, "skipped": 0,
+            },
+        },
+        "external-mongo": {
+            "kind": "v934-step3-external-mongo-candidate",
+            "cell": "mongo6",
+            "totals": {
+                "variants": 1, "reports": 4, "testcase_nodes": 30,
+                "failures": 0, "errors": 0, "skipped": 0,
+            },
+        },
+    }
+    definition = definitions.get(lane)
+    if definition is None:
+        reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
+    return definition
 
 
 def create_candidate(
@@ -1384,15 +1544,14 @@ def create_candidate(
         reject("E_CANDIDATE", "outer marker is not at the candidate canonical path")
     final_path = run_root / "final/report-manifest.json"
     final_manifest = verify_merged_manifest(contract, outer, final_path)
+    lane = final_manifest.get("lane")
+    definition = candidate_definition(lane)
     if (
         final_manifest["kind"] != "v934-step3-external-matrix-subset"
-        or final_manifest["lane"] != "external-redis"
         or final_manifest["complete"] is not False
-        or final_manifest["totals"]
-        != {"variants": 2, "reports": 2, "testcase_nodes": 3,
-            "failures": 0, "errors": 0, "skipped": 0}
+        or final_manifest["totals"] != definition["totals"]
     ):
-        reject("E_CANDIDATE", "Redis final subset identity differs")
+        reject("E_CANDIDATE", f"{lane} final subset identity differs")
     files: list[Path] = []
     for path in run_root.rglob("*"):
         if path.is_symlink():
@@ -1403,7 +1562,7 @@ def create_candidate(
             reject("E_CANDIDATE", f"candidate tree contains a special file: {path}")
     files.sort(key=lambda path: path.relative_to(run_root).as_posix())
     relative_files = {path.relative_to(run_root).as_posix() for path in files}
-    missing = candidate_required_paths() - relative_files
+    missing = candidate_required_paths(lane) - relative_files
     if missing:
         reject("E_CANDIDATE", f"candidate required files are missing: {sorted(missing)}")
     records = [
@@ -1411,10 +1570,10 @@ def create_candidate(
     ]
     candidate = {
         "schema_version": 1,
-        "kind": "v934-step3-external-redis-candidate",
+        "kind": definition["kind"],
         "run_id": outer["run_id"],
         "runner": "failsafe",
-        "lane": "external-redis",
+        "lane": lane,
         "git_head": outer["git_head"],
         "contract_sha256": contract["_contract_sha256"],
         "outer_marker_sha256": outer["_sha256"],
@@ -1427,7 +1586,7 @@ def create_candidate(
     return output
 
 
-def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
+def verify_redis_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
     ensure_regular(candidate_path, "E_CANDIDATE", "candidate manifest")
     if candidate_path.name != "candidate-manifest.json":
         reject("E_CANDIDATE", "candidate manifest name differs")
@@ -1463,7 +1622,7 @@ def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str
     }
     if actual_files != set(paths) | {"candidate-manifest.json"}:
         reject("E_CANDIDATE", "candidate run-root file set differs")
-    missing = candidate_required_paths() - set(paths)
+    missing = candidate_required_paths("external-redis") - set(paths)
     if missing:
         reject("E_CANDIDATE", f"candidate required artifacts are missing: {sorted(missing)}")
 
@@ -1586,20 +1745,242 @@ def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str
     }:
         reject("E_CANDIDATE", "candidate preclean evidence differs")
     validate_negative_evidence(artifact_by_path["negative/probes.tsv"], contract)
-    validate_sensitive_negative_evidence(artifact_by_path["negative/sensitive-probes.tsv"])
+    validate_sensitive_negative_evidence(
+        artifact_by_path["negative/sensitive-probes.tsv"], "external-redis"
+    )
     sensitive = parse_env(
         artifact_by_path["sensitive-scan.env"], {"patterns", "status"}, "E_CANDIDATE"
     )
     if sensitive != {"patterns": "5", "status": "passed"}:
         reject("E_CANDIDATE", "candidate sensitive scan evidence differs")
-    validate_bytecode_seal(artifact_by_path["variants/redis7/bytecode.tsv"])
-    validate_bytecode_seal(artifact_by_path["variants/redis7-sqlite/bytecode.tsv"])
+    validate_bytecode_seal(
+        artifact_by_path["variants/redis7/bytecode.tsv"], "external-redis"
+    )
+    validate_bytecode_seal(
+        artifact_by_path["variants/redis7-sqlite/bytecode.tsv"], "external-redis"
+    )
     if (
         artifact_by_path["variants/redis7/bytecode.tsv"].read_bytes()
         != artifact_by_path["variants/redis7-sqlite/bytecode.tsv"].read_bytes()
     ):
         reject("E_CANDIDATE", "candidate bytecode changed between Redis variants")
     return candidate
+
+
+def verify_mongo_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
+    ensure_regular(candidate_path, "E_CANDIDATE", "candidate manifest")
+    if candidate_path.name != "candidate-manifest.json":
+        reject("E_CANDIDATE", "candidate manifest name differs")
+    root = candidate_path.parent
+    candidate = load_json_manifest(candidate_path)
+    if set(candidate) != CANDIDATE_MANIFEST_FIELDS:
+        reject("E_CANDIDATE", "candidate manifest fields differ")
+    outer = load_outer_marker(root / "run-context.json", contract)
+    definition = candidate_definition("external-mongo")
+    if (
+        candidate.get("schema_version") != 1
+        or candidate.get("kind") != definition["kind"]
+        or candidate.get("run_id") != outer["run_id"]
+        or candidate.get("runner") != "failsafe"
+        or candidate.get("lane") != "external-mongo"
+        or candidate.get("git_head") != outer["git_head"]
+        or candidate.get("contract_sha256") != contract["_contract_sha256"]
+        or candidate.get("outer_marker_sha256") != outer["_sha256"]
+    ):
+        reject("E_CANDIDATE", "candidate context differs")
+    records = candidate.get("artifacts")
+    if not isinstance(records, list) or not records:
+        reject("E_CANDIDATE", "candidate artifacts are empty")
+    paths = [record.get("path") for record in records if isinstance(record, dict)]
+    if len(paths) != len(records) or paths != sorted(set(paths)):
+        reject("E_CANDIDATE", "candidate artifact paths are not exact sorted unique")
+    artifact_by_path: dict[str, Path] = {}
+    for record in records:
+        path = validate_artifact(root, record, "E_CANDIDATE")
+        artifact_by_path[record["path"]] = path
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*") if path.is_file() or path.is_symlink()
+    }
+    if actual_files != set(paths) | {"candidate-manifest.json"}:
+        reject("E_CANDIDATE", "candidate run-root file set differs")
+    missing = candidate_required_paths("external-mongo") - set(paths)
+    if missing:
+        reject("E_CANDIDATE", f"candidate required artifacts are missing: {sorted(missing)}")
+
+    final_path = artifact_by_path["final/report-manifest.json"]
+    final_manifest = verify_merged_manifest(contract, outer, final_path)
+    expected_totals = definition["totals"]
+    if (
+        final_manifest.get("lane") != "external-mongo"
+        or final_manifest.get("complete") is not False
+        or final_manifest.get("totals") != expected_totals
+        or candidate.get("totals") != expected_totals
+        or candidate.get("report_manifest_sha256") != sha256_file(final_path)
+    ):
+        reject("E_CANDIDATE", "candidate report subset differs")
+
+    summary = parse_env(
+        artifact_by_path["summary.env"], CANDIDATE_SUMMARY_FIELDS, "E_CANDIDATE"
+    )
+    status = parse_env(
+        artifact_by_path["run-status.env"], RUN_STATUS_FIELDS, "E_CANDIDATE"
+    )
+    expected_scalar = {
+        "run_id": outer["run_id"], "runner": "failsafe", "lane": "external-mongo",
+        "git_head": outer["git_head"], "variants": "1", "reports": "4",
+        "testcase_nodes": "30", "failures": "0", "errors": "0", "skipped": "0",
+        "outer_marker_sha256": outer["_sha256"],
+        "contract_sha256": contract["_contract_sha256"],
+        "negative_probes": "12/12", "sensitive_negative_probes": "6/6",
+        "resource_residue": "0/0", "status": "passed",
+    }
+    if any(summary.get(key) != value for key, value in expected_scalar.items()):
+        reject("E_CANDIDATE", "candidate summary identity differs")
+    source_before = artifact_by_path["source-before.tsv"]
+    source_after = artifact_by_path["source-after.tsv"]
+    if source_before.read_bytes() != source_after.read_bytes():
+        reject("E_CANDIDATE", "candidate source seal changed during execution")
+    source_digest = source_manifest_digest(source_before)
+    if summary["source_before"] != source_digest or summary["source_after"] != source_digest:
+        reject("E_CANDIDATE", "candidate source summary differs")
+    hash_bindings = {
+        "final_report_manifest_sha256": "final/report-manifest.json",
+        "run_status_sha256": "run-status.env",
+        "resource_sha256": "cells/mongo6/resource.env",
+        "fixture_sha256": "cells/mongo6/fixture.env",
+        "cleanup_sha256": "cells/mongo6/cleanup.env",
+        "negative_sha256": "negative/probes.tsv",
+        "sensitive_negative_sha256": "negative/sensitive-probes.tsv",
+        "sensitive_scan_sha256": "sensitive-scan.env",
+    }
+    if any(
+        summary[key] != sha256_file(artifact_by_path[path])
+        for key, path in hash_bindings.items()
+    ):
+        reject("E_CANDIDATE", "candidate summary artifact hash differs")
+    deferred_sha = contract["bindings"]["deferred_inventory"]["sha256"]
+    expected_status = {
+        "run_id": outer["run_id"], "runner": "failsafe", "git_head": outer["git_head"],
+        "last_phase": "completed", "exit_code": "0", "source_before_sha256": source_digest,
+        "source_after_sha256": source_digest, "outer_marker_sha256": outer["_sha256"],
+        "successor_manifest_sha256": deferred_sha,
+        "final_report_manifest_sha256": sha256_file(final_path), "status": "passed",
+    }
+    if any(status.get(key) != value for key, value in expected_status.items()):
+        reject("E_CANDIDATE", "candidate durable status differs")
+    if parse_timestamp(status["finished_at"], "E_CANDIDATE") < parse_timestamp(
+        status["started_at"], "E_CANDIDATE"
+    ):
+        reject("E_CANDIDATE", "candidate finish time predates start time")
+
+    scope = hashlib.sha256(f"{outer['run_id']}|mongo6\n".encode()).hexdigest()[:12]
+    container = f"v934ext-mongo6-{scope}"
+    data_volume = f"{container}-data"
+    config_volume = f"{container}-config"
+    model_database = f"v934_{scope}_model"
+    viewer_database = f"v934_{scope}_viewer"
+    resource_fields = {
+        "run_id", "cell", "container", "image_ref", "image_id", "mapped_port",
+        "mount_count", "data_mount_identity", "config_mount_identity", "data_volume",
+        "config_volume", "data_volume_created", "config_volume_created", "mongo_version",
+        "mongo_git_version", "topology", "auth_mode", "server_process",
+        "storage_engine", "model_database", "viewer_database",
+        "initial_model_collections", "initial_viewer_collections",
+        "initial_foreign_databases", "status",
+    }
+    resource = parse_env(
+        artifact_by_path["cells/mongo6/resource.env"], resource_fields, "E_CANDIDATE"
+    )
+    expected_resource = {
+        "run_id": outer["run_id"], "cell": "mongo6", "container": container,
+        "image_ref": MONGO_IMAGE_REF, "image_id": MONGO_IMAGE_ID,
+        "mapped_port": resource["mapped_port"], "mount_count": "2",
+        "data_mount_identity": f"{data_volume}|/data/db|volume",
+        "config_mount_identity": f"{config_volume}|/data/configdb|volume",
+        "data_volume": data_volume, "config_volume": config_volume,
+        "data_volume_created": resource["data_volume_created"],
+        "config_volume_created": resource["config_volume_created"],
+        "mongo_version": "6.0.27", "mongo_git_version": MONGO_GIT_VERSION,
+        "topology": "standalone", "auth_mode": "disabled",
+        "server_process": "mongod", "storage_engine": "wiredTiger",
+        "model_database": model_database, "viewer_database": viewer_database,
+        "initial_model_collections": "0", "initial_viewer_collections": "0",
+        "initial_foreign_databases": "0",
+        "status": "verified",
+    }
+    if (
+        resource != expected_resource
+        or re.fullmatch(r"127\.0\.0\.1:[0-9]+", resource["mapped_port"]) is None
+    ):
+        reject("E_CANDIDATE", "candidate Mongo resource identity differs")
+    parse_timestamp(resource["data_volume_created"], "E_CANDIDATE")
+    parse_timestamp(resource["config_volume_created"], "E_CANDIDATE")
+
+    fixture = parse_env(
+        artifact_by_path["cells/mongo6/fixture.env"],
+        {
+            "cell", "model_database", "viewer_database", "model_collections",
+            "mcp_audit_count", "sales_order_count", "geo_station_count",
+            "viewer_collections", "list_presets_count", "foreign_database_count", "status",
+        },
+        "E_CANDIDATE",
+    )
+    if fixture != {
+        "cell": "mongo6", "model_database": model_database,
+        "viewer_database": viewer_database,
+        "model_collections": "mcp_tool_audit_log,sales_order_test",
+        "mcp_audit_count": "25", "sales_order_count": "20", "geo_station_count": "0",
+        "viewer_collections": "list_presets", "list_presets_count": "0",
+        "foreign_database_count": "0", "status": "verified",
+    }:
+        reject("E_CANDIDATE", "candidate Mongo fixture differs")
+    cleanup = parse_env(
+        artifact_by_path["cells/mongo6/cleanup.env"],
+        {
+            "cell", "container", "data_volume", "config_volume",
+            "container_residue", "volume_residue", "status",
+        },
+        "E_CANDIDATE",
+    )
+    if cleanup != {
+        "cell": "mongo6", "container": container, "data_volume": data_volume,
+        "config_volume": config_volume, "container_residue": "0", "volume_residue": "0",
+        "status": "passed",
+    }:
+        reject("E_CANDIDATE", "candidate Mongo cleanup differs")
+    preclean = parse_env(
+        artifact_by_path["preclean.env"],
+        {"modules", "root_target_preserved", "status"}, "E_CANDIDATE",
+    )
+    if preclean != {
+        "modules": ",".join(MONGO_CLEAN_MODULES),
+        "root_target_preserved": "true", "status": "passed",
+    }:
+        reject("E_CANDIDATE", "candidate preclean evidence differs")
+    validate_negative_evidence(artifact_by_path["negative/probes.tsv"], contract)
+    validate_sensitive_negative_evidence(
+        artifact_by_path["negative/sensitive-probes.tsv"], "external-mongo"
+    )
+    sensitive = parse_env(
+        artifact_by_path["sensitive-scan.env"], {"patterns", "status"}, "E_CANDIDATE"
+    )
+    if sensitive != {"patterns": "5", "status": "passed"}:
+        reject("E_CANDIDATE", "candidate sensitive scan evidence differs")
+    validate_bytecode_seal(
+        artifact_by_path["variants/mongo6/bytecode.tsv"], "external-mongo"
+    )
+    return candidate
+
+
+def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
+    candidate = load_json_manifest(candidate_path)
+    lane = candidate.get("lane")
+    if lane == "external-redis":
+        return verify_redis_candidate(contract, candidate_path)
+    if lane == "external-mongo":
+        return verify_mongo_candidate(contract, candidate_path)
+    reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -1631,6 +2012,14 @@ def parser() -> argparse.ArgumentParser:
 
     negative = commands.add_parser("negative")
     negative.add_argument("--output", required=True)
+
+    source_seal = commands.add_parser("seal-source")
+    source_seal.add_argument("--lane", required=True)
+    source_seal.add_argument("--output", required=True)
+
+    bytecode_seal = commands.add_parser("seal-bytecode")
+    bytecode_seal.add_argument("--lane", required=True)
+    bytecode_seal.add_argument("--output", required=True)
 
     candidate = commands.add_parser("create-candidate")
     candidate.add_argument("--outer-marker", required=True)
@@ -1686,6 +2075,12 @@ def main() -> int:
         elif args.command == "negative":
             run_negative_probes(contract, Path(args.output))
             print("V934_EXTERNAL_NEGATIVE passed=12 total=12")
+        elif args.command == "seal-source":
+            digest = create_source_seal(args.lane, Path(args.output))
+            print(f"V934_EXTERNAL_SOURCE_SEAL lane={args.lane} sha256={digest}")
+        elif args.command == "seal-bytecode":
+            create_bytecode_seal(args.lane, Path(args.output))
+            print(f"V934_EXTERNAL_BYTECODE_SEAL lane={args.lane} output={args.output}")
         elif args.command == "create-candidate":
             path = create_candidate(
                 contract,

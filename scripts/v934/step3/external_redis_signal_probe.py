@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise Redis runner INT/TERM/HUP cleanup against a real run-owned service."""
+"""Exercise external Redis/Mongo runners against real INT/TERM/HUP signals."""
 
 from __future__ import annotations
 
@@ -16,9 +16,20 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[3]
-RUNNER = ROOT / "scripts/verify-v934-external-redis.sh"
 RUNS_ROOT = ROOT / "target/v934-step3-external-matrix/runs"
 EXPECTED = {"INT": 130, "TERM": 143, "HUP": 129}
+RESOURCES = {
+    "redis": {
+        "runner": ROOT / "scripts/verify-v934-external-redis.sh",
+        "environment": "V934_EXTERNAL_REDIS_SIGNAL_PROBE",
+        "cell": "redis7",
+    },
+    "mongo": {
+        "runner": ROOT / "scripts/verify-v934-external-mongo.sh",
+        "environment": "V934_EXTERNAL_MONGO_SIGNAL_PROBE",
+        "cell": "mongo6",
+    },
+}
 
 
 def fail(message: str) -> None:
@@ -77,7 +88,8 @@ def terminate_probe(process: subprocess.Popen[str]) -> None:
         process.wait(timeout=10)
 
 
-def run_probe(prefix: str, signal_name: str) -> dict[str, str]:
+def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
+    configuration = RESOURCES[resource]
     expected_code = EXPECTED[signal_name]
     run_id = f"{prefix}-{signal_name.lower()}"
     if re.fullmatch(r"[A-Za-z0-9._-]+", run_id) is None:
@@ -86,9 +98,9 @@ def run_probe(prefix: str, signal_name: str) -> dict[str, str]:
     if run_root.exists() or run_root.is_symlink():
         fail(f"signal probe run root already exists: {run_root}")
     environment = os.environ.copy()
-    environment["V934_EXTERNAL_REDIS_SIGNAL_PROBE"] = "true"
+    environment[str(configuration["environment"])] = "true"
     process = subprocess.Popen(
-        [str(RUNNER), run_id],
+        [str(configuration["runner"]), run_id],
         cwd=ROOT,
         env=environment,
         text=True,
@@ -112,10 +124,27 @@ def run_probe(prefix: str, signal_name: str) -> dict[str, str]:
             f"stdout={stdout[-2000:]}\nstderr={stderr[-2000:]}"
         )
     status_path = run_root / "run-status.env"
-    cleanup_path = run_root / "cells/redis7/cleanup.env"
+    cleanup_path = run_root / f"cells/{configuration['cell']}/cleanup.env"
     ready = parse_env(run_root / "signal-probe-ready.env")
     status = parse_env(status_path)
     cleanup = parse_env(cleanup_path)
+    resource_cleanup_matches = (
+        cleanup.get("container") == ready.get("container")
+        and cleanup.get("container_residue") == "0"
+        and cleanup.get("volume_residue") == "0"
+        and cleanup.get("status") == "passed"
+    )
+    if resource == "redis":
+        resource_cleanup_matches = (
+            resource_cleanup_matches
+            and cleanup.get("volume") == ready.get("volume")
+        )
+    else:
+        resource_cleanup_matches = (
+            resource_cleanup_matches
+            and cleanup.get("data_volume") == ready.get("data_volume")
+            and cleanup.get("config_volume") == ready.get("config_volume")
+        )
     if (
         status.get("run_id") != run_id
         or status.get("last_phase") != "signal-probe-ready"
@@ -123,11 +152,7 @@ def run_probe(prefix: str, signal_name: str) -> dict[str, str]:
         or status.get("status") != "failed"
         or ready.get("run_id") != run_id
         or ready.get("status") != "ready"
-        or cleanup.get("container") != ready.get("container")
-        or cleanup.get("volume") != ready.get("volume")
-        or cleanup.get("container_residue") != "0"
-        or cleanup.get("volume_residue") != "0"
-        or cleanup.get("status") != "passed"
+        or not resource_cleanup_matches
     ):
         fail(f"{signal_name} durable signal evidence differs")
     absent = {
@@ -163,6 +188,7 @@ def run_probe(prefix: str, signal_name: str) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--resource", choices=sorted(RESOURCES), default="redis")
     parser.add_argument("--run-prefix", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
@@ -172,7 +198,7 @@ def main() -> int:
     if output.exists() or output.is_symlink():
         fail(f"signal probe output already exists: {output}")
     started = dt.datetime.now(dt.timezone.utc)
-    rows = [run_probe(args.run_prefix, name) for name in EXPECTED]
+    rows = [run_probe(args.run_prefix, name, args.resource) for name in EXPECTED]
     header = [
         "signal", "expected_code", "actual_code", "run_id", "status_sha256",
         "cleanup_sha256", "container_residue", "volume_residue", "summary_absent",
@@ -186,7 +212,10 @@ def main() -> int:
     temporary.write_text(content, encoding="utf-8")
     os.replace(temporary, output)
     elapsed = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
-    print(f"V934_EXTERNAL_REDIS_SIGNAL passed=3 total=3 elapsed_seconds={elapsed:.1f}")
+    print(
+        f"V934_EXTERNAL_{args.resource.upper()}_SIGNAL "
+        f"passed=3 total=3 elapsed_seconds={elapsed:.1f}"
+    )
     return 0
 
 
