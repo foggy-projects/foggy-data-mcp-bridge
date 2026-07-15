@@ -119,3 +119,4 @@ remain diagnostic-only and cannot be spliced into the final external manifest.
 - `scripts/v934/step3/external-matrix-contract.json`
 - `scripts/verify-v934-external-redis.sh`
 - `docs/9.3.4/workitems/BUG-step3-mysql57-direct-default-catalog-assembly.md`
+- `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`

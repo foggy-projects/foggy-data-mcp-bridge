@@ -59,7 +59,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | run-local DB runner/collector candidate；fresh SQLite `5/50/F0/E0/S0`；full 29 DB + 16 required external + DB-state negatives pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed fresh Redis subset `2/3` + signal cleanup；remaining DB `24/320` + external `14/73` + state negatives pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
@@ -380,6 +380,43 @@ Evidence boundary / non-goals：
 Decision：本 runner/collector candidate 可独立合入；Step 3 exit 仍为 `not passed`，不得
 进入 Step 4。下一批补 DB-state negatives 并按既定顺序消费 16 个 required external。
 
+## Execution Check-in — Step 3（in-progress / committed Redis external subset）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-15
+- owner: current 9.3.4 root session
+- commit: `35ddf73f359a444faa1db4b03dcc9f3ef7274aa2`
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`。
+
+实现与验证结果：
+
+- external contract 冻结 `7 variants / 16 reports / 76 testcase`，optional LLM=`1/1`；
+  runner/tool/helper/selectors/source amendment 均由 contract hash 绑定。
+- committed run `external-redis-candidate-35ddf73f-r2` 使用 digest-pinned Redis `7.4.6`、
+  动态 loopback、单一 run-labelled named volume，得到 exact `2 reports / 3 testcase /
+  F0/E0/S0`。
+- candidate manifest 绑定 35 个文件并重验通过；source before/after 与两个 variant bytecode
+  seal 一致；12/12 report/cross-run/flaky negatives、6/6 sensitive detection probes 通过。
+- real signal group `external-redis-signal-35ddf73f-r1` 的 INT/TERM/HUP 分别为
+  `130/143/129`；durable status 均 failed，summary/candidate/FIFO absent，container/volume
+  residue=`0/0`。
+- committed `r1` 被外层工具中断，正确写 `failed/1`、无 summary/candidate、residue=`0/0`，
+  已排除；所有旧 contract/tool diagnostic 均不得拼接。
+
+Evidence boundary / non-goals：
+
+- final manifest 明确 `complete=false`；本批只关闭 external Redis `2/3`，remaining external
+  为 `14/73`，不得宣称 external `16/76` 或 Step 3 `45/446`。
+- wrong-image/version、forced dirty-state/cleanup-failure resource negatives 仍开放；candidate
+  仍按 mtime 为 run-local，archive portability 留到 Step 5。
+- direct-tool fail-closed 已暴露 `META-001` 默认混合 bundle 装配缺陷；MySQL57 required
+  仍 pending，不得把 `22/23` 作为绿色。
+
+Decision：Redis subset candidate=`passed`，Step 3=`in-progress / not passed`。下一 external
+variant 按顺序进入 Mongo/DataViewer `4/30`；同时保留 DB-state 与 Redis resource-state
+negative backlog，不进入 Step 4。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -447,11 +484,12 @@ SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 的 preflight 与 QueryFacade p
 foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一步达到
 `29 reports / 370 tests / F0/E0/S0`，证据见
 `docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。
-runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；下一批补齐
-unavailable/wrong identity/fixture mutation/provision cleanup 等 DB-state negatives，并按
-Redis→Mongo/DataViewer→MCP/MySQL57→Vector 顺序消费 16 个 required external
-execution。在冻结端口空闲的 clean host 上再以同一 commit 重放四外库 fresh
-`29/370`；1 个 external LLM 保持 optional reviewed disposition。Addon lifecycle 继续
+runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；committed Redis
+external subset=`2/3/F0/E0/S0` 且 real signals=`130/143/129`。下一批推进 Mongo/DataViewer
+`4/30`，随后 MCP/MySQL57 `8/23` 与 Vector `2/20`，并补齐 unavailable/wrong identity/
+fixture mutation/provision cleanup 等 DB/Redis state negatives。在冻结端口空闲的 clean
+host 上再以同一 commit 重放四外库 remaining `24/320`；1 个 external LLM 保持 optional
+reviewed disposition。Addon lifecycle 继续
 按独立 workitem 修复 COUNT/formula/SQLite/watermark/TM normalization 后执行 SQLite +
 外库真实 create/full/incremental/query parity。Step 4 coverage 不得提前混入本阶段
 correctness evidence。

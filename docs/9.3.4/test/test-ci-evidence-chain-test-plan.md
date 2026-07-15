@@ -117,6 +117,17 @@ subset exact。Step 2/3 required execution key 并集等于该 successor generat
 inventory、交集为空。此 Step 只验证 correctness/identity/
 report，不要求或接受 coverage exec。
 
+Required external contract 精确冻结为：Redis `2 reports / 3 testcase`、Mongo/DataViewer
+`4/30`、MCP/MySQL57 `8/23`、Vector `2/20`，合计 `7 variants / 16 reports / 76 testcase`；
+optional LLM 独立为 `1/1`。collector 除 missing/extra/duplicate/F/E/S/stale 外，还必须拒绝
+flaky/rerun outcome、raw-report run-context splice、wrong selector/marker 与 cross-run manifest。
+
+当前 committed Redis subset candidate=`2 variants / 2 reports / 3 testcase / F0/E0/S0`；
+12/12 report/manifest negatives、3/3 candidate-tree tamper probes、6/6 sensitive probes 和
+real INT/TERM/HUP `130/143/129` cleanup 已通过。其 final manifest `complete=false`，不能代替 remaining
+external `14/73`。wrong image/version、dirty state 和 forced cleanup failure 仍是 Step 3
+resource-negative backlog。
+
 ## Step 4 — Coverage
 
 Positive：
@@ -226,13 +237,16 @@ Final acceptance 至少验证：
   JDBC JAR before/after hash 一致且 cleanup residue=`0`。完整 runner 在当前主机因冻结
   MySQL57 port 被长期诊断容器占用而 fail closed，未执行正向 lane、未创建 run resource。
 - 该 candidate 是 run-local 且 not authority：四外库 fresh replay、16 个 required
-  external、DB-state negatives 和 portable archive contract 仍未完成。
+  external 中 remaining `14/73`、DB/Redis-state negatives 和 portable archive contract
+  仍未完成。Committed Redis subset 已独立达到 `2/3/F0/E0/S0`，不得与 SQLite 两个不同
+  run 拼成 full authority。
 - evidence：
   `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`；
   `docs/9.3.4/evidence/step-2/step2-successor-r8e-independent-review-20260715.md`；
   `docs/9.3.4/evidence/step-2/step2-runner-split-exit-r8e-20260715.md`；
-  `docs/9.3.4/evidence/step-3/step3-database-matrix-runner-candidate-20260715.md`。
-- next executable action: 补 Step 3 DB-state negatives，按
-  Redis→Mongo/DataViewer→MCP/MySQL57→Vector 消费 16 个 required external，并在 clean
-  host 对同一 commit 完成四外库 fresh `29/370` replay；optional LLM 维持 reviewed
+  `docs/9.3.4/evidence/step-3/step3-database-matrix-runner-candidate-20260715.md`；
+  `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`。
+- next executable action: 推进 Mongo/DataViewer `4/30`，补 Step 3 DB/Redis-state negatives，
+  随后按 MCP/MySQL57→Vector 消费 remaining external `10/43`，并在 clean
+  host 对同一 commit 完成四外库 remaining fresh `24/320` replay；optional LLM 维持 reviewed
   disposition。
