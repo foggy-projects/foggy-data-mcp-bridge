@@ -92,7 +92,7 @@ verify_sensitive_patterns() {
   local probe_file="$RUN_ROOT/.sensitive-pattern-probe"
   local temporary="${output}.$$.$RANDOM.tmp"
   local index
-  local -a labels=(mongo-env json-password api-key bearer mongo-uri cli-password)
+  local -a labels=(mongo-env json-password api-key auth-header mongo-uri cli-password)
   local -a fixtures=(
     'MONGO_PASSWORD=x'
     '{"password": "x"}'
