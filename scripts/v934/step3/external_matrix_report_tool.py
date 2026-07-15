@@ -39,7 +39,8 @@ SOURCE_HEADER = [
 ]
 INVENTORY_BINDINGS = {"deferred_inventory", "discovery_inventory", "source_inventory"}
 FRAMEWORK_BINDINGS = {
-    "authority_runner_lib", "external_report_tool", "external_redis_runner",
+    "authority_runner_lib", "external_report_tool", "external_matrix_runner",
+    "external_shared_context", "external_redis_runner",
     "external_redis_signal_probe", "external_mongo_runner",
     "external_mysql_runner", "external_vector_runner",
 }
@@ -1126,6 +1127,8 @@ def verify_merged_manifest(
             totals[key] += variant_manifest["totals"][key]
     if manifest.get("totals") != totals:
         reject("E_REPORT_COUNT", "merged totals differ")
+    if kind.endswith("-final") and totals != contract["required_totals"]:
+        reject("E_REPORT_COUNT", "final external totals differ from the frozen contract")
     expected_files = {"report-manifest.json", "outer-run-marker.json"}
     for record in records:
         variant_root = root / "variants" / record["variant_key"]
@@ -1368,6 +1371,26 @@ def source_manifest_digest(path: Path) -> str:
 
 
 def source_seal_inputs(lane: str) -> tuple[str, ...]:
+    if lane == "external-matrix":
+        ordered: dict[str, None] = {}
+        for child_lane in (
+            "external-redis", "external-mongo", "external-mysql", "external-vector",
+        ):
+            for value in source_seal_inputs(child_lane):
+                ordered.setdefault(value, None)
+        return tuple(ordered)
+    if lane == "external-redis":
+        return (
+            "pom.xml",
+            "foggy-bean-copy/pom.xml", "foggy-bean-copy/src/main",
+            "foggy-core/pom.xml", "foggy-core/src/main",
+            "foggy-fsscript/pom.xml", "foggy-fsscript/src/main",
+            "foggy-dataset/pom.xml", "foggy-dataset/src/main",
+            "foggy-dataset-demo/pom.xml", "foggy-dataset-demo/src/main",
+            "foggy-dataset-model/pom.xml", "foggy-dataset-model/src/main",
+            "addons/foggy-dataset-model-cache/pom.xml",
+            "addons/foggy-dataset-model-cache/src",
+        )
     if lane == "external-mongo":
         return (
             "pom.xml",
@@ -1409,6 +1432,27 @@ def source_seal_inputs(lane: str) -> tuple[str, ...]:
             "addons/foggy-dataset-model-vector/src",
         )
     reject("E_SEAL", f"unsupported source seal lane: {lane}")
+
+
+def check_protected_worktree(contract: dict[str, Any], lane: str) -> None:
+    relative_paths: dict[str, None] = {}
+    for value in source_seal_inputs(lane):
+        relative_paths.setdefault(value, None)
+    relative_paths.setdefault(CONTRACT_PATH.relative_to(ROOT).as_posix(), None)
+    for binding in contract["bindings"].values():
+        relative_paths.setdefault(binding["path"], None)
+    result = subprocess.run(
+        [
+            "git", "-C", str(ROOT), "status", "--porcelain=v1",
+            "--untracked-files=all", "--", *relative_paths,
+        ],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.stdout:
+        reject("E_WORKTREE", f"protected external matrix worktree is dirty:\n{result.stdout.rstrip()}")
 
 
 def create_source_seal(lane: str, output: Path) -> str:
@@ -1615,6 +1659,16 @@ def candidate_required_paths(lane: str) -> set[str]:
         "negative/sensitive-probes.tsv", "sensitive-scan.env",
         "final/report-manifest.json",
     }
+    if lane == "external-matrix":
+        return common | {
+            "aggregate/resources.tsv",
+            "aggregate/fixtures.tsv",
+            "aggregate/cleanup.env",
+            "lanes/external-redis/candidate-manifest.json",
+            "lanes/external-mongo/candidate-manifest.json",
+            "lanes/external-mysql/candidate-manifest.json",
+            "lanes/external-vector/candidate-manifest.json",
+        }
     if lane == "external-redis":
         return common | {
             "cells/redis7/resource.env", "cells/redis7/fixture.env",
@@ -1656,6 +1710,13 @@ def candidate_required_paths(lane: str) -> set[str]:
 
 def candidate_definition(lane: str) -> dict[str, Any]:
     definitions = {
+        "external-matrix": {
+            "kind": "v934-step3-external-matrix-candidate",
+            "totals": {
+                "variants": 7, "reports": 16, "testcase_nodes": 76,
+                "failures": 0, "errors": 0, "skipped": 0,
+            },
+        },
         "external-redis": {
             "kind": "v934-step3-external-redis-candidate",
             "cell": "redis7",
@@ -1710,7 +1771,14 @@ def create_candidate(
     final_manifest = verify_merged_manifest(contract, outer, final_path)
     lane = final_manifest.get("lane")
     definition = candidate_definition(lane)
-    if (
+    if lane == "external-matrix":
+        if (
+            final_manifest["kind"] != "v934-step3-external-matrix-final"
+            or final_manifest["complete"] is not True
+            or final_manifest["totals"] != definition["totals"]
+        ):
+            reject("E_CANDIDATE", "full external final identity differs")
+    elif (
         final_manifest["kind"] != "v934-step3-external-matrix-subset"
         or final_manifest["complete"] is not False
         or final_manifest["totals"] != definition["totals"]
@@ -3074,9 +3142,225 @@ def verify_vector_candidate(contract: dict[str, Any], candidate_path: Path) -> d
     return candidate
 
 
+def read_exact_tsv(
+    path: Path, header: list[str], code: str = "E_CANDIDATE"
+) -> list[dict[str, str]]:
+    with ensure_regular(path, code, "TSV evidence").open(
+        encoding="utf-8", newline=""
+    ) as stream:
+        reader = csv.DictReader(stream, delimiter="\t")
+        if reader.fieldnames != header:
+            reject(code, f"TSV evidence header differs: {path}")
+        rows = list(reader)
+    if any(None in row or any(value is None for value in row.values()) for row in rows):
+        reject(code, f"TSV evidence contains a malformed row: {path}")
+    return rows
+
+
+def verify_matrix_candidate(
+    contract: dict[str, Any], candidate_path: Path
+) -> dict[str, Any]:
+    ensure_regular(candidate_path, "E_CANDIDATE", "candidate manifest")
+    if candidate_path.name != "candidate-manifest.json":
+        reject("E_CANDIDATE", "candidate manifest name differs")
+    root = candidate_path.parent
+    candidate = load_json_manifest(candidate_path)
+    if set(candidate) != CANDIDATE_MANIFEST_FIELDS:
+        reject("E_CANDIDATE", "candidate manifest fields differ")
+    outer = load_outer_marker(root / "run-context.json", contract)
+    definition = candidate_definition("external-matrix")
+    if (
+        candidate.get("schema_version") != 1
+        or candidate.get("kind") != definition["kind"]
+        or candidate.get("run_id") != outer["run_id"]
+        or candidate.get("runner") != "failsafe"
+        or candidate.get("lane") != "external-matrix"
+        or candidate.get("git_head") != outer["git_head"]
+        or candidate.get("contract_sha256") != contract["_contract_sha256"]
+        or candidate.get("outer_marker_sha256") != outer["_sha256"]
+    ):
+        reject("E_CANDIDATE", "full external candidate context differs")
+
+    records = candidate.get("artifacts")
+    if not isinstance(records, list) or not records:
+        reject("E_CANDIDATE", "candidate artifacts are empty")
+    paths = [record.get("path") for record in records if isinstance(record, dict)]
+    if len(paths) != len(records) or paths != sorted(set(paths)):
+        reject("E_CANDIDATE", "candidate artifact paths are not exact sorted unique")
+    artifact_by_path: dict[str, Path] = {}
+    for record in records:
+        path = validate_artifact(root, record, "E_CANDIDATE")
+        artifact_by_path[record["path"]] = path
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*") if path.is_file() or path.is_symlink()
+    }
+    if actual_files != set(paths) | {"candidate-manifest.json"}:
+        reject("E_CANDIDATE", "candidate run-root file set differs")
+    missing = candidate_required_paths("external-matrix") - set(paths)
+    if missing:
+        reject("E_CANDIDATE", f"candidate required artifacts are missing: {sorted(missing)}")
+
+    final_path = artifact_by_path["final/report-manifest.json"]
+    final_manifest = verify_merged_manifest(contract, outer, final_path)
+    expected_totals = definition["totals"]
+    if (
+        final_manifest.get("kind") != "v934-step3-external-matrix-final"
+        or final_manifest.get("lane") != "external-matrix"
+        or final_manifest.get("complete") is not True
+        or final_manifest.get("totals") != expected_totals
+        or candidate.get("totals") != expected_totals
+        or candidate.get("report_manifest_sha256") != sha256_file(final_path)
+    ):
+        reject("E_CANDIDATE", "full external candidate report identity differs")
+
+    summary = parse_env(
+        artifact_by_path["summary.env"], CANDIDATE_SUMMARY_FIELDS, "E_CANDIDATE"
+    )
+    status = parse_env(
+        artifact_by_path["run-status.env"], RUN_STATUS_FIELDS, "E_CANDIDATE"
+    )
+    expected_scalar = {
+        "run_id": outer["run_id"], "runner": "failsafe", "lane": "external-matrix",
+        "git_head": outer["git_head"], "variants": "7", "reports": "16",
+        "testcase_nodes": "76", "failures": "0", "errors": "0", "skipped": "0",
+        "outer_marker_sha256": outer["_sha256"],
+        "contract_sha256": contract["_contract_sha256"],
+        "negative_probes": f"{len(contract['negative_probes'])}/{len(contract['negative_probes'])}",
+        "sensitive_negative_probes": "24/24",
+        "resource_residue": "0/0/0", "status": "passed",
+    }
+    if any(summary.get(key) != value for key, value in expected_scalar.items()):
+        reject("E_CANDIDATE", "full external candidate summary identity differs")
+
+    source_before = artifact_by_path["source-before.tsv"]
+    source_after = artifact_by_path["source-after.tsv"]
+    if source_before.read_bytes() != source_after.read_bytes():
+        reject("E_CANDIDATE", "full external source seal changed during execution")
+    source_digest = source_manifest_digest(source_before)
+    if summary["source_before"] != source_digest or summary["source_after"] != source_digest:
+        reject("E_CANDIDATE", "full external source summary differs")
+    hash_bindings = {
+        "final_report_manifest_sha256": "final/report-manifest.json",
+        "run_status_sha256": "run-status.env",
+        "resource_sha256": "aggregate/resources.tsv",
+        "fixture_sha256": "aggregate/fixtures.tsv",
+        "cleanup_sha256": "aggregate/cleanup.env",
+        "negative_sha256": "negative/probes.tsv",
+        "sensitive_negative_sha256": "negative/sensitive-probes.tsv",
+        "sensitive_scan_sha256": "sensitive-scan.env",
+    }
+    if any(
+        summary[key] != sha256_file(artifact_by_path[path])
+        for key, path in hash_bindings.items()
+    ):
+        reject("E_CANDIDATE", "full external summary artifact hash differs")
+    expected_status = {
+        "run_id": outer["run_id"], "runner": "failsafe", "git_head": outer["git_head"],
+        "last_phase": "completed", "exit_code": "0", "source_before_sha256": source_digest,
+        "source_after_sha256": source_digest, "outer_marker_sha256": outer["_sha256"],
+        "successor_manifest_sha256": contract["bindings"]["deferred_inventory"]["sha256"],
+        "final_report_manifest_sha256": sha256_file(final_path), "status": "passed",
+    }
+    if any(status.get(key) != value for key, value in expected_status.items()):
+        reject("E_CANDIDATE", "full external durable status differs")
+    if parse_timestamp(status["finished_at"], "E_CANDIDATE") < parse_timestamp(
+        status["started_at"], "E_CANDIDATE"
+    ):
+        reject("E_CANDIDATE", "full external finish time predates start time")
+
+    preclean = parse_env(
+        artifact_by_path["preclean.env"], {"lanes", "mode", "status"}, "E_CANDIDATE"
+    )
+    lane_order = (
+        "external-redis", "external-mongo", "external-mysql", "external-vector",
+    )
+    if preclean != {
+        "lanes": ",".join(lane_order), "mode": "lane-owned-clean", "status": "passed",
+    }:
+        reject("E_CANDIDATE", "full external lane-clean evidence differs")
+
+    lane_candidates = {
+        lane: artifact_by_path[f"lanes/{lane}/candidate-manifest.json"]
+        for lane in lane_order
+    }
+    expected_resources: list[dict[str, str]] = []
+    expected_fixtures: list[dict[str, str]] = []
+    expected_sensitive: list[dict[str, str]] = []
+    cell_by_lane = {
+        "external-redis": "redis7",
+        "external-mongo": "mongo6",
+        "external-mysql": "mysql57",
+        "external-vector": "milvus24",
+    }
+    for lane, nested_path in lane_candidates.items():
+        nested = verify_candidate(contract, nested_path)
+        if nested.get("lane") != lane or nested.get("run_id") != outer["run_id"]:
+            reject("E_CROSS_RUN_SPLICE", f"nested lane candidate context differs: {lane}")
+        lane_root = nested_path.parent
+        if (lane_root / "run-context.json").read_bytes() != outer["_path"].read_bytes():
+            reject("E_CROSS_RUN_SPLICE", f"nested lane outer marker differs: {lane}")
+        cell = cell_by_lane[lane]
+        resource_relative = f"lanes/{lane}/cells/{cell}/resource.env"
+        fixture_relative = f"lanes/{lane}/cells/{cell}/fixture.env"
+        expected_resources.append({
+            "lane": lane, "path": resource_relative,
+            "sha256": sha256_file(artifact_by_path[resource_relative]),
+        })
+        expected_fixtures.append({
+            "lane": lane, "path": fixture_relative,
+            "sha256": sha256_file(artifact_by_path[fixture_relative]),
+        })
+        sensitive_rows = read_exact_tsv(
+            lane_root / "negative/sensitive-probes.tsv", ["probe", "status"]
+        )
+        expected_sensitive.extend({"lane": lane, **row} for row in sensitive_rows)
+        for variant in (
+            row["variant_key"] for row in contract["variants"] if row["lane"] == lane
+        ):
+            child_manifest = lane_root / f"variants/{variant}/evidence/report-manifest.json"
+            final_variant = root / f"final/variants/{variant}/report-manifest.json"
+            if child_manifest.read_bytes() != final_variant.read_bytes():
+                reject("E_CROSS_RUN_SPLICE", f"full final variant differs from lane evidence: {variant}")
+
+    resource_rows = read_exact_tsv(
+        artifact_by_path["aggregate/resources.tsv"], ["lane", "path", "sha256"]
+    )
+    fixture_rows = read_exact_tsv(
+        artifact_by_path["aggregate/fixtures.tsv"], ["lane", "path", "sha256"]
+    )
+    if resource_rows != expected_resources or fixture_rows != expected_fixtures:
+        reject("E_CANDIDATE", "full external resource/fixture aggregate differs")
+
+    cleanup = parse_env(
+        artifact_by_path["aggregate/cleanup.env"],
+        {"container_residue", "volume_residue", "network_residue", "lane_count", "status"},
+        "E_CANDIDATE",
+    )
+    if cleanup != {
+        "container_residue": "0", "volume_residue": "0", "network_residue": "0",
+        "lane_count": "4", "status": "passed",
+    }:
+        reject("E_CANDIDATE", "full external aggregate cleanup differs")
+    validate_negative_evidence(artifact_by_path["negative/probes.tsv"], contract)
+    sensitive_rows = read_exact_tsv(
+        artifact_by_path["negative/sensitive-probes.tsv"], ["lane", "probe", "status"]
+    )
+    if sensitive_rows != expected_sensitive or any(row["status"] != "passed" for row in sensitive_rows):
+        reject("E_CANDIDATE", "full external sensitive negative aggregate differs")
+    sensitive_scan = parse_env(
+        artifact_by_path["sensitive-scan.env"], {"lane_scans", "status"}, "E_CANDIDATE"
+    )
+    if sensitive_scan != {"lane_scans": "4", "status": "passed"}:
+        reject("E_CANDIDATE", "full external sensitive scan evidence differs")
+    return candidate
+
+
 def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
     candidate = load_json_manifest(candidate_path)
     lane = candidate.get("lane")
+    if lane == "external-matrix":
+        return verify_matrix_candidate(contract, candidate_path)
     if lane == "external-redis":
         return verify_redis_candidate(contract, candidate_path)
     if lane == "external-mongo":
@@ -3092,6 +3376,19 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser()
     commands = root.add_subparsers(dest="command", required=True)
     commands.add_parser("validate")
+
+    verify_outer = commands.add_parser("verify-outer")
+    verify_outer.add_argument("--outer-marker", required=True)
+
+    worktree = commands.add_parser("check-worktree")
+    worktree.add_argument(
+        "--lane",
+        choices=(
+            "external-matrix", "external-redis", "external-mongo",
+            "external-mysql", "external-vector",
+        ),
+        required=True,
+    )
 
     collect = commands.add_parser("collect")
     collect.add_argument("--variant", required=True)
@@ -3168,6 +3465,17 @@ def main() -> int:
         contract = load_contract()
         if args.command == "validate":
             print("V934_EXTERNAL_CONTRACT variants=7 reports=16 testcase_nodes=76 optional=1")
+        elif args.command == "verify-outer":
+            outer = load_outer_marker(
+                Path(args.outer_marker), contract, require_current_head=True
+            )
+            print(
+                "V934_EXTERNAL_OUTER "
+                f"run={outer['run_id']} git_head={outer['git_head']} status=verified"
+            )
+        elif args.command == "check-worktree":
+            check_protected_worktree(contract, args.lane)
+            print(f"V934_EXTERNAL_WORKTREE lane={args.lane} status=clean")
         elif args.command == "collect":
             path = collect_variant(
                 contract,

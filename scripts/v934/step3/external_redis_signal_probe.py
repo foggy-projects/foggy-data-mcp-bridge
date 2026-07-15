@@ -43,6 +43,12 @@ RESOURCES = {
         "cell": "milvus24",
         "ready_timeout": 240,
     },
+    "matrix": {
+        "runner": ROOT / "scripts/verify-v934-external-matrix.sh",
+        "environment": "V934_EXTERNAL_MATRIX_SIGNAL_PROBE",
+        "cell": "redis7",
+        "ready_timeout": 120,
+    },
 }
 
 
@@ -122,10 +128,20 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
         stderr=subprocess.PIPE,
         start_new_session=True,
     )
+    if resource == "matrix":
+        ready_path = run_root / "lanes/external-redis/signal-probe-ready.env"
+        status_path = run_root / "run-status.env"
+        child_status_path = run_root / "lanes/external-redis/run-status.env"
+        cleanup_path = run_root / "lanes/external-redis/cells/redis7/cleanup.env"
+    else:
+        ready_path = run_root / "signal-probe-ready.env"
+        status_path = run_root / "run-status.env"
+        child_status_path = None
+        cleanup_path = run_root / f"cells/{configuration['cell']}/cleanup.env"
     try:
         wait_ready(
             process,
-            run_root / "signal-probe-ready.env",
+            ready_path,
             float(configuration["ready_timeout"]),
         )
         os.kill(process.pid, getattr(signal, f"SIG{signal_name}"))
@@ -141,17 +157,16 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
             f"{signal_name} runner exit differs: {process.returncode} != {expected_code}\n"
             f"stdout={stdout[-2000:]}\nstderr={stderr[-2000:]}"
         )
-    status_path = run_root / "run-status.env"
-    cleanup_path = run_root / f"cells/{configuration['cell']}/cleanup.env"
-    ready = parse_env(run_root / "signal-probe-ready.env")
+    ready = parse_env(ready_path)
     status = parse_env(status_path)
+    child_status = parse_env(child_status_path) if child_status_path else None
     cleanup = parse_env(cleanup_path)
     resource_cleanup_matches = (
         cleanup.get("container_residue") == "0"
         and cleanup.get("volume_residue") == "0"
         and cleanup.get("status") == "passed"
     )
-    if resource in {"redis", "mysql"}:
+    if resource in {"redis", "mysql", "matrix"}:
         resource_cleanup_matches = (
             resource_cleanup_matches
             and cleanup.get("container") == ready.get("container")
@@ -179,9 +194,12 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
         )
     else:
         fail(f"unsupported signal-probe resource: {resource}")
+    expected_last_phase = (
+        "lane-external-redis" if resource == "matrix" else "signal-probe-ready"
+    )
     if (
         status.get("run_id") != run_id
-        or status.get("last_phase") != "signal-probe-ready"
+        or status.get("last_phase") != expected_last_phase
         or status.get("exit_code") != str(expected_code)
         or status.get("status") != "failed"
         or ready.get("run_id") != run_id
@@ -189,11 +207,25 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
         or not resource_cleanup_matches
     ):
         fail(f"{signal_name} durable signal evidence differs")
+    if child_status is not None and (
+        child_status.get("run_id") != run_id
+        or child_status.get("last_phase") != "signal-probe-ready"
+        or child_status.get("exit_code") != str(expected_code)
+        or child_status.get("status") != "failed"
+    ):
+        fail(f"{signal_name} shared Redis child status evidence differs")
     absent = {
         "summary": not (run_root / "summary.env").exists(),
         "candidate": not (run_root / "candidate-manifest.json").exists(),
         "fifo": not (run_root / ".run-log.fifo").exists(),
     }
+    if resource == "matrix":
+        absent.update({
+            "final": not (run_root / "final").exists(),
+            "child_fifo": not (
+                run_root / "lanes/external-redis/.run-log.fifo"
+            ).exists(),
+        })
     if not all(absent.values()):
         fail(f"{signal_name} retained forbidden success/FIFO artifacts: {absent}")
     container_residue = docker_count(

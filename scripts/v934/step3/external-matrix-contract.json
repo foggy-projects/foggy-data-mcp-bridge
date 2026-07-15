@@ -12,29 +12,37 @@
       "path": "scripts/v934/successor/step2/discovery-inventory.tsv",
       "sha256": "634a5fbc5732676114bb4203498e20c032f8b34e113243705b1306569418404e"
     },
-    "external_redis_runner": {
-      "path": "scripts/verify-v934-external-redis.sh",
-      "sha256": "a9e898583cf408bee2e2ed4793bfa757f81ecab77492ccb2a41eb869ed89b114"
-    },
-    "external_redis_signal_probe": {
-      "path": "scripts/v934/step3/external_redis_signal_probe.py",
-      "sha256": "840bb078dfde16852778c1a1d6b2735ddab5fef5c1c2209a7113e8e901e4da56"
-    },
-    "external_report_tool": {
-      "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "eb89de223d04991632c1b0b4abd529ae90d48a86db6a8e550e241ab2c7b10aae"
+    "external_matrix_runner": {
+      "path": "scripts/verify-v934-external-matrix.sh",
+      "sha256": "49a6fd951a0eb841089623fa7fb9aed3a6a8dd8facfe4de6e0bd30eae4297d63"
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",
-      "sha256": "6bcd2b4f2a08348a3390d19ec3ab6661afb5d56d3ef5ab3a60de0b555637e573"
+      "sha256": "87ff774fb9db643628cb9e12c3dd1245e75fe6b544c13c01d3aa1b8588f092c4"
     },
     "external_mysql_runner": {
       "path": "scripts/verify-v934-external-mysql.sh",
-      "sha256": "4c4bb615d7cccee45f97a037db90c1ffe29867dc972b8a744f8de1ce14b4d468"
+      "sha256": "69956cf8a618a7d60fc1c620049b6f9a34634ba41deca12420fea45b8eb3f70c"
+    },
+    "external_redis_runner": {
+      "path": "scripts/verify-v934-external-redis.sh",
+      "sha256": "a60f7655ba6fb4dd5aaa9a7390443283acc9c2c824598e233a24e7faa89a0eb3"
+    },
+    "external_redis_signal_probe": {
+      "path": "scripts/v934/step3/external_redis_signal_probe.py",
+      "sha256": "707a22505e8d3fa40e108baa12dbbe864d0f2a2eaa0f841b62df570154bbeb19"
+    },
+    "external_report_tool": {
+      "path": "scripts/v934/step3/external_matrix_report_tool.py",
+      "sha256": "05226480a3556e28c60e6c76ae2c936f857cd1dbf71d48d89e614f5b479ad86f"
+    },
+    "external_shared_context": {
+      "path": "scripts/v934/step3/external_shared_context.sh",
+      "sha256": "0674e905c019bd84af02c557f16f48e6b32cb3e9abebe5a8d8f9585f8b434875"
     },
     "external_vector_runner": {
       "path": "scripts/verify-v934-external-vector.sh",
-      "sha256": "ecf54f452ccbe93becd5f5af80ac667059ae74373ee4c0fae2243a41ad9fef23"
+      "sha256": "3d043d7a19567df9d1aafa6815c3773037888f5bcbcdb222109cebb8f229af15"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",

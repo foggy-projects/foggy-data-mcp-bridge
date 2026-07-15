@@ -7,6 +7,7 @@ STEP3_DIR="$ROOT_DIR/scripts/v934/step3"
 CONTRACT="$STEP3_DIR/external-matrix-contract.json"
 REPORT_TOOL="$STEP3_DIR/external_matrix_report_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
+SHARED_CONTEXT_LIB="$STEP3_DIR/external_shared_context.sh"
 DEFERRED_INVENTORY="$ROOT_DIR/scripts/v934/successor/step2/deferred-step3.tsv"
 REPORTS_DIR="$ROOT_DIR/addons/foggy-dataset-model-cache/target/failsafe-reports"
 CLEAN_MODULES="foggy-bean-copy,foggy-core,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model,addons/foggy-dataset-model-cache"
@@ -23,6 +24,7 @@ RUN_LOG_FIFO=""
 RUN_LOG_TEE_PID=""
 RUN_LOG_OPEN=false
 SIGNAL_PROBE_MODE="${V934_EXTERNAL_REDIS_SIGNAL_PROBE:-false}"
+SHARED_CHILD_MODE=false
 
 SENSITIVE_PATTERNS=(
   '(?i)(?:REDIS_PASSWORD|REDIS_USERNAME|REDIS_URI)'
@@ -113,24 +115,7 @@ PY
 }
 
 assert_protected_worktree_clean() {
-  local status
-  status="$(git -C "$ROOT_DIR" status --porcelain=v1 --untracked-files=all -- \
-    pom.xml \
-    foggy-bean-copy/pom.xml \
-    foggy-bean-copy/src/main \
-    foggy-core/pom.xml \
-    foggy-core/src/main \
-    foggy-dataset/pom.xml \
-    foggy-dataset/src/main \
-    foggy-dataset-demo/pom.xml \
-    foggy-dataset-demo/src/main \
-    foggy-dataset-model/pom.xml \
-    foggy-dataset-model/src/main \
-    foggy-fsscript/pom.xml \
-    foggy-fsscript/src/main \
-    addons/foggy-dataset-model-cache/pom.xml \
-    addons/foggy-dataset-model-cache/src)"
-  [[ -z "$status" ]] || fail "protected Redis lane worktree is dirty"
+  python3 "$REPORT_TOOL" check-worktree --lane "$LANE"
 }
 
 assert_clean_targets_absent() {
@@ -452,17 +437,23 @@ run_variant() {
     --output "$variant_root/evidence"
 }
 
-[[ "$#" -le 1 ]] || fail "usage: $SCRIPT_PATH [RUN_ID]"
+if [[ "${1:-}" == --shared-child ]]; then
+  [[ "$#" -eq 2 ]] || fail "usage: $SCRIPT_PATH --shared-child RUN_ID"
+  SHARED_CHILD_MODE=true
+  RUN_ID="$2"
+else
+  [[ "$#" -le 1 ]] || fail "usage: $SCRIPT_PATH [RUN_ID]"
+  RUN_ID="${1:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+fi
 [[ "$SIGNAL_PROBE_MODE" == false || "$SIGNAL_PROBE_MODE" == true ]] || \
   fail "V934_EXTERNAL_REDIS_SIGNAL_PROBE must be true or false"
-RUN_ID="${1:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ && "$RUN_ID" != . && "$RUN_ID" != .. ]] || \
   fail "unsafe run id: $RUN_ID"
 
-for command_name in cut date docker flock git grep jq mkfifo mv mvn python3 rg sed seq sha256sum sleep tee; do
+for command_name in cmp cut date docker flock git grep jq mkfifo mv mvn python3 readlink rg sed seq sha256sum sleep tee; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
-for required_file in "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" "$DEFERRED_INVENTORY"; do
+for required_file in "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" "$SHARED_CONTEXT_LIB" "$DEFERRED_INVENTORY"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
@@ -474,13 +465,22 @@ done
 
 # shellcheck source=scripts/v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
-v934_acquire_authority_lock "$ROOT_DIR" "v934-external-redis" || exit 1
+# shellcheck source=scripts/v934/step3/external_shared_context.sh
+source "$SHARED_CONTEXT_LIB"
 
-RUN_ROOT="$ROOT_DIR/target/v934-step3-external-matrix/runs/$RUN_ID"
-[[ ! -e "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
+if [[ "$SHARED_CHILD_MODE" == true ]]; then
+  v934_external_prepare_shared_child "$ROOT_DIR" "$RUN_ID" "$LANE" || exit 1
+  RUN_ROOT="$V934_EXTERNAL_SHARED_LANE_ROOT"
+  OUTER_MARKER="$V934_EXTERNAL_SHARED_LANE_MARKER"
+else
+  v934_acquire_authority_lock "$ROOT_DIR" "v934-external-redis" || exit 1
+  RUN_ROOT="$ROOT_DIR/target/v934-step3-external-matrix/runs/$RUN_ID"
+  [[ ! -e "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
+  mkdir -p "$RUN_ROOT"
+  OUTER_MARKER="$RUN_ROOT/run-context.json"
+fi
 mkdir -p "$RUN_ROOT/variants" "$RUN_ROOT/cells/redis7" "$RUN_ROOT/negative"
 CELL_ROOT="$RUN_ROOT/cells/redis7"
-OUTER_MARKER="$RUN_ROOT/run-context.json"
 RUN_LOG_FIFO="$RUN_ROOT/.run-log.fifo"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 START_EPOCH="$(date -u +%s)"
@@ -526,8 +526,11 @@ atomic_env "$RUN_ROOT/preclean.env" \
   "status=passed"
 
 PHASE="outer-marker"
-write_outer_marker
+if [[ "$SHARED_CHILD_MODE" != true ]]; then
+  write_outer_marker
+fi
 OUTER_MARKER_SHA256="$(sha256_file "$OUTER_MARKER")"
+python3 "$REPORT_TOOL" verify-outer --outer-marker "$OUTER_MARKER"
 
 PHASE="image-preflight"
 docker info >/dev/null
