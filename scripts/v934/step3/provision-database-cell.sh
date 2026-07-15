@@ -487,12 +487,36 @@ fi
 
 case "$DATABASE" in
   mysql57)
-    identity="$(mysql_query "SELECT CONCAT(DATABASE(), '|', VERSION());")"
+    # The official MySQL entrypoint starts a temporary server while it creates
+    # the configured database/user and runs init scripts. A root ping can mark
+    # the container healthy during that window, so gate on the same business
+    # credential and catalog that the matrix will actually use.
+    database_ready=false
+    identity=""
+    for _ in $(seq 1 120); do
+      if identity="$(mysql_query "SELECT CONCAT(DATABASE(), '|', VERSION());" 2>/dev/null)"; then
+        database_ready=true
+        break
+      fi
+      sleep 0.5
+    done
+    [[ "$database_ready" == true ]] || \
+      fail E_DATABASE_READINESS "foggy_test did not become queryable with the frozen MySQL credential"
     [[ "$identity" == 'foggy_test|5.7.44-log' ]] || \
       fail E_DATABASE_IDENTITY "actual=$identity expected=foggy_test|5.7.44-log"
     ;;
   mysql8)
-    identity="$(mysql_query "SELECT CONCAT(DATABASE(), '|', VERSION());")"
+    database_ready=false
+    identity=""
+    for _ in $(seq 1 120); do
+      if identity="$(mysql_query "SELECT CONCAT(DATABASE(), '|', VERSION());" 2>/dev/null)"; then
+        database_ready=true
+        break
+      fi
+      sleep 0.5
+    done
+    [[ "$database_ready" == true ]] || \
+      fail E_DATABASE_READINESS "foggy_test did not become queryable with the frozen MySQL credential"
     [[ "$identity" == foggy_test\|8.0.* ]] || \
       fail E_DATABASE_IDENTITY "actual=$identity expected=foggy_test|8.0.x"
     ;;

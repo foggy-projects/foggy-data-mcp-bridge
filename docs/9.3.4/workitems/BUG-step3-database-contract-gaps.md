@@ -158,6 +158,20 @@ execution。证据见
 nanosecond mtime，只能 run-local 重验；Step 5 archive 前必须完成 portable evidence
 contract，当前 candidate 不得直接作为可下载 immutable authority。
 
+## 2026-07-16 Formal MySQL Initialization Readiness Regression
+
+首次同提交正式父运行 `step3-required-20260716-final-r1` 在数据库动态负向
+`fixture-mutation` 处被正确拒绝。run-owned MySQL 5.7 容器已被 healthcheck 标记为
+healthy，但官方 entrypoint 尚处于临时初始化服务器阶段，`foggy` 业务用户查询返回
+`ERROR 1045`。因此目标探针没有到达 `E_FIXTURE_MUTATION`，状态工具记录
+`actual_error=E_MISSING_ERROR_CODE` 并使父候选缺席；本次容器、卷、网络残留均为零。
+
+provisioner 现于 health gate 后增加有界业务 readiness：必须使用冻结的 `foggy`
+credential 查询 `foggy_test` 成功，才允许进入 identity、fixture 与 callback 阶段。
+该修复同时适用于 MySQL 5.7/MySQL 8；动态状态套件本身即为回归测试，因为旧实现会在
+目标 probe 之前失败，而修复后必须继续到每个约定错误码。该项在新的 clean committed
+HEAD 完成 `18/18` 状态负向与正式父矩阵前保持 `in-progress`。
+
 ## Verification
 
 The item can move to `ready-for-verification` only when the Step 3 authority summary proves:
