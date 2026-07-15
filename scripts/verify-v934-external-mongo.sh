@@ -567,7 +567,7 @@ foreign_database_count="$(mongo_eval "const keep=new Set(['admin','config','loca
 [[ "$mcp_audit_count" == 25 && "$sales_order_count" == 20 && "$geo_station_count" == 0 ]] || \
   fail "Mongo model fixture counts differ"
 [[ "$viewer_collections" == list_presets && "$list_presets_count" == 0 ]] || \
-  fail "Mongo viewer fixture differs"
+  fail "Mongo viewer fixture differs: collections=$viewer_collections list_presets_count=$list_presets_count"
 [[ "$foreign_database_count" == 0 ]] || fail "Mongo cell contains foreign databases"
 atomic_env "$CELL_ROOT/fixture.env" \
   "cell=mongo6" \

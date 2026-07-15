@@ -4,6 +4,7 @@ import com.foggyframework.dataviewer.domain.ListPresetDef;
 import com.foggyframework.dataviewer.domain.QueryVisibility;
 import com.foggyframework.dataviewer.repository.ListPresetRepository;
 import de.flapdoodle.embed.mongo.spring.autoconfigure.EmbeddedMongoAutoConfiguration;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -46,6 +47,11 @@ class MongoListPresetStoreIT {
     void setUp() {
         repository.deleteAll();
         store = new MongoListPresetStore(repository);
+    }
+
+    @AfterEach
+    void tearDown() {
+        repository.deleteAll();
     }
 
     @Test

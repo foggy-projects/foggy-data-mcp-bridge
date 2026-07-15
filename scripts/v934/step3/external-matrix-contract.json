@@ -26,7 +26,7 @@
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",
-      "sha256": "b5a99b2e9dda40434b8110c91ab9587cd2544e5175cedea7cfa853dd9b88a02d"
+      "sha256": "1715c082e62b2f7d1a21c760a56155ef02a05bbca3dd10be10cda81e5a9b1143"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",
@@ -124,6 +124,16 @@
       ],
       "source_id": "v934-src|80:foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiToolsIT.java",
       "source_path": "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/ai/AiToolsIT.java"
+    },
+    {
+      "amended_sha256": "13f56f19a78685be39bfed9b94dba74b2e16dc7f960697b655fa305fce2939f5",
+      "original_sha256": "68d0cdd67adef49e57f1df58bdd8f29cb2ff95e9e6ebf7869cf26309055924d2",
+      "reason": "required Mongo DataViewer integration test now removes its fixture after every testcase without changing discovery cardinality",
+      "report_fqcns": [
+        "com.foggyframework.dataviewer.service.listpreset.MongoListPresetStoreIT"
+      ],
+      "source_id": "v934-src|115:addons/foggy-data-viewer/src/test/java/com/foggyframework/dataviewer/service/listpreset/MongoListPresetStoreIT.java",
+      "source_path": "addons/foggy-data-viewer/src/test/java/com/foggyframework/dataviewer/service/listpreset/MongoListPresetStoreIT.java"
     }
   ],
   "variants": [
