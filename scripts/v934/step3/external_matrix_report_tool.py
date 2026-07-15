@@ -41,7 +41,7 @@ INVENTORY_BINDINGS = {"deferred_inventory", "discovery_inventory", "source_inven
 FRAMEWORK_BINDINGS = {
     "authority_runner_lib", "external_report_tool", "external_redis_runner",
     "external_redis_signal_probe", "external_mongo_runner",
-    "external_mysql_runner",
+    "external_mysql_runner", "external_vector_runner",
 }
 EXPECTED_BINDINGS = INVENTORY_BINDINGS | FRAMEWORK_BINDINGS
 OUTER_FIELDS = {
@@ -146,6 +146,42 @@ MYSQL57_CURATED_BUNDLE_COUNTS = {
     "tm_files": 25,
     "fsscript_files": 2,
 }
+VECTOR_MILVUS_IMAGE_REF = (
+    "milvusdb/milvus@sha256:"
+    "212ec3cd86e35ceda1892adae3bb718278b0e8187b4c797725d98270bc3dcfa7"
+)
+VECTOR_MILVUS_IMAGE_ID = (
+    "sha256:212ec3cd86e35ceda1892adae3bb718278b0e8187b4c797725d98270bc3dcfa7"
+)
+VECTOR_ETCD_IMAGE_REF = (
+    "quay.io/coreos/etcd@sha256:"
+    "89b6debd43502d1088f3e02f39442fd3e951aa52bee846ed601cf4477114b89e"
+)
+VECTOR_ETCD_IMAGE_ID = (
+    "sha256:89b6debd43502d1088f3e02f39442fd3e951aa52bee846ed601cf4477114b89e"
+)
+VECTOR_MINIO_IMAGE_REF = (
+    "minio/minio@sha256:"
+    "6d770d7f255cda1f18d841ffc4365cb7e0d237f6af6a15fcdb587480cd7c3b93"
+)
+VECTOR_MINIO_IMAGE_ID = (
+    "sha256:6d770d7f255cda1f18d841ffc4365cb7e0d237f6af6a15fcdb587480cd7c3b93"
+)
+VECTOR_MILVUS_VERSION = "v2.4.4"
+VECTOR_MILVUS_GIT_COMMIT = "8e7f36d9"
+VECTOR_ETCD_VERSION = "3.5.5"
+VECTOR_ETCD_GIT_SHA = "19002cfc6"
+VECTOR_MINIO_VERSION = "RELEASE.2023-03-20T20-16-18Z"
+VECTOR_MINIO_COMMIT = "05444a0f6af8389b9bb85280fc31337c556d4300"
+VECTOR_COLLECTION = "v934_vector_store"
+VECTOR_MODEL_COLLECTION = "foggy_test_documents"
+VECTOR_DIMENSIONS = 8
+VECTOR_DOCUMENT_COUNT = 5
+VECTOR_CLEAN_MODULES = (
+    "foggy-core", "foggy-bean-copy", "foggy-fsscript", "foggy-dataset",
+    "foggy-dataset-demo", "foggy-dataset-model", "addons/foggy-dataset-vector",
+    "addons/foggy-dataset-model-vector",
+)
 
 
 class ContractError(RuntimeError):
@@ -1359,6 +1395,19 @@ def source_seal_inputs(lane: str) -> tuple[str, ...]:
             "foggy-dataset-model/pom.xml", "foggy-dataset-model/src/main",
             "foggy-dataset-mcp/pom.xml", "foggy-dataset-mcp/src",
         )
+    if lane == "external-vector":
+        return (
+            "pom.xml",
+            "foggy-core/pom.xml", "foggy-core/src/main",
+            "foggy-bean-copy/pom.xml", "foggy-bean-copy/src/main",
+            "foggy-fsscript/pom.xml", "foggy-fsscript/src/main",
+            "foggy-dataset/pom.xml", "foggy-dataset/src/main",
+            "foggy-dataset-demo/pom.xml", "foggy-dataset-demo/src/main",
+            "foggy-dataset-model/pom.xml", "foggy-dataset-model/src/main",
+            "addons/foggy-dataset-vector/pom.xml", "addons/foggy-dataset-vector/src",
+            "addons/foggy-dataset-model-vector/pom.xml",
+            "addons/foggy-dataset-model-vector/src",
+        )
     reject("E_SEAL", f"unsupported source seal lane: {lane}")
 
 
@@ -1397,6 +1446,7 @@ def create_bytecode_seal(lane: str, output: Path) -> None:
     modules_by_lane = {
         "external-mongo": MONGO_CLEAN_MODULES,
         "external-mysql": MYSQL_CLEAN_MODULES,
+        "external-vector": VECTOR_CLEAN_MODULES,
     }
     modules = modules_by_lane.get(lane)
     if modules is None:
@@ -1478,6 +1528,10 @@ def validate_sensitive_negative_evidence(path: Path, lane: str) -> None:
             "mysql-env", "json-password", "api-key", "auth-header",
             "mysql-uri", "cli-password",
         },
+        "external-vector": {
+            "minio-env", "json-password", "api-key", "auth-header",
+            "s3-uri", "cli-password",
+        },
     }
     expected = expected_by_lane.get(lane)
     if expected is None:
@@ -1515,6 +1569,7 @@ def validate_bytecode_seal(path: Path, lane: str) -> None:
         "external-redis": REDIS_CLEAN_MODULES,
         "external-mongo": MONGO_CLEAN_MODULES,
         "external-mysql": MYSQL_CLEAN_MODULES,
+        "external-vector": VECTOR_CLEAN_MODULES,
     }
     clean_modules = clean_modules_by_lane.get(lane)
     if clean_modules is None:
@@ -1527,6 +1582,9 @@ def validate_bytecode_seal(path: Path, lane: str) -> None:
             "addons/foggy-data-viewer", "addons/foggy-dataset-model-mongo",
         },
         "external-mysql": {"foggy-dataset-mcp"},
+        "external-vector": {
+            "addons/foggy-dataset-model-vector", "addons/foggy-dataset-vector",
+        },
     }[lane]
     sealed_test_modules = {
         row.get("module") for row in rows
@@ -1584,6 +1642,15 @@ def candidate_required_paths(lane: str) -> set[str]:
             "variants/mysql57-direct/direct-report.json",
             "variants/mysql57-compose/bytecode.tsv",
         }
+    if lane == "external-vector":
+        return common | {
+            "cells/milvus24/resource.env",
+            "cells/milvus24/fixture-before.tsv",
+            "cells/milvus24/fixture-after.tsv",
+            "cells/milvus24/fixture.env",
+            "cells/milvus24/cleanup.env",
+            "variants/milvus24-embedding/bytecode.tsv",
+        }
     reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
 
 
@@ -1610,6 +1677,14 @@ def candidate_definition(lane: str) -> dict[str, Any]:
             "cell": "mysql57",
             "totals": {
                 "variants": 3, "reports": 8, "testcase_nodes": 23,
+                "failures": 0, "errors": 0, "skipped": 0,
+            },
+        },
+        "external-vector": {
+            "kind": "v934-step3-external-vector-candidate",
+            "cell": "milvus24",
+            "totals": {
+                "variants": 1, "reports": 2, "testcase_nodes": 20,
                 "failures": 0, "errors": 0, "skipped": 0,
             },
         },
@@ -2731,6 +2806,274 @@ def verify_mysql_candidate(contract: dict[str, Any], candidate_path: Path) -> di
     return candidate
 
 
+VECTOR_FIXTURE_HEADER = ["id", "content", "template_type", "model_name"]
+VECTOR_FIXTURE_ROWS = [
+    ["qt1", "最近一周各品牌销售情况", "dsl", "FactSalesQueryModel"],
+    ["qt2", "本月销售数据统计分析", "dsl", "FactSalesQueryModel"],
+    ["qt3", "销售趋势分析指南", "guide", "FactSalesQueryModel"],
+    ["qt4", "库存不足商品查询", "dsl", "FactInventoryQueryModel"],
+    ["qt5", "客户购买行为分析", "guide", "FactOrderQueryModel"],
+]
+
+
+def validate_vector_fixture_snapshot(path: Path, before: bool) -> None:
+    with ensure_regular(path, "E_CANDIDATE", "Vector fixture snapshot").open(
+        encoding="utf-8", newline=""
+    ) as stream:
+        reader = csv.reader(stream, delimiter="\t")
+        rows = list(reader)
+    expected = (
+        [["collection_count", "0"]]
+        if before
+        else [VECTOR_FIXTURE_HEADER, *VECTOR_FIXTURE_ROWS]
+    )
+    if rows != expected:
+        reject("E_CANDIDATE", "candidate Vector fixture snapshot differs")
+
+
+def verify_vector_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
+    ensure_regular(candidate_path, "E_CANDIDATE", "candidate manifest")
+    if candidate_path.name != "candidate-manifest.json":
+        reject("E_CANDIDATE", "candidate manifest name differs")
+    root = candidate_path.parent
+    candidate = load_json_manifest(candidate_path)
+    if set(candidate) != CANDIDATE_MANIFEST_FIELDS:
+        reject("E_CANDIDATE", "candidate manifest fields differ")
+    outer = load_outer_marker(root / "run-context.json", contract)
+    definition = candidate_definition("external-vector")
+    if (
+        candidate.get("schema_version") != 1
+        or candidate.get("kind") != definition["kind"]
+        or candidate.get("run_id") != outer["run_id"]
+        or candidate.get("runner") != "failsafe"
+        or candidate.get("lane") != "external-vector"
+        or candidate.get("git_head") != outer["git_head"]
+        or candidate.get("contract_sha256") != contract["_contract_sha256"]
+        or candidate.get("outer_marker_sha256") != outer["_sha256"]
+    ):
+        reject("E_CANDIDATE", "candidate context differs")
+    records = candidate.get("artifacts")
+    if not isinstance(records, list) or not records:
+        reject("E_CANDIDATE", "candidate artifacts are empty")
+    paths = [record.get("path") for record in records if isinstance(record, dict)]
+    if len(paths) != len(records) or paths != sorted(set(paths)):
+        reject("E_CANDIDATE", "candidate artifact paths are not exact sorted unique")
+    artifact_by_path: dict[str, Path] = {}
+    for record in records:
+        path = validate_artifact(root, record, "E_CANDIDATE")
+        artifact_by_path[record["path"]] = path
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*") if path.is_file() or path.is_symlink()
+    }
+    if actual_files != set(paths) | {"candidate-manifest.json"}:
+        reject("E_CANDIDATE", "candidate run-root file set differs")
+    missing = candidate_required_paths("external-vector") - set(paths)
+    if missing:
+        reject("E_CANDIDATE", f"candidate required artifacts are missing: {sorted(missing)}")
+
+    final_path = artifact_by_path["final/report-manifest.json"]
+    final_manifest = verify_merged_manifest(contract, outer, final_path)
+    expected_totals = definition["totals"]
+    if (
+        final_manifest.get("lane") != "external-vector"
+        or final_manifest.get("complete") is not False
+        or final_manifest.get("totals") != expected_totals
+        or candidate.get("totals") != expected_totals
+        or candidate.get("report_manifest_sha256") != sha256_file(final_path)
+    ):
+        reject("E_CANDIDATE", "candidate report subset differs")
+
+    summary = parse_env(
+        artifact_by_path["summary.env"], CANDIDATE_SUMMARY_FIELDS, "E_CANDIDATE"
+    )
+    status = parse_env(
+        artifact_by_path["run-status.env"], RUN_STATUS_FIELDS, "E_CANDIDATE"
+    )
+    expected_scalar = {
+        "run_id": outer["run_id"], "runner": "failsafe", "lane": "external-vector",
+        "git_head": outer["git_head"], "variants": "1", "reports": "2",
+        "testcase_nodes": "20", "failures": "0", "errors": "0", "skipped": "0",
+        "outer_marker_sha256": outer["_sha256"],
+        "contract_sha256": contract["_contract_sha256"],
+        "negative_probes": "12/12", "sensitive_negative_probes": "6/6",
+        "resource_residue": "0/0/0", "status": "passed",
+    }
+    if any(summary.get(key) != value for key, value in expected_scalar.items()):
+        reject("E_CANDIDATE", "candidate summary identity differs")
+    source_before = artifact_by_path["source-before.tsv"]
+    source_after = artifact_by_path["source-after.tsv"]
+    if source_before.read_bytes() != source_after.read_bytes():
+        reject("E_CANDIDATE", "candidate source seal changed during execution")
+    source_digest = source_manifest_digest(source_before)
+    if summary["source_before"] != source_digest or summary["source_after"] != source_digest:
+        reject("E_CANDIDATE", "candidate source summary differs")
+    hash_bindings = {
+        "final_report_manifest_sha256": "final/report-manifest.json",
+        "run_status_sha256": "run-status.env",
+        "resource_sha256": "cells/milvus24/resource.env",
+        "fixture_sha256": "cells/milvus24/fixture.env",
+        "cleanup_sha256": "cells/milvus24/cleanup.env",
+        "negative_sha256": "negative/probes.tsv",
+        "sensitive_negative_sha256": "negative/sensitive-probes.tsv",
+        "sensitive_scan_sha256": "sensitive-scan.env",
+    }
+    if any(
+        summary[key] != sha256_file(artifact_by_path[path])
+        for key, path in hash_bindings.items()
+    ):
+        reject("E_CANDIDATE", "candidate summary artifact hash differs")
+    deferred_sha = contract["bindings"]["deferred_inventory"]["sha256"]
+    expected_status = {
+        "run_id": outer["run_id"], "runner": "failsafe", "git_head": outer["git_head"],
+        "last_phase": "completed", "exit_code": "0", "source_before_sha256": source_digest,
+        "source_after_sha256": source_digest, "outer_marker_sha256": outer["_sha256"],
+        "successor_manifest_sha256": deferred_sha,
+        "final_report_manifest_sha256": sha256_file(final_path), "status": "passed",
+    }
+    if any(status.get(key) != value for key, value in expected_status.items()):
+        reject("E_CANDIDATE", "candidate durable status differs")
+    if parse_timestamp(status["finished_at"], "E_CANDIDATE") < parse_timestamp(
+        status["started_at"], "E_CANDIDATE"
+    ):
+        reject("E_CANDIDATE", "candidate finish time predates start time")
+
+    scope = hashlib.sha256(f"{outer['run_id']}|milvus24\n".encode()).hexdigest()[:12]
+    base = f"v934ext-milvus24-{scope}"
+    network = f"{base}-net"
+    milvus_container = f"{base}-milvus"
+    etcd_container = f"{base}-etcd"
+    minio_container = f"{base}-minio"
+    milvus_volume = f"{base}-milvus-data"
+    etcd_volume = f"{base}-etcd-data"
+    minio_volume = f"{base}-minio-data"
+    resource_fields = {
+        "run_id", "cell", "network", "network_created", "network_driver",
+        "network_internal", "network_container_count", "milvus_container",
+        "etcd_container", "minio_container", "milvus_image_ref", "milvus_image_id",
+        "etcd_image_ref", "etcd_image_id", "minio_image_ref", "minio_image_id",
+        "grpc_mapped_port", "health_mapped_port", "milvus_mount_count",
+        "etcd_mount_count", "minio_mount_count", "milvus_mount_identity",
+        "etcd_mount_identity", "minio_mount_identity", "milvus_volume", "etcd_volume",
+        "minio_volume", "milvus_volume_created", "etcd_volume_created",
+        "minio_volume_created", "milvus_version", "milvus_git_commit", "etcd_version",
+        "etcd_git_sha", "minio_version", "minio_commit", "topology", "auth_mode",
+        "credentials_distinct", "initial_collection_count", "status",
+    }
+    resource = parse_env(
+        artifact_by_path["cells/milvus24/resource.env"], resource_fields, "E_CANDIDATE"
+    )
+    expected_resource = {
+        "run_id": outer["run_id"], "cell": "milvus24", "network": network,
+        "network_created": resource["network_created"], "network_driver": "bridge",
+        "network_internal": "false", "network_container_count": "3",
+        "milvus_container": milvus_container, "etcd_container": etcd_container,
+        "minio_container": minio_container, "milvus_image_ref": VECTOR_MILVUS_IMAGE_REF,
+        "milvus_image_id": VECTOR_MILVUS_IMAGE_ID, "etcd_image_ref": VECTOR_ETCD_IMAGE_REF,
+        "etcd_image_id": VECTOR_ETCD_IMAGE_ID, "minio_image_ref": VECTOR_MINIO_IMAGE_REF,
+        "minio_image_id": VECTOR_MINIO_IMAGE_ID,
+        "grpc_mapped_port": resource["grpc_mapped_port"],
+        "health_mapped_port": resource["health_mapped_port"],
+        "milvus_mount_count": "1", "etcd_mount_count": "1", "minio_mount_count": "1",
+        "milvus_mount_identity": f"{milvus_volume}|/var/lib/milvus|volume",
+        "etcd_mount_identity": f"{etcd_volume}|/etcd|volume",
+        "minio_mount_identity": f"{minio_volume}|/data|volume",
+        "milvus_volume": milvus_volume, "etcd_volume": etcd_volume,
+        "minio_volume": minio_volume,
+        "milvus_volume_created": resource["milvus_volume_created"],
+        "etcd_volume_created": resource["etcd_volume_created"],
+        "minio_volume_created": resource["minio_volume_created"],
+        "milvus_version": VECTOR_MILVUS_VERSION,
+        "milvus_git_commit": VECTOR_MILVUS_GIT_COMMIT,
+        "etcd_version": VECTOR_ETCD_VERSION, "etcd_git_sha": VECTOR_ETCD_GIT_SHA,
+        "minio_version": VECTOR_MINIO_VERSION, "minio_commit": VECTOR_MINIO_COMMIT,
+        "topology": "standalone", "auth_mode": "ephemeral-minio-root",
+        "credentials_distinct": "true", "initial_collection_count": "0",
+        "status": "verified",
+    }
+    if resource != expected_resource:
+        reject("E_CANDIDATE", "candidate Vector resource identity differs")
+    for key in ("grpc_mapped_port", "health_mapped_port"):
+        if re.fullmatch(r"127\.0\.0\.1:[0-9]+", resource[key]) is None:
+            reject("E_CANDIDATE", "candidate Vector port is not dynamic loopback")
+    if resource["grpc_mapped_port"] == resource["health_mapped_port"]:
+        reject("E_CANDIDATE", "candidate Vector mapped ports collide")
+    for key in (
+        "network_created", "milvus_volume_created", "etcd_volume_created",
+        "minio_volume_created",
+    ):
+        parse_timestamp(resource[key], "E_CANDIDATE")
+
+    fixture_before = artifact_by_path["cells/milvus24/fixture-before.tsv"]
+    fixture_after = artifact_by_path["cells/milvus24/fixture-after.tsv"]
+    validate_vector_fixture_snapshot(fixture_before, before=True)
+    validate_vector_fixture_snapshot(fixture_after, before=False)
+    fixture = parse_env(
+        artifact_by_path["cells/milvus24/fixture.env"],
+        {
+            "cell", "database", "initial_collection_count", "final_collection_count",
+            "final_collections", "model_collection_present", "store_collection",
+            "store_row_count", "field_names", "embedding_dimension", "index_type",
+            "metric_type", "before_snapshot_sha256", "after_snapshot_sha256", "status",
+        },
+        "E_CANDIDATE",
+    )
+    expected_fixture = {
+        "cell": "milvus24", "database": "default", "initial_collection_count": "0",
+        "final_collection_count": "1", "final_collections": VECTOR_COLLECTION,
+        "model_collection_present": "false", "store_collection": VECTOR_COLLECTION,
+        "store_row_count": str(VECTOR_DOCUMENT_COUNT),
+        "field_names": "content,embedding,id,metadata",
+        "embedding_dimension": str(VECTOR_DIMENSIONS), "index_type": "FLAT",
+        "metric_type": "COSINE", "before_snapshot_sha256": sha256_file(fixture_before),
+        "after_snapshot_sha256": sha256_file(fixture_after), "status": "verified",
+    }
+    if fixture != expected_fixture:
+        reject("E_CANDIDATE", "candidate Vector fixture identity differs")
+
+    cleanup = parse_env(
+        artifact_by_path["cells/milvus24/cleanup.env"],
+        {
+            "cell", "network", "milvus_container", "etcd_container", "minio_container",
+            "milvus_volume", "etcd_volume", "minio_volume", "container_residue",
+            "volume_residue", "network_residue", "status",
+        },
+        "E_CANDIDATE",
+    )
+    if cleanup != {
+        "cell": "milvus24", "network": network, "milvus_container": milvus_container,
+        "etcd_container": etcd_container, "minio_container": minio_container,
+        "milvus_volume": milvus_volume, "etcd_volume": etcd_volume,
+        "minio_volume": minio_volume, "container_residue": "0", "volume_residue": "0",
+        "network_residue": "0", "status": "passed",
+    }:
+        reject("E_CANDIDATE", "candidate Vector cleanup differs")
+    preclean = parse_env(
+        artifact_by_path["preclean.env"],
+        {"modules", "root_target_preserved", "status"}, "E_CANDIDATE",
+    )
+    if preclean != {
+        "modules": ",".join(VECTOR_CLEAN_MODULES),
+        "root_target_preserved": "true", "status": "passed",
+    }:
+        reject("E_CANDIDATE", "candidate preclean evidence differs")
+    validate_negative_evidence(artifact_by_path["negative/probes.tsv"], contract)
+    validate_sensitive_negative_evidence(
+        artifact_by_path["negative/sensitive-probes.tsv"], "external-vector"
+    )
+    sensitive = parse_env(
+        artifact_by_path["sensitive-scan.env"],
+        {"patterns", "ephemeral_secrets", "status"}, "E_CANDIDATE",
+    )
+    if sensitive != {"patterns": "5", "ephemeral_secrets": "2", "status": "passed"}:
+        reject("E_CANDIDATE", "candidate Vector sensitive scan evidence differs")
+    validate_bytecode_seal(
+        artifact_by_path["variants/milvus24-embedding/bytecode.tsv"],
+        "external-vector",
+    )
+    return candidate
+
+
 def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
     candidate = load_json_manifest(candidate_path)
     lane = candidate.get("lane")
@@ -2740,6 +3083,8 @@ def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str
         return verify_mongo_candidate(contract, candidate_path)
     if lane == "external-mysql":
         return verify_mysql_candidate(contract, candidate_path)
+    if lane == "external-vector":
+        return verify_vector_candidate(contract, candidate_path)
     reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
 
 

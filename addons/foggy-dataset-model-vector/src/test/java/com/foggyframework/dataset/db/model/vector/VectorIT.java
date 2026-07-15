@@ -2,7 +2,12 @@ package com.foggyframework.dataset.db.model.vector;
 
 import com.foggyframework.dataset.db.model.impl.vector.*;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.common.DataType;
@@ -16,8 +21,14 @@ import io.milvus.v2.service.vector.response.SearchResp;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
-import java.io.InputStream;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,9 +37,10 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>需要以下前置条件：
  * <ul>
- *   <li>启动 Milvus: docker-compose up -d milvus (在 foggy-dataset-demo/docker 目录)</li>
- *   <li>复制 test-config.properties.template 为 test-config.properties 并填入 API Key</li>
+ *   <li>通过 {@code v934.vector.milvus.host} 指定 Milvus 主机</li>
+ *   <li>通过 {@code v934.vector.milvus.port} 指定 Milvus 端口</li>
  * </ul>
+ * Embedding 请求只会发往测试进程内启动的 loopback OpenAI-compatible fixture。
  * </p>
  *
  * @author foggy-dataset
@@ -41,11 +53,26 @@ import static org.junit.jupiter.api.Assertions.*;
 class VectorIT {
 
     private static final String TEST_COLLECTION = "foggy_test_documents";
+    private static final String MILVUS_HOST_PROPERTY = "v934.vector.milvus.host";
+    private static final String MILVUS_PORT_PROPERTY = "v934.vector.milvus.port";
+    private static final String EMBEDDING_MODEL = "v934-deterministic-embedding";
+    private static final String EMBEDDING_API_KEY = "v934-local-fixture-key";
+    private static final int VECTOR_DIMENSIONS = 8;
+    private static final int EXPECTED_EMBEDDING_REQUESTS = 10;
+    private static final Duration STATE_TIMEOUT = Duration.ofSeconds(30);
+    private static final long POLL_INTERVAL_MILLIS = 100L;
 
-    private Properties config;
     private MilvusClientV2 milvusClient;
     private EmbeddingService embeddingService;
-    private int vectorDimensions;
+    private HttpServer embeddingServer;
+    private String milvusHost;
+    private int milvusPort;
+    private final Gson gson = new Gson();
+    private final List<EmbeddingRequest> embeddingRequests = new CopyOnWriteArrayList<>();
+    private final AtomicReference<Throwable> embeddingFixtureFailure = new AtomicReference<>();
+
+    private record EmbeddingRequest(String method, String path, String authorization, List<String> inputs) {
+    }
 
     /**
      * 测试文档数据
@@ -71,73 +98,352 @@ class VectorIT {
     }
 
     @BeforeAll
-    void setUp() {
-        // 加载配置
-        config = loadConfig();
-        if (config == null) {
-            log.warn("test-config.properties not found, skipping integration tests");
-            return;
+    void setUp() throws IOException {
+        milvusHost = requireSystemProperty(MILVUS_HOST_PROPERTY);
+        milvusPort = parsePort(requireSystemProperty(MILVUS_PORT_PROPERTY));
+        startEmbeddingFixture();
+
+        try {
+            VectorDbConfig.EmbeddingConfig embeddingConfig = VectorDbConfig.EmbeddingConfig.builder()
+                    .type("openai")
+                    .baseUrl("http://127.0.0.1:" + embeddingServer.getAddress().getPort())
+                    .apiKey(EMBEDDING_API_KEY)
+                    .model(EMBEDDING_MODEL)
+                    .dimensions(VECTOR_DIMENSIONS)
+                    .build();
+            embeddingService = new EmbeddingService(embeddingConfig);
+
+            String uri = String.format("http://%s:%d", milvusHost, milvusPort);
+            ConnectConfig connectConfig = ConnectConfig.builder()
+                    .uri(uri)
+                    .connectTimeoutMs(30000L)
+                    .build();
+            milvusClient = new MilvusClientV2(connectConfig);
+            String serverVersion = milvusClient.getServerVersion();
+            assertNotNull(serverVersion, "Milvus server version must be available");
+            assertFalse(serverVersion.isBlank(), "Milvus server version must not be blank");
+            log.info("Connected to Milvus {} at {}", serverVersion, uri);
+        } catch (RuntimeException | AssertionError e) {
+            closeResourcesAfterSetupFailure(e);
+            throw e;
         }
-
-        // 初始化 Embedding 服务
-        VectorDbConfig.EmbeddingConfig embeddingConfig = VectorDbConfig.EmbeddingConfig.builder()
-                .type(config.getProperty("embedding.type", "openai"))
-                .baseUrl(config.getProperty("embedding.baseUrl"))
-                .apiKey(config.getProperty("embedding.apiKey"))
-                .model(config.getProperty("embedding.model", "text-embedding-3-small"))
-                .dimensions(Integer.parseInt(config.getProperty("embedding.dimensions", "1536")))
-                .build();
-
-        vectorDimensions = embeddingConfig.getDimensions();
-        embeddingService = new EmbeddingService(embeddingConfig);
-
-        // 初始化 Milvus 客户端
-        String milvusHost = config.getProperty("milvus.host", "localhost");
-        int milvusPort = Integer.parseInt(config.getProperty("milvus.port", "19530"));
-        String uri = String.format("http://%s:%d", milvusHost, milvusPort);
-
-        ConnectConfig connectConfig = ConnectConfig.builder()
-                .uri(uri)
-                .connectTimeoutMs(30000L)
-                .build();
-
-        milvusClient = new MilvusClientV2(connectConfig);
-        log.info("Connected to Milvus at {}", uri);
     }
 
     @AfterAll
     void tearDown() {
-        if (milvusClient != null) {
-            // 清理测试集合
+        Throwable cleanupFailure = null;
+        try {
+            if (milvusClient != null) {
+                if (collectionExists()) {
+                    milvusClient.dropCollection(DropCollectionReq.builder()
+                            .collectionName(TEST_COLLECTION)
+                            .build());
+                }
+                awaitCondition("collection to be absent after cleanup", () -> !collectionExists());
+                assertFalse(collectionExists(), "Test collection must not exist after cleanup");
+                log.info("Verified test collection cleanup: {}", TEST_COLLECTION);
+            }
+        } catch (Throwable e) {
+            cleanupFailure = e;
+        } finally {
+            if (milvusClient != null) {
+                try {
+                    milvusClient.close();
+                } catch (Throwable e) {
+                    cleanupFailure = mergeFailure(cleanupFailure, e);
+                } finally {
+                    milvusClient = null;
+                }
+            }
+            if (embeddingServer != null) {
+                try {
+                    embeddingServer.stop(0);
+                } catch (Throwable e) {
+                    cleanupFailure = mergeFailure(cleanupFailure, e);
+                } finally {
+                    embeddingServer = null;
+                }
+            }
+        }
+
+        cleanupFailure = mergeFailure(cleanupFailure, embeddingFixtureFailure.get());
+        try {
+            assertEquals(EXPECTED_EMBEDDING_REQUESTS, embeddingRequests.size(),
+                    "Every expected embedding request must reach the loopback fixture");
+        } catch (Throwable e) {
+            cleanupFailure = mergeFailure(cleanupFailure, e);
+        }
+        if (cleanupFailure != null) {
+            throw new AssertionError("VectorIT cleanup or embedding fixture verification failed", cleanupFailure);
+        }
+    }
+
+    private String requireSystemProperty(String name) {
+        String value = System.getProperty(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("Required system property is missing: " + name);
+        }
+        return value.trim();
+    }
+
+    private int parsePort(String value) {
+        final int port;
+        try {
+            port = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalStateException(MILVUS_PORT_PROPERTY + " must be an integer: " + value, e);
+        }
+        if (port < 1 || port > 65535) {
+            throw new IllegalStateException(MILVUS_PORT_PROPERTY + " must be between 1 and 65535: " + port);
+        }
+        return port;
+    }
+
+    private void startEmbeddingFixture() throws IOException {
+        embeddingServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        embeddingServer.createContext("/embeddings", this::handleEmbeddingRequest);
+        embeddingServer.start();
+        assertTrue(embeddingServer.getAddress().getAddress().isLoopbackAddress(),
+                "Embedding fixture must bind to a loopback address");
+    }
+
+    private void handleEmbeddingRequest(HttpExchange exchange) throws IOException {
+        try {
+            String method = exchange.getRequestMethod();
+            String path = exchange.getRequestURI().getPath();
+            String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+            String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+            requireFixture("POST".equals(method), "Embedding request method must be POST");
+            requireFixture("/embeddings".equals(path), "Embedding request path must be /embeddings");
+            requireFixture(exchange.getRequestURI().getQuery() == null, "Embedding request must not have a query string");
+            requireFixture(("Bearer " + EMBEDDING_API_KEY).equals(authorization),
+                    "Embedding request Authorization header is invalid");
+            requireFixture(contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("application/json"),
+                    "Embedding request Content-Type must be application/json");
+
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            JsonObject request = JsonParser.parseString(body).getAsJsonObject();
+            requireFixture(request.keySet().equals(Set.of("model", "input")),
+                    "Embedding request must contain exactly model and input");
+            requireFixture(request.has("model") && EMBEDDING_MODEL.equals(request.get("model").getAsString()),
+                    "Embedding request model is invalid");
+            requireFixture(request.has("input"), "Embedding request input is missing");
+
+            List<String> inputs = parseFixtureInputs(request.get("input"));
+            embeddingRequests.add(new EmbeddingRequest(method, path, authorization, List.copyOf(inputs)));
+
+            JsonArray data = new JsonArray();
+            for (int i = 0; i < inputs.size(); i++) {
+                JsonObject item = new JsonObject();
+                item.addProperty("index", i);
+                item.add("embedding", gson.toJsonTree(vectorForText(inputs.get(i))));
+                data.add(item);
+            }
+            JsonObject response = new JsonObject();
+            response.add("data", data);
+            sendJson(exchange, 200, gson.toJson(response));
+        } catch (Throwable e) {
+            embeddingFixtureFailure.compareAndSet(null, e);
+            sendJson(exchange, 400, "{\"error\":\"embedding fixture rejected request\"}");
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private List<String> parseFixtureInputs(JsonElement input) {
+        List<String> inputs = new ArrayList<>();
+        if (input.isJsonPrimitive() && input.getAsJsonPrimitive().isString()) {
+            inputs.add(input.getAsString());
+        } else if (input.isJsonArray()) {
+            for (JsonElement item : input.getAsJsonArray()) {
+                requireFixture(item.isJsonPrimitive() && item.getAsJsonPrimitive().isString(),
+                        "Every batch embedding input must be a string");
+                inputs.add(item.getAsString());
+            }
+        } else {
+            throw new IllegalArgumentException("Embedding input must be a string or string array");
+        }
+        requireFixture(!inputs.isEmpty(), "Embedding input must not be empty");
+        for (String inputText : inputs) {
+            requireFixture(!inputText.isBlank(), "Embedding input text must not be blank");
+        }
+        return inputs;
+    }
+
+    private void requireFixture(boolean condition, String message) {
+        if (!condition) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private void sendJson(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+        exchange.sendResponseHeaders(status, bytes.length);
+        exchange.getResponseBody().write(bytes);
+        exchange.getResponseBody().close();
+    }
+
+    private List<Float> vectorForText(String text) {
+        if (text.startsWith("销售报告 ") || text.equals("销售报告")
+                || text.equals("销售业绩增长") || text.equals("业绩增长")
+                || text.equals("销售业绩报告")) {
+            return vector(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.1f);
+        }
+        if (text.startsWith("产品手册 ") || text.equals("产品手册")
+                || text.equals("产品说明书使用方法")) {
+            return vector(0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.1f);
+        }
+        if (text.startsWith("客户反馈 ")) {
+            return vector(0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.1f);
+        }
+        if (text.startsWith("技术文档 ") || text.equals("技术文档")
+                || text.equals("API接口设计REST")) {
+            return vector(0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.1f);
+        }
+        if (text.startsWith("市场分析 ")) {
+            return vector(0.7f, 0.0f, 0.0f, 0.0f, 0.7f, 0.1f);
+        }
+        if (text.startsWith("培训资料 ")) {
+            return vector(0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.1f);
+        }
+        if (text.startsWith("财务报表 ")) {
+            return vector(0.8f, 0.0f, 0.0f, 0.0f, 0.2f, 0.1f);
+        }
+        if (text.startsWith("用户指南 ")) {
+            return vector(0.0f, 0.8f, 0.0f, 0.0f, 0.2f, 0.1f);
+        }
+        if (text.equals("业务分析")) {
+            return vector(0.7f, 0.0f, 0.0f, 0.0f, 0.7f, 0.0f);
+        }
+        if (text.equals("这是一个测试文本") || text.equals("文档资料")) {
+            return vector(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+        }
+        throw new IllegalArgumentException("Unexpected embedding fixture input: " + text);
+    }
+
+    private List<Float> vector(float v1, float v2, float v3, float v4, float v5, float v6) {
+        return List.of(v1, v2, v3, v4, v5, v6, 0.0f, 0.0f);
+    }
+
+    private void assertFixtureRequest(int index, List<String> expectedInputs) {
+        assertFixtureHealthy();
+        assertTrue(index >= 0 && index < embeddingRequests.size(), "Embedding request index is missing: " + index);
+        EmbeddingRequest request = embeddingRequests.get(index);
+        assertEquals("POST", request.method());
+        assertEquals("/embeddings", request.path());
+        assertEquals("Bearer " + EMBEDDING_API_KEY, request.authorization());
+        assertEquals(expectedInputs, request.inputs());
+    }
+
+    private void assertFixtureHealthy() {
+        Throwable failure = embeddingFixtureFailure.get();
+        if (failure != null) {
+            throw new AssertionError("Embedding fixture rejected an HTTP request", failure);
+        }
+    }
+
+    private boolean collectionExists() {
+        return Boolean.TRUE.equals(milvusClient.hasCollection(HasCollectionReq.builder()
+                .collectionName(TEST_COLLECTION)
+                .build()));
+    }
+
+    private void awaitCondition(String description, BooleanSupplier condition) {
+        long deadline = System.nanoTime() + STATE_TIMEOUT.toNanos();
+        while (true) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            if (System.nanoTime() >= deadline) {
+                fail("Timed out after " + STATE_TIMEOUT.toSeconds() + "s waiting for " + description);
+            }
             try {
-                milvusClient.dropCollection(DropCollectionReq.builder()
-                        .collectionName(TEST_COLLECTION)
-                        .build());
-                log.info("Dropped test collection: {}", TEST_COLLECTION);
-            } catch (Exception e) {
-                log.warn("Failed to drop collection: {}", e.getMessage());
+                Thread.sleep(POLL_INTERVAL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("Interrupted while waiting for " + description, e);
             }
-            milvusClient.close();
         }
     }
 
-    private Properties loadConfig() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("test-config.properties")) {
-            if (is == null) {
-                return null;
+    private void closeResourcesAfterSetupFailure(Throwable originalFailure) {
+        if (milvusClient != null) {
+            try {
+                milvusClient.close();
+            } catch (Throwable closeFailure) {
+                originalFailure.addSuppressed(closeFailure);
+            } finally {
+                milvusClient = null;
             }
-            Properties props = new Properties();
-            props.load(is);
-            return props;
-        } catch (Exception e) {
-            log.error("Failed to load test-config.properties", e);
-            return null;
+        }
+        if (embeddingServer != null) {
+            try {
+                embeddingServer.stop(0);
+            } catch (Throwable closeFailure) {
+                originalFailure.addSuppressed(closeFailure);
+            } finally {
+                embeddingServer = null;
+            }
         }
     }
 
-    private void skipIfNotConfigured() {
-        Assumptions.assumeTrue(config != null,
-                "Skipping: test-config.properties not found. Copy test-config.properties.template to test-config.properties and configure it.");
+    private Throwable mergeFailure(Throwable current, Throwable next) {
+        if (next == null) {
+            return current;
+        }
+        if (current == null) {
+            return next;
+        }
+        if (current != next) {
+            current.addSuppressed(next);
+        }
+        return current;
+    }
+
+    private List<SearchResp.SearchResult> singleQueryResults(SearchResp response) {
+        return singleQueryResults(response, true);
+    }
+
+    private List<SearchResp.SearchResult> singleQueryResults(SearchResp response, boolean requireNonEmpty) {
+        assertNotNull(response, "Milvus search response must not be null");
+        List<List<SearchResp.SearchResult>> resultSets = response.getSearchResults();
+        assertNotNull(resultSets, "Milvus search result sets must not be null");
+        assertEquals(1, resultSets.size(), "Exactly one query vector must produce exactly one result set");
+        List<SearchResp.SearchResult> results = resultSets.get(0);
+        assertNotNull(results, "Milvus search results must not be null");
+        if (requireNonEmpty) {
+            assertFalse(results.isEmpty(), "Milvus search results must not be empty");
+        }
+        return results;
+    }
+
+    private Set<Long> documentIds(List<SearchResp.SearchResult> results) {
+        Set<Long> ids = new LinkedHashSet<>();
+        for (SearchResp.SearchResult result : results) {
+            assertNotNull(result, "Search result must not be null");
+            assertTrue(ids.add(documentId(result)), "Search results must not contain duplicate document ids");
+        }
+        return ids;
+    }
+
+    private long documentId(SearchResp.SearchResult result) {
+        Map<String, Object> entity = result.getEntity();
+        assertNotNull(entity, "Search result entity must not be null");
+        Object value = entity.get("doc_id");
+        assertNotNull(value, "Search result must contain doc_id");
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            throw new AssertionError("Search result doc_id is not numeric: " + value, e);
+        }
+    }
+
+    private Set<Long> allDocumentIds() {
+        return Set.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L);
     }
 
     // ==========================================
@@ -148,15 +454,13 @@ class VectorIT {
     @Order(1)
     @DisplayName("创建测试集合")
     void testCreateCollection() {
-        skipIfNotConfigured();
-
-        // 先删除已存在的集合
-        try {
+        if (collectionExists()) {
             milvusClient.dropCollection(DropCollectionReq.builder()
                     .collectionName(TEST_COLLECTION)
                     .build());
-        } catch (Exception ignored) {
+            awaitCondition("stale test collection to be absent", () -> !collectionExists());
         }
+        assertFalse(collectionExists(), "Stale test collection must be removed before creation");
 
         // 创建 Schema
         CreateCollectionReq.CollectionSchema schema = CreateCollectionReq.CollectionSchema.builder()
@@ -190,7 +494,7 @@ class VectorIT {
         schema.addField(AddFieldReq.builder()
                 .fieldName("embedding")
                 .dataType(DataType.FloatVector)
-                .dimension(vectorDimensions)
+                .dimension(VECTOR_DIMENSIONS)
                 .build());
 
         // 创建索引参数
@@ -199,7 +503,7 @@ class VectorIT {
                         .fieldName("embedding")
                         .indexType(IndexParam.IndexType.IVF_FLAT)
                         .metricType(IndexParam.MetricType.COSINE)
-                        .extraParams(Map.of("nlist", 128))
+                        .extraParams(Map.of("nlist", 1))
                         .build()
         );
 
@@ -212,13 +516,10 @@ class VectorIT {
 
         milvusClient.createCollection(createReq);
 
-        // 验证集合存在
-        boolean exists = milvusClient.hasCollection(HasCollectionReq.builder()
-                .collectionName(TEST_COLLECTION)
-                .build());
-        assertTrue(exists);
+        awaitCondition("test collection to exist", this::collectionExists);
+        assertTrue(collectionExists(), "Test collection must exist after creation");
 
-        log.info("Test collection created: {}, dimensions: {}", TEST_COLLECTION, vectorDimensions);
+        log.info("Test collection created: {}, dimensions: {}", TEST_COLLECTION, VECTOR_DIMENSIONS);
     }
 
     // ==========================================
@@ -229,13 +530,17 @@ class VectorIT {
     @Order(2)
     @DisplayName("Embedding 服务 - 单文本嵌入")
     void testSingleEmbedding() {
-        skipIfNotConfigured();
-
         String text = "这是一个测试文本";
+        int requestIndex = embeddingRequests.size();
         List<Float> embedding = embeddingService.embed(text);
 
         assertNotNull(embedding);
-        assertEquals(vectorDimensions, embedding.size());
+        assertEquals(VECTOR_DIMENSIONS, embeddingService.getDimensions());
+        assertFalse(embedding.isEmpty(), "Single embedding must not be empty");
+        assertEquals(VECTOR_DIMENSIONS, embedding.size());
+        assertEquals(vectorForText(text), embedding);
+        assertEquals(requestIndex + 1, embeddingRequests.size());
+        assertFixtureRequest(requestIndex, List.of(text));
 
         // 检查向量值范围
         for (Float value : embedding) {
@@ -250,22 +555,25 @@ class VectorIT {
     @Order(3)
     @DisplayName("Embedding 服务 - 批量嵌入")
     void testBatchEmbedding() {
-        skipIfNotConfigured();
-
         List<String> texts = Arrays.asList(
                 "销售报告",
                 "产品手册",
                 "技术文档"
         );
 
+        int requestIndex = embeddingRequests.size();
         List<List<Float>> embeddings = embeddingService.embedBatch(texts);
 
         assertNotNull(embeddings);
         assertEquals(3, embeddings.size());
 
-        for (List<Float> embedding : embeddings) {
-            assertEquals(vectorDimensions, embedding.size());
+        for (int i = 0; i < embeddings.size(); i++) {
+            assertFalse(embeddings.get(i).isEmpty(), "Batch embedding must not be empty at index " + i);
+            assertEquals(VECTOR_DIMENSIONS, embeddings.get(i).size());
+            assertEquals(vectorForText(texts.get(i)), embeddings.get(i));
         }
+        assertEquals(requestIndex + 1, embeddingRequests.size());
+        assertFixtureRequest(requestIndex, texts);
 
         log.info("Batch embedding test passed, count: {}", embeddings.size());
     }
@@ -278,8 +586,6 @@ class VectorIT {
     @Order(10)
     @DisplayName("插入测试数据")
     void testInsertData() {
-        skipIfNotConfigured();
-
         // 准备插入数据
         List<Long> docIds = new ArrayList<>();
         List<String> titles = new ArrayList<>();
@@ -293,7 +599,12 @@ class VectorIT {
             textsToEmbed.add(doc.get("title") + " " + doc.get("content"));
         }
 
+        int requestIndex = embeddingRequests.size();
         List<List<Float>> generatedEmbeddings = embeddingService.embedBatch(textsToEmbed);
+        assertNotNull(generatedEmbeddings);
+        assertEquals(TEST_DOCUMENTS.size(), generatedEmbeddings.size());
+        assertEquals(requestIndex + 1, embeddingRequests.size());
+        assertFixtureRequest(requestIndex, textsToEmbed);
 
         for (int i = 0; i < TEST_DOCUMENTS.size(); i++) {
             Map<String, Object> doc = TEST_DOCUMENTS.get(i);
@@ -301,6 +612,8 @@ class VectorIT {
             titles.add((String) doc.get("title"));
             contents.add((String) doc.get("content"));
             categories.add((String) doc.get("category"));
+            assertEquals(VECTOR_DIMENSIONS, generatedEmbeddings.get(i).size());
+            assertEquals(vectorForText(textsToEmbed.get(i)), generatedEmbeddings.get(i));
             embeddings.add(generatedEmbeddings.get(i));
         }
 
@@ -331,12 +644,26 @@ class VectorIT {
         milvusClient.loadCollection(LoadCollectionReq.builder()
                 .collectionName(TEST_COLLECTION)
                 .build());
+        awaitCondition("test collection to be loaded", () -> Boolean.TRUE.equals(milvusClient.getLoadState(
+                GetLoadStateReq.builder().collectionName(TEST_COLLECTION).build())));
+        assertTrue(milvusClient.getLoadState(GetLoadStateReq.builder()
+                .collectionName(TEST_COLLECTION)
+                .build()), "Test collection must be loaded");
 
-        // 等待加载完成
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException ignored) {
-        }
+        List<Float> probeVector = vectorForText("文档资料");
+        AtomicReference<List<SearchResp.SearchResult>> visibleDocuments = new AtomicReference<>(List.of());
+        awaitCondition("all inserted documents to be searchable", () -> {
+            List<SearchResp.SearchResult> results = singleQueryResults(milvusClient.search(SearchReq.builder()
+                    .collectionName(TEST_COLLECTION)
+                    .data(List.of(new FloatVec(probeVector)))
+                    .topK(TEST_DOCUMENTS.size())
+                    .outputFields(List.of("doc_id", "title", "category"))
+                    .build()), false);
+            visibleDocuments.set(results);
+            return results.size() == TEST_DOCUMENTS.size();
+        });
+        assertEquals(TEST_DOCUMENTS.size(), visibleDocuments.get().size());
+        assertEquals(allDocumentIds(), documentIds(visibleDocuments.get()));
     }
 
     // ==========================================
@@ -347,8 +674,6 @@ class VectorIT {
     @Order(20)
     @DisplayName("向量搜索 - 文本相似度查询")
     void testVectorSearchByText() {
-        skipIfNotConfigured();
-
         // 搜索与"销售业绩"相关的文档
         String queryText = "销售业绩增长";
         List<Float> queryVector = embeddingService.embed(queryText);
@@ -360,12 +685,11 @@ class VectorIT {
                 .outputFields(Arrays.asList("doc_id", "title", "content", "category"))
                 .build());
 
-        List<List<SearchResp.SearchResult>> results = searchResp.getSearchResults();
-        assertNotNull(results);
-        assertFalse(results.isEmpty());
-
-        List<SearchResp.SearchResult> firstQueryResults = results.get(0);
-        assertTrue(firstQueryResults.size() > 0);
+        List<SearchResp.SearchResult> firstQueryResults = singleQueryResults(searchResp);
+        assertEquals(5, firstQueryResults.size(), "topK=5 must return exactly five documents");
+        assertEquals(5, documentIds(firstQueryResults).size(), "Search results must have distinct document ids");
+        assertTrue(allDocumentIds().containsAll(documentIds(firstQueryResults)),
+                "Search results must only contain fixture documents");
 
         log.info("Search query: '{}'", queryText);
         log.info("Found {} results:", firstQueryResults.size());
@@ -380,6 +704,7 @@ class VectorIT {
 
         // 验证：销售相关的文档应该排在前面
         SearchResp.SearchResult topResult = firstQueryResults.get(0);
+        assertEquals(1L, documentId(topResult), "Sales query must rank the sales report first");
         String topCategory = (String) topResult.getEntity().get("category");
         assertEquals("report", topCategory, "销售业绩查询应该返回报告类文档");
     }
@@ -388,8 +713,6 @@ class VectorIT {
     @Order(21)
     @DisplayName("向量搜索 - 带过滤条件")
     void testVectorSearchWithFilter() {
-        skipIfNotConfigured();
-
         // 只搜索 category = 'report' 的文档
         String queryText = "业绩增长";
         List<Float> queryVector = embeddingService.embed(queryText);
@@ -402,10 +725,9 @@ class VectorIT {
                 .outputFields(Arrays.asList("doc_id", "title", "category"))
                 .build());
 
-        List<List<SearchResp.SearchResult>> results = searchResp.getSearchResults();
-        assertNotNull(results);
-
-        List<SearchResp.SearchResult> firstQueryResults = results.get(0);
+        List<SearchResp.SearchResult> firstQueryResults = singleQueryResults(searchResp);
+        assertEquals(Set.of(1L, 5L, 7L), documentIds(firstQueryResults),
+                "Report filter must return the exact three report documents");
 
         log.info("Filtered search (category=report): found {} results", firstQueryResults.size());
 
@@ -421,8 +743,6 @@ class VectorIT {
     @Order(22)
     @DisplayName("向量搜索 - 技术文档查询")
     void testVectorSearchTechnical() {
-        skipIfNotConfigured();
-
         String queryText = "API接口设计REST";
         List<Float> queryVector = embeddingService.embed(queryText);
 
@@ -433,7 +753,8 @@ class VectorIT {
                 .outputFields(Arrays.asList("doc_id", "title", "content", "category"))
                 .build());
 
-        List<SearchResp.SearchResult> firstQueryResults = searchResp.getSearchResults().get(0);
+        List<SearchResp.SearchResult> firstQueryResults = singleQueryResults(searchResp);
+        assertEquals(3, firstQueryResults.size(), "topK=3 must return exactly three documents");
 
         log.info("Technical search: '{}'", queryText);
         for (SearchResp.SearchResult result : firstQueryResults) {
@@ -445,6 +766,7 @@ class VectorIT {
 
         // 技术文档应该排在最前面
         SearchResp.SearchResult topResult = firstQueryResults.get(0);
+        assertEquals(4L, documentId(topResult), "Technical query must rank the API document first");
         assertEquals("technical", topResult.getEntity().get("category"),
                 "API接口查询应该返回技术文档");
     }
@@ -453,8 +775,6 @@ class VectorIT {
     @Order(23)
     @DisplayName("向量搜索 - 相似度阈值过滤")
     void testVectorSearchWithMinScore() {
-        skipIfNotConfigured();
-
         String queryText = "产品说明书使用方法";
         List<Float> queryVector = embeddingService.embed(queryText);
 
@@ -465,7 +785,9 @@ class VectorIT {
                 .outputFields(Arrays.asList("doc_id", "title", "category"))
                 .build());
 
-        List<SearchResp.SearchResult> allResults = searchResp.getSearchResults().get(0);
+        List<SearchResp.SearchResult> allResults = singleQueryResults(searchResp);
+        assertEquals(TEST_DOCUMENTS.size(), allResults.size(),
+                "topK above fixture size must return every fixture document");
 
         // 手动过滤 minScore >= 0.5
         float minScore = 0.5f;
@@ -478,6 +800,9 @@ class VectorIT {
 
         log.info("Search with minScore={}: {} of {} results passed", minScore, filteredResults.size(), allResults.size());
 
+        assertFalse(filteredResults.isEmpty(), "Min-score filtering must not be vacuously green");
+        assertEquals(Set.of(2L, 8L), documentIds(filteredResults),
+                "Manual query must retain exactly the two manual documents");
         for (SearchResp.SearchResult result : filteredResults) {
             assertTrue(result.getScore() >= minScore);
             log.info("  - [score: {:.4f}] {}", result.getScore(), result.getEntity().get("title"));
@@ -492,11 +817,9 @@ class VectorIT {
     @Order(30)
     @DisplayName("v2.0 - 元数据自动发现")
     void testMetadataAutoDiscovery() {
-        skipIfNotConfigured();
-
         VectorDbConfig vectorDbConfig = VectorDbConfig.builder()
-                .host(config.getProperty("milvus.host", "localhost"))
-                .port(Integer.parseInt(config.getProperty("milvus.port", "19530")))
+                .host(milvusHost)
+                .port(milvusPort)
                 .autoDiscovery(true)
                 .build();
 
@@ -516,7 +839,7 @@ class VectorIT {
 
             assertEquals(TEST_COLLECTION, metadata.getCollectionName());
             assertEquals("embedding", metadata.getFieldName());
-            assertEquals(vectorDimensions, metadata.getDimension());
+            assertEquals(VECTOR_DIMENSIONS, metadata.getDimension());
             assertEquals("FloatVector", metadata.getVectorType());
             assertTrue(metadata.isIndexed(), "向量字段应该有索引");
             assertEquals("COSINE", metadata.getMetricType(), "度量类型应该是 COSINE");
@@ -541,11 +864,9 @@ class VectorIT {
     @Order(31)
     @DisplayName("v2.0 - 自动发现所有向量字段")
     void testDiscoverAllVectorFields() {
-        skipIfNotConfigured();
-
         VectorDbConfig vectorDbConfig = VectorDbConfig.builder()
-                .host(config.getProperty("milvus.host", "localhost"))
-                .port(Integer.parseInt(config.getProperty("milvus.port", "19530")))
+                .host(milvusHost)
+                .port(milvusPort)
                 .build();
 
         MilvusMetadataService metadataService = new MilvusMetadataService(vectorDbConfig);
@@ -556,6 +877,9 @@ class VectorIT {
 
             VectorFieldMetadata field = fields.get(0);
             assertEquals("embedding", field.getFieldName());
+            assertEquals(VECTOR_DIMENSIONS, field.getDimension());
+            assertEquals("FloatVector", field.getVectorType());
+            assertEquals("doc_id", field.getPrimaryKeyField());
 
             log.info("Discovered {} vector fields in collection '{}'", fields.size(), TEST_COLLECTION);
 
@@ -568,18 +892,16 @@ class VectorIT {
     @Order(32)
     @DisplayName("v2.0 - 连接池功能测试")
     void testConnectionPool() throws Exception {
-        skipIfNotConfigured();
-
         VectorDbConfig vectorDbConfig = VectorDbConfig.builder()
-                .host(config.getProperty("milvus.host", "localhost"))
-                .port(Integer.parseInt(config.getProperty("milvus.port", "19530")))
+                .host(milvusHost)
+                .port(milvusPort)
                 .poolSize(3)
                 .poolMaxWaitMs(5000L)
                 .build();
 
         MilvusClientPool pool = new MilvusClientPool(vectorDbConfig);
         try {
-            // 测试并发执行
+            // 重复验证连接借用、调用与归还。
             List<Boolean> results = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
                 Boolean result = pool.execute(client -> {
@@ -600,6 +922,7 @@ class VectorIT {
             // 验证连接池状态
             String poolStatus = pool.getPoolStatus();
             assertNotNull(poolStatus);
+            assertFalse(poolStatus.isBlank(), "Connection pool status must not be blank");
             log.info("Connection pool status: {}", poolStatus);
 
         } finally {
@@ -611,8 +934,6 @@ class VectorIT {
     @Order(33)
     @DisplayName("v2.0 - 向量搜索带 groupBy")
     void testVectorSearchWithGroupBy() {
-        skipIfNotConfigured();
-
         String queryText = "文档资料";
         List<Float> queryVector = embeddingService.embed(queryText);
 
@@ -625,10 +946,7 @@ class VectorIT {
                 .outputFields(Arrays.asList("doc_id", "title", "category"))
                 .build());
 
-        List<SearchResp.SearchResult> results = searchResp.getSearchResults().get(0);
-
-        // 验证结果不为空
-        assertFalse(results.isEmpty(), "groupBy 搜索应该返回结果");
+        List<SearchResp.SearchResult> results = singleQueryResults(searchResp);
 
         // 统计每个 category 出现的次数
         Map<String, Integer> categoryCounts = new HashMap<>();
@@ -641,22 +959,19 @@ class VectorIT {
                     category);
         }
 
-        // groupBy 应该减少总结果数或每组返回一个代表
         log.info("GroupBy search returned {} results with {} unique categories",
                 results.size(), categoryCounts.size());
-
-        // 验证 groupBy 确实起作用：结果数不应该超过类别数太多
-        // （某些 Milvus 版本 groupBy 的行为可能不同）
-        assertTrue(results.size() <= TEST_DOCUMENTS.size(),
-                "groupBy 结果不应超过总文档数");
+        assertEquals(Set.of("report", "manual", "feedback", "technical", "training"),
+                categoryCounts.keySet(), "groupBy must return every fixture category exactly once");
+        assertEquals(5, results.size(), "groupBy must return one representative for each category");
+        assertTrue(categoryCounts.values().stream().allMatch(count -> count == 1),
+                "groupBy must return exactly one result per category");
     }
 
     @Test
     @Order(34)
     @DisplayName("v2.0 - 范围搜索 (radius)")
     void testVectorSearchWithRadius() {
-        skipIfNotConfigured();
-
         String queryText = "销售业绩报告";
         List<Float> queryVector = embeddingService.embed(queryText);
 
@@ -672,10 +987,12 @@ class VectorIT {
                 .outputFields(Arrays.asList("doc_id", "title", "category"))
                 .build());
 
-        List<SearchResp.SearchResult> results = searchResp.getSearchResults().get(0);
+        List<SearchResp.SearchResult> results = singleQueryResults(searchResp);
 
         log.info("Radius search (radius=0.3): found {} results", results.size());
 
+        assertEquals(Set.of(1L, 5L, 7L), documentIds(results),
+                "Sales radius search must return the exact three sales-related reports");
         for (SearchResp.SearchResult result : results) {
             float score = result.getScore();
             assertTrue(score >= 0.3f, "范围搜索结果的分数应该 >= 0.3，实际: " + score);
@@ -690,8 +1007,6 @@ class VectorIT {
     @Order(35)
     @DisplayName("v2.0 - 混合搜索 (向量 + 关键词过滤)")
     void testHybridSearch() {
-        skipIfNotConfigured();
-
         // 混合搜索：向量相似度 + 关键词过滤
         String queryText = "业务分析";
         String keywordFilter = "category == \"report\"";
@@ -706,10 +1021,12 @@ class VectorIT {
                 .outputFields(Arrays.asList("doc_id", "title", "content", "category"))
                 .build());
 
-        List<SearchResp.SearchResult> results = searchResp.getSearchResults().get(0);
+        List<SearchResp.SearchResult> results = singleQueryResults(searchResp);
 
         log.info("Hybrid search (vector + keyword filter): found {} results", results.size());
 
+        assertEquals(Set.of(1L, 5L, 7L), documentIds(results),
+                "Hybrid search must return the exact three report documents");
         for (SearchResp.SearchResult result : results) {
             String category = (String) result.getEntity().get("category");
             assertEquals("report", category, "混合搜索结果应该都是 report 类别");
@@ -724,8 +1041,6 @@ class VectorIT {
     @Order(40)
     @DisplayName("v2.0 - 错误处理测试")
     void testErrorHandling() {
-        skipIfNotConfigured();
-
         // 测试 VectorQueryException 和 VectorErrorCode
         VectorQueryException ex1 = VectorQueryException.collectionNotFound("non_existent_collection");
         assertEquals("VEC_101", ex1.getCode());

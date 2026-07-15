@@ -37,6 +37,12 @@ RESOURCES = {
         "cell": "mysql57",
         "ready_timeout": 180,
     },
+    "vector": {
+        "runner": ROOT / "scripts/verify-v934-external-vector.sh",
+        "environment": "V934_EXTERNAL_VECTOR_SIGNAL_PROBE",
+        "cell": "milvus24",
+        "ready_timeout": 240,
+    },
 }
 
 
@@ -141,22 +147,38 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
     status = parse_env(status_path)
     cleanup = parse_env(cleanup_path)
     resource_cleanup_matches = (
-        cleanup.get("container") == ready.get("container")
-        and cleanup.get("container_residue") == "0"
+        cleanup.get("container_residue") == "0"
         and cleanup.get("volume_residue") == "0"
         and cleanup.get("status") == "passed"
     )
     if resource in {"redis", "mysql"}:
         resource_cleanup_matches = (
             resource_cleanup_matches
+            and cleanup.get("container") == ready.get("container")
             and cleanup.get("volume") == ready.get("volume")
         )
-    else:
+    elif resource == "mongo":
         resource_cleanup_matches = (
             resource_cleanup_matches
+            and cleanup.get("container") == ready.get("container")
             and cleanup.get("data_volume") == ready.get("data_volume")
             and cleanup.get("config_volume") == ready.get("config_volume")
         )
+    elif resource == "vector":
+        resource_cleanup_matches = (
+            resource_cleanup_matches
+            and cleanup.get("network_residue") == "0"
+            and cleanup.get("cell") == configuration["cell"]
+            and cleanup.get("network") == ready.get("network")
+            and cleanup.get("milvus_container") == ready.get("milvus_container")
+            and cleanup.get("etcd_container") == ready.get("etcd_container")
+            and cleanup.get("minio_container") == ready.get("minio_container")
+            and cleanup.get("milvus_volume") == ready.get("milvus_volume")
+            and cleanup.get("etcd_volume") == ready.get("etcd_volume")
+            and cleanup.get("minio_volume") == ready.get("minio_volume")
+        )
+    else:
+        fail(f"unsupported signal-probe resource: {resource}")
     if (
         status.get("run_id") != run_id
         or status.get("last_phase") != "signal-probe-ready"
@@ -180,8 +202,14 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
     volume_residue = docker_count(
         ["volume", "ls", "-q", "--filter", f"label=com.foggy.v934.external-run={run_id}"]
     )
-    if container_residue or volume_residue:
-        fail(f"{signal_name} left Docker residue: {container_residue}/{volume_residue}")
+    network_residue = docker_count(
+        ["network", "ls", "-q", "--filter", f"label=com.foggy.v934.external-run={run_id}"]
+    )
+    if container_residue or volume_residue or network_residue:
+        fail(
+            f"{signal_name} left Docker residue: "
+            f"{container_residue}/{volume_residue}/{network_residue}"
+        )
     return {
         "signal": signal_name,
         "expected_code": str(expected_code),
@@ -191,6 +219,7 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
         "cleanup_sha256": sha256(cleanup_path),
         "container_residue": "0",
         "volume_residue": "0",
+        "network_residue": "0",
         "summary_absent": "true",
         "candidate_absent": "true",
         "fifo_absent": "true",
@@ -213,8 +242,8 @@ def main() -> int:
     rows = [run_probe(args.run_prefix, name, args.resource) for name in EXPECTED]
     header = [
         "signal", "expected_code", "actual_code", "run_id", "status_sha256",
-        "cleanup_sha256", "container_residue", "volume_residue", "summary_absent",
-        "candidate_absent", "fifo_absent", "status",
+        "cleanup_sha256", "container_residue", "volume_residue", "network_residue",
+        "summary_absent", "candidate_absent", "fifo_absent", "status",
     ]
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.name}.{os.getpid()}.tmp")

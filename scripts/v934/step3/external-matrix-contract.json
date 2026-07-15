@@ -18,11 +18,11 @@
     },
     "external_redis_signal_probe": {
       "path": "scripts/v934/step3/external_redis_signal_probe.py",
-      "sha256": "4190124b5f088dd9cbea6f18e7b29d92ef1a28653bdd908d97c1553d0c2c45b8"
+      "sha256": "840bb078dfde16852778c1a1d6b2735ddab5fef5c1c2209a7113e8e901e4da56"
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "0df48d61a36f6aad61aeb92deef2756ebd23cbf60e716578f7bf123f608405d2"
+      "sha256": "eb89de223d04991632c1b0b4abd529ae90d48a86db6a8e550e241ab2c7b10aae"
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",
@@ -31,6 +31,10 @@
     "external_mysql_runner": {
       "path": "scripts/verify-v934-external-mysql.sh",
       "sha256": "4c4bb615d7cccee45f97a037db90c1ffe29867dc972b8a744f8de1ce14b4d468"
+    },
+    "external_vector_runner": {
+      "path": "scripts/verify-v934-external-vector.sh",
+      "sha256": "dc1e10afde1ec2b1bc95e6deca8e3b96b7b5b94754e55dfd3c57aeec90a9491a"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",
@@ -162,6 +166,26 @@
       ],
       "source_id": "v934-src|99:foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/ComposeScriptToolIT.java",
       "source_path": "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/ComposeScriptToolIT.java"
+    },
+    {
+      "amended_sha256": "98688007eccc4120ffb3c6ce9e3ac05dbf4cce8f3d6369227bd88a5858f4490a",
+      "original_sha256": "0fd8a5c92be15194d43ed418ccf489a3e3d1f9959978644f1c2164cf7bb3806a",
+      "reason": "required Vector model integration now uses a loopback deterministic embedding fixture, exact non-empty assertions, bounded polling, and fail-closed cleanup without changing discovery cardinality",
+      "report_fqcns": [
+        "com.foggyframework.dataset.db.model.vector.VectorIT"
+      ],
+      "source_id": "v934-src|104:addons/foggy-dataset-model-vector/src/test/java/com/foggyframework/dataset/db/model/vector/VectorIT.java",
+      "source_path": "addons/foggy-dataset-model-vector/src/test/java/com/foggyframework/dataset/db/model/vector/VectorIT.java"
+    },
+    {
+      "amended_sha256": "230bda229e791d5c317d1b0ac7f70e25ed063371298936b3eeb52ecfb3e8bd0d",
+      "original_sha256": "a7d1dd22c757ea094e28bea1479e3a9e1c1a8e28bf18efc710904846d9b87ec5",
+      "reason": "required VectorStore integration now uses a deterministic local embedding model, fixed physical schema and fixtures, exact non-empty assertions, and fail-closed cleanup without changing discovery cardinality",
+      "report_fqcns": [
+        "com.foggyframework.dataset.vector.integration.VectorStoreIT"
+      ],
+      "source_id": "v934-src|106:addons/foggy-dataset-vector/src/test/java/com/foggyframework/dataset/vector/integration/VectorStoreIT.java",
+      "source_path": "addons/foggy-dataset-vector/src/test/java/com/foggyframework/dataset/vector/integration/VectorStoreIT.java"
     }
   ],
   "variants": [
