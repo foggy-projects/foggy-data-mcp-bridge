@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -143,6 +145,106 @@ class ColumnRefOwnerResolutionB600Test extends EcommerceTestSupport {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
         assertFalse(rows.isEmpty(), "显式 alias/self-join SQL 必须在 SQLite fixture 上真实执行");
+    }
+
+    @Test
+    @DisplayName("B600: 显式 alias 的维度自动属性和嵌套子维度保留公开前缀并执行 SQLite SQL")
+    void explicitAliasDimensionExpansionShouldKeepQualifiedPropertiesAndNestedChildren() {
+        JdbcQueryModel queryModel = getQueryModel("TerminalFulfillmentB600ExplicitAliasNestedDimensionProbeQueryModel");
+        assertNotNull(queryModel, "B600 显式 alias 嵌套维度探针 QM 加载失败");
+
+        TableModel rightSales = findModelByAlias(queryModel, "rightSales");
+        Set<String> columnNames = queryModel.getJdbcQueryColumns().stream()
+                .map(DbQueryColumn::getName)
+                .collect(Collectors.toSet());
+
+        // Fully automatic right-side product expansion: both properties and nested
+        // category fields must retain rightSales as their public qualifier.
+        assertTrue(columnNames.contains("rightSales.product$id"));
+        assertTrue(columnNames.contains("rightSales.product$caption"));
+        assertTrue(columnNames.contains("rightSales.product$productId"));
+        assertTrue(columnNames.contains("rightSales.product$brand"));
+        assertTrue(columnNames.contains("rightSales.product_category$id"));
+        assertTrue(columnNames.contains("rightSales.product_category$caption"));
+        assertTrue(columnNames.contains("rightSales.product_category$categoryId"));
+        assertFalse(columnNames.contains("product$productId"),
+                "显式 alias 自动属性不得退化成裸 product$productId");
+        assertFalse(columnNames.contains("product_category$categoryId"),
+                "显式 alias 自动嵌套属性不得退化成裸 product_category$categoryId");
+
+        // The store item deliberately has an explicit property and explicit child.
+        // Those references suppress the parent item's corresponding automatic paths.
+        assertTrue(columnNames.contains("rightSales.store$storeType"));
+        assertFalse(columnNames.contains("store$storeId"),
+                "显式 rightSales.store$storeType 必须抑制父维度的裸自动属性");
+        assertTrue(columnNames.contains("rightSales.store_region$id"));
+        assertTrue(columnNames.contains("rightSales.store_region$caption"));
+        assertTrue(columnNames.contains("rightSales.store_region$regionId"));
+        assertFalse(columnNames.contains("store_region$regionId"),
+                "显式 rightSales.store.region 必须抑制父维度的裸自动子维度展开");
+
+        assertColumnOwner(queryModel, rightSales,
+                "rightSales.product$productId", "product$productId");
+        assertColumnOwner(queryModel, rightSales,
+                "rightSales.product_category$categoryId", "product_category$categoryId");
+        assertColumnOwner(queryModel, rightSales,
+                "rightSales.store_region$regionId", "store_region$regionId");
+
+        String productAlias = queryModel.getAlias(queryModel.findJdbcQueryColumnByName(
+                "rightSales.product$productId", true).getSelectColumn().getQueryObject());
+        String categoryAlias = queryModel.getAlias(queryModel.findJdbcQueryColumnByName(
+                "rightSales.product_category$categoryId", true).getSelectColumn().getQueryObject());
+        String storeAlias = queryModel.getAlias(queryModel.findJdbcQueryColumnByName(
+                "rightSales.store$storeType", true).getSelectColumn().getQueryObject());
+        String regionAlias = queryModel.getAlias(queryModel.findJdbcQueryColumnByName(
+                "rightSales.store_region$regionId", true).getSelectColumn().getQueryObject());
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("TerminalFulfillmentB600ExplicitAliasNestedDimensionProbeQueryModel");
+        request.setColumns(List.of(
+                "rightSales.product$caption",
+                "rightSales.product$productId",
+                "rightSales.product_category$caption",
+                "rightSales.product_category$categoryId",
+                "rightSales.store$caption",
+                "rightSales.store$storeType",
+                "rightSales.store_region$caption",
+                "rightSales.store_region$regionId"));
+
+        ModelResultContext context = new ModelResultContext();
+        context.setRequest(PagingRequest.buildPagingRequest(request, 100));
+        DbQueryResult result = queryFacade.queryModelResult(context);
+        JdbcModelQueryEngine queryEngine = (JdbcModelQueryEngine) result.getQueryEngine();
+        String sql = normalizeSql(queryEngine.getSql());
+
+        assertTrue(sql.contains("left join fact_sales_nested rightSales"),
+                "显式 alias self-join 必须保留 rightSales 事实表实例");
+        assertTrue(sql.contains("left join dim_product_nested " + productAlias),
+                "rightSales product 自动属性必须 JOIN 到 rightSales 所属维表实例");
+        assertTrue(sql.contains("left join dim_category_nested " + categoryAlias),
+                "rightSales product 子维度必须 JOIN 到 rightSales 所属嵌套实例");
+        assertTrue(sql.contains("left join dim_store_nested " + storeAlias),
+                "rightSales store 显式属性必须 JOIN 到 rightSales 所属维表实例");
+        assertTrue(sql.contains("left join dim_region_nested " + regionAlias),
+                "rightSales store 显式子维度必须 JOIN 到 rightSales 所属嵌套实例");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.getPagingResult().getItems();
+        assertFalse(rows.isEmpty(), "显式 alias 嵌套维度 SQL 必须在 SQLite fixture 上真实执行并返回数据");
+        assertTrue(rows.stream().allMatch(row -> row.get("rightSales.product$productId") != null
+                        && row.get("rightSales.product_category$categoryId") != null
+                        && row.get("rightSales.store_region$regionId") != null),
+                "右侧自动/显式嵌套维度字段必须作为真实查询结果返回");
+    }
+
+    private void assertColumnOwner(JdbcQueryModel queryModel, TableModel ownerModel,
+                                   String queryColumnName, String ownerColumnName) {
+        DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(queryColumnName, true);
+        DbColumn ownerColumn = ownerModel.findJdbcColumnByName(ownerColumnName);
+        assertNotNull(ownerColumn, "owner TM 缺少字段: " + ownerColumnName);
+        assertEquals(queryModel.getAlias(ownerColumn.getQueryObject()),
+                queryModel.getAlias(queryColumn.getSelectColumn().getQueryObject()),
+                queryColumnName + " 必须保留 rightSales 的维表实例归属");
     }
 
     private TableModel findModelByAlias(JdbcQueryModel queryModel, String alias) {

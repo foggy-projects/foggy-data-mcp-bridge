@@ -1245,7 +1245,12 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         // 2. 展开属性：仅当该维度没有任何显式属性引用时
         if (dimension instanceof DbDimensionSupport) {
-            String basePath = dimension.getFullPathForAlias();
+            // columnName is the public path for this QM item.  For an explicitly
+            // aliased TableModel it already carries that qualifier (for example
+            // rightOrder.openingOrg); falling back to DbDimension's cached path
+            // would expose a bare openingOrg$property and make two TM instances
+            // collide in the public QM schema.
+            String basePath = columnName;
             // 检查是否有任何该维度的显式属性引用
             String propPrefix = basePath + "$";
             boolean hasExplicitProps = explicitColumnNames.stream()
@@ -1264,16 +1269,32 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         // 3. 递归展开嵌套子维度（跳过已被 QM 显式引用的子维度）
         if (dimension.hasChildDimensions()) {
             for (DbDimension child : dimension.getChildDimensions()) {
-                String childDimPath = child.getFullPath();
+                String childDimPath = publicDimensionPath(columnName, dimension, child.getFullPath());
                 if (explicitDimensionRefs.contains(childDimPath)) {
                     // 该子维度已被 QM 显式引用，由其自身的 ref 展开，此处跳过
                     continue;
                 }
-                String childColumnName = child.getFullPathForAlias();
+                String childColumnName = publicDimensionPath(columnName, dimension, child.getFullPathForAlias());
                 expandDimension(qm, group, ownerModel, child, childColumnName, item, hasRef,
                         explicitColumnNames, explicitDimensionRefs);
             }
         }
+    }
+
+    /**
+     * Reuse the public table qualifier already present on {@code currentColumnName}
+     * when recursing into a nested dimension.  The cached DbDimension only knows its
+     * TM-local path, so it must not decide the public schema of an explicit QM alias.
+     */
+    private String publicDimensionPath(String currentColumnName, DbDimension currentDimension, String targetPath) {
+        if (StringUtils.isEmpty(currentColumnName) || currentDimension == null || StringUtils.isEmpty(targetPath)) {
+            return targetPath;
+        }
+        String currentLocalPath = currentDimension.getFullPathForAlias();
+        if (StringUtils.isEmpty(currentLocalPath) || !currentColumnName.endsWith(currentLocalPath)) {
+            return targetPath;
+        }
+        return currentColumnName.substring(0, currentColumnName.length() - currentLocalPath.length()) + targetPath;
     }
 
     private DbColumn resolveColumnForItem(QueryModelSupport qm, SelectColumnDef item, String columnName) {

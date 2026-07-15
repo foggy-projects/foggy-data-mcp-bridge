@@ -1,0 +1,38 @@
+/**
+ * B600 explicit-alias nested-dimension probe.
+ *
+ * Keeps one right-side dimension fully automatic and makes the other exercise
+ * explicit property / child-dimension suppression.  This must keep the public
+ * rightSales qualifier all the way through automatic expansion.
+ */
+const leftSales = loadTableModel('FactSalesNestedDimModel', 'leftSales');
+const rightSales = loadTableModel('FactSalesNestedDimModel').as('rightSales');
+
+export const queryModel = {
+    name: 'TerminalFulfillmentB600ExplicitAliasNestedDimensionProbeQueryModel',
+    caption: 'B600 显式别名嵌套维度探针',
+    model: leftSales,
+
+    joins: [
+        leftSales.leftJoin(rightSales).on(leftSales.product$id, rightSales.product$id)
+    ],
+
+    columnGroups: [
+        {
+            caption: '右侧自动展开商品维度',
+            items: [
+                { ref: rightSales.product }
+            ]
+        },
+        {
+            caption: '右侧显式属性和子维度',
+            items: [
+                { ref: rightSales.store },
+                { ref: rightSales.store$storeType },
+                { ref: rightSales.store.region }
+            ]
+        }
+    ],
+
+    accesses: []
+};
