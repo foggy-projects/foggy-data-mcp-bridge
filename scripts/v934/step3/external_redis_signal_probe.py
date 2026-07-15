@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise external Redis/Mongo runners against real INT/TERM/HUP signals."""
+"""Exercise external stateful runners against real INT/TERM/HUP signals."""
 
 from __future__ import annotations
 
@@ -23,11 +23,19 @@ RESOURCES = {
         "runner": ROOT / "scripts/verify-v934-external-redis.sh",
         "environment": "V934_EXTERNAL_REDIS_SIGNAL_PROBE",
         "cell": "redis7",
+        "ready_timeout": 90,
     },
     "mongo": {
         "runner": ROOT / "scripts/verify-v934-external-mongo.sh",
         "environment": "V934_EXTERNAL_MONGO_SIGNAL_PROBE",
         "cell": "mongo6",
+        "ready_timeout": 90,
+    },
+    "mysql": {
+        "runner": ROOT / "scripts/verify-v934-external-mysql.sh",
+        "environment": "V934_EXTERNAL_MYSQL_SIGNAL_PROBE",
+        "cell": "mysql57",
+        "ready_timeout": 180,
     },
 }
 
@@ -109,7 +117,11 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
         start_new_session=True,
     )
     try:
-        wait_ready(process, run_root / "signal-probe-ready.env", 90)
+        wait_ready(
+            process,
+            run_root / "signal-probe-ready.env",
+            float(configuration["ready_timeout"]),
+        )
         os.kill(process.pid, getattr(signal, f"SIG{signal_name}"))
         try:
             stdout, stderr = process.communicate(timeout=45)
@@ -134,7 +146,7 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
         and cleanup.get("volume_residue") == "0"
         and cleanup.get("status") == "passed"
     )
-    if resource == "redis":
+    if resource in {"redis", "mysql"}:
         resource_cleanup_matches = (
             resource_cleanup_matches
             and cleanup.get("volume") == ready.get("volume")

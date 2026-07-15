@@ -41,6 +41,7 @@ INVENTORY_BINDINGS = {"deferred_inventory", "discovery_inventory", "source_inven
 FRAMEWORK_BINDINGS = {
     "authority_runner_lib", "external_report_tool", "external_redis_runner",
     "external_redis_signal_probe", "external_mongo_runner",
+    "external_mysql_runner",
 }
 EXPECTED_BINDINGS = INVENTORY_BINDINGS | FRAMEWORK_BINDINGS
 OUTER_FIELDS = {
@@ -103,6 +104,48 @@ MONGO_CLEAN_MODULES = (
     "foggy-dataset", "foggy-dataset-demo", "foggy-dataset-model",
     "addons/foggy-data-viewer", "addons/foggy-dataset-model-mongo",
 )
+MYSQL57_IMAGE_REF = "mysql@sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb"
+MYSQL57_IMAGE_ID = "sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb"
+MYSQL_CLEAN_MODULES = (
+    "foggy-core", "foggy-bean-copy", "foggy-mcp-spi", "foggy-fsscript",
+    "foggy-dataset", "foggy-dataset-demo", "foggy-dataset-model",
+    "foggy-dataset-mcp",
+)
+MYSQL57_TABLE_COUNT = 69
+MYSQL57_TABLE_SET_SHA256 = (
+    "6c3356917e89c46c5e37851226a40b3d28e07f1db02bb2fe5fbecec8183591b7"
+)
+MYSQL57_CONTENT_SHA256 = (
+    "c8edcd273ed2b0f9383330c7546521515ce729b078d5614995cd05752123ec8f"
+)
+MYSQL57_REQUIRED_TABLES = frozenset({
+    "dim_channel", "dim_customer", "dim_date", "dim_product",
+    "dim_promotion", "dim_sales_team", "dim_store", "fact_order",
+    "fact_return", "fact_sales",
+})
+MYSQL57_FIXTURE_METRICS = {
+    "table_count": 69,
+    "primary_key_table_count": 69,
+    "dim_date_count": 1461,
+    "dim_product_count": 500,
+    "dim_customer_count": 1000,
+    "dim_store_count": 50,
+    "fact_sales_count": 3088,
+    "fact_order_count": 20005,
+    "fact_return_count": 316,
+    "compose_join_count": 10,
+    "foreign_database_count": 0,
+}
+MYSQL57_DIRECT_CASE_COUNT = 23
+MYSQL57_ECOMMERCE_SOURCE = (
+    ROOT / "foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce"
+)
+MYSQL57_CURATED_BUNDLE_COUNTS = {
+    "files": 59,
+    "qm_files": 32,
+    "tm_files": 25,
+    "fsscript_files": 2,
+}
 
 
 class ContractError(RuntimeError):
@@ -1303,6 +1346,19 @@ def source_seal_inputs(lane: str) -> tuple[str, ...]:
             "addons/foggy-dataset-model-mongo/pom.xml",
             "addons/foggy-dataset-model-mongo/src",
         )
+    if lane == "external-mysql":
+        return (
+            "pom.xml",
+            "foggy-core/pom.xml", "foggy-core/src/main",
+            "foggy-bean-copy/pom.xml", "foggy-bean-copy/src/main",
+            "foggy-mcp-spi/pom.xml", "foggy-mcp-spi/src/main",
+            "foggy-fsscript/pom.xml", "foggy-fsscript/src/main",
+            "foggy-dataset/pom.xml", "foggy-dataset/src/main",
+            "foggy-dataset-demo/pom.xml", "foggy-dataset-demo/src/main",
+            "foggy-dataset-demo/docker/mysql/init",
+            "foggy-dataset-model/pom.xml", "foggy-dataset-model/src/main",
+            "foggy-dataset-mcp/pom.xml", "foggy-dataset-mcp/src",
+        )
     reject("E_SEAL", f"unsupported source seal lane: {lane}")
 
 
@@ -1338,7 +1394,10 @@ def create_source_seal(lane: str, output: Path) -> str:
 def create_bytecode_seal(lane: str, output: Path) -> None:
     if output.exists() or output.is_symlink():
         reject("E_OUTPUT", f"bytecode seal output exists: {output}")
-    modules_by_lane = {"external-mongo": MONGO_CLEAN_MODULES}
+    modules_by_lane = {
+        "external-mongo": MONGO_CLEAN_MODULES,
+        "external-mysql": MYSQL_CLEAN_MODULES,
+    }
     modules = modules_by_lane.get(lane)
     if modules is None:
         reject("E_SEAL", f"unsupported bytecode seal lane: {lane}")
@@ -1415,6 +1474,10 @@ def validate_sensitive_negative_evidence(path: Path, lane: str) -> None:
             "mongo-env", "json-password", "api-key", "auth-header",
             "mongo-uri", "cli-password",
         },
+        "external-mysql": {
+            "mysql-env", "json-password", "api-key", "auth-header",
+            "mysql-uri", "cli-password",
+        },
     }
     expected = expected_by_lane.get(lane)
     if expected is None:
@@ -1451,6 +1514,7 @@ def validate_bytecode_seal(path: Path, lane: str) -> None:
     clean_modules_by_lane = {
         "external-redis": REDIS_CLEAN_MODULES,
         "external-mongo": MONGO_CLEAN_MODULES,
+        "external-mysql": MYSQL_CLEAN_MODULES,
     }
     clean_modules = clean_modules_by_lane.get(lane)
     if clean_modules is None:
@@ -1462,6 +1526,7 @@ def validate_bytecode_seal(path: Path, lane: str) -> None:
         "external-mongo": {
             "addons/foggy-data-viewer", "addons/foggy-dataset-model-mongo",
         },
+        "external-mysql": {"foggy-dataset-mcp"},
     }[lane]
     sealed_test_modules = {
         row.get("module") for row in rows
@@ -1503,6 +1568,22 @@ def candidate_required_paths(lane: str) -> set[str]:
             "cells/mongo6/resource.env", "cells/mongo6/fixture.env",
             "cells/mongo6/cleanup.env", "variants/mongo6/bytecode.tsv",
         }
+    if lane == "external-mysql":
+        return common | {
+            "cells/mysql57/resource.env", "cells/mysql57/fixture.env",
+            "cells/mysql57/cleanup.env",
+            "cells/mysql57/bundle.env",
+            "cells/mysql57/bundle-manifest.tsv",
+            "cells/mysql57/init-manifest.tsv",
+            "cells/mysql57/fixture-before.tsv",
+            "cells/mysql57/fixture-after.tsv",
+            "cells/mysql57/grants-before.env",
+            "cells/mysql57/grants-after.env",
+            "variants/mysql57-mcp/bytecode.tsv",
+            "variants/mysql57-direct/bytecode.tsv",
+            "variants/mysql57-direct/direct-report.json",
+            "variants/mysql57-compose/bytecode.tsv",
+        }
     reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
 
 
@@ -1521,6 +1602,14 @@ def candidate_definition(lane: str) -> dict[str, Any]:
             "cell": "mongo6",
             "totals": {
                 "variants": 1, "reports": 4, "testcase_nodes": 30,
+                "failures": 0, "errors": 0, "skipped": 0,
+            },
+        },
+        "external-mysql": {
+            "kind": "v934-step3-external-mysql-candidate",
+            "cell": "mysql57",
+            "totals": {
+                "variants": 3, "reports": 8, "testcase_nodes": 23,
                 "failures": 0, "errors": 0, "skipped": 0,
             },
         },
@@ -1973,6 +2062,675 @@ def verify_mongo_candidate(contract: dict[str, Any], candidate_path: Path) -> di
     return candidate
 
 
+def validate_mysql_init_manifest(path: Path) -> None:
+    with ensure_regular(path, "E_CANDIDATE", "MySQL init manifest").open(
+        encoding="utf-8", newline=""
+    ) as stream:
+        reader = csv.DictReader(stream, delimiter="\t")
+        if reader.fieldnames != ["path", "sha256", "size_bytes"]:
+            reject("E_CANDIDATE", "MySQL init manifest header differs")
+        rows = list(reader)
+    if any(None in row or any(value is None for value in row.values()) for row in rows):
+        reject("E_CANDIDATE", "MySQL init manifest rows are malformed")
+    names = [row.get("path") for row in rows]
+    if len(rows) != 10 or names != sorted(set(names)):
+        reject("E_CANDIDATE", "MySQL init manifest paths are not exact sorted unique")
+    init_root = ROOT / "foggy-dataset-demo/docker/mysql/init"
+    expected_files = sorted(init_root.glob("*.sql"), key=lambda item: item.name)
+    if len(expected_files) != 10 or names != [item.name for item in expected_files]:
+        reject("E_CANDIDATE", "MySQL init manifest file set differs")
+    for row, source in zip(rows, expected_files, strict=True):
+        ensure_regular(source, "E_CANDIDATE", "MySQL init script")
+        if (
+            row.get("sha256") != sha256_file(source)
+            or row.get("size_bytes") != str(source.stat().st_size)
+        ):
+            reject("E_CANDIDATE", f"MySQL init script identity differs: {source.name}")
+
+
+def validate_mysql_curated_bundle(
+    bundle_root: Path,
+    manifest_path: Path,
+    evidence_path: Path,
+    code: str = "E_CANDIDATE",
+) -> None:
+    reject_symlink_components(MYSQL57_ECOMMERCE_SOURCE, code)
+    if not MYSQL57_ECOMMERCE_SOURCE.is_dir():
+        reject(code, "MySQL ecommerce source bundle is missing")
+    source_files: list[Path] = []
+    for path in MYSQL57_ECOMMERCE_SOURCE.rglob("*"):
+        if path.is_symlink():
+            reject(code, f"MySQL ecommerce source contains a symlink: {path}")
+        if path.is_file():
+            relative = path.relative_to(MYSQL57_ECOMMERCE_SOURCE).as_posix()
+            if not relative.startswith("demo/"):
+                source_files.append(path)
+    source_files.sort(key=lambda item: item.relative_to(MYSQL57_ECOMMERCE_SOURCE).as_posix())
+    expected_paths = [
+        path.relative_to(MYSQL57_ECOMMERCE_SOURCE).as_posix()
+        for path in source_files
+    ]
+
+    reject_symlink_components(bundle_root, code)
+    if not bundle_root.is_dir():
+        reject(code, "MySQL curated ecommerce bundle is missing")
+    bundle_files: list[Path] = []
+    for path in bundle_root.rglob("*"):
+        if path.is_symlink():
+            reject(code, f"MySQL curated ecommerce bundle contains a symlink: {path}")
+        if path.is_file():
+            bundle_files.append(path)
+    bundle_files.sort(key=lambda item: item.relative_to(bundle_root).as_posix())
+    actual_paths = [path.relative_to(bundle_root).as_posix() for path in bundle_files]
+    if (
+        len(expected_paths) != MYSQL57_CURATED_BUNDLE_COUNTS["files"]
+        or expected_paths != actual_paths
+        or any(path.startswith("demo/") for path in actual_paths)
+    ):
+        reject(code, "MySQL curated ecommerce bundle file set differs")
+
+    extension_counts = {
+        "files": len(actual_paths),
+        "qm_files": sum(path.endswith(".qm") for path in actual_paths),
+        "tm_files": sum(path.endswith(".tm") for path in actual_paths),
+        "fsscript_files": sum(path.endswith(".fsscript") for path in actual_paths),
+    }
+    if extension_counts != MYSQL57_CURATED_BUNDLE_COUNTS:
+        reject(code, "MySQL curated ecommerce bundle cardinality differs")
+
+    with ensure_regular(
+        manifest_path, code, "MySQL curated ecommerce bundle manifest"
+    ).open(encoding="utf-8", newline="") as stream:
+        reader = csv.DictReader(stream, delimiter="\t")
+        if reader.fieldnames != ["path", "sha256", "size_bytes"]:
+            reject(code, "MySQL curated ecommerce bundle manifest header differs")
+        rows = list(reader)
+    if (
+        any(None in row or any(value is None for value in row.values()) for row in rows)
+        or [row["path"] for row in rows] != expected_paths
+    ):
+        reject(code, "MySQL curated ecommerce bundle manifest rows differ")
+    for row, source, destination in zip(rows, source_files, bundle_files, strict=True):
+        digest = sha256_file(source)
+        size = str(source.stat().st_size)
+        if (
+            row["sha256"] != digest
+            or row["size_bytes"] != size
+            or sha256_file(destination) != digest
+            or str(destination.stat().st_size) != size
+        ):
+            reject(code, f"MySQL curated ecommerce resource differs: {row['path']}")
+
+    evidence = parse_env(
+        evidence_path,
+        {
+            "cell", "source", "excluded_prefix", "files", "qm_files",
+            "tm_files", "fsscript_files", "manifest_sha256", "status",
+        },
+        code,
+    )
+    expected_evidence = {
+        "cell": "mysql57",
+        "source": "foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce",
+        "excluded_prefix": "demo/",
+        **{key: str(value) for key, value in MYSQL57_CURATED_BUNDLE_COUNTS.items()},
+        "manifest_sha256": sha256_file(manifest_path),
+        "status": "verified",
+    }
+    if evidence != expected_evidence:
+        reject(code, "MySQL curated ecommerce bundle evidence differs")
+
+
+def validate_mysql_snapshot(
+    path: Path,
+    database: str,
+    code: str = "E_MYSQL_SNAPSHOT",
+) -> dict[str, Any]:
+    ensure_regular(path, code, "MySQL fixture snapshot")
+    if re.fullmatch(r"v934_[0-9a-f]{12}_mcp", database) is None:
+        reject(code, f"MySQL snapshot database identity differs: {database!r}")
+    content = path.read_bytes()
+    if not content or b"\r" in content or not content.endswith(b"\n"):
+        reject(code, "MySQL snapshot must use non-empty canonical LF records")
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ContractError(code, "MySQL snapshot is not valid UTF-8") from error
+    lines = text[:-1].split("\n")
+    expected_rows = 2 + MYSQL57_TABLE_COUNT + len(MYSQL57_FIXTURE_METRICS)
+    if len(lines) != expected_rows or any(not line for line in lines):
+        reject(code, f"MySQL snapshot row count differs: {len(lines)}")
+    rows = [line.split("\t") for line in lines]
+    if any(len(row) != 3 for row in rows):
+        reject(code, "MySQL snapshot rows must contain exactly three TSV fields")
+    if rows[0] != ["identity", "database", database]:
+        reject(code, "MySQL snapshot database row differs")
+
+    table_rows = rows[1:1 + MYSQL57_TABLE_COUNT]
+    if any(row[0] != "table" or row[2] != "present" for row in table_rows):
+        reject(code, "MySQL snapshot table rows differ")
+    table_names = [row[1] for row in table_rows]
+    if (
+        table_names != sorted(set(table_names))
+        or len(table_names) != MYSQL57_TABLE_COUNT
+        or not MYSQL57_REQUIRED_TABLES.issubset(table_names)
+    ):
+        reject(code, "MySQL snapshot table set is not exact sorted unique")
+    table_set_sha256 = sha256_bytes(
+        "".join(f"{name}\n" for name in table_names).encode("utf-8")
+    )
+    if table_set_sha256 != MYSQL57_TABLE_SET_SHA256:
+        reject(code, "MySQL snapshot table-set SHA-256 differs")
+
+    metric_rows = rows[1 + MYSQL57_TABLE_COUNT:-1]
+    metric_names = [row[1] for row in metric_rows]
+    if (
+        any(row[0] != "metric" for row in metric_rows)
+        or metric_names != list(MYSQL57_FIXTURE_METRICS)
+    ):
+        reject(code, "MySQL snapshot metric rows or order differ")
+    metrics: dict[str, int] = {}
+    for row in metric_rows:
+        name, value = row[1], row[2]
+        if re.fullmatch(r"0|[1-9][0-9]*", value) is None:
+            reject(code, f"MySQL snapshot metric is not a canonical integer: {name}")
+        metrics[name] = int(value)
+    if metrics != MYSQL57_FIXTURE_METRICS:
+        reject(code, f"MySQL snapshot exact metrics differ: {metrics}")
+    if metrics["table_count"] != len(table_names):
+        reject(code, "MySQL snapshot table metric and table rows differ")
+    digest_row = rows[-1]
+    if digest_row != ["digest", "content_sha256", MYSQL57_CONTENT_SHA256]:
+        reject(code, "MySQL snapshot frozen content SHA-256 differs")
+    return {
+        "database": database,
+        "table_names": table_names,
+        "table_set_sha256": table_set_sha256,
+        "metrics": metrics,
+        "content_sha256": digest_row[2],
+    }
+
+
+def validate_mysql_grants(
+    path: Path,
+    database: str,
+    code: str = "E_MYSQL_GRANTS",
+) -> dict[str, str]:
+    if re.fullmatch(r"v934_[0-9a-f]{12}_mcp", database) is None:
+        reject(code, f"MySQL grants database identity differs: {database!r}")
+    evidence = parse_env(
+        path,
+        {
+            "cell", "principal", "database", "global_privileges",
+            "schema_database", "schema_pattern", "schema_privileges",
+            "schema_privilege_rows",
+            "table_privilege_rows", "column_privilege_rows",
+            "routine_privilege_rows", "proxy_privilege_rows", "status",
+        },
+        code,
+    )
+    expected = {
+        "cell": "mysql57",
+        "principal": "v934_runner@%",
+        "database": database,
+        "global_privileges": "USAGE:NO",
+        "schema_database": database,
+        "schema_pattern": database.replace("_", r"\_"),
+        "schema_privileges": "SELECT:NO",
+        "schema_privilege_rows": "1",
+        "table_privilege_rows": "0",
+        "column_privilege_rows": "0",
+        "routine_privilege_rows": "0",
+        "proxy_privilege_rows": "0",
+        "status": "verified",
+    }
+    if evidence != expected:
+        reject(code, "MySQL app grants are not exact SELECT-only")
+    return evidence
+
+
+def validate_mysql_direct_report(
+    path: Path,
+    code: str = "E_MYSQL_DIRECT_REPORT",
+) -> dict[str, Any]:
+    ensure_regular(path, code, "MySQL direct report")
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ContractError(code, "MySQL direct report is not valid JSON") from error
+    expected_path = ROOT / (
+        "foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json"
+    )
+    ensure_regular(expected_path, code, "MySQL direct test-case source")
+    try:
+        expected_source = json.loads(expected_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ContractError(code, "MySQL direct test-case source is invalid") from error
+    expected_cases = expected_source.get("testCases") if isinstance(expected_source, dict) else None
+    if (
+        not isinstance(expected_cases, list)
+        or len(expected_cases) != MYSQL57_DIRECT_CASE_COUNT
+        or any(not isinstance(case, dict) for case in expected_cases)
+    ):
+        reject(code, "MySQL direct test-case source differs")
+    expected_ids = [case.get("id") for case in expected_cases]
+    expected_tools = [case.get("expected_tool") for case in expected_cases]
+    if (
+        any(not isinstance(value, str) or not value for value in expected_ids)
+        or len(set(expected_ids)) != MYSQL57_DIRECT_CASE_COUNT
+        or any(not isinstance(value, str) or not value for value in expected_tools)
+    ):
+        reject(code, "MySQL direct test-case source IDs/tools differ")
+    if not isinstance(report, dict):
+        reject(code, "MySQL direct report root differs")
+    exact_counts = {
+        "resultCount": MYSQL57_DIRECT_CASE_COUNT,
+        "passedCount": MYSQL57_DIRECT_CASE_COUNT,
+        "failedCount": 0,
+        "toolBusinessErrorCount": 0,
+        "toolBusinessErrorCaseCount": 0,
+        "warningCount": 0,
+        "warningCaseCount": 0,
+        "toolBusinessErrorWarningCount": 0,
+    }
+    if any(
+        type(report.get(key)) is not int or report.get(key) != value
+        for key, value in exact_counts.items()
+    ):
+        reject(code, "MySQL direct report totals differ")
+    if (
+        report.get("failureCategories") != {"success": MYSQL57_DIRECT_CASE_COUNT}
+        or report.get("toolBusinessErrors") != []
+        or report.get("warningCategories") != {}
+        or report.get("warnings") != []
+    ):
+        reject(code, "MySQL direct report aggregate outcomes differ")
+    parse_timestamp(report.get("generatedAt"), code)
+
+    models = report.get("models")
+    if not isinstance(models, list) or len(models) != 1 or not isinstance(models[0], dict):
+        reject(code, "MySQL direct report model summary differs")
+    model = models[0]
+    model_counts = {
+        "resultCount": MYSQL57_DIRECT_CASE_COUNT,
+        "passedCount": MYSQL57_DIRECT_CASE_COUNT,
+        "failedCount": 0,
+        "clarifyCaseCount": 0,
+        "toolBusinessErrorCaseCount": 0,
+        "toolBusinessErrorCount": 0,
+        "warningCaseCount": 0,
+        "warningCount": 0,
+        "toolBusinessErrorWarningCount": 0,
+    }
+    if (
+        model.get("model") != "direct/tool-execution"
+        or model.get("failureCategories") != {"success": MYSQL57_DIRECT_CASE_COUNT}
+        or any(
+            type(model.get(key)) is not int or model.get(key) != value
+            for key, value in model_counts.items()
+        )
+        or isinstance(model.get("successRate"), bool)
+        or not isinstance(model.get("successRate"), (int, float))
+        or model.get("successRate") != 100.0
+    ):
+        reject(code, "MySQL direct report model aggregate differs")
+
+    clarify = report.get("clarify")
+    clarify_counts = {
+        "caseCount", "observationCount", "domainCount", "riskTypeCount",
+        "ownerRuleCount", "missingSlotCount",
+    }
+    clarify_lists = {"domains", "riskTypes", "ownerRules", "missingSlots", "observations"}
+    if (
+        not isinstance(clarify, dict)
+        or any(type(clarify.get(key)) is not int or clarify.get(key) != 0 for key in clarify_counts)
+        or any(clarify.get(key) != [] for key in clarify_lists)
+    ):
+        reject(code, "MySQL direct report clarify aggregate differs")
+
+    cases = report.get("cases")
+    if not isinstance(cases, list) or len(cases) != MYSQL57_DIRECT_CASE_COUNT:
+        reject(code, "MySQL direct report case count differs")
+    actual_ids = [case.get("testCaseId") for case in cases if isinstance(case, dict)]
+    if (
+        len(actual_ids) != MYSQL57_DIRECT_CASE_COUNT
+        or actual_ids != expected_ids
+    ):
+        reject(code, "MySQL direct report case IDs/order differ")
+    for case, expected_id, expected_tool in zip(
+        cases, expected_ids, expected_tools, strict=True
+    ):
+        if not isinstance(case, dict):
+            reject(code, f"MySQL direct report case is not an object: {expected_id}")
+        query_payloads = case.get("queryPayloads")
+        if (
+            case.get("provider") != "direct"
+            or case.get("modelName") != "tool-execution"
+            or case.get("success") is not True
+            or case.get("errorCategory") != "success"
+            or case.get("errorMessage") is not None
+            or case.get("calledTools") != [expected_tool]
+            or type(case.get("durationMs")) is not int
+            or case.get("durationMs") < 0
+            or type(case.get("toolBusinessErrorCount")) is not int
+            or case.get("toolBusinessErrorCount") != 0
+            or case.get("toolBusinessErrors") != []
+            or type(case.get("warningCount")) is not int
+            or case.get("warningCount") != 0
+            or case.get("warnings") != []
+            or type(case.get("queryPayloadCount")) is not int
+            or case.get("queryPayloadCount") < 0
+            or not isinstance(query_payloads, list)
+            or case.get("queryPayloadCount") != len(query_payloads)
+        ):
+            reject(code, f"MySQL direct report case result differs: {expected_id}")
+
+    comparisons = report.get("caseComparison")
+    comparison_ids = [
+        row.get("testCaseId") for row in comparisons if isinstance(row, dict)
+    ] if isinstance(comparisons, list) else []
+    if comparison_ids != expected_ids:
+        reject(code, "MySQL direct report comparison IDs/order differ")
+    for comparison, expected_id, expected_tool in zip(
+        comparisons, expected_ids, expected_tools, strict=True
+    ):
+        comparison_models = comparison.get("models")
+        comparison_model = (
+            comparison_models[0]
+            if isinstance(comparison_models, list)
+            and len(comparison_models) == 1
+            and isinstance(comparison_models[0], dict)
+            else None
+        )
+        if (
+            type(comparison.get("resultCount")) is not int
+            or comparison.get("resultCount") != 1
+            or type(comparison.get("passedCount")) is not int
+            or comparison.get("passedCount") != 1
+            or type(comparison.get("failedCount")) is not int
+            or comparison.get("failedCount") != 0
+            or comparison.get("consensus") != "all_passed"
+            or comparison_model is None
+            or comparison_model.get("model") != "direct/tool-execution"
+            or comparison_model.get("provider") != "direct"
+            or comparison_model.get("modelName") != "tool-execution"
+            or comparison_model.get("success") is not True
+            or comparison_model.get("errorCategory") != "success"
+            or comparison_model.get("errorMessage") is not None
+            or comparison_model.get("calledTools") != [expected_tool]
+            or type(comparison_model.get("toolBusinessErrorCount")) is not int
+            or comparison_model.get("toolBusinessErrorCount") != 0
+            or type(comparison_model.get("warningCount")) is not int
+            or comparison_model.get("warningCount") != 0
+        ):
+            reject(code, f"MySQL direct report comparison differs: {expected_id}")
+    return report
+
+
+def verify_mysql_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
+    ensure_regular(candidate_path, "E_CANDIDATE", "candidate manifest")
+    if candidate_path.name != "candidate-manifest.json":
+        reject("E_CANDIDATE", "candidate manifest name differs")
+    root = candidate_path.parent
+    candidate = load_json_manifest(candidate_path)
+    if set(candidate) != CANDIDATE_MANIFEST_FIELDS:
+        reject("E_CANDIDATE", "candidate manifest fields differ")
+    outer = load_outer_marker(root / "run-context.json", contract)
+    definition = candidate_definition("external-mysql")
+    if (
+        candidate.get("schema_version") != 1
+        or candidate.get("kind") != definition["kind"]
+        or candidate.get("run_id") != outer["run_id"]
+        or candidate.get("runner") != "failsafe"
+        or candidate.get("lane") != "external-mysql"
+        or candidate.get("git_head") != outer["git_head"]
+        or candidate.get("contract_sha256") != contract["_contract_sha256"]
+        or candidate.get("outer_marker_sha256") != outer["_sha256"]
+    ):
+        reject("E_CANDIDATE", "candidate context differs")
+    records = candidate.get("artifacts")
+    if not isinstance(records, list) or not records:
+        reject("E_CANDIDATE", "candidate artifacts are empty")
+    paths = [record.get("path") for record in records if isinstance(record, dict)]
+    if len(paths) != len(records) or paths != sorted(set(paths)):
+        reject("E_CANDIDATE", "candidate artifact paths are not exact sorted unique")
+    artifact_by_path: dict[str, Path] = {}
+    for record in records:
+        path = validate_artifact(root, record, "E_CANDIDATE")
+        artifact_by_path[record["path"]] = path
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*") if path.is_file() or path.is_symlink()
+    }
+    if actual_files != set(paths) | {"candidate-manifest.json"}:
+        reject("E_CANDIDATE", "candidate run-root file set differs")
+    missing = candidate_required_paths("external-mysql") - set(paths)
+    if missing:
+        reject("E_CANDIDATE", f"candidate required artifacts are missing: {sorted(missing)}")
+
+    final_path = artifact_by_path["final/report-manifest.json"]
+    final_manifest = verify_merged_manifest(contract, outer, final_path)
+    expected_totals = definition["totals"]
+    if (
+        final_manifest.get("lane") != "external-mysql"
+        or final_manifest.get("complete") is not False
+        or final_manifest.get("totals") != expected_totals
+        or candidate.get("totals") != expected_totals
+        or candidate.get("report_manifest_sha256") != sha256_file(final_path)
+    ):
+        reject("E_CANDIDATE", "candidate report subset differs")
+
+    summary = parse_env(
+        artifact_by_path["summary.env"], CANDIDATE_SUMMARY_FIELDS, "E_CANDIDATE"
+    )
+    status = parse_env(
+        artifact_by_path["run-status.env"], RUN_STATUS_FIELDS, "E_CANDIDATE"
+    )
+    expected_scalar = {
+        "run_id": outer["run_id"], "runner": "failsafe", "lane": "external-mysql",
+        "git_head": outer["git_head"], "variants": "3", "reports": "8",
+        "testcase_nodes": "23", "failures": "0", "errors": "0", "skipped": "0",
+        "outer_marker_sha256": outer["_sha256"],
+        "contract_sha256": contract["_contract_sha256"],
+        "negative_probes": "12/12", "sensitive_negative_probes": "6/6",
+        "resource_residue": "0/0", "status": "passed",
+    }
+    if any(summary.get(key) != value for key, value in expected_scalar.items()):
+        reject("E_CANDIDATE", "candidate summary identity differs")
+    source_before = artifact_by_path["source-before.tsv"]
+    source_after = artifact_by_path["source-after.tsv"]
+    if source_before.read_bytes() != source_after.read_bytes():
+        reject("E_CANDIDATE", "candidate source seal changed during execution")
+    source_digest = source_manifest_digest(source_before)
+    if summary["source_before"] != source_digest or summary["source_after"] != source_digest:
+        reject("E_CANDIDATE", "candidate source summary differs")
+    hash_bindings = {
+        "final_report_manifest_sha256": "final/report-manifest.json",
+        "run_status_sha256": "run-status.env",
+        "resource_sha256": "cells/mysql57/resource.env",
+        "fixture_sha256": "cells/mysql57/fixture.env",
+        "cleanup_sha256": "cells/mysql57/cleanup.env",
+        "negative_sha256": "negative/probes.tsv",
+        "sensitive_negative_sha256": "negative/sensitive-probes.tsv",
+        "sensitive_scan_sha256": "sensitive-scan.env",
+    }
+    if any(
+        summary[key] != sha256_file(artifact_by_path[path])
+        for key, path in hash_bindings.items()
+    ):
+        reject("E_CANDIDATE", "candidate summary artifact hash differs")
+    deferred_sha = contract["bindings"]["deferred_inventory"]["sha256"]
+    expected_status = {
+        "run_id": outer["run_id"], "runner": "failsafe", "git_head": outer["git_head"],
+        "last_phase": "completed", "exit_code": "0", "source_before_sha256": source_digest,
+        "source_after_sha256": source_digest, "outer_marker_sha256": outer["_sha256"],
+        "successor_manifest_sha256": deferred_sha,
+        "final_report_manifest_sha256": sha256_file(final_path), "status": "passed",
+    }
+    if any(status.get(key) != value for key, value in expected_status.items()):
+        reject("E_CANDIDATE", "candidate durable status differs")
+    if parse_timestamp(status["finished_at"], "E_CANDIDATE") < parse_timestamp(
+        status["started_at"], "E_CANDIDATE"
+    ):
+        reject("E_CANDIDATE", "candidate finish time predates start time")
+
+    scope = hashlib.sha256(f"{outer['run_id']}|mysql57\n".encode()).hexdigest()[:12]
+    container = f"v934ext-mysql57-{scope}"
+    volume = f"{container}-data"
+    database = f"v934_{scope}_mcp"
+    resource_fields = {
+        "run_id", "cell", "container", "image_ref", "image_id", "mapped_port",
+        "mount_count", "mount_identity", "volume", "volume_created", "mysql_version",
+        "server_process", "storage_engine", "character_set_server", "collation_server",
+        "time_zone", "lower_case_table_names", "auth_mode", "app_user", "app_host",
+        "app_schema_privilege", "credentials_distinct", "database",
+        "initial_table_count", "initial_foreign_database_count", "status",
+    }
+    resource = parse_env(
+        artifact_by_path["cells/mysql57/resource.env"], resource_fields, "E_CANDIDATE"
+    )
+    expected_resource = {
+        "run_id": outer["run_id"], "cell": "mysql57", "container": container,
+        "image_ref": MYSQL57_IMAGE_REF, "image_id": MYSQL57_IMAGE_ID,
+        "mapped_port": resource["mapped_port"], "mount_count": "1",
+        "mount_identity": f"{volume}|/var/lib/mysql|volume", "volume": volume,
+        "volume_created": resource["volume_created"], "mysql_version": "5.7.44-log",
+        "server_process": "mysqld", "storage_engine": "InnoDB",
+        "character_set_server": "utf8mb4", "collation_server": "utf8mb4_unicode_ci",
+        "time_zone": "+08:00", "lower_case_table_names": "1",
+        "auth_mode": "distinct-ephemeral-root-app-passwords",
+        "app_user": "v934_runner", "app_host": "%",
+        "app_schema_privilege": "SELECT", "credentials_distinct": "true",
+        "database": database,
+        "initial_table_count": "0", "initial_foreign_database_count": "0",
+        "status": "verified",
+    }
+    if (
+        resource != expected_resource
+        or re.fullmatch(r"127\.0\.0\.1:[0-9]+", resource["mapped_port"]) is None
+    ):
+        reject("E_CANDIDATE", "candidate MySQL resource identity differs")
+    parse_timestamp(resource["volume_created"], "E_CANDIDATE")
+
+    init_manifest_path = artifact_by_path["cells/mysql57/init-manifest.tsv"]
+    validate_mysql_init_manifest(init_manifest_path)
+    validate_mysql_curated_bundle(
+        root / "cells/mysql57/ecommerce-bundle",
+        artifact_by_path["cells/mysql57/bundle-manifest.tsv"],
+        artifact_by_path["cells/mysql57/bundle.env"],
+    )
+    fixture_before = artifact_by_path["cells/mysql57/fixture-before.tsv"]
+    fixture_after = artifact_by_path["cells/mysql57/fixture-after.tsv"]
+    if fixture_before.read_bytes() != fixture_after.read_bytes():
+        reject("E_CANDIDATE", "candidate MySQL fixture changed during execution")
+    snapshot = validate_mysql_snapshot(fixture_before, database, "E_CANDIDATE")
+    validate_mysql_snapshot(fixture_after, database, "E_CANDIDATE")
+    grants_before = artifact_by_path["cells/mysql57/grants-before.env"]
+    grants_after = artifact_by_path["cells/mysql57/grants-after.env"]
+    if grants_before.read_bytes() != grants_after.read_bytes():
+        reject("E_CANDIDATE", "candidate MySQL app grants changed during execution")
+    validate_mysql_grants(grants_before, database, "E_CANDIDATE")
+    validate_mysql_grants(grants_after, database, "E_CANDIDATE")
+    fixture = parse_env(
+        artifact_by_path["cells/mysql57/fixture.env"],
+        {
+            "cell", "database", "fixture_timestamp_epoch", "fixture_time_zone",
+            "fixture_transaction_mode",
+            "rand_seed1", "rand_seed2", "content_hash_format",
+            "content_before_sha256", "content_after_sha256",
+            "grants_before_sha256", "grants_after_sha256",
+            "init_script_count", "init_manifest_sha256",
+            "table_count", "primary_key_table_count", "table_set_sha256",
+            "dim_date_count", "dim_product_count",
+            "dim_customer_count", "dim_store_count", "fact_sales_count",
+            "fact_order_count", "fact_return_count", "compose_join_count",
+            "before_snapshot_sha256", "after_snapshot_sha256",
+            "foreign_database_count", "status",
+        },
+        "E_CANDIDATE",
+    )
+    metrics = snapshot["metrics"]
+    exact_fixture = {
+        "cell": "mysql57", "database": database,
+        "fixture_timestamp_epoch": "1710864000", "fixture_time_zone": "+08:00",
+        "fixture_transaction_mode": "single-session-commit",
+        "rand_seed1": "934", "rand_seed2": "934", "init_script_count": "10",
+        "content_hash_format": "mysqldump-data-v1",
+        "content_before_sha256": snapshot["content_sha256"],
+        "content_after_sha256": snapshot["content_sha256"],
+        "grants_before_sha256": sha256_file(grants_before),
+        "grants_after_sha256": sha256_file(grants_after),
+        "init_manifest_sha256": sha256_file(init_manifest_path),
+        "table_count": str(metrics["table_count"]),
+        "primary_key_table_count": str(metrics["primary_key_table_count"]),
+        "table_set_sha256": snapshot["table_set_sha256"],
+        "dim_date_count": str(metrics["dim_date_count"]),
+        "dim_product_count": str(metrics["dim_product_count"]),
+        "dim_customer_count": str(metrics["dim_customer_count"]),
+        "dim_store_count": str(metrics["dim_store_count"]),
+        "fact_sales_count": str(metrics["fact_sales_count"]),
+        "fact_order_count": str(metrics["fact_order_count"]),
+        "fact_return_count": str(metrics["fact_return_count"]),
+        "compose_join_count": str(metrics["compose_join_count"]),
+        "before_snapshot_sha256": sha256_file(fixture_before),
+        "after_snapshot_sha256": sha256_file(fixture_after),
+        "foreign_database_count": str(metrics["foreign_database_count"]),
+        "status": "verified",
+    }
+    if fixture != exact_fixture:
+        reject("E_CANDIDATE", "candidate MySQL fixture identity differs")
+    if (
+        fixture["before_snapshot_sha256"] != fixture["after_snapshot_sha256"]
+        or fixture["content_before_sha256"] != fixture["content_after_sha256"]
+        or fixture["grants_before_sha256"] != fixture["grants_after_sha256"]
+    ):
+        reject("E_CANDIDATE", "candidate MySQL fixture or grants hashes differ")
+
+    cleanup = parse_env(
+        artifact_by_path["cells/mysql57/cleanup.env"],
+        {"cell", "container", "volume", "container_residue", "volume_residue", "status"},
+        "E_CANDIDATE",
+    )
+    if cleanup != {
+        "cell": "mysql57", "container": container, "volume": volume,
+        "container_residue": "0", "volume_residue": "0", "status": "passed",
+    }:
+        reject("E_CANDIDATE", "candidate MySQL cleanup differs")
+    preclean = parse_env(
+        artifact_by_path["preclean.env"],
+        {"modules", "root_target_preserved", "status"}, "E_CANDIDATE",
+    )
+    if preclean != {
+        "modules": ",".join(MYSQL_CLEAN_MODULES),
+        "root_target_preserved": "true", "status": "passed",
+    }:
+        reject("E_CANDIDATE", "candidate preclean evidence differs")
+    validate_negative_evidence(artifact_by_path["negative/probes.tsv"], contract)
+    validate_sensitive_negative_evidence(
+        artifact_by_path["negative/sensitive-probes.tsv"], "external-mysql"
+    )
+    sensitive = parse_env(
+        artifact_by_path["sensitive-scan.env"],
+        {"patterns", "ephemeral_secrets", "status"},
+        "E_CANDIDATE",
+    )
+    if sensitive != {"patterns": "5", "ephemeral_secrets": "2", "status": "passed"}:
+        reject("E_CANDIDATE", "candidate sensitive scan evidence differs")
+    validate_mysql_direct_report(
+        artifact_by_path["variants/mysql57-direct/direct-report.json"], "E_CANDIDATE"
+    )
+    bytecode_paths = [
+        "variants/mysql57-mcp/bytecode.tsv",
+        "variants/mysql57-direct/bytecode.tsv",
+        "variants/mysql57-compose/bytecode.tsv",
+    ]
+    for path in bytecode_paths:
+        validate_bytecode_seal(artifact_by_path[path], "external-mysql")
+    if len({artifact_by_path[path].read_bytes() for path in bytecode_paths}) != 1:
+        reject("E_CANDIDATE", "candidate bytecode changed between MySQL variants")
+    return candidate
+
+
 def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str, Any]:
     candidate = load_json_manifest(candidate_path)
     lane = candidate.get("lane")
@@ -1980,6 +2738,8 @@ def verify_candidate(contract: dict[str, Any], candidate_path: Path) -> dict[str
         return verify_redis_candidate(contract, candidate_path)
     if lane == "external-mongo":
         return verify_mongo_candidate(contract, candidate_path)
+    if lane == "external-mysql":
+        return verify_mysql_candidate(contract, candidate_path)
     reject("E_CANDIDATE", f"unsupported candidate lane: {lane}")
 
 
@@ -2028,12 +2788,38 @@ def parser() -> argparse.ArgumentParser:
 
     candidate_verify = commands.add_parser("verify-candidate")
     candidate_verify.add_argument("--candidate", required=True)
+
+    mysql_snapshot = commands.add_parser("verify-mysql-snapshot")
+    mysql_snapshot.add_argument("--snapshot", required=True)
+    mysql_snapshot.add_argument("--database", required=True)
+
+    mysql_direct = commands.add_parser("verify-mysql-direct-report")
+    mysql_direct.add_argument("--report", required=True)
     return root
 
 
 def main() -> int:
     try:
         args = parser().parse_args()
+        if args.command == "verify-mysql-snapshot":
+            snapshot = validate_mysql_snapshot(Path(args.snapshot), args.database)
+            metrics = snapshot["metrics"]
+            print(
+                "V934_EXTERNAL_MYSQL_SNAPSHOT "
+                f"database={snapshot['database']} tables={metrics['table_count']} "
+                f"table_set_sha256={snapshot['table_set_sha256']} "
+                f"fact_sales={metrics['fact_sales_count']} "
+                f"fact_return={metrics['fact_return_count']} status=verified"
+            )
+            return 0
+        if args.command == "verify-mysql-direct-report":
+            report = validate_mysql_direct_report(Path(args.report))
+            print(
+                "V934_EXTERNAL_MYSQL_DIRECT_REPORT "
+                f"results={report['resultCount']} passed={report['passedCount']} "
+                "failed=0 tool_business_errors=0 status=verified"
+            )
+            return 0
         contract = load_contract()
         if args.command == "validate":
             print("V934_EXTERNAL_CONTRACT variants=7 reports=16 testcase_nodes=76 optional=1")

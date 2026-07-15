@@ -21,6 +21,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -78,6 +79,7 @@ class ComposeScriptToolIT extends McpIntegrationTestSupport {
         Map<?, ?> data = assertInstanceOf(Map.class, result.get("data"));
         Map<?, ?> value = assertInstanceOf(Map.class, data.get("value"));
         Map<?, ?> plans = assertInstanceOf(Map.class, value.get("plans"));
+        assertEquals(Set.of("sales_return_by_product"), plans.keySet());
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> actual = (List<Map<String, Object>>) assertInstanceOf(
                 List.class, plans.get("sales_return_by_product"));
@@ -100,7 +102,8 @@ class ComposeScriptToolIT extends McpIntegrationTestSupport {
                 ) ret ON sales.`product$id` = ret.`product$id`
                 """);
 
-        assertRowsEqual(expected, actual, false);
+        assertFalse(expected.isEmpty(), "hand-written SQL oracle should not be empty");
+        assertRowsEqual(expected, actual, true);
     }
 
     @SuppressWarnings("unchecked")

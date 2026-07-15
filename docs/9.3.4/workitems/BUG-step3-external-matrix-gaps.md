@@ -89,6 +89,9 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] provision fresh Mongo 6 and execute exact 4/30/S0
 - [x] prove real Mongo INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
 - [x] make MCP direct nodes fail when any required direct case fails or executes zero cases
+- [x] eliminate MCP/Compose non-null and double-empty assertion false greens without changing nodes
+- [x] implement deterministic MySQL57 time/RAND seed, exact 69-table content hash,
+  distinct root/app credentials, SELECT-only grants and curated 32-QM bundle gates
 - [ ] provision fresh MySQL57 and execute exact 8/23/S0 without optional LLM
 - [ ] replace Vector assumption/disabled paths with a deterministic local embedding fixture
 - [ ] provision fresh Milvus/etcd/MinIO and execute exact 2/20/S0
@@ -105,9 +108,11 @@ run-labelled named volume and proved exact `2/3/F0/E0/S0`; only the post-commit 
 referenced as the current Redis subset evidence.
 
 The direct-tool fail-closed amendment intentionally exposed a real `META-001` catalog refresh
-failure instead of signing `22/23` as green. Its diagnosis and the isolated ecommerce-bundle
-unblock are tracked in `BUG-step3-mysql57-direct-default-catalog-assembly.md`; no MySQL57 required
-result is inferred from the source amendment.
+failure instead of signing `22/23` as green. Its diagnosis and curated ecommerce-bundle unblock
+are tracked in `BUG-step3-mysql57-direct-default-catalog-assembly.md`. The independently observed
+MCP/Compose assertion false greens are tracked in
+`BUG-step3-mysql57-mcp-false-green-assertions.md`; no MySQL57 required result is inferred from
+source or runner amendments.
 
 Committed Redis and Mongo candidates independently close `2/3` and `4/30`; their two run-local
 manifests cannot be spliced into a full external authority. No MySQL57/Vector result may be inferred
@@ -122,6 +127,7 @@ from either subset. Long-lived demo containers remain diagnostic-only.
 - `scripts/verify-v934-external-redis.sh`
 - `scripts/verify-v934-external-mongo.sh`
 - `docs/9.3.4/workitems/BUG-step3-mysql57-direct-default-catalog-assembly.md`
+- `docs/9.3.4/workitems/BUG-step3-mysql57-mcp-false-green-assertions.md`
 - `docs/9.3.4/workitems/BUG-step3-mongo-loader-jdbc-dialect-dependency.md`
 - `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`
 - `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`

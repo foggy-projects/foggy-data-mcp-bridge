@@ -1,14 +1,19 @@
 package com.foggyframework.dataset.mcp.integration;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.mcp.tools.DescriptionModelTool;
+import com.foggyframework.dataset.mcp.tools.ListModelsTool;
 import com.foggyframework.dataset.mcp.tools.MetadataTool;
 import com.foggyframework.dataset.mcp.tools.QueryModelTool;
-import com.foggyframework.dataset.mcp.tools.DescriptionModelTool;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +43,15 @@ class McpToolsIT extends McpIntegrationTestSupport {
     @Autowired
     private DescriptionModelTool descriptionModelTool;
 
+    @Autowired
+    private ListModelsTool listModelsTool;
+
+    @Value("${foggy.mcp.semantic.use-all-models:false}")
+    private boolean useAllModels;
+
+    @Value("${v934.external.variant:}")
+    private String externalVariant;
+
     // ==================== 环境验证测试 ====================
 
     @Test
@@ -64,6 +78,16 @@ class McpToolsIT extends McpIntegrationTestSupport {
         assertNotNull(metadataTool, "MetadataTool 应已注册");
         assertNotNull(queryModelTool, "QueryModelTool 应已注册");
         assertNotNull(descriptionModelTool, "DescriptionModelTool 应已注册");
+        Map.of(
+                "dataset.get_metadata", metadataTool,
+                "dataset.list_models", listModelsTool,
+                "dataset.query_model", queryModelTool,
+                "dataset.describe_model_internal", descriptionModelTool
+        ).forEach((name, expectedTool) -> {
+            assertSame(expectedTool, getTool(name), name + " 应解析到注入实例");
+            assertEquals(1, mcpTools.stream().filter(tool -> name.equals(tool.getName())).count(),
+                    name + " 应按唯一名称注册");
+        });
 
         log.info("已注册的 MCP 工具:");
         mcpTools.forEach(tool -> log.info("  - {} ({})", tool.getName(), tool.getClass().getSimpleName()));
@@ -84,35 +108,47 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = metadataTool.execute(Map.of(), context);
 
-            // 验证
-            assertNotNull(result, "结果不应为空");
             printJson(result, "Metadata Response");
-
-            // 结果应该是 RX 包装的响应
-            if (result instanceof RX<?> rx) {
-                if (!rx._isSuccess()) {
-                    log.error("请求失败: code={}, msg={}", rx.getCode(), rx.getMsg());
-                }
-                assertTrue(rx._isSuccess(), "请求应成功, msg=" + rx.getMsg());
-                assertNotNull(rx.getData(), "数据不应为空");
-            }
+            assertMetadataSuccess(result, "FactSalesQueryModel", "FactOrderQueryModel");
         }
 
         @Test
         @Order(2)
         @DisplayName("获取元数据 - 应包含电商模型")
-        @SuppressWarnings("unchecked")
         void getMetadata_shouldContainEcommerceModels() {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = metadataTool.execute(Map.of(), context);
 
-            // 验证包含预期的模型
-            String resultJson = result.toString();
             log.info("Checking for ecommerce models in metadata...");
+            SemanticMetadataResponse metadata = assertMetadataSuccess(
+                    result, "FactSalesQueryModel", "FactOrderQueryModel", "salesAmount", "amount");
+            assertFalse(metadata.getContent().contains("DocumentSearchQueryModel"),
+                    "隔离的 ecommerce 元数据不应泄漏 Vector 模型");
 
-            // 元数据中应该包含电商相关模型的信息
-            // 具体断言取决于 SemanticMetadataResponse 的结构
-            assertNotNull(result);
+            if ("mysql57-mcp".equals(externalVariant)) {
+                assertTrue(useAllModels,
+                        "MySQL 5.7 external lane 必须启用完整 catalog，不能由 model-list 裁剪伪绿");
+            }
+            if (useAllModels) {
+                Object catalogResult = listModelsTool.execute(Map.of(), context);
+                Map<?, ?> catalogEnvelope = assertInstanceOf(Map.class, catalogResult,
+                        "dataset.list_models 应返回 Map envelope");
+                assertEquals(200, catalogEnvelope.get("code"), "catalog 应返回 200");
+                Map<?, ?> catalogData = assertInstanceOf(Map.class, catalogEnvelope.get("data"),
+                        "catalog data 不应为空");
+                String catalog = assertInstanceOf(String.class, catalogData.get("content"),
+                        "catalog content 应为 markdown");
+                long modelCount = catalog.lines().filter(line -> line.startsWith("- **")).count();
+                assertEquals(32, modelCount, "curated ecommerce catalog 应精确装载 32 个 QM");
+                assertTrue(catalog.contains("FactSalesQueryModel"), "catalog 应包含销售模型");
+                assertTrue(catalog.contains("FactOrderQueryModel"), "catalog 应包含订单模型");
+                assertFalse(catalog.contains("FactSalesDemoAuthQueryModel"),
+                        "catalog 不应装载依赖 demoAuthorizationService 的销售演示模型");
+                assertFalse(catalog.contains("FactOrderDemoAuthQueryModel"),
+                        "catalog 不应装载依赖 demoAuthorizationService 的订单演示模型");
+                assertFalse(catalog.contains("DocumentSearchQueryModel"),
+                        "catalog 不应泄漏 Vector 模型");
+            }
         }
     }
 
@@ -142,15 +178,8 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = queryModelTool.execute(arguments, context);
 
-            // 验证
-            assertNotNull(result, "查询结果不应为空");
             printJson(result, "FactSales Query Result");
-
-            // 检查是否有错误
-            if (result instanceof Map<?, ?> map) {
-                assertFalse(map.containsKey("error") && Boolean.TRUE.equals(map.get("error")),
-                        "查询不应返回错误: " + map.get("message"));
-            }
+            assertQuerySuccess(result, List.of("product$caption", "salesAmount"), 10);
         }
 
         @Test
@@ -159,8 +188,13 @@ class McpToolsIT extends McpIntegrationTestSupport {
         void queryFactSales_withConditions() {
             // 准备查询参数 - 查询特定商品类别的销售
             Map<String, Object> payload = new HashMap<>();
-            payload.put("columns", List.of("product$caption", "customer$caption", "salesAmount", "quantity"));
-            payload.put("slice", Map.of("product$category_name$caption", List.of("手机", "电脑")));
+            payload.put("columns", List.of(
+                    "product$caption", "product$subCategoryName", "customer$caption", "salesAmount", "quantity"));
+            payload.put("slice", List.of(Map.of(
+                    "field", "product$subCategoryName",
+                    "op", "in",
+                    "value", List.of("手机通讯", "电脑办公")
+            )));
             payload.put("limit", 20);
 
             Map<String, Object> arguments = Map.of(
@@ -173,9 +207,12 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = queryModelTool.execute(arguments, context);
 
-            // 验证
-            assertNotNull(result, "查询结果不应为空");
             printJson(result, "FactSales with Conditions");
+            SemanticQueryResponse response = assertQuerySuccess(result, List.of(
+                    "product$caption", "product$subCategoryName", "customer$caption", "salesAmount", "quantity"), 20);
+            response.getItems().forEach(row -> assertTrue(
+                    List.of("手机通讯", "电脑办公").contains(row.get("product$subCategoryName")),
+                    "返回行必须满足二级品类过滤: " + row));
         }
 
         @Test
@@ -199,9 +236,16 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = queryModelTool.execute(arguments, context);
 
-            // 验证
-            assertNotNull(result, "查询结果不应为空");
             printJson(result, "FactSales Aggregation");
+            SemanticQueryResponse response = assertQuerySuccess(
+                    result, List.of("product$caption", "salesAmount", "quantity"), 10);
+            for (int index = 1; index < response.getItems().size(); index++) {
+                BigDecimal previous = new BigDecimal(
+                        response.getItems().get(index - 1).get("salesAmount").toString());
+                BigDecimal current = new BigDecimal(
+                        response.getItems().get(index).get("salesAmount").toString());
+                assertTrue(previous.compareTo(current) >= 0, "销售额应按 DESC 排序");
+            }
         }
 
         @Test
@@ -209,7 +253,7 @@ class McpToolsIT extends McpIntegrationTestSupport {
         @DisplayName("查询 FactOrderQueryModel - 订单查询")
         void queryFactOrder() {
             Map<String, Object> payload = new HashMap<>();
-            payload.put("columns", List.of("orderDate$caption", "customer$caption", "totalAmount"));
+            payload.put("columns", List.of("orderDate$caption", "customer$caption", "amount"));
             payload.put("limit", 5);
 
             Map<String, Object> arguments = Map.of(
@@ -221,8 +265,8 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = queryModelTool.execute(arguments, context);
 
-            assertNotNull(result, "订单查询结果不应为空");
             printJson(result, "FactOrder Query Result");
+            assertQuerySuccess(result, List.of("orderDate$caption", "customer$caption", "amount"), 5);
         }
 
         @Test
@@ -242,8 +286,13 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = queryModelTool.execute(arguments, context);
 
-            assertNotNull(result, "验证结果不应为空");
             printJson(result, "Validate Mode Result");
+            RX<?> rx = assertRx(result);
+            assertTrue(rx._isSuccess(), "validate 模式应成功, msg=" + rx.getMsg());
+            SemanticQueryResponse response = assertInstanceOf(SemanticQueryResponse.class, rx.getData());
+            assertNull(response.getItems(), "validate 模式不应执行并返回数据行");
+            assertNull(response.getSchema(), "validate 模式不应构造执行结果 schema");
+            assertNull(response.getPagination(), "validate 模式不应构造执行分页信息");
         }
 
         @Test
@@ -259,11 +308,15 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = queryModelTool.execute(arguments, context);
 
-            assertNotNull(result, "结果不应为空");
             printJson(result, "Invalid Model Error");
-
-            // 应该返回错误信息
-            // 具体的错误格式取决于 SemanticQueryService 的实现
+            RX<?> rx = assertRx(result);
+            assertFalse(rx._isSuccess(), "不存在的模型必须 fail closed");
+            assertEquals(600, rx.getCode(), "不存在的模型应返回通用业务错误码");
+            assertEquals(RX.B_COMMON, rx.getExCode(), "不存在的模型应返回 B600");
+            assertNull(rx.getData(), "失败响应不应携带伪查询数据");
+            assertTrue(rx.getMsg() != null && rx.getMsg().contains("NonExistentModel"),
+                    "失败信息应标识不存在的模型: " + rx.getMsg());
+            assertTrue(rx.getMsg().contains("不存在"), "失败信息应明确模型不存在");
         }
     }
 
@@ -283,8 +336,8 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = descriptionModelTool.execute(arguments, context);
 
-            assertNotNull(result, "模型描述不应为空");
             printJson(result, "FactSalesQueryModel Description");
+            assertMetadataSuccess(result, "FactSalesQueryModel", "salesAmount", "product$caption");
         }
 
         @Test
@@ -296,8 +349,8 @@ class McpToolsIT extends McpIntegrationTestSupport {
             ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = descriptionModelTool.execute(arguments, context);
 
-            assertNotNull(result, "模型描述不应为空");
             printJson(result, "FactOrderQueryModel Description");
+            assertMetadataSuccess(result, "FactOrderQueryModel", "amount", "orderStatus");
         }
     }
 
@@ -318,7 +371,7 @@ class McpToolsIT extends McpIntegrationTestSupport {
             log.info("Step 1: 获取元数据...");
             ToolExecutionContext ctx1 = ToolExecutionContext.of(generateTraceId(), null);
             Object metadata = metadataTool.execute(Map.of(), ctx1);
-            assertNotNull(metadata, "元数据不应为空");
+            assertMetadataSuccess(metadata, "FactSalesQueryModel", "FactOrderQueryModel");
 
             // Step 2: 获取模型描述
             log.info("Step 2: 获取 FactSalesQueryModel 描述...");
@@ -327,7 +380,7 @@ class McpToolsIT extends McpIntegrationTestSupport {
                     Map.of("model", "FactSalesQueryModel"),
                     ctx2
             );
-            assertNotNull(description, "模型描述不应为空");
+            assertMetadataSuccess(description, "FactSalesQueryModel", "salesAmount");
 
             // Step 3: 执行查询
             log.info("Step 3: 执行销售数据查询...");
@@ -340,8 +393,8 @@ class McpToolsIT extends McpIntegrationTestSupport {
                     Map.of("model", "FactSalesQueryModel", "payload", payload, "mode", "execute"),
                     ctx3
             );
-            assertNotNull(queryResult, "查询结果不应为空");
             printJson(queryResult, "端到端查询结果");
+            assertQuerySuccess(queryResult, List.of("product$caption", "salesAmount", "quantity"), 10);
 
             log.info("=== 场景1 完成 ===");
         }
@@ -370,10 +423,56 @@ class McpToolsIT extends McpIntegrationTestSupport {
                     context
             );
 
-            assertNotNull(result, "多维度分析结果不应为空");
             printJson(result, "多维度销售分析结果");
+            assertQuerySuccess(result, List.of(
+                    "product$caption", "store$caption", "salesAmount", "quantity"), 20);
 
             log.info("=== 场景2 完成 ===");
         }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static RX<?> assertRx(Object result) {
+        return assertInstanceOf(RX.class, result, "工具结果必须使用 RX 契约");
+    }
+
+    private static SemanticMetadataResponse assertMetadataSuccess(Object result, String... requiredTokens) {
+        RX<?> rx = assertRx(result);
+        assertEquals(RX.SUCCESS, rx.getCode(), "元数据成功响应应返回 200");
+        assertTrue(rx._isSuccess(), "元数据请求应成功, code=" + rx.getCode() + ", msg=" + rx.getMsg());
+        SemanticMetadataResponse metadata = assertInstanceOf(SemanticMetadataResponse.class, rx.getData());
+        assertEquals("markdown", metadata.getFormat(), "集成测试默认元数据格式应为 markdown");
+        assertNotNull(metadata.getContent(), "元数据内容不应为空");
+        assertFalse(metadata.getContent().isBlank(), "元数据内容不应为空白");
+        for (String token : requiredTokens) {
+            assertTrue(metadata.getContent().contains(token), "元数据应包含 " + token);
+        }
+        return metadata;
+    }
+
+    private static SemanticQueryResponse assertQuerySuccess(
+            Object result,
+            List<String> expectedColumns,
+            int expectedLimit
+    ) {
+        RX<?> rx = assertRx(result);
+        assertEquals(RX.SUCCESS, rx.getCode(), "查询成功响应应返回 200");
+        assertTrue(rx._isSuccess(), "查询应成功, code=" + rx.getCode() + ", msg=" + rx.getMsg());
+        SemanticQueryResponse response = assertInstanceOf(SemanticQueryResponse.class, rx.getData());
+        assertNotNull(response.getItems(), "成功执行必须返回 items");
+        assertFalse(response.getItems().isEmpty(), "真实数据库查询必须命中数据");
+        assertTrue(response.getItems().size() <= expectedLimit, "返回行数不得超过 limit");
+        assertNotNull(response.getSchema(), "成功执行必须返回 schema");
+        assertNotNull(response.getSchema().getColumns(), "成功执行必须返回列定义");
+        assertEquals(expectedColumns, response.getSchema().getColumns().stream()
+                .map(SemanticQueryResponse.SchemaInfo.ColumnDef::getName)
+                .toList(), "返回列必须与请求列一致");
+        response.getItems().forEach(row -> assertTrue(row.keySet().containsAll(expectedColumns),
+                "每行必须包含全部请求列: " + row));
+        assertNotNull(response.getPagination(), "成功执行必须返回分页信息");
+        assertEquals(expectedLimit, response.getPagination().getLimit(), "分页 limit 必须回显");
+        assertEquals(response.getItems().size(), response.getPagination().getReturned(),
+                "分页 returned 必须匹配实际行数");
+        return response;
     }
 }

@@ -18,15 +18,19 @@
     },
     "external_redis_signal_probe": {
       "path": "scripts/v934/step3/external_redis_signal_probe.py",
-      "sha256": "97d66bd8794d9b2f3b9378dbf9802ba5116089224283b7918f1e89ef8dbf2dac"
+      "sha256": "4190124b5f088dd9cbea6f18e7b29d92ef1a28653bdd908d97c1553d0c2c45b8"
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "b9779c5bffa054a55ae00e716383a679d3cc502d2d56eb31d327a75695c25f45"
+      "sha256": "0df48d61a36f6aad61aeb92deef2756ebd23cbf60e716578f7bf123f608405d2"
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",
       "sha256": "6bcd2b4f2a08348a3390d19ec3ab6661afb5d56d3ef5ab3a60de0b555637e573"
+    },
+    "external_mysql_runner": {
+      "path": "scripts/verify-v934-external-mysql.sh",
+      "sha256": "612051ef5067d8a4e54761b84b72b7e982b71e5468459e4a3d0a4ff7dec59e1c"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",
@@ -134,6 +138,30 @@
       ],
       "source_id": "v934-src|115:addons/foggy-data-viewer/src/test/java/com/foggyframework/dataviewer/service/listpreset/MongoListPresetStoreIT.java",
       "source_path": "addons/foggy-data-viewer/src/test/java/com/foggyframework/dataviewer/service/listpreset/MongoListPresetStoreIT.java"
+    },
+    {
+      "amended_sha256": "38e8d3ae01c6719cb1f43f121060a1d9b691e76659537ce7d0827fdbdd3d642a",
+      "original_sha256": "75420ef6bbce027bf3a8183ea98daf46491182690d412be3f785fbe56ff16384",
+      "reason": "required MCP integration nodes now require typed successful responses, real rows, and the exact 32-model curated catalog while invalid-model and validate paths fail closed without changing discovery cardinality",
+      "report_fqcns": [
+        "com.foggyframework.dataset.mcp.integration.McpToolsIT",
+        "com.foggyframework.dataset.mcp.integration.McpToolsIT$DescriptionModelToolIntegrationTest",
+        "com.foggyframework.dataset.mcp.integration.McpToolsIT$EndToEndScenarioTest",
+        "com.foggyframework.dataset.mcp.integration.McpToolsIT$MetadataToolIntegrationTest",
+        "com.foggyframework.dataset.mcp.integration.McpToolsIT$QueryModelToolIntegrationTest"
+      ],
+      "source_id": "v934-src|90:foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/McpToolsIT.java",
+      "source_path": "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/McpToolsIT.java"
+    },
+    {
+      "amended_sha256": "2a01ef1138532e74fb1885c64b91c61e3041e31442431ce65bb71bf3a72a004c",
+      "original_sha256": "59d9e18a071b5ec125c25995291056fbef5c579bf7dab28f482c1769d4320e44",
+      "reason": "required Compose integration now rejects an empty SQL oracle, an empty plan result, or extra plans without changing discovery cardinality",
+      "report_fqcns": [
+        "com.foggyframework.dataset.mcp.integration.ComposeScriptToolIT"
+      ],
+      "source_id": "v934-src|99:foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/ComposeScriptToolIT.java",
+      "source_path": "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/integration/ComposeScriptToolIT.java"
     }
   ],
   "variants": [
