@@ -79,31 +79,68 @@ SELECT COUNT(*) FROM fact_sales;   -- 应该 > 0
 ### 方法 1: 使用 Maven
 
 ```bash
-# 运行所有集成测试
+# 运行本目录两个 integration owner（AI/LLM lane 由独立脚本负责）
+reports=foggy-dataset-mcp/target/failsafe-reports
+expected_reports=(
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$MetadataToolIntegrationTest.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$QueryModelToolIntegrationTest.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$DescriptionModelToolIntegrationTest.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$EndToEndScenarioTest.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.ComposeScriptToolIT.xml"
+)
+rm -f "${expected_reports[@]}"
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
   mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
-  -Dtest=*IntegrationTest \
+  -Dit.test=McpToolsIT,ComposeScriptToolIT \
   -Dspring.profiles.active=integration \
-  -Dsurefire.failIfNoSpecifiedTests=false test
+  -DskipUnitTests=true -DskipITs=false \
+  -Dfailsafe.failIfNoSpecifiedTests=false verify
+for report in "${expected_reports[@]}"; do
+  test -s "$report" && grep -q '<testcase' "$report" && ! grep -Eq 'skipped="[1-9]' "$report" || {
+    echo "Expected fresh non-skipped Failsafe report: $report" >&2
+    exit 1
+  }
+done
 
 # 运行特定测试类
+reports=foggy-dataset-mcp/target/failsafe-reports
+expected_reports=(
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$MetadataToolIntegrationTest.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$QueryModelToolIntegrationTest.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$DescriptionModelToolIntegrationTest.xml"
+  "$reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT\$EndToEndScenarioTest.xml"
+)
+rm -f "${expected_reports[@]}"
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
   mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
-  -Dtest=McpToolsIntegrationTest \
+  -Dit.test=McpToolsIT \
   -Dspring.profiles.active=integration \
-  -Dsurefire.failIfNoSpecifiedTests=false test
+  -DskipUnitTests=true -DskipITs=false \
+  -Dfailsafe.failIfNoSpecifiedTests=false verify
+for report in "${expected_reports[@]}"; do
+  test -s "$report" && grep -q '<testcase' "$report" && ! grep -Eq 'skipped="[1-9]' "$report" || {
+    echo "Expected fresh non-skipped Failsafe report: $report" >&2
+    exit 1
+  }
+done
 
 # 运行特定测试方法
+report=foggy-dataset-mcp/target/failsafe-reports/TEST-com.foggyframework.dataset.mcp.integration.McpToolsIT.xml
+rm -f "$report"
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
   mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
-  -Dtest=McpToolsIntegrationTest#verifyDatabaseAndTestData \
+  -Dit.test=McpToolsIT#verifyDatabaseAndTestData \
   -Dspring.profiles.active=integration \
-  -Dsurefire.failIfNoSpecifiedTests=false test
+  -DskipUnitTests=true -DskipITs=false \
+  -Dfailsafe.failIfNoSpecifiedTests=false verify
+test -s "$report" && grep -q '<testcase' "$report" && ! grep -Eq 'skipped="[1-9]' "$report"
 ```
 
 ### 方法 2: 使用 IDE
 
-1. 打开 `McpToolsIntegrationTest.java`
+1. 打开 `McpToolsIT.java`
 2. 设置 Active Profiles 为 `integration`
 3. 运行测试
 
@@ -250,7 +287,7 @@ org.springframework.jdbc.CannotGetJdbcConnectionException
 
 ### 添加新的测试场景
 
-1. 在 `McpToolsIntegrationTest` 中添加新的 `@Nested` 类
+1. 在 `McpToolsIT` 中添加新的 `@Nested` 类
 2. 使用 `executeTool()` 辅助方法执行工具
 3. 使用 `printJson()` 查看结果
 

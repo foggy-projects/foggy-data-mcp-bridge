@@ -482,7 +482,7 @@ public List<Map<String, Object>> executeSearch(int offset, int limit) {
 | 3.1 | 支持 `groupBy` 参数 | VectorModelQueryEngine.java |
 | 3.2 | 支持 `radius` 范围搜索 | VectorModelQueryEngine.java |
 | 3.3 | 实现 `hybrid` 混合搜索 | VectorModelQueryEngine.java |
-| 3.4 | 更新集成测试 | VectorIntegrationTest.java |
+| 3.4 | 更新集成测试 | VectorIT.java |
 
 ### Phase 4: 错误处理
 

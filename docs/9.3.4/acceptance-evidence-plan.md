@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # 9.3.4 Acceptance Evidence Plan
@@ -26,11 +26,11 @@ updated_at: 2026-07-14
 | module responsibility | `module-responsibility.md` | ready |
 | reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 confirmed / later runtime evidence pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Step 1 passed |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | in-progress / Step 1 passed only |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Step 1 present / Steps 2–6 pending |
-| implementation quality | planned `quality/test-ci-evidence-chain-implementation-quality.md` | not-started |
-| coverage audit | planned `coverage/test-ci-evidence-chain-coverage-audit.md` | not-started |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–2 passed / Step 3 ready |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Step 2 runner result passed；version in-progress |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–2 present / Steps 3–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` | Step 2 reviewed / ready-with-risks；open B/H/M=0 |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` | Step 2 ready-for-acceptance；critical/major gap=0 |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
 | roadmap/status sync | `README.md` + authoritative roadmap | planned after signoff |
 
@@ -41,6 +41,12 @@ Current Step 1 evidence：
 `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`，confirmed summary
 SHA-256=`579e9430bea6f873e7c4465cd1a6e45c49d348d84a89d5d648d25e3a5a4bbc50`。
 
+Current Step 2 evidence：
+`docs/9.3.4/evidence/step-2/step2-runner-split-exit-r8e-20260715.md`；confirmed
+successor manifest SHA-256=
+`4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919`，actual result=
+`724 positive + 59 structural / 5,205 testcase / F0/E0/S0`。Step 3 deferred=`46`。
+
 ## Mandatory Acceptance Evidence
 
 1. reviewed frozen `source-inventory.tsv` + `execution-inventory.tsv`：workspace/
@@ -48,11 +54,14 @@ SHA-256=`579e9430bea6f873e7c4465cd1a6e45c49d348d84a89d5d648d25e3a5a4bbc50`。
    variants 全部明确；execution key orphan/overlap/duplicate/ambiguous=0。predecessor
    migration group declared/observed cardinality exact、unmapped/edge-duplicate=0；
    immutable Step 1 pre-rename baseline、rename-plan SHA、confirmed Step 2 successor
-   parent link 与 approved exact delta 均可复算。
+   parent link 与 approved exact delta 均可复算。Step 2 successor 的 positive execution
+   与 structural report inventory typed 分离，519 predecessor edges 以 480 execution +
+   39 structural XOR refs 保持完整。
 2. Surefire/Failsafe actual execution：Step 2 与 Step 3 raw execution-key sets 分别
    exact match confirmed Step 2 successor 的各自 subset，二者并集覆盖该 generation
-   全部 required execution inventory、交集为空；owning nested/variant reports fresh、
-   exact。
+   全部 required positive execution inventory、交集为空；每个 variant 的 raw XML
+   exact 等于 positive + structural expected set，positive tests>0、structural strict-zero，
+   owning nested/variant reports fresh、exact。
 3. SQLite、MySQL 5.7、MySQL 8、PostgreSQL 15、SQL Server 2022 全部 required，
    product/version/physical identity/sentinel/fixture/parity 可复算且 S0。
 4. Step 4 带 agent 重跑全部 required lanes；JaCoCo exec provenance、aggregate XML
@@ -77,8 +86,9 @@ SHA-256=`579e9430bea6f873e7c4465cd1a6e45c49d348d84a89d5d648d25e3a5a4bbc50`。
 以下任一缺失都阻断签收，不能降级为 `accepted-with-risks`：
 
 - 五库任一 required lane 未执行、skipped、identity/sentinel 不可证或报告不 fresh；
-- source/execution inventory 仍有 orphan、nested/variant missing、overlap、duplicate、
-  zero、未声明 non-reactor source 或双义命名；
+- source/execution/structural inventory 仍有 orphan、nested/variant missing、overlap、
+  duplicate、positive zero、structural nonzero/无 sibling、未声明 non-reactor source或
+  双义命名；
 - predecessor migration group cardinality 不符、node unmapped/edge duplicate，或要求
   篡改旧 runner 过门；
 - aggregate/critical coverage 依赖空 reporter check、降门槛、扩大 exclusion 或缺失

@@ -6,7 +6,7 @@ priority: P0
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # P0 测试与 CI 证据链
@@ -142,3 +142,15 @@ updated_at: 2026-07-14
   evidence tamper 和 release skip flag。
 - README、requirement、contract、progress、test、quality、coverage、acceptance、
   roadmap 与 root testing guidance 回写同一签收状态。
+
+## Current Progress
+
+- version status：`in-progress`；Steps 1–2=`passed`；Step 3=`ready`；
+- Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
+  `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
+  F/E/S=`0/0/0`；
+- `46` 个 DB/Redis/Mongo external execution 保持 exact deferred-to-Step-3；
+- r8d authority 因 signal fail-open 作废；r8e 已以 INT/TERM/HUP=`130/143/129`
+  动态探针证明 durable fail closed；
+- 五库、coverage、CI、release 和 version acceptance 仍未完成，不能据此签收 9.3.4
+  或把 9.3.5 标为 ready。

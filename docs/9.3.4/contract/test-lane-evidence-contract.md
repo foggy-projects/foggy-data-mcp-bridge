@@ -4,7 +4,7 @@ doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and rel
 version: 9.3.4
 status: confirmed
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # Test Lane and Evidence Contract
@@ -30,7 +30,9 @@ source_id | module | reactor_member | source_root | source_path | top_level_fqcn
   得被计入 root reactor required execution。Step 1 从 active root `<modules>` 重新
   推导成员，不能硬编码当前数量。
 
-`execution-inventory.tsv` 每个实际 report execution key 一行：
+`execution-inventory.tsv` 在 Step 2 successor 中每个正向 report execution key 一行；
+confirmed Step 1 的 829 行是不可变的 pre-amendment report identity baseline，其中
+59 行随后被 typed 为 structural container，不回写或伪造 Step 1：
 
 ```text
 execution_key | source_id | report_fqcn | runner | lane | variant_key | db_kind | infra_kind | execution_step | required | owner | optional_reason | review_at
@@ -48,6 +50,25 @@ module | source_id | source_fqcn | report_fqcn | discovered_test_nodes | runtime
   使用固定 `junit-jupiter` engine，`none` 行的 node/deferred 均为 0、engine=`none`。
 - source、当前 owning module `target/test-classes` 与 `target/classes` tree SHA 必须由
   validator 现场复算；orphan/duplicate/missing/tampered row 全部 fail closed。
+
+Step 2 successor 另有 `structural-report-inventory.tsv`：
+
+```text
+module | source_id | source_fqcn | report_fqcn | runner | lane | variant_key | owner | discovered_test_nodes | runtime_deferred_containers | positive_sibling_execution_keys | disposition | rationale
+```
+
+- structural row 只能是 `report_fqcn=source_fqcn`、discovery/deferred=`0/0` 的
+  top-level ClassSource container；必须有同 source/runner/variant 的非空正向
+  `$Nested` sibling execution set，disposition=`reviewed-structural-container`。
+- structural report 必须 fresh 且 suite identity exact，
+  `tests/testcase/failure/error/skipped=0`；它不计入 execution/test totals。普通正向
+  execution report 的 tests 必须大于 0，不能借 structural 规则放宽。
+- successor positive execution 与 structural report 集不相交；二者并集与该
+  generation 的实际 raw Maven XML report 集 exact。
+- runtime manifest 的 `report_count` 只表示 positive execution reports；
+  `structural_report_count` 单列 structural，`raw_report_count` 必须等于两者之和。
+  lane `summary.env` 使用 `execution_reports/structural_reports/raw_reports`，不保留
+  含混的单一 `reports` 字段。
 
 `discovery-classpath.tsv` 冻结 discovery 实际使用的有序 effective classpath：
 
@@ -72,11 +93,13 @@ rename_group | current_source_id | current_source_path | current_top_level_fqcn 
   `*IntegrationTest` 的 target 只能机械改为 `*IT`；nested suffix 原样保留，source ID
   和 length-framed key 必须重算；runner/lane/variant/DB/infra/step/required/optional/
   owner 全部不变，target path/FQCN/key 不得碰撞。
-- plan exact 覆盖 33 sources、62 reports、74 execution keys 与 50 predecessor
+- plan exact 覆盖 33 sources、62 reports、74 pre-amendment identities 与 50 predecessor
   edges。Step 2 不覆盖本目录 baseline；在 `scripts/v934/successor/step2/` 生成 post-
   rename candidate，以 confirmed Step 1 summary 的 manifest SHA + rename-plan SHA
-  作为 parent link，只允许 approved rename/POM delta，并经独立 review/confirm 后才
-  成为 Step 2/3 exact-compare inventory。
+  作为 parent link，只允许 approved rename/POM delta 与 reviewed structural-container
+  amendment，并经独立 review/confirm 后才成为 Step 2/3 exact-compare inventory。
+  successor 分类必须保持 33 source、62 discovery report rename，其中 58 report/
+  70 key 留在 positive execution，4 report 转为 structural；不得改写 parent SHA。
 
 - `execution_key` 是 versioned stable key，精确编码为
   `v934|<byte-len>:<runner>|<byte-len>:<lane>|<byte-len>:<variant_key>|<byte-len>:<report_fqcn>`；
@@ -97,9 +120,9 @@ rename_group | current_source_id | current_source_path | current_top_level_fqcn 
 - `sqlite-broad-integration` 与 `database-contract-matrix[sqlite]` 使用两个显式、
   互斥 execution-key 子集：前者承担广覆盖 integration，后者只承担五库同构
   preflight/parity/capability contract；同一 `(report_fqcn, sqlite)` overlap 必须为 0。
-- actual raw XML report keys 与当前 Step/variant 的 expected execution subset 做双向
-  差集：orphan=0、unexpected=0、runner overlap=0。不能把 source 行直接与 report
-  FQCN 集比较。
+- actual raw XML report identities 与当前 Step/variant 的 expected positive execution
+  subset 加 structural subset 做双向差集：orphan=0、unexpected=0、runner overlap=0。
+  positive/structural metrics 必须分开，不能把 source 行直接与 report FQCN 集比较。
 - Step 1 discovery 取当前 Maven 默认/显式 pattern 的并集，包括 `Test*`、`*Test`、
   `*Tests`、`*TestCase`、`IT*`、`*IT`、`*ITCase`、`*E2E`、`*E2ETest`；prefix-only
   `Test*`/`IT*` 也必须逐项判定 executable 或 helper，不能因 final include 收窄而
@@ -130,13 +153,15 @@ rename_group | current_source_id | current_source_path | current_top_level_fqcn 
   冲突的第二套默认。
 - `failIfNoTests`/`failIfNoSpecifiedTests` 在 owning lane fail closed；wrapper 可为
   `-am` helper 放宽 Maven 层，但随后必须独立断言 owning fresh report/FQCN/count。
-- reports 必须晚于 run marker，且 testcase node count 等于 suite tests 总和。
+- reports 必须晚于 run marker，且 testcase node count 等于 suite tests 总和；positive
+  suite tests 必须大于 0，reviewed structural suite 必须严格等于 0。
 - Step 2 actual exit 由 all unit + hermetic IT 组成；`infra_kind` 为 DB/Redis/other
   external 的 required suite 只能以 reviewed exact manifest defer 到 Step 3，不能
-  标 pass。Step 2 对 confirmed Step 2 successor inventory 的 `execution_step=2`
-  subset 做 exact compare，Step 3 对同一 successor inventory 的 `execution_step=3`
-  subset 做 exact compare；两者 execution-key 并集必须等于该 generation 全部 required
-  execution inventory 且交集为空。
+  标 pass。Step 2 对 confirmed Step 2 successor positive inventory 的
+  `execution_step=2` subset 做 exact compare，并同时 exact 校验同 variant 的 structural
+  raw reports；Step 3 对同一 successor positive inventory 的 `execution_step=3`
+  subset 做 exact compare。两者 execution-key 并集必须等于该 generation 全部 required
+  positive execution inventory 且交集为空。
 
 ## 3. Skip Contract
 
@@ -220,8 +245,12 @@ CaffeineQueryCacheProvider、RedisQueryCacheProvider。Step 1 可经 review 增�
   mapping_group | relation | declared_old_count | declared_successor_count | criterion | predecessor_node | successor_execution_key | disposition | rationale | owner | reviewer
   ```
 
-  `relation ∈ {1:1,1:N,N:1}`；1:1 是默认。每个 predecessor node 恰属一个 group；
-  successor execution key 必须存在于同 generation 的 frozen execution inventory。一个 execution
+  Step 2 successor 为 structural amendment 增加 typed
+  `successor_structural_report_fqcn`（紧随 `successor_execution_key`）；两列严格 XOR。
+  positive 引用必须存在于同 generation execution inventory；structural 引用必须存在
+  于 structural inventory 且 disposition=`structural-container-successor`。confirmed
+  Step 1 原表不回写。`relation ∈ {1:1,1:N,N:1}`；1:1 是默认。每个 predecessor node
+  恰属一个 group。一个 execution
   key 可支撑多个不同 criterion group，但同 group 内 old/successor distinct node
   cardinality 必须等于 declared values，edge tuple duplicate=0；9.3.4 新增 key 可不
   进入 edge 表。split/merge 必须写 criterion-preservation rationale/reviewer。
@@ -327,3 +356,14 @@ reviewer=`dual-independent-review:precommit_scope_audit+v934_step1_contract`；f
 `e601c6c70ff02e9e50b86fd2b14b14aba9cfede096b42c93ff6e5968a918640f`，summary=
 `579e9430bea6f873e7c4465cd1a6e45c49d348d84a89d5d648d25e3a5a4bbc50`。证据：
 `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`。
+
+Step 2 confirmed record（2026-07-15）：run=`step2-candidate-r8e-20260715`，
+decision=`passed`，reviewer=
+`dual-independent-review:v934_r8e_identity_review+v934_snapshot_skip`；freeze=
+`44b11ed756bf41e3b271ac57b59c2c882a0b31a56963f42ae154fdb5d37b2fb6`，manifest=
+`4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919`，summary=
+`f6b80aa5f48c6f32aaa99336823dd00d183d75a096767c74f7de2c21c1ac4b75`。current counts=
+`770 positive = 724 Step 2 + 46 Step 3 deferred`、`59 structural`、`519 predecessor`。
+Step 2 actual runner evidence 为 `5,205 testcase / F0/E0/S0`，并通过
+INT/TERM/HUP=`130/143/129` durable fail-closed probe。证据：
+`docs/9.3.4/evidence/step-2/step2-runner-split-exit-r8e-20260715.md`。

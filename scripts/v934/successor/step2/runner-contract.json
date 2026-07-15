@@ -1,0 +1,340 @@
+{
+  "authority_lock_contract": {
+    "acquire_before": [
+      "run-root-read",
+      "protected-source-read",
+      "superseded-provenance-read",
+      "shared-workspace-write"
+    ],
+    "helper_mode": "0755",
+    "helper_path": "scripts/v934/authority_runner_lib.sh",
+    "helper_sha256": "865ad2839374e652a68bda9635f8d7fe72c0613446a08428a88aad57730130d9",
+    "integration_runner_sha256": "911f4ee87f4a884887e940233bb053a891faffe702248a8d8499f59fab06c8cd",
+    "lock_path": "git-dir/v934-step2-authority.lock",
+    "mechanism": "flock-nonblocking-exclusive-fd",
+    "participants": [
+      "successor",
+      "surefire",
+      "failsafe",
+      "confirm"
+    ],
+    "schema_version": 2,
+    "signal_contract": {
+      "disarm_order": "ignore-signals-before-remove-exit",
+      "finalizer": "signal-blocked-nonreentrant",
+      "signals": {
+        "HUP": 129,
+        "INT": 130,
+        "TERM": 143
+      },
+      "status": "failed-with-signal-exit-code",
+      "summary_on_failure": "absent"
+    },
+    "unit_runner_sha256": "0063629b399123d57b69b1ee794597562583c9f93347ca8d3dd965a9f1543427"
+  },
+  "failsafe_binding_source": "spring-boot-parent-effective-pom",
+  "failsafe_executions": [
+    {
+      "goals": [
+        "integration-test",
+        "verify"
+      ],
+      "id": "",
+      "phase": ""
+    }
+  ],
+  "failsafe_fail_if_no_specified_tests": "${failsafe.failIfNoSpecifiedTests}",
+  "failsafe_fail_if_no_specified_tests_default": "true",
+  "failsafe_fail_if_no_tests": "${failsafe.failIfNoTests}",
+  "failsafe_fail_if_no_tests_default": "true",
+  "failsafe_includes": [
+    "**/IT*.java",
+    "**/*IT.java",
+    "**/*ITCase.java",
+    "**/*E2E.java",
+    "**/*E2ETest.java",
+    "**/MultiDatabaseQueryTest.java"
+  ],
+  "failsafe_skip_property": "${skipITs}",
+  "failsafe_version": "3.5.3",
+  "legacy_multi_db_executions": [
+    "test-mysql",
+    "test-postgres"
+  ],
+  "model_pom_sha256": "153cd7117dc1286a6ccaa15e374cd9a5749570549610c3606dc4860fe3c67ccc",
+  "multi_db_activation": "explicit-only",
+  "ownership": {
+    "discovery_report_containers": {
+      "failsafe": 72,
+      "surefire": 732
+    },
+    "executable_reactor_sources": 514,
+    "execution_owners": {
+      "failsafe": 93,
+      "surefire": 677
+    },
+    "orphan": 0,
+    "overlap": 0,
+    "positive_report_owners": {
+      "failsafe": 68,
+      "surefire": 677
+    },
+    "source_owners": {
+      "failsafe": 43,
+      "surefire": 471
+    },
+    "step2_owners": {
+      "failsafe": 47,
+      "surefire": 677
+    },
+    "step3_owners": {
+      "failsafe": 46,
+      "surefire": 0
+    },
+    "structural_report_owners": {
+      "failsafe": 4,
+      "surefire": 55
+    }
+  },
+  "publish_cas_contract": {
+    "checkpoints": [
+      "startup",
+      "pre-publish",
+      "post-archive"
+    ],
+    "comparison": "exact-r7-freeze+manifest+confirmed-summary-sha256",
+    "confirm_requires": [
+      "passed-outer-run-status",
+      "exact-r7-archive",
+      "exact-superseded-provenance"
+    ],
+    "confirmed_bindings": [
+      "run-log",
+      "run-status",
+      "archive-freeze",
+      "archive-manifest",
+      "superseded-provenance"
+    ],
+    "lock_required": true,
+    "post_publish": [
+      "validate",
+      "validate-summary"
+    ],
+    "rollback": "exit-trap-restores-and-revalidates-exact-r7-before-completed-exit",
+    "rollback_states": [
+      "archive-started",
+      "r7-archived",
+      "candidate-published",
+      "publish-validated"
+    ],
+    "schema_version": 2,
+    "swap": "archive-r7-then-rename-staging"
+  },
+  "reactor_modules": [
+    "addons/foggy-chart-storage-cloud",
+    "addons/foggy-data-viewer",
+    "addons/foggy-dataset-client",
+    "addons/foggy-dataset-graphql",
+    "addons/foggy-dataset-model-cache",
+    "addons/foggy-dataset-model-mongo",
+    "addons/foggy-dataset-model-preagg",
+    "addons/foggy-dataset-model-vector",
+    "addons/foggy-dataset-mongo",
+    "addons/foggy-dataset-vector",
+    "addons/foggy-fsscript-client",
+    "addons/foggy-odoo-bridge-java",
+    "foggy-bean-copy",
+    "foggy-core",
+    "foggy-dataset",
+    "foggy-dataset-demo",
+    "foggy-dataset-mcp",
+    "foggy-dataset-memory-grid-bridge",
+    "foggy-dataset-memory-grid-duckdb",
+    "foggy-dataset-model",
+    "foggy-fsscript",
+    "foggy-mcp-launcher",
+    "foggy-mcp-spi",
+    "foggy-runtime-api"
+  ],
+  "report_evidence_contract": {
+    "cardinality_policy": {
+      "runtime_deferred": "testcase_nodes>=discovered_test_nodes+runtime_deferred_containers",
+      "static": "testcase_nodes==discovered_test_nodes",
+      "structural": "testcase_nodes==0"
+    },
+    "cross_run_splice_policy": "reject",
+    "manifest_schema_version": 3,
+    "merged_manifest_kind": "v934-step2-report-merged",
+    "metrics_header": [
+      "execution_key",
+      "source_id",
+      "report_fqcn",
+      "runner",
+      "variant_key",
+      "module",
+      "discovered_test_nodes",
+      "runtime_deferred_containers",
+      "cardinality_policy",
+      "minimum_testcase_nodes",
+      "evidence_report",
+      "tests",
+      "failures",
+      "errors",
+      "skipped",
+      "testcase_nodes",
+      "sha256"
+    ],
+    "negative_probe_count": 20,
+    "negative_probes": [
+      "missing-xml",
+      "stale-marker",
+      "zero-testcase",
+      "duplicate-fqcn",
+      "unexpected-extra",
+      "skipped",
+      "runner-overlap",
+      "missing-structural",
+      "structural-nonzero",
+      "unexpected-structural-zero",
+      "unowned-reactor-extra",
+      "structural-stale",
+      "forged-positive-mtime",
+      "forged-structural-mtime",
+      "cross-run-manifest-splice",
+      "static-discovery-underflow",
+      "static-discovery-overflow",
+      "deferred-discovery-underflow",
+      "manifest-discovery-drift",
+      "discovery-binding-drift"
+    ],
+    "outer_context": {
+      "binding": "run-id+runner+git-head+source-hash+successor-identity",
+      "fields": [
+        "schema_version",
+        "kind",
+        "run_id",
+        "runner",
+        "git_head",
+        "source_before_sha256",
+        "started_at",
+        "status",
+        "successor"
+      ],
+      "kind": "v934-step2-outer-run",
+      "schema_version": 1,
+      "status": "started"
+    },
+    "run_manifest_kind": "v934-step2-report-run",
+    "runner_report_cardinality": {
+      "failsafe": {
+        "positive": 47,
+        "raw": 51,
+        "structural": 4
+      },
+      "step2": {
+        "positive": 724,
+        "raw": 783,
+        "structural": 59
+      },
+      "surefire": {
+        "positive": 677,
+        "raw": 732,
+        "structural": 55
+      }
+    },
+    "testcase_header": [
+      "execution_key",
+      "report_fqcn",
+      "classname",
+      "name"
+    ],
+    "variant_context": {
+      "binding": "outer-marker-sha256+run-id+runner+variant",
+      "fields": [
+        "schema_version",
+        "kind",
+        "run_id",
+        "runner",
+        "variant_key",
+        "outer_marker_sha256",
+        "started_at",
+        "status"
+      ],
+      "kind": "v934-step2-variant-run",
+      "schema_version": 1,
+      "status": "started"
+    },
+    "variant_report_cardinality": {
+      "failsafe/caffeine-sqlite": {
+        "positive": 1,
+        "raw": 1,
+        "structural": 0
+      },
+      "failsafe/hermetic": {
+        "positive": 1,
+        "raw": 1,
+        "structural": 0
+      },
+      "failsafe/sqlite-broad": {
+        "positive": 42,
+        "raw": 46,
+        "structural": 4
+      },
+      "failsafe/sqlite-harness": {
+        "positive": 1,
+        "raw": 1,
+        "structural": 0
+      },
+      "failsafe/sqlite-lifecycle": {
+        "positive": 1,
+        "raw": 1,
+        "structural": 0
+      },
+      "failsafe/sqlite-refresh": {
+        "positive": 1,
+        "raw": 1,
+        "structural": 0
+      },
+      "surefire/unit": {
+        "positive": 677,
+        "raw": 732,
+        "structural": 55
+      }
+    }
+  },
+  "root_pom_sha256": "7ddff9e29ae7297b4888fbf2efc196ce9c38072162497e4f1cebf608392ec66b",
+  "schema_version": 4,
+  "step3_legacy_failsafe_exception": "MultiDatabaseQueryTest",
+  "surefire_excludes": [
+    "**/IT*.java",
+    "**/*IT.java",
+    "**/*IT$*.java",
+    "**/*ITCase.java",
+    "**/*ITCase$*.java",
+    "**/*E2E.java",
+    "**/*E2E$*.java",
+    "**/*E2ETest.java",
+    "**/*E2ETest$*.java",
+    "**/MultiDatabaseQueryTest.java",
+    "**/MultiDatabaseQueryTest$*.java"
+  ],
+  "surefire_executions": [
+    {
+      "goals": [
+        "test"
+      ],
+      "id": "default-test",
+      "phase": "test"
+    }
+  ],
+  "surefire_fail_if_no_specified_tests": "true",
+  "surefire_fail_if_no_tests": "${surefire.failIfNoTests}",
+  "surefire_fail_if_no_tests_default": "true",
+  "surefire_includes": [
+    "**/*Test.java",
+    "**/*Tests.java",
+    "**/*TestCase.java"
+  ],
+  "surefire_skip_property": "${skipUnitTests}",
+  "surefire_version": "3.5.3"
+}

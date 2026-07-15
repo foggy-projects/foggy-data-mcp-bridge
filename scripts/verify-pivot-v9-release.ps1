@@ -25,6 +25,30 @@ function Invoke-ReleaseStep {
     }
 }
 
+function Invoke-PivotParityIT {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$Profile
+    )
+
+    $report = Join-Path $repoRoot "foggy-dataset-model/target/failsafe-reports/TEST-com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT.xml"
+    Remove-Item -Force -ErrorAction SilentlyContinue $report
+    Invoke-ReleaseStep $Name @(
+        "verify",
+        "-pl", "foggy-dataset-model",
+        "-am",
+        "-Dit.test=PivotSqlParityIT",
+        "-Dspring.profiles.active=$Profile",
+        "-DskipUnitTests=true",
+        "-DskipITs=false",
+        "-Dfailsafe.failIfNoSpecifiedTests=false",
+        "-P!multi-db"
+    )
+    if (-not (Test-Path $report) -or (Get-Item $report).Length -eq 0 -or -not (Select-String -Quiet -Path $report -Pattern '<testcase')) {
+        throw "Expected fresh Failsafe report is missing or empty: $report"
+    }
+}
+
 function Assert-DockerContainer {
     param(
         [Parameter(Mandatory = $true)][string]$Name
@@ -50,15 +74,7 @@ if (-not $SkipFullRegression) {
     Invoke-ReleaseStep "Full module regression" @("test", "-P!multi-db")
 }
 
-Invoke-ReleaseStep "SQLite pivot SQL parity" @(
-    "test",
-    "-pl", "foggy-dataset-model",
-    "-am",
-    "-Dtest=PivotSqlParityIntegrationTest",
-    "-Dspring.profiles.active=sqlite",
-    "-Dsurefire.failIfNoSpecifiedTests=false",
-    "-P!multi-db"
-)
+Invoke-PivotParityIT "SQLite pivot SQL parity" "sqlite"
 
 if (-not $SkipMcp) {
     Invoke-ReleaseStep "MCP schema and JSON-RPC guardrail" @(
@@ -73,25 +89,8 @@ if (-not $SkipExternalDb) {
     Assert-DockerContainer "foggy-demo-mysql8"
     Assert-DockerContainer "foggy-demo-postgres"
 
-    Invoke-ReleaseStep "MySQL8 pivot SQL parity" @(
-        "test",
-        "-pl", "foggy-dataset-model",
-        "-am",
-        "-Dtest=PivotSqlParityIntegrationTest",
-        "-Dspring.profiles.active=mysql8",
-        "-Dsurefire.failIfNoSpecifiedTests=false",
-        "-P!multi-db"
-    )
-
-    Invoke-ReleaseStep "PostgreSQL pivot SQL parity" @(
-        "test",
-        "-pl", "foggy-dataset-model",
-        "-am",
-        "-Dtest=PivotSqlParityIntegrationTest",
-        "-Dspring.profiles.active=postgres",
-        "-Dsurefire.failIfNoSpecifiedTests=false",
-        "-P!multi-db"
-    )
+    Invoke-PivotParityIT "MySQL8 pivot SQL parity" "mysql8"
+    Invoke-PivotParityIT "PostgreSQL pivot SQL parity" "postgres"
 }
 
 Write-Host ""

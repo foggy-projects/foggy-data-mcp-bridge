@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * G5 Phase 2 (F5) · {@link ColumnObjectNormalizer} plan-qualified column
  * normalization contract.
  *
- * <p>Counterpart to the F4 coverage in {@code F4ColumnObjectIntegrationTest}.
+ * <p>Counterpart to the F4 coverage in {@code F4ColumnObjectIT}.
  * F5 normalize differs from F4 in that the output is NOT a string — it is a
  * {@link com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression}
  * compound mirroring the chained-API output shape ({@code sales.amount.sum().as("t")}
@@ -22,10 +22,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link PlanColumnRef}).</p>
  *
  * <p><b>Intentional split-from-F4-tests</b>: F4 coverage exists at
- * {@code F4ColumnObjectIntegrationTest} (real-SQL integration); F5 unit
+ * {@code F4ColumnObjectIT} (real-SQL integration); F5 unit
  * coverage lives here so the normalize-only behaviour can be verified
  * without spinning up the SQL engine. F5 real-SQL coverage lands in
- * {@code F5ColumnObjectIntegrationTest} (PR-J2).</p>
+ * {@code F5ColumnObjectIT} (PR-J2).</p>
  */
 @DisplayName("G5 F5 · ColumnObjectNormalizer plan-qualified")
 class ColumnObjectNormalizerF5Test {

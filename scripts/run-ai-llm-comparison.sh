@@ -110,6 +110,29 @@ echo "[ai-llm] categories=${CATEGORIES:-<all>}"
 echo "[ai-llm] maxCases=$MAX_CASES"
 echo "[ai-llm] failOnMismatch=$FAIL_ON_MISMATCH"
 
+UNIT_REPORT_DIR="$REPO_ROOT/foggy-dataset-mcp/target/surefire-reports"
+IT_REPORT="$REPO_ROOT/foggy-dataset-mcp/target/failsafe-reports/TEST-com.foggyframework.dataset.mcp.ai.AiToolsIT\$AiModelCallTest.xml"
+rm -f \
+  "$UNIT_REPORT_DIR/TEST-com.foggyframework.dataset.mcp.ai.AiTestReportSummaryTest.xml" \
+  "$UNIT_REPORT_DIR/TEST-com.foggyframework.dataset.mcp.ai.SpringAiTestExecutorTest.xml"
+
+JAVA_HOME="${JAVA_HOME:-/Users/fengjianguang/.jdk/temurin-17/Contents/Home}" \
+mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
+  -Dtest='AiTestReportSummaryTest,SpringAiTestExecutorTest' \
+  -DskipITs=true \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+
+for report in \
+  "$UNIT_REPORT_DIR/TEST-com.foggyframework.dataset.mcp.ai.AiTestReportSummaryTest.xml" \
+  "$UNIT_REPORT_DIR/TEST-com.foggyframework.dataset.mcp.ai.SpringAiTestExecutorTest.xml"; do
+  [[ -s "$report" ]] && grep -q '<testcase' "$report" || {
+    echo "Expected fresh Surefire report is missing or empty: $report" >&2
+    exit 1
+  }
+done
+
+rm -f "$IT_REPORT"
+
 JAVA_HOME="${JAVA_HOME:-/Users/fengjianguang/.jdk/temurin-17/Contents/Home}" \
 AI_TEST_LLM_ENABLED=true \
 AI_TEST_OPENAI_API_KEY="$API_KEY" \
@@ -120,5 +143,12 @@ AI_TEST_CATEGORIES="$CATEGORIES" \
 AI_TEST_MAX_CASES="$MAX_CASES" \
 AI_TEST_LLM_FAIL_ON_MISMATCH="$FAIL_ON_MISMATCH" \
 mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
-  -Dtest='AiToolsIntegrationTest$AiModelCallTest,AiTestReportSummaryTest,SpringAiTestExecutorTest' \
-  -Dsurefire.failIfNoSpecifiedTests=false test
+  -Dit.test='AiToolsIT$AiModelCallTest' \
+  -DskipUnitTests=true \
+  -DskipITs=false \
+  -Dfailsafe.failIfNoSpecifiedTests=false verify
+
+[[ -s "$IT_REPORT" ]] && grep -q '<testcase' "$IT_REPORT" || {
+  echo "Expected fresh Failsafe report is missing or empty: $IT_REPORT" >&2
+  exit 1
+}

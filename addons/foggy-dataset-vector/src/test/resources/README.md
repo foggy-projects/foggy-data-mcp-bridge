@@ -49,14 +49,11 @@ cd addons/foggy-dataset-vector
 mvn test -Dtest=VectorKeyTest,VectorStoreQueryTest,VectorFscriptDataSetModelTest
 ```
 
-### 集成测试（需要 Milvus + API Key）
-```bash
-# 确保已配置环境变量
-export OPENAI_API_KEY=sk-xxx
+### 集成测试（Step 3 外部矩阵）
 
-cd addons/foggy-dataset-vector
-mvn test -Dtest=VectorStoreIntegrationTest
-```
+`VectorStoreIT` 当前仍由 class-level `@Disabled` 隔离，不能把手工 Maven 绿色结果当作
+真实 Milvus 证据。9.3.4 Step 3 会先移除该静态禁用，接入受控 Milvus + embedding
+fixture，再以 fresh Failsafe XML 和 skipped=0 作为 required lane 证据。
 
 ## 配置文件说明
 

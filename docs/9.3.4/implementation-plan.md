@@ -4,7 +4,7 @@ doc_purpose: Define the strict Step 1-7 implementation and verification order fo
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # 9.3.4 Implementation Plan
@@ -87,17 +87,30 @@ Work：
 4. 各 module 只保留必要 owning config；helper 0-test 不得掩盖 owning module。
 5. 不覆盖 Step 1 baseline；在 `scripts/v934/successor/step2/` 生成 post-rename
    candidate，以 confirmed Step 1 manifest SHA + rename-plan SHA 做 parent link，校验
-   source/report/key exact delta、执行语义列不变，并独立 review/confirm。同步 519
-   predecessor nodes 到新 successor keys，50 个受影响 edges 不得丢失。
+   source/report/key exact delta、执行语义列不变，并独立 review/confirm。把已复核的
+   59 个 zero-test top-level ClassSource container 从 positive execution 拆成 typed
+   structural inventory；Step 1 baseline 保持 829/785 不变。同步 519 predecessor
+   nodes 到 480 个 positive execution refs + 39 个 structural refs，50 个受影响 edges
+   不得丢失。
 6. 实跑 all-reactor unit 和全部 hermetic Failsafe IT；将 fresh raw report execution
-   keys 与 confirmed Step 2 successor inventory 的 `execution_step=2` subset 双向核对，
-   校验 freshness、exact testcase count、
+   keys 与 confirmed Step 2 successor positive inventory 的 `execution_step=2` subset
+   双向核对；同 variant structural raw report 另做 exact fresh/zero-metric 核对，校验
+   freshness、exact testcase count、
    overlap=0。DB/Redis/other external required IT
    只允许以 Step 2 successor exact manifest 标 `deferred-to-step3`，不得标 pass。
 
-Exit：每个 Step 2 execution key 恰由一个 runner 执行；ambiguous/orphan/overlap/
-duplicate=0；missing/zero/stale negative 全失败；unit/hermetic IT actual pass；
-external deferred set exact 且 predecessor mapping 无丢项。Progress 回写 Step 2。
+Exit：每个 Step 2 positive execution key 恰由一个 runner 执行，structural report 只
+允许在 reviewed typed set 中为 0；ambiguous/orphan/overlap/duplicate=0；missing/
+positive-zero/structural-nonzero/stale negative 全失败；unit/hermetic IT actual pass；
+external deferred set exact 且 predecessor typed mapping 无丢项。Progress 回写 Step 2。
+
+Recorded result（2026-07-15）：`passed`。confirmed successor=
+`step2-candidate-r8e-20260715`；Surefire/Failsafe authority=
+`step2-unit-r8e-20260715` / `step2-it-r8e-20260715`；结果为
+`724 positive + 59 structural / 5,205 testcase / F0/E0/S0`，Step 3 deferred=`46`。
+INT/TERM/HUP 的 process 与 durable exit 分别为 `130/143/129`，失败状态不保留
+summary。证据见
+`evidence/step-2/step2-runner-split-exit-r8e-20260715.md`。Step 3 entry=`ready`。
 
 ## Step 3 — 五数据库与外部集成 Required Matrix
 

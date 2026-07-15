@@ -55,7 +55,7 @@
 | 覆盖功能 | 单/多维分组、条件聚合、同名字段条件过滤、无 GROUP BY 聚合 |
 | **合理性** | ✅ 优秀 — 聚合是核心功能，测试场景设计贴近实际分析场景 |
 | **到位程度** | ✅ 到位 |
-| **缺口** | HAVING 子句（已由 HavingClauseIntegrationTest 补充）、嵌套聚合的边界 |
+| **缺口** | HAVING 子句（已由 HavingClauseIT 补充）、嵌套聚合的边界 |
 | 优先级 | P3 |
 
 #### ✅ CalculatedFieldTest.java
@@ -187,7 +187,7 @@
 | **缺口** | 深层级（>5层）性能、孤儿节点处理、闭包表数据不一致 |
 | 优先级 | P2 |
 
-#### ✅ ServiceIntegrationTest.java
+#### ✅ ServiceIT.java
 | 项目 | 详情 |
 |------|------|
 | 测试方法数 | ~10 |
@@ -347,7 +347,7 @@
 | **缺口** | 与其他 Step 的交互、禁用时行为 |
 | 优先级 | P2 |
 
-#### ✅ AutoGroupByIntegrationTest.java
+#### ✅ AutoGroupByIT.java
 | 项目 | 详情 |
 |------|------|
 | 覆盖功能 | AUTO GROUP BY 与真实查询引擎集成 |
@@ -356,7 +356,7 @@
 | **缺口** | 无明显缺口 |
 | 优先级 | — |
 
-#### ✅ HavingClauseIntegrationTest.java
+#### ✅ HavingClauseIT.java
 | 项目 | 详情 |
 |------|------|
 | 覆盖功能 | HAVING 子句生成和执行 |
@@ -415,7 +415,7 @@
 
 ### 2.10 预聚合测试（preagg/）— 3 文件
 
-#### ✅ PreAggregationIntegrationTest.java
+#### ✅ PreAggregationIT.java
 | 项目 | 详情 |
 |------|------|
 | 覆盖功能 | 预聚合全流程（匹配→改写→执行） |
@@ -597,9 +597,9 @@
 | 7 | `NamespaceContextTest` | 线程池复用清理 | 🔲 待补充 |
 | 8 | `MultiDatabaseQueryTest` | 功能降级处理 | 🔲 待补充 |
 | 9 | `SemanticServiceV3Test` | 大量模型性能、权限过滤元数据 | 🔲 待补充 |
-| 10 | `HavingClauseIntegrationTest` | 多 HAVING、HAVING + 计算字段 | 🔲 待补充 |
+| 10 | `HavingClauseIT` | 多 HAVING、HAVING + 计算字段 | 🔲 待补充 |
 | 11 | `ParentChildDimensionTest` | 深层级性能、孤儿节点 | 🔲 待补充 |
-| 12 | `ServiceIntegrationTest` | 异常场景、空数据集 | 🔲 待补充 |
+| 12 | `ServiceIT` | 异常场景、空数据集 | 🔲 待补充 |
 | 13 | `MultiFactTableJoinTest` | 三表 JOIN、笛卡尔积防护 | 🔲 待补充 |
 | 14 | 并发安全测试（新建） | ThreadLocal 泄漏、模型并发加载/查询 | 🔲 待建 |
 

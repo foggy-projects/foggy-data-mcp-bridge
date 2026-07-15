@@ -5,8 +5,9 @@ version: 9.3.4
 status: in-progress
 result: in-progress
 step1_result: passed
+step2_result: passed
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # 9.3.4 Test and Evidence Plan
@@ -71,21 +72,26 @@ Positive：
   目录，parent manifest/rename-plan SHA exact，approved delta 双向差集精确且再次独立
   confirm；Step 1 baseline validator 变 stale 不能被当作 post-rename 失败或被覆盖。
 - final `*IntegrationTest` ambiguous source count=`0`；Step 2 raw report execution
-  keys 与 confirmed Step 2 successor `execution_step=2` subset 完全一致，不要求尚未
-  执行的 Step 3 subset。
-- fresh XML suite tests 总和等于 testcase nodes；F/E/S 符合 lane contract；同一
-  FQCN 不同时出现在 Surefire/Failsafe。
+  keys 与 confirmed Step 2 successor positive `execution_step=2` subset 完全一致，
+  不要求尚未执行的 Step 3 subset。59 个 reviewed outer zero-test containers 进入独立
+  structural inventory，不进入 positive execution/test totals。
+- fresh XML exact set 等于 positive + structural expected reports；positive suite tests
+  大于 0，structural suite tests/testcase/F/E/S 全为 0，且 suite tests 总和等于 testcase
+  nodes；同一 FQCN 不同时出现在 Surefire/Failsafe 或 positive/structural 两类。
 - SQLite broad integration 与 five-DB parity SQLite 子 lane 的 execution-key subsets
   双向求交为空；相同 `(report_fqcn, sqlite, lane)` execution count 不大于 1。
 - all unit + hermetic IT actual pass；DB/Redis/other external required suites 只以
   confirmed Step 2 successor exact manifest 标 `deferred-to-step3`，且 owner/preflight
   唯一。
-- renamed FQCN 与 predecessor migration map 双向一致；50 个受影响 edges 经 plan
-  确定性改写，全部 519 historical nodes 无 criterion 丢失。
+- renamed FQCN 与 predecessor typed migration map 双向一致；50 个受影响 edges 经
+  plan 确定性改写，480 execution refs + 39 structural refs 覆盖全部 519 historical
+  nodes，无 criterion 丢失。
 
 Expected-negative：指定 owning test 不存在、0 report、旧 XML、duplicate FQCN、
 Surefire 执行 IT、Failsafe 执行 unit、helper module 放宽掩盖 owner 0 tests、缺 parent
-link、plan 外 rename、语义列漂移或覆盖 Step 1 baseline 均失败。
+link、plan 外 rename、语义列漂移、structural missing/nonzero/无 positive sibling、
+typed predecessor ref 漂移或覆盖 Step 1 baseline 均失败。这里的 0 report 指 positive
+execution 为 0；reviewed structural report 只能按独立 strict-zero contract 通过。
 
 ## Step 3 — Required Database / External Matrix
 
@@ -197,12 +203,19 @@ Final acceptance 至少验证：
 
 - result: `in-progress`
 - step1_result: `passed`
+- step2_result: `passed`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
-- Step 1 只做 compile + JUnit discovery-only + static validation，没有执行测试方法或
-  external fixture；因此 unit/hermetic/external/coverage 的全版本结果仍未产生。
-- evidence:
-  `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`
-- next executable action: Step 2 controlled rename + runner split + actual unit/hermetic
-  Failsafe execution。
+- Step 2 confirmed successor=`step2-candidate-r8e-20260715`；current required split=
+  `724 Step 2 positive + 46 Step 3 deferred + 59 structural`。
+- Surefire `677/55/732` reports、`4,890` testcase；Failsafe `47/4/51` reports、
+  `315` testcase；combined `5,205`，F/E/S=`0/0/0`，report negatives 各 `20/20`。
+- INT/TERM/HUP 实际信号探针为 `130/143/129` 且失败 summary absent；r8d 及其 runner
+  evidence 已 superseded，不参与当前结果。
+- evidence：
+  `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`；
+  `docs/9.3.4/evidence/step-2/step2-successor-r8e-independent-review-20260715.md`；
+  `docs/9.3.4/evidence/step-2/step2-runner-split-exit-r8e-20260715.md`。
+- next executable action: Step 3 five-DB / Redis / Mongo external matrix，exact consume
+  confirmed deferred set=`46`。

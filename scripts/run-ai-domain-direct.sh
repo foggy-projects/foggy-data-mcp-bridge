@@ -84,10 +84,20 @@ fi
 echo "[ai-domain-direct] caseFiles=$CASE_FILES"
 echo "[ai-domain-direct] models=$MODEL_LIST"
 
+IT_REPORT="$REPO_ROOT/foggy-dataset-mcp/target/failsafe-reports/TEST-com.foggyframework.dataset.mcp.ai.AiToolsIT\$DirectToolCallTest.xml"
+rm -f "$IT_REPORT"
+
 JAVA_HOME="${JAVA_HOME:-/Users/fengjianguang/.jdk/temurin-17/Contents/Home}" \
 AI_TEST_CASE_FILES="$CASE_FILES" \
 mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
-  -Dtest='AiToolsIntegrationTest$DirectToolCallTest#allDirectCalls_summary' \
+  -Dit.test='AiToolsIT$DirectToolCallTest#allDirectCalls_summary' \
   "${MODEL_PROPS[@]}" \
   -Dfoggy.mcp.semantic.use-all-models=false \
-  -Dsurefire.failIfNoSpecifiedTests=false test
+  -DskipUnitTests=true \
+  -DskipITs=false \
+  -Dfailsafe.failIfNoSpecifiedTests=false verify
+
+[[ -s "$IT_REPORT" ]] && grep -q '<testcase' "$IT_REPORT" || {
+  echo "Expected fresh Failsafe report is missing or empty: $IT_REPORT" >&2
+  exit 1
+}

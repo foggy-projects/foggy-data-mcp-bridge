@@ -332,9 +332,13 @@ npm run test:e2e -- --project=chromium
 Mongo store 真实读写测试默认跳过，避免没有 Mongo 的本地或 CI 环境被外部服务阻塞。需要验证真实 Mongo 时，先准备 Mongo 实例，再显式开启：
 
 ```bash
-set FOGGY_DATA_VIEWER_MONGO_IT=true
-set FOGGY_DATA_VIEWER_MONGO_URI=mongodb://localhost:27017/foggy_data_viewer_it
-mvn test -pl addons/foggy-data-viewer -Dtest=MongoListPresetStoreIntegrationTest
+export FOGGY_DATA_VIEWER_MONGO_IT=true
+export FOGGY_DATA_VIEWER_MONGO_URI=mongodb://localhost:27017/foggy_data_viewer_it
+report=addons/foggy-data-viewer/target/failsafe-reports/TEST-com.foggyframework.dataviewer.service.listpreset.MongoListPresetStoreIT.xml
+rm -f "$report"
+mvn verify -pl addons/foggy-data-viewer -Dit.test=MongoListPresetStoreIT \
+  -DskipUnitTests=true -DskipITs=false
+test -s "$report" && grep -q '<testcase' "$report" && ! grep -Eq 'skipped="[1-9]' "$report"
 ```
 
 ## 六、行操作 (row-actions)

@@ -1,0 +1,713 @@
+{
+  "classpath_content_amendment": {
+    "amendments": [
+      {
+        "change_source": "addons/foggy-dataset-model-mongo/src/main/java/com/foggyframework/dataset/db/model/mongo/MongoModelAutoConfiguration.java",
+        "change_source_sha256": "b740ccfb0c443d1462efd93c3739574b41ba339fa5dba6ed5595c74a3b0c9b17",
+        "classification": "single-module-classpath-content-delta",
+        "entry_identity": "repo:addons/foggy-dataset-model-mongo/target/classes",
+        "module": "foggy-mcp-launcher",
+        "occurrences": 1,
+        "ordinal": "150",
+        "parent_entry_sha256": "af9a2d3036ef831a70a0a74a11aade3e3651afdb17e5984877835d31570866db",
+        "reason": "Mongo loader fail-closed ordering fix changed one module main-classes row",
+        "successor_entry_sha256": "302eb382337c9daf6c91981b6373b53648afe81470d598fb0cc817837fcf292d"
+      },
+      {
+        "change_source": "foggy-core/src/main/java/com/foggyframework/core/thread/MultiThreadExecutor.java",
+        "change_source_sha256": "71305f6d56ddc70baae810898b635671d76314a2cf1652b730670f810224f2cc",
+        "classification": "shared-runtime-classpath-content-delta",
+        "entry_identity": "repo:foggy-core/target/classes",
+        "occurrences": 20,
+        "parent_entry_sha256": "fcc8d1bed99f03b126690e4feb3b975bc48a4e88039854904461e0a6559d9e06",
+        "reason": "MultiThreadExecutor completion fix changed the shared foggy-core main-classes row",
+        "successor_entry_sha256": "1cd8887f0169d081e65db23b8370c931e03f270af67fa5edb8935c16ac367be1"
+      },
+      {
+        "change_source": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/PredefinedCalculatedFieldInjector.java",
+        "change_source_sha256": "24eeea7ee4bec78312dac7dfc71f17b2ceba46ab27c9bfeccbd7f7910fd92d5b",
+        "classification": "shared-runtime-classpath-content-delta",
+        "entry_identity": "repo:foggy-dataset-model/target/classes",
+        "occurrences": 13,
+        "parent_entry_sha256": "4e9c6dceec3397a3620e41a4522542f1a05126973090f5c0c1c375c2eff64a65",
+        "reason": "PredefinedCalculatedFieldInjector immutable-list fix changed the shared foggy-dataset-model main-classes row",
+        "successor_entry_sha256": "2913758f4eea56f89ac92bfda52446e5995640af8326dc7a11e36e196acb9496"
+      }
+    ],
+    "classification": "reviewed-classpath-content-delta-v3",
+    "reviewed_rows": 34
+  },
+  "corrective_lane_amendment": {
+    "classification": "external-mongo-lane-correction-v1",
+    "corrected_positive_execution_keys": 2,
+    "corrected_sources": 2,
+    "from": "surefire/unit/unit/hermetic/step2",
+    "predecessor_edges_affected": 0,
+    "source": "Step 2 fail-closed all-unit regression triage",
+    "to": "failsafe/external-mongo/mongo6/mongodb/step3-required"
+  },
+  "counts": {
+    "applied_positive_rename_execution_keys": 72,
+    "applied_positive_rename_reports": 60,
+    "classpath_entries": 2395,
+    "deferred_step3": 46,
+    "discovery_reports": 804,
+    "discovery_rows": 820,
+    "execution_keys": 770,
+    "planned_rename_execution_keys": 76,
+    "planned_rename_reports": 64,
+    "positive_renamed_predecessor_edges": 46,
+    "predecessor_edges": 519,
+    "predecessor_execution_refs": 480,
+    "predecessor_structural_refs": 39,
+    "reactor_sources": 530,
+    "renamed_predecessor_edges": 50,
+    "renamed_sources": 35,
+    "required_step2": 724,
+    "structural_rename_reports": 4,
+    "structural_renamed_predecessor_edges": 4,
+    "structural_reports": 59,
+    "workspace_sources": 532
+  },
+  "decision": "passed",
+  "generated_at": "2026-07-14T23:22:41.229025+00:00",
+  "generation": "step2-post-rename",
+  "git_head": "9f5428d8d15d08457d2d2d57296256178c224f5d",
+  "independent_review_evidence": "docs/9.3.4/evidence/step-2/step2-successor-r8e-independent-review-20260715.md",
+  "parent": {
+    "approved_delta": "33 sources / 62 planned reports / 74 planned execution keys / 50 predecessor edges",
+    "classpath_content_amendment": {
+      "amendments": [
+        {
+          "change_source": "addons/foggy-dataset-model-mongo/src/main/java/com/foggyframework/dataset/db/model/mongo/MongoModelAutoConfiguration.java",
+          "change_source_sha256": "b740ccfb0c443d1462efd93c3739574b41ba339fa5dba6ed5595c74a3b0c9b17",
+          "classification": "single-module-classpath-content-delta",
+          "entry_identity": "repo:addons/foggy-dataset-model-mongo/target/classes",
+          "module": "foggy-mcp-launcher",
+          "occurrences": 1,
+          "ordinal": "150",
+          "parent_entry_sha256": "af9a2d3036ef831a70a0a74a11aade3e3651afdb17e5984877835d31570866db",
+          "reason": "Mongo loader fail-closed ordering fix changed one module main-classes row",
+          "successor_entry_sha256": "302eb382337c9daf6c91981b6373b53648afe81470d598fb0cc817837fcf292d"
+        },
+        {
+          "change_source": "foggy-core/src/main/java/com/foggyframework/core/thread/MultiThreadExecutor.java",
+          "change_source_sha256": "71305f6d56ddc70baae810898b635671d76314a2cf1652b730670f810224f2cc",
+          "classification": "shared-runtime-classpath-content-delta",
+          "entry_identity": "repo:foggy-core/target/classes",
+          "occurrences": 20,
+          "parent_entry_sha256": "fcc8d1bed99f03b126690e4feb3b975bc48a4e88039854904461e0a6559d9e06",
+          "reason": "MultiThreadExecutor completion fix changed the shared foggy-core main-classes row",
+          "successor_entry_sha256": "1cd8887f0169d081e65db23b8370c931e03f270af67fa5edb8935c16ac367be1"
+        },
+        {
+          "change_source": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/PredefinedCalculatedFieldInjector.java",
+          "change_source_sha256": "24eeea7ee4bec78312dac7dfc71f17b2ceba46ab27c9bfeccbd7f7910fd92d5b",
+          "classification": "shared-runtime-classpath-content-delta",
+          "entry_identity": "repo:foggy-dataset-model/target/classes",
+          "occurrences": 13,
+          "parent_entry_sha256": "4e9c6dceec3397a3620e41a4522542f1a05126973090f5c0c1c375c2eff64a65",
+          "reason": "PredefinedCalculatedFieldInjector immutable-list fix changed the shared foggy-dataset-model main-classes row",
+          "successor_entry_sha256": "2913758f4eea56f89ac92bfda52446e5995640af8326dc7a11e36e196acb9496"
+        }
+      ],
+      "classification": "reviewed-classpath-content-delta-v3",
+      "reviewed_rows": 34
+    },
+    "corrective_approved_delta": "2 sources / 2 planned reports / 2 planned execution keys / 0 predecessor edges",
+    "corrective_lane_amendment": {
+      "classification": "external-mongo-lane-correction-v1",
+      "corrected_positive_execution_keys": 2,
+      "corrected_sources": 2,
+      "from": "surefire/unit/unit/hermetic/step2",
+      "predecessor_edges_affected": 0,
+      "source": "Step 2 fail-closed all-unit regression triage",
+      "to": "failsafe/external-mongo/mongo6/mongodb/step3-required"
+    },
+    "generation": "step2-post-rename",
+    "r5_source_amendment": {
+      "classification": "authority-runtime-and-test-remediation-v1",
+      "classpath_content_rows": 20,
+      "discovery_report_execution_delta": "0/0/0",
+      "entries": [
+        {
+          "affected_classpath_rows": "20",
+          "allowed_effect": "graceful wait for every accepted task; 20 reviewed foggy-core classpath content rows only",
+          "discovered_test_nodes": "none",
+          "output_tree": "main-classes",
+          "owning_module": "foggy-core",
+          "path": "foggy-core/src/main/java/com/foggyframework/core/thread/MultiThreadExecutor.java",
+          "r4_output_tree_sha256": "fcc8d1bed99f03b126690e4feb3b975bc48a4e88039854904461e0a6559d9e06",
+          "r4_source_sha256": "906c00e51bdbfbff6627a7df6f23961c532bf6c713be48a7f2caf0c5c6c78cae",
+          "r5_output_tree_sha256": "1cd8887f0169d081e65db23b8370c931e03f270af67fa5edb8935c16ac367be1",
+          "r5_source_sha256": "71305f6d56ddc70baae810898b635671d76314a2cf1652b730670f810224f2cc",
+          "source_kind": "production",
+          "workitem": "docs/9.3.4/workitems/BUG-multi-thread-executor-premature-completion.md"
+        },
+        {
+          "affected_classpath_rows": "0",
+          "allowed_effect": "deterministic total and start gate; zero discovery report execution identity delta",
+          "discovered_test_nodes": "10",
+          "output_tree": "test-classes",
+          "owning_module": "addons/foggy-fsscript-client",
+          "path": "addons/foggy-fsscript-client/src/test/java/com/foggyframework/fsscript/client/test/support/FsscriptClientProxyTest.java",
+          "r4_output_tree_sha256": "fb561bc0af8c72e46caccde82aa668929007b1cb6513d667ee4f4ca374ed90f4",
+          "r4_source_sha256": "72409720aba005ee57dc9e610761976f1eac92d70ea92ec8b1943361a8ab3cef",
+          "r5_output_tree_sha256": "e3f89be6e3a6188886dd9da71f8c978b117dd83511c139f8b51883c632257fcd",
+          "r5_source_sha256": "7e5fd76f4ab2921ae2f3ed783a1db545488a598c69fc55857722d149e0d5ec2f",
+          "source_kind": "test",
+          "workitem": "docs/9.3.4/workitems/BUG-multi-thread-executor-premature-completion.md"
+        }
+      ],
+      "manifest": "scripts/v934/step2-r5-source-amendment.tsv",
+      "manifest_sha256": "3a4c6d424a6a0568f2818ecf36337515904a51d5b54a5f88c9f04beead615391",
+      "production_sources": 1,
+      "sources": 2,
+      "test_sources": 1
+    },
+    "r6_source_amendment": {
+      "classification": "authority-zero-skip-and-immutable-request-remediation-v1",
+      "classpath_content_rows": 13,
+      "discovered_test_nodes": 16,
+      "discovery_report_execution_delta": "0/0/0",
+      "entries": [
+        {
+          "affected_classpath_rows": "0",
+          "allowed_effect": "local HTTP fixture replaces one disabled node; zero discovery report execution identity delta",
+          "discovered_test_nodes": "15",
+          "output_tree": "test-classes",
+          "owning_module": "addons/foggy-dataset-model-vector",
+          "path": "addons/foggy-dataset-model-vector/src/test/java/com/foggyframework/dataset/db/model/vector/EmbeddingServiceTest.java",
+          "r5_output_tree_sha256": "57bd5d527ef4518092c8475f8bd44c3747336eb8c2e0062bdf035f06d2e30284",
+          "r5_source_sha256": "378be3787445ae40e450288ee0f734a19f4a011ca42bd3c18ba21f5ce995e1ab",
+          "r6_output_tree_sha256": "feb299dee8b6a25e272e0ab07b1e002d4bb1ae5a69b713b4c74fac376701786a",
+          "r6_source_sha256": "8f263147183609d9cbb8ff3bf802fb93f08dd2825c42bd5465e16c0e91b5a4b2",
+          "source_kind": "test",
+          "workitem": "docs/9.3.4/workitems/BUG-embedding-service-disabled-unit.md"
+        },
+        {
+          "affected_classpath_rows": "0",
+          "allowed_effect": "29-case assertions always execute; snapshot file export remains opt-in; zero identity delta",
+          "discovered_test_nodes": "1",
+          "output_tree": "test-classes",
+          "owning_module": "foggy-dataset-model",
+          "path": "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaQueryModelAggregateJoinSnapshotTest.java",
+          "r5_output_tree_sha256": "099bec240a18627d810ee8aa88f3662ee0e54032ca0976bb5114efe49ad9c16d",
+          "r5_source_sha256": "0c774aa4858b929d80acd2687bba4b01ef5b3c910dab557732f8960ac5502e24",
+          "r6_output_tree_sha256": "07d3e021d6ffe8b2fe5c9303fa99fe657f6fcebe175f7bb38ca960c2b8e56f42",
+          "r6_source_sha256": "727319eed18283a813fca6f5eda71893030811bdf642caa014477768f13c00e0",
+          "source_kind": "test",
+          "workitem": "docs/9.3.4/workitems/BUG-aggregate-join-snapshot-default-skip.md"
+        },
+        {
+          "affected_classpath_rows": "13",
+          "allowed_effect": "defensive-copy immutable request list; 13 reviewed foggy-dataset-model classpath content rows only",
+          "discovered_test_nodes": "none",
+          "output_tree": "main-classes",
+          "owning_module": "foggy-dataset-model",
+          "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/PredefinedCalculatedFieldInjector.java",
+          "r5_output_tree_sha256": "4e9c6dceec3397a3620e41a4522542f1a05126973090f5c0c1c375c2eff64a65",
+          "r5_source_sha256": "a12168ca4535d066b6557c268f5ec053edd267ead7a329fe38947ecead453a52",
+          "r6_output_tree_sha256": "2913758f4eea56f89ac92bfda52446e5995640af8326dc7a11e36e196acb9496",
+          "r6_source_sha256": "24eeea7ee4bec78312dac7dfc71f17b2ceba46ab27c9bfeccbd7f7910fd92d5b",
+          "source_kind": "production",
+          "workitem": "docs/9.3.4/workitems/BUG-predefined-calculated-field-immutable-list.md"
+        }
+      ],
+      "manifest": "scripts/v934/step2-r6-source-amendment.tsv",
+      "manifest_sha256": "0751dcd49d20f9722f9aab8d532db3ca105b20cd7970dc3a9d6169b614189c7d",
+      "production_sources": 1,
+      "sources": 3,
+      "test_sources": 2
+    },
+    "r7_runner_amendment": {
+      "authority_override_scope": "selected-reactor-maven-selector-check",
+      "classification": "failsafe-reactor-selector-override-v1",
+      "default_fail_closed": true,
+      "entries": [
+        {
+          "allowed_effect": "keep default selector miss fail-closed while allowing the authority-selected reactor to honor the CLI override; owner exact-set remains report-verifier fail-closed",
+          "contract_field": "failsafe_fail_if_no_specified_tests",
+          "default_value": "true",
+          "path": "pom.xml",
+          "r6_sha256": "0bd2e0f4e31ecc0b5c8ab88b9aa20ec14e5cc65e6cd47d8c821057c22fcf8f9f",
+          "r6_value": "true",
+          "r7_sha256": "d3e771a80829f3ca066d484b6a32304846f54b2d2cf8880420137a958b471679",
+          "r7_value": "${failsafe.failIfNoSpecifiedTests}",
+          "workitem": "docs/9.3.4/workitems/BUG-failsafe-reactor-selector-override.md"
+        },
+        {
+          "allowed_effect": "persist phase and exit status for both failed and passed Integration authority runs without changing selector ownership",
+          "contract_field": "authority_failure_evidence",
+          "default_value": "fail-closed",
+          "path": "scripts/verify-v934-integration.sh",
+          "r6_sha256": "3ef7d12558f2fb242c6dda8e68c67973f4fd24659784e89f9f3188f44434c651",
+          "r6_value": "ephemeral-console-only",
+          "r7_sha256": "b0fe2ca91bb4dea2c8363e27bc1c5ae584db56fcc9f2cf80fa02049683ed7373",
+          "r7_value": "run.log+run-status.env",
+          "workitem": "docs/9.3.4/workitems/BUG-failsafe-reactor-selector-override.md"
+        }
+      ],
+      "failure_evidence": "run.log+run-status.env",
+      "files": 2,
+      "manifest": "scripts/v934/step2-r7-runner-amendment.tsv",
+      "manifest_sha256": "11ff594bf3689112ae0c0cd8be8e68bc6a5be3bfe0150adb8a80485ba3b10ac2",
+      "target_exact_set_enforcement": "step2-report-verifier"
+    },
+    "r8_authority_amendment": {
+      "classification": "step2-authority-hardening-v1",
+      "default_no_tests": "surefire=true+failsafe=true",
+      "entries": [
+        {
+          "allowed_effect": "Default Maven owning lanes fail when no tests exist; versioned authority runners may relax helper reactors only when exact reports are verified.",
+          "contract_field": "default_zero_test_policy",
+          "enforcement": "effective-pom+runner-contract",
+          "path": "pom.xml",
+          "r7_sha256": "d3e771a80829f3ca066d484b6a32304846f54b2d2cf8880420137a958b471679",
+          "r7_state": "present",
+          "r7_value": "plugin-default-not-explicit",
+          "r8_sha256": "7ddff9e29ae7297b4888fbf2efc196ce9c38072162497e4f1cebf608392ec66b",
+          "r8_value": "surefire=true+failsafe=true",
+          "transition_id": "pom-fail-if-no-tests",
+          "workitem": "docs/9.3.4/workitems/BUG-maven-zero-test-default.md"
+        },
+        {
+          "allowed_effect": "Serialize all Step 2 shared mutations and make durable status finalization signal-safe without changing test identity.",
+          "contract_field": "workspace_authority_lock",
+          "enforcement": "shared-helper-hash+entrypoint-static-contract+three-signal-dynamic-probe",
+          "path": "scripts/v934/authority_runner_lib.sh",
+          "r7_sha256": "none",
+          "r7_state": "absent",
+          "r7_value": "none",
+          "r8_sha256": "865ad2839374e652a68bda9635f8d7fe72c0613446a08428a88aad57730130d9",
+          "r8_value": "git-dir-exclusive-nonblocking-flock+INT/TERM/HUP-fail-closed-finalizer",
+          "transition_id": "shared-authority-lock",
+          "workitem": "docs/9.3.4/workitems/BUG-step2-authority-workspace-concurrency.md"
+        },
+        {
+          "allowed_effect": "Add durable Unit provenance, fail-closed signal handling and controlled helper-module zero-test override; execution inventory remains unchanged.",
+          "contract_field": "unit_outer_context_and_status",
+          "enforcement": "runner-hash+report-context+status-seal+signal-probe",
+          "path": "scripts/verify-v934-unit.sh",
+          "r7_sha256": "76fa2f8f8a633872ea0e0b8ffa19408316e5fbcefc580c4c449da74af6b2c3a3",
+          "r7_state": "present",
+          "r7_value": "ephemeral-console+schema-v2",
+          "r8_sha256": "0063629b399123d57b69b1ee794597562583c9f93347ca8d3dd965a9f1543427",
+          "r8_value": "locked+typed-context+atomic-status+schema-v3+signal-safe-trap-lifecycle",
+          "transition_id": "unit-authority-context",
+          "workitem": "docs/9.3.4/workitems/BUG-unit-authority-durable-status.md"
+        },
+        {
+          "allowed_effect": "Bind six Failsafe variants to one outer run, fail closed on signals and relax only selected reactor helpers; report ownership remains unchanged.",
+          "contract_field": "integration_outer_context_and_status",
+          "enforcement": "runner-hash+cross-run-binding+exact-report-set+signal-probe",
+          "path": "scripts/verify-v934-integration.sh",
+          "r7_sha256": "b0fe2ca91bb4dea2c8363e27bc1c5ae584db56fcc9f2cf80fa02049683ed7373",
+          "r7_state": "present",
+          "r7_value": "variant-marker-mtime-only",
+          "r8_sha256": "911f4ee87f4a884887e940233bb053a891faffe702248a8d8499f59fab06c8cd",
+          "r8_value": "locked+typed-outer-context+atomic-status+schema-v3+signal-safe-trap-lifecycle",
+          "transition_id": "integration-authority-context",
+          "workitem": "docs/9.3.4/workitems/BUG-step2-report-cross-run-splice.md"
+        },
+        {
+          "allowed_effect": "Reject cross-run splice and partial testcase evidence while preserving the frozen 724/59 Step 2 report identities.",
+          "contract_field": "report_manifest_contract",
+          "enforcement": "tool-hash+20-negative-probes+raw-xml-revalidation",
+          "path": "scripts/v934/step2_report_tool.py",
+          "r7_sha256": "03e713e0562c3e89f813ea7efbc4796525f1eb5fb02c5dd094d23060fd5c2196",
+          "r7_state": "present",
+          "r7_value": "schema-v2+positive-nonzero",
+          "r8_sha256": "ec478fac5eab355e1aed99c2b7a8934f0d5103425abfdd3f15f6f0733977c1ea",
+          "r8_value": "schema-v3+outer-run-binding+discovery-cardinality",
+          "transition_id": "report-context-cardinality",
+          "workitem": "docs/9.3.4/workitems/BUG-step2-report-discovery-cardinality.md"
+        },
+        {
+          "allowed_effect": "Make r7 to r8 canonical publication transactional, reject genesis publication, complete cleanup without signal re-entry, and bind confirmation to a passed outer run plus the exact r7 archive without changing inventories.",
+          "contract_field": "successor_publish_protocol",
+          "enforcement": "wrapper-hash+exact-r7-provenance+outer-status",
+          "path": "scripts/verify-v934-step2-successor.sh",
+          "r7_sha256": "48533d82bb640117bfb4c506e877191125e8713c114d56ad8e3d5553538786de",
+          "r7_state": "present",
+          "r7_value": "startup-precheck+blind-swap",
+          "r8_sha256": "fc663b3d12a0500eeed034705021ac44506999adb7ae435fdd18249975b57eb4",
+          "r8_value": "required-r7+shared-lock+prepublish-cas+archive-revalidate+signal-aware-nonreentrant-exit-rollback+confirmed-publication-seal",
+          "transition_id": "successor-publish-cas",
+          "workitem": "docs/9.3.4/workitems/BUG-step2-authority-workspace-concurrency.md"
+        }
+      ],
+      "files": 6,
+      "inventory_cardinality_delta": "0/0/0",
+      "manifest": "scripts/v934/step2-r8-authority-amendment.tsv",
+      "manifest_sha256": "a0856b7bd1d19d35acdf51af17b3017de1f9c98dc8e5bb0b72ba3f787d09928a",
+      "publish_cas": "exact-r7-three-checkpoint+exit-trap-rollback+confirmed-publication-seal",
+      "report_contract": "schema-v3+typed-context+discovery-cardinality+20-negative-probes",
+      "shared_lock": "git-dir/v934-step2-authority.lock"
+    },
+    "schema_version": 6,
+    "step1_confirmed_summary_sha256": "579e9430bea6f873e7c4465cd1a6e45c49d348d84a89d5d648d25e3a5a4bbc50",
+    "step1_contract_freeze_sha256": "ff418e04f6a938a853ce7bbd0700223627f42520705530e819a53e5591e82876",
+    "step1_contract_manifest_sha256": "e601c6c70ff02e9e50b86fd2b14b14aba9cfede096b42c93ff6e5968a918640f",
+    "step1_delivery_commit": "9f5428d8d15d08457d2d2d57296256178c224f5d",
+    "step1_rename_plan_sha256": "acba7a9dc22c9c0fdbaa0438fe91018b61eee8a457a36f1918995f39aa74cfe2",
+    "step2_corrective_rename_plan_sha256": "8c9c73c801efa786a71f07541a1003f456405525aeb7ae7583b2b938445ded09",
+    "step2_r5_source_amendment_sha256": "3a4c6d424a6a0568f2818ecf36337515904a51d5b54a5f88c9f04beead615391",
+    "step2_r6_source_amendment_sha256": "0751dcd49d20f9722f9aab8d532db3ca105b20cd7970dc3a9d6169b614189c7d",
+    "step2_r7_runner_amendment_sha256": "11ff594bf3689112ae0c0cd8be8e68bc6a5be3bfe0150adb8a80485ba3b10ac2",
+    "step2_r8_authority_amendment_sha256": "a0856b7bd1d19d35acdf51af17b3017de1f9c98dc8e5bb0b72ba3f787d09928a",
+    "step2_test_source_amendment_sha256": "771b08b3825778f5aab6f656e15de6dc568b8070811451e5b5c010f44ee69368",
+    "successor_semantics": "corrective-lane-and-authority-remediation-v6",
+    "supersedes": {
+      "confirmed_summary_sha256": "69a94475ca4c9d7162e9e6b217f637026cc790d3de4b654d9d12eb4c0dbe4f61",
+      "contract_freeze_sha256": "3fea72715f651755897cee4464fd6075d5ea2187672e9d0fe66c97bf6d02a5d6",
+      "contract_manifest_sha256": "d0dfc94e1aa9bb8018d6ac6b5ae4b5c73ae25f6f6f81778a64e3f7787e2a3ca2",
+      "reason": "confirmed r7 authority lacked explicit no-test defaults, a shared workspace lock, publish compare-and-swap, and typed report run/cardinality provenance",
+      "run_id": "step2-candidate-r7c-20260715"
+    },
+    "test_source_amendment": {
+      "classification": "authority-red-green-test-source-amendment-v1",
+      "discovered_test_nodes": 20,
+      "discovery_report_execution_delta": "0/0/0",
+      "entries": [
+        {
+          "allowed_effect": "deterministic MySQL 5.7 capability seam; zero discovery/report/execution delta",
+          "discovered_test_nodes": "14",
+          "owning_module": "foggy-dataset-model",
+          "path": "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/CalculateMvpIT.java",
+          "r3_source_sha256": "e3904ab2e4bffca9ab54c363dd4619033ec0794d959c34499c0228bbac7265db",
+          "r3_test_classes_sha256": "b6a9182004c6dc9bbf80c3335dd53f136f70e6c69928ce8fdd707aed5204d68e",
+          "r4_source_sha256": "21d8d817f8d3ca4554f87ddba13438c1e9765b2f7980b829c13ff1b23cebc0c4",
+          "r4_test_classes_sha256": "099bec240a18627d810ee8aa88f3662ee0e54032ca0976bb5114efe49ad9c16d",
+          "workitem": "docs/9.3.4/workitems/BUG-calculate-mvp-sqlite-skip.md"
+        },
+        {
+          "allowed_effect": "explicit test namespace datasource binding; zero discovery/report/execution delta",
+          "discovered_test_nodes": "6",
+          "owning_module": "foggy-mcp-launcher",
+          "path": "foggy-mcp-launcher/src/test/java/com/foggyframework/mcp/launcher/DataViewerApiSmokeTest.java",
+          "r3_source_sha256": "7cbecb5127558329c4a3e2ef7a8f06cc0dd9b3d715423e98d4e7da3c45323a3f",
+          "r3_test_classes_sha256": "646c021c518a9c9c1b84cb6ccc05c512d07d85b5488c50cf3212585c678aa21d",
+          "r4_source_sha256": "a8cd13c3eff498ada6f7426a7f6bc4b7a0e03b64d92a06862e888a28145efa09",
+          "r4_test_classes_sha256": "f0db90b2bdf3dc516bbc88e9c13558dcdd6f7ca4ac19ceb6a15caf92e744aba7",
+          "workitem": "docs/9.3.4/workitems/BUG-data-viewer-smoke-namespace-binding.md"
+        }
+      ],
+      "manifest": "scripts/v934/step2-test-source-amendment.tsv",
+      "manifest_sha256": "771b08b3825778f5aab6f656e15de6dc568b8070811451e5b5c010f44ee69368",
+      "sources": 2
+    },
+    "zero_container_amendment": {
+      "classification": "structural-split-v1",
+      "discovery_contract": "preserved 820 rows / 804 ClassSource containers",
+      "positive_execution_keys": 770,
+      "required_step2": 724,
+      "structural_reports": 59,
+      "typed_predecessor_refs": "480 execution / 39 structural"
+    }
+  },
+  "protected_source_sha256": "12749d1fb9d37af04b8a3dd80ac49ea0fcc177309edcc0c49645a2c2c19a1a53",
+  "publication_evidence": {
+    "outer_run_log_sha256": "68222ac18ea48acd439233b6335ec6d86c842036a666ff1ad70daa72d42e423e",
+    "outer_run_status_sha256": "5ad28ad9a55c47ced4145cac51b194669ba78f5205e045ba5b9d493f29a08b21",
+    "schema_version": 1,
+    "superseded_archive_freeze_sha256": "3fea72715f651755897cee4464fd6075d5ea2187672e9d0fe66c97bf6d02a5d6",
+    "superseded_archive_manifest_sha256": "d0dfc94e1aa9bb8018d6ac6b5ae4b5c73ae25f6f6f81778a64e3f7787e2a3ca2",
+    "superseded_provenance_sha256": "6b6e8d5a3f9b2fa27995a81dfe48827a12852d577b2c8d7289a1e0913273e101"
+  },
+  "r5_source_amendment": {
+    "classification": "authority-runtime-and-test-remediation-v1",
+    "classpath_content_rows": 20,
+    "discovery_report_execution_delta": "0/0/0",
+    "entries": [
+      {
+        "affected_classpath_rows": "20",
+        "allowed_effect": "graceful wait for every accepted task; 20 reviewed foggy-core classpath content rows only",
+        "discovered_test_nodes": "none",
+        "output_tree": "main-classes",
+        "owning_module": "foggy-core",
+        "path": "foggy-core/src/main/java/com/foggyframework/core/thread/MultiThreadExecutor.java",
+        "r4_output_tree_sha256": "fcc8d1bed99f03b126690e4feb3b975bc48a4e88039854904461e0a6559d9e06",
+        "r4_source_sha256": "906c00e51bdbfbff6627a7df6f23961c532bf6c713be48a7f2caf0c5c6c78cae",
+        "r5_output_tree_sha256": "1cd8887f0169d081e65db23b8370c931e03f270af67fa5edb8935c16ac367be1",
+        "r5_source_sha256": "71305f6d56ddc70baae810898b635671d76314a2cf1652b730670f810224f2cc",
+        "source_kind": "production",
+        "workitem": "docs/9.3.4/workitems/BUG-multi-thread-executor-premature-completion.md"
+      },
+      {
+        "affected_classpath_rows": "0",
+        "allowed_effect": "deterministic total and start gate; zero discovery report execution identity delta",
+        "discovered_test_nodes": "10",
+        "output_tree": "test-classes",
+        "owning_module": "addons/foggy-fsscript-client",
+        "path": "addons/foggy-fsscript-client/src/test/java/com/foggyframework/fsscript/client/test/support/FsscriptClientProxyTest.java",
+        "r4_output_tree_sha256": "fb561bc0af8c72e46caccde82aa668929007b1cb6513d667ee4f4ca374ed90f4",
+        "r4_source_sha256": "72409720aba005ee57dc9e610761976f1eac92d70ea92ec8b1943361a8ab3cef",
+        "r5_output_tree_sha256": "e3f89be6e3a6188886dd9da71f8c978b117dd83511c139f8b51883c632257fcd",
+        "r5_source_sha256": "7e5fd76f4ab2921ae2f3ed783a1db545488a598c69fc55857722d149e0d5ec2f",
+        "source_kind": "test",
+        "workitem": "docs/9.3.4/workitems/BUG-multi-thread-executor-premature-completion.md"
+      }
+    ],
+    "manifest": "scripts/v934/step2-r5-source-amendment.tsv",
+    "manifest_sha256": "3a4c6d424a6a0568f2818ecf36337515904a51d5b54a5f88c9f04beead615391",
+    "production_sources": 1,
+    "sources": 2,
+    "test_sources": 1
+  },
+  "r6_source_amendment": {
+    "classification": "authority-zero-skip-and-immutable-request-remediation-v1",
+    "classpath_content_rows": 13,
+    "discovered_test_nodes": 16,
+    "discovery_report_execution_delta": "0/0/0",
+    "entries": [
+      {
+        "affected_classpath_rows": "0",
+        "allowed_effect": "local HTTP fixture replaces one disabled node; zero discovery report execution identity delta",
+        "discovered_test_nodes": "15",
+        "output_tree": "test-classes",
+        "owning_module": "addons/foggy-dataset-model-vector",
+        "path": "addons/foggy-dataset-model-vector/src/test/java/com/foggyframework/dataset/db/model/vector/EmbeddingServiceTest.java",
+        "r5_output_tree_sha256": "57bd5d527ef4518092c8475f8bd44c3747336eb8c2e0062bdf035f06d2e30284",
+        "r5_source_sha256": "378be3787445ae40e450288ee0f734a19f4a011ca42bd3c18ba21f5ce995e1ab",
+        "r6_output_tree_sha256": "feb299dee8b6a25e272e0ab07b1e002d4bb1ae5a69b713b4c74fac376701786a",
+        "r6_source_sha256": "8f263147183609d9cbb8ff3bf802fb93f08dd2825c42bd5465e16c0e91b5a4b2",
+        "source_kind": "test",
+        "workitem": "docs/9.3.4/workitems/BUG-embedding-service-disabled-unit.md"
+      },
+      {
+        "affected_classpath_rows": "0",
+        "allowed_effect": "29-case assertions always execute; snapshot file export remains opt-in; zero identity delta",
+        "discovered_test_nodes": "1",
+        "output_tree": "test-classes",
+        "owning_module": "foggy-dataset-model",
+        "path": "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaQueryModelAggregateJoinSnapshotTest.java",
+        "r5_output_tree_sha256": "099bec240a18627d810ee8aa88f3662ee0e54032ca0976bb5114efe49ad9c16d",
+        "r5_source_sha256": "0c774aa4858b929d80acd2687bba4b01ef5b3c910dab557732f8960ac5502e24",
+        "r6_output_tree_sha256": "07d3e021d6ffe8b2fe5c9303fa99fe657f6fcebe175f7bb38ca960c2b8e56f42",
+        "r6_source_sha256": "727319eed18283a813fca6f5eda71893030811bdf642caa014477768f13c00e0",
+        "source_kind": "test",
+        "workitem": "docs/9.3.4/workitems/BUG-aggregate-join-snapshot-default-skip.md"
+      },
+      {
+        "affected_classpath_rows": "13",
+        "allowed_effect": "defensive-copy immutable request list; 13 reviewed foggy-dataset-model classpath content rows only",
+        "discovered_test_nodes": "none",
+        "output_tree": "main-classes",
+        "owning_module": "foggy-dataset-model",
+        "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/PredefinedCalculatedFieldInjector.java",
+        "r5_output_tree_sha256": "4e9c6dceec3397a3620e41a4522542f1a05126973090f5c0c1c375c2eff64a65",
+        "r5_source_sha256": "a12168ca4535d066b6557c268f5ec053edd267ead7a329fe38947ecead453a52",
+        "r6_output_tree_sha256": "2913758f4eea56f89ac92bfda52446e5995640af8326dc7a11e36e196acb9496",
+        "r6_source_sha256": "24eeea7ee4bec78312dac7dfc71f17b2ceba46ab27c9bfeccbd7f7910fd92d5b",
+        "source_kind": "production",
+        "workitem": "docs/9.3.4/workitems/BUG-predefined-calculated-field-immutable-list.md"
+      }
+    ],
+    "manifest": "scripts/v934/step2-r6-source-amendment.tsv",
+    "manifest_sha256": "0751dcd49d20f9722f9aab8d532db3ca105b20cd7970dc3a9d6169b614189c7d",
+    "production_sources": 1,
+    "sources": 3,
+    "test_sources": 2
+  },
+  "r7_runner_amendment": {
+    "authority_override_scope": "selected-reactor-maven-selector-check",
+    "classification": "failsafe-reactor-selector-override-v1",
+    "default_fail_closed": true,
+    "entries": [
+      {
+        "allowed_effect": "keep default selector miss fail-closed while allowing the authority-selected reactor to honor the CLI override; owner exact-set remains report-verifier fail-closed",
+        "contract_field": "failsafe_fail_if_no_specified_tests",
+        "default_value": "true",
+        "path": "pom.xml",
+        "r6_sha256": "0bd2e0f4e31ecc0b5c8ab88b9aa20ec14e5cc65e6cd47d8c821057c22fcf8f9f",
+        "r6_value": "true",
+        "r7_sha256": "d3e771a80829f3ca066d484b6a32304846f54b2d2cf8880420137a958b471679",
+        "r7_value": "${failsafe.failIfNoSpecifiedTests}",
+        "workitem": "docs/9.3.4/workitems/BUG-failsafe-reactor-selector-override.md"
+      },
+      {
+        "allowed_effect": "persist phase and exit status for both failed and passed Integration authority runs without changing selector ownership",
+        "contract_field": "authority_failure_evidence",
+        "default_value": "fail-closed",
+        "path": "scripts/verify-v934-integration.sh",
+        "r6_sha256": "3ef7d12558f2fb242c6dda8e68c67973f4fd24659784e89f9f3188f44434c651",
+        "r6_value": "ephemeral-console-only",
+        "r7_sha256": "b0fe2ca91bb4dea2c8363e27bc1c5ae584db56fcc9f2cf80fa02049683ed7373",
+        "r7_value": "run.log+run-status.env",
+        "workitem": "docs/9.3.4/workitems/BUG-failsafe-reactor-selector-override.md"
+      }
+    ],
+    "failure_evidence": "run.log+run-status.env",
+    "files": 2,
+    "manifest": "scripts/v934/step2-r7-runner-amendment.tsv",
+    "manifest_sha256": "11ff594bf3689112ae0c0cd8be8e68bc6a5be3bfe0150adb8a80485ba3b10ac2",
+    "target_exact_set_enforcement": "step2-report-verifier"
+  },
+  "r8_authority_amendment": {
+    "classification": "step2-authority-hardening-v1",
+    "default_no_tests": "surefire=true+failsafe=true",
+    "entries": [
+      {
+        "allowed_effect": "Default Maven owning lanes fail when no tests exist; versioned authority runners may relax helper reactors only when exact reports are verified.",
+        "contract_field": "default_zero_test_policy",
+        "enforcement": "effective-pom+runner-contract",
+        "path": "pom.xml",
+        "r7_sha256": "d3e771a80829f3ca066d484b6a32304846f54b2d2cf8880420137a958b471679",
+        "r7_state": "present",
+        "r7_value": "plugin-default-not-explicit",
+        "r8_sha256": "7ddff9e29ae7297b4888fbf2efc196ce9c38072162497e4f1cebf608392ec66b",
+        "r8_value": "surefire=true+failsafe=true",
+        "transition_id": "pom-fail-if-no-tests",
+        "workitem": "docs/9.3.4/workitems/BUG-maven-zero-test-default.md"
+      },
+      {
+        "allowed_effect": "Serialize all Step 2 shared mutations and make durable status finalization signal-safe without changing test identity.",
+        "contract_field": "workspace_authority_lock",
+        "enforcement": "shared-helper-hash+entrypoint-static-contract+three-signal-dynamic-probe",
+        "path": "scripts/v934/authority_runner_lib.sh",
+        "r7_sha256": "none",
+        "r7_state": "absent",
+        "r7_value": "none",
+        "r8_sha256": "865ad2839374e652a68bda9635f8d7fe72c0613446a08428a88aad57730130d9",
+        "r8_value": "git-dir-exclusive-nonblocking-flock+INT/TERM/HUP-fail-closed-finalizer",
+        "transition_id": "shared-authority-lock",
+        "workitem": "docs/9.3.4/workitems/BUG-step2-authority-workspace-concurrency.md"
+      },
+      {
+        "allowed_effect": "Add durable Unit provenance, fail-closed signal handling and controlled helper-module zero-test override; execution inventory remains unchanged.",
+        "contract_field": "unit_outer_context_and_status",
+        "enforcement": "runner-hash+report-context+status-seal+signal-probe",
+        "path": "scripts/verify-v934-unit.sh",
+        "r7_sha256": "76fa2f8f8a633872ea0e0b8ffa19408316e5fbcefc580c4c449da74af6b2c3a3",
+        "r7_state": "present",
+        "r7_value": "ephemeral-console+schema-v2",
+        "r8_sha256": "0063629b399123d57b69b1ee794597562583c9f93347ca8d3dd965a9f1543427",
+        "r8_value": "locked+typed-context+atomic-status+schema-v3+signal-safe-trap-lifecycle",
+        "transition_id": "unit-authority-context",
+        "workitem": "docs/9.3.4/workitems/BUG-unit-authority-durable-status.md"
+      },
+      {
+        "allowed_effect": "Bind six Failsafe variants to one outer run, fail closed on signals and relax only selected reactor helpers; report ownership remains unchanged.",
+        "contract_field": "integration_outer_context_and_status",
+        "enforcement": "runner-hash+cross-run-binding+exact-report-set+signal-probe",
+        "path": "scripts/verify-v934-integration.sh",
+        "r7_sha256": "b0fe2ca91bb4dea2c8363e27bc1c5ae584db56fcc9f2cf80fa02049683ed7373",
+        "r7_state": "present",
+        "r7_value": "variant-marker-mtime-only",
+        "r8_sha256": "911f4ee87f4a884887e940233bb053a891faffe702248a8d8499f59fab06c8cd",
+        "r8_value": "locked+typed-outer-context+atomic-status+schema-v3+signal-safe-trap-lifecycle",
+        "transition_id": "integration-authority-context",
+        "workitem": "docs/9.3.4/workitems/BUG-step2-report-cross-run-splice.md"
+      },
+      {
+        "allowed_effect": "Reject cross-run splice and partial testcase evidence while preserving the frozen 724/59 Step 2 report identities.",
+        "contract_field": "report_manifest_contract",
+        "enforcement": "tool-hash+20-negative-probes+raw-xml-revalidation",
+        "path": "scripts/v934/step2_report_tool.py",
+        "r7_sha256": "03e713e0562c3e89f813ea7efbc4796525f1eb5fb02c5dd094d23060fd5c2196",
+        "r7_state": "present",
+        "r7_value": "schema-v2+positive-nonzero",
+        "r8_sha256": "ec478fac5eab355e1aed99c2b7a8934f0d5103425abfdd3f15f6f0733977c1ea",
+        "r8_value": "schema-v3+outer-run-binding+discovery-cardinality",
+        "transition_id": "report-context-cardinality",
+        "workitem": "docs/9.3.4/workitems/BUG-step2-report-discovery-cardinality.md"
+      },
+      {
+        "allowed_effect": "Make r7 to r8 canonical publication transactional, reject genesis publication, complete cleanup without signal re-entry, and bind confirmation to a passed outer run plus the exact r7 archive without changing inventories.",
+        "contract_field": "successor_publish_protocol",
+        "enforcement": "wrapper-hash+exact-r7-provenance+outer-status",
+        "path": "scripts/verify-v934-step2-successor.sh",
+        "r7_sha256": "48533d82bb640117bfb4c506e877191125e8713c114d56ad8e3d5553538786de",
+        "r7_state": "present",
+        "r7_value": "startup-precheck+blind-swap",
+        "r8_sha256": "fc663b3d12a0500eeed034705021ac44506999adb7ae435fdd18249975b57eb4",
+        "r8_value": "required-r7+shared-lock+prepublish-cas+archive-revalidate+signal-aware-nonreentrant-exit-rollback+confirmed-publication-seal",
+        "transition_id": "successor-publish-cas",
+        "workitem": "docs/9.3.4/workitems/BUG-step2-authority-workspace-concurrency.md"
+      }
+    ],
+    "files": 6,
+    "inventory_cardinality_delta": "0/0/0",
+    "manifest": "scripts/v934/step2-r8-authority-amendment.tsv",
+    "manifest_sha256": "a0856b7bd1d19d35acdf51af17b3017de1f9c98dc8e5bb0b72ba3f787d09928a",
+    "publish_cas": "exact-r7-three-checkpoint+exit-trap-rollback+confirmed-publication-seal",
+    "report_contract": "schema-v3+typed-context+discovery-cardinality+20-negative-probes",
+    "shared_lock": "git-dir/v934-step2-authority.lock"
+  },
+  "reviewed_at": "2026-07-15T00:05:47.583369+00:00",
+  "reviewer": "dual-independent-review:v934_r8e_identity_review+v934_snapshot_skip",
+  "runner_contract_sha256": "a5a7364fe75af2668c2c85989295b1448834dc526604175f7614f93d30e0376a",
+  "schema_version": 6,
+  "status": "confirmed",
+  "step": 2,
+  "step2_corrective_rename_plan_sha256": "8c9c73c801efa786a71f07541a1003f456405525aeb7ae7583b2b938445ded09",
+  "step2_r5_source_amendment_sha256": "3a4c6d424a6a0568f2818ecf36337515904a51d5b54a5f88c9f04beead615391",
+  "step2_r6_source_amendment_sha256": "0751dcd49d20f9722f9aab8d532db3ca105b20cd7970dc3a9d6169b614189c7d",
+  "step2_r7_runner_amendment_sha256": "11ff594bf3689112ae0c0cd8be8e68bc6a5be3bfe0150adb8a80485ba3b10ac2",
+  "step2_r8_authority_amendment_sha256": "a0856b7bd1d19d35acdf51af17b3017de1f9c98dc8e5bb0b72ba3f787d09928a",
+  "step2_test_source_amendment_sha256": "771b08b3825778f5aab6f656e15de6dc568b8070811451e5b5c010f44ee69368",
+  "successor_semantics": "corrective-lane-and-authority-remediation-v6",
+  "supersedes": {
+    "confirmed_summary_sha256": "69a94475ca4c9d7162e9e6b217f637026cc790d3de4b654d9d12eb4c0dbe4f61",
+    "contract_freeze_sha256": "3fea72715f651755897cee4464fd6075d5ea2187672e9d0fe66c97bf6d02a5d6",
+    "contract_manifest_sha256": "d0dfc94e1aa9bb8018d6ac6b5ae4b5c73ae25f6f6f81778a64e3f7787e2a3ca2",
+    "reason": "confirmed r7 authority lacked explicit no-test defaults, a shared workspace lock, publish compare-and-swap, and typed report run/cardinality provenance",
+    "run_id": "step2-candidate-r7c-20260715"
+  },
+  "test_source_amendment": {
+    "classification": "authority-red-green-test-source-amendment-v1",
+    "discovered_test_nodes": 20,
+    "discovery_report_execution_delta": "0/0/0",
+    "entries": [
+      {
+        "allowed_effect": "deterministic MySQL 5.7 capability seam; zero discovery/report/execution delta",
+        "discovered_test_nodes": "14",
+        "owning_module": "foggy-dataset-model",
+        "path": "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/CalculateMvpIT.java",
+        "r3_source_sha256": "e3904ab2e4bffca9ab54c363dd4619033ec0794d959c34499c0228bbac7265db",
+        "r3_test_classes_sha256": "b6a9182004c6dc9bbf80c3335dd53f136f70e6c69928ce8fdd707aed5204d68e",
+        "r4_source_sha256": "21d8d817f8d3ca4554f87ddba13438c1e9765b2f7980b829c13ff1b23cebc0c4",
+        "r4_test_classes_sha256": "099bec240a18627d810ee8aa88f3662ee0e54032ca0976bb5114efe49ad9c16d",
+        "workitem": "docs/9.3.4/workitems/BUG-calculate-mvp-sqlite-skip.md"
+      },
+      {
+        "allowed_effect": "explicit test namespace datasource binding; zero discovery/report/execution delta",
+        "discovered_test_nodes": "6",
+        "owning_module": "foggy-mcp-launcher",
+        "path": "foggy-mcp-launcher/src/test/java/com/foggyframework/mcp/launcher/DataViewerApiSmokeTest.java",
+        "r3_source_sha256": "7cbecb5127558329c4a3e2ef7a8f06cc0dd9b3d715423e98d4e7da3c45323a3f",
+        "r3_test_classes_sha256": "646c021c518a9c9c1b84cb6ccc05c512d07d85b5488c50cf3212585c678aa21d",
+        "r4_source_sha256": "a8cd13c3eff498ada6f7426a7f6bc4b7a0e03b64d92a06862e888a28145efa09",
+        "r4_test_classes_sha256": "f0db90b2bdf3dc516bbc88e9c13558dcdd6f7ca4ac19ceb6a15caf92e744aba7",
+        "workitem": "docs/9.3.4/workitems/BUG-data-viewer-smoke-namespace-binding.md"
+      }
+    ],
+    "manifest": "scripts/v934/step2-test-source-amendment.tsv",
+    "manifest_sha256": "771b08b3825778f5aab6f656e15de6dc568b8070811451e5b5c010f44ee69368",
+    "sources": 2
+  },
+  "toolchain": {
+    "authority_runner_lib_mode": "0755",
+    "authority_runner_lib_sha256": "865ad2839374e652a68bda9635f8d7fe72c0613446a08428a88aad57730130d9",
+    "discovery_helper_sha256": "ec58a90d4f02ac1b814a26ac0d8e24a1417b5f33910b6813c585f34330091e41",
+    "integration_runner_mode": "0755",
+    "integration_runner_sha256": "911f4ee87f4a884887e940233bb053a891faffe702248a8d8499f59fab06c8cd",
+    "report_tool_mode": "0755",
+    "report_tool_sha256": "ec478fac5eab355e1aed99c2b7a8934f0d5103425abfdd3f15f6f0733977c1ea",
+    "step1_tool_sha256": "49a044c84356723875c136b243a8613692b5c7a13d6eff1dd36bafc25f0eb752",
+    "step2_tool_mode": "0755",
+    "step2_tool_sha256": "e4aa91fce9dd5d8607d83e7153b7b36b6ddbc3ad7a433a8edc5ad47bd919b538",
+    "successor_wrapper_mode": "0755",
+    "successor_wrapper_sha256": "fc663b3d12a0500eeed034705021ac44506999adb7ae435fdd18249975b57eb4",
+    "unit_runner_mode": "0755",
+    "unit_runner_sha256": "0063629b399123d57b69b1ee794597562583c9f93347ca8d3dd965a9f1543427"
+  },
+  "version": "9.3.4",
+  "zero_container_amendment": {
+    "classification": "structural-split-v1",
+    "parent_discovery_preserved": "820 rows / 804 ClassSource containers",
+    "positive_execution_policy": "discovered_test_nodes > 0 or runtime_deferred_containers > 0",
+    "structural_policy": "outer source FQCN, zero direct/deferred nodes, positive nested sibling required"
+  }
+}

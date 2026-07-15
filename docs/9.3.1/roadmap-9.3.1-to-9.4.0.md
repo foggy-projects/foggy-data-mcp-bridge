@@ -3,7 +3,7 @@ doc_role: root_plan_review
 doc_purpose: Record the reviewed dependency order and release gates from 9.3.1 through 9.4.0.
 status: active
 created_at: 2026-07-13
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # 9.3.1 → 9.4.0 迭代顺序评审
@@ -30,7 +30,7 @@ updated_at: 2026-07-14
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Step 1 passed / Step 2 ready | [执行文档包](../9.3.4/README.md)；r8 inventory contract 已双路复核并 confirmed，下一步严格按 frozen rename plan 推进 runner split |
+| 9.3.4 | in-progress / Steps 1–2 passed / Step 3 ready | [执行文档包](../9.3.4/README.md)；r8e successor + Unit/Integration signal-safe authority 已通过，下一步 exact 46 external executions |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,12 +85,15 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Step 1 passed / Step 2 ready`；入口为
+当前状态：`in-progress / Steps 1–2 passed / Step 3 ready`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。confirmed run
 `step1-candidate-r8-20260714` 已冻结 532 sources、820 discovery rows、829 execution
 keys、519 predecessor nodes/edges，28/28 expected-negative probes 通过；两路独立
-复核 blocker=0。Step 2 只能消费 confirmed manifest + rename-plan SHA，生成独立
-successor 后再实跑 unit/hermetic IT；9.3.5 仍为 queued。
+复核 blocker=0。Step 2 保持该 baseline immutable，并将 59 个 zero-test outer report
+typed 为 structural；confirmed r8e successor 为 `770 positive = 724 Step 2 + 46 Step 3`
+和 519 typed predecessor refs。Surefire/Failsafe 实际通过 `5,205 testcase / F0/E0/S0`，
+INT/TERM/HUP durable fail-closed probe=`130/143/129`；r8d 已作废。Step 3 以 exact 46
+external executions 进入五库/Redis/Mongo matrix；9.3.5 仍为 queued。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

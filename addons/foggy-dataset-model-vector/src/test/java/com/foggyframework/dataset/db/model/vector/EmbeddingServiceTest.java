@@ -1,19 +1,24 @@
 package com.foggyframework.dataset.db.model.vector;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.db.model.impl.vector.EmbeddingService;
 import com.foggyframework.dataset.db.model.impl.vector.VectorDbConfig;
+import com.sun.net.httpserver.HttpServer;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * EmbeddingService 单元测试
  *
- * <p>测试 Embedding 服务的配置和基本功能。
- * 注意：实际的 API 调用测试需要配置有效的 API Key。</p>
+ * <p>测试 Embedding 服务的配置、请求契约和响应解析。</p>
  *
  * @author foggy-dataset
  * @since 1.0.0
@@ -288,40 +293,56 @@ class EmbeddingServiceTest {
     }
 
     // ==========================================
-    // 集成测试（需要真实 API Key，默认跳过）
+    // HTTP 请求与响应解析
     // ==========================================
 
     @Test
     @Order(100)
-    @DisplayName("集成测试 - 真实 API 调用（需配置 API Key）")
-    @Disabled("需要配置真实的 API Key 才能运行此测试")
-    void testRealApiCall() {
-        String apiKey = System.getenv("OPENAI_API_KEY");
-        if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("OPENAI_API_KEY 环境变量未设置，跳过集成测试");
-            return;
-        }
+    @DisplayName("HTTP - 本地 OpenAI 兼容接口")
+    void testRealApiCall() throws Exception {
+        AtomicReference<String> method = new AtomicReference<>();
+        AtomicReference<String> path = new AtomicReference<>();
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/embeddings", exchange -> {
+            method.set(exchange.getRequestMethod());
+            path.set(exchange.getRequestURI().getPath());
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] response = "{\"data\":[{\"embedding\":[-0.25,0.0,0.75]}]}"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            try (var output = exchange.getResponseBody()) {
+                output.write(response);
+            }
+        });
+        server.start();
 
         VectorDbConfig.EmbeddingConfig config = VectorDbConfig.EmbeddingConfig.builder()
                 .type("openai")
-                .baseUrl("https://api.openai.com/v1")
-                .apiKey(apiKey)
-                .model("text-embedding-3-small")
-                .dimensions(1536)
+                .baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                .apiKey("local-test-key")
+                .model("local-embedding-model")
+                .dimensions(3)
                 .build();
 
-        EmbeddingService service = new EmbeddingService(config);
-        List<Float> embedding = service.embed("这是一个测试文本");
+        try {
+            EmbeddingService service = new EmbeddingService(config);
+            List<Float> embedding = service.embed("这是一个测试文本");
 
-        assertNotNull(embedding);
-        assertEquals(1536, embedding.size());
-
-        // 检查向量值是否在合理范围内
-        for (Float value : embedding) {
-            assertTrue(value >= -1.0f && value <= 1.0f,
-                    "向量值应该在 [-1, 1] 范围内");
+            assertEquals(List.of(-0.25f, 0.0f, 0.75f), embedding);
+            assertEquals("POST", method.get());
+            assertEquals("/embeddings", path.get());
+            assertEquals("Bearer local-test-key", authorization.get());
+            JsonNode request = new ObjectMapper().readTree(requestBody.get());
+            assertEquals("local-embedding-model", request.path("model").asText());
+            assertEquals("这是一个测试文本", request.path("input").asText());
+        } finally {
+            server.stop(0);
         }
 
-        log.info("真实API调用测试通过，向量维度: {}", embedding.size());
+        log.info("本地 OpenAI 兼容接口测试通过");
     }
 }

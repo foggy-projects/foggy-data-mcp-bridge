@@ -30,10 +30,10 @@ src/test/java/com/foggyframework/dataset/mcp/
 ├── integration/                   # 集成测试
 │   ├── McpIntegrationTestApplication.java
 │   ├── McpIntegrationTestSupport.java
-│   └── McpToolsIntegrationTest.java
+│   └── McpToolsIT.java
 └── ai/                            # AI 集成测试
     ├── AiIntegrationTestSupport.java
-    ├── AiToolsIntegrationTest.java
+    ├── AiToolsIT.java
     ├── EcommerceTestCase.java
     ├── TestCaseLoader.java
     ├── ResultValidator.java
@@ -183,7 +183,7 @@ void shouldFetchMetadataSuccessfully() throws Exception {
 
 使用真实 AI 模型（阿里云通义千问）测试 MCP 工具链。
 
-**AiToolsIntegrationTest.java**
+**AiToolsIT.java**
 - 测试 AI 模型调用 MCP 工具的完整流程
 - 测试用例从 JSON 文件加载
 - 支持多分类测试（元数据、简单查询、聚合、复杂查询）
@@ -216,9 +216,9 @@ mvn test -Dtest=*ToolTest
 cd ..
 ./scripts/ensure-ai-test-mysql.sh
 JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home \
-  mvn -pl foggy-dataset-mcp -am -P'!multi-db' \
-  -Dtest=AiToolsIntegrationTest,AiTestReportSummaryTest,SpringAiTestExecutorTest \
-  -Dsurefire.failIfNoSpecifiedTests=false test
+  ./scripts/run-ai-domain-direct.sh \
+  --case-files ai-test-cases/ecommerce-tests.json \
+  --models FactSalesQueryModel,FactOrderQueryModel
 
 # 显式运行真实 LLM 对比。Spring AI 的 base-url 不要追加 /v1。
 AI_TEST_OPENAI_API_KEY=... \

@@ -75,6 +75,13 @@
         <!-- Unit and integration runners must be independently skippable. -->
         <skipUnitTests>false</skipUnitTests>
         <skipITs>false</skipITs>
+        <!-- Default fail-closed; authority runners may relax upstream selector misses,
+             while the report verifier still enforces the exact target report set. -->
+        <surefire.failIfNoTests>true</surefire.failIfNoTests>
+        <failsafe.failIfNoTests>true</failsafe.failIfNoTests>
+        <failsafe.failIfNoSpecifiedTests>true</failsafe.failIfNoSpecifiedTests>
+        <maven-surefire-plugin.version>3.5.3</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.5.3</maven-failsafe-plugin.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -344,14 +351,49 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
                 <configuration>
                     <skipTests>${skipUnitTests}</skipTests>
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                    </includes>
                     <excludes>
                         <exclude>**/IT*.java</exclude>
                         <exclude>**/*IT.java</exclude>
+                        <exclude>**/*IT$*.java</exclude>
                         <exclude>**/*ITCase.java</exclude>
+                        <exclude>**/*ITCase$*.java</exclude>
                         <exclude>**/*E2E.java</exclude>
+                        <exclude>**/*E2E$*.java</exclude>
+                        <exclude>**/*E2ETest.java</exclude>
+                        <exclude>**/*E2ETest$*.java</exclude>
+                        <!-- Step 3 database matrix owner; retained name is frozen by Step 1. -->
+                        <exclude>**/MultiDatabaseQueryTest.java</exclude>
+                        <exclude>**/MultiDatabaseQueryTest$*.java</exclude>
                     </excludes>
+                    <failIfNoTests>${surefire.failIfNoTests}</failIfNoTests>
+                    <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${maven-failsafe-plugin.version}</version>
+                <configuration>
+                    <skipITs>${skipITs}</skipITs>
+                    <includes>
+                        <include>**/IT*.java</include>
+                        <include>**/*IT.java</include>
+                        <include>**/*ITCase.java</include>
+                        <include>**/*E2E.java</include>
+                        <include>**/*E2ETest.java</include>
+                        <!-- Exact legacy exception, owned only by the Step 3 matrix. -->
+                        <include>**/MultiDatabaseQueryTest.java</include>
+                    </includes>
+                    <failIfNoTests>${failsafe.failIfNoTests}</failIfNoTests>
+                    <failIfNoSpecifiedTests>${failsafe.failIfNoSpecifiedTests}</failIfNoSpecifiedTests>
                 </configuration>
             </plugin>
             <plugin>

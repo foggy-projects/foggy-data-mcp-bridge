@@ -16,6 +16,7 @@ import javax.sql.DataSource;
 @AutoConfiguration(
         after = DbModelAutoConfiguration.class,
         afterName = {
+                "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
                 "org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration",
                 "org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration",
                 "com.foggyframework.dataset.mongo.DataSetMongoAutoConfiguration"

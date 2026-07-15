@@ -23,7 +23,7 @@ public class MultiThreadExecutor {
 
 	public int total = -1;
 
-	private Throwable error;
+	private volatile Throwable error;
 
 	public void setError(Throwable error) {
 		this.error = error;
@@ -76,33 +76,52 @@ public class MultiThreadExecutor {
 		waitAllCompleted(shutdown, false);
 	}
 
-	private boolean checkAllCompleted(){
-		if(total>0){
-			return executorService.getCompletedTaskCount() == total;
-		}
-		return executorService.getActiveCount() != 0;
-	}
-
 	public void waitAllCompleted(boolean shutdown, boolean stopIfHasError) {
-
-		while (checkAllCompleted()) {
-			try {
-				Thread.sleep(1000);
-				System.out.println("executorService.getActiveCount():"+executorService.getActiveCount()+"/"+executorService.getQueue().size()+"/"+executorService.getTaskCount());
-				if (error != null && stopIfHasError) {
-					throw new RuntimeException(error);
+		long expectedTaskCount = total > 0 ? total : executorService.getTaskCount();
+		if (shutdown) {
+			executorService.shutdown();
+		}
+		try {
+			if (shutdown) {
+				while (!executorService.awaitTermination(1, TimeUnit.SECONDS)) {
+					logProgress();
+					throwIfHasError(stopIfHasError);
 				}
-			} catch (InterruptedException e) {
-				throw RX.throwB(e);
+			} else {
+				while (executorService.getCompletedTaskCount() < expectedTaskCount) {
+					Thread.sleep(1000);
+					logProgress();
+					throwIfHasError(stopIfHasError);
+				}
 			}
+			throwIfHasError(stopIfHasError);
+		} catch (InterruptedException e) {
+			if (shutdown) {
+				executorService.shutdownNow();
+			}
+			Thread.currentThread().interrupt();
+			throw RX.throwB(e);
+		} catch (RuntimeException e) {
+			if (shutdown) {
+				executorService.shutdownNow();
+			}
+			throw e;
 		}
 		if (log.isDebugEnabled()) {
 			log.debug("所有任务执行完成【" + executorService + "】");
 		}
-		if (shutdown) {
-			executorService.shutdownNow();
-		}
+	}
 
+	private void logProgress() {
+		System.out.println("executorService.getActiveCount():" + executorService.getActiveCount() + "/"
+				+ executorService.getQueue().size() + "/" + executorService.getTaskCount());
+	}
+
+	private void throwIfHasError(boolean stopIfHasError) {
+		Throwable taskError = error;
+		if (taskError != null && stopIfHasError) {
+			throw new RuntimeException(taskError);
+		}
 	}
 
 	/**

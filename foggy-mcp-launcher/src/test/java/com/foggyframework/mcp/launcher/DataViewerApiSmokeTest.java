@@ -7,6 +7,7 @@ import com.foggyframework.core.annotates.EnableFoggyFramework;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
@@ -44,6 +45,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -59,6 +61,7 @@ class DataViewerApiSmokeTest {
     private static final String QUERY_MODEL = "FactSalesSemanticScaleQueryModel";
     private static final String RUNTIME_FILTER_QUERY_MODEL = "OrderSalesAggregateRelationRuntimeFilterQueryModel";
     private static final String TABLE_MODEL = "FactSalesSemanticScaleModel";
+    private static final String PHYSICAL_NAMESPACE = "data-viewer-smoke-physical";
 
     @LocalServerPort
     private int port;
@@ -85,7 +88,7 @@ class DataViewerApiSmokeTest {
 
     @BeforeAll
     void registerPhysicalNamespace() {
-        physicalNamespace = "data-viewer-smoke-physical";
+        physicalNamespace = PHYSICAL_NAMESPACE;
 
         DatasetProperties.SemanticScaleConfig config = datasetProperties.getSemanticScale();
         config.setDefaultEnabled(true);
@@ -450,6 +453,26 @@ class DataViewerApiSmokeTest {
         @Bean
         MemberQueryService memberQueryService(QueryFacade queryFacade) {
             return new MemberQueryService(queryFacade);
+        }
+
+        @Bean
+        NamedDataSourceResolver dataViewerSmokeNamedDataSourceResolver(DataSource dataSource) {
+            return new NamedDataSourceResolver() {
+                @Override
+                public DataSource resolve(String name) {
+                    return null;
+                }
+
+                @Override
+                public DataSource resolveDefault(String namespace) {
+                    return PHYSICAL_NAMESPACE.equals(namespace) ? dataSource : null;
+                }
+
+                @Override
+                public boolean isConfigured(String name) {
+                    return false;
+                }
+            };
         }
 
         @Bean

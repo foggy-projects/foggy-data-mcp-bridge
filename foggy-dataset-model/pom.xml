@@ -108,8 +108,13 @@
                             <excludes>
                                 <exclude>**/IT*.java</exclude>
                                 <exclude>**/*IT.java</exclude>
+                                <exclude>**/*IT$*.java</exclude>
                                 <exclude>**/*ITCase.java</exclude>
+                                <exclude>**/*ITCase$*.java</exclude>
                                 <exclude>**/*E2E.java</exclude>
+                                <exclude>**/*E2E$*.java</exclude>
+                                <exclude>**/*E2ETest.java</exclude>
+                                <exclude>**/*E2ETest$*.java</exclude>
                             </excludes>
                             <failIfNoTests>true</failIfNoTests>
                             <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
@@ -137,16 +142,13 @@
             </build>
         </profile>
         <!--
-            多数据库测试 profile（默认激活）
-            默认 mvn test 会依次跑 SQLite + MySQL + PostgreSQL + SQL Server。
-            前提: Docker 容器已启动 (docker-compose -f docker/docker-compose.test.yml up -d)
-            跳过: mvn test -P!multi-db 只跑 SQLite
+            Legacy predecessor-only multi-database replay. It is no longer
+            active by default and is forbidden in the 9.3.4 authority path.
+            Step 3 replaces these broad Surefire executions with the explicit
+            five-database Failsafe matrix.
         -->
         <profile>
             <id>multi-db</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
             <build>
                 <plugins>
                     <plugin>
@@ -171,15 +173,6 @@
                                     </systemPropertyVariables>
                                 </configuration>
                             </execution>
-<!--                            <execution>-->
-<!--                                <id>test-sqlserver</id>-->
-<!--                                <goals><goal>test</goal></goals>-->
-<!--                                <configuration>-->
-<!--                                    <systemPropertyVariables>-->
-<!--                                        <spring.profiles.active>sqlserver</spring.profiles.active>-->
-<!--                                    </systemPropertyVariables>-->
-<!--                                </configuration>-->
-<!--                            </execution>-->
                         </executions>
                     </plugin>
                 </plugins>

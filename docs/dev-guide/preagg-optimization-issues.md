@@ -172,7 +172,7 @@ They are not truly stateless, so reuse would require refactoring to a different 
 | `FullRefreshStrategyTest` | addon | 3 | Transaction atomicity, DELETE FROM (not TRUNCATE) |
 | `IncrementalRefreshStrategyTest` | addon | 5 | Incremental logic, PreparedStatement usage |
 | `DateTruncateTest` | foggy-dataset | 42 | 4 dialects × 7 granularities + timestamp + type mapping |
-| `PreAggregationIntegrationTest` | core | 23 | End-to-end matching, rewriting, hybrid queries |
+| `PreAggregationIT` | core | 23 | End-to-end matching, rewriting, hybrid queries |
 | `PreAggQueryRequirementTest` | core | 25 | Requirement building, matching, edge cases |
 
 **Total: 105 tests, all passing.**

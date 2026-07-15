@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -28,8 +28,12 @@ updated_at: 2026-07-14
 - Step 1 已以 `step1-candidate-r8-20260714` 正式确认；两路独立复核均为 PASS，
   blocker=0。最终 inventory validator、confirmed-summary validator 与 16/16 hash
   manifest 复验通过。
-- Step 1 只完成 compile/discovery-only/static validation；尚未修改 POM、测试命名、
-  数据库、workflow 或 release，也未执行任何测试方法或外部 fixture。
+- Step 2 已由 signal-safe r8e successor、Surefire Unit 与 Failsafe Integration
+  三条独立权威链通过：`724 positive / 59 structural / 5,205 testcase / F0/E0/S0`；
+  `46` 个 external execution 保持 exact deferred-to-Step-3。
+- r8d successor 及其 Unit/Integration 因 `completed` 窗口 signal fail-open 被明确
+  作废，禁止用于 coverage/acceptance；r8e 的 INT/TERM/HUP 动态探针分别以
+  `130/143/129` fail closed。
 
 ## 执行资料
 
@@ -44,14 +48,24 @@ updated_at: 2026-07-14
 - acceptance evidence plan: [acceptance-evidence-plan.md](acceptance-evidence-plan.md)
 - Step 1 confirmed evidence:
   [evidence/step-1/inventory-contract-freeze-20260714.md](evidence/step-1/inventory-contract-freeze-20260714.md)
+- Step 2 structural amendment evidence：
+  [evidence/step-2/step2-structural-container-contract-amendment-20260714.md](evidence/step-2/step2-structural-container-contract-amendment-20260714.md)
+- Step 2 successor independent review：
+  [evidence/step-2/step2-successor-r8e-independent-review-20260715.md](evidence/step-2/step2-successor-r8e-independent-review-20260715.md)
+- Step 2 runner exit：
+  [evidence/step-2/step2-runner-split-exit-r8e-20260715.md](evidence/step-2/step2-runner-split-exit-r8e-20260715.md)
+- Step 2 implementation quality：
+  [quality/step2-runner-split-implementation-quality.md](quality/step2-runner-split-implementation-quality.md)
+- Step 2 coverage audit：
+  [coverage/step2-runner-split-coverage-audit.md](coverage/step2-runner-split-coverage-audit.md)
 
 ## 1~7 顺序
 
 | Step | 内容 | 当前状态 | Exit |
 |---:|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
-| 2 | Surefire/Failsafe 全量分层 | ready | 双义命名=0；unit/hermetic IT actual pass；external suite exact-deferred |
-| 3 | 五数据库与外部集成 required matrix | pending | 五库及 Step 2 deferred DB/Redis suites 全部真实执行且 S0 |
+| 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
+| 3 | 五数据库与外部集成 required matrix | ready | exact 46 deferred executions；五库及 DB/Redis suites 全部真实执行且 S0 后才 exit |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | 全 required lane 重新带 agent 执行；XML verifier + module checks fail closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |

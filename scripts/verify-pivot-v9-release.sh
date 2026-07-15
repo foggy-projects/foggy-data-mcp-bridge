@@ -30,6 +30,27 @@ run_step() {
   mvn "$@"
 }
 
+run_pivot_parity_it() {
+  local name="$1"
+  local profile="$2"
+  local report="$REPO_ROOT/foggy-dataset-model/target/failsafe-reports/TEST-com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT.xml"
+  rm -f "$report"
+  run_step "$name" \
+    verify \
+    -pl foggy-dataset-model \
+    -am \
+    -Dit.test=PivotSqlParityIT \
+    -Dspring.profiles.active="$profile" \
+    -DskipUnitTests=true \
+    -DskipITs=false \
+    -Dfailsafe.failIfNoSpecifiedTests=false \
+    -P!multi-db
+  [[ -s "$report" ]] && grep -q '<testcase' "$report" || {
+    echo "Expected fresh Failsafe report is missing or empty: $report" >&2
+    exit 1
+  }
+}
+
 assert_container() {
   local name="$1"
   local status
@@ -61,14 +82,7 @@ if [[ "$SKIP_FULL_REGRESSION" -eq 0 ]]; then
   run_step "Full module regression" test -P!multi-db
 fi
 
-run_step "SQLite pivot SQL parity" \
-  test \
-  -pl foggy-dataset-model \
-  -am \
-  -Dtest=PivotSqlParityIntegrationTest \
-  -Dspring.profiles.active=sqlite \
-  -Dsurefire.failIfNoSpecifiedTests=false \
-  -P!multi-db
+run_pivot_parity_it "SQLite pivot SQL parity" sqlite
 
 if [[ "$SKIP_MCP" -eq 0 ]]; then
   run_step "MCP schema and JSON-RPC guardrail" \
@@ -82,23 +96,8 @@ if [[ "$SKIP_EXTERNAL_DB" -eq 0 ]]; then
   assert_container foggy-demo-mysql8
   assert_container foggy-demo-postgres
 
-  run_step "MySQL8 pivot SQL parity" \
-    test \
-    -pl foggy-dataset-model \
-    -am \
-    -Dtest=PivotSqlParityIntegrationTest \
-    -Dspring.profiles.active=mysql8 \
-    -Dsurefire.failIfNoSpecifiedTests=false \
-    -P!multi-db
-
-  run_step "PostgreSQL pivot SQL parity" \
-    test \
-    -pl foggy-dataset-model \
-    -am \
-    -Dtest=PivotSqlParityIntegrationTest \
-    -Dspring.profiles.active=postgres \
-    -Dsurefire.failIfNoSpecifiedTests=false \
-    -P!multi-db
+  run_pivot_parity_it "MySQL8 pivot SQL parity" mysql8
+  run_pivot_parity_it "PostgreSQL pivot SQL parity" postgres
 fi
 
 echo

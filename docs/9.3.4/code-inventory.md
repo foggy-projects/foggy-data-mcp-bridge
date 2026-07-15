@@ -4,7 +4,7 @@ doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-15
 ---
 
 # 9.3.4 Code Inventory
@@ -45,9 +45,9 @@ code_inventory:
     notes: one row per candidate source; executable/helper/generator and non-reactor disposition
   - module: frozen-contract-data
     path: scripts/v934/execution-inventory.tsv
-    role: reviewed report/runner/lane/variant/infra/earliest-step inventory
+    role: immutable Step 1 pre-amendment report/runner/lane/variant/infra/earliest-step inventory
     expected_change: create
-    notes: one row per execution key; nested report FQCN and DB/provider variants may create multiple rows per source
+    notes: 829 historical identities remain immutable; Step 2 successor separates 770 positive executions from 59 structural outer reports
   - module: frozen-contract-data
     path: scripts/v934/discovery-inventory.tsv
     role: JUnit discovery-only source to report mapping with source/main/test class hashes
@@ -65,14 +65,24 @@ code_inventory:
     notes: exact 9.3.3 authority report set; validator regenerates nodes from raw XML
   - module: frozen-contract-data
     path: scripts/v934/predecessor-regression-map.tsv
-    role: map 9.3.1-9.3.3 historical nodes to current successor execution keys
+    role: map 9.3.1-9.3.3 historical nodes to current successor typed references
     expected_change: create
-    notes: group/relation/declared old+successor cardinality; unmapped nodes, edge duplicates or count mismatch fail
+    notes: Step 2 successor has 480 positive execution refs and 39 structural FQCN refs; unmapped/XOR/cardinality drift fails
   - module: frozen-contract-data
     path: scripts/v934/rename-successor-plan.tsv
     role: immutable Step1 pre-rename to Step2 post-rename exact execution-key delta
     expected_change: create
-    notes: 33 sources / 62 reports / 74 execution rows / 50 predecessor edges; successor inventory is independently confirmed
+    notes: immutable base 33 sources / 62 reports / 74 identities / 50 predecessor edges plus 2 Mongo corrective renames; final successor applies 72 positive + 4 structural mappings and is independently confirmed
+  - module: step2-successor-data
+    path: scripts/v934/successor/step2/{execution-inventory.tsv,structural-report-inventory.tsv,step2-required-execution.tsv,deferred-step3.tsv,predecessor-regression-map.tsv,contract-freeze.json,SHA256SUMS}
+    role: confirmed post-rename positive execution, structural report and typed predecessor authority
+    expected_change: create
+    notes: parent-linked immutable candidate/confirm flow; raw XML exact set is positive union structural while totals remain separate
+  - module: v934-runners
+    path: scripts/v934/{authority_runner_lib.sh,step2_successor_tool.py,step2_report_tool.py}
+    role: deterministic successor generation and fail-closed raw report evidence
+    expected_change: create
+    notes: candidate/final split, shared signal-safe durable status, typed structural zero verification, expected-negative probes and atomic confirmation
   - module: frozen-contract-data
     path: scripts/v934/maven-variant-inventory.tsv
     role: current Maven profile/plugin execution owner to v934 successor disposition
@@ -234,6 +244,18 @@ code_inventory:
     expected_change: update
     notes: add current-authority link; do not rewrite historical content
 ```
+
+## Step 2 Inventory Result
+
+- implemented: root Surefire/Failsafe 3.5.3 ownership、35 个受控 source rename、
+  successor/report tools、Unit/Integration authority runners 与 shared signal-safe helper；
+- confirmed successor: `770 positive = 724 Step 2 + 46 Step 3`、`59 structural`；
+- actual Step 2: Surefire `677 + 55 structural`，Failsafe `47 + 4 structural`，
+  `5,205 testcase / F0/E0/S0`；
+- production fixes limited to Mongo auto-configuration ordering、MultiThreadExecutor
+  completion 和 immutable calculated-field list；其余为 test/build/documentation
+  governance；
+- Step 3–7 planned paths remain `expected_change`，不得从本 Step 2 result 推断已实现。
 
 ## Protected Boundaries
 

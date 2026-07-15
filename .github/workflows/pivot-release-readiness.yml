@@ -36,13 +36,19 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
 
-      - name: SQLite profile - PivotSqlParityIntegrationTest
+      - name: SQLite profile - PivotSqlParityIT
         run: |
-          mvn test -pl foggy-dataset-model -am \
-            -Dtest=PivotSqlParityIntegrationTest \
+          report=foggy-dataset-model/target/failsafe-reports/TEST-com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT.xml
+          rm -f "$report"
+          mvn verify -pl foggy-dataset-model -am \
+            -Dit.test=PivotSqlParityIT \
             -Dspring.profiles.active=sqlite \
-            -Dsurefire.failIfNoSpecifiedTests=false \
+            -DskipUnitTests=true \
+            -DskipITs=false \
+            -Dfailsafe.failIfNoSpecifiedTests=false \
             -P!multi-db
+          test -s "$report"
+          grep -q '<testcase' "$report"
 
   external-db-release-gate:
     name: MySQL8/PostgreSQL pivot parity release gate
@@ -63,7 +69,7 @@ jobs:
         run: |
           docker compose -f foggy-dataset-demo/docker/docker-compose.yml up -d mysql8 postgres
 
-      - name: MySQL8/PostgreSQL profiles - PivotSqlParityIntegrationTest
+      - name: MySQL8/PostgreSQL profiles - PivotSqlParityIT
         run: |
           chmod +x scripts/verify-pivot-v9-release.sh
           bash scripts/verify-pivot-v9-release.sh --skip-full-regression --skip-mcp

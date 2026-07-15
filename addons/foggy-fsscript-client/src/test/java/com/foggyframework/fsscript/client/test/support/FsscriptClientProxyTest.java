@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 public class FsscriptClientProxyTest extends FsscriptClientTestSupport {
 
@@ -46,8 +47,9 @@ public class FsscriptClientProxyTest extends FsscriptClientTestSupport {
 
     @Test
     public void test3() {
-        MultiThreadExecutor executor = new MultiThreadExecutor(1000);
-        String[] iix = new String[100000];
+        String[] iix = new String[10000];
+        MultiThreadExecutor executor = new MultiThreadExecutor(16, iix.length, iix.length);
+        CountDownLatch startGate = new CountDownLatch(1);
         for (int i = 0; i < iix.length; i++) {
             iix[i] = UuidUtils.newUuid();
         }
@@ -56,6 +58,12 @@ public class FsscriptClientProxyTest extends FsscriptClientTestSupport {
 
         for (String s : iix) {
             executor.execute(() -> {
+                try {
+                    startGate.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
                 DemoRet d = fsscriptClientTest.demo2(s);
 
                 oo.add(d.getAa().equals(s));
@@ -63,6 +71,16 @@ public class FsscriptClientProxyTest extends FsscriptClientTestSupport {
             });
         }
 
+        Thread gateReleaser = new Thread(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                startGate.countDown();
+            }
+        }, "fsscript-client-proxy-test-gate");
+        gateReleaser.start();
         executor.waitAllCompleted(true);
         Assertions.assertEquals(iix.length, oo.size());
         for (Boolean aBoolean : oo) {

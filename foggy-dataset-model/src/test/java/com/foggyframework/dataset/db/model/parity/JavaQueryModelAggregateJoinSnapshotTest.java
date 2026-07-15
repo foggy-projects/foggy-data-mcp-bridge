@@ -33,7 +33,6 @@ import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import jakarta.annotation.Resource;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -58,7 +57,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * QueryModel aggregate join neutral snapshot producer for Python parity.
  *
- * <p>Produces {@code target/parity/_querymodel_aggregate_join_snapshot.json}.
+ * <p>Validates the aggregate-join parity cases and optionally produces
+ * {@code target/parity/_querymodel_aggregate_join_snapshot.json}.
  * The checked-in Python contract fixture defines the expected envelope; this
  * test exports the Java evidence that Python should replay before implementing
  * aggregate relation SQL lowering.</p>
@@ -79,11 +79,8 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
     private SemanticQueryServiceV3 semanticQueryService;
 
     @Test
-    @DisplayName("produces _querymodel_aggregate_join_snapshot.json")
+    @DisplayName("validates aggregate join parity and optionally exports the snapshot")
     void shouldProduceSnapshot() throws Exception {
-        Assumptions.assumeTrue(Boolean.getBoolean("foggy.parity.snapshot"),
-                "set -Dfoggy.parity.snapshot=true to export aggregate join parity snapshot");
-
         String matchedOrderId = findOrderIdWithCompletedSales();
         String unmatchedOrderId = findOrderIdWithoutCompletedSales();
 
@@ -127,13 +124,14 @@ class JavaQueryModelAggregateJoinSnapshotTest extends EcommerceTestSupport {
         snapshot.put("dialect", getDialectKey());
         snapshot.put("cases", cases);
 
-        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-        Path target = Path.of("target", "parity", "_querymodel_aggregate_join_snapshot.json");
-        Files.createDirectories(target.getParent());
-        mapper.writeValue(target.toFile(), snapshot);
-
-        assertTrue(Files.exists(target), "snapshot file must be written");
         assertEquals(29, cases.size(), "expected aggregate join contract case count");
+        if (Boolean.getBoolean("foggy.parity.snapshot")) {
+            ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+            Path target = Path.of("target", "parity", "_querymodel_aggregate_join_snapshot.json");
+            Files.createDirectories(target.getParent());
+            mapper.writeValue(target.toFile(), snapshot);
+            assertTrue(Files.exists(target), "snapshot file must be written");
+        }
     }
 
     private Map<String, Object> leftMeasureNonMultiplicationCase(String orderId) {

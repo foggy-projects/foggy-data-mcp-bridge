@@ -45,7 +45,10 @@ public final class PredefinedCalculatedFieldInjector {
         }
 
         if (queryRequest.getCalculatedFields() != null) {
-            List<CalculatedFieldDef> userFields = queryRequest.getCalculatedFields();
+            // Request DTOs may be assembled with List.of/unmodifiableList by Java callers.
+            // Injection owns its mutations, so never modify the caller-provided collection.
+            List<CalculatedFieldDef> userFields = new ArrayList<>(queryRequest.getCalculatedFields());
+            queryRequest.setCalculatedFields(userFields);
             List<String> replaced = new ArrayList<>();
             userFields.removeIf(f -> {
                 if (f != null && predefinedNames.contains(f.getName()) && !isPredefinedInstance(f, predefined)) {

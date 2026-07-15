@@ -203,10 +203,10 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 |---|---|---|
 | `CteComposerTest.java` | 13 | CTE/子查询拼接、多表链式、参数合并、边界 |
 | `DataSetResultTest.java` | 46 | 数据访问、filter/sort/compute、joinInMemory、链式调用、空集边界 |
-| `ComposedDataSetResultIntegrationTest.java` | 1 | withJoin 延迟组合真实 DB/QM 执行、execute 缓存、手写 SQL parity |
+| `ComposedDataSetResultIT.java` | 1 | withJoin 延迟组合真实 DB/QM 执行、execute 缓存、手写 SQL parity |
 | `ComposeRealSqlParityTest.java` | 3 | derived/filter、join aggregate、union all 与手写 SQL 逐行比较 |
 | `ScriptResourceRealSqlParityTest.java` | 3 | 脚本资源真实执行，结果与手写 SQL 逐行比较 |
-| `ComposeScriptToolIntegrationTest.java` | 2 | `dataset.compose_script` MCP 工具注册、embedded-mode 真实脚本执行、手写 SQL parity |
+| `ComposeScriptToolIT.java` | 2 | `dataset.compose_script` MCP 工具注册、embedded-mode 真实脚本执行、手写 SQL parity |
 | `DialectFallbackTest.java` | 16 | CTE / 子查询 fallback 方言策略 |
 | `ScriptRuntimeTest.java` | 18 | 脚本 preview、返回值解耦、`timeWindow` 请求映射 |
 
@@ -235,14 +235,14 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 
 | Lane | 结果 | 说明 |
 |---|---|---|
-| SQLite | 8 passed / 0 skipped | `ComposeRealSqlParityTest + ComparativeExecutionIntegrationTest + TimeWindowExecutionIntegrationTest` |
+| SQLite | 8 passed / 0 skipped | `ComposeRealSqlParityTest + ComparativeExecutionIT + TimeWindowExecutionIT` |
 | PostgreSQL | 8 passed / 0 skipped | 真实 SQL parity 已通过 |
 | MySQL 5.7 | 8 passed / 0 skipped | 非窗口 compose / comparative 通过；timeWindow 因无窗口函数记录 info log 后 no-op 返回 |
 | MySQL 5.7 脚本 parity | 3 passed / 0 skipped | 脚本资源真实执行，不依赖窗口函数 |
 | MySQL 5.7 ComposedDataSetResult | 1 passed / 0 skipped | `withJoin` legacy 延迟执行通道真实 DB/QM parity |
 | MCP compose_script integration | 2 passed / 0 skipped | MySQL integration profile；工具注册 + embedded-mode join script parity |
 | SQL Server | 8 passed / 0 skipped | 子查询 fallback 通过 |
-| 本地 compose 目标套件 | 71 passed / 0 skipped | `ComposedDataSetResultIntegrationTest + DataSetResultTest + ScriptRuntimeTest + ComposeRealSqlParityTest + ScriptResourceRealSqlParityTest` |
+| 本地 compose 目标套件 | 71 passed / 0 skipped | `ComposedDataSetResultIT + DataSetResultTest + ScriptRuntimeTest + ComposeRealSqlParityTest + ScriptResourceRealSqlParityTest` |
 
 ### 待覆盖
 

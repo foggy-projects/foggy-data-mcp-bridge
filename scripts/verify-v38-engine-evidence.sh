@@ -13,8 +13,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/foggy-dataset-demo/docker/docker-compose.yml"
 
-POSTGRES_P2_DSL_TESTS="RelationResultExpressionCompilerTest,DslCteAcceptanceSampleTest,DslCteRelationMetricFixtureIntegrationTest,DslCteResultStageWindowIntegrationTest"
-POSTGRES_PIVOT_TESTS="PivotIntegrationTest,PivotCascadeGenerateValidationTest"
+POSTGRES_P2_DSL_UNIT_TESTS="RelationResultExpressionCompilerTest,DslCteAcceptanceSampleTest"
+POSTGRES_P2_DSL_IT_TESTS="DslCteRelationMetricFixtureIT,DslCteResultStageWindowIT"
+POSTGRES_PIVOT_UNIT_TESTS="PivotCascadeGenerateValidationTest"
+POSTGRES_PIVOT_IT_TESTS="PivotIT"
 
 usage() {
   cat <<'USAGE'
@@ -73,6 +75,69 @@ run_step() {
   echo
   echo "==> $name"
   run_cmd "$@"
+}
+
+reset_model_reports() {
+  local runner="$1"
+  local selectors="$2"
+  local dir="$REPO_ROOT/foggy-dataset-model/target/${runner}-reports"
+  [[ "$DRY_RUN" -eq 1 || ! -d "$dir" ]] && return 0
+  local selector
+  IFS=',' read -r -a selected <<< "$selectors"
+  for selector in "${selected[@]}"; do
+    find "$dir" -maxdepth 1 -type f -name "TEST-*.${selector}*.xml" -delete
+  done
+}
+
+assert_model_reports() {
+  local runner="$1"
+  local selectors="$2"
+  [[ "$DRY_RUN" -eq 1 ]] && return 0
+  local dir="$REPO_ROOT/foggy-dataset-model/target/${runner}-reports"
+  local selector report found
+  IFS=',' read -r -a selected <<< "$selectors"
+  for selector in "${selected[@]}"; do
+    found=0
+    while IFS= read -r report; do
+      if [[ -s "$report" ]] && grep -q '<testcase' "$report"; then
+        found=1
+        break
+      fi
+    done < <(find "$dir" -maxdepth 1 -type f -name "TEST-*.${selector}*.xml" 2>/dev/null)
+    [[ "$found" -eq 1 ]] || {
+      echo "Expected fresh $runner report with testcases for $selector" >&2
+      exit 1
+    }
+  done
+}
+
+run_model_units() {
+  local name="$1"
+  local tests="$2"
+  reset_model_reports surefire "$tests"
+  run_step "$name" \
+    mvn -pl foggy-dataset-model -am test \
+      -Dtest="$tests" \
+      -Dspring.profiles.active=postgres \
+      -DskipITs=true \
+      -Dsurefire.failIfNoSpecifiedTests=false \
+      -P!multi-db
+  assert_model_reports surefire "$tests"
+}
+
+run_model_its() {
+  local name="$1"
+  local tests="$2"
+  reset_model_reports failsafe "$tests"
+  run_step "$name" \
+    mvn -pl foggy-dataset-model -am verify \
+      -Dit.test="$tests" \
+      -Dspring.profiles.active=postgres \
+      -DskipUnitTests=true \
+      -DskipITs=false \
+      -Dfailsafe.failIfNoSpecifiedTests=false \
+      -P!multi-db
+  assert_model_reports failsafe "$tests"
 }
 
 compose_cmd() {
@@ -178,12 +243,8 @@ verify_postgres_p2_dsl() {
     return 0
   fi
 
-  run_step "PostgreSQL v3.8 P2 DSL_CTE alias/ranking/bucket evidence" \
-    mvn -pl foggy-dataset-model -am test \
-      -Dtest="$POSTGRES_P2_DSL_TESTS" \
-      -Dspring.profiles.active=postgres \
-      -Dsurefire.failIfNoSpecifiedTests=false \
-      -P!multi-db
+  run_model_units "PostgreSQL v3.8 P2 DSL_CTE unit evidence" "$POSTGRES_P2_DSL_UNIT_TESTS"
+  run_model_its "PostgreSQL v3.8 P2 DSL_CTE integration evidence" "$POSTGRES_P2_DSL_IT_TESTS"
 }
 
 verify_postgres_pivot() {
@@ -191,12 +252,8 @@ verify_postgres_pivot() {
     return 0
   fi
 
-  run_step "PostgreSQL v3.8 pivot tree/drilldown and weekday evidence" \
-    mvn -pl foggy-dataset-model -am test \
-      -Dtest="$POSTGRES_PIVOT_TESTS" \
-      -Dspring.profiles.active=postgres \
-      -Dsurefire.failIfNoSpecifiedTests=false \
-      -P!multi-db
+  run_model_units "PostgreSQL v3.8 pivot unit evidence" "$POSTGRES_PIVOT_UNIT_TESTS"
+  run_model_its "PostgreSQL v3.8 pivot integration evidence" "$POSTGRES_PIVOT_IT_TESTS"
 }
 
 verify_sqlserver_weekday() {

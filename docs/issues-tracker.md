@@ -51,7 +51,7 @@
 - **文件**: `foggy-dataset-model/.../preagg/PreAggQueryRewriter.java`
 - **修复**: 新增 `extractWhereClause()` + `extractListCond()` 递归遍历 `JdbcWhere` 条件树，按 `SimpleSqlJdbcQueryVisitor.acceptListCond()` 模式生成完整 SQL 片段和参数列表。支持 `ValueCond`、`ListValueCond`、`SqlFragmentCond`、`JdbcGroupCond`（嵌套），并通过 `FDialect.convertParameterValue()` 处理方言参数转换（如 SQLite Date→String）
 - **同时修复**: `buildHybridParams()` 使用提取的 WHERE 参数替代错误的 `queryEngine.getValues()`，解决 SQL 占位符与参数数量不匹配问题
-- **测试**: `PreAggregationIntegrationTest.java` — `testHybridQueryShouldIncludeOriginalWhereInSourcePart`（验证 WHERE 条件传递）+ `testHybridQueryWhereParamsOrderCorrect`（验证参数数量匹配）
+- **测试**: `PreAggregationIT.java` — `testHybridQueryShouldIncludeOriginalWhereInSourcePart`（验证 WHERE 条件传递）+ `testHybridQueryWhereParamsOrderCorrect`（验证参数数量匹配）
 - **依赖**: 与 #006 一起修复（同一代码路径）
 - [x] 已修复 — 2026-03-14
 
@@ -60,7 +60,7 @@
 - **文件**: `foggy-dataset-model/.../preagg/PreAggQueryRewriter.java`
 - **修复**: 重写混合查询源表部分 SQL 生成。新增 `buildSourceFromClause()` 从 `JdbcQuery.JdbcFrom` 提取原始 FROM + 所有 JOIN（含 ON 条件），新增 `buildSourceSelectColumnsWithJoins()` 使用原始表别名（`t1`/`d1`/`d2`）引用列。替代原来错误使用 `src` 别名 + 无 JOIN 的单表查询
 - **同时修复**: `parseWatermarkColumn()` 和新增 `resolveWatermarkSourceColumn()` — 通过 `queryModel.findDimension().getForeignKey()` 解析物理列名（如 `salesDate$id` → `date_key`），替代原来返回维度名的错误行为
-- **测试**: `PreAggregationIntegrationTest.java` — 3 个混合查询测试全部通过（含原有 `testHybridQuerySqlGeneration`）
+- **测试**: `PreAggregationIT.java` — 3 个混合查询测试全部通过（含原有 `testHybridQuerySqlGeneration`）
 - **依赖**: 与 #005 一起修复（同一代码路径）
 - [x] 已修复 — 2026-03-14
 

@@ -115,6 +115,8 @@ coverage/
 !docs/9.3.1/coverage/*.md
 !docs/9.3.2/coverage/
 !docs/9.3.2/coverage/*.md
+!docs/9.3.4/coverage/
+!docs/9.3.4/coverage/*.md
 jacoco.exec
 .coverage
 test-*.json
