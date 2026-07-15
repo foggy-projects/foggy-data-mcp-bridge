@@ -14,7 +14,11 @@
     },
     "external_matrix_runner": {
       "path": "scripts/verify-v934-external-matrix.sh",
-      "sha256": "49a6fd951a0eb841089623fa7fb9aed3a6a8dd8facfe4de6e0bd30eae4297d63"
+      "sha256": "4a46a1def187ed195709e4c8f9ead07c32da20ee1693f383f86a91a0c08b392f"
+    },
+    "external_lane_launcher": {
+      "path": "scripts/v934/step3/external_lane_launcher.py",
+      "sha256": "2800831b616b1e4117b76709c7c7cd16c1f291f80235fe69d536a16c9c9e1e2a"
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",
@@ -30,11 +34,11 @@
     },
     "external_redis_signal_probe": {
       "path": "scripts/v934/step3/external_redis_signal_probe.py",
-      "sha256": "707a22505e8d3fa40e108baa12dbbe864d0f2a2eaa0f841b62df570154bbeb19"
+      "sha256": "cf042bc137aab190c829f9537b1b90d32b9ceb2adedf53eab5d1171994006850"
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "05226480a3556e28c60e6c76ae2c936f857cd1dbf71d48d89e614f5b479ad86f"
+      "sha256": "e54fe202dc2f3d72b43c1189dac2661e866635aaf1bc25e649915f5af6da03be"
     },
     "external_shared_context": {
       "path": "scripts/v934/step3/external_shared_context.sh",

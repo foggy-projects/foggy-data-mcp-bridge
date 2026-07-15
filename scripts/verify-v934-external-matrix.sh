@@ -8,6 +8,7 @@ CONTRACT="$STEP3_DIR/external-matrix-contract.json"
 REPORT_TOOL="$STEP3_DIR/external_matrix_report_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
 SHARED_CONTEXT="$STEP3_DIR/external_shared_context.sh"
+LANE_LAUNCHER="$STEP3_DIR/external_lane_launcher.py"
 DEFERRED_INVENTORY="$ROOT_DIR/scripts/v934/successor/step2/deferred-step3.tsv"
 RUNS_ROOT="$ROOT_DIR/target/v934-step3-external-matrix/runs"
 
@@ -155,7 +156,7 @@ terminate_active_child() {
   [[ -n "$ACTIVE_CHILD_PID" ]] || return 0
   if kill -0 "$ACTIVE_CHILD_PID" >/dev/null 2>&1; then
     kill -s "$signal_name" -- "-$ACTIVE_CHILD_PID" >/dev/null 2>&1 || true
-    for attempt in $(seq 1 450); do
+    for attempt in $(seq 1 200); do
       kill -0 "$ACTIVE_CHILD_PID" >/dev/null 2>&1 || break
       sleep 0.1
     done
@@ -208,9 +209,12 @@ run_lane() {
   fi
   PHASE="lane-$lane"
   echo "[v934-external-matrix] running lane=$lane"
-  setsid env \
-    "$signal_environment=$probe_value" \
-    "$runner" --shared-child "$RUN_ID" &
+  python3 "$LANE_LAUNCHER" \
+    --runner "$runner" \
+    --run-id "$RUN_ID" \
+    --signal-environment "$signal_environment" \
+    --probe-value "$probe_value" \
+    --lock-fd "$V934_AUTHORITY_LOCK_FD" &
   ACTIVE_CHILD_PID=$!
   if wait "$ACTIVE_CHILD_PID"; then
     exit_code=0
@@ -288,11 +292,12 @@ RUN_ID="${1:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ && "$RUN_ID" != . && "$RUN_ID" != .. ]] || \
   fail "unsafe run id: $RUN_ID"
 
-for command_name in cmp cut date docker flock git jq mkfifo mv python3 rg sed seq setsid sha256sum sleep tee tr wc; do
+for command_name in cmp cut date docker flock git jq mkfifo mv python3 rg sed seq sha256sum sleep tee tr wc; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
 for required_file in \
   "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" "$SHARED_CONTEXT" \
+  "$LANE_LAUNCHER" \
   "$DEFERRED_INVENTORY" "$REDIS_RUNNER" "$MONGO_RUNNER" "$MYSQL_RUNNER" "$VECTOR_RUNNER"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done

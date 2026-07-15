@@ -40,7 +40,7 @@ SOURCE_HEADER = [
 INVENTORY_BINDINGS = {"deferred_inventory", "discovery_inventory", "source_inventory"}
 FRAMEWORK_BINDINGS = {
     "authority_runner_lib", "external_report_tool", "external_matrix_runner",
-    "external_shared_context", "external_redis_runner",
+    "external_shared_context", "external_lane_launcher", "external_redis_runner",
     "external_redis_signal_probe", "external_mongo_runner",
     "external_mysql_runner", "external_vector_runner",
 }

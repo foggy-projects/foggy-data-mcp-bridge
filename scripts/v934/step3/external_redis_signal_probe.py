@@ -24,30 +24,35 @@ RESOURCES = {
         "environment": "V934_EXTERNAL_REDIS_SIGNAL_PROBE",
         "cell": "redis7",
         "ready_timeout": 90,
+        "finalize_timeout": 45,
     },
     "mongo": {
         "runner": ROOT / "scripts/verify-v934-external-mongo.sh",
         "environment": "V934_EXTERNAL_MONGO_SIGNAL_PROBE",
         "cell": "mongo6",
         "ready_timeout": 90,
+        "finalize_timeout": 45,
     },
     "mysql": {
         "runner": ROOT / "scripts/verify-v934-external-mysql.sh",
         "environment": "V934_EXTERNAL_MYSQL_SIGNAL_PROBE",
         "cell": "mysql57",
         "ready_timeout": 180,
+        "finalize_timeout": 45,
     },
     "vector": {
         "runner": ROOT / "scripts/verify-v934-external-vector.sh",
         "environment": "V934_EXTERNAL_VECTOR_SIGNAL_PROBE",
         "cell": "milvus24",
         "ready_timeout": 240,
+        "finalize_timeout": 45,
     },
     "matrix": {
         "runner": ROOT / "scripts/verify-v934-external-matrix.sh",
         "environment": "V934_EXTERNAL_MATRIX_SIGNAL_PROBE",
         "cell": "redis7",
         "ready_timeout": 120,
+        "finalize_timeout": 60,
     },
 }
 
@@ -146,7 +151,9 @@ def run_probe(prefix: str, signal_name: str, resource: str) -> dict[str, str]:
         )
         os.kill(process.pid, getattr(signal, f"SIG{signal_name}"))
         try:
-            stdout, stderr = process.communicate(timeout=45)
+            stdout, stderr = process.communicate(
+                timeout=float(configuration["finalize_timeout"]),
+            )
         except subprocess.TimeoutExpired as error:
             terminate_probe(process)
             raise RuntimeError(f"{signal_name} runner did not finalize after signal") from error
