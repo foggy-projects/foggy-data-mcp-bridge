@@ -534,6 +534,7 @@ echo "[v934-external-mongo] running variant=mongo6"
     -Dspring.datasource.hikari.connection-timeout=2000 \
     -Dspring.datasource.hikari.initialization-fail-timeout=1 \
     '-Dspring.datasource.hikari.connection-test-query=SELECT 1' \
+    '-Dspring.datasource.hikari.connection-init-sql=CREATE TABLE IF NOT EXISTS dual(dummy INTEGER)' \
     -Dlogging.level.org.mongodb.driver=WARN \
     -DskipUnitTests=true \
     -DskipITs=false \

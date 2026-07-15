@@ -26,7 +26,7 @@
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",
-      "sha256": "bde2ea6a2bac600dcbb988c3be155365075de159246c7d8f01f3e9cafcf132c1"
+      "sha256": "b5a99b2e9dda40434b8110c91ab9587cd2544e5175cedea7cfa853dd9b88a02d"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",

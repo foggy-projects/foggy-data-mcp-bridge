@@ -45,6 +45,7 @@ JDBC datasource。
 ```text
 jdbc:sqlite:file:v934_<run-scope>?mode=memory&cache=shared
 maximum-pool-size=1
+connection-init-sql=CREATE TABLE IF NOT EXISTS dual(dummy INTEGER)
 ```
 
 Mongo positive evidence仍必须来自 digest-pinned fresh Mongo、两个 run-scoped database、
