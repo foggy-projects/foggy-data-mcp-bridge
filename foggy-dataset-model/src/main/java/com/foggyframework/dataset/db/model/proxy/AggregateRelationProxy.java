@@ -103,6 +103,11 @@ public class AggregateRelationProxy extends TableModelProxy {
             }
             case "as" -> {
                 setAlias(toAlias(args));
+                // Unlike TableModelProxy.as(), an aggregate relation keeps the
+                // same mutable proxy instance.  Mark the alias as public so its
+                // ColumnRef output schema remains qualified after the builder
+                // later assigns runtime aliases to ordinary proxies.
+                setExplicitAlias(true);
                 yield this;
             }
             default -> {

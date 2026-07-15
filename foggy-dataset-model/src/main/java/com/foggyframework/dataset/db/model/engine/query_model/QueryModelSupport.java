@@ -173,10 +173,23 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
         QueryObject dxQueryObject;
 
+        /**
+         * QueryObject bindings owned by this QM table-model instance.
+         *
+         * <p>Table models (and their dimension QueryObjects) are cached and may be
+         * reused by more than one QM table reference.  Therefore the binding must
+         * live on {@code JdbcModelDx}; mutating a delegate QueryObject's alias or
+         * link would leak across QMs/threads.</p>
+         */
+        Map<QueryObject, QueryObject> queryObjectBindings = new IdentityHashMap<>();
+
+        /** Whether this wrapper represents the QM root model. */
+        boolean rootModel;
+
         JoinType joinType = JoinType.LEFT;
 
         @Override
-        public QueryObject getQueryObject() {
+        public synchronized QueryObject getQueryObject() {
             if (dxQueryObject == null) {
                 dxQueryObject = new QueryObjectDelegate(delegate.getQueryObject()) {
                     @Override
@@ -211,18 +224,21 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         }
 
         public JdbcModelDx(TableModel delegate, String foreignKey, FsscriptFunction onBuilder, String alias) {
-            super(delegate);
-            this.foreignKey = foreignKey;
-            this.onBuilder = onBuilder;
-            this.alias = alias;
+            this(delegate, foreignKey, onBuilder, alias, JoinType.LEFT, false);
         }
 
         public JdbcModelDx(TableModel delegate, String foreignKey, FsscriptFunction onBuilder, String alias, JoinType joinType) {
+            this(delegate, foreignKey, onBuilder, alias, joinType, false);
+        }
+
+        public JdbcModelDx(TableModel delegate, String foreignKey, FsscriptFunction onBuilder, String alias,
+                           JoinType joinType, boolean rootModel) {
             super(delegate);
             this.foreignKey = foreignKey;
             this.onBuilder = onBuilder;
             this.alias = alias;
             this.joinType = joinType;
+            this.rootModel = rootModel;
         }
 
 
@@ -247,19 +263,49 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             if (column == null) {
                 return null;
             }
-            DbColumn result = shouldAliasColumn(column)
-                    ? new AliasBoundDbColumn(column, getQueryObject())
+            // Aggregate relation output is identified by its concrete type in
+            // downstream filter/pushdown code.  It has its own alias handling and
+            // must not be hidden behind an AliasBoundDbColumn decorator.
+            if (column instanceof AggregateRelationOutputColumn) {
+                name2JdbcColumn.put(jdbcColumName, column);
+                return column;
+            }
+            QueryObject boundQueryObject = bindQueryObject(column.getQueryObject());
+            DbColumn result = boundQueryObject != null && boundQueryObject != column.getQueryObject()
+                    ? new AliasBoundDbColumn(column, boundQueryObject)
                     : column;
             name2JdbcColumn.put(jdbcColumName, result);
             return result;
         }
 
-        private boolean shouldAliasColumn(DbColumn column) {
-            if (column instanceof AggregateRelationOutputColumn) {
-                return false;
+        /**
+         * Rebind a delegate QueryObject to this concrete QM table-model instance.
+         * The root is always rebound to the model alias.  Non-root dimension nodes
+         * of secondary models are additionally namespaced so two cached TM graphs
+         * cannot both contribute a local {@code d1} node to a merged JoinGraph.
+         */
+        public synchronized QueryObject bindQueryObject(QueryObject queryObject) {
+            if (queryObject == null) {
+                return null;
             }
-            return column.getQueryObject() != null
-                    && column.getQueryObject().isRootEqual(delegate.getQueryObject());
+            if (queryObject == getQueryObject()
+                    || queryObject.isRootEqual(delegate.getQueryObject())) {
+                return getQueryObject();
+            }
+            if (rootModel) {
+                return queryObject;
+            }
+            return queryObjectBindings.computeIfAbsent(queryObject, source -> new QueryObjectDelegate(source) {
+                @Override
+                public String getAlias() {
+                    return JdbcModelDx.this.getAlias() + "__" + source.getAlias();
+                }
+
+                @Override
+                public QueryObject getLinkQueryObject() {
+                    return JdbcModelDx.this.bindQueryObject(source.getLinkQueryObject());
+                }
+            });
         }
 
     }
@@ -377,26 +423,19 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         if (sourceGraph == null) {
             return;
         }
-        QueryObject originalRoot = sourceGraph.getRoot();
-        QueryObject aliasRoot = model.getQueryObject();
+        JdbcModelDx modelDx = model.getDecorate(JdbcModelDx.class);
         for (JoinEdge edge : sourceGraph.getAllEdges()) {
             targetGraph.addEdge(
-                    rebindRootQueryObject(edge.getFrom(), originalRoot, aliasRoot),
-                    rebindRootQueryObject(edge.getTo(), originalRoot, aliasRoot),
+                    rebindModelQueryObject(modelDx, edge.getFrom()),
+                    rebindModelQueryObject(modelDx, edge.getTo()),
                     edge.getForeignKey(),
                     edge.getOnBuilder(),
                     edge.getJoinType());
         }
     }
 
-    private QueryObject rebindRootQueryObject(QueryObject queryObject, QueryObject originalRoot, QueryObject aliasRoot) {
-        if (queryObject == null || originalRoot == null || aliasRoot == null) {
-            return queryObject;
-        }
-        if (StringUtils.equals(queryObject.getAlias(), originalRoot.getAlias())) {
-            return aliasRoot;
-        }
-        return queryObject;
+    private QueryObject rebindModelQueryObject(JdbcModelDx modelDx, QueryObject queryObject) {
+        return modelDx == null ? queryObject : modelDx.bindQueryObject(queryObject);
     }
 
 
@@ -475,8 +514,13 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
                 DbDimension dbDimension = support.getDimension();
                 DbColumn foreignKeyJdbcColumn = bindDimensionForeignKeyToOwnerAlias(
                         support.getDimension().getForeignKeyDbColumn(), dbQueryColumn);
-                DbColumn captionJdbcColumn = support.getDimension().getCaptionDbColumn();
+                // Do not re-read the caption from the cached dimension here.  The
+                // source query column may already be bound to a concrete secondary
+                // TM instance (for example t2__d1); replacing it with the bare
+                // dimension caption would silently lose that owner binding.
+                DbColumn captionJdbcColumn = dbQueryColumn.getSelectColumn();
                 registerNestedDimensionAliases(dbDimension, foreignKeyJdbcColumn, captionJdbcColumn, dbQueryColumn.getCaption());
+                registerRequestedDimensionAliasPair(dbQueryColumn, foreignKeyJdbcColumn, captionJdbcColumn);
             }
             return;
         }
@@ -643,6 +687,34 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
         // 为父子维度注册 hierarchy 视角的列（team$hierarchy$id, team$hierarchy$caption, team$hierarchy$xxx）
         registerParentChildHierarchyColumns(dbDimension, path, aliasPath, alias, caption);
+    }
+
+    /**
+     * An explicit QM table alias is part of the public field schema (for example
+     * {@code fo.openingOrg$caption}), but it is not stored on the cached TM
+     * dimension itself.  Keep the regular TM-path aliases above for compatibility
+     * and additionally register the field pair requested by this QM item.
+     */
+    private void registerRequestedDimensionAliasPair(DbQueryColumn sourceQueryColumn,
+                                                     DbColumn foreignKeyJdbcColumn,
+                                                     DbColumn captionJdbcColumn) {
+        String captionName = sourceQueryColumn.getName();
+        if (StringUtils.isEmpty(captionName) || !captionName.endsWith("$caption")) {
+            return;
+        }
+        String idName = captionName.substring(0, captionName.length() - "$caption".length()) + "$id";
+        if (!nameToJdbcQueryColumn.containsKey(idName)) {
+            DbQueryColumn idColumn = new DbQueryColumnImpl(foreignKeyJdbcColumn, idName,
+                    foreignKeyJdbcColumn.getCaption(), idName);
+            nameToJdbcQueryColumn.put(idName, idColumn);
+            dbQueryColumns.add(idColumn);
+        }
+        if (!nameToJdbcQueryColumn.containsKey(captionName)) {
+            DbQueryColumn captionColumn = new DbQueryColumnImpl(captionJdbcColumn, captionName,
+                    sourceQueryColumn.getCaption(), captionName);
+            nameToJdbcQueryColumn.put(captionName, captionColumn);
+            dbQueryColumns.add(captionColumn);
+        }
     }
 
     private void registerTimeDimensionRootAlias(DbDimension dbDimension, String fieldName, DbColumn captionJdbcColumn, String caption) {
