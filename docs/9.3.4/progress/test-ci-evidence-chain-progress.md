@@ -59,7 +59,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | five-DB foundation diagnostic 10/F0/E0/S0；exact deferred=46（45 required + 1 optional）；full 29 DB + 16 required external exit pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | run-local DB runner/collector candidate；fresh SQLite `5/50/F0/E0/S0`；full 29 DB + 16 required external + DB-state negatives pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
@@ -341,6 +341,45 @@ Decision：required database false-green cleanup 可独立合入；Step 3 仍为
 下一批优先建立 fresh/run-owned database runner/collector，同时继续在独立提交中修复并
 真实执行 Addon lifecycle；不得以本 diagnostic 进入 Step 4。
 
+## Execution Check-in — Step 3（in-progress / database runner candidate）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-15
+- owner: current 9.3.4 root session
+- scope: 实现 run-scoped 五库 provision、exact 29-report collector、运行态 cell
+  identity/fixture/cleanup 绑定、run-local final bundle 重验、同步日志/敏感扫描与 durable
+  signal failure；让 SQLite authority lane 使用真实物理文件而非 shared memory。
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-database-matrix-runner-candidate-20260715.md`。
+
+实现与验证结果：
+
+- frozen contract=`def0693d...`；authority files=`66/66`；protected source before=
+  `1e6c2ce5...`；exact contract=`5 cells / 7 variants / 29 reports / 370 testcase`。
+- report/final-bundle synthetic negatives=`14/14`；它们只证明 XML、manifest、cross-run、
+  final exact-tree/cell evidence fail closed，不是完整 DB-state negative set。
+- real run `sqlite-collector-candidate-r3` 使用 run-owned physical SQLite file，执行标准
+  5 suites=`5 reports / 50 tests / F0/E0/S0`；fixture before/after=`70b1a5d7...`，
+  SQLite JDBC JAR before/after=`53174d76...`，terminal `database.sqlite*` residue=`0`。
+- full runner `matrix-port-owned-negative-r3` 在 frozen MySQL57 port 被现有长期容器占用时
+  于 preflight 退出：process=`1`、durable=`failed/1`、summary absent、positive lane 未执行、
+  run-owned Docker resource=`0`、preflight cleanup passed。
+- runner signal harness 的 INT/TERM/HUP 分别为 `130/143/129`，均写 failed status、无
+  summary/FIFO；stopped tee 在受控超时内置红收口。
+
+Evidence boundary / non-goals：
+
+- 本机没有执行同一 run 的四外库 fresh storage，因此没有 final `29/370` database
+  authority；长期容器的 diagnostic `29/370` 不得与 fresh SQLite 拼接。
+- final bundle 当前只保证 run-local 自包含；absolute SQLite origin coordinate 与
+  nanosecond mtime 使其不能直接搬迁/ZIP 提取后重验。该 portability high 必须在 Step 5
+  immutable candidate/archive 前修复。
+- unavailable/wrong identity/fixture mutation/provision cleanup 等 DB-state negatives、
+  16 个 required external execution、optional LLM disposition 和 Addon lifecycle 仍开放。
+
+Decision：本 runner/collector candidate 可独立合入；Step 3 exit 仍为 `not passed`，不得
+进入 Step 4。下一批补 DB-state negatives 并按既定顺序消费 16 个 required external。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -363,7 +402,8 @@ Decision：required database false-green cleanup 可独立合入；Step 3 仍为
   key rename + 4 structural rename，计划外 source/semantic delta=`0`。
 - v933 Batch 7 冻结旧 FQCN/count，重命名后不能原样重跑；519-node predecessor
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
-- MySQL 8 未进入现有统一 required runner；SQL Server 现有执行链不完整。
+- MySQL 8/SQL Server 已进入统一 runner 契约，但尚未在冻结端口空闲的 clean host 完成
+  同一 run 的 fresh-storage authority replay。
 - 当前只有 model 局部门，无 reviewed reactor aggregate baseline；0.80/0.70 只是
   critical-class candidate floor；aggregate XML verifier 尚未实现。
 - remote required check、five-cell collector、branch protection、release artifact reuse
@@ -406,10 +446,12 @@ Decision：required database false-green cleanup 可独立合入；Step 3 仍为
 SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 的 preflight 与 QueryFacade parity
 foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一步达到
 `29 reports / 370 tests / F0/E0/S0`，证据见
-`docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。下一批实现
-fresh-volume exact matrix runner/collector，并按
+`docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。
+runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；下一批补齐
+unavailable/wrong identity/fixture mutation/provision cleanup 等 DB-state negatives，并按
 Redis→Mongo/DataViewer→MCP/MySQL57→Vector 顺序消费 16 个 required external
-execution；1 个 external LLM 保持 optional reviewed disposition。Addon lifecycle 继续
+execution。在冻结端口空闲的 clean host 上再以同一 commit 重放四外库 fresh
+`29/370`；1 个 external LLM 保持 optional reviewed disposition。Addon lifecycle 继续
 按独立 workitem 修复 COUNT/formula/SQLite/watermark/TM normalization 后执行 SQLite +
 外库真实 create/full/incremental/query parity。Step 4 coverage 不得提前混入本阶段
 correctness evidence。

@@ -60,6 +60,8 @@ updated_at: 2026-07-15
   [coverage/step2-runner-split-coverage-audit.md](coverage/step2-runner-split-coverage-audit.md)
 - Step 3 five-DB diagnostic foundation（not authority）：
   [evidence/step-3/step3-five-db-foundation-20260715.md](evidence/step-3/step3-five-db-foundation-20260715.md)
+- Step 3 database matrix runner/collector candidate（run-local / not authority）：
+  [evidence/step-3/step3-database-matrix-runner-candidate-20260715.md](evidence/step-3/step3-database-matrix-runner-candidate-20260715.md)
 
 ## 1~7 顺序
 
@@ -67,7 +69,7 @@ updated_at: 2026-07-15
 |---:|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
-| 3 | 五数据库与外部集成 required matrix | in-progress | five-DB foundation 10/F0/E0/S0 + v933 replay S0；Pivot preagg 真执行、full 45 required + 1 optional deferred pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | run-local runner/collector candidate；SQLite fresh `5/50/F0/E0/S0`；四外库 fresh 29 DB + 16 required external + DB-state negatives pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | 全 required lane 重新带 agent 执行；XML verifier + module checks fail closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |

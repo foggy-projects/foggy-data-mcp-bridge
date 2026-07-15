@@ -1,0 +1,47 @@
+# 9.3.4 Step 3 run-scoped database authority override.
+#
+# Load after docker-compose.yml and docker-compose-v934.yml. The provisioner
+# supplies every variable and starts exactly one database service. Fixed host
+# ports intentionally remain unchanged so endpoint identity cannot silently
+# drift from scripts/v934/database-contract.tsv.
+
+name: ${V934_AUTH_PROJECT:?V934_AUTH_PROJECT is required}
+
+services:
+  mysql:
+    container_name: ${V934_AUTH_MYSQL57_CONTAINER:?V934_AUTH_MYSQL57_CONTAINER is required}
+    restart: "no"
+    ports: !override
+      - "127.0.0.1:13306:3306"
+
+  mysql8:
+    container_name: ${V934_AUTH_MYSQL8_CONTAINER:?V934_AUTH_MYSQL8_CONTAINER is required}
+    restart: "no"
+    ports: !override
+      - "127.0.0.1:13308:3306"
+
+  postgres:
+    container_name: ${V934_AUTH_POSTGRES15_CONTAINER:?V934_AUTH_POSTGRES15_CONTAINER is required}
+    restart: "no"
+    ports: !override
+      - "127.0.0.1:15432:5432"
+
+  sqlserver:
+    container_name: ${V934_AUTH_SQLSERVER2022_CONTAINER:?V934_AUTH_SQLSERVER2022_CONTAINER is required}
+    restart: "no"
+    ports: !override
+      - "127.0.0.1:11433:1433"
+
+volumes:
+  mysql-demo-data:
+    name: ${V934_AUTH_MYSQL57_VOLUME:?V934_AUTH_MYSQL57_VOLUME is required}
+  mysql8-demo-data:
+    name: ${V934_AUTH_MYSQL8_VOLUME:?V934_AUTH_MYSQL8_VOLUME is required}
+  postgres-demo-data:
+    name: ${V934_AUTH_POSTGRES15_VOLUME:?V934_AUTH_POSTGRES15_VOLUME is required}
+  sqlserver-demo-data:
+    name: ${V934_AUTH_SQLSERVER2022_VOLUME:?V934_AUTH_SQLSERVER2022_VOLUME is required}
+
+networks:
+  foggy-demo-net:
+    name: ${V934_AUTH_NETWORK:?V934_AUTH_NETWORK is required}

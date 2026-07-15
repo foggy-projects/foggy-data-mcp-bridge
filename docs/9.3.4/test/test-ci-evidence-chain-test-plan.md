@@ -6,6 +6,7 @@ status: in-progress
 result: in-progress
 step1_result: passed
 step2_result: passed
+step3_result: in-progress
 created_at: 2026-07-14
 updated_at: 2026-07-15
 ---
@@ -218,9 +219,20 @@ Final acceptance 至少验证：
   `315` testcase；combined `5,205`，F/E/S=`0/0/0`，report negatives 各 `20/20`。
 - INT/TERM/HUP 实际信号探针为 `130/143/129` 且失败 summary absent；r8d 及其 runner
   evidence 已 superseded，不参与当前结果。
+- Step 3 database runner/collector candidate contract=
+  `5 cells / 7 variants / 29 reports / 370 testcase`；authority inputs=`66/66`，
+  report/final-bundle negatives=`14/14`。
+- 最终冻结字节下的真实 run-owned SQLite=`5 reports / 50 tests / F0/E0/S0`，fixture 与
+  JDBC JAR before/after hash 一致且 cleanup residue=`0`。完整 runner 在当前主机因冻结
+  MySQL57 port 被长期诊断容器占用而 fail closed，未执行正向 lane、未创建 run resource。
+- 该 candidate 是 run-local 且 not authority：四外库 fresh replay、16 个 required
+  external、DB-state negatives 和 portable archive contract 仍未完成。
 - evidence：
   `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`；
   `docs/9.3.4/evidence/step-2/step2-successor-r8e-independent-review-20260715.md`；
-  `docs/9.3.4/evidence/step-2/step2-runner-split-exit-r8e-20260715.md`。
-- next executable action: Step 3 five-DB / Redis / Mongo external matrix，exact consume
-  confirmed deferred set=`46`。
+  `docs/9.3.4/evidence/step-2/step2-runner-split-exit-r8e-20260715.md`；
+  `docs/9.3.4/evidence/step-3/step3-database-matrix-runner-candidate-20260715.md`。
+- next executable action: 补 Step 3 DB-state negatives，按
+  Redis→Mongo/DataViewer→MCP/MySQL57→Vector 消费 16 个 required external，并在 clean
+  host 对同一 commit 完成四外库 fresh `29/370` replay；optional LLM 维持 reviewed
+  disposition。

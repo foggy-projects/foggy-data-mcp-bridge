@@ -1,0 +1,265 @@
+{
+  "bindings": {
+    "authority_hash_manifest": {
+      "path": "scripts/v934/step3/SHA256SUMS",
+      "sha256": "de67a7daf7935b7dc9b36c5a93010f4f0c3147ad85b113aabdfd7c2b7d83c555"
+    },
+    "database_contract": {
+      "path": "scripts/v934/database-contract.tsv",
+      "sha256": "6beb3631157ecaf2294f6ab7dd6c338ae15dc45d3544171b11e009c92f636457"
+    },
+    "deferred_inventory": {
+      "disposition": "deferred-to-step3",
+      "lane": "database-contract-matrix",
+      "path": "scripts/v934/successor/step2/deferred-step3.tsv",
+      "sha256": "89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601"
+    },
+    "protected_tree_manifest": {
+      "path": "scripts/v934/step3/database-matrix-protected-trees.tsv",
+      "sha256": "040e54412500e28e9275ab4aabe7ee2a3b1903053ca565dbc24e0f3ba74aefe8"
+    },
+    "source_amendment": {
+      "path": "scripts/v934/step3/database-matrix-source-amendment.tsv",
+      "sha256": "38d92c2250252b0cd4eae296ec6bf4d36081f0968bf6c0a2f3faf039ce32ef0c"
+    },
+    "successor_freeze": {
+      "path": "scripts/v934/successor/step2/contract-freeze.json",
+      "sha256": "44b11ed756bf41e3b271ac57b59c2c882a0b31a56963f42ae154fdb5d37b2fb6"
+    },
+    "successor_hash_manifest": {
+      "path": "scripts/v934/successor/step2/SHA256SUMS",
+      "sha256": "4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919"
+    }
+  },
+  "database_cells": [
+    {
+      "db_kind": "sqlite",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "variants": [
+        "db-sqlite"
+      ]
+    },
+    {
+      "db_kind": "mysql57",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "variants": [
+        "db-mysql57"
+      ]
+    },
+    {
+      "db_kind": "mysql8",
+      "expected_reports": 6,
+      "expected_testcase_nodes": 105,
+      "variants": [
+        "db-mysql8",
+        "mysql8-targeted"
+      ]
+    },
+    {
+      "db_kind": "postgres15",
+      "expected_reports": 8,
+      "expected_testcase_nodes": 115,
+      "variants": [
+        "db-postgres15",
+        "postgres15-targeted"
+      ]
+    },
+    {
+      "db_kind": "sqlserver2022",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "variants": [
+        "db-sqlserver2022"
+      ]
+    }
+  ],
+  "evidence_contract": {
+    "freshness": "each source XML mtime_ns must be strictly greater than its variant marker mtime_ns",
+    "manifest_name": "report-manifest.json",
+    "merged_kind": "v934-step3-database-matrix-merged",
+    "outer_marker_kind": "v934-step3-database-matrix-outer-run",
+    "raw_report_glob": "TEST-*.xml",
+    "run_kind": "v934-step3-database-matrix-run",
+    "variant_marker_kind": "v934-step3-database-matrix-variant-run"
+  },
+  "kind": "v934-step3-database-matrix-contract",
+  "lane": "database-contract-matrix",
+  "module": "foggy-dataset-model",
+  "negative_probes": [
+    {
+      "expected_error": "E_MISSING_REPORT",
+      "probe": "missing-report"
+    },
+    {
+      "expected_error": "E_EXTRA_REPORT",
+      "probe": "extra-report"
+    },
+    {
+      "expected_error": "E_DUPLICATE_REPORT",
+      "probe": "duplicate-report-identity"
+    },
+    {
+      "expected_error": "E_REPORT_COUNT",
+      "probe": "wrong-test-count"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "failure-outcome"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "error-outcome"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "skipped-outcome"
+    },
+    {
+      "expected_error": "E_STALE_REPORT",
+      "probe": "stale-report"
+    },
+    {
+      "expected_error": "E_DUPLICATE_VARIANT",
+      "probe": "duplicate-variant-manifest"
+    },
+    {
+      "expected_error": "E_MISSING_VARIANT",
+      "probe": "missing-variant-manifest"
+    },
+    {
+      "expected_error": "E_CROSS_RUN_SPLICE",
+      "probe": "cross-run-marker-splice"
+    },
+    {
+      "expected_error": "E_CROSS_RUN_SPLICE",
+      "probe": "cross-run-manifest-splice"
+    },
+    {
+      "expected_error": "E_EVIDENCE_REPORT",
+      "probe": "manifest-report-tamper"
+    },
+    {
+      "expected_error": "E_SOURCE_AMENDMENT",
+      "probe": "source-amendment-drift"
+    }
+  ],
+  "report_sets": {
+    "mysql8-targeted": [
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.engine.pivot.PivotIT",
+        "source_id": "v934-src|95:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIT.java",
+        "testcase_nodes": 55
+      }
+    ],
+    "postgres15-targeted": [
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.engine.pivot.PivotIT",
+        "source_id": "v934-src|95:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIT.java",
+        "testcase_nodes": 55
+      },
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.semantic.DslCteResultStageWindowIT",
+        "source_id": "v934-src|109:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/DslCteResultStageWindowIT.java",
+        "testcase_nodes": 1
+      },
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.semantic.DslCteRelationMetricFixtureIT",
+        "source_id": "v934-src|113:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/DslCteRelationMetricFixtureIT.java",
+        "testcase_nodes": 9
+      }
+    ],
+    "standard": [
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT",
+        "source_id": "v934-src|104:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
+        "testcase_nodes": 23
+      },
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest",
+        "source_id": "v934-src|105:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/multidb/MultiDatabaseQueryTest.java",
+        "testcase_nodes": 18
+      },
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT",
+        "source_id": "v934-src|117:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/gate/RequiredDatabasePreflightIT.java",
+        "testcase_nodes": 1
+      },
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIT",
+        "source_id": "v934-src|119:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotCascadeGenerateSqlParityIT.java",
+        "testcase_nodes": 7
+      },
+      {
+        "report_fqcn": "com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT",
+        "source_id": "v934-src|130:foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/realquery/RequiredDatabaseQueryFacadeParityIT.java",
+        "testcase_nodes": 1
+      }
+    ]
+  },
+  "required": true,
+  "runner": "failsafe",
+  "schema_version": 1,
+  "totals": {
+    "database_cells": 5,
+    "errors": 0,
+    "failures": 0,
+    "reports": 29,
+    "skipped": 0,
+    "testcase_nodes": 370,
+    "variants": 7
+  },
+  "variants": [
+    {
+      "db_kind": "sqlite",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "report_set": "standard",
+      "variant_key": "db-sqlite"
+    },
+    {
+      "db_kind": "mysql57",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "report_set": "standard",
+      "variant_key": "db-mysql57"
+    },
+    {
+      "db_kind": "mysql8",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "report_set": "standard",
+      "variant_key": "db-mysql8"
+    },
+    {
+      "db_kind": "mysql8",
+      "expected_reports": 1,
+      "expected_testcase_nodes": 55,
+      "report_set": "mysql8-targeted",
+      "variant_key": "mysql8-targeted"
+    },
+    {
+      "db_kind": "postgres15",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "report_set": "standard",
+      "variant_key": "db-postgres15"
+    },
+    {
+      "db_kind": "postgres15",
+      "expected_reports": 3,
+      "expected_testcase_nodes": 65,
+      "report_set": "postgres15-targeted",
+      "variant_key": "postgres15-targeted"
+    },
+    {
+      "db_kind": "sqlserver2022",
+      "expected_reports": 5,
+      "expected_testcase_nodes": 50,
+      "report_set": "standard",
+      "variant_key": "db-sqlserver2022"
+    }
+  ],
+  "version": "9.3.4"
+}

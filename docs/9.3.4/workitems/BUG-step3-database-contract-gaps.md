@@ -88,11 +88,12 @@ mvn -q -P\!multi-db,\!model-lifecycle,\!query-cache-real-query \
 - [x] extend preflight to MySQL 8 and SQL Server with exact JDBC metadata/coordinate checks
 - [x] extend QueryFacade/native parity to MySQL 8 and SQL Server
 - [x] replay v933-only preflight and full batch6 real-query without changing frozen counts
-- [ ] make the final runner verify container image ID and SQLite JAR byte SHA
+- [x] make the run-local candidate verify container image ID and SQLite JAR byte SHA
 - [x] replace required assumption/early-return paths with positive/refusal assertions
 - [x] repair Pivot pre-aggregation physical-column mapping and execute its SQL/oracle
 - [x] provide homogeneous five-database pre-aggregation schema/data fixtures
-- [ ] implement exact 46-execution Step 3 runner/report verifier and negative probes
+- [x] implement exact 29-execution database runner/report/cell verifier and 14 report negatives
+- [ ] extend the Step 3 authority to all 45 required executions and DB-state negatives
 - [ ] execute all required lanes with `Failures=0, Errors=0, Skipped=0`
 
 ## 2026-07-15 Pivot PreAgg Diagnostic Check-in
@@ -131,6 +132,31 @@ separate confirmed lifecycle gap tracked by
 containers，`inventory_consumption=0`；fresh/run-scoped provision、exact runner/collector、
 required external matrix 与全套 negative probes 仍未完成，所以本 BUG 保持
 `in-progress`，`execute all required lanes` 也不得提前勾选。
+
+## 2026-07-15 Run-local Database Runner Candidate Check-in
+
+`scripts/verify-v934-database-matrix.sh` 现已串联 fresh/run-scoped storage、五库 exact
+identity、canonical fixture、29-report collector、5-cell cleanup evidence、final bundle
+重验和 sensitive scan。最终 contract 精确为
+`5 cells / 7 variants / 29 reports / 370 testcase`，66 个 authority input 和 8 棵
+protected source tree 均 fail closed。
+
+最终冻结字节下，真实 physical-file SQLite run
+`sqlite-collector-candidate-r3`=`5 reports / 50 tests / F0/E0/S0`；JDBC JAR 与 fixture
+before/after hash 一致，SQLite 文件残留为 0。完整 runner 在本机因长期 MySQL57 容器
+占用冻结端口而于 preflight 返回 `E_PORT_OWNED`，durable status=`failed/1`、summary
+absent、新建资源为 0，未复用或停止外部容器。
+
+14/14 negative 仅覆盖 report/manifest/final-bundle exact-tree 契约。unavailable、wrong
+kind/major/catalog/schema/sentinel、fixture mutation、provision cleanup/signal 等数据库
+状态负向仍未完成；16 个 required external execution 也未消费。因此只勾选 29 个
+database execution 的 runner/collector 实现，不勾选 full 45 required 或 all-lane
+execution。证据见
+`docs/9.3.4/evidence/step-3/step3-database-matrix-runner-candidate-20260715.md`。
+
+另有一项下游 high：当前 final bundle 依赖原 run 的 absolute SQLite coordinate 与
+nanosecond mtime，只能 run-local 重验；Step 5 archive 前必须完成 portable evidence
+contract，当前 candidate 不得直接作为可下载 immutable authority。
 
 ## Verification
 

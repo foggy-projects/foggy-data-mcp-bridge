@@ -528,6 +528,12 @@ class RequiredDatabaseQueryFacadeParityIT {
         }
 
         String physicalRole() {
+            if (this == SQLITE) {
+                String runScopedUrl = System.getProperty("v934.sqlite.expectedUrl");
+                if (runScopedUrl != null && !runScopedUrl.isBlank()) {
+                    return "run-scoped-sqlite-file";
+                }
+            }
             return physicalRole;
         }
     }

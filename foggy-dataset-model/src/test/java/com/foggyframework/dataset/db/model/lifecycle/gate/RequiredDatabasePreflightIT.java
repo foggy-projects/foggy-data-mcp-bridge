@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -128,6 +129,23 @@ class RequiredDatabasePreflightIT {
         return value == null || value.isBlank() ? "<none>" : value;
     }
 
+    private static String configuredRunScopedSqliteUrl() {
+        String configured = System.getProperty("v934.sqlite.expectedUrl");
+        if (configured == null || configured.isBlank()) {
+            return null;
+        }
+        assertTrue(RequiredDatabase.isV934Contract(),
+                "v934.sqlite.expectedUrl is only valid for the V934 contract");
+        String expected = configured.trim();
+        assertTrue(expected.startsWith("jdbc:sqlite:/"),
+                "run-scoped SQLite URL must contain an absolute file path");
+        assertFalse(expected.contains(":memory:"),
+                "run-scoped SQLite authority must not use an in-memory database");
+        assertFalse(expected.contains("?"),
+                "run-scoped SQLite authority URL must not contain unreviewed parameters");
+        return expected;
+    }
+
     private enum RequiredDatabase {
         SQLITE("sqlite", "sqlite", 3, 30, null, null, null, null),
         MYSQL57("mysql57", "mysql", 5, 7, "127.0.0.1", 13306, "foggy_test", null),
@@ -213,8 +231,12 @@ class RequiredDatabasePreflightIT {
                         "unexpected SQLite JDBC driver");
                 assertEquals("3.42.0.0", metadata.getDriverVersion(),
                         "unexpected SQLite JDBC artifact version");
-                assertEquals("jdbc:sqlite:file::memory:?cache=shared", metadata.getURL(),
-                        "unexpected SQLite JDBC URL/cache mode");
+                String runScopedUrl = configuredRunScopedSqliteUrl();
+                assertEquals(runScopedUrl != null
+                                ? runScopedUrl
+                                : "jdbc:sqlite:file::memory:?cache=shared",
+                        metadata.getURL(),
+                        "unexpected SQLite JDBC URL/storage mode");
             } else {
                 assertEquals(requiredMajor, actualMajor, "unexpected database major version");
                 if (requiredMinor != null) {
@@ -227,7 +249,10 @@ class RequiredDatabasePreflightIT {
             }
 
             if (this == SQLITE) {
-                assertEquals("sqlite:<shared-memory>", identity.coordinate, "unexpected SQLite identity");
+                assertEquals(configuredRunScopedSqliteUrl() != null
+                                ? "sqlite:<run-scoped-file>"
+                                : "sqlite:<shared-memory>",
+                        identity.coordinate, "unexpected SQLite identity");
                 assertEquals(expectedCatalog, identity.catalog, "unexpected SQLite catalog");
                 assertEquals(expectedSchema, identity.schema, "unexpected SQLite schema");
                 return;
@@ -259,6 +284,13 @@ class RequiredDatabasePreflightIT {
             String schema = safeSchema(connection);
 
             if (product.contains("sqlite")) {
+                String runScopedUrl = configuredRunScopedSqliteUrl();
+                if (runScopedUrl != null) {
+                    assertEquals(runScopedUrl, metadata.getURL(),
+                            "SQLite metadata URL must match the run-scoped contract");
+                    return new DatabaseIdentity(
+                            "sqlite:<run-scoped-file>", null, null, catalog, schema);
+                }
                 if (!metadata.getURL().startsWith("jdbc:sqlite:file::memory:")) {
                     fail("SQLite preflight requires the configured shared-memory database");
                 }
