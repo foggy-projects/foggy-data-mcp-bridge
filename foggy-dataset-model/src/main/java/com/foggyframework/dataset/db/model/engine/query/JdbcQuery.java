@@ -52,6 +52,42 @@ public class JdbcQuery {
     boolean rawSqlConditionAdded;
 
     /**
+     * Whether a WHERE predicate was added outside the request slice compiler.
+     * Pre-aggregation rewrites rebuild request slices against the materialized
+     * table; predicates added by access builders or query scripts cannot be
+     * proven equivalent and therefore force a fail-closed fallback.
+     */
+    boolean nonSliceWhereConditionAdded;
+
+    /**
+     * Request slice/having compilation writes through the same mutable WHERE
+     * object exposed to query scripts. Mutations performed inside this scope
+     * are reproducible from the request and therefore must not be classified
+     * as external predicates.
+     */
+    private int requestConditionCompilationDepth;
+
+    public void beginRequestConditionCompilation() {
+        requestConditionCompilationDepth++;
+    }
+
+    public void endRequestConditionCompilation() {
+        if (requestConditionCompilationDepth > 0) {
+            requestConditionCompilationDepth--;
+        }
+    }
+
+    private void recordExternalWhereMutation(boolean rawSql) {
+        if (requestConditionCompilationDepth > 0) {
+            return;
+        }
+        nonSliceWhereConditionAdded = true;
+        if (rawSql) {
+            rawSqlConditionAdded = true;
+        }
+    }
+
+    /**
      * 查询模型引用（用于字段引用解析）
      */
     QueryModel queryModel;
@@ -112,6 +148,7 @@ public class JdbcQuery {
      * @return this
      */
     public JdbcQuery and(Object fieldRef, Object value) {
+        nonSliceWhereConditionAdded = true;
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
         joinConditionColumn(dbColumn);
@@ -133,6 +170,7 @@ public class JdbcQuery {
         if (values == null || values.isEmpty()) {
             return this;
         }
+        nonSliceWhereConditionAdded = true;
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
         joinConditionColumn(dbColumn);
@@ -151,6 +189,7 @@ public class JdbcQuery {
      * @return this
      */
     public JdbcQuery andNe(Object fieldRef, Object value) {
+        nonSliceWhereConditionAdded = true;
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
         joinConditionColumn(dbColumn);
@@ -167,6 +206,7 @@ public class JdbcQuery {
      * @return this
      */
     public JdbcQuery andNotNull(Object fieldRef) {
+        nonSliceWhereConditionAdded = true;
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
         joinConditionColumn(dbColumn);
@@ -183,6 +223,7 @@ public class JdbcQuery {
      * @return this
      */
     public JdbcQuery andNull(Object fieldRef) {
+        nonSliceWhereConditionAdded = true;
         ColumnRef columnRef = toColumnRef(fieldRef);
         DbColumn dbColumn = resolveDbColumn(columnRef);
         joinConditionColumn(dbColumn);
@@ -339,6 +380,7 @@ public class JdbcQuery {
      */
     public JdbcQuery andSql(String sqlFragment, Object value) {
         rawSqlConditionAdded = true;
+        nonSliceWhereConditionAdded = true;
         getWhere().and(sqlFragment, value);
         return this;
     }
@@ -351,6 +393,7 @@ public class JdbcQuery {
      */
     public JdbcQuery andSql(String sqlFragment) {
         rawSqlConditionAdded = true;
+        nonSliceWhereConditionAdded = true;
         getWhere().and(sqlFragment);
         return this;
     }
@@ -364,6 +407,7 @@ public class JdbcQuery {
      */
     public JdbcQuery andSqlList(String sqlFragment, List<Object> values) {
         rawSqlConditionAdded = true;
+        nonSliceWhereConditionAdded = true;
         getWhere().andList(sqlFragment, values);
         return this;
     }
@@ -379,6 +423,7 @@ public class JdbcQuery {
     }
 
     public JdbcQuery andQueryTypeValueCond(String name, String queryType, Object value) {
+        nonSliceWhereConditionAdded = true;
         getWhere().andQueryTypeValueCond(name, queryType, value);
         return this;
     }
@@ -1082,8 +1127,66 @@ public class JdbcQuery {
 
     @Data
     public class JdbcWhere extends JdbcListCond {
+        @Override
+        public JdbcListCond andQueryTypeValueCond(String name, String queryType, Object value) {
+            recordExternalWhereMutation(false);
+            return super.andQueryTypeValueCond(name, queryType, value);
+        }
 
+        @Override
+        @Deprecated
+        public JdbcListCond addSqlFragment(String sqlFragment) {
+            recordExternalWhereMutation(true);
+            return super.addSqlFragment(sqlFragment);
+        }
 
+        @Override
+        public JdbcListCond and(String sqlFragment) {
+            recordExternalWhereMutation(true);
+            return super.and(sqlFragment);
+        }
+
+        @Override
+        public JdbcListCond and(String sqlFragment, Object value) {
+            recordExternalWhereMutation(true);
+            return super.and(sqlFragment, value);
+        }
+
+        @Override
+        public JdbcListCond and(Object fieldRef, Object value) {
+            recordExternalWhereMutation(false);
+            return super.and(fieldRef, value);
+        }
+
+        @Override
+        public JdbcListCond listLink(String sqlFragment, List<Object> value, String link) {
+            recordExternalWhereMutation(true);
+            return super.listLink(sqlFragment, value, link);
+        }
+
+        @Override
+        public JdbcListCond or(String sqlFragment, Object value) {
+            recordExternalWhereMutation(true);
+            return super.or(sqlFragment, value);
+        }
+
+        @Override
+        public JdbcListCond or(Object fieldRef, Object value) {
+            recordExternalWhereMutation(false);
+            return super.or(fieldRef, value);
+        }
+
+        @Override
+        public JdbcListCond addCond(JdbcCond cond) {
+            recordExternalWhereMutation(false);
+            return super.addCond(cond);
+        }
+
+        @Override
+        public JdbcListCond addRawSql(String link, String sqlFragment) {
+            recordExternalWhereMutation(true);
+            return super.addRawSql(link, sqlFragment);
+        }
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.preagg;
 
+import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
 import lombok.AllArgsConstructor;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 预聚合匹配器
@@ -91,11 +93,40 @@ public class PreAggregationMatcher {
                 continue;
             }
 
+            // An incremental materialization with no observed watermark has
+            // no provable history boundary. Building `<= null` / `> null`
+            // hybrid predicates would make both SQL branches unknown/empty.
+            // When hybrid mode is enabled, skip this uninitialized candidate
+            // rather than treating it as either complete or mergeable.
+            if (hybridQueryEnabled && preAgg.supportsHybridQuery()
+                    && preAgg.getDataWatermark() == null) {
+                log.debug("Skipping uninitialized hybrid pre-aggregation '{}': watermark is null",
+                        preAgg.getName());
+                continue;
+            }
+
             // 检查是否满足需求
             if (requirement.isSatisfiableBy(preAgg)) {
                 int score = calculateScore(preAgg, requirement);
                 boolean needsRollup = checkNeedsRollup(preAgg, requirement);
-                boolean needsHybrid = checkNeedsHybridQuery(preAgg, requirement);
+                boolean needsHybrid = requiresHybridQuery(preAgg);
+                if (needsRollup && !supportsRollupMeasures(preAgg, requirement)) {
+                    log.debug("Skipping pre-aggregation '{}': one or more measures cannot be rolled up safely",
+                            preAgg.getName());
+                    continue;
+                }
+                if (needsHybrid && !supportsHybridMeasures(preAgg, requirement)) {
+                    log.debug("Skipping pre-aggregation '{}': one or more measures cannot be merged safely "
+                                    + "with source rows in hybrid mode",
+                            preAgg.getName());
+                    continue;
+                }
+                if (needsHybrid && !hasMaterializedWatermarkContract(preAgg)) {
+                    log.debug("Skipping pre-aggregation '{}': hybrid watermark column '{}' "
+                                    + "has no materialized column contract",
+                            preAgg.getName(), preAgg.getWatermarkColumn());
+                    continue;
+                }
                 Object watermark = needsHybrid ? preAgg.getDataWatermark() : null;
                 candidates.add(new Candidate(preAgg, score, needsRollup, needsHybrid, watermark));
 
@@ -154,11 +185,10 @@ public class PreAggregationMatcher {
      * </ol>
      * </p>
      *
-     * @param preAgg      预聚合
-     * @param requirement 查询需求
+     * @param preAgg 预聚合
      * @return true 如果需要混合查询
      */
-    private boolean checkNeedsHybridQuery(PreAggregation preAgg, PreAggQueryRequirement requirement) {
+    boolean requiresHybridQuery(PreAggregation preAgg) {
         // 混合查询未启用
         if (!hybridQueryEnabled) {
             return false;
@@ -245,6 +275,26 @@ public class PreAggregationMatcher {
      * @return 是否需要 rollup
      */
     private boolean checkNeedsRollup(PreAggregation preAgg, PreAggQueryRequirement requirement) {
+        Set<String> preAggDimensions = preAgg.getDimensionNames();
+        Set<String> queryDimensions = requirement.getDimensionNames();
+
+        // A pre-aggregation row is grouped by every configured dimension. If
+        // the query omits any of them, multiple physical rows can contribute
+        // to one result row and a second aggregation is mandatory.
+        if (preAggDimensions != null && queryDimensions != null
+                && !queryDimensions.containsAll(preAggDimensions)) {
+            return true;
+        }
+
+        // Grouping by a dimension property (for example product category)
+        // is coarser than grouping by the dimension key stored at the
+        // pre-aggregation grain. The property can repeat across dimension
+        // members, so direct projection would duplicate semantic rows.
+        if (requirement.getDimensionProperties().values().stream()
+                .anyMatch(properties -> properties != null && !properties.isEmpty())) {
+            return true;
+        }
+
         Map<String, TimeGranularity> queryGranularities = requirement.getQueryGranularities();
         Map<String, TimeGranularity> preAggGranularities = preAgg.getGranularities();
 
@@ -266,6 +316,54 @@ public class PreAggregationMatcher {
         }
 
         return false;
+    }
+
+    private boolean supportsRollupMeasures(PreAggregation preAgg,
+                                           PreAggQueryRequirement requirement) {
+        for (String measureName : requirement.getMeasureAggregations().keySet()) {
+            if (!isRollupSafe(preAgg.getMeasureAggregations().get(measureName))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean hasMaterializedWatermarkContract(PreAggregation preAgg) {
+        String watermarkColumn = preAgg.getWatermarkColumn();
+        if (watermarkColumn == null || watermarkColumn.isEmpty()) {
+            return false;
+        }
+        int dollarIndex = watermarkColumn.indexOf('$');
+        if (dollarIndex <= 0) {
+            // A bare refresh watermark is already an explicit physical column.
+            return true;
+        }
+        String dimensionName = watermarkColumn.substring(0, dollarIndex);
+        String propertyName = watermarkColumn.substring(dollarIndex + 1);
+        return preAgg.hasMaterializedDimensionProperty(dimensionName, propertyName);
+    }
+
+    private boolean supportsHybridMeasures(PreAggregation preAgg,
+                                           PreAggQueryRequirement requirement) {
+        if (requirement.getMeasureAggregations().isEmpty()) {
+            return false;
+        }
+        for (String measureName : requirement.getMeasureAggregations().keySet()) {
+            DbAggregation aggregation = preAgg.getMeasureAggregations().get(measureName);
+            if (aggregation != DbAggregation.SUM
+                    && aggregation != DbAggregation.MIN
+                    && aggregation != DbAggregation.MAX) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isRollupSafe(DbAggregation aggregation) {
+        return aggregation == DbAggregation.SUM
+                || aggregation == DbAggregation.COUNT
+                || aggregation == DbAggregation.MIN
+                || aggregation == DbAggregation.MAX;
     }
 
     /**

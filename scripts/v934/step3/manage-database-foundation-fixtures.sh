@@ -8,7 +8,8 @@ usage() {
   cat <<'USAGE'
 Usage: manage-database-foundation-fixtures.sh <apply|clean> <mysql57|mysql8|postgres15|sqlserver2022|all>
 
-Applies or removes only the test-owned 9.3.4 sentinel and parity rows. The
+Applies or removes only the test-owned 9.3.4 sentinel, parity, and isolated
+pre-aggregation fixtures. The
 containers must already be healthy and must match the frozen image IDs.
 This is a diagnostic helper, not the final run-scoped authority. If an apply
 fails partway, invoke clean after restoring the failed database; the final
@@ -47,10 +48,10 @@ require_container() {
 assert_fixture_output() {
   local database="$1"
   local output="$2"
-  local expected=$'contract_version|9.3.4\nV934_PARITY_SENTINEL|1\nV934_PARITY_SENTINEL|2'
+  local expected=$'contract_version|9.3.4\nV934_PARITY_SENTINEL|1\nV934_PARITY_SENTINEL|2\nV934_ALPHA|50.0000\nV934_BETA|40.0000\nV934_GAMMA|10.0000'
   [[ "$output" == "$expected" ]] ||
     fail "$database fixture verification mismatch: $(printf '%q' "$output")"
-  printf 'V934_DATABASE_FIXTURE database=%s sentinel_sha256=%s rows=2 status=verified\n' \
+  printf 'V934_DATABASE_FIXTURE database=%s sentinel_sha256=%s parity_rows=2 preagg_rows=4 preagg_total=100.0000 status=verified\n' \
     "$database" \
     cef04c4c1269e1293bf243e61e0a9672697bfd55b0bca48297943026bd82c191
 }
@@ -78,9 +79,13 @@ apply_mysql() {
     mysql -ufoggy foggy_test < "$FIXTURE_ROOT/mysql/12-v934-sentinel.sql"
   docker exec -i -e MYSQL_PWD=foggy_test_123 "$container" \
     mysql -ufoggy foggy_test < "$FIXTURE_ROOT/mysql/13-v934-parity-fixture.sql"
+  docker exec -i -e MYSQL_PWD=foggy_test_123 "$container" \
+    mysql -ufoggy foggy_test < "$FIXTURE_ROOT/mysql/14-v934-preagg-fixture.sql"
   output="$(mysql_query "$container" \
     "SELECT CONCAT(sentinel_key, '|', sentinel_value) FROM v934_test_sentinel ORDER BY sentinel_key;
-     SELECT CONCAT(order_id, '|', order_line_no) FROM fact_sales WHERE order_id = 'V934_PARITY_SENTINEL' ORDER BY order_line_no;")"
+     SELECT CONCAT(order_id, '|', order_line_no) FROM fact_sales WHERE order_id = 'V934_PARITY_SENTINEL' ORDER BY order_line_no;
+     SELECT CONCAT(category_name, '|', CAST(SUM(sales_amount_sum) AS CHAR))
+       FROM v934_preagg_daily_product_sales GROUP BY category_name ORDER BY category_name;")"
   assert_fixture_output "$database" "$output"
 }
 
@@ -91,10 +96,25 @@ clean_mysql() {
   local host_port="$4"
 
   require_container "$container" "$image_id" 3306 "$host_port"
+  local output
+
   mysql_query "$container" \
-    "DELETE FROM fact_sales WHERE order_id = 'V934_PARITY_SENTINEL'; DROP TABLE IF EXISTS v934_test_sentinel;" \
+    "DELETE FROM fact_sales WHERE order_id = 'V934_PARITY_SENTINEL';
+     DROP TABLE IF EXISTS v934_preagg_daily_product_sales;
+     DROP TABLE IF EXISTS v934_preagg_fact_sales;
+     DROP TABLE IF EXISTS v934_preagg_dim_product;
+     DROP TABLE IF EXISTS v934_preagg_dim_date;
+     DROP TABLE IF EXISTS v934_test_sentinel;" \
     >/dev/null
-  printf 'V934_DATABASE_FIXTURE database=%s status=cleaned\n' "$database"
+  output="$(mysql_query "$container" \
+    "SELECT CONCAT(COUNT(*), '|',
+       (SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = 'foggy_test'
+          AND table_name IN ('v934_preagg_daily_product_sales', 'v934_preagg_fact_sales',
+                             'v934_preagg_dim_product', 'v934_preagg_dim_date', 'v934_test_sentinel')))
+     FROM fact_sales WHERE order_id = 'V934_PARITY_SENTINEL';")"
+  [[ "$output" == '0|0' ]] || fail "$database cleanup verification mismatch: $output"
+  printf 'V934_DATABASE_FIXTURE database=%s sentinel_rows=0 fixture_tables=0 status=cleaned\n' "$database"
 }
 
 postgres_query() {
@@ -117,14 +137,18 @@ apply_postgres() {
     < "$FIXTURE_ROOT/postgres/12-v934-sentinel.sql" >/dev/null
   docker exec -i foggy-demo-postgres psql -v ON_ERROR_STOP=1 -U foggy -d foggy_test \
     < "$FIXTURE_ROOT/postgres/13-v934-parity-fixture.sql" >/dev/null
+  docker exec -i foggy-demo-postgres psql -v ON_ERROR_STOP=1 -U foggy -d foggy_test \
+    < "$FIXTURE_ROOT/postgres/14-v934-preagg-fixture.sql" >/dev/null
   output="$(postgres_query \
     "SELECT sentinel_key || '|' || sentinel_value FROM public.v934_test_sentinel ORDER BY sentinel_key;
-     SELECT order_id || '|' || order_line_no FROM public.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL' ORDER BY order_line_no;")"
+     SELECT order_id || '|' || order_line_no FROM public.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL' ORDER BY order_line_no;
+     SELECT category_name || '|' || SUM(sales_amount_sum)::text
+       FROM public.v934_preagg_daily_product_sales GROUP BY category_name ORDER BY category_name;")"
   assert_fixture_output postgres15 "$output"
 }
 
 clean_postgres() {
-  local identity
+  local identity output
 
   require_container foggy-demo-postgres \
     sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c \
@@ -134,9 +158,21 @@ clean_postgres() {
     fail "postgres15 identity is $identity, expected foggy_test|public"
   postgres_query \
     "DELETE FROM public.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL';
+     DROP TABLE IF EXISTS public.v934_preagg_daily_product_sales;
+     DROP TABLE IF EXISTS public.v934_preagg_fact_sales;
+     DROP TABLE IF EXISTS public.v934_preagg_dim_product;
+     DROP TABLE IF EXISTS public.v934_preagg_dim_date;
      DROP TABLE IF EXISTS public.v934_test_sentinel;" \
     >/dev/null
-  printf 'V934_DATABASE_FIXTURE database=postgres15 status=cleaned\n'
+  output="$(postgres_query \
+    "SELECT COUNT(*) || '|' ||
+       (SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name IN ('v934_preagg_daily_product_sales', 'v934_preagg_fact_sales',
+                             'v934_preagg_dim_product', 'v934_preagg_dim_date', 'v934_test_sentinel'))
+     FROM public.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL';")"
+  [[ "$output" == '0|0' ]] || fail "postgres15 cleanup verification mismatch: $output"
+  printf 'V934_DATABASE_FIXTURE database=postgres15 sentinel_rows=0 fixture_tables=0 status=cleaned\n'
 }
 
 sqlserver_query() {
@@ -162,22 +198,41 @@ apply_sqlserver() {
   docker exec -i foggy-demo-sqlserver /opt/mssql-tools18/bin/sqlcmd \
     -S localhost -U sa -P 'Foggy_Test_123!' -C -b -d foggy_test \
     < "$FIXTURE_ROOT/sqlserver/13-v934-parity-fixture.sql" >/dev/null
+  docker exec -i foggy-demo-sqlserver /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P 'Foggy_Test_123!' -C -b -d foggy_test \
+    < "$FIXTURE_ROOT/sqlserver/14-v934-preagg-fixture.sql" >/dev/null
   output="$(sqlserver_query \
     "SET NOCOUNT ON;
      SELECT sentinel_key + '|' + sentinel_value FROM dbo.v934_test_sentinel ORDER BY sentinel_key;
-     SELECT order_id + '|' + CONVERT(varchar(10), order_line_no) FROM dbo.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL' ORDER BY order_line_no;")"
+     SELECT order_id + '|' + CONVERT(varchar(10), order_line_no) FROM dbo.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL' ORDER BY order_line_no;
+     SELECT category_name + '|' + CONVERT(varchar(40), CAST(SUM(sales_amount_sum) AS decimal(20,4)))
+       FROM dbo.v934_preagg_daily_product_sales GROUP BY category_name ORDER BY category_name;")"
   assert_fixture_output sqlserver2022 "$output"
 }
 
 clean_sqlserver() {
+  local output
+
   require_container foggy-demo-sqlserver \
     sha256:0ec7739e1c5ec2f57861facbe1f2b74f1d3e147c7c97edf91eeea920c5944d9c \
     1433 11433
   sqlserver_query \
     "SET NOCOUNT ON; DELETE FROM dbo.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL';
+     IF OBJECT_ID(N'dbo.v934_preagg_daily_product_sales', N'U') IS NOT NULL DROP TABLE dbo.v934_preagg_daily_product_sales;
+     IF OBJECT_ID(N'dbo.v934_preagg_fact_sales', N'U') IS NOT NULL DROP TABLE dbo.v934_preagg_fact_sales;
+     IF OBJECT_ID(N'dbo.v934_preagg_dim_product', N'U') IS NOT NULL DROP TABLE dbo.v934_preagg_dim_product;
+     IF OBJECT_ID(N'dbo.v934_preagg_dim_date', N'U') IS NOT NULL DROP TABLE dbo.v934_preagg_dim_date;
      IF OBJECT_ID(N'dbo.v934_test_sentinel', N'U') IS NOT NULL DROP TABLE dbo.v934_test_sentinel;" \
     >/dev/null
-  printf 'V934_DATABASE_FIXTURE database=sqlserver2022 status=cleaned\n'
+  output="$(sqlserver_query \
+    "SET NOCOUNT ON;
+     SELECT CONVERT(varchar(10), COUNT(*)) + '|' +
+       CONVERT(varchar(10), (SELECT COUNT(*) FROM sys.tables
+         WHERE name IN ('v934_preagg_daily_product_sales', 'v934_preagg_fact_sales',
+                        'v934_preagg_dim_product', 'v934_preagg_dim_date', 'v934_test_sentinel')))
+     FROM dbo.fact_sales WHERE order_id = 'V934_PARITY_SENTINEL';")"
+  [[ "$output" == '0|0' ]] || fail "sqlserver2022 cleanup verification mismatch: $output"
+  printf 'V934_DATABASE_FIXTURE database=sqlserver2022 sentinel_rows=0 fixture_tables=0 status=cleaned\n'
 }
 
 manage_one() {

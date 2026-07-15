@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
@@ -45,7 +46,9 @@ public class PreAggQueryRewriter {
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
             "AND", "OR", "NOT", "NULL", "TRUE", "FALSE"
     );
-    private static final String[] COMPARISON_OPERATORS = {">=", "<=", "!=", "<>", ">", "<", "="};
+    private static final String[] COMPARISON_OPERATORS = {
+            "!==", "===", "==", ">=", "<=", "!=", "<>", ">", "<", "="
+    };
 
     private final JdbcQueryModel queryModel;
     private final ApplicationContext applicationContext;
@@ -75,6 +78,31 @@ public class PreAggQueryRewriter {
         PreAggregation preAgg = matchResult.getPreAggregation();
         boolean needsRollup = matchResult.isNeedsRollup();
         boolean isHybrid = matchResult.isHybridQuery();
+
+        if (isHybrid && matchResult.getWatermark() == null) {
+            log.debug("Pre-aggregation hybrid rewrite refused because watermark is null");
+            return PreAggRewriteResult.notApplied();
+        }
+
+        // Explicit groupBy replaces SELECT fields with AggregationDbColumn
+        // wrappers. The legacy hybrid builder cannot prove an equivalent
+        // source/pre-aggregation UNION for those wrappers, so fall back to
+        // the governed source query instead of emitting guessed SQL.
+        if (isHybrid && hasAggregationProjection(jdbcQuery)) {
+            log.debug("Pre-aggregation hybrid rewrite refused for aggregate projection wrappers");
+            return PreAggRewriteResult.notApplied();
+        }
+
+        // The legacy hybrid SQL builder applies the request predicate only
+        // to the fresh source branch. The materialized-history branch is
+        // constrained by watermark alone, so accepting a slice/WHERE/HAVING
+        // would admit rows outside the requested domain. Until predicates
+        // are independently rebuilt for both branches, fail closed.
+        if (isHybrid && hasQueryPredicates(jdbcQuery, queryRequest)) {
+            log.debug("Pre-aggregation hybrid rewrite refused because predicates cannot be "
+                    + "proved for both UNION branches");
+            return PreAggRewriteResult.notApplied();
+        }
 
         try {
             String sql;
@@ -131,8 +159,8 @@ public class PreAggQueryRewriter {
      * 生成的 SQL 只包含 COUNT(*) 和 SUM(度量) 聚合，不包含维度列。
      * </p>
      * <p>
-     * 此方法不支持混合查询模式，使用 {@link #buildAggregateSql(PreAggregation, JdbcQuery, DbQueryRequestDef, PreAggregationMatchResult)}
-     * 获取完整的混合模式支持。
+     * 此便捷入口会重新执行候选匹配，并与显式 matchResult 入口使用相同的
+     * rollup/hybrid fail-closed 约束，避免调用方绕过等价性证明。
      * </p>
      *
      * @param preAgg       预聚合
@@ -143,7 +171,30 @@ public class PreAggQueryRewriter {
     public PreAggAggregateSqlResult buildAggregateSql(PreAggregation preAgg,
                                                        JdbcQuery jdbcQuery,
                                                        DbQueryRequestDef queryRequest) {
-        return buildAggregateSqlInternal(preAgg, jdbcQuery, queryRequest, false, null);
+        if (preAgg == null) {
+            return null;
+        }
+        PreAggQueryRequirement requirement = new PreAggQueryRequirementBuilder()
+                .buildAggregate(queryRequest, jdbcQuery, queryModel);
+        PreAggregationMatchResult matchResult = new PreAggregationMatcher()
+                .findBestMatch(requirement, List.of(preAgg));
+        return buildAggregateSql(preAgg, jdbcQuery, queryRequest, matchResult);
+    }
+
+    private boolean hasQueryPredicates(JdbcQuery jdbcQuery, DbQueryRequestDef queryRequest) {
+        if (queryRequest != null) {
+            if (queryRequest.getSlice() != null && !queryRequest.getSlice().isEmpty()) {
+                return true;
+            }
+            if (queryRequest.getHaving() != null && !queryRequest.getHaving().isEmpty()) {
+                return true;
+            }
+        }
+        if (jdbcQuery == null) {
+            return false;
+        }
+        return (jdbcQuery.getWhere() != null && !jdbcQuery.getWhere().isEmpty())
+                || (jdbcQuery.getHaving() != null && !jdbcQuery.getHaving().isEmpty());
     }
 
     /**
@@ -169,7 +220,17 @@ public class PreAggQueryRewriter {
                                                        JdbcQuery jdbcQuery,
                                                        DbQueryRequestDef queryRequest,
                                                        PreAggregationMatchResult matchResult) {
-        if (matchResult == null || !matchResult.isMatched()) {
+        if (matchResult == null || !matchResult.isMatched()
+                || matchResult.getPreAggregation() != preAgg) {
+            return null;
+        }
+        // Legacy returnTotal counts physical rows directly. A rollup would
+        // require counting a grouped subquery, while hybrid would mix
+        // materialized group rows with unaggregated source rows. Neither
+        // equivalence is implemented, so both paths must fail closed.
+        if (matchResult.isNeedsRollup() || matchResult.isHybridQuery()) {
+            log.debug("Legacy pre-aggregation returnTotal refused: needsRollup={}, hybrid={}",
+                    matchResult.isNeedsRollup(), matchResult.isHybridQuery());
             return null;
         }
         return buildAggregateSqlInternal(preAgg, jdbcQuery, queryRequest,
@@ -187,8 +248,45 @@ public class PreAggQueryRewriter {
     public PreAggAggregateSqlResult buildFinalStageAggregateSql(PreAggRewriteResult rewriteResult,
                                                                  JdbcQuery jdbcQuery,
                                                                  DbQueryRequestDef queryRequest) {
+        if (rewriteResult == null || !rewriteResult.isApplied() || rewriteResult.getSql() == null
+                || rewriteResult.getPreAggregation() == null || rewriteResult.isHybridQuery()) {
+            return null;
+        }
+        return buildFinalStageAggregateSql(rewriteResult.getPreAggregation(), jdbcQuery, queryRequest);
+    }
+
+    /**
+     * 针对单个候选预聚合证明并构建 final-stage count SQL。
+     */
+    public PreAggAggregateSqlResult buildFinalStageAggregateSql(PreAggregation preAgg,
+                                                                 JdbcQuery jdbcQuery,
+                                                                 DbQueryRequestDef queryRequest) {
+        if (preAgg == null || !preAgg.isEnabled()) {
+            return null;
+        }
+        PreAggQueryRequirement requirement = new PreAggQueryRequirementBuilder()
+                .buildFinalStage(queryRequest, jdbcQuery, queryModel);
+        PreAggregationMatchResult matchResult = new PreAggregationMatcher()
+                .findBestMatch(requirement, List.of(preAgg));
+        return buildFinalStageAggregateSql(preAgg, jdbcQuery, queryRequest, matchResult);
+    }
+
+    /**
+     * Consumes the match already produced by the interceptor so an explicit
+     * hybrid-disabled snapshot policy is preserved without exposing a public
+     * stale-candidate bypass.
+     */
+    PreAggAggregateSqlResult buildFinalStageAggregateSql(PreAggregation preAgg,
+                                                          JdbcQuery jdbcQuery,
+                                                          DbQueryRequestDef queryRequest,
+                                                          PreAggregationMatchResult matchResult) {
+        if (preAgg == null || !preAgg.isEnabled() || matchResult == null
+                || !matchResult.isMatched() || matchResult.isHybridQuery()
+                || matchResult.getPreAggregation() != preAgg) {
+            return null;
+        }
         return new FinalStagePreAggAggregateSqlBuilder(queryModel, this)
-                .build(rewriteResult, jdbcQuery, queryRequest);
+                .build(preAgg, jdbcQuery, queryRequest);
     }
 
     /**
@@ -207,6 +305,10 @@ public class PreAggQueryRewriter {
                                                                  boolean isHybrid,
                                                                  Object watermark) {
         if (preAgg == null) {
+            return null;
+        }
+        if (hasAggregationProjection(jdbcQuery)) {
+            log.debug("Pre-aggregation returnTotal rewrite refused for aggregate projection wrappers");
             return null;
         }
 
@@ -278,7 +380,7 @@ public class PreAggQueryRewriter {
         StringBuilder sql = new StringBuilder();
         String preAggTableName = getFullTableName(preAgg);
         String sourceTableName = queryModel.getJdbcModel().getTableName();
-        String watermarkColumn = parseWatermarkColumn(preAgg.getWatermarkColumn());
+        String watermarkColumn = resolveWatermarkPreAggColumn(preAgg);
 
         // 外层 SELECT：对 UNION 结果做聚合
         sql.append("SELECT COUNT(*) AS total");
@@ -510,7 +612,7 @@ public class PreAggQueryRewriter {
                                    Object watermark, WhereClauseResult originalWhere) {
         StringBuilder sql = new StringBuilder();
         String preAggTableName = getFullTableName(preAgg);
-        String watermarkPreAggColumn = parseWatermarkColumn(preAgg.getWatermarkColumn());
+        String watermarkPreAggColumn = resolveWatermarkPreAggColumn(preAgg);
 
         // #005/#006 修复：解析源表水位线列（使用事实表的外键，而非维度名称）
         String watermarkSourceColumn = resolveWatermarkSourceColumn(preAgg);
@@ -518,7 +620,7 @@ public class PreAggQueryRewriter {
 
         // 外层 SELECT（带聚合函数）
         List<String> outerSelectColumns = buildOuterSelectColumns(preAgg, jdbcQuery, "combined");
-        List<String> groupByColumns = buildGroupByColumns(preAgg, jdbcQuery, "combined");
+        List<String> groupByColumns = buildHybridGroupByColumns(jdbcQuery, "combined");
 
         sql.append("SELECT ");
         sql.append(String.join(", ", outerSelectColumns));
@@ -605,15 +707,16 @@ public class PreAggQueryRewriter {
         for (DbColumn column : select.getColumns()) {
             String columnAlias = column.getAlias();
             String columnName = column.getName();
+            String quotedAlias = queryModel.getDialect().quoteIdentifier(columnAlias);
 
             if (column.isMeasure()) {
                 // 度量列：聚合
                 DbAggregation agg = measureAggregations.get(columnName);
                 String aggFunc = getAggregationFunction(agg);
-                columns.add(aggFunc + "(" + alias + "." + columnAlias + ") AS " + columnAlias);
+                columns.add(aggFunc + "(" + alias + "." + quotedAlias + ") AS " + quotedAlias);
             } else {
                 // 维度列：直接引用
-                columns.add(alias + "." + columnAlias + " AS " + columnAlias);
+                columns.add(alias + "." + quotedAlias + " AS " + quotedAlias);
             }
         }
 
@@ -637,63 +740,53 @@ public class PreAggQueryRewriter {
         for (DbColumn column : select.getColumns()) {
             String columnAlias = column.getAlias();
             String columnName = column.getName();
+            String quotedAlias = queryModel.getDialect().quoteIdentifier(columnAlias);
 
             if (column.isMeasure()) {
                 if (isPreAggTable) {
                     // 预聚合表：使用映射的列名
                     String preAggColumnName = measureColumnNames.get(columnName);
                     if (preAggColumnName == null) {
-                        preAggColumnName = columnName + "_sum";
+                        throw new IllegalStateException(
+                                "Missing configured pre-aggregation measure column: " + columnName);
                     }
-                    columns.add(alias + "." + preAggColumnName + " AS " + columnAlias);
+                    columns.add(alias + "." + preAggColumnName + " AS " + quotedAlias);
                 } else {
                     // 原始表：直接使用度量列
                     String sqlColumnName = getSqlColumnName(column);
-                    columns.add(alias + "." + sqlColumnName + " AS " + columnAlias);
+                    columns.add(alias + "." + sqlColumnName + " AS " + quotedAlias);
                 }
             } else {
                 // 维度/属性列
-                String sqlColumnName = getSqlColumnName(column);
-                columns.add(alias + "." + sqlColumnName + " AS " + columnAlias);
+                String sqlColumnName = isPreAggTable
+                        ? mapFieldToPreAggColumn(preAgg, columnName)
+                        : getSqlColumnName(column);
+                if (StringUtils.isEmpty(sqlColumnName)) {
+                    throw new IllegalStateException(
+                            "Missing configured pre-aggregation dimension column: " + columnName);
+                }
+                columns.add(alias + "." + sqlColumnName + " AS " + quotedAlias);
             }
         }
 
         return columns;
     }
 
-    /**
-     * 解析水位线列名（用于预聚合表）
-     * <p>
-     * 将配置的水位线列名（如 salesDate$id）映射到预聚合表的物理列名（如 date_key）。
-     * </p>
-     */
-    private String parseWatermarkColumn(String watermarkColumn) {
-        if (watermarkColumn == null) {
-            return "created_at"; // 默认
+    private String resolveWatermarkPreAggColumn(PreAggregation preAgg) {
+        String watermarkColumn = preAgg != null ? preAgg.getWatermarkColumn() : null;
+        if (StringUtils.isEmpty(watermarkColumn)) {
+            throw new IllegalStateException("Hybrid pre-aggregation has no watermark column");
         }
-        int dollarIndex = watermarkColumn.indexOf('$');
-        if (dollarIndex > 0) {
-            String dimName = watermarkColumn.substring(0, dollarIndex);
-            String propName = watermarkColumn.substring(dollarIndex + 1);
-            if ("id".equals(propName)) {
-                // $id → 维度主键/外键（如 date_key, product_key）
-                // 先尝试通过 QueryModel 查找维度的外键
-                DbDimension dimension = queryModel.findDimension(dimName);
-                if (dimension != null) {
-                    return dimension.getForeignKey();
-                }
-                // 回退到命名约定
-                String snakeCaseDimName = normalizePropertyName(dimName);
-                if (snakeCaseDimName.contains("date") || snakeCaseDimName.contains("time")
-                        || snakeCaseDimName.contains("day")) {
-                    return "date_key";
-                }
-                return snakeCaseDimName + "_key";
-            }
-            // 其他属性（如 $caption）→ 使用命名约定
-            return normalizePropertyName(propName);
+        if (watermarkColumn.indexOf('$') <= 0) {
+            // A bare refresh watermark is an explicit physical materialization column.
+            return watermarkColumn;
         }
-        return watermarkColumn;
+        String materializedColumn = mapFieldToPreAggColumn(preAgg, watermarkColumn);
+        if (StringUtils.isEmpty(materializedColumn)) {
+            throw new IllegalStateException(
+                    "Hybrid watermark has no materialized column contract: " + watermarkColumn);
+        }
+        return materializedColumn;
     }
 
     /**
@@ -725,15 +818,19 @@ public class PreAggQueryRewriter {
         if (dimension != null) {
             if ("id".equals(propName)) {
                 // $id → 维度外键（事实表上的列）
-                return dimension.getForeignKey();
+                String foreignKey = dimension.getForeignKey();
+                if (StringUtils.isEmpty(foreignKey)) {
+                    throw new IllegalStateException(
+                            "Hybrid watermark dimension has no fact-table foreign key: " + dimName);
+                }
+                return foreignKey;
             }
-            // 其他属性（如 $caption）→ 维表上的列，不在事实表上
-            // 回退到外键
-            return dimension.getForeignKey();
+            throw new IllegalStateException(
+                    "Hybrid source watermark must be a fact-table key or explicit physical column: "
+                            + watermarkColumn);
         }
 
-        // 未找到维度，回退到 parseWatermarkColumn 的逻辑
-        return parseWatermarkColumn(watermarkColumn);
+        throw new IllegalStateException("Unknown hybrid watermark dimension: " + dimName);
     }
 
     /**
@@ -803,12 +900,13 @@ public class PreAggQueryRewriter {
 
         for (DbColumn column : select.getColumns()) {
             String columnAlias = column.getAlias();
+            String quotedAlias = queryModel.getDialect().quoteIdentifier(columnAlias);
 
             if (column.getQueryObject() != null && column.getSqlColumn() != null) {
                 // 普通列：使用 queryModel 解析的原始表别名
                 String tableAlias = queryModel.getAlias(column.getQueryObject());
                 String declare = column.getDeclare(applicationContext, tableAlias, queryModel.getDialect());
-                columns.add(declare + " AS " + columnAlias);
+                columns.add(declare + " AS " + quotedAlias);
             } else {
                 // AggregationDbColumn 等特殊列（无 SqlColumn）
                 // 使用 getDeclare 获取预构建的引用，然后去除可能的聚合函数包装
@@ -818,7 +916,7 @@ public class PreAggQueryRewriter {
                     // 去除聚合函数包装：SUM(t1.amount) → t1.amount
                     declare = stripAggregationWrapper(declare);
                 }
-                columns.add(declare + " AS " + columnAlias);
+                columns.add(declare + " AS " + quotedAlias);
             }
         }
 
@@ -1001,33 +1099,51 @@ public class PreAggQueryRewriter {
         Map<String, DbAggregation> measureAggregations = preAgg.getMeasureAggregations();
 
         for (DbColumn column : select.getColumns()) {
+            DbColumn semanticColumn = resolveSemanticColumn(column);
+            if (semanticColumn == null || StringUtils.isEmpty(semanticColumn.getName())) {
+                throw new IllegalStateException(
+                        "Cannot resolve aggregate projection alias to pre-aggregation field: " + column.getAlias());
+            }
+            if (column instanceof AggregationDbColumn aggregationColumn
+                    && aggregationColumn.getAggregation() != null
+                    && aggregationColumn.getAggregation() != DbAggregation.NONE
+                    && !semanticColumn.isMeasure()) {
+                throw new IllegalStateException(
+                        "Aggregate projection targets a non-measure pre-aggregation field: " + column.getAlias());
+            }
             String columnAlias = column.getAlias();
-            String columnName = column.getName();
+            String quotedColumnAlias = queryModel.getDialect().quoteIdentifier(columnAlias);
+            String columnName = semanticColumn.getName();
 
-            if (column.isMeasure()) {
+            if (semanticColumn.isMeasure()) {
                 // 度量列：从预聚合表中获取对应的列名
                 String preAggColumnName = measureColumnNames.get(columnName);
                 if (preAggColumnName == null) {
-                    preAggColumnName = columnName + "_sum"; // 默认命名
+                    throw new IllegalStateException(
+                            "Missing configured pre-aggregation measure column: " + columnName);
                 }
 
                 if (needsRollup) {
                     // 需要 rollup：根据聚合类型包装
                     DbAggregation agg = measureAggregations.get(columnName);
                     String aggFunc = getAggregationFunction(agg);
-                    columns.add(aggFunc + "(" + alias + "." + preAggColumnName + ") AS " + columnAlias);
+                    columns.add(aggFunc + "(" + alias + "." + preAggColumnName + ") AS " + quotedColumnAlias);
                 } else {
                     // 不需要 rollup：直接使用
-                    columns.add(alias + "." + preAggColumnName + " AS " + columnAlias);
+                    columns.add(alias + "." + preAggColumnName + " AS " + quotedColumnAlias);
                 }
             } else {
-                // 维度/属性列：直接映射
-                String sqlColumnName = getSqlColumnName(column);
+                // 维度/属性列必须映射到预聚合物理列，不能回退到结果 alias。
+                String sqlColumnName = mapFieldToPreAggColumn(preAgg, columnName);
+                if (StringUtils.isEmpty(sqlColumnName)) {
+                    throw new IllegalStateException(
+                            "Missing configured pre-aggregation dimension column: " + columnName);
+                }
                 if (needsRollup) {
                     // rollup 时维度列可能需要聚合处理
-                    columns.add(alias + "." + sqlColumnName + " AS " + columnAlias);
+                    columns.add(alias + "." + sqlColumnName + " AS " + quotedColumnAlias);
                 } else {
-                    columns.add(alias + "." + sqlColumnName + " AS " + columnAlias);
+                    columns.add(alias + "." + sqlColumnName + " AS " + quotedColumnAlias);
                 }
             }
         }
@@ -1040,7 +1156,7 @@ public class PreAggQueryRewriter {
      */
     String getAggregationFunction(DbAggregation agg) {
         if (agg == null) {
-            return "SUM";
+            throw new IllegalArgumentException("Missing pre-aggregation measure aggregation");
         }
         switch (agg) {
             case SUM:
@@ -1050,10 +1166,9 @@ public class PreAggQueryRewriter {
                 return "MIN";
             case MAX:
                 return "MAX";
-            case AVG:
-                return "AVG";
             default:
-                return "SUM";
+                throw new IllegalArgumentException(
+                        "Pre-aggregation measure cannot be rolled up safely: " + agg);
         }
     }
 
@@ -1142,27 +1257,12 @@ public class PreAggQueryRewriter {
     WhereClauseResult buildWhereClauseFromSlices(PreAggregation preAgg,
                                                  DbQueryRequestDef queryRequest,
                                                  String alias) {
-        List<SliceRequestDef> slices = queryRequest.getSlice();
-        if (slices == null || slices.isEmpty()) {
-            return WhereClauseResult.empty();
+        ProvableWhereClauseResult proven =
+                buildProvableWhereClauseFromSlices(preAgg, queryRequest, alias);
+        if (!proven.isApplied()) {
+            throw new PredicateNotProvableException(proven.getUnsupportedReason());
         }
-
-        List<String> conditions = new ArrayList<>();
-        List<Object> params = new ArrayList<>();
-
-        for (SliceRequestDef slice : slices) {
-            WhereClauseResult sliceResult = buildConditionFromSlice(preAgg, slice, alias);
-            if (sliceResult.getClause() != null && !sliceResult.getClause().isEmpty()) {
-                conditions.add(sliceResult.getClause());
-                params.addAll(sliceResult.getParams());
-            }
-        }
-
-        if (conditions.isEmpty()) {
-            return WhereClauseResult.empty();
-        }
-
-        return new WhereClauseResult(String.join(" AND ", conditions), params);
+        return new WhereClauseResult(proven.getClause(), proven.getParams());
     }
 
     ProvableWhereClauseResult buildProvableWhereClauseFromSlices(PreAggregation preAgg,
@@ -1242,7 +1342,7 @@ public class PreAggQueryRewriter {
             return ProvableWhereClauseResult.unsupported("unmapped-slice-field:" + field);
         }
 
-        return buildProvableSqlCondition(alias, columnName, cond.getOp(), cond.getValue());
+        return buildProvableSqlCondition(alias, columnName, field, cond.getOp(), cond.getValue());
     }
 
     /**
@@ -1480,8 +1580,13 @@ public class PreAggQueryRewriter {
                 return ProvableWhereClauseResult.unsupported(right.unsupportedReason());
             }
 
+            String normalizedSqlOp = switch (sqlOp) {
+                case "==", "===" -> "=";
+                case "!==" -> "!=";
+                default -> sqlOp;
+            };
             return ProvableWhereClauseResult.proven(
-                    alias + "." + leftColumn + " " + sqlOp + " " + right.sql(),
+                    alias + "." + leftColumn + " " + normalizedSqlOp + " " + right.sql(),
                     new ArrayList<>()
             );
         }
@@ -1549,88 +1654,129 @@ public class PreAggQueryRewriter {
 
     private ProvableWhereClauseResult buildProvableSqlCondition(String alias,
                                                                 String columnName,
+                                                                String semanticField,
                                                                 String op,
                                                                 Object value) {
         List<Object> params = new ArrayList<>();
         String normalizedOp = op == null ? "=" : op.toLowerCase();
         String condition;
 
-        switch (normalizedOp) {
-            case "=":
-            case "eq":
-                condition = alias + "." + columnName + " = ?";
-                params.add(value);
-                break;
+        try {
+            switch (normalizedOp) {
+                case "=":
+                case "eq":
+                    condition = buildProvableComparison(alias, columnName, "=", semanticField, value, params);
+                    break;
 
-            case "!=":
-            case "<>":
-            case "ne":
-                condition = alias + "." + columnName + " != ?";
-                params.add(value);
-                break;
+                case "!=":
+                case "<>":
+                case "ne":
+                    condition = buildProvableComparison(alias, columnName, "!=", semanticField, value, params);
+                    break;
 
-            case ">":
-            case "gt":
-                condition = alias + "." + columnName + " > ?";
-                params.add(value);
-                break;
+                case ">":
+                case "gt":
+                    condition = buildProvableComparison(alias, columnName, ">", semanticField, value, params);
+                    break;
 
-            case ">=":
-            case "gte":
-                condition = alias + "." + columnName + " >= ?";
-                params.add(value);
-                break;
+                case ">=":
+                case "gte":
+                    condition = buildProvableComparison(alias, columnName, ">=", semanticField, value, params);
+                    break;
 
-            case "<":
-            case "lt":
-                condition = alias + "." + columnName + " < ?";
-                params.add(value);
-                break;
+                case "<":
+                case "lt":
+                    condition = buildProvableComparison(alias, columnName, "<", semanticField, value, params);
+                    break;
 
-            case "<=":
-            case "lte":
-                condition = alias + "." + columnName + " <= ?";
-                params.add(value);
-                break;
+                case "<=":
+                case "lte":
+                    condition = buildProvableComparison(alias, columnName, "<=", semanticField, value, params);
+                    break;
 
-            case "in":
-                if (!(value instanceof List<?> values) || values.isEmpty()) {
-                    return ProvableWhereClauseResult.unsupported("invalid-in-range:" + columnName);
-                }
-                condition = alias + "." + columnName + " IN ("
-                        + String.join(", ", values.stream().map(v -> "?").toList())
-                        + ")";
-                params.addAll(values);
-                break;
+                case "in":
+                    if (!(value instanceof List<?> values) || values.isEmpty()) {
+                        return ProvableWhereClauseResult.unsupported("invalid-in-values:" + semanticField);
+                    }
+                    condition = alias + "." + columnName + " IN ("
+                            + String.join(", ", values.stream().map(v -> "?").toList())
+                            + ")";
+                    for (Object item : values) {
+                        params.add(formatProvableSliceValue(semanticField, item));
+                    }
+                    break;
 
-            case "like":
-                condition = alias + "." + columnName + " LIKE ?";
-                params.add(value);
-                break;
+                case "like":
+                case "left_like":
+                case "right_like":
+                    if (StringUtils.isEmpty(value) || value instanceof List<?>) {
+                        return ProvableWhereClauseResult.unsupported("invalid-like-value:" + semanticField);
+                    }
+                    condition = alias + "." + columnName + " LIKE ?";
+                    Object formattedLike = formatProvableSliceValue(semanticField, value);
+                    if ("left_like".equals(normalizedOp)) {
+                        params.add("%" + formattedLike);
+                    } else if ("right_like".equals(normalizedOp)) {
+                        params.add(formattedLike + "%");
+                    } else {
+                        params.add("%" + formattedLike + "%");
+                    }
+                    break;
 
-            case "[)":
-                if (!(value instanceof List<?> range) || range.size() < 2) {
-                    return ProvableWhereClauseResult.unsupported("invalid-range:" + columnName);
-                }
-                condition = alias + "." + columnName + " >= ? AND " + alias + "." + columnName + " < ?";
-                params.add(range.get(0));
-                params.add(range.get(1));
-                break;
+                case "[)":
+                case "[]":
+                case "(]":
+                case "()":
+                    if (!(value instanceof List<?> range) || range.size() < 2) {
+                        return ProvableWhereClauseResult.unsupported("invalid-range:" + semanticField);
+                    }
+                    Object start = formatProvableSliceValue(semanticField, range.get(0));
+                    Object end = formatProvableSliceValue(semanticField, range.get(1));
+                    List<String> rangeConditions = new ArrayList<>();
+                    if (StringUtils.isNotEmpty(start)) {
+                        rangeConditions.add(alias + "." + columnName
+                                + (normalizedOp.charAt(0) == '[' ? " >= ?" : " > ?"));
+                        params.add(start);
+                    }
+                    if (StringUtils.isNotEmpty(end)) {
+                        rangeConditions.add(alias + "." + columnName
+                                + (normalizedOp.charAt(1) == ']' ? " <= ?" : " < ?"));
+                        params.add(end);
+                    }
+                    condition = String.join(" AND ", rangeConditions);
+                    break;
 
-            case "[]":
-                if (!(value instanceof List<?> range) || range.size() < 2) {
-                    return ProvableWhereClauseResult.unsupported("invalid-range:" + columnName);
-                }
-                condition = alias + "." + columnName + " >= ? AND " + alias + "." + columnName + " <= ?";
-                params.add(range.get(0));
-                params.add(range.get(1));
-                break;
-
-            default:
-                return ProvableWhereClauseResult.unsupported("unsupported-slice-op:" + op);
+                default:
+                    return ProvableWhereClauseResult.unsupported("unsupported-slice-op:" + op);
+            }
+        } catch (RuntimeException ex) {
+            log.debug("Cannot format final-stage pre-aggregation predicate field='{}', op='{}': {}",
+                    semanticField, op, ex.getMessage());
+            return ProvableWhereClauseResult.unsupported("invalid-slice-value:" + semanticField);
         }
 
         return ProvableWhereClauseResult.proven(condition, params);
+    }
+
+    private String buildProvableComparison(String alias,
+                                            String columnName,
+                                            String sqlOperator,
+                                            String semanticField,
+                                            Object value,
+                                            List<Object> params) {
+        if (StringUtils.isEmpty(value) || value instanceof List<?>) {
+            throw new IllegalArgumentException("comparison requires one non-empty value");
+        }
+        params.add(formatProvableSliceValue(semanticField, value));
+        return alias + "." + columnName + " " + sqlOperator + " ?";
+    }
+
+    private Object formatProvableSliceValue(String semanticField, Object value) {
+        DbColumn semanticColumn = queryModel.findJdbcColumnForCond(semanticField, false, true);
+        if (semanticColumn == null || semanticColumn.isCalculatedField()) {
+            throw new IllegalArgumentException("semantic field is not directly formattable: " + semanticField);
+        }
+        return semanticColumn.getFormatter(true).format(value);
     }
 
     private String normalizeComparisonOperatorForPreAgg(String op) {
@@ -1659,7 +1805,7 @@ public class PreAggQueryRewriter {
             return null;
         }
 
-        if (!isProvableDimensionProperty(preAgg, dimName, propName, field)) {
+        if (!isProvableDimensionProperty(preAgg, dimName, propName)) {
             return null;
         }
 
@@ -1669,23 +1815,8 @@ public class PreAggQueryRewriter {
 
     private boolean isProvableDimensionProperty(PreAggregation preAgg,
                                                 String dimName,
-                                                String propName,
-                                                String field) {
-        if ("caption".equals(propName) || "id".equals(propName)) {
-            return true;
-        }
-
-        Map<String, String> columnNames = preAgg.getDimensionPropertyColumnNames();
-        if (columnNames != null && columnNames.containsKey(field)) {
-            return true;
-        }
-
-        Set<String> properties = preAgg.getDimensionProperties(dimName);
-        if (properties == null || properties.isEmpty()) {
-            return false;
-        }
-        String normalizedPropName = normalizePropertyName(propName);
-        return properties.contains(propName) || properties.contains(normalizedPropName);
+                                                String propName) {
+        return preAgg.hasMaterializedDimensionProperty(dimName, propName);
     }
 
     /**
@@ -1722,16 +1853,14 @@ public class PreAggQueryRewriter {
      * @return 预聚合表的列名
      */
     String mapFieldToPreAggColumn(PreAggregation preAgg, String field) {
-        // 首先检查预聚合的列名映射
-        Map<String, String> columnNames = preAgg.getDimensionPropertyColumnNames();
-        if (columnNames != null && columnNames.containsKey(field)) {
-            return columnNames.get(field);
+        if (preAgg == null || StringUtils.isEmpty(field)) {
+            return null;
         }
-
         int dollarIndex = field.indexOf('$');
         if (dollarIndex <= 0) {
-            // 没有 $，可能是维度主键或度量
-            return field;
+            // 该方法只解析有语义维度来源的字段。度量由显式 measure
+            // mapping 路径处理，裸物理列不能在这里被猜测放行。
+            return null;
         }
 
         String dimName = field.substring(0, dollarIndex);
@@ -1740,6 +1869,18 @@ public class PreAggQueryRewriter {
         // 检查预聚合是否有此维度
         if (!preAgg.hasDimension(dimName)) {
             return null;
+        }
+
+        // 命名约定只负责在模型已声明物化属性后生成列名，不能反向证明
+        // caption/id/time bucket 或普通属性真实存在于物化表。
+        if (!preAgg.hasMaterializedDimensionProperty(dimName, propName)) {
+            return null;
+        }
+
+        // 完成物化契约证明后，才允许使用显式或约定生成的列名。
+        Map<String, String> columnNames = preAgg.getDimensionPropertyColumnNames();
+        if (columnNames != null && columnNames.containsKey(field)) {
+            return columnNames.get(field);
         }
 
         // 对于 caption 和 id，使用列名映射（如果有）或命名约定
@@ -1915,13 +2056,34 @@ public class PreAggQueryRewriter {
         }
 
         for (DbColumn column : select.getColumns()) {
+            DbColumn semanticColumn = resolveSemanticColumn(column);
             // 只有维度/属性列需要 GROUP BY
-            if (column.isDimension() || column.isProperty()) {
-                String columnAlias = column.getAlias();
-                groupByColumns.add(alias + "." + columnAlias);
+            if (semanticColumn != null && (semanticColumn.isDimension() || semanticColumn.isProperty())) {
+                String preAggColumn = mapFieldToPreAggColumn(preAgg, semanticColumn.getName());
+                if (StringUtils.isEmpty(preAggColumn)) {
+                    throw new IllegalStateException(
+                            "Missing configured pre-aggregation group column: " + semanticColumn.getName());
+                }
+                groupByColumns.add(alias + "." + preAggColumn);
             }
         }
 
+        return groupByColumns;
+    }
+
+    private List<String> buildHybridGroupByColumns(JdbcQuery jdbcQuery, String alias) {
+        List<String> groupByColumns = new ArrayList<>();
+        JdbcQuery.JdbcSelect select = jdbcQuery.getSelect();
+        if (select == null || select.getColumns() == null) {
+            return groupByColumns;
+        }
+        for (DbColumn column : select.getColumns()) {
+            DbColumn semanticColumn = resolveSemanticColumn(column);
+            if (semanticColumn != null && (semanticColumn.isDimension() || semanticColumn.isProperty())) {
+                groupByColumns.add(alias + "."
+                        + queryModel.getDialect().quoteIdentifier(column.getAlias()));
+            }
+        }
         return groupByColumns;
     }
 
@@ -1939,9 +2101,28 @@ public class PreAggQueryRewriter {
             DbColumn column = orderColumn.getSelectColumn();
             String columnAlias = column.getAlias();
             String direction = orderColumn.getOrder();
-            orderParts.add(alias + "." + columnAlias + " " + direction);
+            orderParts.add(queryModel.getDialect().quoteIdentifier(columnAlias) + " " + direction);
         }
 
         return String.join(", ", orderParts);
+    }
+
+    private DbColumn resolveSemanticColumn(DbColumn column) {
+        if (!(column instanceof AggregationDbColumn)) {
+            return column;
+        }
+        String alias = column.getAlias();
+        if (StringUtils.isEmpty(alias)) {
+            return null;
+        }
+        return queryModel.findJdbcColumnForCond(alias, false, true);
+    }
+
+    private boolean hasAggregationProjection(JdbcQuery jdbcQuery) {
+        return jdbcQuery != null
+                && jdbcQuery.getSelect() != null
+                && jdbcQuery.getSelect().getColumns() != null
+                && jdbcQuery.getSelect().getColumns().stream()
+                .anyMatch(AggregationDbColumn.class::isInstance);
     }
 }

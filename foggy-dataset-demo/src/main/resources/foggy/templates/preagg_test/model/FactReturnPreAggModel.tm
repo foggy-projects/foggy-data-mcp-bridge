@@ -115,7 +115,15 @@ export const model = {
             },
 
             dimensionProperties: {
-                product: ['category_name']
+                returnDate: ['caption', 'id'],
+                product: ['caption', 'id', 'categoryName']
+            },
+
+            dimensionPropertyColumnNames: {
+                returnDate: { caption: 'full_date', id: 'date_key' },
+                product: {
+                    caption: 'product_name', id: 'product_key', categoryName: 'category_name'
+                }
             },
 
             measures: [

@@ -1,0 +1,18 @@
+const sales = loadTableModel('V934PivotPreAggModel');
+
+export const queryModel = {
+    name: 'V934PivotPreAggQueryModel',
+    caption: 'V934 Pivot PreAgg Query Fixture',
+    model: sales,
+    columnGroups: [
+        {
+            caption: 'V934 deterministic fields',
+            items: [
+                { ref: sales.salesDate },
+                { ref: sales.product$categoryName },
+                { ref: sales.salesAmount }
+            ]
+        }
+    ],
+    accesses: []
+};

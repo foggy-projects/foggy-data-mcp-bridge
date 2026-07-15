@@ -124,7 +124,8 @@ public class QueryStagePlan {
             return false;
         }
         for (Stage stage : stages) {
-            if ((stage.getType() == QueryStageType.POST_AGGREGATE_STAGE
+            if ((stage.getType() == QueryStageType.AGGREGATE_STAGE
+                    || stage.getType() == QueryStageType.POST_AGGREGATE_STAGE
                     || stage.getType() == QueryStageType.WINDOW_RESULT_STAGE)
                     && !stage.getFilterAliases().isEmpty()) {
                 return false;

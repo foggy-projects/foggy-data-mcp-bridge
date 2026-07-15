@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.spi.preagg;
 
+import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggFilterDef;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
@@ -122,6 +123,18 @@ public interface PreAggregation {
     Map<String, String> getDimensionPropertyColumnNames();
 
     /**
+     * 获取模型作者显式声明的维度属性列映射。
+     * <p>
+     * {@link #getDimensionPropertyColumnNames()} 可以包含按命名约定推导的便捷映射；
+     * 推导结果不能单独证明物化表真实存在该列。优化器据此区分“可生成列名”和
+     * “模型已声明物化该属性”两类契约。
+     * </p>
+     */
+    default Map<String, String> getExplicitDimensionPropertyColumnNames() {
+        return Map.of();
+    }
+
+    /**
      * 获取永久过滤条件
      */
     List<PreAggFilterDef> getFilters();
@@ -191,6 +204,36 @@ public interface PreAggregation {
     default Set<String> getDimensionProperties(String dimensionName) {
         Map<String, Set<String>> props = getDimensionProperties();
         return props != null ? props.getOrDefault(dimensionName, Set.of()) : Set.of();
+    }
+
+    /**
+     * 判断维度属性是否有明确的物化契约。
+     * <p>
+     * 维度存在和时间粒度只证明可聚合关系，不证明物理表包含 caption、id、
+     * year/month 等具体列。属性必须出现在 {@code dimensionProperties}，或由
+     * {@code dimensionPropertyColumnNames} 显式映射，才能参与 SQL 重写。
+     * </p>
+     */
+    default boolean hasMaterializedDimensionProperty(String dimensionName, String propertyName) {
+        if (!hasDimension(dimensionName) || propertyName == null || propertyName.isEmpty()) {
+            return false;
+        }
+
+        String field = dimensionName + "$" + propertyName;
+        Map<String, String> explicitMappings = getExplicitDimensionPropertyColumnNames();
+        if (explicitMappings != null && explicitMappings.containsKey(field)
+                && explicitMappings.get(field) != null && !explicitMappings.get(field).isEmpty()) {
+            return true;
+        }
+
+        String normalizedProperty = StringUtils.to_sm_string(propertyName);
+        for (String configuredProperty : getDimensionProperties(dimensionName)) {
+            if (configuredProperty != null
+                    && normalizedProperty.equals(StringUtils.to_sm_string(configuredProperty))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ==================== 混合查询支持（Hybrid Query） ====================

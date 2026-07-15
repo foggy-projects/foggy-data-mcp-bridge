@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeErrorCode;
 import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeException;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
+import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
@@ -31,6 +32,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
@@ -57,6 +59,9 @@ class PivotSqlParityIT extends EcommerceTestSupport {
 
     @Resource
     private QueryFacade queryFacade;
+
+    @Value("${v934.expectedDatabase:}")
+    private String v934ExpectedDatabase;
 
     @Test
     @DisplayName("0. Verify SQL Pushdown is actually used for TopN (Not memory fallback)")
@@ -100,10 +105,15 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("0.1 PreAgg + systemSlice + TopN keeps final SQL params order")
     void testPreAggHitWithSystemSliceAndLimitKeepsFinalParamOrder() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL pushdown requires CTE + ROW_NUMBER() OVER()");
+        boolean v934Fixture = v934ExpectedDatabase != null && !v934ExpectedDatabase.isBlank();
+        String queryModel = v934Fixture ? "V934PivotPreAggQueryModel" : "FactSalesPreAggQueryModel";
+        int sliceStart = v934Fixture ? 20930101 : 20240101;
+        int sliceEnd = v934Fixture ? 20930103 : 20240331;
+        String factTable = v934Fixture ? "v934_preagg_fact_sales" : "fact_sales";
+        String productTable = v934Fixture ? "v934_preagg_dim_product" : "dim_product";
 
         DbQueryRequestDef queryDef = new DbQueryRequestDef();
-        queryDef.setQueryModel("FactSalesPreAggQueryModel");
+        queryDef.setQueryModel(queryModel);
         queryDef.setReturnTotal(false);
         queryDef.setStrictColumns(true);
         queryDef.setColumns(List.of("product$categoryName", "salesAmount"));
@@ -115,7 +125,7 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SliceRequestDef systemDateSlice = new SliceRequestDef();
         systemDateSlice.setField("salesDate$id");
         systemDateSlice.setOp("[)");
-        systemDateSlice.setValue(List.of(20240101, 20240331));
+        systemDateSlice.setValue(List.of(sliceStart, sliceEnd));
 
         PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryDef);
@@ -131,17 +141,38 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         ManagedSqlRelation baseRelation = queryFacade.prepareManagedRelation(resultContext,
                 ManagedRelationOptions.builder()
                         .purpose("pivot-sql-preagg-param-order-regression")
-                        .wrappableRequired(true)
                         .disableInnerCacheShortCircuit(true)
                         .requireStableAliases(true)
-                        .requireDialectCapability(ManagedRelationOptions.DialectCapability.CTE)
-                        .requireDialectCapability(ManagedRelationOptions.DialectCapability.WINDOW_FUNCTION)
                         .build());
 
         assertTrue(baseRelation.isPreAggApplied(), "preAgg should be applied before outer Pivot CTE wrapping");
         assertTrue(baseRelation.getSql().contains("preagg_"), "base SQL should query a preAgg table: " + baseRelation.getSql());
-        assertIterableEquals(List.of(20240101, 20240331), baseRelation.getParams(),
+        assertIterableEquals(List.of(sliceStart, sliceEnd), baseRelation.getParams(),
                 "base relation params should come from the systemSlice after preAgg rewrite");
+        assertTrue(baseRelation.getSql().contains("category_name"),
+                "preAgg relation must use the physical category column: " + baseRelation.getSql());
+        assertTrue(baseRelation.getSql().contains("sales_amount_sum"),
+                "preAgg relation must use the configured measure column: " + baseRelation.getSql());
+        assertFalse(baseRelation.getSql().contains("pa.product$categoryName"),
+                "semantic result alias must never be used as a physical preAgg column");
+        assertFalse(baseRelation.getSql().contains("pa.salesAmount"),
+                "semantic measure alias must never be used as a physical preAgg column");
+
+        List<Map<String, Object>> baseItems = jdbcTemplate.queryForList(
+                baseRelation.getSql(), baseRelation.getParams().toArray(new Object[0]));
+        String nativeOracleSql = "SELECT p.category_name AS category_name, "
+                + "SUM(f.sales_amount) AS sales_amount "
+                + "FROM " + factTable + " f "
+                + "LEFT JOIN " + productTable + " p ON f.product_key = p.product_key "
+                + "WHERE f.date_key >= ? AND f.date_key < ? "
+                + "GROUP BY p.category_name";
+        List<Map<String, Object>> nativeItems = jdbcTemplate.queryForList(
+                nativeOracleSql, sliceStart, sliceEnd);
+        assertFalse(nativeItems.isEmpty(), "native preAgg oracle must contain deterministic rows");
+        assertEquals(nativeItems.size(), baseItems.size(),
+                "preAgg base relation must preserve the complete grouped native row set");
+        assertParity(nativeItems, baseItems,
+                "category_name", "product$categoryName", "sales_amount", "salesAmount");
 
         int topNLimit = 2;
         AxisField categoryAxis = axis("product$categoryName");
@@ -153,21 +184,52 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         pivot.setMetrics(List.of("salesAmount"));
         pivot.setOutputFormat("flat");
 
-        PivotAxisDomainSqlPlanner.PlannedSql planned = PivotAxisDomainSqlPlanner.plan(
-                baseRelation,
-                pivot,
-                List.of("product$categoryName"),
-                List.of(),
-                List.of("salesAmount"));
+        if (supportsWindowFunctions()) {
+            PivotAxisDomainSqlPlanner.PlannedSql planned = PivotAxisDomainSqlPlanner.plan(
+                    baseRelation,
+                    pivot,
+                    List.of("product$categoryName"),
+                    List.of(),
+                    List.of("salesAmount"));
 
-        List<Object> finalParams = planned.getParams();
-        int baseParamCount = baseRelation.getParams().size();
-        assertEquals(baseParamCount + 1, finalParams.size(),
-                "outer TopN should append exactly one rn limit param after preAgg/systemSlice params");
-        assertEquals(baseRelation.getParams(), finalParams.subList(0, baseParamCount),
-                "preAgg/systemSlice params must remain before outer domain CTE params");
-        assertEquals(topNLimit, finalParams.get(baseParamCount),
-                "rn <= ? limit param must be appended after base relation params");
+            List<Object> finalParams = planned.getParams();
+            int baseParamCount = baseRelation.getParams().size();
+            assertEquals(baseParamCount + 1, finalParams.size(),
+                    "outer TopN should append exactly one rn limit param after preAgg/systemSlice params");
+            assertEquals(baseRelation.getParams(), finalParams.subList(0, baseParamCount),
+                    "preAgg/systemSlice params must remain before outer domain CTE params");
+            assertEquals(topNLimit, finalParams.get(baseParamCount),
+                    "rn <= ? limit param must be appended after base relation params");
+
+            List<Map<String, Object>> plannedItems = jdbcTemplate.queryForList(
+                    planned.getSql(), finalParams.toArray(new Object[0]));
+            String topNOracleSql = paginateSql(
+                    nativeOracleSql + " ORDER BY sales_amount DESC, category_name ASC", topNLimit);
+            List<Map<String, Object>> topNOracleItems = jdbcTemplate.queryForList(
+                    topNOracleSql, sliceStart, sliceEnd);
+            assertEquals(topNLimit, plannedItems.size(),
+                    "planned preAgg TopN must return the exact requested row count");
+            assertEquals(topNOracleItems.size(), plannedItems.size());
+            assertParity(topNOracleItems, plannedItems,
+                    "category_name", "product$categoryName", "sales_amount", "salesAmount");
+        } else {
+            assertTrue(baseRelation.isPermissionValidated(),
+                    "MySQL 5.7 refusal must happen after permission validation");
+            assertFalse(baseRelation.isWrappable(),
+                    "MySQL 5.7 managed relation must advertise that outer CTE wrapping is unavailable");
+            PivotPushdownUnsupportedException refusal = assertThrows(
+                    PivotPushdownUnsupportedException.class,
+                    () -> PivotAxisDomainSqlPlanner.plan(
+                            baseRelation,
+                            pivot,
+                            List.of("product$categoryName"),
+                            List.of(),
+                            List.of("salesAmount")));
+            assertEquals(
+                    "ManagedSqlRelation is not wrappable. Cannot generate outer Pivot SQL. permissionValidated=true",
+                    refusal.getMessage(),
+                    "MySQL 5.7 must produce the exact fail-closed outer-wrapping refusal");
+        }
     }
 
     // ========== Parity Scenarios ==========

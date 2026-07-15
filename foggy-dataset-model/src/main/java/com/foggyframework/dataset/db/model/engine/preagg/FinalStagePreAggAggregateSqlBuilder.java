@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,14 +39,10 @@ final class FinalStagePreAggAggregateSqlBuilder {
         this.rewriter = rewriter;
     }
 
-    PreAggQueryRewriter.PreAggAggregateSqlResult build(PreAggRewriteResult rewriteResult,
+    PreAggQueryRewriter.PreAggAggregateSqlResult build(PreAggregation preAgg,
                                                        JdbcQuery jdbcQuery,
                                                        DbQueryRequestDef queryRequest) {
-        if (rewriteResult == null || !rewriteResult.isApplied() || rewriteResult.getSql() == null) {
-            return null;
-        }
-        PreAggregation preAgg = rewriteResult.getPreAggregation();
-        if (preAgg == null || rewriteResult.isHybridQuery()) {
+        if (preAgg == null || !preAgg.isEnabled()) {
             return null;
         }
 
@@ -102,7 +97,9 @@ final class FinalStagePreAggAggregateSqlBuilder {
         String outerAlias = "preagg_final";
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) AS total");
         for (FinalStageMeasure measure : measures.values()) {
-            sql.append(", SUM(")
+            sql.append(", ")
+                    .append(measure.aggregationFunction())
+                    .append("(")
                     .append(outerAlias)
                     .append(".")
                     .append(quoteIdentifier(dialect, measure.alias()))
@@ -115,7 +112,7 @@ final class FinalStagePreAggAggregateSqlBuilder {
                 .append(outerAlias);
 
         return PreAggQueryRewriter.PreAggAggregateSqlResult.single(
-                sql.toString(), params, rewriteResult.getPreAggName());
+                sql.toString(), params, preAgg.getName());
     }
 
     private List<String> collectGroupFields(PreAggregation preAgg,
@@ -184,11 +181,6 @@ final class FinalStagePreAggAggregateSqlBuilder {
             return false;
         }
 
-        Map<String, String> columnNames = preAgg.getDimensionPropertyColumnNames();
-        if (columnNames != null && columnNames.containsKey(field)) {
-            return true;
-        }
-
         int dollarIndex = field.indexOf('$');
         if (dollarIndex <= 0) {
             return false;
@@ -200,13 +192,7 @@ final class FinalStagePreAggAggregateSqlBuilder {
             return false;
         }
 
-        Map<String, Set<String>> dimensionProperties = preAgg.getDimensionProperties();
-        Set<String> properties = dimensionProperties != null ? dimensionProperties.get(dimName) : null;
-        if (properties == null || properties.isEmpty()) {
-            return false;
-        }
-        String normalizedPropName = normalizePropertyName(propName);
-        return properties.contains(propName) || properties.contains(normalizedPropName);
+        return preAgg.hasMaterializedDimensionProperty(dimName, propName);
     }
 
     private Map<String, FinalStageMeasure> collectMeasures(PreAggregation preAgg,
@@ -297,7 +283,12 @@ final class FinalStagePreAggAggregateSqlBuilder {
             return null;
         }
 
-        String function = fieldDef.getAgg() != null ? fieldDef.getAgg().toUpperCase() : matcher.group(1).toUpperCase();
+        String expressionFunction = matcher.group(1).toUpperCase();
+        if (fieldDef.getAgg() != null && !fieldDef.getAgg().isBlank()
+                && !fieldDef.getAgg().equalsIgnoreCase(expressionFunction)) {
+            return UNMAPPED_MEASURE;
+        }
+        String function = expressionFunction;
         String measureName = matcher.group(2);
         String preAggColumnName = resolvePreAggMeasureColumn(preAgg, measureName);
         if (preAggColumnName == null) {
@@ -339,28 +330,6 @@ final class FinalStagePreAggAggregateSqlBuilder {
             return identifier;
         }
         return dialect.quoteIdentifier(identifier);
-    }
-
-    private String normalizePropertyName(String name) {
-        if (name == null || name.isEmpty()) {
-            return name;
-        }
-        if (name.contains("_")) {
-            return name.toLowerCase();
-        }
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < name.length(); i++) {
-            char c = name.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) {
-                    result.append('_');
-                }
-                result.append(Character.toLowerCase(c));
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
     }
 
     private static final FinalStageMeasure UNMAPPED_MEASURE =

@@ -174,7 +174,21 @@ export const model = {
 
             // 包含的维度属性
             dimensionProperties: {
-                product: ['category_name', 'brand']
+                salesDate: ['caption', 'id', 'year', 'quarter', 'month', 'monthName'],
+                product: ['caption', 'id', 'productId', 'categoryId', 'categoryName', 'brand']
+            },
+
+            // 物化列契约必须显式且与所有数据库 fixture 一致；粒度声明本身
+            // 不代表 full_date/month 等列真实存在。
+            dimensionPropertyColumnNames: {
+                salesDate: {
+                    caption: 'full_date', id: 'date_key', year: 'year',
+                    quarter: 'quarter', month: 'month', monthName: 'month_name'
+                },
+                product: {
+                    caption: 'product_name', id: 'product_key', productId: 'product_id',
+                    categoryId: 'category_id', categoryName: 'category_name', brand: 'brand'
+                }
             },
 
             // 包含的度量及聚合方式
@@ -214,6 +228,10 @@ export const model = {
                 product: ['category_name']
             },
 
+            dimensionPropertyColumnNames: {
+                product: { categoryName: 'category_name' }
+            },
+
             measures: [
                 { name: 'quantity', aggregation: 'SUM', columnName: 'quantity_sum' },
                 { name: 'salesAmount', aggregation: 'SUM', columnName: 'sales_amount_sum' },
@@ -245,6 +263,11 @@ export const model = {
             dimensionProperties: {
                 customer: ['province', 'city'],
                 channel: ['channel_type']
+            },
+
+            dimensionPropertyColumnNames: {
+                customer: { province: 'province', city: 'city' },
+                channel: { channelType: 'channel_type' }
             },
 
             measures: [

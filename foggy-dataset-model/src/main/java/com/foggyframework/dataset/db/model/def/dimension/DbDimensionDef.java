@@ -64,6 +64,12 @@ public class DbDimensionDef extends DbDefSupport {
     @ApiModelProperty("维度成员权限配置（patch + queryBuilder）")
     MemberPermissionDef memberPermission;
 
+    @ApiModelProperty(value = "时间角色", notes = "例如 business_date、event_time、system_time")
+    String timeRole;
+
+    @ApiModelProperty(value = "推荐用途", notes = "例如 time_axis、filter_only")
+    String recommendedUse;
+
     @Deprecated
     @ApiModelProperty("已废弃，请使用嵌套维度方式。使某个维度与其他维度关联，形成多级结构")
     String joinTo;

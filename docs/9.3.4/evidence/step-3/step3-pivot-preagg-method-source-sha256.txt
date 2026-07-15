@@ -1,0 +1,37 @@
+# Diagnostic source snapshot for step3-pivot-preagg-method-diagnostic-20260715.md
+# scope=targeted-method authority_status=not-authority inventory_consumption=0
+# Runtime logs and generated XML under target/ are intentionally excluded.
+d5c2f1c2881862c0eda7094ff0a19e2135a59a2b8feec5cf0d807827188d53f0  foggy-dataset-demo/docker/mysql/init/10-preagg-schema.sql
+827c4151c3e60aaa34e8a802ba7abfd94a8b97fa15fc6af2acba4f9c39201da3  foggy-dataset-demo/docker/mysql/init/11-preagg-testdata.sql
+a40d320613e76783ccd661d8f2baf5c84931ad93cfd2311deb14b86b16438a1f  foggy-dataset-demo/docker/v934/mysql/14-v934-preagg-fixture.sql
+cb2d34540590d40586827ea12a0d5d9df1ab95959d6ff2e267ad201e342805d7  foggy-dataset-demo/docker/v934/postgres/14-v934-preagg-fixture.sql
+68d2786b234c94f0db991429a47c7134454940f50651b1a384aa2491145883f2  foggy-dataset-demo/docker/v934/sqlserver/14-v934-preagg-fixture.sql
+1943384f173bfa542883033d7b903f50708bfcacb1c68d25645c40c17681a75e  foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/model/FactReturnPreAggModel.tm
+f727f00680a64b6600695632e72eee378db489a1fb811bf3cbdfa82357f9e673  foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/model/FactSalesPreAggModel.tm
+b0a9acc0da62d8be00480bd9080963c1cd23d24e8070e8c643626a9167f0f777  foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/query/FactSalesPreAggAccessQueryModel.qm
+26cd806fa92f20cb9812fb1126c71e2dcdd63768bb7f7e6717e4f9e37a6231bc  foggy-dataset-demo/src/main/resources/foggy/templates/v934_step3/model/V934PivotPreAggModel.tm
+31374c43929c7761f5430aa840d08aae77ff2545a9e53eca6c9e3d5b81070f05  foggy-dataset-demo/src/main/resources/foggy/templates/v934_step3/query/V934PivotPreAggQueryModel.qm
+83bb766f15c1e2041ac1d37c61fcf332f63341ee775e1c66e1f8e768c7b8d1b4  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/dimension/DbDimensionDef.java
+7af555481d32cbfb6cb3f1a21c217c12a2f5f9385b5526a260c567317e751948  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java
+7b35d46ff0309eafb9009c86d9b7a66b31530f15e18acfaee4aee5da945c3603  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/FinalStagePreAggAggregateSqlBuilder.java
+1c29c24a8ea3c63049f3418c334bb25e19fd91f9a45c20d9e7abed17e264a731  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggQueryRequirement.java
+e00206c21c21d59eb06c89ab1e1c133ec6a270ab02632afe70622b480abf593b  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggQueryRequirementBuilder.java
+0e03f21ddbebc39c0795e3ce50534d7cd9c93f62da30a685989a30dfb6a5970d  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggQueryRewriter.java
+ab80d8fdb7240690ec9cfbe7c8ccf5ac424aa8f272bb91dc1326c4fb0194d647  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationInterceptor.java
+fd644ed0b7a1b2a700ff40abd2efa5112ca6539bb30a15ac0ac4cd7b453cbedf  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationMatcher.java
+0305ee07cc41b72770ae1541574d4ce328e486e839560936c31d5320150f55e4  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java
+0fd7349ed204271b98ce44f8c3f15f5c98ed02f880bb9feebd452d72ff51c057  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/stage/QueryStagePlan.java
+dbeec79203e0b4d84b73d260ab287c14b02fddba79e77997d14f5940a2715e02  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/preagg/PreAggregationImpl.java
+5aa3e48e3063e13e2e14354f15eea1391621a532e91a0a65840893a9e6254c87  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/preagg/PreAggregation.java
+65dbac6614a679db096e33d67009190b5491d548952150ff7236b69bd070ffbe  foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/preagg/TimeGranularity.java
+3d3610e97c0b004f8c1c9fb0d96b9d6a539cb514c7eecfec41841ccc2489ff04  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java
+7ced1e1c8a36847237846d0990d6fa6fc1b1a07deda223499053cbad6145a21a  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggQueryRequirementBuilderTest.java
+ad0a218fc221b711ffe340094577d375c081ffc1e072b3c63eaca3f99e9aa9bd  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationMatcherTest.java
+41ec6d320838e45a1103e15c9e78a1cd2adc8d24b5432c2830a809b51e1ad589  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java
+9696d57afd593d1e42b262b4a5d4469d93baab696b18fc425fd3daf9f96a3203  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationIT.java
+67f596f0a4457a7be4aa9daa6dac623151f092f153fac4deceb22456e669777b  foggy-dataset-model/src/test/resources/application-v934-sqlite.yml
+6511895368eea010e467e47ffef148da64c1d8f656798377e6988da6caddef74  foggy-dataset-model/src/test/resources/sqlite/04-preagg-schema.sql
+3fcb75b72d5bb0c883a04a5f5d83eafe05892dd063896b5eed43876c20126d88  foggy-dataset-model/src/test/resources/sqlite/05-preagg-data.sql
+ba92f927055c1c2488a0fe46ae3fce2faa91a2535dffe7c6a5f182d4a6ec0cdc  foggy-dataset-model/src/test/resources/sqlite/12-v934-preagg-schema.sql
+65dec88fd87bf9b01201182f6abfc1d0a47bd38efb313c4e95c816881834b3b2  foggy-dataset-model/src/test/resources/sqlite/13-v934-preagg-data.sql
+d5e342f87fba665efbea733581d592982c48b23695126ad4591c70489eb6ee22  scripts/v934/step3/manage-database-foundation-fixtures.sh

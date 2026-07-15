@@ -156,6 +156,9 @@ class PreAggregationEdgeCaseTest {
         log.info("只有度量查询: preAggEnabled=false 返回 {} 行, preAggHit={}",
                 itemsNoPreAgg.size(), contextNoPreAgg.getCacheConfig().isPreAggHit());
 
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit(),
+                "只有度量且没有聚合维度时必须按明细语义查询，不能命中预聚合");
+
         // 验证：两种方式的结果应该一致（行数、总额）
         BigDecimal totalWithPreAgg = calculateTotal(itemsWithPreAgg, "salesAmount");
         BigDecimal totalNoPreAgg = calculateTotal(itemsNoPreAgg, "salesAmount");
@@ -262,6 +265,13 @@ class PreAggregationEdgeCaseTest {
         log.info("带 slices 条件查询: preAggEnabled=false 总额={}",
                 totalNoPreAgg);
 
+        assertTrue(contextWithPreAgg.getCacheConfig().isPreAggHit(),
+                "预聚合包含 category_name 时，受支持的等值 slice 应命中预聚合");
+        assertEquals("daily_product_sales", contextWithPreAgg.getCacheConfig().getPreAggName());
+        assertFalse(itemsWithPreAgg.isEmpty(), "等值 slice fixture 应返回非空结果");
+        assertTrue(totalWithPreAgg.compareTo(BigDecimal.ZERO) > 0,
+                "等值 slice fixture 应产生正数销售额，避免空结果伪绿");
+
         // 验证结果一致性
         assertEquals(totalNoPreAgg, totalWithPreAgg,
                 String.format("带 slices 条件的查询，预聚合(%s)与原始查询(%s)的总额应一致",
@@ -280,7 +290,7 @@ class PreAggregationEdgeCaseTest {
 
         // 设置日期范围过滤（使用 >= 操作符）
         List<SliceRequestDef> slices = new ArrayList<>();
-        slices.add(new SliceRequestDef("salesDate$id", ">=", 20240101));
+        slices.add(new SliceRequestDef("salesDate$id", ">=", "20240102"));
         queryRequest.setSlice(slices);
 
         PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
@@ -321,10 +331,21 @@ class PreAggregationEdgeCaseTest {
         log.info("带日期范围查询: preAggEnabled=false 总额={}, 行数={}",
                 totalNoPreAgg, itemsNoPreAgg.size());
 
+        assertTrue(contextWithPreAgg.getCacheConfig().isPreAggHit(),
+                "可证明的日期范围 slice 应命中预聚合");
+        assertEquals("daily_product_sales", contextWithPreAgg.getCacheConfig().getPreAggName());
+
         // 验证结果一致性
         assertEquals(totalNoPreAgg, totalWithPreAgg,
                 String.format("带日期范围的查询，预聚合(%s)与原始查询(%s)的总额应一致",
                         totalWithPreAgg, totalNoPreAgg));
+        BigDecimal unfilteredTotal = jdbcTemplate.queryForObject(
+                "SELECT SUM(sales_amount) FROM fact_sales", BigDecimal.class);
+        assertNotNull(unfilteredTotal);
+        assertTrue(totalWithPreAgg.compareTo(BigDecimal.ZERO) > 0,
+                "日期范围 fixture 应返回非空聚合，避免空结果伪绿");
+        assertTrue(totalWithPreAgg.compareTo(unfilteredTotal) < 0,
+                "日期范围 fixture 必须排除至少一行，证明格式化后的过滤真正生效");
     }
 
     // ==========================================
@@ -608,8 +629,8 @@ class PreAggregationEdgeCaseTest {
     @DisplayName("多阶段 postAggregate 等价预聚合可证明 $field/$expr 谓词时保持命中")
     void testPostAggregateEquivalentPreAggKeepsProvableFieldReferenceAndExpressionPredicates() {
         List<SliceRequestDef> slices = List.of(SliceRequestDef.and(List.of(
-                fieldReferenceCondition("product$categoryName", ">=", "product$categoryName"),
-                CondRequestDef.expr("product$categoryName >= product$categoryName")
+                fieldReferenceCondition("product$categoryName", "=", "product$brand"),
+                CondRequestDef.expr("product$categoryName == product$brand")
         )));
 
         ModelResultContext contextWithPreAgg = queryContext(postAggregateShareRequestWithSlices(slices), true);
@@ -617,6 +638,8 @@ class PreAggregationEdgeCaseTest {
 
         ModelResultContext contextNoPreAgg = queryContext(postAggregateShareRequestWithSlices(slices), false);
         DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+        DbQueryResult unfiltered = queryFacade.queryModelResult(
+                queryContext(postAggregateShareRequest(), false));
 
         Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
         assertEquals("return-total-equivalent-only", plan.get("preAggOptimizationPolicy"));
@@ -628,6 +651,10 @@ class PreAggregationEdgeCaseTest {
                 resultWithPreAgg.getPagingResult().getTotal(),
                 "provable $field/$expr predicates should preserve equivalent preAgg returnTotal"
         );
+        assertEquals(0, resultWithPreAgg.getPagingResult().getTotal(),
+                "fixture category and brand values are deliberately disjoint");
+        assertTrue(unfiltered.getPagingResult().getTotal() > 0,
+                "unfiltered baseline must contain groups so predicate loss cannot pass vacuously");
     }
 
     @Test
@@ -672,6 +699,150 @@ class PreAggregationEdgeCaseTest {
         );
     }
 
+    @Test
+    @Order(32)
+    @DisplayName("access builder 直接修改 WHERE 与 request slice 并存时 final-stage fail closed")
+    void testFinalStagePreAggFailsClosedForDirectAccessWhereMutation() {
+        DbQueryRequestDef withPreAggRequest = postAggregateShareRequestWithSlices(List.of(
+                new SliceRequestDef("salesDate$id", ">=", 20240101)
+        ));
+        withPreAggRequest.setQueryModel("FactSalesPreAggAccessQueryModel");
+
+        DbQueryRequestDef withoutPreAggRequest = postAggregateShareRequestWithSlices(List.of(
+                new SliceRequestDef("salesDate$id", ">=", 20240101)
+        ));
+        withoutPreAggRequest.setQueryModel("FactSalesPreAggAccessQueryModel");
+
+        ModelResultContext contextWithPreAgg = queryContext(withPreAggRequest, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+        ModelResultContext contextNoPreAgg = queryContext(withoutPreAggRequest, false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+        DbQueryResult resultWithoutAccess = queryFacade.queryModelResult(queryContext(
+                postAggregateShareRequestWithSlices(List.of(
+                        new SliceRequestDef("salesDate$id", ">=", 20240101))), false));
+
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+        assertEquals("return-total-equivalent-not-matched",
+                contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+        assertEquals(resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "access predicate must remain effective when pre-aggregation is enabled");
+        assertTrue(resultWithPreAgg.getPagingResult().getTotal() > 0,
+                "SHIPPED access fixture must retain one selective group");
+        assertTrue(resultWithPreAgg.getPagingResult().getTotal()
+                        < resultWithoutAccess.getPagingResult().getTotal(),
+                "access fixture must remove groups so predicate loss cannot pass vacuously");
+    }
+
+    @Test
+    @Order(33)
+    @DisplayName("HAVING 会过滤分组时 main 与 final-stage 预聚合均 fail closed")
+    void testHavingFailsClosedWithoutChangingFinalTotal() {
+        DbQueryRequestDef withPreAggRequest = postAggregateShareRequest();
+        withPreAggRequest.setHaving(List.of(new SliceRequestDef("teamSales", ">", 5000)));
+        DbQueryRequestDef withoutPreAggRequest = postAggregateShareRequest();
+        withoutPreAggRequest.setHaving(List.of(new SliceRequestDef("teamSales", ">", 5000)));
+
+        ModelResultContext contextWithPreAgg = queryContext(withPreAggRequest, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+        ModelResultContext contextNoPreAgg = queryContext(withoutPreAggRequest, false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+        DbQueryResult resultWithoutHaving = queryFacade.queryModelResult(
+                queryContext(postAggregateShareRequest(), false));
+
+        Map<String, Object> plan = queryStagePlan(contextWithPreAgg);
+        assertEquals("skip-final-stage-required", plan.get("preAggOptimizationPolicy"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggMainSkippedByStagePlan"));
+        assertEquals(Boolean.TRUE, contextWithPreAgg.getExtData().get("preAggAggregateSkippedByStagePlan"));
+        assertEquals("skip-final-stage-required",
+                contextWithPreAgg.getExtData().get("preAggAggregateSkipReason"));
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggAggregateUsed"));
+        assertEquals(resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal(),
+                "HAVING must remain effective when pre-aggregation is enabled");
+        assertTrue(resultWithPreAgg.getPagingResult().getTotal() > 0,
+                "fixture must retain at least one group after HAVING");
+        assertTrue(resultWithPreAgg.getPagingResult().getTotal()
+                        < resultWithoutHaving.getPagingResult().getTotal(),
+                "fixture HAVING must remove at least one group so this regression cannot pass vacuously");
+    }
+
+    @Test
+    @Order(34)
+    @DisplayName("普通聚合主查询带 HAVING 时预聚合 fail closed")
+    void testMainPreAggFailsClosedForHaving() {
+        DbQueryRequestDef withPreAggRequest = groupedSalesHavingRequest();
+        DbQueryRequestDef withoutPreAggRequest = groupedSalesHavingRequest();
+
+        ModelResultContext contextWithPreAgg = queryContext(withPreAggRequest, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+        ModelResultContext contextNoPreAgg = queryContext(withoutPreAggRequest, false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggUsed"));
+        assertEquals(resultNoPreAgg.getPagingResult().getItems(),
+                resultWithPreAgg.getPagingResult().getItems(),
+                "main-query HAVING must not be dropped by pre-aggregation rewriting");
+        assertFalse(resultWithPreAgg.getPagingResult().getItems().isEmpty(),
+                "fixture must retain at least one group after HAVING");
+    }
+
+    @Test
+    @Order(35)
+    @DisplayName("普通聚合主查询带 $field 时在严格证明器接入前 fail closed")
+    void testMainPreAggFailsClosedForFieldReferencePredicate() {
+        DbQueryRequestDef withPreAggRequest = groupedSalesFieldReferenceRequest();
+        DbQueryRequestDef withoutPreAggRequest = groupedSalesFieldReferenceRequest();
+
+        ModelResultContext contextWithPreAgg = queryContext(withPreAggRequest, true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+        ModelResultContext contextNoPreAgg = queryContext(withoutPreAggRequest, false);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+        assertFalse(contextWithPreAgg.getCacheConfig().isPreAggHit());
+        assertFalse(contextWithPreAgg.getExtData().containsKey("preAggUsed"));
+        assertEquals(resultNoPreAgg.getPagingResult().getItems(),
+                resultWithPreAgg.getPagingResult().getItems(),
+                "main rewrite must not partially rebuild a $field predicate");
+        assertTrue(resultWithPreAgg.getPagingResult().getItems().isEmpty(),
+                "fixture category and brand values are deliberately disjoint");
+        assertFalse(queryFacade.queryModelResult(queryContext(groupedSalesRequest(), false))
+                        .getPagingResult().getItems().isEmpty(),
+                "unfiltered grouped baseline must contain rows");
+    }
+
+    @Test
+    @Order(36)
+    @DisplayName("final-stage slice 复用语义类型、LIKE contains 与开放区间")
+    void testFinalStagePredicateFormattingMatchesSourceSemantics() {
+        List<SliceRequestDef> slices = List.of(
+                new SliceRequestDef("salesDate$id", "[)", List.of("20240102", "")),
+                new SliceRequestDef("product$categoryName", "like", "数码")
+        );
+
+        ModelResultContext contextWithPreAgg = queryContext(
+                postAggregateShareRequestWithSlices(slices), true);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(queryContext(
+                postAggregateShareRequestWithSlices(slices), false));
+        DbQueryResult unfiltered = queryFacade.queryModelResult(
+                queryContext(postAggregateShareRequest(), false));
+
+        assertEquals("daily_product_sales",
+                contextWithPreAgg.getExtData().get("preAggAggregateUsed"));
+        assertEquals("final-stage-equivalent",
+                contextWithPreAgg.getExtData().get("preAggAggregateMode"));
+        assertEquals(resultNoPreAgg.getPagingResult().getTotal(),
+                resultWithPreAgg.getPagingResult().getTotal());
+        assertTrue(resultWithPreAgg.getPagingResult().getTotal() > 0,
+                "date>=20240102 and category contains 数码 must retain a group");
+        assertTrue(resultWithPreAgg.getPagingResult().getTotal()
+                        < unfiltered.getPagingResult().getTotal(),
+                "typed/open-range/LIKE predicate must be selective");
+    }
+
     // ==========================================
     // 辅助方法
     // ==========================================
@@ -703,6 +874,44 @@ class PreAggregationEdgeCaseTest {
     private DbQueryRequestDef postAggregateShareRequestWithSlices(List<SliceRequestDef> slices) {
         DbQueryRequestDef request = postAggregateShareRequest();
         request.setSlice(new ArrayList<>(slices));
+        return request;
+    }
+
+    private DbQueryRequestDef groupedSalesHavingRequest() {
+        GroupRequestDef categoryGroup = new GroupRequestDef();
+        categoryGroup.setField("product$categoryName");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesPreAggQueryModel");
+        request.setColumns(List.of("product$categoryName", "sum(salesAmount) as teamSales"));
+        request.setGroupBy(List.of(categoryGroup));
+        request.setHaving(List.of(new SliceRequestDef("teamSales", ">", 5000)));
+        return request;
+    }
+
+    private DbQueryRequestDef groupedSalesFieldReferenceRequest() {
+        DbQueryRequestDef request = groupedSalesRequest();
+
+        SliceRequestDef fieldReference = new SliceRequestDef();
+        fieldReference.setField("product$categoryName");
+        fieldReference.setOp("=");
+        fieldReference.setValue(Map.of(
+                CondRequestDef.FIELD_REFERENCE_KEY, "product$brand"));
+        request.setSlice(List.of(fieldReference));
+        return request;
+    }
+
+    private DbQueryRequestDef groupedSalesRequest() {
+        GroupRequestDef categoryGroup = new GroupRequestDef();
+        categoryGroup.setField("product$categoryName");
+        GroupRequestDef amountGroup = new GroupRequestDef();
+        amountGroup.setField("salesAmount");
+        amountGroup.setAgg("SUM");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesPreAggQueryModel");
+        request.setColumns(List.of("product$categoryName", "salesAmount"));
+        request.setGroupBy(List.of(categoryGroup, amountGroup));
         return request;
     }
 

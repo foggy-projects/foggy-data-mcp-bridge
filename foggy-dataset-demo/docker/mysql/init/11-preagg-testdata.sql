@@ -301,25 +301,39 @@ ORDER BY s.sales_key;
 -- 9.1 填充日+商品预聚合表（只填充到2024-03-20，留出10天用于测试混合查询）
 TRUNCATE TABLE `preagg_daily_product_sales`;
 INSERT INTO `preagg_daily_product_sales` (
-    `date_key`, `product_key`, `product_category_name`, `product_brand`,
-    `quantity_sum`, `sales_amount_sum`, `cost_amount_sum`, `profit_amount_sum`,
+    `date_key`, `product_key`, `full_date`, `year`, `quarter`, `month`, `month_name`,
+    `product_id`, `product_name`, `category_id`, `category_name`, `brand`,
+    `quantity_sum`, `sales_amount_sum`, `sales_amount_formula_yuan_sum`,
+    `cost_amount_sum`, `profit_amount_sum`,
     `order_count`, `_preagg_row_count`
 )
 SELECT
     fs.date_key,
     fs.product_key,
+    d.full_date,
+    d.year,
+    d.quarter,
+    d.month,
+    d.month_name,
+    p.product_id,
+    p.product_name,
+    p.category_id,
     p.category_name,
     p.brand,
     SUM(fs.quantity) AS quantity_sum,
     SUM(fs.sales_amount) AS sales_amount_sum,
+    SUM((fs.sales_amount + 0) / 100.0) AS sales_amount_formula_yuan_sum,
     SUM(fs.cost_amount) AS cost_amount_sum,
     SUM(fs.profit_amount) AS profit_amount_sum,
     COUNT(*) AS order_count,
     COUNT(*) AS _preagg_row_count
 FROM fact_sales fs
 JOIN dim_product p ON fs.product_key = p.product_key
+JOIN dim_date d ON fs.date_key = d.date_key
 WHERE fs.date_key <= 20240320  -- 只到3月20日，留出空间测试混合查询
-GROUP BY fs.date_key, fs.product_key, p.category_name, p.brand;
+GROUP BY fs.date_key, fs.product_key,
+    d.full_date, d.year, d.quarter, d.month, d.month_name,
+    p.product_id, p.product_name, p.category_id, p.category_name, p.brand;
 
 -- 9.2 填充月+品类预聚合表
 TRUNCATE TABLE `preagg_monthly_category_sales`;
@@ -346,7 +360,7 @@ GROUP BY FLOOR(fs.date_key / 100), p.category_name;
 TRUNCATE TABLE `preagg_daily_customer_channel_sales`;
 INSERT INTO `preagg_daily_customer_channel_sales` (
     `date_key`, `customer_key`, `channel_key`,
-    `customer_province`, `customer_city`, `channel_type`,
+    `province`, `city`, `channel_type`,
     `quantity_sum`, `sales_amount_sum`, `order_count`, `_preagg_row_count`
 )
 SELECT
@@ -369,12 +383,14 @@ GROUP BY fs.date_key, fs.customer_key, fs.channel_key, c.province, c.city, ch.ch
 -- 9.4 填充退货预聚合表
 TRUNCATE TABLE `preagg_daily_return`;
 INSERT INTO `preagg_daily_return` (
-    `date_key`, `product_key`, `product_category_name`,
+    `date_key`, `product_key`, `full_date`, `product_name`, `category_name`,
     `return_quantity_sum`, `return_amount_sum`, `return_count`, `_preagg_row_count`
 )
 SELECT
     fr.date_key,
     fr.product_key,
+    d.full_date,
+    p.product_name,
     p.category_name,
     SUM(fr.return_quantity) AS return_quantity_sum,
     SUM(fr.return_amount) AS return_amount_sum,
@@ -382,8 +398,9 @@ SELECT
     COUNT(*) AS _preagg_row_count
 FROM fact_return fr
 JOIN dim_product p ON fr.product_key = p.product_key
+JOIN dim_date d ON fr.date_key = d.date_key
 WHERE fr.date_key <= 20240320
-GROUP BY fr.date_key, fr.product_key, p.category_name;
+GROUP BY fr.date_key, fr.product_key, d.full_date, p.product_name, p.category_name;
 
 -- ==========================================
 -- 10. 初始化水位线记录

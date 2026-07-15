@@ -3,4 +3,4 @@
 spring:
   sql:
     init:
-      data-locations: classpath:sqlite/02-dict-data.sql,classpath:sqlite/03-test-data.sql,classpath:sqlite/11-v934-parity-fixture.sql,classpath:sqlite/05-preagg-data.sql,classpath:sqlite/07-odoo-data.sql,classpath:sqlite/09-odoo-closure-data.sql,classpath:sqlite/10-v934-sentinel.sql
+      data-locations: classpath:sqlite/02-dict-data.sql,classpath:sqlite/03-test-data.sql,classpath:sqlite/11-v934-parity-fixture.sql,classpath:sqlite/12-v934-preagg-schema.sql,classpath:sqlite/13-v934-preagg-data.sql,classpath:sqlite/05-preagg-data.sql,classpath:sqlite/07-odoo-data.sql,classpath:sqlite/09-odoo-closure-data.sql,classpath:sqlite/10-v934-sentinel.sql

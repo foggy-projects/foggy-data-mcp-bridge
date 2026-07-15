@@ -38,6 +38,7 @@ public class PreAggregationImpl implements PreAggregation {
     private final Map<String, DbAggregation> measureAggregations;
     private final Map<String, String> measureColumnNames;
     private final Map<String, String> dimensionPropertyColumnNames;
+    private final Map<String, String> explicitDimensionPropertyColumnNames;
     private final List<PreAggFilterDef> filters;
     private final PreAggRefreshDef refreshConfig;
     private final boolean enabled;
@@ -84,6 +85,10 @@ public class PreAggregationImpl implements PreAggregation {
 
         // 处理维度属性
         this.dimensionProperties = parseDimensionProperties(def.getDimensionProperties());
+
+        // 保留显式映射的来源信息。完整映射还会包含命名约定推导值，不能用于
+        // 证明物化表确实声明了某个属性。
+        this.explicitDimensionPropertyColumnNames = parseExplicitDimensionPropertyColumnNames(def);
 
         // 构建维度属性列名映射
         this.dimensionPropertyColumnNames = buildDimensionPropertyColumnNames(def);
@@ -145,20 +150,7 @@ public class PreAggregationImpl implements PreAggregation {
      * </p>
      */
     private Map<String, String> buildDimensionPropertyColumnNames(PreAggregationDef def) {
-        Map<String, String> result = new LinkedHashMap<>();
-
-        // 首先尝试从显式配置读取（如果有的话）
-        Map<String, Map<String, String>> dimPropColumns = def.getDimensionPropertyColumnNames();
-        if (dimPropColumns != null) {
-            for (Map.Entry<String, Map<String, String>> dimEntry : dimPropColumns.entrySet()) {
-                String dimName = dimEntry.getKey();
-                Map<String, String> propColumns = dimEntry.getValue();
-                for (Map.Entry<String, String> propEntry : propColumns.entrySet()) {
-                    String key = dimName + "$" + propEntry.getKey();
-                    result.put(key, propEntry.getValue());
-                }
-            }
-        }
+        Map<String, String> result = new LinkedHashMap<>(explicitDimensionPropertyColumnNames);
 
         // 使用命名约定填充未配置的属性
         if (def.getDimensions() != null) {
@@ -202,6 +194,26 @@ public class PreAggregationImpl implements PreAggregation {
             }
         }
 
+        return result;
+    }
+
+    private Map<String, String> parseExplicitDimensionPropertyColumnNames(PreAggregationDef def) {
+        Map<String, String> result = new LinkedHashMap<>();
+        Map<String, Map<String, String>> dimPropColumns = def.getDimensionPropertyColumnNames();
+        if (dimPropColumns == null) {
+            return result;
+        }
+        for (Map.Entry<String, Map<String, String>> dimEntry : dimPropColumns.entrySet()) {
+            String dimName = dimEntry.getKey();
+            Map<String, String> propColumns = dimEntry.getValue();
+            if (propColumns == null) {
+                continue;
+            }
+            for (Map.Entry<String, String> propEntry : propColumns.entrySet()) {
+                String key = dimName + "$" + propEntry.getKey();
+                result.put(key, propEntry.getValue());
+            }
+        }
         return result;
     }
 

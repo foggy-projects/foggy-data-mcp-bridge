@@ -90,10 +90,29 @@ mvn -q -P\!multi-db,\!model-lifecycle,\!query-cache-real-query \
 - [x] replay v933-only preflight and full batch6 real-query without changing frozen counts
 - [ ] make the final runner verify container image ID and SQLite JAR byte SHA
 - [ ] replace required assumption/early-return paths with positive/refusal assertions
-- [ ] repair Pivot pre-aggregation physical-column mapping and execute its SQL/oracle
-- [ ] provide homogeneous five-database pre-aggregation schema/data fixtures
+- [x] repair Pivot pre-aggregation physical-column mapping and execute its SQL/oracle
+- [x] provide homogeneous five-database pre-aggregation schema/data fixtures
 - [ ] implement exact 46-execution Step 3 runner/report verifier and negative probes
 - [ ] execute all required lanes with `Failures=0, Errors=0, Skipped=0`
+
+## 2026-07-15 Pivot PreAgg Diagnostic Check-in
+
+The Pivot pre-aggregation sub-gap is repaired but the parent bug remains `in-progress`:
+
+- isolated V934 preagg schema/data now exists for all five databases;
+- `PivotSqlParityIT#testPreAggHitWithSystemSliceAndLimitKeepsFinalParamOrder` executes the
+  rewritten relation, native grouped oracle and final TopN wrapper on SQLite, MySQL 5.7,
+  MySQL 8, PostgreSQL 15 and SQL Server 2022; result is `5/F0/E0/S0`;
+- matcher/rewriter/final-stage no longer infer materialized caption/id/time/property columns;
+  hybrid semantic watermark also requires an explicit materialized column contract;
+- final regression roots and source digests are frozen in
+  `step3-pivot-preagg-method-diagnostic-20260715.md` and its SHA manifest.
+
+This check-in is method-level diagnostic evidence on fixed demo containers. It does not satisfy
+the final fresh-storage runner, exact 46-execution collector, remaining assumption/early-return
+cleanup, required external matrix, or negative-probe checklist. The DDL/refresh Addon has a
+separate confirmed lifecycle gap tracked by
+`BUG-step3-preagg-addon-materialization-contract.md`.
 
 ## Verification
 

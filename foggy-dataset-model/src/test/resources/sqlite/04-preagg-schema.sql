@@ -31,6 +31,7 @@ CREATE TABLE preagg_daily_product_sales (
     sales_amount_formula_yuan_sum REAL NOT NULL DEFAULT 0,
     cost_amount_sum     REAL DEFAULT 0,
     profit_amount_sum   REAL DEFAULT 0,
+    order_count         INTEGER NOT NULL DEFAULT 0,
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,
@@ -55,6 +56,9 @@ CREATE TABLE preagg_monthly_category_sales (
     -- Measure columns (pre-aggregated)
     quantity_sum        INTEGER NOT NULL DEFAULT 0,
     sales_amount_sum    REAL NOT NULL DEFAULT 0,
+    cost_amount_sum     REAL DEFAULT 0,
+    profit_amount_sum   REAL DEFAULT 0,
+    order_count         INTEGER NOT NULL DEFAULT 0,
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,
@@ -88,6 +92,7 @@ CREATE TABLE preagg_daily_customer_channel_sales (
     -- Measure columns (pre-aggregated)
     quantity_sum        INTEGER NOT NULL DEFAULT 0,
     sales_amount_sum    REAL NOT NULL DEFAULT 0,
+    order_count         INTEGER NOT NULL DEFAULT 0,
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,
@@ -114,6 +119,7 @@ CREATE TABLE preagg_daily_return (
     -- Measure columns (pre-aggregated)
     return_quantity_sum INTEGER NOT NULL DEFAULT 0,
     return_amount_sum   REAL NOT NULL DEFAULT 0,
+    return_count        INTEGER NOT NULL DEFAULT 0,
 
     -- Metadata
     _preagg_row_count   INTEGER DEFAULT 1,

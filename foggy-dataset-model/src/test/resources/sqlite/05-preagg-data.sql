@@ -12,7 +12,7 @@ INSERT INTO preagg_daily_product_sales
      full_date, year, quarter, month, month_name,
      product_id, product_name, category_id, category_name, brand,
      quantity_sum, sales_amount_sum, sales_amount_formula_yuan_sum,
-     cost_amount_sum, profit_amount_sum, _preagg_row_count)
+     cost_amount_sum, profit_amount_sum, order_count, _preagg_row_count)
 SELECT
     fs.date_key,
     fs.product_key,
@@ -31,6 +31,7 @@ SELECT
     SUM((fs.sales_amount + 0) / 100.0) as sales_amount_formula_yuan_sum,
     SUM(COALESCE(fs.cost_amount, 0)) as cost_amount_sum,
     SUM(COALESCE(fs.profit_amount, 0)) as profit_amount_sum,
+    COUNT(*) as order_count,
     COUNT(*) as _preagg_row_count
 FROM fact_sales fs
 LEFT JOIN dim_date d ON fs.date_key = d.date_key
@@ -42,13 +43,17 @@ GROUP BY fs.date_key, fs.product_key,
 -- 2. Populate preagg_monthly_category_sales
 -- Aggregated from fact_sales by (year-month, category_id)
 INSERT INTO preagg_monthly_category_sales
-    (year_month, category_id, category_name, quantity_sum, sales_amount_sum, _preagg_row_count)
+    (year_month, category_id, category_name, quantity_sum, sales_amount_sum,
+     cost_amount_sum, profit_amount_sum, order_count, _preagg_row_count)
 SELECT
     substr(d.full_date, 1, 7) as year_month,
     p.category_id,
     p.category_name,
     SUM(fs.quantity) as quantity_sum,
     SUM(fs.sales_amount) as sales_amount_sum,
+    SUM(COALESCE(fs.cost_amount, 0)) as cost_amount_sum,
+    SUM(COALESCE(fs.profit_amount, 0)) as profit_amount_sum,
+    COUNT(*) as order_count,
     COUNT(*) as _preagg_row_count
 FROM fact_sales fs
 LEFT JOIN dim_product p ON fs.product_key = p.product_key
@@ -62,7 +67,7 @@ INSERT INTO preagg_daily_customer_channel_sales
      full_date,
      customer_name, customer_type, province, city,
      channel_name, channel_type,
-     quantity_sum, sales_amount_sum, _preagg_row_count)
+     quantity_sum, sales_amount_sum, order_count, _preagg_row_count)
 SELECT
     fs.date_key,
     fs.customer_key,
@@ -76,6 +81,7 @@ SELECT
     ch.channel_type,
     SUM(fs.quantity) as quantity_sum,
     SUM(fs.sales_amount) as sales_amount_sum,
+    COUNT(*) as order_count,
     COUNT(*) as _preagg_row_count
 FROM fact_sales fs
 LEFT JOIN dim_date d ON fs.date_key = d.date_key
@@ -91,7 +97,7 @@ GROUP BY fs.date_key, fs.customer_key, fs.channel_key,
 -- Aggregated from fact_return by (date_key, product_key)
 INSERT INTO preagg_daily_return
     (date_key, product_key, full_date, product_name, category_name,
-     return_quantity_sum, return_amount_sum, _preagg_row_count)
+     return_quantity_sum, return_amount_sum, return_count, _preagg_row_count)
 SELECT
     fr.date_key,
     fr.product_key,
@@ -100,6 +106,7 @@ SELECT
     p.category_name,
     SUM(fr.return_quantity) as return_quantity_sum,
     SUM(fr.return_amount) as return_amount_sum,
+    COUNT(*) as return_count,
     COUNT(*) as _preagg_row_count
 FROM fact_return fr
 LEFT JOIN dim_date d ON fr.date_key = d.date_key

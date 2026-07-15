@@ -195,8 +195,9 @@ public class PreAggregationInterceptor {
     /**
      * 为多阶段 final-stage count 构建等价的预聚合聚合 SQL。
      * <p>
-     * 该方法要求完整查询本身可以被预聚合主查询重写；随后只把该重写结果包成
-     * final count SQL。这样可以避免直接 COUNT 预聚合物理表导致粒度不一致。
+     * 该路径不依赖主查询重写：final-stage 中的派生聚合投影可能不是主重写器
+     * 可安全消费的语义列。候选先通过 final-stage requirement/matcher 证明粒度和聚合兼容，
+     * 选中后再由独立 builder 证明分组、度量和谓词都可重建；hybrid 候选一律 fail closed。
      * </p>
      */
     public PreAggQueryRewriter.PreAggAggregateSqlResult tryBuildFinalStageAggregateSql(
@@ -204,15 +205,26 @@ public class PreAggregationInterceptor {
             JdbcQueryModel queryModel,
             DbQueryRequestDef queryRequest) {
 
-        PreAggRewriteResult rewriteResult = tryRewrite(queryEngine, queryModel, queryRequest);
-        if (!rewriteResult.isApplied()) {
+        List<PreAggregation> configured = getPreAggregations(queryModel);
+        if (configured == null || configured.isEmpty()) {
+            return null;
+        }
+
+        JdbcQuery jdbcQuery = queryEngine.getJdbcQuery();
+        if (jdbcQuery == null) {
+            return null;
+        }
+
+        PreAggQueryRequirement requirement =
+                requirementBuilder.buildFinalStage(queryRequest, jdbcQuery, queryModel);
+        PreAggregationMatchResult matchResult = matcher.findBestMatch(requirement, configured);
+        if (!matchResult.isMatched() || matchResult.isHybridQuery()) {
             return null;
         }
 
         PreAggQueryRewriter rewriter = new PreAggQueryRewriter(queryModel, applicationContext);
-        PreAggQueryRewriter.PreAggAggregateSqlResult result =
-                rewriter.buildFinalStageAggregateSql(rewriteResult, queryEngine.getJdbcQuery(), queryRequest);
-
+        PreAggQueryRewriter.PreAggAggregateSqlResult result = rewriter.buildFinalStageAggregateSql(
+                matchResult.getPreAggregation(), jdbcQuery, queryRequest, matchResult);
         if (result != null) {
             log.info("Using pre-aggregation '{}' for equivalent final-stage aggregate query (returnTotal)",
                     result.getPreAggName());
@@ -233,67 +245,6 @@ public class PreAggregationInterceptor {
     private PreAggQueryRequirement buildAggregateRequirement(DbQueryRequestDef queryRequest,
                                                               JdbcQuery jdbcQuery,
                                                               JdbcQueryModel queryModel) {
-        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
-
-        // 聚合查询设置 hasGroupBy = true，以便通过匹配器的检查
-        // （实际上聚合查询会对整个预聚合表做聚合，不需要 GROUP BY）
-        requirement.setHasGroupBy(true);
-
-        // 从 SELECT 列中提取度量
-        if (jdbcQuery.getSelect() != null && jdbcQuery.getSelect().getColumns() != null) {
-            for (com.foggyframework.dataset.db.model.spi.DbColumn column : jdbcQuery.getSelect().getColumns()) {
-                if (column.isMeasure()) {
-                    com.foggyframework.dataset.db.model.spi.DbAggregation aggregation = column.getAggregation();
-                    if (aggregation == null) {
-                        aggregation = com.foggyframework.dataset.db.model.spi.DbAggregation.SUM;
-                    }
-                    requirement.addMeasure(column.getName(), aggregation);
-                }
-            }
-        }
-
-        // 提取 slice 列
-        if (queryRequest.getSlice() != null && !queryRequest.getSlice().isEmpty()) {
-            requirement.setHasWhereConditions(true);
-            for (var slice : queryRequest.getSlice()) {
-                extractSliceColumn(slice, requirement);
-            }
-        }
-
-        return requirement;
-    }
-
-    /**
-     * 从 Slice 条件中提取涉及的列
-     */
-    private void extractSliceColumn(com.foggyframework.dataset.db.model.def.query.request.CondRequestDef cond,
-                                     PreAggQueryRequirement requirement) {
-        if (cond == null) {
-            return;
-        }
-
-        // 处理逻辑组合条件
-        if (cond._isLogicalGroup()) {
-            List<? extends com.foggyframework.dataset.db.model.def.query.request.CondRequestDef> children = cond._getGroupChildren();
-            if (children != null) {
-                for (var child : children) {
-                    extractSliceColumn(child, requirement);
-                }
-            }
-            return;
-        }
-
-        // 处理简单条件
-        String field = cond.getField();
-        if (field != null && !field.isEmpty()) {
-            requirement.addSliceColumn(field);
-
-            // 如果是维度字段，也添加到维度列表
-            int dollarIndex = field.indexOf('$');
-            if (dollarIndex > 0) {
-                String dimName = field.substring(0, dollarIndex);
-                requirement.addDimension(dimName);
-            }
-        }
+        return requirementBuilder.buildAggregate(queryRequest, jdbcQuery, queryModel);
     }
 }

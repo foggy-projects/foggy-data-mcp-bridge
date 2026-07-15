@@ -91,15 +91,22 @@ public enum TimeGranularity {
     /**
      * 判断是否可以向上聚合到目标粒度
      * <p>
-     * 只有当前粒度 &lt;= 目标粒度时才能聚合。
-     * 例如：DAY 可以聚合到 WEEK/MONTH/YEAR，但不能聚合到 HOUR。
+     * 只有当前粒度能够组成目标粒度的完整自然时间桶时才能聚合。
+     * 例如：DAY 可以聚合到 WEEK/MONTH/YEAR，但自然周可能跨月、季度或年份，
+     * 因而 WEEK 在缺少日历/对齐元数据时只能保持 WEEK。
      * </p>
      *
      * @param target 目标粒度
      * @return 是否可以聚合
      */
     public boolean canRollupTo(TimeGranularity target) {
-        return this.minuteMultiplier <= target.minuteMultiplier;
+        if (target == null) {
+            return false;
+        }
+        if (this == WEEK) {
+            return target == WEEK;
+        }
+        return this.ordinal() <= target.ordinal();
     }
 
     /**

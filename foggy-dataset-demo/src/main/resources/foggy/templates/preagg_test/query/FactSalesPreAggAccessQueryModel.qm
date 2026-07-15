@@ -1,0 +1,32 @@
+/**
+ * Pre-aggregation access predicate provenance fixture.
+ */
+const fs = loadTableModel('FactSalesPreAggModel');
+
+export const queryModel = {
+    name: 'FactSalesPreAggAccessQueryModel',
+    caption: '销售预聚合 access 回归',
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '回归字段',
+            items: [
+                { ref: fs.salesDate },
+                { ref: fs.product$categoryName },
+                { ref: fs.orderStatus },
+                { ref: fs.salesAmount }
+            ]
+        }
+    ],
+
+    accesses: [
+        {
+            queryBuilder: (context) => {
+                // Selective fixture: SHIPPED keeps one apparel group, while
+                // the unfiltered baseline contains several categories.
+                context.query.getWhere().and(fs.orderStatus, 'SHIPPED');
+            }
+        }
+    ]
+};

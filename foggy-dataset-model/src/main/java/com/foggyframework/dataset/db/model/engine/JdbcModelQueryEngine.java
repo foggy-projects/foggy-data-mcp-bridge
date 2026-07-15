@@ -309,42 +309,53 @@ public class JdbcModelQueryEngine implements QueryEngine {
         AggregateMemberFilterPlanner.ensurePlanned(context, jdbcQueryModel);
 
         // 2. 加入切片条件。纯聚合 slice 视为聚合后过滤，自动写入 HAVING。
-        boolean hasLiftedAggregateSlice = false;
-        List<SliceRequestDef> innerSlice = new ArrayList<>();
-        this.postAggregateSlice = new ArrayList<>();
-        if (queryRequest.getSlice() != null) {
-            splitPostAggregateSlice(queryRequest.getSlice(), postAggregateNames, innerSlice, this.postAggregateSlice);
-        }
-        if (!innerSlice.isEmpty()) {
-            for (SliceRequestDef sliceDef : innerSlice) {
-                if (autoLiftAggregateSliceToHaving) {
-                    SliceConditionPhase phase = classifySliceConditionPhase(sliceDef);
-                    if (phase == SliceConditionPhase.AGGREGATE) {
-                        hasLiftedAggregateSlice = true;
-                        buildHaving(context, jdbcQueryModel, jdbcQuery, sliceDef);
+        jdbcQuery.beginRequestConditionCompilation();
+        try {
+            boolean hasLiftedAggregateSlice = false;
+            List<SliceRequestDef> innerSlice = new ArrayList<>();
+            this.postAggregateSlice = new ArrayList<>();
+            if (queryRequest.getSlice() != null) {
+                splitPostAggregateSlice(
+                        queryRequest.getSlice(), postAggregateNames, innerSlice, this.postAggregateSlice);
+            }
+            if (!innerSlice.isEmpty()) {
+                for (SliceRequestDef sliceDef : innerSlice) {
+                    if (autoLiftAggregateSliceToHaving) {
+                        SliceConditionPhase phase = classifySliceConditionPhase(sliceDef);
+                        if (phase == SliceConditionPhase.AGGREGATE) {
+                            hasLiftedAggregateSlice = true;
+                            buildHaving(context, jdbcQueryModel, jdbcQuery, sliceDef);
+                        } else {
+                            buildSlice(context, jdbcQueryModel, jdbcQuery, sliceDef);
+                        }
                     } else {
+                        rejectAggregateConditionInSlice(sliceDef);
                         buildSlice(context, jdbcQueryModel, jdbcQuery, sliceDef);
                     }
-                } else {
-                    rejectAggregateConditionInSlice(sliceDef);
-                    buildSlice(context, jdbcQueryModel, jdbcQuery, sliceDef);
                 }
             }
-        }
-        if (hasLiftedAggregateSlice && !queryRequest.hasGroupBy()) {
-            throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: aggregate slice filters are only supported for grouped aggregate queries. Add groupBy/aggregate columns or move row-level filters to slice.");
-        }
-        List<SliceRequestDef> innerHaving = new ArrayList<>();
-        if (queryRequest.getHaving() != null && !queryRequest.getHaving().isEmpty()) {
-            splitPostAggregateSlice(queryRequest.getHaving(), postAggregateNames, innerHaving, this.postAggregateSlice);
-        }
-        if (!innerHaving.isEmpty()) {
-            if (!queryRequest.hasGroupBy()) {
-                throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: request.having is only supported for grouped aggregate queries. Add groupBy/aggregate columns or move row-level filters to slice.");
+            if (hasLiftedAggregateSlice && !queryRequest.hasGroupBy()) {
+                throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: aggregate slice filters are only supported "
+                        + "for grouped aggregate queries. Add groupBy/aggregate columns or move row-level "
+                        + "filters to slice.");
             }
-            for (SliceRequestDef havingDef : innerHaving) {
-                buildHaving(context, jdbcQueryModel, jdbcQuery, havingDef);
+            List<SliceRequestDef> innerHaving = new ArrayList<>();
+            if (queryRequest.getHaving() != null && !queryRequest.getHaving().isEmpty()) {
+                splitPostAggregateSlice(
+                        queryRequest.getHaving(), postAggregateNames, innerHaving, this.postAggregateSlice);
             }
+            if (!innerHaving.isEmpty()) {
+                if (!queryRequest.hasGroupBy()) {
+                    throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: request.having is only supported for "
+                            + "grouped aggregate queries. Add groupBy/aggregate columns or move row-level "
+                            + "filters to slice.");
+                }
+                for (SliceRequestDef havingDef : innerHaving) {
+                    buildHaving(context, jdbcQueryModel, jdbcQuery, havingDef);
+                }
+            }
+        } finally {
+            jdbcQuery.endRequestConditionCompilation();
         }
 
 
@@ -1365,10 +1376,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     }
                     jdbcQuery.getWhere().addRawSql("AND",
                             "exists (select 1 from " + plan.getRelationName() + " _d where " + predicate + ")");
+                    jdbcQuery.setNonSliceWhereConditionAdded(true);
                 } else if (rendered.getPlacement() == DomainTransportPlacement.DERIVED_TABLE) {
                     jdbcQuery.getWhere().andList(
                             "exists (select 1 from " + rendered.getSqlFragment() + " _d where " + predicate + ")",
                             rendered.getParams());
+                    jdbcQuery.setNonSliceWhereConditionAdded(true);
                 } else {
                     throw new DomainTransportRefusalException("Unsupported domain transport placement: " + rendered.getPlacement());
                 }

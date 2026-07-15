@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.preagg;
 
 import com.foggyframework.dataset.db.model.def.preagg.PreAggMeasureDef;
+import com.foggyframework.dataset.db.model.def.preagg.PreAggFilterDef;
+import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggregationDef;
 import com.foggyframework.dataset.db.model.impl.preagg.PreAggregationImpl;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
@@ -9,8 +11,11 @@ import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.*;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -89,6 +94,187 @@ class PreAggregationMatcherTest {
 
         PreAggregationMatchResult result = matcher.findBestMatch(requirement, preAggregations);
         assertTrue(result.isMatched());
+        assertTrue(result.isNeedsRollup(),
+                "omitting the pre-aggregation salesDate dimension must trigger rollup");
+    }
+
+    @Test
+    @DisplayName("按维度属性分组时必须从维度键粒度 rollup")
+    void testDimensionPropertyRequiresRollup() {
+        PreAggregation preAgg = createProductPreAgg("salesAmount", "SUM");
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addDimensionProperty("product", "categoryName");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+
+        PreAggregationMatchResult result = matcher.findBestMatch(requirement, List.of(preAgg));
+
+        assertTrue(result.isMatched());
+        assertTrue(result.isNeedsRollup(),
+                "categoryName can repeat across product keys and must be aggregated again");
+    }
+
+    @Test
+    @DisplayName("推导列名和时间粒度不能冒充物化列契约")
+    void inferredColumnNamesAndGrainDoNotProveMaterializedProperties() {
+        PreAggregationDef def = new PreAggregationDef();
+        def.setName("monthly_product_sales");
+        def.setTableName("preagg_monthly_product_sales");
+        def.setDimensions(List.of("salesDate", "product"));
+        def.setGranularity(Map.of("salesDate", "month"));
+        def.setMeasures(List.of(createMeasureDef("salesAmount", "SUM")));
+        def.setEnabled(true);
+        PreAggregation preAgg = new PreAggregationImpl(def, null);
+
+        assertEquals("product_name",
+                preAgg.getDimensionPropertyColumnNames().get("product$caption"),
+                "runtime may retain a naming-convention hint");
+        assertTrue(preAgg.getExplicitDimensionPropertyColumnNames().isEmpty(),
+                "fixture deliberately declares no physical dimension columns");
+
+        PreAggQueryRequirement captionRequirement = new PreAggQueryRequirement();
+        captionRequirement.setHasGroupBy(true);
+        captionRequirement.addDimension("product");
+        captionRequirement.addDimensionProperty("product", "caption");
+        captionRequirement.addMeasure("salesAmount", DbAggregation.SUM);
+        assertFalse(captionRequirement.isSatisfiableBy(preAgg),
+                "guessed product_name must not prove a physical caption column");
+
+        PreAggQueryRequirement monthRequirement = new PreAggQueryRequirement();
+        monthRequirement.setHasGroupBy(true);
+        monthRequirement.addDimension("salesDate");
+        monthRequirement.addDimensionProperty("salesDate", "month");
+        monthRequirement.setTimeGranularity("salesDate", TimeGranularity.MONTH);
+        monthRequirement.addMeasure("salesAmount", DbAggregation.SUM);
+        assertFalse(monthRequirement.isSatisfiableBy(preAgg),
+                "MONTH grain must not prove that a physical month column exists");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DbAggregation.class, names = {"AVG", "COUNT_DISTINCT"})
+    @DisplayName("非可分解度量只允许精确粒度，粗粒度 rollup 必须拒绝")
+    void nonDecomposableMeasuresRequireExactGrain(DbAggregation aggregation) {
+        PreAggregation preAgg = createDailyProductPreAgg("derivedMeasure", aggregation.name());
+
+        PreAggQueryRequirement exact = new PreAggQueryRequirement();
+        exact.setHasGroupBy(true);
+        exact.addDimension("product");
+        exact.addDimension("salesDate");
+        exact.addMeasure("derivedMeasure", aggregation);
+
+        PreAggregationMatchResult exactResult = matcher.findBestMatch(exact, List.of(preAgg));
+        assertTrue(exactResult.isMatched(), "exact pre-aggregation grain may reuse a materialized value");
+        assertFalse(exactResult.isNeedsRollup());
+
+        PreAggQueryRequirement coarser = new PreAggQueryRequirement();
+        coarser.setHasGroupBy(true);
+        coarser.addDimension("product");
+        coarser.addMeasure("derivedMeasure", aggregation);
+
+        PreAggregationMatchResult coarserResult = matcher.findBestMatch(coarser, List.of(preAgg));
+        assertFalse(coarserResult.isMatched(),
+                aggregation + " cannot be recomputed from unequal-size pre-aggregation groups");
+
+        PreAggregation hybridPreAgg = createDailyProductPreAgg(
+                "derivedMeasure", aggregation.name(), true);
+        hybridPreAgg.setDataWatermark(LocalDate.now().minusDays(1));
+        PreAggregationMatchResult hybridResult = matcher.findBestMatch(exact, List.of(hybridPreAgg));
+        assertFalse(hybridResult.isMatched(),
+                aggregation + " cannot be merged with raw source rows in hybrid mode");
+    }
+
+    @Test
+    @DisplayName("hybrid watermark 未初始化时必须 fail closed")
+    void uninitializedHybridWatermarkDoesNotMatch() {
+        PreAggregation preAgg = createDailyProductPreAgg("salesAmount", "SUM", true);
+        assertNull(preAgg.getDataWatermark());
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addDimension("salesDate");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+
+        assertFalse(matcher.findBestMatch(requirement, List.of(preAgg)).isMatched(),
+                "null watermark cannot define either hybrid SQL branch");
+
+        matcher.setHybridQueryEnabled(false);
+        assertTrue(matcher.findBestMatch(requirement, List.of(preAgg)).isMatched(),
+                "an explicit snapshot-only policy may ignore incremental freshness");
+    }
+
+    @Test
+    @DisplayName("hybrid semantic watermark 必须有物化列契约")
+    void hybridSemanticWatermarkRequiresMaterializedColumnContract() {
+        PreAggregationDef def = new PreAggregationDef();
+        def.setName("unsafe_incremental_sales");
+        def.setTableName("unsafe_incremental_sales");
+        def.setDimensions(List.of("salesDate", "product"));
+        def.setGranularity(Map.of("salesDate", "day"));
+        def.setDimensionProperties(Map.of("product", List.of("category_name")));
+        def.setMeasures(List.of(createMeasureDef("salesAmount", "SUM")));
+        PreAggRefreshDef refresh = new PreAggRefreshDef();
+        refresh.setStrategy("INCREMENTAL");
+        refresh.setWatermarkColumn("salesDate$id");
+        def.setRefresh(refresh);
+        def.setEnabled(true);
+        PreAggregation preAgg = new PreAggregationImpl(def, null);
+        preAgg.setDataWatermark(LocalDate.now().minusDays(1));
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("salesDate");
+        requirement.addDimension("product");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+
+        assertFalse(matcher.findBestMatch(requirement, List.of(preAgg)).isMatched(),
+                "hybrid SQL must not guess a date_key for an undeclared salesDate$id watermark");
+    }
+
+    @Test
+    @DisplayName("自然周在缺少日历对齐元数据时不得 rollup 到月季年")
+    void calendarWeekDoesNotRollUpAcrossNonNestedBoundaries() {
+        assertTrue(TimeGranularity.DAY.canRollupTo(TimeGranularity.WEEK));
+        assertTrue(TimeGranularity.DAY.canRollupTo(TimeGranularity.MONTH));
+        assertTrue(TimeGranularity.MONTH.canRollupTo(TimeGranularity.QUARTER));
+        assertTrue(TimeGranularity.QUARTER.canRollupTo(TimeGranularity.YEAR));
+
+        assertTrue(TimeGranularity.WEEK.canRollupTo(TimeGranularity.WEEK));
+        assertFalse(TimeGranularity.WEEK.canRollupTo(TimeGranularity.MONTH));
+        assertFalse(TimeGranularity.WEEK.canRollupTo(TimeGranularity.QUARTER));
+        assertFalse(TimeGranularity.WEEK.canRollupTo(TimeGranularity.YEAR));
+    }
+
+    @Test
+    @DisplayName("同一时间维同时要求周和月时必须收紧到日粒度")
+    void weekAndCalendarPeriodRequirementsNeedDailyMaterialization() {
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("salesDate");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+        requirement.setTimeGranularity("salesDate", TimeGranularity.WEEK);
+        requirement.setTimeGranularity("salesDate", TimeGranularity.MONTH);
+
+        assertEquals(TimeGranularity.DAY,
+                requirement.getQueryGranularities().get("salesDate"));
+
+        PreAggregationDef weeklyDef = new PreAggregationDef();
+        weeklyDef.setName("weekly_sales");
+        weeklyDef.setTableName("preagg_weekly_sales");
+        weeklyDef.setPriority(100);
+        weeklyDef.setDimensions(List.of("salesDate"));
+        weeklyDef.setGranularity(Map.of("salesDate", "week"));
+        weeklyDef.setMeasures(List.of(createMeasureDef("salesAmount", "SUM")));
+        weeklyDef.setEnabled(true);
+
+        assertFalse(matcher.findBestMatch(
+                        requirement, List.of(new PreAggregationImpl(weeklyDef, null))).isMatched(),
+                "weekly rows cannot be repartitioned into calendar months");
+        assertTrue(matcher.findBestMatch(
+                        requirement, List.of(createDailyProductPreAgg())).isMatched(),
+                "daily rows can satisfy both calendar-week and calendar-month shapes");
     }
 
     @Test
@@ -267,12 +453,71 @@ class PreAggregationMatcherTest {
         assertFalse(result.isMatched());
     }
 
+    @Test
+    @DisplayName("查询时间粒度已证明时拒绝未声明粒度的候选")
+    void testMissingMaterializationGranularityFailsClosed() {
+        PreAggregationDef def = new PreAggregationDef();
+        def.setName("unknown_grain_product_sales");
+        def.setTableName("preagg_unknown_grain_product_sales");
+        def.setPriority(50);
+        def.setDimensions(List.of("product", "salesDate"));
+        def.setMeasures(List.of(createMeasureDef("salesAmount", "SUM")));
+        def.setEnabled(true);
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("salesDate");
+        requirement.setTimeGranularity("salesDate", TimeGranularity.DAY);
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+
+        PreAggregationMatchResult result = matcher.findBestMatch(
+                requirement, List.of(new PreAggregationImpl(def, null)));
+
+        assertFalse(result.isMatched(),
+                "an unknown materialization grain must not masquerade as DAY");
+    }
+
+    @Test
+    @DisplayName("永久过滤预聚合在过滤含义未可证时 fail closed")
+    void filteredPreAggregationRequiresPredicateImplicationProof() {
+        PreAggregationDef def = new PreAggregationDef();
+        def.setName("completed_product_sales");
+        def.setTableName("preagg_completed_product_sales");
+        def.setPriority(100);
+        def.setDimensions(List.of("product"));
+        def.setMeasures(List.of(createMeasureDef("salesAmount", "SUM")));
+        PreAggFilterDef filter = new PreAggFilterDef();
+        filter.setField("orderStatus");
+        filter.setOp("=");
+        filter.setValue("COMPLETED");
+        def.setFilters(List.of(filter));
+        def.setEnabled(true);
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addMeasure("salesAmount", DbAggregation.SUM);
+
+        assertFalse(matcher.findBestMatch(
+                        requirement, List.of(new PreAggregationImpl(def, null))).isMatched(),
+                "a filtered materialization cannot serve an unproven unfiltered query");
+    }
+
     // ==================== 辅助方法 ====================
 
     /**
      * 创建日粒度产品销售预聚合
      */
     private PreAggregation createDailyProductPreAgg() {
+        return createDailyProductPreAgg("salesAmount", "SUM");
+    }
+
+    private PreAggregation createDailyProductPreAgg(String measureName, String aggregation) {
+        return createDailyProductPreAgg(measureName, aggregation, false);
+    }
+
+    private PreAggregation createDailyProductPreAgg(String measureName, String aggregation,
+                                                     boolean incremental) {
         PreAggregationDef def = new PreAggregationDef();
         def.setName("daily_product_sales");
         def.setTableName("preagg_daily_product_sales");
@@ -280,15 +525,32 @@ class PreAggregationMatcherTest {
         def.setDimensions(List.of("product", "salesDate"));
         def.setGranularity(Map.of("salesDate", "day"));
         def.setDimensionProperties(Map.of(
-                "product", List.of("category_name", "brand")
+                "product", List.of("category_name", "brand"),
+                "salesDate", List.of("id")
         ));
         def.setMeasures(List.of(
-                createMeasureDef("salesAmount", "SUM"),
-                createMeasureDef("quantity", "SUM"),
-                createMeasureDef("orderCount", "COUNT")
+                createMeasureDef(measureName, aggregation)
         ));
+        if (incremental) {
+            PreAggRefreshDef refresh = new PreAggRefreshDef();
+            refresh.setStrategy("INCREMENTAL");
+            refresh.setWatermarkColumn("salesDate$id");
+            def.setRefresh(refresh);
+        }
         def.setEnabled(true);
 
+        return new PreAggregationImpl(def, null);
+    }
+
+    private PreAggregation createProductPreAgg(String measureName, String aggregation) {
+        PreAggregationDef def = new PreAggregationDef();
+        def.setName("product_sales");
+        def.setTableName("preagg_product_sales");
+        def.setPriority(50);
+        def.setDimensions(List.of("product"));
+        def.setDimensionProperties(Map.of("product", List.of("category_name")));
+        def.setMeasures(List.of(createMeasureDef(measureName, aggregation)));
+        def.setEnabled(true);
         return new PreAggregationImpl(def, null);
     }
 

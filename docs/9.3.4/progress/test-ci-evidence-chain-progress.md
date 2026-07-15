@@ -243,6 +243,65 @@ hermetic/SQLite correctness；五库/external、coverage、CI/release 与 versio
 - decision: `needs-formal-quality-gate-at-step3-exit`；当前批次可作为 diagnostic foundation
   合入，禁止提升为 authority/accepted。
 
+## Execution Check-in — Step 3（in-progress / Pivot preagg query diagnostic）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-15
+- owner: current 9.3.4 root session
+- scope: 修复 Pivot 预聚合 relation 的物理列映射与参数顺序伪绿；把 query matcher、
+  main/final-stage rewriter、hybrid watermark 收紧为 fail-closed；补齐隔离的五库同构
+  V934 preagg fixture，并在每库真实执行 rewritten SQL、native oracle 和 TopN 包装。
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-pivot-preagg-method-diagnostic-20260715.md`、
+  `docs/9.3.4/evidence/step-3/step3-pivot-preagg-method-source-sha256.txt`。
+
+实现结果：
+
+- `PreAggregation` 区分命名约定提示与明确物化属性契约；caption/id/time bucket、slice
+  RHS、表达式 token 和 semantic watermark 均不能再由维度存在、时间粒度或猜测列名
+  反向证明。无法证明时 matcher/rewriter/final-stage/hybrid 全部回退源查询。
+- temporal grain 合并覆盖 natural WEEK 与 calendar month/quarter/year 非嵌套边界；
+  monthly `year_month` 不再被冒充 `salesDate$month`，仅 monthly 候选时明确拒绝；daily
+  month 物化 SQL 在 SQLite 真实执行并返回非空分组。
+- HAVING、复杂 main predicate、hybrid+slice、null watermark、legacy returnTotal rollup/
+  hybrid、stale/wrong candidate 等未证明路径均 fail-closed；typed/open range、LIKE、
+  `$field`/合法 `$expr` 的 final-stage 参数和语义 parity 有正向/负向回归。
+- 历史 SQLite/MySQL `FactSalesPreAggModel`、`FactReturnPreAggModel` 的公开物化列和度量
+  契约已对齐；V934 模型明确声明 `salesDate$id -> date_key`、`product$id -> product_key`
+  与 `product$categoryName -> category_name`。
+
+最终冻结的 diagnostic runs：
+
+- demo reactor install：`target/v934-step3-pivot-demo-install-r3`，`BUILD SUCCESS`；
+- preagg unit bundle：`target/v934-step3-preagg-unit-bundle-r12`，
+  `57/F0/E0/S0`；
+- `PreAggregationIT`：
+  `foggy-dataset-model/target/v934-step3-preagg-regression-r12`，`29/F0/E0/S0`；
+- query-stage regression：`target/v934-step3-query-stage-r2`，`24/F0/E0/S0`；
+- L2 integration：`target/v934-step3-preagg-l2-r5`，`1/F0/E0/S0`；
+- Pivot method matrix：SQLite r4、MySQL 5.7 r5、MySQL 8 r3、PostgreSQL 15 r3、
+  SQL Server 2022 r3，各 `1/F0/E0/S0`，合计 `5/F0/E0/S0`；
+- fixture apply/clean：
+  `target/v934-step3-pivot-fixtures-final/{apply-verified,clean-verified}.log`；四外库
+  apply 均为 `preagg_rows=4 / preagg_total=100.0000`，clean 均为
+  `sentinel_rows=0 / fixture_tables=0`。
+
+Evidence boundary / non-goals：
+
+- 这是 long-lived fixed-container 上的 method-level diagnostic，不是 fresh/run-scoped
+  29 DB execution authority，也没有清零 16 个 required external execution；Step 3 仍为
+  `in-progress`，不得进入 Step 4。
+- 本批物化契约只覆盖 query matcher/rewriter/final-stage/hybrid read path 与 Pivot 定点
+  执行。Addon `PreAggSqlBuilder` 的 DDL/refresh 路径仍有独立猜测映射，已登记
+  `BUG-step3-preagg-addon-materialization-contract.md`；因此不宣称预聚合生成/刷新全生命周期
+  已统一。
+- formal implementation quality gate、coverage audit 和 acceptance 均保留到 Step 3 exit/
+  Step 7 规定位置；本批仅通过 lightweight self-check 与独立 source/contract review。
+
+Decision：本批 query diagnostic 可合入并作为后续 exact runner 的前置；Step 3 exit 仍
+被剩余 required Pivot/MultiDatabase execution、完整 29+16 matrix、fresh storage、exact
+collector/negative probes 和 Addon 生命周期 follow-up 阻止。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：

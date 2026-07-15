@@ -1,6 +1,5 @@
 package com.foggyframework.dataset.db.model.engine.preagg;
 
-import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
@@ -109,7 +108,33 @@ public class PreAggQueryRequirement {
      * 设置时间维度的查询粒度
      */
     public void setTimeGranularity(String dimensionName, TimeGranularity granularity) {
-        queryGranularities.put(dimensionName, granularity);
+        if (dimensionName == null || granularity == null) {
+            return;
+        }
+        queryGranularities.merge(dimensionName, granularity,
+                PreAggQueryRequirement::mergeRequiredGranularity);
+    }
+
+    private static TimeGranularity mergeRequiredGranularity(TimeGranularity existing,
+                                                             TimeGranularity candidate) {
+        if (existing == candidate) {
+            return existing;
+        }
+        // Natural weeks are not nested inside calendar months/quarters/years.
+        // A query that needs both shapes requires at least DAY materialization
+        // grain; retaining WEEK would incorrectly accept a weekly candidate.
+        if ((existing == TimeGranularity.WEEK && isCalendarPeriod(candidate))
+                || (candidate == TimeGranularity.WEEK && isCalendarPeriod(existing))) {
+            return TimeGranularity.DAY;
+        }
+        return existing.getMinuteMultiplier() <= candidate.getMinuteMultiplier()
+                ? existing : candidate;
+    }
+
+    private static boolean isCalendarPeriod(TimeGranularity granularity) {
+        return granularity == TimeGranularity.MONTH
+                || granularity == TimeGranularity.QUARTER
+                || granularity == TimeGranularity.YEAR;
     }
 
     /**
@@ -161,67 +186,12 @@ public class PreAggQueryRequirement {
     }
 
     /**
-     * 隐式属性：这些属性在任何维度上都是隐式可用的，不需要显式配置
-     * <ul>
-     *   <li>caption - 维度的显示列（captionColumn）</li>
-     *   <li>id - 维度的主键</li>
-     * </ul>
-     */
-    private static final Set<String> IMPLICIT_PROPERTIES = Set.of("caption", "id");
-
-    /**
-     * 时间粒度属性：这些属性表示时间粒度，应该通过粒度配置匹配，而不是作为普通属性
-     */
-    private static final Set<String> TIME_GRANULARITY_PROPERTIES = Set.of(
-            "year", "quarter", "month", "week", "day", "hour", "minute"
-    );
-
-    /**
-     * 将属性名标准化为 snake_case 格式
-     * <p>
-     * 委托 {@link StringUtils#to_sm_string(String)}，避免重复实现。
-     * 例如：categoryName → category_name
-     * </p>
-     */
-    private static String normalizePropertyName(String name) {
-        if (name == null || name.isEmpty()) {
-            return name;
-        }
-        // 已经是 snake_case 格式
-        if (name.contains("_")) {
-            return name.toLowerCase();
-        }
-        return StringUtils.to_sm_string(name);
-    }
-
-    /**
-     * 构建规范化的属性名集合
-     * <p>
-     * 将预聚合维度的属性名集合统一转换为 snake_case 格式，
-     * 避免在 {@link #isSatisfiableBy(PreAggregation)} 中重复创建 HashSet。
-     * </p>
-     *
-     * @param properties 原始属性名集合
-     * @return 规范化后的属性名集合
-     */
-    private static Set<String> buildNormalizedPropertySet(Set<String> properties) {
-        if (properties == null || properties.isEmpty()) {
-            return Collections.emptySet();
-        }
-        Set<String> normalized = new HashSet<>(properties.size());
-        for (String p : properties) {
-            normalized.add(normalizePropertyName(p));
-        }
-        return normalized;
-    }
-
-    /**
      * 检查预聚合是否满足此查询需求
      * <p>
      * 匹配规则：
      * <ul>
      *   <li>查询维度 ⊆ 预聚合维度</li>
-     *   <li>查询属性 ⊆ 预聚合属性（caption/id 为隐式属性，无需显式配置）</li>
+     *   <li>查询属性 ⊆ 明确声明的物化属性</li>
      *   <li>查询粒度 ≥ 预聚合粒度（可向上聚合）</li>
      *   <li>查询度量 ⊆ 预聚合度量</li>
      *   <li>聚合方式兼容</li>
@@ -232,6 +202,14 @@ public class PreAggQueryRequirement {
      * @return 是否满足
      */
     public boolean isSatisfiableBy(PreAggregation preAgg) {
+        // A permanently filtered materialization is not equivalent to an
+        // unfiltered semantic model unless its filter implication can be
+        // proven. That proof is not represented in the current requirement,
+        // so filtered pre-aggregations must fail closed.
+        if (preAgg.getFilters() != null && !preAgg.getFilters().isEmpty()) {
+            return false;
+        }
+
         // 1. 检查维度：查询的维度必须都在预聚合中
         for (String dim : dimensionNames) {
             if (!preAgg.hasDimension(dim)) {
@@ -239,26 +217,14 @@ public class PreAggQueryRequirement {
             }
         }
 
-        // 2. 检查维度属性：查询的属性必须都在预聚合中
-        // 注意：caption 和 id 是隐式属性，不需要显式配置
-        // 注意：时间粒度属性（year, month, day 等）通过粒度配置匹配，不作为普通属性检查
+        // 2. 每个查询属性都必须有明确物化契约。粒度只证明 rollup
+        // 兼容性，不能证明 month/year/caption/id 等物理列存在。
         for (Map.Entry<String, Set<String>> entry : dimensionProperties.entrySet()) {
             String dimName = entry.getKey();
             Set<String> queryProps = entry.getValue();
-            Set<String> normalizedPreAggProps = buildNormalizedPropertySet(preAgg.getDimensionProperties(dimName));
 
             for (String prop : queryProps) {
-                // 跳过隐式属性（caption, id）的检查
-                if (IMPLICIT_PROPERTIES.contains(prop)) {
-                    continue;
-                }
-                // 跳过时间粒度属性的检查（通过粒度配置匹配）
-                if (TIME_GRANULARITY_PROPERTIES.contains(prop.toLowerCase())) {
-                    continue;
-                }
-                // 使用规范化的属性名进行比较
-                String normalizedProp = normalizePropertyName(prop);
-                if (!normalizedPreAggProps.contains(normalizedProp)) {
+                if (!preAgg.hasMaterializedDimensionProperty(dimName, prop)) {
                     return false;
                 }
             }
@@ -270,11 +236,16 @@ public class PreAggQueryRequirement {
             TimeGranularity queryGranularity = entry.getValue();
             TimeGranularity preAggGranularity = preAgg.getGranularity(dimName);
 
-            if (preAggGranularity != null && queryGranularity != null) {
-                // 预聚合粒度必须能够 rollup 到查询粒度
-                if (!preAggGranularity.canRollupTo(queryGranularity)) {
-                    return false;
-                }
+            // Once the semantic query proves a temporal grain, the
+            // materialization must declare its own grain as well. Treating a
+            // missing declaration as an implicit fine-grained key would turn
+            // an unknown contract into an unsafe optimization assumption.
+            if (queryGranularity != null && preAggGranularity == null) {
+                return false;
+            }
+            if (preAggGranularity != null && queryGranularity != null
+                    && !preAggGranularity.canRollupTo(queryGranularity)) {
+                return false;
             }
         }
 
@@ -304,18 +275,10 @@ public class PreAggQueryRequirement {
                 return false;
             }
 
-            // 如果有属性名，检查属性是否存在
+            // Slice 属性同样不能依赖粒度或列名猜测。
             if (propName != null && !propName.isEmpty()) {
-                // 跳过隐式属性（caption, id）的检查
-                if (!IMPLICIT_PROPERTIES.contains(propName)) {
-                    // 跳过时间粒度属性的检查
-                    if (!TIME_GRANULARITY_PROPERTIES.contains(propName.toLowerCase())) {
-                        Set<String> normalizedPreAggProps = buildNormalizedPropertySet(preAgg.getDimensionProperties(dimName));
-                        String normalizedProp = normalizePropertyName(propName);
-                        if (!normalizedPreAggProps.contains(normalizedProp)) {
-                            return false;
-                        }
-                    }
+                if (!preAgg.hasMaterializedDimensionProperty(dimName, propName)) {
+                    return false;
                 }
             }
         }
@@ -340,7 +303,7 @@ public class PreAggQueryRequirement {
      */
     private boolean isAggregationCompatible(DbAggregation preAggAgg, DbAggregation queryAgg) {
         if (preAggAgg == null || queryAgg == null) {
-            return true; // 默认兼容
+            return false;
         }
         if (preAggAgg == queryAgg) {
             return true;

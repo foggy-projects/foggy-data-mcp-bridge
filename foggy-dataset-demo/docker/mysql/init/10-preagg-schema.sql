@@ -14,10 +14,19 @@ DROP TABLE IF EXISTS `preagg_daily_product_sales`;
 CREATE TABLE `preagg_daily_product_sales` (
     `date_key`            INT NOT NULL COMMENT '日期维度键',
     `product_key`         INT NOT NULL COMMENT '商品维度键',
-    `product_category_name` VARCHAR(100) COMMENT '商品品类名称',
-    `product_brand`       VARCHAR(100) COMMENT '商品品牌',
+    `full_date`           DATE COMMENT '业务日期',
+    `year`                INT COMMENT '年',
+    `quarter`             INT COMMENT '季度',
+    `month`               INT COMMENT '月',
+    `month_name`          VARCHAR(20) COMMENT '月份名称',
+    `product_id`          VARCHAR(50) COMMENT '商品业务ID',
+    `product_name`        VARCHAR(200) COMMENT '商品名称',
+    `category_id`         VARCHAR(50) COMMENT '品类ID',
+    `category_name`       VARCHAR(100) COMMENT '商品品类名称',
+    `brand`               VARCHAR(100) COMMENT '商品品牌',
     `quantity_sum`        BIGINT NOT NULL DEFAULT 0 COMMENT '销售数量(SUM)',
     `sales_amount_sum`    DECIMAL(20,4) NOT NULL DEFAULT 0 COMMENT '销售金额(SUM)',
+    `sales_amount_formula_yuan_sum` DECIMAL(20,4) NOT NULL DEFAULT 0 COMMENT '销售金额换算(SUM)',
     `cost_amount_sum`     DECIMAL(20,4) DEFAULT 0 COMMENT '成本金额(SUM)',
     `profit_amount_sum`   DECIMAL(20,4) DEFAULT 0 COMMENT '利润金额(SUM)',
     `order_count`         BIGINT NOT NULL DEFAULT 0 COMMENT '订单数(COUNT)',
@@ -27,7 +36,7 @@ CREATE TABLE `preagg_daily_product_sales` (
     PRIMARY KEY (`date_key`, `product_key`),
     INDEX `idx_preagg_daily_product_date` (`date_key`),
     INDEX `idx_preagg_daily_product_product` (`product_key`),
-    INDEX `idx_preagg_daily_product_category` (`product_category_name`)
+    INDEX `idx_preagg_daily_product_category` (`category_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='销售日汇总预聚合表（按日期+商品）';
 
 -- ==========================================
@@ -57,8 +66,8 @@ CREATE TABLE `preagg_daily_customer_channel_sales` (
     `date_key`            INT NOT NULL COMMENT '日期维度键',
     `customer_key`        INT NOT NULL COMMENT '客户维度键',
     `channel_key`         INT NOT NULL COMMENT '渠道维度键',
-    `customer_province`   VARCHAR(50) COMMENT '客户省份',
-    `customer_city`       VARCHAR(50) COMMENT '客户城市',
+    `province`            VARCHAR(50) COMMENT '客户省份',
+    `city`                VARCHAR(50) COMMENT '客户城市',
     `channel_type`        VARCHAR(50) COMMENT '渠道类型',
     `quantity_sum`        BIGINT NOT NULL DEFAULT 0 COMMENT '销售数量(SUM)',
     `sales_amount_sum`    DECIMAL(20,4) NOT NULL DEFAULT 0 COMMENT '销售金额(SUM)',
@@ -79,7 +88,9 @@ DROP TABLE IF EXISTS `preagg_daily_return`;
 CREATE TABLE `preagg_daily_return` (
     `date_key`            INT NOT NULL COMMENT '日期维度键',
     `product_key`         INT NOT NULL COMMENT '商品维度键',
-    `product_category_name` VARCHAR(100) COMMENT '商品品类名称',
+    `full_date`           DATE COMMENT '退货日期',
+    `product_name`        VARCHAR(200) COMMENT '商品名称',
+    `category_name`       VARCHAR(100) COMMENT '商品品类名称',
     `return_quantity_sum` BIGINT NOT NULL DEFAULT 0 COMMENT '退货数量(SUM)',
     `return_amount_sum`   DECIMAL(20,4) NOT NULL DEFAULT 0 COMMENT '退款金额(SUM)',
     `return_count`        BIGINT NOT NULL DEFAULT 0 COMMENT '退货单数(COUNT)',

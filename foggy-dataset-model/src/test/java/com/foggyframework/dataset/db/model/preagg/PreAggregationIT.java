@@ -2,15 +2,20 @@ package com.foggyframework.dataset.db.model.preagg;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.preagg.*;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.db.model.spi.DbAggregation;
+import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -182,15 +187,15 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
         // 严格断言：必须匹配
         assertTrue(result.isApplied(), "按日期+商品查询应匹配预聚合");
         assertNotNull(result.getPreAggregation(), "匹配的预聚合不应为空");
         assertEquals("daily_product_sales", result.getPreAggregation().getName(),
                 "应匹配daily_product_sales预聚合（优先级最高且维度完全匹配）");
-        assertFalse(result.isNeedsRollup(), "完全匹配不需要rollup");
+        assertTrue(result.isNeedsRollup(),
+                "caption can repeat across dimension members, so caption grouping requires rollup");
 
         // 验证SQL包含预聚合表名
         assertNotNull(result.getSql(), "重写后的SQL不应为空");
@@ -202,7 +207,7 @@ class PreAggregationIT {
 
     @Test
     @Order(11)
-    @DisplayName("粒度Rollup - 按月查询应使用日粒度预聚合并需要rollup")
+    @DisplayName("粒度Rollup - 月属性必须由日表显式物化，不能猜测月表列")
     void testGranularityRollup() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
@@ -218,24 +223,31 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggQueryRequirement requirement = new PreAggQueryRequirementBuilder()
+                .build(queryRequest, queryEngine.getJdbcQuery(), queryModel);
+        PreAggregation monthly = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(preAgg -> "monthly_category_sales".equals(preAgg.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertFalse(requirement.isSatisfiableBy(monthly),
+                "MONTH grain does not prove a physical salesDate$month column; year_month is not equivalent");
+        assertFalse(new PreAggregationMatcher().findBestMatch(requirement, List.of(monthly)).isMatched(),
+                "monthly-only candidate must fail closed instead of emitting pa.month");
+
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
         // 严格断言
         assertTrue(result.isApplied(), "按月+品类查询应匹配预聚合");
         assertNotNull(result.getPreAggregation());
 
-        // 可能匹配daily_product_sales（需要rollup）或monthly_category_sales（精确匹配）
-        String preAggName = result.getPreAggregation().getName();
-        log.info("粒度Rollup匹配: 预聚合={}, needsRollup={}", preAggName, result.isNeedsRollup());
-
-        if ("daily_product_sales".equals(preAggName)) {
-            assertTrue(result.isNeedsRollup(), "使用日粒度预聚合查询月数据需要rollup");
-        } else if ("monthly_category_sales".equals(preAggName)) {
-            assertFalse(result.isNeedsRollup(), "使用月粒度预聚合不需要rollup");
-        }
+        assertEquals("daily_product_sales", result.getPreAggregation().getName(),
+                "只有显式物化 month 列的日表可以服务该查询");
+        assertTrue(result.isNeedsRollup(), "使用日粒度预聚合查询月数据需要rollup");
 
         assertNotNull(result.getSql());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                result.getSql(), result.getParams().toArray());
+        assertFalse(rows.isEmpty(), "重写 SQL 必须真实执行且返回月度分组");
         log.info("重写后SQL: {}", result.getSql());
     }
 
@@ -256,8 +268,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
         // 严格断言
         assertTrue(result.isApplied(), "品类+金额查询应匹配预聚合");
@@ -290,8 +301,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
         // 严格断言：必须不匹配
         assertFalse(result.isApplied(), "包含门店维度的查询不应匹配任何预聚合（无预聚合包含store维度）");
@@ -318,8 +328,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
         // 严格断言：必须不匹配
         assertFalse(result.isApplied(), "包含unitPrice度量的查询不应匹配预聚合（无预聚合包含此度量）");
@@ -345,8 +354,7 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
         // 严格断言
         assertTrue(result.isApplied(), "客户+渠道查询应匹配预聚合");
@@ -382,7 +390,8 @@ class PreAggregationIT {
         assertNotNull(result.getPreAggregation(), "匹配的预聚合不应为空");
         assertEquals("daily_product_sales", result.getPreAggregation().getName(),
                 "应使用包含公式语义结果物化列的daily_product_sales");
-        assertFalse(result.isNeedsRollup(), "日+商品粒度完全匹配时不需要rollup");
+        assertTrue(result.isNeedsRollup(),
+                "date/product captions are coarser than physical dimension keys and require rollup");
         assertTrue(result.getSql().contains("preagg_daily_product_sales"),
                 "重写SQL应读取真实预聚合表");
         assertTrue(result.getSql().contains("sales_amount_formula_yuan_sum"),
@@ -450,17 +459,10 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
-        // JOIN模型仅查询主模型字段时，理论上应该可以匹配主模型的预聚合
-        log.info("JOIN模型主字段查询: applied={}, preAgg={}",
-                result.isApplied(),
-                result.isApplied() ? result.getPreAggregation().getName() : "N/A");
-
-        if (result.isApplied()) {
-            assertEquals("daily_product_sales", result.getPreAggregation().getName());
-        }
+        assertTrue(result.isApplied(), "仅查询主模型字段时必须命中主模型预聚合");
+        assertEquals("daily_product_sales", result.getPreAggregation().getName());
     }
 
     @Test
@@ -482,14 +484,10 @@ class PreAggregationIT {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        PreAggRewriteResult result = rewriteWithFreshWatermarks(queryModel, queryEngine, queryRequest);
 
-        // 跨模型查询通常不能使用单一预聚合
-        log.info("跨模型查询结果: applied={}", result.isApplied());
-
-        // 跨模型字段查询不应匹配单表预聚合
-        // （除非有专门的跨表预聚合，但本测试中没有）
+        assertFalse(result.isApplied(), "跨模型字段不得命中单表预聚合");
+        assertNull(result.getPreAggregation());
     }
 
     // ==========================================
@@ -507,34 +505,36 @@ class PreAggregationIT {
         assertNotNull(preAggregations);
         assertFalse(preAggregations.isEmpty());
 
-        PreAggregation preAgg = preAggregations.get(0);
+        PreAggregation preAgg = preAggregations.stream()
+                .filter(PreAggregation::supportsHybridQuery)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "fixture must contain a hybrid-capable pre-aggregation"));
 
-        // 测试1: 设置watermark为过去的日期
-        LocalDate pastDate = LocalDate.now().minusDays(5);
-        preAgg.setDataWatermark(pastDate);
+        withRestoredWatermarks(List.of(preAgg), () -> {
+            // 测试1: 设置watermark为过去的日期
+            LocalDate pastDate = LocalDate.now().minusDays(5);
+            preAgg.setDataWatermark(pastDate);
 
-        log.info("设置watermark为过去日期: {}", pastDate);
-        log.info("支持混合查询: {}", preAgg.supportsHybridQuery());
-        log.info("数据是否过期: {}", preAgg.isDataStale());
+            log.info("设置watermark为过去日期: {}", pastDate);
+            log.info("支持混合查询: {}", preAgg.supportsHybridQuery());
+            log.info("数据是否过期: {}", preAgg.isDataStale());
 
-        if (preAgg.supportsHybridQuery()) {
             assertTrue(preAgg.isDataStale(), "watermark为过去日期时数据应标记为过期");
-        }
 
-        // 测试2: 设置watermark为今天
-        LocalDate today = LocalDate.now();
-        preAgg.setDataWatermark(today);
-        log.info("设置watermark为今天: {}", today);
-        log.info("数据是否过期: {}", preAgg.isDataStale());
+            // 测试2: 设置watermark为今天
+            LocalDate today = LocalDate.now();
+            preAgg.setDataWatermark(today);
+            log.info("设置watermark为今天: {}", today);
+            log.info("数据是否过期: {}", preAgg.isDataStale());
 
-        if (preAgg.supportsHybridQuery()) {
             assertFalse(preAgg.isDataStale(), "watermark为今天时数据不应标记为过期");
-        }
+        });
     }
 
     @Test
     @Order(31)
-    @DisplayName("混合查询 - 过期数据应生成UNION SQL")
+    @DisplayName("混合查询 - 两分支真实执行结果应与源表分组一致")
     void testHybridQuerySqlGeneration() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         TableModel tableModel = queryModel.getJdbcModel();
@@ -543,187 +543,199 @@ class PreAggregationIT {
         assertNotNull(preAggregations);
         assertFalse(preAggregations.isEmpty());
 
-        // 设置watermark为过去日期以触发混合查询
-        for (PreAggregation preAgg : preAggregations) {
-            if (preAgg.supportsHybridQuery()) {
-                preAgg.setDataWatermark(LocalDate.of(2024, 3, 20));
+        withRestoredWatermarks(preAggregations, () -> {
+            // 设置watermark为过去日期以触发混合查询
+            for (PreAggregation preAgg : preAggregations) {
+                if (preAgg.supportsHybridQuery()) {
+                    preAgg.setDataWatermark(20240101);
+                }
             }
-        }
 
-        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+            JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
-        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
-        queryRequest.setColumns(Arrays.asList(
-                "salesDate$caption",
-                "product$caption",
-                "salesAmount"
-        ));
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+            queryRequest.setColumns(Arrays.asList(
+                    "salesDate$caption",
+                    "product$caption",
+                    "salesAmount"
+            ));
 
-        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        interceptor.setHybridQueryEnabled(true);
+            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+            interceptor.setHybridQueryEnabled(true);
 
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+            PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
 
-        // 严格断言
-        assertTrue(result.isApplied(), "应匹配预聚合");
-        assertNotNull(result.getSql(), "SQL不应为空");
+            assertTrue(result.isApplied(), "应匹配预聚合");
+            assertNotNull(result.getSql(), "SQL不应为空");
+            assertTrue(result.isHybridQuery(), "stale watermark 必须进入 hybrid，而不是静默回落单表模式");
+            assertTrue(result.getSql().toUpperCase().contains("UNION ALL"),
+                    "混合查询SQL应包含预聚合表与源表两分支");
+            assertEquals(20240101, result.getWatermark());
+            assertIterableEquals(List.of(20240101, 20240101), result.getParams(),
+                    "INTEGER date_key watermark must bind once per branch");
 
-        log.info("混合查询模式: {}", result.isHybridQuery());
-        log.info("watermark: {}", result.getWatermark());
-        log.info("生成的SQL: {}", result.getSql());
+            Integer materializedRows = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM preagg_daily_product_sales WHERE date_key <= ?",
+                    Integer.class, 20240101);
+            Integer sourceRows = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM fact_sales WHERE date_key > ?",
+                    Integer.class, 20240101);
+            assertNotNull(materializedRows);
+            assertNotNull(sourceRows);
+            assertTrue(materializedRows > 0, "history branch fixture must contribute rows");
+            assertTrue(sourceRows > 0, "fresh source branch fixture must contribute rows");
 
-        if (result.isHybridQuery()) {
-            // 混合查询SQL应包含UNION
-            assertTrue(result.getSql().toUpperCase().contains("UNION"),
-                    "混合查询SQL应包含UNION（预聚合表 UNION 原始表）");
-            assertNotNull(result.getWatermark(), "混合查询应有watermark");
-        }
+            List<Map<String, Object>> hybridRows = jdbcTemplate.queryForList(
+                    result.getSql(), result.getParams().toArray());
+            List<Map<String, Object>> nativeRows = jdbcTemplate.queryForList("""
+                    SELECT d.full_date AS "salesDate$caption",
+                           p.product_name AS "product$caption",
+                           SUM(fs.sales_amount) AS "salesAmount"
+                    FROM fact_sales fs
+                    LEFT JOIN dim_date d ON fs.date_key = d.date_key
+                    LEFT JOIN dim_product p ON fs.product_key = p.product_key
+                    GROUP BY d.full_date, p.product_name
+                    """);
+            assertFalse(nativeRows.isEmpty());
+            assertEquals(metricRowsByKey(nativeRows, "salesAmount"),
+                    metricRowsByKey(hybridRows, "salesAmount"),
+                    "hybrid materialized/source UNION must equal native grouped semantics");
+
+            log.info("混合查询真实执行通过: watermark={}, rows={}",
+                    result.getWatermark(), hybridRows.size());
+        });
     }
 
     // ==========================================
-    // #005 复现测试：混合查询 WHERE 条件转换
+    // #005 回归：hybrid 双分支谓词等价性
     // ==========================================
 
     @Test
     @Order(32)
-    @DisplayName("#005 复现 — 混合查询+slice条件时源表部分应包含原始WHERE条件")
+    @DisplayName("#005 回归 — hybrid+slice 在双分支谓词等价前必须 fail closed")
     void testHybridQueryShouldIncludeOriginalWhereInSourcePart() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         TableModel tableModel = queryModel.getJdbcModel();
         List<PreAggregation> preAggregations = tableModel.getPreAggregations();
 
-        // 设置 watermark 为过去日期以触发混合查询
-        for (PreAggregation preAgg : preAggregations) {
-            if (preAgg.supportsHybridQuery()) {
-                preAgg.setDataWatermark(LocalDate.of(2024, 3, 20));
-            }
-        }
+        withStaleHybridWatermarks(preAggregations, 20240101, () -> {
+            JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+            queryRequest.setColumns(Arrays.asList(
+                    "salesDate$caption",
+                    "product$caption",
+                    "salesAmount"
+            ));
 
-        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
-        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
-        queryRequest.setColumns(Arrays.asList(
-                "salesDate$caption",
-                "product$caption",
-                "salesAmount"
-        ));
+            // 添加日期过滤条件
+            List<SliceRequestDef> slices = new ArrayList<>();
+            SliceRequestDef dateSlice = new SliceRequestDef();
+            dateSlice.setField("salesDate$caption");
+            dateSlice.setOp("[)");
+            dateSlice.setValue(Arrays.asList("2024-01-01", "2024-03-31"));
+            slices.add(dateSlice);
+            queryRequest.setSlice(slices);
 
-        // 添加日期过滤条件
-        List<SliceRequestDef> slices = new ArrayList<>();
-        SliceRequestDef dateSlice = new SliceRequestDef();
-        dateSlice.setField("salesDate$caption");
-        dateSlice.setOp("[)");
-        dateSlice.setValue(Arrays.asList("2024-01-01", "2024-03-31"));
-        slices.add(dateSlice);
-        queryRequest.setSlice(slices);
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+            PreAggQueryRequirement requirement = new PreAggQueryRequirementBuilder()
+                    .build(queryRequest, queryEngine.getJdbcQuery(), queryModel);
+            PreAggregationMatchResult candidate = new PreAggregationMatcher()
+                    .findBestMatch(requirement, preAggregations);
+            assertTrue(candidate.isMatched(), "fixture must expose a matching pre-aggregation");
+            assertTrue(candidate.isHybridQuery(), "stale watermark must select a hybrid candidate");
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        interceptor.setHybridQueryEnabled(true);
+            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+            interceptor.setHybridQueryEnabled(true);
+            PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
 
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
-
-        assertTrue(result.isApplied(), "应匹配预聚合");
-
-        if (result.isHybridQuery()) {
-            String sql = result.getSql();
-            String upperSql = sql.toUpperCase();
-
-            // SQL应包含UNION
-            assertTrue(upperSql.contains("UNION ALL"), "混合查询应包含UNION ALL");
-
-            // 源表部分（UNION ALL之后）应包含除watermark之外的WHERE条件
-            int unionIndex = upperSql.indexOf("UNION ALL");
-            assertTrue(unionIndex > 0, "应有UNION ALL");
-            String sourcePart = upperSql.substring(unionIndex);
-
-            // #005 核心断言：源表部分应包含原始查询的WHERE条件（日期过滤 >= 和 <）
-            assertTrue(sourcePart.contains(">=") || sourcePart.contains("BETWEEN"),
-                    "#005: 源表部分应包含日期过滤条件（>= 或 BETWEEN），" +
-                    "但实际SQL: " + sql);
-
-            // 验证参数数量：2个watermark + 原始查询的WHERE参数（至少2个日期参数）
-            assertNotNull(result.getParams(), "参数不应为空");
-            assertTrue(result.getParams().size() > 2,
-                    "#005: 混合查询带slice条件时参数应多于2个（2个watermark + slice参数），" +
-                    "实际参数数量: " + result.getParams().size());
-
-            log.info("#005 混合查询+slice — SQL: {}", sql);
-            log.info("#005 混合查询+slice — params: {}", result.getParams());
-        } else {
-            log.info("#005 测试：未进入混合模式（可能预聚合不支持hybrid），跳过断言");
-        }
+            assertFalse(result.isApplied(),
+                    "slice applied only to the source branch would leak historical rows");
+            assertNull(result.getSql(), "fail-closed path must not expose partial hybrid SQL");
+            assertTrue(result.getParams().isEmpty(), "fail-closed path must not expose partial params");
+        });
     }
 
     @Test
     @Order(33)
-    @DisplayName("#005 复现 — 混合查询+多个slice条件时参数顺序正确")
+    @DisplayName("#005 回归 — hybrid+多参数 slice 不得生成部分过滤 SQL")
     void testHybridQueryWhereParamsOrderCorrect() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         TableModel tableModel = queryModel.getJdbcModel();
         List<PreAggregation> preAggregations = tableModel.getPreAggregations();
 
-        // 设置 watermark 为过去日期
-        for (PreAggregation preAgg : preAggregations) {
-            if (preAgg.supportsHybridQuery()) {
-                preAgg.setDataWatermark(LocalDate.of(2024, 3, 20));
-            }
-        }
+        withStaleHybridWatermarks(preAggregations, 20240101, () -> {
+            JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+            queryRequest.setColumns(Arrays.asList(
+                    "salesDate$caption",
+                    "product$caption",
+                    "salesAmount"
+            ));
+
+            // 添加日期过滤条件（范围条件产生2个参数）
+            List<SliceRequestDef> slices = new ArrayList<>();
+            SliceRequestDef dateSlice = new SliceRequestDef();
+            dateSlice.setField("salesDate$caption");
+            dateSlice.setOp("[)");
+            dateSlice.setValue(Arrays.asList("2024-01-01", "2024-06-30"));
+            slices.add(dateSlice);
+            queryRequest.setSlice(slices);
+
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+            PreAggQueryRequirement requirement = new PreAggQueryRequirementBuilder()
+                    .build(queryRequest, queryEngine.getJdbcQuery(), queryModel);
+            PreAggregationMatchResult candidate = new PreAggregationMatcher()
+                    .findBestMatch(requirement, preAggregations);
+            assertTrue(candidate.isMatched(), "fixture must expose a matching pre-aggregation");
+            assertTrue(candidate.isHybridQuery(), "stale watermark must select a hybrid candidate");
+
+            PreAggRewriteResult result = new PreAggQueryRewriter(queryModel, applicationContext)
+                    .rewrite(candidate, queryEngine.getJdbcQuery(), queryRequest, queryEngine);
+
+            assertFalse(result.isApplied(),
+                    "public rewriter entry must refuse predicates not rebuilt on both branches");
+            assertNull(result.getSql(), "fail-closed path must not expose partial hybrid SQL");
+            assertTrue(result.getParams().isEmpty(), "fail-closed path must not expose partial params");
+        });
+    }
+
+    @Test
+    @Order(34)
+    @DisplayName("public hybrid rewriter 对 null watermark 必须 fail closed")
+    void testHybridRewriteRejectsNullWatermark() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        PreAggregation preAgg = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(PreAggregation::supportsHybridQuery)
+                .findFirst()
+                .orElseThrow();
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesPreAggQueryModel");
-        queryRequest.setColumns(Arrays.asList(
+        queryRequest.setColumns(List.of(
                 "salesDate$caption",
                 "product$caption",
                 "salesAmount"
         ));
-
-        // 添加日期过滤条件（范围条件产生2个参数）
-        List<SliceRequestDef> slices = new ArrayList<>();
-        SliceRequestDef dateSlice = new SliceRequestDef();
-        dateSlice.setField("salesDate$caption");
-        dateSlice.setOp("[)");
-        dateSlice.setValue(Arrays.asList("2024-01-01", "2024-06-30"));
-        slices.add(dateSlice);
-        queryRequest.setSlice(slices);
-
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        // 获取原始查询的参数数量（用于后续验证）
-        int originalParamCount = queryEngine.getValues() != null ? queryEngine.getValues().size() : 0;
-        log.info("#005 原始查询参数数量: {}, 值: {}", originalParamCount, queryEngine.getValues());
+        PreAggregationMatchResult unsafeMatch = PreAggregationMatchResult.hybrid(
+                preAgg, false, null, 100);
+        PreAggRewriteResult result = new PreAggQueryRewriter(queryModel, applicationContext)
+                .rewrite(unsafeMatch, queryEngine.getJdbcQuery(), queryRequest, queryEngine);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        interceptor.setHybridQueryEnabled(true);
-
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
-
-        assertTrue(result.isApplied(), "应匹配预聚合");
-
-        if (result.isHybridQuery()) {
-            List<Object> params = result.getParams();
-            String sql = result.getSql();
-
-            // SQL中 ? 占位符数量应与参数数量一致
-            long placeholderCount = sql.chars().filter(c -> c == '?').count();
-            assertEquals(placeholderCount, params.size(),
-                    "#005: SQL占位符数量(" + placeholderCount + ")应与参数数量(" + params.size() + ")一致，" +
-                    "SQL: " + sql);
-
-            // 前两个参数应是watermark
-            assertTrue(params.size() >= 2, "至少应有2个watermark参数");
-
-            log.info("#005 参数验证 — SQL: {}", sql);
-            log.info("#005 参数验证 — params: {}", params);
-            log.info("#005 参数验证 — 占位符数量: {}", placeholderCount);
-        }
+        assertFalse(result.isApplied());
+        assertNull(result.getSql());
+        assertTrue(result.getParams().isEmpty());
     }
 
     // ==========================================
@@ -803,24 +815,27 @@ class PreAggregationIT {
         slices.add(dateSlice);
         queryRequest.setSlice(slices);
 
-        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        List<PreAggregation> preAggregations = queryModel.getJdbcModel().getPreAggregations();
+        withFreshHybridWatermarks(preAggregations, () -> {
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+            PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
 
-        // 验证：带 slice 条件的查询应使用预聚合
-        assertTrue(result.isApplied(), "带slice过滤条件的查询应使用预聚合");
-        assertNotNull(result.getPreAggregation(), "应匹配预聚合");
-        assertEquals("daily_product_sales", result.getPreAggregation().getName(),
-                "应匹配daily_product_sales预聚合");
+            // 已知物化数据完整时，普通 slice 可以安全重建到单表预聚合 SQL。
+            assertTrue(result.isApplied(), "fresh watermark 的 slice 查询应使用预聚合");
+            assertFalse(result.isHybridQuery(), "fresh watermark 不应进入 hybrid");
+            assertNotNull(result.getPreAggregation(), "应匹配预聚合");
+            assertEquals("daily_product_sales", result.getPreAggregation().getName(),
+                    "应匹配daily_product_sales预聚合");
 
-        // 验证 SQL 包含 WHERE 条件
-        assertNotNull(result.getSql(), "SQL不应为空");
-        assertTrue(result.getSql().contains("preagg_daily_product_sales"), "SQL应查询预聚合表");
-        assertTrue(result.getSql().toUpperCase().contains("WHERE"), "SQL应包含WHERE子句");
+            assertNotNull(result.getSql(), "SQL不应为空");
+            assertTrue(result.getSql().contains("preagg_daily_product_sales"), "SQL应查询预聚合表");
+            assertTrue(result.getSql().toUpperCase().contains("WHERE"), "SQL应包含WHERE子句");
 
-        log.info("带slice过滤条件查询匹配成功: preAgg={}, SQL={}",
-                result.getPreAggregation().getName(), result.getSql());
+            log.info("带slice过滤条件查询匹配成功: preAgg={}, SQL={}",
+                    result.getPreAggregation().getName(), result.getSql());
+        });
     }
 
     // ==========================================
@@ -829,7 +844,7 @@ class PreAggregationIT {
 
     @Test
     @Order(60)
-    @DisplayName("包含不支持维度的查询 + returnTotal 时，主查询不使用预聚合但聚合查询可以使用")
+    @DisplayName("包含不支持维度的查询 + returnTotal 时主查询与聚合查询均 fail closed")
     void testAggregatePreAggForQueryWithUnsupportedDimension() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
@@ -847,34 +862,24 @@ class PreAggregationIT {
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
         PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(false);
 
         // 主查询不应匹配预聚合（包含门店维度，无预聚合支持）
         PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
         assertFalse(mainResult.isApplied(),
                 "包含门店维度的查询不应匹配主查询预聚合（无预聚合支持门店维度）");
 
-        // 聚合查询应能使用预聚合（只需要 COUNT 和 SUM(salesAmount)，不需要门店维度）
+        // 聚合 total 必须保留门店粒度；直接 COUNT 预聚合行并不等价。
         PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
                 interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
 
-        assertNotNull(aggResult, "包含不支持维度的查询，其聚合部分仍应能使用预聚合");
-        assertNotNull(aggResult.getSql(), "聚合SQL不应为空");
-        assertNotNull(aggResult.getPreAggName(), "预聚合名称不应为空");
-
-        // 验证SQL使用预聚合表
-        assertTrue(aggResult.getSql().contains("preagg_"),
-                "聚合SQL应查询预聚合表");
-        assertTrue(aggResult.getSql().toUpperCase().contains("COUNT"),
-                "聚合SQL应包含COUNT");
-
-        log.info("包含不支持维度的查询+returnTotal场景: 主查询不使用预聚合, 聚合查询使用预聚合={}",
-                aggResult.getPreAggName());
-        log.info("聚合SQL: {}", aggResult.getSql());
+        assertNull(aggResult,
+                "unsupported store grain must fall back instead of counting materialized rows");
     }
 
     @Test
     @Order(61)
-    @DisplayName("包含不支持维度的查询 + slice条件 + returnTotal 时聚合查询应使用预聚合并包含WHERE")
+    @DisplayName("包含不支持维度与 slice 的 returnTotal 聚合查询 fail closed")
     void testAggregatePreAggForQueryWithSliceAndUnsupportedDimension() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
@@ -901,31 +906,23 @@ class PreAggregationIT {
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
         PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(false);
 
         // 主查询不应匹配（包含门店维度）
         PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
         assertFalse(mainResult.isApplied(), "包含门店维度的查询不应匹配主查询预聚合");
 
-        // 聚合查询应能使用预聚合，并包含WHERE条件
+        // 日期 slice 可重建，但门店粒度仍不可证明。
         PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
                 interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
 
-        assertNotNull(aggResult, "带slice的查询聚合部分应能使用预聚合");
-        assertNotNull(aggResult.getSql());
-
-        // 验证SQL包含WHERE条件
-        assertTrue(aggResult.getSql().toUpperCase().contains("WHERE"),
-                "聚合SQL应包含WHERE子句（透传slice条件）");
-        assertTrue(aggResult.getSql().contains("preagg_"),
-                "聚合SQL应查询预聚合表");
-
-        log.info("带slice的门店查询+returnTotal: 主查询不使用预聚合, 聚合查询使用预聚合={}, SQL={}",
-                aggResult.getPreAggName(), aggResult.getSql());
+        assertNull(aggResult,
+                "a provable slice must not mask an unsupported result grain");
     }
 
     @Test
     @Order(62)
-    @DisplayName("分组查询 + returnTotal 时主查询和聚合查询都使用预聚合")
+    @DisplayName("分组查询可用预聚合，但 legacy returnTotal 对 rollup fail closed")
     void testBothMainAndAggregateUsePreAgg() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
@@ -943,26 +940,37 @@ class PreAggregationIT {
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
         PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(false);
 
         // 主查询应匹配预聚合
         PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
         assertTrue(mainResult.isApplied(), "分组查询应匹配主查询预聚合");
         assertEquals("daily_product_sales", mainResult.getPreAggregation().getName());
+        assertTrue(mainResult.isNeedsRollup(),
+                "caption 分组可能合并同名 key，必须保留 rollup 语义");
 
-        // 聚合查询也应能使用预聚合
+        // Legacy total 直接 COUNT 物化行无法证明 caption rollup 后的行数。
         PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
                 interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
 
-        assertNotNull(aggResult, "分组查询的聚合部分也应能使用预聚合");
-        assertTrue(aggResult.getSql().contains("preagg_"));
+        assertNull(aggResult,
+                "legacy returnTotal must not count physical rows before caption rollup");
 
-        log.info("分组查询+returnTotal: 主查询预聚合={}, 聚合查询预聚合={}",
-                mainResult.getPreAggregation().getName(), aggResult.getPreAggName());
+        PreAggregation differentCandidate = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(preAgg -> preAgg != mainResult.getPreAggregation())
+                .findFirst()
+                .orElseThrow();
+        PreAggregationMatchResult mismatched = PreAggregationMatchResult.matched(
+                mainResult.getPreAggregation(), false, 100);
+        assertNull(new PreAggQueryRewriter(queryModel, applicationContext)
+                        .buildAggregateSql(differentCandidate, queryEngine.getJdbcQuery(),
+                                queryRequest, mismatched),
+                "aggregate entry must not apply one candidate's proof to another candidate");
     }
 
     @Test
     @Order(63)
-    @DisplayName("聚合查询混合模式 - 水位线过期时应生成UNION SQL")
+    @DisplayName("legacy returnTotal 在 hybrid 模式下 fail closed")
     void testHybridAggregateQueryWithStaleWatermark() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         TableModel tableModel = queryModel.getJdbcModel();
@@ -971,125 +979,359 @@ class PreAggregationIT {
         assertNotNull(preAggregations);
         assertFalse(preAggregations.isEmpty());
 
-        // 设置 watermark 为过去日期以触发混合查询
-        LocalDate pastDate = LocalDate.of(2024, 3, 20);
-        for (PreAggregation preAgg : preAggregations) {
-            if (preAgg.supportsHybridQuery()) {
-                preAgg.setDataWatermark(pastDate);
-            }
-        }
+        int pastDate = 20240101;
+        withStaleHybridWatermarks(preAggregations, pastDate, () -> {
+            JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+            // 使用与日+商品物化相同的粒度，确保 matcher 确实进入 hybrid。
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+            queryRequest.setColumns(Arrays.asList(
+                    "salesDate$caption",
+                    "product$caption",
+                    "salesAmount"
+            ));
+            queryRequest.setReturnTotal(true);
 
-        // 包含门店维度的查询（主查询不匹配预聚合）
-        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
-        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
-        queryRequest.setColumns(Arrays.asList(
-                "store$caption",
-                "salesAmount"
-        ));
-        queryRequest.setReturnTotal(true);
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+            interceptor.setHybridQueryEnabled(true);
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        interceptor.setHybridQueryEnabled(true);
+            // 主查询自己的 hybrid builder 能重建分组粒度，仍应保持正向覆盖。
+            PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+            assertTrue(mainResult.isApplied(), "exact-grain main query should match pre-aggregation");
+            assertTrue(mainResult.isHybridQuery(), "stale watermark should select main hybrid mode");
 
-        // 主查询不匹配
-        PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
-        assertFalse(mainResult.isApplied(), "包含门店维度的查询不应匹配主查询预聚合");
+            // Hybrid aggregate SQL would COUNT materialized group rows together
+            // with raw source rows, so it is not equivalent to the final result.
+            PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                    interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
 
-        // 聚合查询应使用混合模式
-        PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
-                interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
-
-        assertNotNull(aggResult, "聚合查询应能使用预聚合");
-
-        if (aggResult.isHybrid()) {
-            // 混合模式 SQL 应包含 UNION
-            assertTrue(aggResult.getSql().toUpperCase().contains("UNION"),
-                    "混合模式聚合SQL应包含UNION（预聚合表 UNION 原始表）");
-            assertNotNull(aggResult.getWatermark(), "混合模式应有watermark");
-
-            log.info("混合模式聚合查询: preAgg={}, watermark={}, isHybrid={}",
-                    aggResult.getPreAggName(), aggResult.getWatermark(), aggResult.isHybrid());
-            log.info("混合模式聚合SQL: {}", aggResult.getSql());
-        } else {
-            // 如果预聚合不支持混合查询，则使用单表模式
-            log.info("聚合查询使用单表模式（预聚合不支持混合查询）: preAgg={}", aggResult.getPreAggName());
-        }
+            assertNull(aggResult,
+                    "legacy returnTotal must not mix materialized groups with raw source rows");
+            assertNull(new PreAggQueryRewriter(queryModel, applicationContext)
+                            .buildAggregateSql(mainResult.getPreAggregation(),
+                                    queryEngine.getJdbcQuery(), queryRequest),
+                    "convenience aggregate entry must not bypass hybrid equivalence checks");
+        });
     }
 
     @Test
     @Order(64)
-    @DisplayName("聚合查询混合模式 - 带slice条件的UNION SQL")
+    @DisplayName("legacy returnTotal 在 hybrid + slice 模式下 fail closed")
     void testHybridAggregateQueryWithSlice() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         TableModel tableModel = queryModel.getJdbcModel();
         List<PreAggregation> preAggregations = tableModel.getPreAggregations();
 
-        // 设置 watermark 为过去日期
-        LocalDate pastDate = LocalDate.of(2024, 3, 20);
-        for (PreAggregation preAgg : preAggregations) {
-            if (preAgg.supportsHybridQuery()) {
-                preAgg.setDataWatermark(pastDate);
-            }
-        }
+        int pastDate = 20240101;
+        withStaleHybridWatermarks(preAggregations, pastDate, () -> {
+            JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+            queryRequest.setColumns(Arrays.asList(
+                    "salesDate$caption",
+                    "product$caption",
+                    "salesAmount"
+            ));
+            queryRequest.setReturnTotal(true);
+
+            // 添加日期过滤条件
+            List<SliceRequestDef> slices = new ArrayList<>();
+            SliceRequestDef dateSlice = new SliceRequestDef();
+            dateSlice.setField("salesDate$caption");
+            dateSlice.setOp("[)");
+            dateSlice.setValue(Arrays.asList("2024-01-01", "2024-03-31"));
+            slices.add(dateSlice);
+            queryRequest.setSlice(slices);
+
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+            interceptor.setHybridQueryEnabled(true);
+
+            assertFalse(interceptor.tryRewrite(queryEngine, queryModel, queryRequest).isApplied(),
+                    "main hybrid rewrite must refuse a predicate missing from its history branch");
+
+            PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                    interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+
+            assertNull(aggResult,
+                    "slice reconstruction does not prove hybrid row-grain equivalence");
+        });
+    }
+
+    @Test
+    @Order(65)
+    @DisplayName("显式 groupBy 包装器仅允许 FULL 主查询，hybrid 与 legacy returnTotal fail closed")
+    void testExplicitGroupByWrappersFailClosedOutsideFullMainRewrite() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesPreAggQueryModel");
-        queryRequest.setColumns(Arrays.asList(
-                "store$caption",
-                "salesAmount"
+        queryRequest.setColumns(List.of("salesDate$caption", "product$categoryName", "salesAmount"));
+        queryRequest.setGroupBy(List.of(
+                group("salesDate$caption", null),
+                group("product$categoryName", null),
+                group("salesAmount", "SUM")
         ));
         queryRequest.setReturnTotal(true);
 
-        // 添加日期过滤条件
-        List<SliceRequestDef> slices = new ArrayList<>();
-        SliceRequestDef dateSlice = new SliceRequestDef();
-        dateSlice.setField("salesDate$caption");
-        dateSlice.setOp("[)");
-        dateSlice.setValue(Arrays.asList("2024-01-01", "2024-03-31"));
-        slices.add(dateSlice);
-        queryRequest.setSlice(slices);
-
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        List<DbColumn> selectColumns = queryEngine.getJdbcQuery().getSelect().getColumns();
+        assertTrue(selectColumns.stream().allMatch(AggregationDbColumn.class::isInstance),
+                "explicit groupBy must exercise AggregationDbColumn wrappers");
+        assertTrue(selectColumns.stream().map(DbColumn::getAggregation)
+                        .anyMatch(DbAggregation.NONE::equals));
+        assertTrue(selectColumns.stream().map(DbColumn::getAggregation)
+                        .anyMatch(DbAggregation.SUM::equals));
 
-        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-        interceptor.setHybridQueryEnabled(true);
+        PreAggregationInterceptor fullInterceptor = new PreAggregationInterceptor(applicationContext);
+        fullInterceptor.setHybridQueryEnabled(false);
+        PreAggRewriteResult fullMain = fullInterceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        assertTrue(fullMain.isApplied(), "FULL main rewrite supports resolved aggregate wrappers");
+        assertNull(fullInterceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest),
+                "legacy returnTotal must fall back when aggregate wrappers require semantic proof");
 
-        PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
-                interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+        List<PreAggregation> preAggregations = queryModel.getJdbcModel().getPreAggregations();
+        Map<PreAggregation, Object> originalWatermarks = new IdentityHashMap<>();
+        try {
+            for (PreAggregation preAgg : preAggregations) {
+                if (preAgg.supportsHybridQuery()) {
+                    originalWatermarks.put(preAgg, preAgg.getDataWatermark());
+                    preAgg.setDataWatermark(20240101);
+                }
+            }
+            assertFalse(originalWatermarks.isEmpty(), "fixture must contain a hybrid-capable pre-aggregation");
 
-        assertNotNull(aggResult, "带slice的聚合查询应能使用预聚合");
-
-        if (aggResult.isHybrid()) {
-            // 混合模式应包含 UNION 和 WHERE
-            assertTrue(aggResult.getSql().toUpperCase().contains("UNION"),
-                    "混合模式聚合SQL应包含UNION");
-            // 两部分都应有 WHERE 条件（watermark + slice）
-            String upperSql = aggResult.getSql().toUpperCase();
-            int whereCount = countOccurrences(upperSql, "WHERE");
-            assertTrue(whereCount >= 2, "混合模式应在两个子查询中都有WHERE条件");
-
-            log.info("混合模式聚合SQL（带slice）: {}", aggResult.getSql());
-            log.info("参数: {}", aggResult.getParams());
+            PreAggregationInterceptor hybridInterceptor = new PreAggregationInterceptor(applicationContext);
+            hybridInterceptor.setHybridQueryEnabled(true);
+            assertFalse(hybridInterceptor.tryRewrite(queryEngine, queryModel, queryRequest).isApplied(),
+                    "hybrid main rewrite must fail closed for aggregate wrappers");
+            assertNull(hybridInterceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest),
+                    "hybrid legacy returnTotal must fail closed for aggregate wrappers");
+        } finally {
+            originalWatermarks.forEach(PreAggregation::setDataWatermark);
         }
     }
 
-    /**
-     * 统计字符串出现次数
-     */
-    private int countOccurrences(String str, String sub) {
-        int count = 0;
-        int idx = 0;
-        while ((idx = str.indexOf(sub, idx)) != -1) {
-            count++;
-            idx += sub.length();
+    @Test
+    @Order(66)
+    @DisplayName("final-stage 候选必须证明时间粒度与物化聚合兼容")
+    void testFinalStageCandidateRequiresCompatibleGrainAndAggregation() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        PreAggregation daily = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(preAgg -> "daily_product_sales".equals(preAgg.getName()))
+                .findFirst()
+                .orElseThrow();
+        PreAggregation monthly = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(preAgg -> "monthly_category_sales".equals(preAgg.getName()))
+                .findFirst()
+                .orElseThrow();
+
+        DbQueryRequestDef dayRequest = new DbQueryRequestDef();
+        dayRequest.setQueryModel("FactSalesPreAggQueryModel");
+        dayRequest.setColumns(List.of("salesDate$caption", "sum(salesAmount) as teamSales"));
+        dayRequest.setGroupBy(List.of(group("salesDate$caption", null)));
+        dayRequest.setReturnTotal(true);
+        JdbcModelQueryEngine dayEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        dayEngine.analysisQueryRequest(systemBundlesContext, dayRequest);
+
+        PreAggQueryRewriter dayRewriter = new PreAggQueryRewriter(queryModel, applicationContext);
+        withFreshHybridWatermarks(List.of(daily, monthly), () -> {
+            assertNotNull(dayRewriter.buildFinalStageAggregateSql(
+                            daily, dayEngine.getJdbcQuery(), dayRequest),
+                    "fresh DAY materialization should serve a DAY caption final stage");
+            assertNull(dayRewriter.buildFinalStageAggregateSql(
+                            monthly, dayEngine.getJdbcQuery(), dayRequest),
+                    "MONTH materialization must not serve a DAY caption final stage");
+        });
+        withStaleHybridWatermarks(List.of(daily), 20240101,
+                () -> assertNull(dayRewriter.buildFinalStageAggregateSql(
+                                daily, dayEngine.getJdbcQuery(), dayRequest),
+                        "public final-stage entry must refuse a stale materialization"));
+
+        DbQueryRequestDef maxRequest = new DbQueryRequestDef();
+        maxRequest.setQueryModel("FactSalesPreAggQueryModel");
+        maxRequest.setColumns(List.of("product$categoryName", "max(salesAmount) as peakSales"));
+        maxRequest.setGroupBy(List.of(group("product$categoryName", null)));
+        maxRequest.setReturnTotal(true);
+        JdbcModelQueryEngine maxEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        maxEngine.analysisQueryRequest(systemBundlesContext, maxRequest);
+
+        withFreshHybridWatermarks(List.of(daily),
+                () -> assertNull(new PreAggQueryRewriter(queryModel, applicationContext)
+                                .buildFinalStageAggregateSql(daily, maxEngine.getJdbcQuery(), maxRequest),
+                        "SUM materialization must not masquerade as a MAX final-stage measure"));
+    }
+
+    @Test
+    @Order(67)
+    @DisplayName("日级时间 slice 必须拒绝月级 final-stage 候选")
+    void testFinalStageCandidateRequiresCompatibleSliceGrain() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        assertEquals("business_date",
+                queryModel.getJdbcModel().findJdbcDimensionByName("salesDate").getTimeRole(),
+                "TM timeRole must survive definition-to-runtime model loading");
+        PreAggregation daily = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(preAgg -> "daily_product_sales".equals(preAgg.getName()))
+                .findFirst()
+                .orElseThrow();
+        PreAggregation monthly = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(preAgg -> "monthly_category_sales".equals(preAgg.getName()))
+                .findFirst()
+                .orElseThrow();
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesPreAggQueryModel");
+        request.setColumns(List.of("product$categoryName", "sum(salesAmount) as teamSales"));
+        request.setGroupBy(List.of(group("product$categoryName", null)));
+        request.setSlice(List.of(new SliceRequestDef(
+                "salesDate$caption", "[)", Arrays.asList("2024-01-01", "2024-01-04"))));
+        request.setReturnTotal(true);
+
+        JdbcModelQueryEngine engine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        engine.analysisQueryRequest(systemBundlesContext, request);
+        PreAggQueryRequirement requirement = new PreAggQueryRequirementBuilder()
+                .buildFinalStage(request, engine.getJdbcQuery(), queryModel);
+
+        assertEquals(TimeGranularity.DAY, requirement.getQueryGranularities().get("salesDate"));
+        assertTrue(requirement.isSatisfiableBy(daily),
+                "DAY materialization should satisfy a DAY caption predicate");
+        assertFalse(requirement.isSatisfiableBy(monthly),
+                "MONTH materialization must not satisfy a DAY caption predicate");
+
+        PreAggQueryRewriter rewriter = new PreAggQueryRewriter(queryModel, applicationContext);
+        withFreshHybridWatermarks(List.of(daily, monthly), () -> {
+            assertNotNull(rewriter.buildFinalStageAggregateSql(daily, engine.getJdbcQuery(), request));
+            assertNull(rewriter.buildFinalStageAggregateSql(monthly, engine.getJdbcQuery(), request));
+        });
+    }
+
+    @Test
+    @Order(68)
+    @DisplayName("final-stage SQL 对 typed/open-range/LIKE slice 与 native 结果一致")
+    void testFinalStagePredicateSqlExecutesWithFormattedParams() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        PreAggregation daily = queryModel.getJdbcModel().getPreAggregations().stream()
+                .filter(preAgg -> "daily_product_sales".equals(preAgg.getName()))
+                .findFirst()
+                .orElseThrow();
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesPreAggQueryModel");
+        request.setColumns(List.of("product$categoryName", "sum(salesAmount) as teamSales"));
+        request.setGroupBy(List.of(group("product$categoryName", null)));
+        request.setSlice(List.of(
+                new SliceRequestDef("salesDate$id", "[)", List.of("20240102", "")),
+                new SliceRequestDef("product$categoryName", "like", "数码")
+        ));
+        request.setReturnTotal(true);
+
+        JdbcModelQueryEngine engine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+        engine.analysisQueryRequest(systemBundlesContext, request);
+        PreAggQueryRewriter.PreAggAggregateSqlResult[] built = new PreAggQueryRewriter.PreAggAggregateSqlResult[1];
+        withFreshHybridWatermarks(List.of(daily), () -> built[0] =
+                new PreAggQueryRewriter(queryModel, applicationContext)
+                        .buildFinalStageAggregateSql(daily, engine.getJdbcQuery(), request));
+
+        assertNotNull(built[0]);
+        assertTrue(built[0].getSql().contains("date_key >= ?"));
+        assertFalse(built[0].getSql().contains("date_key < ?"),
+                "empty range end must remain an open endpoint");
+        assertTrue(built[0].getSql().contains("category_name LIKE ?"));
+        assertEquals(2, built[0].getParams().size());
+        assertEquals(20240102, built[0].getParams().get(0));
+        assertInstanceOf(Integer.class, built[0].getParams().get(0));
+        assertEquals("%数码%", built[0].getParams().get(1));
+
+        Map<String, Object> preAggRow = jdbcTemplate.queryForMap(
+                built[0].getSql(), built[0].getParams().toArray());
+        Map<String, Object> nativeRow = jdbcTemplate.queryForMap("""
+                SELECT COUNT(*) AS total, SUM(native_final.teamSales) AS teamSales
+                FROM (
+                    SELECT p.category_name, SUM(fs.sales_amount) AS teamSales
+                    FROM fact_sales fs
+                    LEFT JOIN dim_product p ON fs.product_key = p.product_key
+                    WHERE fs.date_key >= ? AND p.category_name LIKE ?
+                    GROUP BY p.category_name
+                ) native_final
+                """, 20240102, "%数码%");
+        Integer unfilteredGroups = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM (
+                    SELECT p.category_name
+                    FROM fact_sales fs
+                    LEFT JOIN dim_product p ON fs.product_key = p.product_key
+                    GROUP BY p.category_name
+                ) native_all
+                """, Integer.class);
+
+        assertEquals(((Number) nativeRow.get("total")).longValue(),
+                ((Number) preAggRow.get("total")).longValue());
+        assertEquals(toBigDecimal(nativeRow.get("teamSales")),
+                toBigDecimal(preAggRow.get("teamSales")));
+        assertNotNull(unfilteredGroups);
+        assertTrue(((Number) preAggRow.get("total")).longValue() > 0);
+        assertTrue(((Number) preAggRow.get("total")).longValue() < unfilteredGroups);
+    }
+
+    private GroupRequestDef group(String field, String aggregation) {
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField(field);
+        group.setAgg(aggregation);
+        return group;
+    }
+
+    private PreAggRewriteResult rewriteWithFreshWatermarks(JdbcQueryModel queryModel,
+                                                             JdbcModelQueryEngine queryEngine,
+                                                             DbQueryRequestDef queryRequest) {
+        PreAggRewriteResult[] result = new PreAggRewriteResult[1];
+        withFreshHybridWatermarks(queryModel.getJdbcModel().getPreAggregations(), () -> {
+            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+            result[0] = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        });
+        return result[0];
+    }
+
+    private void withStaleHybridWatermarks(Collection<PreAggregation> preAggregations,
+                                           Object watermark,
+                                           Runnable action) {
+        withRestoredWatermarks(preAggregations, () -> {
+            for (PreAggregation preAggregation : preAggregations) {
+                if (preAggregation.supportsHybridQuery()) {
+                    preAggregation.setDataWatermark(watermark);
+                }
+            }
+            action.run();
+        });
+    }
+
+    private void withFreshHybridWatermarks(Collection<PreAggregation> preAggregations,
+                                           Runnable action) {
+        withRestoredWatermarks(preAggregations, () -> {
+            for (PreAggregation preAggregation : preAggregations) {
+                if (preAggregation.supportsHybridQuery()) {
+                    preAggregation.setDataWatermark(LocalDate.now());
+                }
+            }
+            action.run();
+        });
+    }
+
+    private void withRestoredWatermarks(Collection<PreAggregation> preAggregations,
+                                        Runnable action) {
+        Map<PreAggregation, Object> originalWatermarks = new IdentityHashMap<>();
+        for (PreAggregation preAggregation : preAggregations) {
+            originalWatermarks.put(preAggregation, preAggregation.getDataWatermark());
         }
-        return count;
+        try {
+            action.run();
+        } finally {
+            originalWatermarks.forEach(PreAggregation::setDataWatermark);
+        }
     }
 
     private void assertFormulaRowsMatch(List<Map<String, Object>> expectedRows,
@@ -1103,12 +1345,17 @@ class PreAggregationIT {
     }
 
     private Map<String, BigDecimal> formulaRowsByKey(List<Map<String, Object>> rows) {
+        return metricRowsByKey(rows, "salesAmountFormulaYuan");
+    }
+
+    private Map<String, BigDecimal> metricRowsByKey(List<Map<String, Object>> rows,
+                                                     String metricName) {
         Map<String, BigDecimal> result = new TreeMap<>();
         for (Map<String, Object> row : rows) {
             String key = String.valueOf(row.get("salesDate$caption"))
                     + "|"
                     + String.valueOf(row.get("product$caption"));
-            result.put(key, toBigDecimal(row.get("salesAmountFormulaYuan")));
+            result.put(key, toBigDecimal(row.get(metricName)));
         }
         return result;
     }
