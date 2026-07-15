@@ -34,7 +34,7 @@
     },
     "external_vector_runner": {
       "path": "scripts/verify-v934-external-vector.sh",
-      "sha256": "62528301a46f68c96bf4ba08ffe7b8fa55911f48693ddc4f3ee8305c60184ffb"
+      "sha256": "07fb1834d56e1f89c4b0e640d0be44969b57ba6d76b483dcf6cc9c46044a6641"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",

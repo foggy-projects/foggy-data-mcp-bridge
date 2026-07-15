@@ -768,7 +768,8 @@ jq -e --argjson count "$DOCUMENT_COUNT" '.code == 0 and (.data | length) == $cou
   <<< "$query_response" >/dev/null || fail "VectorStore Strong query count differs"
 fixture_rows="$(jq -r '
   .data | sort_by(.id)[]
-  | [.id, .content, .metadata.template_type, .metadata.model_name] | @tsv
+  | (.metadata | if type == "string" then fromjson else . end) as $metadata
+  | [.id, .content, $metadata.template_type, $metadata.model_name] | @tsv
 ' <<< "$query_response")"
 expected_rows=$'qt1\t最近一周各品牌销售情况\tdsl\tFactSalesQueryModel\nqt2\t本月销售数据统计分析\tdsl\tFactSalesQueryModel\nqt3\t销售趋势分析指南\tguide\tFactSalesQueryModel\nqt4\t库存不足商品查询\tdsl\tFactInventoryQueryModel\nqt5\t客户购买行为分析\tguide\tFactOrderQueryModel'
 [[ "$fixture_rows" == "$expected_rows" ]] || fail "VectorStore Strong query fixture differs"
