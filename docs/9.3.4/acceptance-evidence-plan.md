@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # 9.3.4 Acceptance Evidence Plan
@@ -28,7 +28,7 @@ updated_at: 2026-07-15
 | implementation plan | `implementation-plan.md` | ready |
 | progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–2 passed / Step 3 in-progress |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Step 2 runner result passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–2 authority present；Step 3 diagnostic foundation present/not-authority；Steps 4–6 pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–2 authority present；Step 3 required external single-outer subset passed、database foundation remains diagnostic / overall not passed；Steps 4–6 pending |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` | Step 2 reviewed / ready-with-risks；open B/H/M=0 |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` | Step 2 ready-for-acceptance；critical/major gap=0 |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -47,9 +47,12 @@ successor manifest SHA-256=
 `4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919`，actual result=
 `724 positive + 59 structural / 5,205 testcase / F0/E0/S0`。Step 3 deferred=`46`。
 
-Current Step 3 diagnostic（not authority）：
-`docs/9.3.4/evidence/step-3/step3-five-db-foundation-20260715.md`；five-DB
-preflight/QueryFacade=`10/F0/E0/S0`，完整 matrix/external/fresh-volume evidence pending。
+Current Step 3 evidence：five-DB foundation 仍为 diagnostic，数据库 fresh matrix 未完成；
+required external 已由
+`docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`
+确认 single-outer `7 variants / 16 reports / 76 testcase / F0/E0/S0` 与
+INT/TERM/HUP parent+child durable cleanup。该结果只关闭 external subset，不满足 Step 3
+`45/446` exit 或版本 acceptance。
 
 ## Mandatory Acceptance Evidence
 

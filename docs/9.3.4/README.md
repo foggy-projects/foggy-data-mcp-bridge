@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -70,6 +70,8 @@ updated_at: 2026-07-15
   [evidence/step-3/step3-external-mysql-runner-candidate-20260715.md](evidence/step-3/step3-external-mysql-runner-candidate-20260715.md)
 - Step 3 committed Vector external subset candidate（run-local / not full authority）：
   [evidence/step-3/step3-external-vector-runner-candidate-20260715.md](evidence/step-3/step3-external-vector-runner-candidate-20260715.md)
+- Step 3 shared external matrix candidate（single outer / complete external subset）：
+  [evidence/step-3/step3-shared-external-matrix-candidate-20260716.md](evidence/step-3/step3-shared-external-matrix-candidate-20260716.md)
 
 ## 1~7 顺序
 
@@ -77,7 +79,7 @@ updated_at: 2026-07-15
 |---:|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
-| 3 | 五数据库与外部集成 required matrix | in-progress | fresh SQLite subset `5/50`；committed Redis + Mongo + MySQL + Vector progress ledger `16/76`，四组 INT/TERM/HUP cleanup；剩余四库 `24/320`、external shared-run replay 与 state negatives pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | shared external matrix `7 variants / 16 reports / 76 testcase / F0/E0/S0`，outer INT/TERM/HUP parent+child durable cleanup；剩余四库 `24/320`、DB/resource-state negatives、optional LLM disposition pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | 全 required lane 重新带 agent 执行；XML verifier + module checks fail closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |

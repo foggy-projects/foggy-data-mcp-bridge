@@ -51,9 +51,10 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - expected：每个 variant 使用 fresh/run-owned external service，绑定镜像/服务身份、
   raw Failsafe XML、exact report/testcase、F0/E0/S0、资源清理与 sensitive scan；全量
   collector 与 confirmed deferred inventory exact match。
-- actual：此前只有长期 demo service 上的零散诊断，没有 7-variant contract/collector；
-  Mongo 与 Vector 存在 assumption/disabled 伪绿，MCP direct 汇总没有断言所有 case
-  均成功，optional LLM 也可能被宽泛 selector 意外带入 required lane。
+- actual：7-variant contract/collector、四个 run-owned lanes 与 single-outer `16/76`
+  authority 已完成；此前 Mongo/Vector assumption/disabled、MCP direct 汇总及 optional LLM
+  selector 伪绿均已在 required external lane 关闭。当前 workitem 仍因 resource-state
+  negatives、optional LLM reviewed disposition 和 database+external `45/446` union 保持开放。
 
 ## Confirmed False-green Paths
 
@@ -96,6 +97,8 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] replace Vector assumption/disabled paths with a deterministic local embedding fixture
 - [x] provision fresh Milvus/etcd/MinIO and execute exact 2/20/S0
 - [x] prove real Vector INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
+- [x] replay and merge exact external 16/76 under one outer marker/HEAD/contract
+- [x] prove shared outer INT/TERM/HUP parent+child durable cleanup as 130/143/129
 - [ ] finalize optional LLM reviewed disposition
 - [ ] merge external 16/76 with database 29/370 as exact Step 3 45/446/F0/E0/S0
 
@@ -115,11 +118,14 @@ MCP/Compose assertion false greens are tracked in
 `BUG-step3-mysql57-mcp-false-green-assertions.md`; no MySQL57 required result is inferred from
 source or runner amendments.
 
-Committed Redis, Mongo, MySQL and Vector candidates independently close `2/3`, `4/30`, `8/23` and
-`2/20`, for a progress ledger of `16 reports / 76 testcase / F0/E0/S0`. Their four run-local
-manifests all have `complete=false` and cannot be spliced into a full external authority. The
-required selector gap is zero, but a shared outer orchestrator must still replay and merge the exact
-set in one run. Long-lived demo containers remain diagnostic-only.
+Committed Redis, Mongo, MySQL and Vector subset candidates independently closed `2/3`, `4/30`,
+`8/23` and `2/20`, but their four run-local `complete=false` manifests remain non-spliceable history.
+Current complete external subset is `external-matrix-candidate-47d1afd7-r1`: one outer marker,
+HEAD and contract binds all four children and seven variants, with exact
+`16 reports / 76 testcase / F0/E0/S0` and `complete=true`. Its candidate and repaired
+INT/TERM/HUP signal group are recorded in
+`docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`.
+Long-lived demo containers remain diagnostic-only。
 
 MySQL formal attempt `external-mysql-candidate-664c8f21-r1` failed closed before JUnit because
 MySQL 5.7 does not expose `information_schema.ROUTINE_PRIVILEGES`; it emitted no candidate and left
@@ -150,3 +156,4 @@ container/volume/network residue `0/0/0`. Only
 - `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`
 - `docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`
 - `docs/9.3.4/evidence/step-3/step3-external-vector-runner-candidate-20260715.md`
+- `docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`

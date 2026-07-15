@@ -4,7 +4,7 @@ doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # 9.3.4 Code Inventory
@@ -83,6 +83,11 @@ code_inventory:
     role: deterministic successor generation and fail-closed raw report evidence
     expected_change: create
     notes: candidate/final split, shared signal-safe durable status, typed structural zero verification, expected-negative probes and atomic confirmation
+  - module: v934-step3-external-runners
+    path: scripts/{verify-v934-external-matrix.sh,verify-v934-external-redis.sh,verify-v934-external-mongo.sh,verify-v934-external-mysql.sh,verify-v934-external-vector.sh}; scripts/v934/step3/{external-matrix-contract.json,external_matrix_report_tool.py,external_shared_context.sh,external_lane_launcher.py,external_redis_signal_probe.py}
+    role: single-outer required external execution, exact report/candidate collection and real signal cleanup evidence
+    expected_change: create
+    notes: one lock/outer/HEAD/contract owns 7 variants and 16/76 raw Failsafe evidence; launcher resets inherited async signals while preserving the locked FD across exec
   - module: frozen-contract-data
     path: scripts/v934/maven-variant-inventory.tsv
     role: current Maven profile/plugin execution owner to v934 successor disposition

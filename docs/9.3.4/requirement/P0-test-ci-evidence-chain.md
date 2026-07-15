@@ -6,7 +6,7 @@ priority: P0
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # P0 测试与 CI 证据链
@@ -152,9 +152,11 @@ updated_at: 2026-07-15
 - Step 3 exact deferred=`46`（`45 required + 1 optional LLM`）；five-DB
   preflight/QueryFacade foundation 已 diagnostic `10/F0/E0/S0`，run-owned fresh SQLite=
   `5/50/F0/E0/S0`，v933 batch6 real-query replacement=`11 tests / 6 reports / F0/E0/S0`；
-  committed Redis + Mongo + MySQL + Vector external progress ledger=`16/76/F0/E0/S0`，四个
-  `complete=false` manifests 不可跨 run 拼接；required selector gap 已清零，但 shared-run
-  external authority、Pivot preagg 真执行与其余 required gap 待清零；
+  committed Redis + Mongo + MySQL + Vector subset history 已由 shared outer run
+  `external-matrix-candidate-47d1afd7-r1` 取代为完整 external subset authority：
+  `7 variants / 16 reports / 76 testcase / F0/E0/S0`、`complete=true`、required selector
+  gap=`0`；Pivot preagg 真执行、数据库 remaining `24/320`、state negatives 与其余 required
+  gap 仍待清零；
 - r8d authority 因 signal fail-open 作废；r8e 已以 INT/TERM/HUP=`130/143/129`
   动态探针证明 durable fail closed；
 - 五库、coverage、CI、release 和 version acceptance 仍未完成，不能据此签收 9.3.4

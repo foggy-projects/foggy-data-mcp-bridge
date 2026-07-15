@@ -1,12 +1,12 @@
 ---
 type: bug
-bug_source: integration-test
+bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP3-EXTERNAL-MATRIX-CHILD-INT-INHERITANCE
 severity: critical
-status: in-progress
-reproduction_status: confirmed-by-signal-probe
-test_strategy: runner-contract-and-real-signal-probe
+status: closed
+reproduction_status: confirmed
+test_strategy: integration-test
 automation_decision: required
 owner: scripts/v934/step3
 ---
@@ -54,13 +54,17 @@ runner 仍停在 signal-probe loop。parent 等待 45 秒后发送 `KILL`，chil
 
 - [x] 真实 matrix INT probe 稳定复现 child durable evidence 缺失。
 - [x] 无 Docker 最小回归证明后台 Bash 的 ignored SIGINT 继承。
-- [ ] 增加显式 signal reset + new session + exec 的 lane launcher。
-- [ ] 固定 launcher 的 lock FD 继承与 process-group 契约。
-- [ ] 错开 parent graceful wait 与 signal helper timeout。
-- [ ] 更新 external contract bindings 与负向/静态检查。
-- [ ] 新 commit 完整重跑 `7/16/76/F0/E0/S0`。
-- [ ] 新 commit 真实 INT/TERM/HUP 全部得到 parent/child durable evidence 与零残留。
-- [ ] 独立质量复核通过并关闭本 BUG。
+- [x] 增加显式 signal reset + new session + exec 的 lane launcher。
+- [x] 固定 launcher 的 lock FD 继承与 process-group 契约。
+- [x] 错开 parent graceful wait 与 signal helper timeout。
+- [x] 更新 external contract bindings 与负向/静态检查。
+- [x] 新 commit 完整重跑 `7/16/76/F0/E0/S0`。
+- [x] 新 commit 真实 INT/TERM/HUP 全部得到 parent/child durable evidence 与零残留。
+- [x] 独立质量复核通过并关闭本 BUG。
+
+Closed by `47d1afd7fb59f1cc6beab3ba68d0b7dd4589b6ab`。正式 candidate、三信号
+parent/child durable cleanup 与独立审计见
+`docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`。
 
 ## References
 
@@ -68,3 +72,4 @@ runner 仍停在 signal-probe loop。parent 等待 45 秒后发送 `KILL`，chil
 - `scripts/v934/step3/external_redis_signal_probe.py`
 - `scripts/v934/step3/external_shared_context.sh`
 - `docs/9.3.4/workitems/BUG-step3-external-matrix-gaps.md`
+- `docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`

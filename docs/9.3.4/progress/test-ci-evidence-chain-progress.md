@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # 9.3.4 测试与 CI 证据链进度
@@ -59,7 +59,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed Redis + Mongo + MySQL + Vector progress ledger `16/76` + four signal groups；remaining DB `24/320` + external shared-run replay + state negatives pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；single-outer external `7 variants / 16 reports / 76 testcase / F0/E0/S0` + outer signal group；remaining DB `24/320` + state negatives + optional LLM pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
@@ -589,6 +589,70 @@ Decision：Vector subset candidate=`passed`，Step 3=`in-progress / not passed`�
 - decision: `passed-subset / needs-formal-quality-gate-at-step3-exit`，不允许提升为 full
   authority、coverage entry 或 version acceptance。
 
+## Execution Check-in — Step 3（in-progress / shared external matrix）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-16
+- owner: current 9.3.4 root session
+- implementation commits:
+  `18498e4d206a41fe7a13491fecaf0fcba78b56e4`、
+  `b602ee510568f3d1ea0fa7d8e3cafca494b51cea`、
+  `47d1afd7fb59f1cc6beab3ba68d0b7dd4589b6ab`
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`。
+
+实现与验证结果：
+
+- `scripts/verify-v934-external-matrix.sh` 在唯一 authority lock、outer marker 和 source seal
+  下，按 Redis → Mongo → MySQL → Vector 顺序启动四个 shared children；children 继承同一
+  outer/HEAD/contract 和 lock FD，七个 variants 不再跨 run 拼接。
+- committed candidate `external-matrix-candidate-47d1afd7-r1` 精确得到
+  `complete=true / 7 variants / 16 reports / 76 testcase / F0/E0/S0`。分项为 Redis
+  `2/3`、Mongo `4/30`、MySQL `8/23`、Vector `2/20`；MySQL direct structured report=
+  `23/23 passed / business errors=0`，optional LLM 未进入 required lane。
+- final candidate 绑定 273 个 artifacts；outer 与四个 nested candidates、七个 variant
+  manifests、16 份 raw Failsafe XML、source/bytecode seals、resource/fixture/cleanup evidence
+  均由 verifier 重验。source before/after 逻辑 SHA 均为
+  `d19a27991e5bba89515b75fa48f170d26257604859a87ccb49de8ff1ce7c95ea`；Docker
+  container/volume/network residue=`0/0/0`。
+- outer report negatives=`12/12`，四 lane sensitive negatives 合计=`24/24`，全目录
+  sensitive scan 通过；父级扫描已排除 JSON/env 中值为 null 的非凭据字段，真实短凭据
+  fixtures 仍全部命中。
+- 首个 outer candidate `external-matrix-candidate-18498e4d-r1` 的正向 7/16/76 虽通过，
+  但后续 INT probe 证明后台 `setsid ... &` child 继承 ignored SIGINT，child durable
+  status/cleanup 缺失，因此该 generation 被 supersede。Python exec launcher 在 exec 前
+  reset signals、建立 PID=SID=PGID、校验 exported/inherited lock FD 和 same-OFD flock；
+  parent grace=`20s`、matrix probe finalize=`60s`。
+- 修复后 signal group `external-matrix-signal-47d1afd7-r1` 的 INT/TERM/HUP parent 与
+  Redis child 均分别写 `130/143/129` failed status；child cleanup=`0/0`，outer aggregate
+  cleanup=`0/0/0`，summary/candidate/final/FIFO absent，Docker residue=`0/0/0`。
+
+Evidence boundary / non-goals：
+
+- 本记录关闭的是 required external `16/76` 的 single-outer replay/merge，不等于 Step 3
+  final `45/446`；database remaining `24/320`、DB/resource-state negatives、optional LLM
+  disposition、Addon lifecycle 与 portable archive 仍开放。
+- 旧四个 `complete=false` subset candidates 和 `18498e4d` signal-broken generation 只保留
+  为诊断/历史证据，不参与当前 candidate 拼接或后续 acceptance。
+- 本批不产生 JaCoCo exec，不进入 Step 4；用户已有 PreAgg POM/source/test/contract 变更
+  未触碰、未暂存。
+
+Decision：shared external subset=`passed`；Step 3 继续 `in-progress / not passed`。下一动作
+是 DB/resource-state negatives、同 commit 四外库 remaining `24/320` 与 optional LLM reviewed
+disposition；不进入 Step 4。
+
+### Implementation Quality Gate — Shared external matrix
+
+- mode: `formal-subscope-quality-gate`；candidate audit=`CLEAN`、signal audit=`CLEAN`、
+  implementation quality=`PASS`，new P0/P1=`0`。
+- prior blocker: 后台 child ignored SIGINT 已由 reset→setsid→exec launcher、same-OFD lock
+  验证和 20s/60s 分离关闭；旧 `18498e4d` generation 明确 superseded。
+- mechanical review: 273-artifact exact set、1544-row top-level source seal、13 contract
+  bindings、16 XML/76 nodes、INT/TERM/HUP parent+child durable evidence及实时 Docker residue
+  均独立复算通过。
+- decision: `passed-external-subset / needs-step3-remaining-work`；本质量结论不签收 Step 3
+  remaining `24/320`、state negatives、optional LLM、Addon lifecycle 或 Step 4。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -657,10 +721,11 @@ foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一�
 `29 reports / 370 tests / F0/E0/S0`，证据见
 `docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。
 runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；committed Redis +
-Mongo + MySQL + Vector external progress ledger=`16/76/F0/E0/S0`，四条 lane 的 real
-signals 均为 `130/143/129`。下一批以 shared outer orchestrator 在同一 run 重放并合并
-external exact `16/76`，同时补齐 unavailable/wrong identity/fixture mutation/provision cleanup
-等 DB/resource state negatives。在冻结端口空闲的 clean host 上再以同一 commit 重放四外库
+Mongo + MySQL + Vector historical subsets 已由 single outer candidate
+`external-matrix-candidate-47d1afd7-r1` 取代为 `complete=true / 7 variants / 16 reports /
+76 testcase / F0/E0/S0`；outer real INT/TERM/HUP 的 parent/child durable exit 均为
+`130/143/129`。下一批补齐 unavailable/wrong identity/fixture mutation/provision cleanup
+等 DB/resource state negatives。在冻结端口空闲的 clean host 上以同一 commit 重放四外库
 remaining `24/320`；1 个 external LLM 保持 optional reviewed disposition。Addon lifecycle 继续
 按独立 workitem 修复 COUNT/formula/SQLite/watermark/TM normalization 后执行 SQLite +
 外库真实 create/full/incremental/query parity。Step 4 coverage 不得提前混入本阶段
