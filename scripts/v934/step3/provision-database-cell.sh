@@ -466,6 +466,23 @@ mysql_query() {
     mysql --batch --raw --skip-column-names -ufoggy foggy_test -e "$1"
 }
 
+wait_for_mysql_initialization() {
+  local marker_count=""
+  identity=""
+  for _ in $(seq 1 120); do
+    if identity="$(mysql_query "SELECT CONCAT(DATABASE(), '|', VERSION());" 2>/dev/null)" \
+      && marker_count="$(mysql_query \
+        "SELECT COUNT(DISTINCT preagg_name) FROM preagg_watermark
+         WHERE preagg_name IN ('daily_product_sales', 'monthly_category_sales',
+           'daily_customer_channel_sales', 'daily_return');" 2>/dev/null)" \
+      && [[ "$marker_count" == 4 ]]; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
 postgres_query() {
   docker exec "$CONTAINER" psql -v ON_ERROR_STOP=1 -At -U foggy -d foggy_test -c "$1"
 }
@@ -488,35 +505,18 @@ fi
 case "$DATABASE" in
   mysql57)
     # The official MySQL entrypoint starts a temporary server while it creates
-    # the configured database/user and runs init scripts. A root ping can mark
-    # the container healthy during that window, so gate on the same business
-    # credential and catalog that the matrix will actually use.
-    database_ready=false
-    identity=""
-    for _ in $(seq 1 120); do
-      if identity="$(mysql_query "SELECT CONCAT(DATABASE(), '|', VERSION());" 2>/dev/null)"; then
-        database_ready=true
-        break
-      fi
-      sleep 0.5
-    done
-    [[ "$database_ready" == true ]] || \
-      fail E_DATABASE_READINESS "foggy_test did not become queryable with the frozen MySQL credential"
+    # the configured database/user before it finishes every init script. A
+    # root ping or successful business login can therefore be premature. The
+    # four watermark rows are written by the final init script and prove that
+    # both identity and the complete base fixture are ready.
+    wait_for_mysql_initialization || \
+      fail E_DATABASE_READINESS "foggy_test identity/base fixture did not become fully initialized"
     [[ "$identity" == 'foggy_test|5.7.44-log' ]] || \
       fail E_DATABASE_IDENTITY "actual=$identity expected=foggy_test|5.7.44-log"
     ;;
   mysql8)
-    database_ready=false
-    identity=""
-    for _ in $(seq 1 120); do
-      if identity="$(mysql_query "SELECT CONCAT(DATABASE(), '|', VERSION());" 2>/dev/null)"; then
-        database_ready=true
-        break
-      fi
-      sleep 0.5
-    done
-    [[ "$database_ready" == true ]] || \
-      fail E_DATABASE_READINESS "foggy_test did not become queryable with the frozen MySQL credential"
+    wait_for_mysql_initialization || \
+      fail E_DATABASE_READINESS "foggy_test identity/base fixture did not become fully initialized"
     [[ "$identity" == foggy_test\|8.0.* ]] || \
       fail E_DATABASE_IDENTITY "actual=$identity expected=foggy_test|8.0.x"
     ;;

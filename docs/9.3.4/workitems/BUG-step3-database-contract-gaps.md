@@ -172,6 +172,13 @@ credential 查询 `foggy_test` 成功，才允许进入 identity、fixture 与 c
 目标 probe 之前失败，而修复后必须继续到每个约定错误码。该项在新的 clean committed
 HEAD 完成 `18/18` 状态负向与正式父矩阵前保持 `in-progress`。
 
+第二次正式父运行 `step3-required-20260716-final-r2` 证明仅等待业务用户查询仍不充分：
+该用户在最后一个 init script 之前已可登录，随后 V934 fixture 访问尚未创建的
+`fact_sales`，虽然 cleanup probe 本身返回预期 `E_CLEANUP_FORCED`，但 fixture hashes
+为空，manifest verifier 因此以 `E_MANIFEST` 拒绝候选。readiness 随即加强为双条件：
+业务 identity 成功，且最后初始化脚本写入的四条 `preagg_watermark` marker 全部存在。
+r2 同样只作为 excluded diagnostic；零残留与原 demo 容器恢复状态需在最终证据中单列。
+
 ## Verification
 
 The item can move to `ready-for-verification` only when the Step 3 authority summary proves:
