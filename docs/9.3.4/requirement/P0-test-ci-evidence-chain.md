@@ -150,9 +150,11 @@ updated_at: 2026-07-15
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
   F/E/S=`0/0/0`；
 - Step 3 exact deferred=`46`（`45 required + 1 optional LLM`）；five-DB
-  preflight/QueryFacade foundation 已 diagnostic `10/F0/E0/S0`，v933 batch6 real-query
-  replacement=`11 tests / 6 reports / F0/E0/S0`；Pivot preagg 真执行与其余 required gap
-  待清零；
+  preflight/QueryFacade foundation 已 diagnostic `10/F0/E0/S0`，run-owned fresh SQLite=
+  `5/50/F0/E0/S0`，v933 batch6 real-query replacement=`11 tests / 6 reports / F0/E0/S0`；
+  committed Redis + Mongo + MySQL external subset progress=`14/56/F0/E0/S0`，三个
+  `complete=false` manifests 不可跨 run 拼接，remaining external=Vector `2/20`；Pivot preagg
+  真执行与其余 required gap 待清零；
 - r8d authority 因 signal fail-open 作废；r8e 已以 INT/TERM/HUP=`130/143/129`
   动态探针证明 durable fail closed；
 - 五库、coverage、CI、release 和 version acceptance 仍未完成，不能据此签收 9.3.4

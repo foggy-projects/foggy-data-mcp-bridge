@@ -4,7 +4,7 @@ bug_source: test-governance-found
 version: 9.3.4
 ticket: BUG-934-STEP3-MYSQL57-DIRECT-CATALOG-ASSEMBLY
 severity: critical
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -82,12 +82,10 @@ demo 注入、缺失、额外、symlink 或内容漂移都由 candidate verifier
 - [x] curated bundle 生成与 manifest/candidate 严格校验已实现
 - [x] `META-001` 规则要求内容同时包含 FactSales/FactOrder，不再以任意非空 Map 通过
 - [x] MySQL required runner 强制 full catalog，现有节点要求精确 32 QM 且排除两个 demo QM
-- [ ] 单跑 `META-001`，隔离 bundle 下 cold catalog 成功
-- [ ] 执行全部 direct cases，要求 `23/23`
-- [ ] `mysql57-direct` 精确 `2 reports / 7 testcase / F0/E0/S0`
-- [ ] optional `AiModelCallTest` 不进入 required selector
-- [ ] launcher default/lite 冷启动 `dataset.list_models` 回归
-- [ ] 缺 provider 时仍不发布部分 snapshot
+- [x] 单跑 `META-001`，隔离 bundle 下 cold catalog 成功
+- [x] 执行全部 direct cases，要求 `23/23`
+- [x] `mysql57-direct` 精确 `2 reports / 7 testcase / F0/E0/S0`
+- [x] optional `AiModelCallTest` 不进入 required selector
 
 `external-mysql-dev-a9c3r4` 及此前所有 MySQL 尝试均为失败/诊断证据：durable status
 为 failed、无 candidate、Docker container/volume residue=`0/0`，不得与后续绿色结果拼接。
@@ -98,10 +96,23 @@ demo 注入、缺失、额外、symlink 或内容漂移都由 candidate verifier
 应按 capability/profile 拆分或显式激活 model-source bundle，或者引入独立于 MCP 输出
 过滤的 source allowlist；不在 9.3.4 中放宽 Catalog fail-closed。
 
+- [ ] launcher default/lite 冷启动 `dataset.list_models` 回归
+- [ ] 缺 provider 时仍不发布部分 snapshot
+
+上述两项是生产装配长期项，不属于本次 Step 3 MySQL required lane 的关闭条件。
+
+## Closure
+
+Committed fresh candidate `external-mysql-candidate-97f1cbfa-r2` 在 exact curated bundle 上完成
+cold catalog，direct structured report 为 `23/23`，JUnit 为 `2 reports / 7 testcase /
+F0/E0/S0`，required selector 中不存在 optional `AiModelCallTest`。本 BUG 以 Step 3 unblock
+scope 关闭；生产 follow-up 保持显式开放。证据见
+`docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`。
+
 ## Evidence Boundary
 
-现有失败报告只用于复现和根因确认，不是 required 绿色证据。MySQL57 direct 在上述全部
-回归完成前保持 pending，Redis/Mongo/Vector 的结果不能替代它。
+旧失败报告只用于复现和根因确认，不是 required 绿色证据。当前关闭结论只绑定 committed
+fresh candidate `external-mysql-candidate-97f1cbfa-r2`；Redis/Mongo/Vector 的结果不能替代它。
 
 ## References
 

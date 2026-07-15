@@ -92,7 +92,7 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] eliminate MCP/Compose non-null and double-empty assertion false greens without changing nodes
 - [x] implement deterministic MySQL57 time/RAND seed, exact 69-table content hash,
   distinct root/app credentials, SELECT-only grants and curated 32-QM bundle gates
-- [ ] provision fresh MySQL57 and execute exact 8/23/S0 without optional LLM
+- [x] provision fresh MySQL57 and execute exact 8/23/S0 without optional LLM
 - [ ] replace Vector assumption/disabled paths with a deterministic local embedding fixture
 - [ ] provision fresh Milvus/etcd/MinIO and execute exact 2/20/S0
 - [ ] finalize optional LLM reviewed disposition
@@ -114,9 +114,16 @@ MCP/Compose assertion false greens are tracked in
 `BUG-step3-mysql57-mcp-false-green-assertions.md`; no MySQL57 required result is inferred from
 source or runner amendments.
 
-Committed Redis and Mongo candidates independently close `2/3` and `4/30`; their two run-local
-manifests cannot be spliced into a full external authority. No MySQL57/Vector result may be inferred
-from either subset. Long-lived demo containers remain diagnostic-only.
+Committed Redis, Mongo and MySQL candidates independently close `2/3`, `4/30` and `8/23`, for a
+progress ledger of `14 reports / 56 testcase / F0/E0/S0`. Their three run-local manifests all have
+`complete=false` and cannot be spliced into a full external authority. Remaining external is exact
+Vector `2/20`; no Vector result may be inferred from the other subsets. Long-lived demo containers
+remain diagnostic-only.
+
+MySQL formal attempt `external-mysql-candidate-664c8f21-r1` failed closed before JUnit because
+MySQL 5.7 does not expose `information_schema.ROUTINE_PRIVILEGES`; it emitted no candidate and left
+container/volume residue `0/0`. The compatible grant query was committed as `97f1cbfa`, and only
+`external-mysql-candidate-97f1cbfa-r2` is accepted for the MySQL progress ledger.
 
 ## References
 
@@ -126,8 +133,10 @@ from either subset. Long-lived demo containers remain diagnostic-only.
 - `scripts/v934/step3/external-matrix-contract.json`
 - `scripts/verify-v934-external-redis.sh`
 - `scripts/verify-v934-external-mongo.sh`
+- `scripts/verify-v934-external-mysql.sh`
 - `docs/9.3.4/workitems/BUG-step3-mysql57-direct-default-catalog-assembly.md`
 - `docs/9.3.4/workitems/BUG-step3-mysql57-mcp-false-green-assertions.md`
 - `docs/9.3.4/workitems/BUG-step3-mongo-loader-jdbc-dialect-dependency.md`
 - `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`
 - `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`
+- `docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`

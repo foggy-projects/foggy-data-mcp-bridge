@@ -59,7 +59,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed Redis + Mongo subsets `6/33` + signal cleanup；remaining DB `24/320` + external `10/43` + state negatives pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed Redis + Mongo + MySQL subsets `14/56` + signal cleanup；remaining DB `24/320` + Vector `2/20` + state negatives pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
@@ -468,6 +468,63 @@ variant 按顺序进入 MCP/MySQL57 `8/23`，随后 Vector `2/20`；不进入 St
 - decision: `passed-subset / needs-formal-quality-gate-at-step3-exit`，不允许提升为 full
   authority、coverage entry 或 version acceptance。
 
+## Execution Check-in — Step 3（in-progress / committed MySQL57 external subset）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-15
+- owner: current 9.3.4 root session
+- implementation commits: `664c8f21a82426206b352fbd2a9e2a09ec25df43`、
+  `97f1cbfa7f412fabc6f0ef96d9182c9340a51fbd`
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`。
+
+实现与验证结果：
+
+- committed run `external-mysql-candidate-97f1cbfa-r2` 使用 digest-pinned MySQL `5.7.44-log`、
+  动态 loopback、单一 run-labelled named volume、独立 ephemeral root/app 密钥和精确
+  schema-level SELECT-only grant，得到 exact `3 variants / 8 reports / 23 testcase /
+  F0/E0/S0`。
+- deterministic fixture 使用固定时区/epoch/RAND seed 与单 session commit；before/after
+  `69 tables / 69 PK`、完整数据 hash `c8edcd27...` 和 grant hash `ae360368...` 均一致，
+  terminal container/volume residue=`0/0`。
+- run-owned curated bundle 精确 `59 files / 32 QM / 25 TM / 2 fsscript`，排除两个
+  `demo/**` 权限模型；MCP 节点强制公开 catalog 精确 32 QM。direct structured report=
+  `23/23`，无 business error/warning；optional LLM nested class 未进入 required selector。
+- candidate manifest 绑定 122 个文件并重验通过；source before/after、三个 variant bytecode
+  seal、12/12 report negatives、6/6 sensitive probes 与两条 ephemeral secret exact scan
+  均通过。
+- real signal group `external-mysql-signal-97f1cbfa-r2` 的 INT/TERM/HUP 分别为
+  `130/143/129`；durable status 均 failed，summary/candidate/FIFO absent，container/volume
+  residue=`0/0`。
+- first formal attempt `external-mysql-candidate-664c8f21-r1` 因 MySQL 5.7 不提供
+  `information_schema.ROUTINE_PRIVILEGES` 在 grant gate fail closed；`97f1cbfa` 改用兼容的
+  `mysql.procs_priv` 精确验证。r1 无 candidate 且 residue=`0/0`，禁止拼接。
+
+Evidence boundary / non-goals：
+
+- MySQL final manifest 为 `complete=false`。Redis + Mongo + MySQL 三个独立 candidates 仅构成
+  external progress ledger=`14/56`，不能跨 run 拼成 external `16/76`；remaining external
+  为 Vector `2/20`。
+- wrong-image/version、dirty-state、forced cleanup-failure resource negatives，数据库四外库
+  `24/320`、optional LLM disposition、Addon lifecycle 和 archive portability 仍开放。
+- 本批只关闭两个 MySQL test-governance BUG 的 Step 3 scope；production launcher/provider
+  follow-up 保持开放，不以 curated test bundle 冒充生产模块化修复。
+
+Decision：MySQL subset candidate=`passed`，Step 3=`in-progress / not passed`。下一 external
+variant 按顺序进入 Vector `2/20`；不进入 Step 4。
+
+### Implementation Quality Self-check — MySQL57 external subset
+
+- mode: `lightweight-self-check`；formal Step 3 quality gate 仍在完整 `45/446` exit 前执行。
+- implementation closure: runner/tool/contract、确定性 fixture、least-privilege grant、curated
+  catalog、MCP/Compose/direct fail-closed 与信号清理已收口；未修改生产 catalog 原子刷新语义。
+- verification: Bash/JSON/Python/Maven static checks、contract validator、source/bytecode seal、
+  candidate verifier、8/23 fresh execution、direct 23/23、negative/sensitive probes、signals 与
+  Docker residue 均通过；独立只读审计 finding=`0`。
+- protected changes: 用户已有 PreAgg POM/source/test 与新 contract 文件未触碰、未暂存。
+- decision: `passed-subset / needs-formal-quality-gate-at-step3-exit`，不允许提升为 full
+  authority、coverage entry 或 version acceptance。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -536,8 +593,8 @@ foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一�
 `29 reports / 370 tests / F0/E0/S0`，证据见
 `docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。
 runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；committed Redis +
-Mongo external subsets=`6/33/F0/E0/S0`，两条 lane 的 real signals 均为 `130/143/129`。
-下一批推进 MCP/MySQL57 `8/23`，随后 Vector `2/20`，并补齐 unavailable/wrong identity/
+Mongo + MySQL external subsets=`14/56/F0/E0/S0`，三条 lane 的 real signals 均为
+`130/143/129`。下一批推进 Vector `2/20`，并补齐 unavailable/wrong identity/
 fixture mutation/provision cleanup 等 DB/resource state negatives。在冻结端口空闲的 clean
 host 上再以同一 commit 重放四外库 remaining `24/320`；1 个 external LLM 保持 optional
 reviewed disposition。Addon lifecycle 继续

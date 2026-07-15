@@ -4,7 +4,7 @@ bug_source: test-governance-found
 version: 9.3.4
 ticket: BUG-934-STEP3-MYSQL57-MCP-FALSE-GREEN-ASSERTIONS
 severity: critical
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -55,16 +55,18 @@ schema、过滤口径或错误终态。两个请求本身还停留在旧 slice D
 - [x] 两个历史业务失败可由 run log 精确复现
 - [x] Maven test-compile 通过，source amendment 冻结原/新 SHA 与原 report 集合
 - [x] 题库仍精确 23 cases，META-001 两条内容规则由 ResultValidator 单测覆盖
-- [ ] fresh MySQL57 `mysql57-mcp` 精确 `5 reports / 14 testcase / F0/E0/S0`
-- [ ] fresh MySQL57 `mysql57-compose` 精确 `1 report / 2 testcase / F0/E0/S0`
-- [ ] direct structured report 精确 `23/23` 且 META-001 内容规则通过
-- [ ] candidate verifier 拒绝 empty result、wrong schema/plan 与 failed direct case
+- [x] fresh MySQL57 `mysql57-mcp` 精确 `5 reports / 14 testcase / F0/E0/S0`
+- [x] fresh MySQL57 `mysql57-compose` 精确 `1 report / 2 testcase / F0/E0/S0`
+- [x] direct structured report 精确 `23/23` 且 META-001 内容规则通过
+- [x] candidate verifier 拒绝 empty result、wrong schema/plan 与 failed direct case
 
 ## Evidence Boundary
 
-编译与单元测试只证明改动可执行，不证明真实 MySQL57 结果。该 BUG 在 committed fresh
-candidate 产生前保持 `in-progress`；旧的绿色 XML 已被判定为 false green，不能进入
-Step 3 authority。
+编译与单元测试本身不证明真实 MySQL57 结果。关闭结论绑定 committed fresh candidate
+`external-mysql-candidate-97f1cbfa-r2`：三 variant 精确 `8/23/F0/E0/S0`，direct=`23/23`，
+12/12 outcome/report negatives 证明失败 XML 或 direct case 不能进入 candidate。旧的绿色 XML
+已被判定为 false green，不能进入 Step 3 authority。证据见
+`docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`。
 
 ## References
 
