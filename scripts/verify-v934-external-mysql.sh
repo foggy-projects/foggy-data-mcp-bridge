@@ -403,7 +403,8 @@ write_mysql_grants_evidence() {
     SELECT COUNT(*) FROM information_schema.COLUMN_PRIVILEGES WHERE GRANTEE = $grantee;
   ")"
   routine_rows="$(mysql_root_query "
-    SELECT COUNT(*) FROM information_schema.ROUTINE_PRIVILEGES WHERE GRANTEE = $grantee;
+    SELECT COUNT(*) FROM mysql.procs_priv
+      WHERE User = '$MYSQL_USER' AND Host = '%';
   ")"
   proxy_rows="$(mysql_root_query "
     SELECT COUNT(*) FROM mysql.proxies_priv

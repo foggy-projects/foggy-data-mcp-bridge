@@ -30,7 +30,7 @@
     },
     "external_mysql_runner": {
       "path": "scripts/verify-v934-external-mysql.sh",
-      "sha256": "612051ef5067d8a4e54761b84b72b7e982b71e5468459e4a3d0a4ff7dec59e1c"
+      "sha256": "4c4bb615d7cccee45f97a037db90c1ffe29867dc972b8a744f8de1ce14b4d468"
     },
     "source_inventory": {
       "path": "scripts/v934/successor/step2/source-inventory.tsv",
