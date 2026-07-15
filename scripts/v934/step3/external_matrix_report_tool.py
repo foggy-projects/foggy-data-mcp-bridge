@@ -147,7 +147,7 @@ MYSQL57_TABLE_SET_SHA256 = (
     "6c3356917e89c46c5e37851226a40b3d28e07f1db02bb2fe5fbecec8183591b7"
 )
 MYSQL57_CONTENT_SHA256 = (
-    "c8edcd273ed2b0f9383330c7546521515ce729b078d5614995cd05752123ec8f"
+    "21919cc1f9c73fa05f80eb51ae86b939e7f7db4c7764b2841f1c4301188c256e"
 )
 MYSQL57_REQUIRED_TABLES = frozenset({
     "dim_channel", "dim_customer", "dim_date", "dim_product",

@@ -168,6 +168,12 @@ actual/expected 便于审计。只有 production runner 在新 committed HEAD �
 69-table/69-primary-key、关键行数、before=after、read-only grants、`8/23/S0` 和父级
 `16/76` 后，才可关闭此传播缺口。
 
+首次 production rerun `external-mysql-native-date-20260716-r1` 随后通过 runner 的 raw
+content gate，并生成 69 表、69 主键及全部关键行数均匹配的 canonical snapshot；它被
+report tool 内仍冻结的旧 content hash 再次拒绝。该 run 同样无候选、零残留。第二个
+冻结点已同步为同一新哈希，后续必须由 production runner 同时通过 snapshot verifier
+与完整 variants 才能成为有效证据。
+
 ## References
 
 - `docs/9.3.4/implementation-plan.md`, Step 3

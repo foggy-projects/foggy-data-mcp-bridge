@@ -46,7 +46,7 @@
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "3500d662e77cbda06dba3a3678b69992431b6ca0ec61212474f853c8b6f62e0e"
+      "sha256": "d15e3ad9d5f1e6001bab7a5d000ed0e25af241067dec2c9e3e5f159a6cef0531"
     },
     "external_shared_context": {
       "path": "scripts/v934/step3/external_shared_context.sh",
