@@ -1,0 +1,19 @@
+# Diagnostic source snapshot for step3-five-db-foundation-20260715.md
+# predecessor=a0f3a2db83365951a08b65f36765abf2920c6369
+171780a3df2c7e1f00dd51531c7258d06f332e7af8c355366e552eb67d08e2b9  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/gate/RequiredDatabasePreflightIT.java
+7bff2581c81ec2e7049cf2ecc02c0a4857e6b30384da11ab069c7a06a79036b1  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/realquery/RequiredDatabaseQueryFacadeParityIT.java
+70df05d3a8141bd01830bb95e5f215268d4f53a3307a5c2de42e01dbb49b7ce3  foggy-dataset-model/src/test/resources/application-postgres.yml
+b39daf250c4307253948607bf0dabc9a6cbd828f952cb71926f6e9f49409b8d3  foggy-dataset-model/src/test/resources/application-sqlserver.yml
+9c4b420704a6d26b0a59324765ed240db6f5363958f1437b864ab50c49e15d9d  foggy-dataset-model/src/test/resources/application-v934-sqlite.yml
+a6f4ed1e2397f6098bad7a2a42f2a1e18afc42f90787ea923f35bd6ed24da0af  foggy-dataset-model/src/test/resources/sqlite/10-v934-sentinel.sql
+bbff20136bf4796a003933efbf2d4a1c38fb3932b0e0882091652d0b74c7fe65  foggy-dataset-model/src/test/resources/sqlite/11-v934-parity-fixture.sql
+c54e1a3f5b758aaf53062ebef6b03b4d16e5900c4119e55426aaddc44bc6ea3c  foggy-dataset-demo/docker/docker-compose-v934.yml
+a92c73d87df4894369c8dcb0d02e47b3bfa37568aa1759935fd938ff8a02a232  foggy-dataset-demo/docker/v934/mysql/12-v934-sentinel.sql
+60caa2b087f43a76ec8ad9f701a2973631bb666bcb691323b02222127ea04cec  foggy-dataset-demo/docker/v934/mysql/13-v934-parity-fixture.sql
+1c6d3c5d2fdbde407a18771bb2e036632e12b1639d3c1b974ace813774134b5a  foggy-dataset-demo/docker/v934/postgres/12-v934-sentinel.sql
+1259c205d2a536bf9164ce2f8dfd35135891184fbd766f2b0c7191f9e9e98e33  foggy-dataset-demo/docker/v934/postgres/13-v934-parity-fixture.sql
+818e2fc8c5f5f23dfed83825d369e118286f5ef1b2201bb4bb6ad6c86297cee9  foggy-dataset-demo/docker/v934/sqlserver/12-v934-sentinel.sql
+643d365bc048c993a10a8a3b05e324efaed54618a8add18e0f92fb39cef32759  foggy-dataset-demo/docker/v934/sqlserver/13-v934-parity-fixture.sql
+ac288b073f6adacf3c346c45c06fa4469f7c629963d2b635d1dc2b05b8609729  scripts/v934/step3/manage-database-foundation-fixtures.sh
+f6837824a1f868dfe5398e663725de51d1909cd6ae6c0c1564f60cd550fd4409  scripts/v934/step3/verify-v933-real-query-compat.sh
+0f560482112cd1241c54b279198d38130c59f76e100fa32fecfeb61be50ae403  scripts/verify-v933-batch6-real-query.sh

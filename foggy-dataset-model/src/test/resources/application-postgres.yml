@@ -13,7 +13,7 @@ spring:
   # PostgreSQL 数据源配置
   # ==========================================
   datasource:
-    url: jdbc:postgresql://localhost:15432/foggy_test?currentSchema=public
+    url: jdbc:postgresql://127.0.0.1:15432/foggy_test?currentSchema=public
     username: foggy
     password: foggy_test_123
     driver-class-name: org.postgresql.Driver

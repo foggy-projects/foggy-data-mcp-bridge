@@ -118,12 +118,14 @@ Inputs：Failsafe-only DB suites + Step 2 exact external-deferred manifest。
 
 Work：
 
-1. 建同构 sentinel fixture 与 manifest；自动、幂等初始化五库。
+1. 建与 v933 base init 隔离的同构 sentinel/业务/preagg fixture manifest；在
+   fresh/run-scoped storage 上自动、幂等初始化五库。
 2. pin approved image/version/digest；SQLite pin JDBC artifact/version/hash。
 3. 扩展 unified preflight 到 MySQL 8 与 SQL Server；使用 driver-aware physical
    coordinate，核对 catalog/schema/sentinel。
 4. 将 `MultiDatabaseQueryTest`/parity owner 迁为 Failsafe IT；QueryFacade 与
-   independent native oracle 精确比 rows/columns/order/values。
+   independent native oracle 精确比 rows/columns/order/values；Pivot preagg 必须真实
+   执行 rewritten relation/planned SQL，不接受字符串-only 伪绿。
 5. DB-specific capability：支持走 positive；不支持走明确 refusal assertion。
 6. 启动并核验 Redis/其他 required external fixture，执行 Step 2 deferred
    execution-key subset 中全部 suites；不允许仍有 deferred owner。
@@ -132,7 +134,8 @@ Work：
    承诺 JaCoCo exec；coverage agent/rerun 归 Step 4。
 
 Exit：SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 全部 required、fresh、
-S0；Step 2 external deferred 全部 actual pass；identity/sentinel/fixture exact；
+S0；Step 2 deferred 中 45 个 required execution 全部 actual pass，1 个 optional LLM
+保留 reviewed disposition；identity/sentinel/fixture exact；
 negative probes 全生效；required inventory execution gap=0。Progress 回写 Step 3。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门

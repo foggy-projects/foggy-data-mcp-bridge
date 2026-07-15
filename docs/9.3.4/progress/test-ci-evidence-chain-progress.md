@@ -59,7 +59,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | ready | Step 2 exit passed | exact deferred=46；五库 + DB/Redis/Mongo suites S0、identity/fixture evidence pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | five-DB foundation diagnostic 10/F0/E0/S0；exact deferred=46（45 required + 1 optional）；full 29 DB + 16 required external exit pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
@@ -196,6 +196,53 @@ Decision：Step 2=`passed`；Step 3 entry=`ready`。本记录只证明 runner sp
 hermetic/SQLite correctness；五库/external、coverage、CI/release 与 version acceptance
 仍未完成，9.3.5 保持 `queued`。
 
+## Execution Check-in — Step 3（in-progress / five-DB foundation）
+
+- started_at: 2026-07-15
+- completed_at: not-completed
+- owner: current 9.3.4 root session
+- predecessor commit: `a0f3a2db83365951a08b65f36765abf2920c6369`
+- scope: v934-only OCI digest override、隔离的五库同构 sentinel/确定性 QueryFacade
+  parity fixture、MySQL 8/SQL Server identity 与 native oracle 扩展、v933/v934 双模式、
+  五库 diagnostic raw XML。
+- result: preflight `5/F0/E0/S0` + QueryFacade/native parity `5/F0/E0/S0`。
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-five-db-foundation-20260715.md`
+- failed diagnostic retained: MySQL 8 unsupported enum `1/F1/E0/S0`；旧持久卷缺 lane-2
+  fixture `1/F1/E0/S0`。两次均在根因修复前 fail closed，不进入 passed ledger。
+- compatibility: v933-only preflight `3/F0/E0/S0`；完整 batch6 real-query replacement
+  `v934-step3-compat-r5-20260715`=`11 tests / 6 reports / F0/E0/S0`，旧 probe 精确保持
+  SQLite `8/2`、MySQL57/PostgreSQL15 `25/25`。historical runner 字节不变，由 v934
+  wrapper 修复 Step 2 directed replay 与新 Failsafe 默认值的 selector compatibility。
+- diagnostic negatives: property conflict、wrong MySQL major、SQLite wrong cache mode 均
+  `exit 1；1/F1/E0/S0`。
+- non-goals: 本 check-in 不证明其余 19 个 DB executions、16 个 required external
+  executions、完整 negative set、run-owned archive、coverage 或 Step 3 exit。
+- review finding: Pivot preagg 用例会生成不存在的物理列但未执行 SQL，属于 P0 伪绿；
+  PostgreSQL/SQL Server 又缺同构 preagg fixture。该缺口已列为下一批首修。
+- next: 修复 Pivot preagg relation/oracle，再清除 Pivot assumption skip 和
+  MultiDatabase early-return，建立 fresh-volume exact matrix runner/report collector；
+  Step 3 继续 `in-progress`。
+
+### Implementation Quality Self-check — five-DB foundation
+
+- mode: `lightweight-self-check`；正式质量闸门仍在 Step 3 exit 前执行。
+- changed paths: 两个 required database owning IT、三个数据库 profile、v934-only compose/
+  fixture/profile 管理、v934 compatibility wrapper（historical runner byte-identical）、
+  Step 3 docs/workitems。
+- review: 初审发现 v933 probe/count 回归、全局 fixture 污染、identity 过度声明与
+  historical runner immutability 风险；已通过双模式/专属 fixture/恢复 base
+  compose/init、v934 wrapper 与精确 metadata 断言修复。review evidence 见
+  `docs/9.3.4/evidence/step-3/step3-five-db-foundation-independent-review-20260715.md`。
+- verification: test-compile passed；v934 five-DB=`10/F0/E0/S0`；diagnostic negative
+  `3/3` rejected；v933-only preflight=`3/F0/E0/S0`；v933 batch6 real-query=
+  `11 tests / 6 reports / F0/E0/S0`；fixture manager apply/clean 均通过，并校验实际
+  image/health/version/fixture rows。
+- open risk: fresh/run-scoped DB runner、OCI/JAR byte identity、Pivot preagg 真执行、其余
+  DB/external executions 未完成；均阻止 Step 3 exit，但不阻止提交本 foundation 批次。
+- decision: `needs-formal-quality-gate-at-step3-exit`；当前批次可作为 diagnostic foundation
+  合入，禁止提升为 authority/accepted。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -250,14 +297,19 @@ hermetic/SQLite correctness；五库/external、coverage、CI/release 与 versio
 | formal implementation quality | Step 2 ready-with-risks | `docs/9.3.4/quality/step2-runner-split-implementation-quality.md`；open blocker/high/medium=0 |
 | coverage evidence audit | Step 2 ready-for-acceptance | `docs/9.3.4/coverage/step2-runner-split-coverage-audit.md`；15/15 BUG covered；critical/major gap=0 |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 3 ready recorded | roadmap 已同步 Steps 1–2 passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
+| roadmap sync / downstream | Step 3 in-progress recorded | roadmap 保持 Steps 1–2 passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
 
 ## Next Action
 
-开始 Step 3：以 confirmed successor manifest
+继续 Step 3：以 confirmed successor manifest
 `4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919` 和
 `deferred-step3.tsv` SHA
-`89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601` 为输入，先冻结
-SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 与 Redis/Mongo 的 exact owner、
-preflight、fixture 和 identity，再实现 required matrix runner。46 个 deferred execution
-必须全部 actual pass 且 S0；Step 4 coverage 不得提前混入本阶段 correctness evidence。
+`89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601` 为输入。
+SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 的 preflight 与 QueryFacade parity
+foundation 已 diagnostic `10/F0/E0/S0`，证据见
+`docs/9.3.4/evidence/step-3/step3-five-db-foundation-20260715.md`。下一批先修复 Pivot
+preagg 物理列映射并让 relation/oracle 真执行，再清除 Pivot/MultiDatabase 的 required
+skip/early-return，随后实现 fresh-volume exact matrix runner，并按
+Redis→Mongo/DataViewer→MCP/MySQL57→Vector 顺序消费 16 个 required external
+execution；1 个 external LLM 保持 optional reviewed disposition。Step 4 coverage 不得提前
+混入本阶段 correctness evidence。

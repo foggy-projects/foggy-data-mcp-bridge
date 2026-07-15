@@ -105,9 +105,14 @@ execution 为 0；reviewed structural report 只能按独立 strict-zero contrac
 
 所有库使用同构 sentinel manifest 和幂等 fixture init。支持能力走 positive；不支持
 能力必须返回被精确断言的 refusal，不产生 `<skipped>`。五库 required skip 总数为 0。
-此外，Step 2 deferred DB/Redis/other external suites 必须全部 actual pass 并清零
-deferred set；raw report keys 与 confirmed Step 2 successor `execution_step=3` subset
-exact。Step 2/3 execution key 并集等于该 successor generation 全部 required execution
+v934 fixture/profile 必须与 v933 共用 demo 初始化隔离；authority 使用 fresh/run-scoped
+storage，禁止把长期 named volume 当作初始状态证明。Pivot pre-aggregation 用例必须真实
+执行 rewritten relation/planned SQL 并与 native oracle 对比，单纯断言 SQL 字符串包含
+`preagg_` 不计为证据。
+此外，Step 2 deferred 中 45 个 required DB/Redis/other external execution 必须全部
+actual pass 并清零 required gap；1 个 optional LLM execution 保留 reviewed
+disposition。raw report keys 与 confirmed Step 2 successor `execution_step=3` required
+subset exact。Step 2/3 required execution key 并集等于该 successor generation 全部 required execution
 inventory、交集为空。此 Step 只验证 correctness/identity/
 report，不要求或接受 coverage exec。
 

@@ -56,10 +56,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Required-database real-query proof for the 9.3.3 lifecycle gate.
+ * Required-database real-query proof shared by the 9.3.3 regression gate and
+ * the 9.3.4 five-database matrix.
  *
- * <p>The same owning test is executed once for SQLite, MySQL 5.7 and
- * PostgreSQL 15. It uses the production {@link QueryFacade}, a real TM/QM and
+ * <p>The same owning test is executed once for each required 9.3.4 database:
+ * SQLite, MySQL 5.7, MySQL 8, PostgreSQL 15 and SQL Server 2022. It uses the
+ * production {@link QueryFacade}, a real TM/QM and
  * the profile's real {@link DataSource}; the native SQL is an independent
  * result oracle rather than the system under test.</p>
  */
@@ -73,6 +75,7 @@ class RequiredDatabaseQueryFacadeParityIT {
             LoggerFactory.getLogger(RequiredDatabaseQueryFacadeParityIT.class);
 
     private static final String QUERY_MODEL = "FactSalesQueryModel";
+    private static final String PARITY_ORDER_ID = "V934_PARITY_SENTINEL";
     private static final int PAGE_LIMIT = 25;
     private static final List<String> COLUMNS = List.of("orderId", "orderLineNo");
     private static final List<Integer> MUTUALLY_EXCLUSIVE_SENTINELS = List.of(1, 2);
@@ -134,9 +137,12 @@ class RequiredDatabaseQueryFacadeParityIT {
                         rowIdentities(observations.get(1).rows())),
                 "the two fixed sentinel lanes must be mutually exclusive");
 
+        String probePrefix = RequiredDatabase.isV934Contract()
+                ? "V934_REAL_QUERY_DB"
+                : "V933_REAL_QUERY_DB";
         String probe = String.format(
                 Locale.ROOT,
-                "V933_REAL_QUERY_DB kind=%s physical_role=%s product=%s version=%d.%d "
+                probePrefix + " kind=%s physical_role=%s product=%s version=%d.%d "
                         + "catalog=%s schema=%s model=%s rows_sentinel_1=%d rows_sentinel_2=%d "
                         + "catalog_generation=%s source_revision=%s binding_key=%s "
                         + "binding_backend=%s binding_generation=%s",
@@ -172,7 +178,12 @@ class RequiredDatabaseQueryFacadeParityIT {
         request.setColumns(COLUMNS);
         request.setStrictColumns(true);
         request.setReturnTotal(false);
-        request.setSlice(List.of(new SliceRequestDef("orderLineNo", "=", sentinel)));
+        request.setSlice(RequiredDatabase.isV934Contract()
+                ? List.of(
+                        new SliceRequestDef("orderId", "=", PARITY_ORDER_ID),
+                        new SliceRequestDef("orderLineNo", "=", sentinel)
+                )
+                : List.of(new SliceRequestDef("orderLineNo", "=", sentinel)));
         request.setOrderBy(List.of(
                 orderBy("orderId", "ASC"),
                 orderBy("orderLineNo", "ASC")
@@ -215,10 +226,29 @@ class RequiredDatabaseQueryFacadeParityIT {
     }
 
     private List<Map<String, Object>> nativeRows(int sentinel) {
-        String sql = "SELECT order_id, order_line_no FROM fact_sales "
-                + "WHERE order_line_no = ? "
-                + "ORDER BY order_id ASC, order_line_no ASC LIMIT " + PAGE_LIMIT;
-        return jdbcTemplate.query(sql, statement -> statement.setInt(1, sentinel), resultSet -> {
+        RequiredDatabase requiredDatabase = trackedResolver.requiredDatabase();
+        boolean v934Contract = RequiredDatabase.isV934Contract();
+        String select = requiredDatabase == RequiredDatabase.SQLSERVER2022
+                ? "SELECT TOP (" + PAGE_LIMIT + ") order_id, order_line_no FROM fact_sales "
+                : "SELECT order_id, order_line_no FROM fact_sales ";
+        String limit = requiredDatabase == RequiredDatabase.SQLSERVER2022
+                ? ""
+                : " LIMIT " + PAGE_LIMIT;
+        String where = v934Contract
+                ? "WHERE order_id = ? AND order_line_no = ? "
+                : "WHERE order_line_no = ? ";
+        String sql = select
+                + where
+                + "ORDER BY order_id ASC, order_line_no ASC"
+                + limit;
+        return jdbcTemplate.query(sql, statement -> {
+            if (v934Contract) {
+                statement.setString(1, PARITY_ORDER_ID);
+                statement.setInt(2, sentinel);
+            } else {
+                statement.setInt(1, sentinel);
+            }
+        }, resultSet -> {
             List<Map<String, Object>> rows = new ArrayList<>();
             while (resultSet.next()) {
                 Map<String, Object> row = new LinkedHashMap<>();
@@ -389,8 +419,11 @@ class RequiredDatabaseQueryFacadeParityIT {
     private enum RequiredDatabase {
         SQLITE("sqlite", "SQLite", 3, 30, "embedded-shared-memory", null, null),
         MYSQL57("mysql57", "MySQL", 5, 7, "required-mysql57-container", "foggy_test", null),
+        MYSQL8("mysql8", "MySQL", 8, 0, "required-mysql8-container", "foggy_test", null),
         POSTGRES15("postgres15", "PostgreSQL", 15, null,
-                "required-postgresql15-container", "foggy_test", "public");
+                "required-postgresql15-container", "foggy_test", "public"),
+        SQLSERVER2022("sqlserver2022", "Microsoft SQL Server", 16, 0,
+                "required-sqlserver2022-container", "foggy_test", "dbo");
 
         private final String id;
         private final String productName;
@@ -419,17 +452,49 @@ class RequiredDatabaseQueryFacadeParityIT {
         }
 
         static RequiredDatabase fromRequiredProperty() {
-            String value = System.getProperty("v933.expectedDatabase");
+            String v934 = System.getProperty("v934.expectedDatabase");
+            String v933 = System.getProperty("v933.expectedDatabase");
+            if (v934 != null && !v934.isBlank()
+                    && v933 != null && !v933.isBlank()
+                    && !v934.equals(v933)) {
+                throw new IllegalStateException(
+                        "v934.expectedDatabase conflicts with compatibility property v933.expectedDatabase");
+            }
+            boolean v934Contract = v934 != null && !v934.isBlank();
+            String value = v934Contract ? v934 : v933;
             if (value == null || value.isBlank()) {
-                throw new IllegalStateException("v933.expectedDatabase is required");
+                throw new IllegalStateException(
+                        v934Contract
+                                ? "v934.expectedDatabase is required"
+                                : "v933.expectedDatabase is required");
             }
             return switch (value.trim()) {
                 case "sqlite" -> SQLITE;
                 case "mysql57" -> MYSQL57;
+                case "mysql8" -> requireV934(v934Contract, MYSQL8, value);
                 case "postgres15" -> POSTGRES15;
+                case "sqlserver2022" -> requireV934(v934Contract, SQLSERVER2022, value);
                 default -> throw new IllegalStateException(
-                        "unsupported v933.expectedDatabase: " + value);
+                        "unsupported " + (v934Contract
+                                ? "v934.expectedDatabase: "
+                                : "v933.expectedDatabase: ") + value);
             };
+        }
+
+        private static RequiredDatabase requireV934(
+                boolean v934Contract,
+                RequiredDatabase database,
+                String value
+        ) {
+            if (!v934Contract) {
+                throw new IllegalStateException("unsupported v933.expectedDatabase: " + value);
+            }
+            return database;
+        }
+
+        static boolean isV934Contract() {
+            String value = System.getProperty("v934.expectedDatabase");
+            return value != null && !value.isBlank();
         }
 
         void verifyOrThrow(PhysicalDatabaseIdentity actual) {
@@ -442,9 +507,9 @@ class RequiredDatabaseQueryFacadeParityIT {
                         "SQLite minor version is below the required floor: "
                                 + actual.minorVersion());
             }
-            if (this == MYSQL57) {
+            if (minorVersion != null && this != SQLITE) {
                 require(Objects.equals(minorVersion, actual.minorVersion()),
-                        "MySQL minor version must be exactly 7: " + actual.minorVersion());
+                        "unexpected database minor version: " + actual.minorVersion());
             }
             require(Objects.equals(catalog, actual.catalog()),
                     "unexpected database catalog: " + display(actual.catalog()));

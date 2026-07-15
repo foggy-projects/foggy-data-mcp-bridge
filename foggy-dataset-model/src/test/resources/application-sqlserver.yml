@@ -14,7 +14,7 @@ spring:
   # SQL Server 数据源配置
   # ==========================================
   datasource:
-    url: jdbc:sqlserver://localhost:11433;databaseName=foggy_test;encrypt=false;trustServerCertificate=true
+    url: jdbc:sqlserver://127.0.0.1:11433;databaseName=foggy_test;encrypt=false;trustServerCertificate=true
     username: sa
     password: Foggy_Test_123!
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver

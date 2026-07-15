@@ -30,7 +30,7 @@ updated_at: 2026-07-15
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–2 passed / Step 3 ready | [执行文档包](../9.3.4/README.md)；r8e successor + Unit/Integration signal-safe authority 已通过，下一步 exact 46 external executions |
+| 9.3.4 | in-progress / Steps 1–2 passed / Step 3 in-progress | [执行文档包](../9.3.4/README.md)；five-DB foundation 已 diagnostic 10/F0/E0/S0，下一批先修 Pivot preagg 伪绿，再消费 exact 45 required + 1 optional deferred |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,7 +85,7 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–2 passed / Step 3 ready`；入口为
+当前状态：`in-progress / Steps 1–2 passed / Step 3 in-progress`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。confirmed run
 `step1-candidate-r8-20260714` 已冻结 532 sources、820 discovery rows、829 execution
 keys、519 predecessor nodes/edges，28/28 expected-negative probes 通过；两路独立
