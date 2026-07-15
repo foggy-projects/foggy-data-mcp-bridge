@@ -31,7 +31,8 @@ owner: scripts/v934/step3
 
 将 durable probe 标签改为不带凭据语义的 `auth-header`。探针输入仍是
 `Authorization: Bearer x`，检测强度和 `6/6` 数量不变；全 run-owned evidence scan 仍使用
-原来的五组敏感模式，不增加排除路径。
+原来的五组敏感模式，不增加排除路径。candidate verifier 同步要求 Mongo lane 使用
+`auth-header`，Redis lane 的既有 `bearer` 标签保持不变。
 
 ## Required Regression
 
@@ -39,6 +40,7 @@ owner: scripts/v934/step3
 - [x] `sensitive-scan.matches` 精确指向 `negative/sensitive-probes.tsv`
 - [ ] 六个短凭据 fixture 全部被扫描器检出
 - [ ] durable probe evidence 自身不匹配敏感模式
+- [x] 未同步 verifier 的正式运行以 `E_CANDIDATE` 拒绝旧标签契约漂移
 - [ ] exact Mongo candidate 通过全目录 sensitive scan 并生成可复核 manifest
 
 ## References

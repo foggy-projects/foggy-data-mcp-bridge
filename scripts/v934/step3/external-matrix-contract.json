@@ -22,7 +22,7 @@
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",
-      "sha256": "a6d380e5e81575a3d73d1d783a4efe48e413dc2268ed8fc56e31914a100cad8d"
+      "sha256": "b9779c5bffa054a55ae00e716383a679d3cc502d2d56eb31d327a75695c25f45"
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",

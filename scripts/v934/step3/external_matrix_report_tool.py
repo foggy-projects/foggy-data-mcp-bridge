@@ -1412,7 +1412,7 @@ def validate_sensitive_negative_evidence(path: Path, lane: str) -> None:
             "redis-uri", "cli-password",
         },
         "external-mongo": {
-            "mongo-env", "json-password", "api-key", "bearer",
+            "mongo-env", "json-password", "api-key", "auth-header",
             "mongo-uri", "cli-password",
         },
     }
