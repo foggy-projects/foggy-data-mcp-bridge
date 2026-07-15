@@ -58,6 +58,8 @@ updated_at: 2026-07-15
   [quality/step2-runner-split-implementation-quality.md](quality/step2-runner-split-implementation-quality.md)
 - Step 2 coverage audit：
   [coverage/step2-runner-split-coverage-audit.md](coverage/step2-runner-split-coverage-audit.md)
+- QM v2 ColumnRef owner/alias B600：
+  [workitems/BUG-qm-v2-columnref-owner-b600.md](workitems/BUG-qm-v2-columnref-owner-b600.md)
 
 ## 1~7 顺序
 
