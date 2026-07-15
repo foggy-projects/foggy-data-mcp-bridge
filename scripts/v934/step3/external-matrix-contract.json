@@ -26,7 +26,7 @@
     },
     "external_mysql_runner": {
       "path": "scripts/verify-v934-external-mysql.sh",
-      "sha256": "69956cf8a618a7d60fc1c620049b6f9a34634ba41deca12420fea45b8eb3f70c"
+      "sha256": "197b5ec511a1caa76a7d9ca4bf43a3fe29fb38d9d66af486046bf63e361c9adb"
     },
     "external_redis_runner": {
       "path": "scripts/verify-v934-external-redis.sh",

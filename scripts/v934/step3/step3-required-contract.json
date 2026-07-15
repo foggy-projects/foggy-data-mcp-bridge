@@ -47,7 +47,7 @@
     },
     "external_contract": {
       "path": "scripts/v934/step3/external-matrix-contract.json",
-      "sha256": "c482071451c32e5d68d563bb7b77ea479d0aa12749536e7bf9dee6f7e8483214"
+      "sha256": "0650fa682467965f06ea9bf8e11c4546e36d92efa29c0c790a2dd6805ad1f417"
     },
     "external_report_tool": {
       "path": "scripts/v934/step3/external_matrix_report_tool.py",

@@ -153,6 +153,21 @@ six failed/diagnostic attempts all wrote durable failed status, emitted no candi
 container/volume/network residue `0/0/0`. Only
 `external-vector-candidate-dd7d8fc3-r1` is accepted for the Vector progress ledger.
 
+## 2026-07-16 Formal MySQL Fixture Contract Propagation
+
+正式父运行 `step3-required-20260716-final-r3` 已通过 Addon companion、DB 状态
+`18/18` 和五库 `29/370/F0E0S0`，随后在 external MySQL `fixture-before` 被内容哈希门
+拒绝。根因是本轮 PreAgg 修复把 `dim_date.full_date` 升级为原生 DATE，并补齐月粒度
+`product_key`、日客户渠道 `full_date` 与 ISO DATE watermark；MySQL 69 表
+`mysqldump-data-v1` 的旧冻结哈希因此不再代表当前 canonical fixture。
+
+两个独立 run-owned 诊断均得到同一新哈希
+`21919cc1f9c73fa05f80eb51ae86b939e7f7db4c7764b2841f1c4301188c256e`；失败运行和诊断
+均无容器/卷残留，且不进入 authority。runner 现冻结该值，并在未来漂移时输出
+actual/expected 便于审计。只有 production runner 在新 committed HEAD 上继续通过
+69-table/69-primary-key、关键行数、before=after、read-only grants、`8/23/S0` 和父级
+`16/76` 后，才可关闭此传播缺口。
+
 ## References
 
 - `docs/9.3.4/implementation-plan.md`, Step 3

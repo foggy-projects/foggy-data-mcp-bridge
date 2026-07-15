@@ -21,7 +21,7 @@ LANE="external-mysql"
 MYSQL_IMAGE_REF="mysql@sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb"
 MYSQL_IMAGE_ID="sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb"
 MYSQL_VERSION="5.7.44-log"
-MYSQL_FIXTURE_CONTENT_SHA256="c8edcd273ed2b0f9383330c7546521515ce729b078d5614995cd05752123ec8f"
+MYSQL_FIXTURE_CONTENT_SHA256="21919cc1f9c73fa05f80eb51ae86b939e7f7db4c7764b2841f1c4301188c256e"
 MYSQL_USER="v934_runner"
 MYSQL_CONTAINER=""
 MYSQL_VOLUME=""
@@ -911,7 +911,7 @@ assert_mysql_app_read_only
 PHASE="fixture-before"
 content_before_sha256="$(fixture_content_sha256)"
 [[ "$content_before_sha256" == "$MYSQL_FIXTURE_CONTENT_SHA256" ]] || \
-  fail "MySQL deterministic fixture content SHA-256 differs"
+  fail "MySQL deterministic fixture content SHA-256 differs: actual=$content_before_sha256 expected=$MYSQL_FIXTURE_CONTENT_SHA256"
 snapshot_fixture "$CELL_ROOT/fixture-before.tsv" "$content_before_sha256"
 python3 "$REPORT_TOOL" verify-mysql-snapshot \
   --snapshot "$CELL_ROOT/fixture-before.tsv" \
