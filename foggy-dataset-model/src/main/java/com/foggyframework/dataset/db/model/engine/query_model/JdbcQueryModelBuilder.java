@@ -186,7 +186,7 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
         getModelProxies().put(proxyKey(proxy), proxy);
 
         QueryModelSupport.JdbcModelDx dx = new QueryModelSupport.JdbcModelDx(
-                tm, tm.getIdColumn(), null, alias, JoinType.LEFT);
+                tm, tm.getIdColumn(), null, alias, JoinType.LEFT, isRoot);
         result.add(dx);
 
         return aliasCounter;
