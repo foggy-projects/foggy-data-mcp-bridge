@@ -122,12 +122,13 @@ Required external contract 精确冻结为：Redis `2 reports / 3 testcase`、Mo
 optional LLM 独立为 `1/1`。collector 除 missing/extra/duplicate/F/E/S/stale 外，还必须拒绝
 flaky/rerun outcome、raw-report run-context splice、wrong selector/marker 与 cross-run manifest。
 
-当前 committed Redis、Mongo/DataViewer 与 MySQL57 subset candidates 分别为 `2/3`、`4/30`
-与 `8/23`，合计关闭 external `14 reports / 56 testcase / F0/E0/S0`；三条 lane 的 12/12
-report/manifest negatives、sensitive probes 和 real INT/TERM/HUP `130/143/129` cleanup 均通过。
-三个 final manifest 都是 `complete=false`，且来自不同 run，不能拼接为 full authority，也
-不能代替 remaining Vector `2/20`。wrong image/version、dirty state 和 forced cleanup failure
-仍是 Step 3 resource-negative backlog。
+当前 committed Redis、Mongo/DataViewer、MySQL57 与 Vector subset candidates 分别为
+`2/3`、`4/30`、`8/23` 与 `2/20`，合计关闭 external progress ledger `16 reports / 76
+testcase / F0/E0/S0`；四条 lane 各自的 12/12 report/manifest negatives、sensitive probes 和 real
+INT/TERM/HUP `130/143/129` cleanup 均通过。四个 final manifest 都是 `complete=false`，且
+来自不同 run，不能拼接为 full authority；required selector gap 虽已清零，shared outer-run
+replay 仍未完成。wrong image/version、dirty state 和 forced cleanup failure 仍是 Step 3
+resource-negative backlog。
 
 ## Step 4 — Coverage
 
@@ -237,10 +238,10 @@ Final acceptance 至少验证：
 - 最终冻结字节下的真实 run-owned SQLite=`5 reports / 50 tests / F0/E0/S0`，fixture 与
   JDBC JAR before/after hash 一致且 cleanup residue=`0`。完整 runner 在当前主机因冻结
   MySQL57 port 被长期诊断容器占用而 fail closed，未执行正向 lane、未创建 run resource。
-- 这些 candidates 是 run-local 且 not authority：四外库 fresh replay、16 个 required
-  external 中 remaining Vector `2/20`、DB/resource-state negatives 和 portable archive
-  contract 仍未完成。Committed Redis、Mongo 与 MySQL subsets 已分别达到 `2/3`、`4/30`、
-  `8/23`，不得与 SQLite 或彼此跨 run 拼成 full authority。
+- 这些 candidates 是 run-local 且 not authority：四个非 SQLite 数据库 fresh replay、
+  external shared-run replay、DB/resource-state negatives 和 portable archive contract 仍未完成。
+  Committed Redis、Mongo、MySQL 与 Vector subsets 已分别达到 `2/3`、`4/30`、`8/23`、
+  `2/20`，形成 `16/76` progress ledger，但不得与 SQLite 或彼此跨 run 拼成 full authority。
 - evidence：
   `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`；
   `docs/9.3.4/evidence/step-2/step2-successor-r8e-independent-review-20260715.md`；
@@ -248,7 +249,8 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-3/step3-database-matrix-runner-candidate-20260715.md`；
   `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`；
   `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`；
-  `docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`。
-- next executable action: 推进 Vector `2/20`，同时补 Step 3 DB/resource-state negatives；在 clean
-  host 对同一 commit 完成四外库 remaining fresh `24/320` replay；optional LLM 维持 reviewed
-  disposition。
+  `docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`；
+  `docs/9.3.4/evidence/step-3/step3-external-vector-runner-candidate-20260715.md`。
+- next executable action: 以 shared outer orchestrator 在同一 run 重放 external exact `16/76`，
+  同时补 Step 3 DB/resource-state negatives；在 clean host 对同一 commit 完成四外库 remaining
+  fresh `24/320` replay；optional LLM 维持 reviewed disposition。

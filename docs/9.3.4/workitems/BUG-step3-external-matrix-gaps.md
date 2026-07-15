@@ -93,8 +93,9 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] implement deterministic MySQL57 time/RAND seed, exact 69-table content hash,
   distinct root/app credentials, SELECT-only grants and curated 32-QM bundle gates
 - [x] provision fresh MySQL57 and execute exact 8/23/S0 without optional LLM
-- [ ] replace Vector assumption/disabled paths with a deterministic local embedding fixture
-- [ ] provision fresh Milvus/etcd/MinIO and execute exact 2/20/S0
+- [x] replace Vector assumption/disabled paths with a deterministic local embedding fixture
+- [x] provision fresh Milvus/etcd/MinIO and execute exact 2/20/S0
+- [x] prove real Vector INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
 - [ ] finalize optional LLM reviewed disposition
 - [ ] merge external 16/76 with database 29/370 as exact Step 3 45/446/F0/E0/S0
 
@@ -114,16 +115,23 @@ MCP/Compose assertion false greens are tracked in
 `BUG-step3-mysql57-mcp-false-green-assertions.md`; no MySQL57 required result is inferred from
 source or runner amendments.
 
-Committed Redis, Mongo and MySQL candidates independently close `2/3`, `4/30` and `8/23`, for a
-progress ledger of `14 reports / 56 testcase / F0/E0/S0`. Their three run-local manifests all have
-`complete=false` and cannot be spliced into a full external authority. Remaining external is exact
-Vector `2/20`; no Vector result may be inferred from the other subsets. Long-lived demo containers
-remain diagnostic-only.
+Committed Redis, Mongo, MySQL and Vector candidates independently close `2/3`, `4/30`, `8/23` and
+`2/20`, for a progress ledger of `16 reports / 76 testcase / F0/E0/S0`. Their four run-local
+manifests all have `complete=false` and cannot be spliced into a full external authority. The
+required selector gap is zero, but a shared outer orchestrator must still replay and merge the exact
+set in one run. Long-lived demo containers remain diagnostic-only.
 
 MySQL formal attempt `external-mysql-candidate-664c8f21-r1` failed closed before JUnit because
 MySQL 5.7 does not expose `information_schema.ROUTINE_PRIVILEGES`; it emitted no candidate and left
 container/volume residue `0/0`. The compatible grant query was committed as `97f1cbfa`, and only
 `external-mysql-candidate-97f1cbfa-r2` is accepted for the MySQL progress ledger.
+
+Vector identity diagnostics first exposed a shell boolean-status bug; the first full variant then
+exposed MySQL Connector selecting protobuf `3.11.4` against Milvus SDK `2.5.8`, followed by an
+unrelated JDBC auto-configuration leak and the actual Base64-encoded metadata response shape. The
+six failed/diagnostic attempts all wrote durable failed status, emitted no candidate and left
+container/volume/network residue `0/0/0`. Only
+`external-vector-candidate-dd7d8fc3-r1` is accepted for the Vector progress ledger.
 
 ## References
 
@@ -134,9 +142,11 @@ container/volume residue `0/0`. The compatible grant query was committed as `97f
 - `scripts/verify-v934-external-redis.sh`
 - `scripts/verify-v934-external-mongo.sh`
 - `scripts/verify-v934-external-mysql.sh`
+- `scripts/verify-v934-external-vector.sh`
 - `docs/9.3.4/workitems/BUG-step3-mysql57-direct-default-catalog-assembly.md`
 - `docs/9.3.4/workitems/BUG-step3-mysql57-mcp-false-green-assertions.md`
 - `docs/9.3.4/workitems/BUG-step3-mongo-loader-jdbc-dialect-dependency.md`
 - `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`
 - `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`
 - `docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`
+- `docs/9.3.4/evidence/step-3/step3-external-vector-runner-candidate-20260715.md`

@@ -59,7 +59,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed Redis + Mongo + MySQL subsets `14/56` + signal cleanup；remaining DB `24/320` + Vector `2/20` + state negatives pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed Redis + Mongo + MySQL + Vector progress ledger `16/76` + four signal groups；remaining DB `24/320` + external shared-run replay + state negatives pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
@@ -525,6 +525,70 @@ variant 按顺序进入 Vector `2/20`；不进入 Step 4。
 - decision: `passed-subset / needs-formal-quality-gate-at-step3-exit`，不允许提升为 full
   authority、coverage entry 或 version acceptance。
 
+## Execution Check-in — Step 3（in-progress / committed Vector external subset）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-15
+- owner: current 9.3.4 root session
+- implementation commits: `9542605864ab3de114158889a45efb23c45d3734`、
+  `4e39149dd6c437d0349d77f0365a32c7c7a9964b`、
+  `a6c1dd867076b8cac6b2ac159fd49ac9b6123f89`、
+  `4874cc276b3004dbf5d25190db6cfa40fc17ac66`、
+  `35f0e78b65573930c8f061cb0222311c3cef5027`、
+  `dd7d8fc342e3a1e6e41e88342907a522c3919ce4`
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-external-vector-runner-candidate-20260715.md`。
+
+实现与验证结果：
+
+- committed run `external-vector-candidate-dd7d8fc3-r1` 使用 digest-pinned Milvus `v2.4.4`、
+  etcd `3.5.5`、MinIO `RELEASE.2023-03-20T20-16-18Z`，动态 loopback、单一 bridge network、
+  三个 run-labelled named volumes 与独立 ephemeral MinIO 密钥，得到 exact
+  `1 variant / 2 reports / 20 testcase / F0/E0/S0`。
+- `VectorIT` 的 assumption/property/API-key 路径已替换为 loopback OpenAI-compatible fixture，
+  精确验证十次 embedding 请求、八维向量、非空查询结果、bounded polling 与临时 collection
+  cleanup；`VectorStoreIT` 移除 class-level disabled，使用 deterministic `EmbeddingModel` 和
+  `FLAT/COSINE`。
+- fresh initial collection count=`0`；final fixture 只含 `v934_vector_store`，精确五行
+  `qt1..qt5`、fields=`content,embedding,id,metadata`、dimension=`8`，临时
+  `foggy_test_documents` absent。terminal container/volume/network residue=`0/0/0`。
+- candidate manifest 绑定 29 个文件并重验通过；source before/after、variant bytecode seal、
+  12/12 report negatives、6/6 sensitive probes、两项 ephemeral secret exact scan 均通过。
+- real signal group `external-vector-signal-dd7d8fc3-r1` 的 INT/TERM/HUP 分别为
+  `130/143/129`；durable status 均 failed，summary/candidate/FIFO absent，container/volume/
+  network residue=`0/0/0`。
+- fail-closed diagnostics 依次暴露 shell boolean identity、protobuf `3.11.4` 与 Milvus SDK
+  `2.5.8` 不兼容、VectorStore JDBC auto-configuration 泄漏及 Milvus metadata Base64 JSON
+  形态。六个 failed/diagnostic runs 均无 candidate 且 residue=`0/0/0`；仅 dd7d8fc3 r1 入账。
+
+Evidence boundary / non-goals：
+
+- Vector final manifest 为 `complete=false`。Redis + Mongo + MySQL + Vector 四个独立 candidates
+  只构成 external progress ledger=`16/76/F0/E0/S0`，不能跨 run 拼成 full external authority；
+  required selector gap 已清零，但 shared outer-run replay/merge 仍开放。
+- wrong-image/version、unavailable、dirty-state、fixture-mutation、forced-cleanup-failure
+  resource negatives，数据库四外库 `24/320`、optional LLM disposition、Addon lifecycle 和
+  archive portability 仍开放。
+- protobuf pin 是 Milvus SDK 运行兼容修复；DataSource exclusion 仅限 VectorStore 集成测试，
+  本批没有扩大到 9.3.5 公共 API 或 9.4.0 模块化范围。
+
+Decision：Vector subset candidate=`passed`，Step 3=`in-progress / not passed`。下一动作是
+同一 shared outer run 的 external `16/76` replay/merge 与 state negatives；不进入 Step 4。
+
+### Implementation Quality Self-check — Vector external subset
+
+- mode: `subset-read-only-review`；本批质量复核 result=`ready / blocking=0`，formal Step 3
+  quality gate 仍在完整 `45/446` exit 前执行。
+- implementation closure: runner/tool/contract、确定性 embedding、fresh Milvus topology、
+  fixture/index exact gate、dependency compatibility、sensitive scan 与信号清理已收口。
+- verification: Bash/Python/JSON/Maven static checks、contract validator、source/bytecode seal、
+  candidate verifier、2/20 fresh execution、negative/sensitive probes、signals 与 Docker residue
+  均通过；独立只读 candidate/signal 审计 finding=`0`。索引响应进一步校验唯一条目/
+  Finished 状态保留为非阻断增强项。
+- protected changes: 用户已有 PreAgg POM/source/test 与新 contract 文件未触碰、未暂存。
+- decision: `passed-subset / needs-formal-quality-gate-at-step3-exit`，不允许提升为 full
+  authority、coverage entry 或 version acceptance。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -593,11 +657,11 @@ foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一�
 `29 reports / 370 tests / F0/E0/S0`，证据见
 `docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。
 runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；committed Redis +
-Mongo + MySQL external subsets=`14/56/F0/E0/S0`，三条 lane 的 real signals 均为
-`130/143/129`。下一批推进 Vector `2/20`，并补齐 unavailable/wrong identity/
-fixture mutation/provision cleanup 等 DB/resource state negatives。在冻结端口空闲的 clean
-host 上再以同一 commit 重放四外库 remaining `24/320`；1 个 external LLM 保持 optional
-reviewed disposition。Addon lifecycle 继续
+Mongo + MySQL + Vector external progress ledger=`16/76/F0/E0/S0`，四条 lane 的 real
+signals 均为 `130/143/129`。下一批以 shared outer orchestrator 在同一 run 重放并合并
+external exact `16/76`，同时补齐 unavailable/wrong identity/fixture mutation/provision cleanup
+等 DB/resource state negatives。在冻结端口空闲的 clean host 上再以同一 commit 重放四外库
+remaining `24/320`；1 个 external LLM 保持 optional reviewed disposition。Addon lifecycle 继续
 按独立 workitem 修复 COUNT/formula/SQLite/watermark/TM normalization 后执行 SQLite +
 外库真实 create/full/incremental/query parity。Step 4 coverage 不得提前混入本阶段
 correctness evidence。
