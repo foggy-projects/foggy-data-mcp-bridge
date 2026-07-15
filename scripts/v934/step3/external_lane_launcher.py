@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import os
 from pathlib import Path
 import re
@@ -65,9 +66,19 @@ def main() -> int:
         fail("shared lane signal environment does not match its runner")
     if args.lock_fd <= 2:
         fail("authority lock descriptor must be greater than stderr")
+    if os.environ.get("V934_AUTHORITY_LOCK_FD") != str(args.lock_fd):
+        fail("authority lock descriptor differs from the exported descriptor")
     try:
         os.fstat(args.lock_fd)
         os.set_inheritable(args.lock_fd, True)
+        # flock locks belong to the open-file description. Re-locking the
+        # inherited description succeeds; a different descriptor would be
+        # blocked by the outer runner's exclusive lock.
+        fcntl.flock(args.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        raise RuntimeError(
+            "authority lock descriptor does not inherit the outer lock",
+        ) from error
     except OSError as error:
         raise RuntimeError("authority lock descriptor is not open") from error
 

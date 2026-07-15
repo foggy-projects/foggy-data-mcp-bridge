@@ -18,7 +18,7 @@
     },
     "external_lane_launcher": {
       "path": "scripts/v934/step3/external_lane_launcher.py",
-      "sha256": "2800831b616b1e4117b76709c7c7cd16c1f291f80235fe69d536a16c9c9e1e2a"
+      "sha256": "8c8bdd25e462c6f70d9b5731dd1e7eb1c8fab7a23edf3591514986e140a498c4"
     },
     "external_mongo_runner": {
       "path": "scripts/verify-v934-external-mongo.sh",
