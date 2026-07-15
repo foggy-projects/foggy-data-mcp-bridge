@@ -16,6 +16,7 @@
 
     <properties>
         <spring-ai.version>1.0.1</spring-ai.version>
+        <protobuf-java.version>3.24.0</protobuf-java.version>
     </properties>
 
     <repositories>
@@ -51,6 +52,16 @@
             <artifactId>spring-ai-milvus-store</artifactId>
             <version>${spring-ai.version}</version>
             <optional>true</optional>
+        </dependency>
+        <!--
+            Milvus SDK 2.5.8 is generated against protobuf 3.24.0. Declare the
+            compatible runtime directly so foggy-dataset's MySQL transitive
+            protobuf 3.11.4 cannot win by dependency declaration order.
+        -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>${protobuf-java.version}</version>
         </dependency>
 
         <!-- Test -->

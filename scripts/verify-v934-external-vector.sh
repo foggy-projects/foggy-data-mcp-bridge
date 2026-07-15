@@ -42,6 +42,7 @@ MINIO_VOLUME=""
 RUN_LOG_FIFO=""
 RUN_LOG_TEE_PID=""
 RUN_LOG_OPEN=false
+EPHEMERAL_SECRET_COUNT=0
 SIGNAL_PROBE_MODE="${V934_EXTERNAL_VECTOR_SIGNAL_PROBE:-false}"
 
 SENSITIVE_PATTERNS=(
@@ -130,6 +131,25 @@ verify_sensitive_patterns() {
   done
   rm -f -- "$probe_file"
   mv -f -- "$temporary" "$output"
+}
+
+verify_ephemeral_secrets_absent() {
+  local secret_index=0 secret scan_rc
+  local matches="$RUN_ROOT/.ephemeral-secret.matches"
+  for secret in "$MINIO_USER" "$MINIO_SECRET"; do
+    secret_index=$((secret_index + 1))
+    if rg -l -F --hidden -- "$secret" "$RUN_ROOT" > "$matches"; then
+      fail "run-owned Vector evidence contains ephemeral credential $secret_index"
+    else
+      scan_rc=$?
+      [[ "$scan_rc" -eq 1 ]] || \
+        fail "ephemeral credential scan failed with rg exit code $scan_rc"
+    fi
+  done
+  rm -f -- "$matches"
+  EPHEMERAL_SECRET_COUNT="$secret_index"
+  [[ "$EPHEMERAL_SECRET_COUNT" -eq 2 ]] || \
+    fail "ephemeral credential scan count differs"
 }
 
 write_outer_marker() {
@@ -322,7 +342,8 @@ record_run_status() {
 
 post_json() {
   local path="$1" payload="$2"
-  curl -fsS -X POST -H 'Content-Type: application/json' \
+  curl -fsS --connect-timeout 5 --max-time 30 \
+    -X POST -H 'Content-Type: application/json' \
     "$MILVUS_BASE_URL$path" -d "$payload"
 }
 
@@ -481,7 +502,7 @@ for _ in $(seq 1 120); do
       --endpoints=http://127.0.0.1:2379 endpoint health >/dev/null 2>&1; then
     etcd_ready=true
   fi
-  if docker exec "$MINIO_CONTAINER" curl -fsS \
+  if docker exec "$MINIO_CONTAINER" curl -fsS --connect-timeout 2 --max-time 5 \
       http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1; then
     minio_ready=true
   fi
@@ -517,7 +538,8 @@ HEALTH_PORT="${health_mapping##*:}"
 MILVUS_BASE_URL="http://127.0.0.1:$GRPC_PORT"
 milvus_ready=false
 for _ in $(seq 1 240); do
-  if [[ "$(curl -fsS "http://127.0.0.1:$HEALTH_PORT/healthz" 2>/dev/null || true)" == OK ]]; then
+  if [[ "$(curl -fsS --connect-timeout 2 --max-time 5 \
+      "http://127.0.0.1:$HEALTH_PORT/healthz" 2>/dev/null || true)" == OK ]]; then
     milvus_ready=true
     break
   fi
@@ -529,7 +551,7 @@ PHASE="vector-identity"
 network_json="$(docker network inspect "$NETWORK")"
 network_created="$(jq -er '.[0].Created' <<< "$network_json")"
 network_driver="$(jq -er '.[0].Driver' <<< "$network_json")"
-network_internal="$(jq -er '.[0].Internal' <<< "$network_json")"
+network_internal="$(jq -r '.[0].Internal' <<< "$network_json")"
 network_container_count="$(jq -er '.[0].Containers | length' <<< "$network_json")"
 jq -e --arg e "$ETCD_CONTAINER" --arg i "$MINIO_CONTAINER" --arg m "$MILVUS_CONTAINER" '
   .[0] | .Driver == "bridge" and .Internal == false
@@ -583,12 +605,13 @@ done
 etcd_identity="$(docker exec "$ETCD_CONTAINER" /usr/local/bin/etcd --version)"
 actual_etcd_version="$(sed -n 's/^etcd Version: //p' <<< "$etcd_identity")"
 actual_etcd_git_sha="$(sed -n 's/^Git SHA: //p' <<< "$etcd_identity")"
-minio_identity="$(docker exec "$MINIO_CONTAINER" minio --version | head -n 1)"
+minio_identity="$(docker exec "$MINIO_CONTAINER" minio --version)"
 actual_minio_version="$(sed -n 's/^minio version \([^ ]*\).*/\1/p' <<< "$minio_identity")"
 actual_minio_commit="$(sed -n 's/.*commit-id=\([^)]*\)).*/\1/p' <<< "$minio_identity")"
-milvus_metrics="$(curl -fsS "http://127.0.0.1:$HEALTH_PORT/metrics")"
-actual_milvus_version="$(sed -n 's/^milvus_build_info{[^}]*version="\([^"]*\)"[^}]*}.*/\1/p' <<< "$milvus_metrics" | head -n 1)"
-actual_milvus_git_commit="$(sed -n 's/^milvus_build_info{[^}]*git_commit="\([^"]*\)"[^}]*}.*/\1/p' <<< "$milvus_metrics" | head -n 1)"
+milvus_metrics="$(curl -fsS --connect-timeout 5 --max-time 30 \
+  "http://127.0.0.1:$HEALTH_PORT/metrics")"
+actual_milvus_version="$(sed -n 's/^milvus_build_info{[^}]*version="\([^"]*\)"[^}]*}.*/\1/p' <<< "$milvus_metrics")"
+actual_milvus_git_commit="$(sed -n 's/^milvus_build_info{[^}]*git_commit="\([^"]*\)"[^}]*}.*/\1/p' <<< "$milvus_metrics")"
 [[ "$actual_etcd_version" == "$ETCD_VERSION" && "$actual_etcd_git_sha" == "$ETCD_GIT_SHA" ]] || \
   fail "etcd build identity differs"
 [[ "$actual_minio_version" == "$MINIO_VERSION" && "$actual_minio_commit" == "$MINIO_COMMIT" ]] || \
@@ -715,12 +738,23 @@ jq -e '
 [[ "$field_names" == content,embedding,id,metadata && "$embedding_dimension" == "$VECTOR_DIMENSION" ]] || \
   fail "VectorStore field identity differs"
 
-index_response="$(post_json /v2/vectordb/indexes/describe "$collection_payload")"
-index_type="$(jq -er '(.data | if type == "array" then . else [.] end)
-  | map(select(.fieldName == "embedding" or .indexName == "embedding"))[0].indexType // empty' \
+embedding_index_name="$(jq -er '
+  [.data.indexes[] | select(.fieldName == "embedding")] as $matches
+  | if ($matches | length) == 1 then $matches[0].indexName else empty end
+' <<< "$describe_response")"
+[[ -n "$embedding_index_name" ]] || fail "VectorStore embedding index name is missing"
+index_payload="$(jq -nc --arg c "$STORE_COLLECTION" --arg i "$embedding_index_name" \
+  '{dbName:"default",collectionName:$c,indexName:$i}')"
+index_response="$(post_json /v2/vectordb/indexes/describe "$index_payload")"
+index_type="$(jq -er --arg index "$embedding_index_name" '
+  (.data | if type == "array" then . else [.] end)
+  | map(select(.fieldName == "embedding" and .indexName == $index))
+  | if length == 1 then .[0].indexType else empty end' \
   <<< "$index_response")"
-metric_type="$(jq -er '(.data | if type == "array" then . else [.] end)
-  | map(select(.fieldName == "embedding" or .indexName == "embedding"))[0].metricType // empty' \
+metric_type="$(jq -er --arg index "$embedding_index_name" '
+  (.data | if type == "array" then . else [.] end)
+  | map(select(.fieldName == "embedding" and .indexName == $index))
+  | if length == 1 then .[0].metricType else empty end' \
   <<< "$index_response")"
 [[ "$(jq -r '.code' <<< "$index_response")" == 0 && "$index_type" == FLAT && "$metric_type" == COSINE ]] || \
   fail "VectorStore index identity differs"
@@ -805,6 +839,7 @@ PHASE="sensitive-pattern-negatives"
 verify_sensitive_patterns "$RUN_ROOT/negative/sensitive-probes.tsv"
 
 PHASE="sensitive-scan"
+verify_ephemeral_secrets_absent
 SENSITIVE_SCAN_ARGS=()
 for pattern in "${SENSITIVE_PATTERNS[@]}"; do
   SENSITIVE_SCAN_ARGS+=(-e "$pattern")
@@ -823,7 +858,7 @@ fi
 rm -f -- "$RUN_ROOT/sensitive-scan.matches"
 atomic_env "$RUN_ROOT/sensitive-scan.env" \
   "patterns=${#SENSITIVE_PATTERNS[@]}" \
-  "ephemeral_secrets=2" \
+  "ephemeral_secrets=$EPHEMERAL_SECRET_COUNT" \
   "status=passed"
 
 PHASE="completed"
