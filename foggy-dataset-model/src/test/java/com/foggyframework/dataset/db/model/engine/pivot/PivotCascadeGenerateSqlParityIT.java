@@ -18,14 +18,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @Slf4j
 @DisplayName("PIVOT-91-C2 Cascade Generate SQL Parity Integration Test")
@@ -39,17 +42,12 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
     @Resource
     private JdbcTemplate jdbcTemplate;
 
-    @Value("${spring.profiles.active:}")
-    private String activeProfiles;
+    @Value("${v934.expectedDatabase:}")
+    private String expectedDatabase;
 
     @Test
     @DisplayName("0. MySQL 5.7 rows cascade fails closed without memory fallback")
     void testMysql57RowsCascadeFailsClosedWithoutMemoryFallback() {
-        assumeTrue(activeProfiles.contains("docker"),
-                "Skipping: MySQL 5.7 live refusal evidence only runs on docker profile");
-        assumeTrue("mysql".equals(getDialectKey()) && !supportsWindowFunctions(),
-                "Skipping: requires MySQL 5.7/non-window MySQL profile");
-
         PivotRequest pivot = new PivotRequest();
         AxisField category = axis("product$categoryName");
         category.setLimit(2);
@@ -66,17 +64,20 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
 
-        PivotCascadeException ex = assertThrows(PivotCascadeException.class, () -> execute(request));
-        assertEquals(PivotCascadeErrorCode.PIVOT_CASCADE_SQL_REQUIRED, ex.getCode());
-        assertTrue(ex.getMessage().contains("Multi-level TopN requires staged SQL execution"));
-        assertTrue(ex.getMessage().contains("Planner failure"));
+        if (supportsWindowFunctions()) {
+            assertFalse("mysql57".equals(expectedDatabase),
+                    "mysql57 must never advertise window-function support");
+            SemanticQueryResponse response = execute(request);
+            assertFalse(response.getItems().isEmpty(),
+                    "window-capable databases must execute the same cascade request positively");
+            return;
+        }
+        assertMysql57CascadeRefusal(request);
     }
 
     @Test
     @DisplayName("1. Parent TopN + child TopN (child domain is subset of parent)")
     void testRowsTwoLevelCascadeSubset() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
-
         PivotRequest pivot = new PivotRequest();
         AxisField category = axis("product$categoryName");
         category.setLimit(3);
@@ -92,6 +93,9 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
+        if (assertMysql57CascadeRefusalWhenUnsupported(request)) {
+            return;
+        }
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
@@ -153,8 +157,6 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("2. Parent ranking ignores child limit (parent rank unchanged by child limit)")
     void testParentRankingIgnoresChildLimit() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
-
         PivotRequest pivot = new PivotRequest();
         AxisField category = axis("product$categoryName");
         category.setLimit(2);
@@ -171,6 +173,9 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
+        if (assertMysql57CascadeRefusalWhenUnsupported(request)) {
+            return;
+        }
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
@@ -221,8 +226,6 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("3. Parent having filters before child rank")
     void testParentHavingFiltersBeforeChildRank() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
-
         PivotRequest pivot = new PivotRequest();
         AxisField category = axis("product$categoryName");
         // Only keep categories with > 5000 sales
@@ -238,6 +241,9 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
+        if (assertMysql57CascadeRefusalWhenUnsupported(request)) {
+            return;
+        }
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
@@ -284,8 +290,6 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("4. Child having does not affect parent")
     void testChildHavingDoesNotAffectParent() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
-
         PivotRequest pivot = new PivotRequest();
         AxisField category = axis("product$categoryName");
         // Parent limit 3
@@ -309,6 +313,9 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
+        if (assertMysql57CascadeRefusalWhenUnsupported(request)) {
+            return;
+        }
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
@@ -366,8 +373,6 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("6. Deterministic tie with NULL buckets")
     void testDeterministicTieWithNullBuckets() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
-
         PivotRequest pivot = new PivotRequest();
         // Since we want to test tie breaking, we order by a metric that has duplicates or nulls.
         // We will order by orderCount, which might have many 1s.
@@ -385,6 +390,9 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
+        if (assertMysql57CascadeRefusalWhenUnsupported(request)) {
+            return;
+        }
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
@@ -435,8 +443,6 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("7. Additive row subtotal surviving domain")
     void testAdditiveRowSubtotalSurvivingDomain() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
-
         PivotRequest pivot = new PivotRequest();
         AxisField category = axis("product$categoryName");
         category.setLimit(2);
@@ -457,6 +463,9 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
+        if (assertMysql57CascadeRefusalWhenUnsupported(request)) {
+            return;
+        }
 
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
@@ -524,26 +533,38 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
 
     // ========== Helpers ==========
 
+    private boolean assertMysql57CascadeRefusalWhenUnsupported(SemanticQueryRequest request) {
+        if (supportsWindowFunctions()) {
+            return false;
+        }
+        assertMysql57CascadeRefusal(request);
+        return true;
+    }
+
+    private void assertMysql57CascadeRefusal(SemanticQueryRequest request) {
+        assertEquals("mysql57", expectedDatabase,
+                "the only required non-window matrix lane must be mysql57");
+        assertEquals("mysql", getDialectKey(),
+                "the mysql57 refusal must come from the MySQL dialect");
+        PivotCascadeException ex = assertThrows(PivotCascadeException.class, () -> execute(request));
+        assertEquals(PivotCascadeErrorCode.PIVOT_CASCADE_SQL_REQUIRED, ex.getCode());
+        assertTrue(ex.getMessage().contains("Multi-level TopN requires staged SQL execution"));
+        assertTrue(ex.getMessage().contains("Planner failure"));
+    }
+
     private void assertParity(List<Map<String, Object>> sqlItems, List<Map<String, Object>> pivotItems,
                               String sqlDimKey, String pivotDimKey, String sqlMetricKey, String pivotMetricKey) {
 
-        Map<String, Double> sqlMap = sqlItems.stream()
-                .filter(r -> r.get(sqlDimKey) != null && r.get(sqlMetricKey) != null)
-                .collect(Collectors.toMap(
-                        r -> String.valueOf(r.get(sqlDimKey)),
-                        r -> ((Number) r.get(sqlMetricKey)).doubleValue()
-                ));
+        assertFalse(sqlItems.isEmpty(), "SQL oracle must return deterministic rows");
+        assertEquals(sqlItems.size(), pivotItems.size(),
+                "SQL oracle and Pivot must expose the same row cardinality");
+        Map<List<Object>, Double> sqlMap = metricIndex(
+                sqlItems, List.of(sqlDimKey), sqlMetricKey, "SQL");
+        Map<List<Object>, Double> pivotMap = metricIndex(
+                pivotItems, List.of(pivotDimKey), pivotMetricKey, "Pivot");
 
-        Map<String, Double> pivotMap = pivotItems.stream()
-                .filter(r -> r.get(pivotDimKey) != null && r.get(pivotMetricKey) != null)
-                .collect(Collectors.toMap(
-                        r -> String.valueOf(r.get(pivotDimKey)),
-                        r -> ((Number) r.get(pivotMetricKey)).doubleValue()
-                ));
-
-        assertEquals(sqlMap.size(), pivotMap.size(), "Result size mismatch between SQL and Pivot");
-        for (Map.Entry<String, Double> entry : sqlMap.entrySet()) {
-            assertTrue(pivotMap.containsKey(entry.getKey()), "Pivot missing key: " + entry.getKey());
+        assertEquals(sqlMap.keySet(), pivotMap.keySet(), "Dimension members differ between SQL and Pivot");
+        for (Map.Entry<List<Object>, Double> entry : sqlMap.entrySet()) {
             assertEquals(entry.getValue(), pivotMap.get(entry.getKey()), 0.01, "Value mismatch for " + entry.getKey());
         }
     }
@@ -551,27 +572,51 @@ class PivotCascadeGenerateSqlParityIT extends EcommerceTestSupport {
     private void assertParityMultiDim(List<Map<String, Object>> sqlItems, List<Map<String, Object>> pivotItems,
                               List<String> sqlDimKeys, List<String> pivotDimKeys, String sqlMetricKey, String pivotMetricKey) {
 
-        Map<String, Double> sqlMap = sqlItems.stream()
-                .filter(r -> r.get(sqlMetricKey) != null)
-                .collect(Collectors.toMap(
-                        r -> sqlDimKeys.stream().map(k -> String.valueOf(r.get(k))).collect(Collectors.joining("-")),
-                        r -> ((Number) r.get(sqlMetricKey)).doubleValue(),
-                        (a, b) -> a  // 忽略重复 key（NULL category 等 edge case）
-                ));
+        List<Map<String, Object>> pivotLeaves = pivotItems.stream()
+                .filter(r -> !r.containsKey("_sys_meta"))
+                .collect(Collectors.toList());
+        assertFalse(sqlItems.isEmpty(), "SQL oracle must return deterministic rows");
+        assertEquals(sqlItems.size(), pivotLeaves.size(),
+                "SQL oracle and Pivot leaves must expose the same row cardinality");
+        Map<List<Object>, Double> sqlMap = metricIndex(sqlItems, sqlDimKeys, sqlMetricKey, "SQL");
+        Map<List<Object>, Double> pivotMap = metricIndex(pivotLeaves, pivotDimKeys, pivotMetricKey, "Pivot");
 
-        Map<String, Double> pivotMap = pivotItems.stream()
-                .filter(r -> r.get(pivotMetricKey) != null && !r.containsKey("_sys_meta")) // Ignore subtotals
-                .collect(Collectors.toMap(
-                        r -> pivotDimKeys.stream().map(k -> String.valueOf(r.get(k))).collect(Collectors.joining("-")),
-                        r -> ((Number) r.get(pivotMetricKey)).doubleValue(),
-                        (a, b) -> a
-                ));
-
-        assertTrue(pivotMap.size() > 0, "Pivot should have non-null results");
-        for (Map.Entry<String, Double> entry : pivotMap.entrySet()) {
-            assertTrue(sqlMap.containsKey(entry.getKey()), "SQL oracle missing key present in Pivot: " + entry.getKey());
-            assertEquals(sqlMap.get(entry.getKey()), entry.getValue(), 0.01, "Value mismatch for " + entry.getKey());
+        assertEquals(sqlMap.keySet(), pivotMap.keySet(), "Dimension tuples differ between SQL and Pivot");
+        for (Map.Entry<List<Object>, Double> entry : sqlMap.entrySet()) {
+            assertEquals(entry.getValue(), pivotMap.get(entry.getKey()), 0.01,
+                    "Value mismatch for " + entry.getKey());
         }
+    }
+
+    private Map<List<Object>, Double> metricIndex(List<Map<String, Object>> rows,
+                                                   List<String> dimensionKeys,
+                                                   String metricKey,
+                                                   String label) {
+        Map<List<Object>, Double> index = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            List<Object> tuple = dimensionTuple(row, dimensionKeys, label + " dimension");
+            assertFalse(index.containsKey(tuple), label + " contains a duplicate dimension tuple: " + tuple);
+            index.put(tuple, requiredMetric(row, metricKey, label + " metric"));
+        }
+        return index;
+    }
+
+    private List<Object> dimensionTuple(Map<String, Object> row, List<String> keys, String label) {
+        List<Object> tuple = new ArrayList<>(keys.size());
+        for (String key : keys) {
+            assertTrue(row.containsKey(key), label + " column is missing: " + key + " in " + row.keySet());
+            Object value = row.get(key);
+            tuple.add(value instanceof Number
+                    ? new BigDecimal(value.toString()).stripTrailingZeros()
+                    : value);
+        }
+        return tuple;
+    }
+
+    private double requiredMetric(Map<String, Object> row, String key, String label) {
+        assertTrue(row.containsKey(key), label + " column is missing: " + key + " in " + row.keySet());
+        assertTrue(row.get(key) instanceof Number, label + " must be numeric: " + key + "=" + row.get(key));
+        return ((Number) row.get(key)).doubleValue();
     }
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {

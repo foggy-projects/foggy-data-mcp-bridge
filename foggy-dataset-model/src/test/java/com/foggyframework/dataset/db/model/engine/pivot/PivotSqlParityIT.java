@@ -37,13 +37,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @Slf4j
 @DisplayName("Pivot Pipeline SQL Parity 集成测试")
@@ -87,16 +87,23 @@ class PivotSqlParityIT extends EcommerceTestSupport {
             SemanticQueryResponse response = execute(request);
             assertNotNull(response);
 
-            // MySQL 5.7 does not support CTEs/window functions -> SQL pushdown is not attempted.
-            // Only assert pushdown on dialects that support window functions.
-            if (!supportsWindowFunctions()) {
-                assumeTrue(false, "Skipping pushdown assertion on dialect without CTE/window function support (e.g. MySQL 5.7)");
-            }
-
             boolean pushdownLogged = listAppender.list.stream()
                     .anyMatch(event -> event.getFormattedMessage().contains("Phase 1: SQL pushdown succeeded"));
-            
-            assertTrue(pushdownLogged, "Expected SQL pushdown to be used, but it wasn't logged. Did it fall back to memory?");
+            if (supportsWindowFunctions()) {
+                assertTrue(pushdownLogged,
+                        "window-capable dialect must execute the SQL pushdown path");
+            } else {
+                assertEquals("mysql57", v934ExpectedDatabase,
+                        "the only required non-window matrix lane must be mysql57");
+                assertFalse(pushdownLogged,
+                        "mysql57 must not claim successful CTE/window pushdown");
+                assertTrue(listAppender.list.stream().anyMatch(event ->
+                                event.getFormattedMessage().contains("event=pivot.sql_pushdown.fallback")
+                                        && event.getFormattedMessage().contains("fallback=memory")
+                                        && event.getFormattedMessage().contains("reasonClass=UnsupportedOperationException")
+                                        && event.getFormattedMessage().contains("does not support CTE")),
+                        "mysql57 must emit the explicit unsupported-pushdown fallback reason");
+            }
         } finally {
             pivotLogger.detachAppender(listAppender);
         }
@@ -395,7 +402,7 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
         slice.setField("salesDate$year");
         slice.setOp("=");
-        slice.setValue(2023);
+        slice.setValue(2024);
         request.setSlice(List.of(slice));
 
         SemanticQueryResponse response = execute(request);
@@ -406,7 +413,7 @@ class PivotSqlParityIT extends EcommerceTestSupport {
                 "FROM fact_sales t1 " +
                 "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
                 "LEFT JOIN dim_date t3 ON t1.date_key = t3.date_key " +
-                "WHERE t3.year = 2023 " +
+                "WHERE t3.year = 2024 " +
                 "GROUP BY t2.category_name";
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
 
@@ -416,7 +423,6 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("3d. Generate / Per-Group Ranking (分组内 TopN) Parity")
     void testGeneratePerGroupTopNParity() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTE + ROW_NUMBER() OVER(), requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         AxisField categoryAxis = axis("product$categoryName");
 
@@ -434,30 +440,21 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
 
-        // SQL Oracle with Window Function (CTE or derived table)
-        String sql = "WITH base AS ( " +
-                "  SELECT " +
-                "    t2.category_name AS category_name, " +
-                "    t2.sub_category_name AS sub_category_name, " +
-                "    SUM(t1.sales_amount) AS sales_amount " +
-                "  FROM fact_sales t1 " +
-                "  LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "  GROUP BY t2.category_name, t2.sub_category_name " +
-                "), " +
-                "ranked AS ( " +
-                "  SELECT " +
-                "    *, " +
-                "    ROW_NUMBER() OVER ( " +
-                "      PARTITION BY category_name " +
-                "      ORDER BY sales_amount DESC " +
-                "    ) AS rn " +
-                "  FROM base " +
-                ") " +
-                "SELECT category_name, sub_category_name, sales_amount " +
-                "FROM ranked " +
-                "WHERE rn <= 2";
+        // Portable native oracle: aggregate in SQL, then rank each category in Java so
+        // the required MySQL 5.7 lane proves the positive in-memory fallback path too.
+        String sql = "SELECT t2.category_name AS category_name, " +
+                "t2.sub_category_name AS sub_category_name, " +
+                "SUM(t1.sales_amount) AS sales_amount " +
+                "FROM fact_sales t1 " +
+                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
+                "GROUP BY t2.category_name, t2.sub_category_name";
 
-        List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
+        List<Map<String, Object>> sqlItems = topNPerGroup(
+                jdbcTemplate.queryForList(sql),
+                "category_name",
+                "sub_category_name",
+                "sales_amount",
+                2);
 
         // We use multi-dim parity assertion
         assertParityMultiDim(sqlItems, pivotItems,
@@ -587,21 +584,9 @@ class PivotSqlParityIT extends EcommerceTestSupport {
                 "LEFT JOIN dim_customer t3 ON t1.customer_key = t3.customer_key " +
                 "GROUP BY t3.customer_type";
         List<Map<String, Object>> sqlGrandItems = jdbcTemplate.queryForList(sqlGrand);
-
-        Map<String, Long> sqlMap = sqlGrandItems.stream()
-                .filter(r -> r.get("customer_type") != null)
-                .collect(Collectors.toMap(
-                        r -> String.valueOf(r.get("customer_type")),
-                        r -> ((Number) r.get("unique_customers")).longValue()
-                ));
-
-        for (Map<String, Object> pRow : pivotGrandTotal) {
-            String cType = String.valueOf(pRow.get("customer$customerType"));
-            if (sqlMap.containsKey(cType)) {
-                assertEquals(sqlMap.get(cType).longValue(), ((Number) pRow.get("uniqueCustomers")).longValue(), "Mismatch for " + cType);
-            }
-        }
-        assertTrue(pivotGrandTotal.size() > 0);
+        assertParity(sqlGrandItems, pivotGrandTotal,
+                "customer_type", "customer$customerType",
+                "unique_customers", "uniqueCustomers");
     }
 
 
@@ -617,8 +602,8 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
 
-        // Setup SemanticRequestContext representing category='Electronics' (C001)
-        List<SliceRequestDef> systemSlice = List.of(new SliceRequestDef("product$categoryId", "=", "C001"));
+        // The versioned ecommerce fixture uses CAT001 for the electronics category.
+        List<SliceRequestDef> systemSlice = List.of(new SliceRequestDef("product$categoryId", "=", "CAT001"));
 
         SemanticRequestContext ctx = SemanticRequestContext.of(null, null, null, null, systemSlice);
 
@@ -629,7 +614,7 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         String sql = "SELECT t2.category_name as category_name, SUM(t1.sales_amount) as sales_amount " +
                 "FROM fact_sales t1 " +
                 "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "WHERE t2.category_id = 'C001' " +
+                "WHERE t2.category_id = 'CAT001' " +
                 "GROUP BY t2.category_name";
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
 
@@ -663,7 +648,6 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("8. parentShare parity: 子级占比与 SQL window 比对")
     void testParentShareParity() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses SUM() OVER (PARTITION BY), requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$month")));
 
@@ -683,35 +667,15 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
 
-        // SQL Oracle: 子级值 / SUM(OVER 父级)
+        // Portable native oracle: aggregate first, then calculate the share in test code.
         String sql = "SELECT t2.category_name, d1.month, " +
-                "SUM(t1.sales_amount) as sales_amount, " +
-                "CAST(SUM(t1.sales_amount) AS REAL) / " +
-                "SUM(SUM(t1.sales_amount)) OVER (PARTITION BY t2.category_name) as expected_share " +
+                "SUM(t1.sales_amount) as sales_amount " +
                 "FROM fact_sales t1 " +
                 "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
                 "LEFT JOIN dim_date d1 ON t1.date_key = d1.date_key " +
                 "GROUP BY t2.category_name, d1.month";
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
-
-        // Build lookup: category-month -> expected_share
-        Map<String, Double> expectedShares = sqlItems.stream()
-                .filter(r -> r.get("expected_share") != null)
-                .collect(Collectors.toMap(
-                        r -> r.get("category_name") + "-" + r.get("month"),
-                        r -> ((Number) r.get("expected_share")).doubleValue()
-                ));
-
-        // Compare
-        for (Map<String, Object> row : pivotItems) {
-            String key = row.get("product$categoryName") + "-" + row.get("salesDate$month");
-            if (row.get("monthShare") != null && expectedShares.containsKey(key)) {
-                double actual = ((Number) row.get("monthShare")).doubleValue();
-                double expected = expectedShares.get(key);
-                assertEquals(expected, actual, 0.001,
-                        "parentShare mismatch for " + key);
-            }
-        }
+        assertParentShareParity(sqlItems, pivotItems);
         log.info("S11: parentShare SQL Parity 验证通过, {} 行", pivotItems.size());
     }
 
@@ -787,7 +751,6 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("S12: baselineRatio parity with SQL Window functions")
     void testBaselineRatioParity() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName")));
         pivot.setColumns(List.of(axis("salesDate$month")));
@@ -820,43 +783,18 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
 
-        // SQL Oracle: global first/last baseline
-        // BaselineRatioCalculator uses global column domain sorting, not per-row partition.
-        // So "first" = globally smallest month, "last" = globally largest month.
-        String sql = "WITH base AS ( " +
-                "  SELECT t2.category_name as category_name, t3.month as month_name, SUM(t1.sales_amount) as sales_amount " +
+        // Portable base oracle. BaselineRatioCalculator uses the global first/last month;
+        // ratios are calculated below without relying on CTE/window support.
+        String sql = "SELECT t2.category_name as category_name, t3.month as month_name, " +
+                "SUM(t1.sales_amount) as sales_amount " +
                 "  FROM fact_sales t1 " +
                 "  LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
                 "  LEFT JOIN dim_date t3 ON t1.date_key = t3.date_key " +
-                "  GROUP BY t2.category_name, t3.month " +
-                "), global_bounds AS ( " +
-                "  SELECT MIN(month_name) as first_month, MAX(month_name) as last_month FROM base " +
-                "), first_baseline AS ( " +
-                "  SELECT b.category_name, b.sales_amount as first_sales " +
-                "  FROM base b, global_bounds g " +
-                "  WHERE b.month_name = g.first_month " +
-                "), last_baseline AS ( " +
-                "  SELECT b.category_name, b.sales_amount as last_sales " +
-                "  FROM base b, global_bounds g " +
-                "  WHERE b.month_name = g.last_month " +
-                ") " +
-                "SELECT b.category_name, b.month_name, b.sales_amount, " +
-                "  b.sales_amount / NULLIF(fb.first_sales, 0) as idx_first, " +
-                "  b.sales_amount / NULLIF(lb.last_sales, 0) as idx_last " +
-                "FROM base b " +
-                "LEFT JOIN first_baseline fb ON b.category_name = fb.category_name " +
-                "LEFT JOIN last_baseline lb ON b.category_name = lb.category_name";
+                "  GROUP BY t2.category_name, t3.month";
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
 
-        assertParityMultiDim(sqlItems, pivotItems,
-                List.of("category_name", "month_name"),
-                List.of("product$categoryName", "salesDate$month"),
-                "idx_first", "idxFirst");
-
-        assertParityMultiDim(sqlItems, pivotItems,
-                List.of("category_name", "month_name"),
-                List.of("product$categoryName", "salesDate$month"),
-                "idx_last", "idxLast");
+        assertBaselineRatioParity(sqlItems, pivotItems, true, "idxFirst");
+        assertBaselineRatioParity(sqlItems, pivotItems, false, "idxLast");
 
         log.info("S12: baselineRatio (first & last) Parity 验证通过");
     }
@@ -896,7 +834,6 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("S12: baselineRatio + systemSlice parity")
     void testBaselineRatioSystemSliceParity() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName")));
         pivot.setColumns(List.of(axis("salesDate$month")));
@@ -923,31 +860,16 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SemanticQueryResponse response = execute(TEST_MODEL, request, ctx);
         List<Map<String, Object>> pivotItems = response.getItems();
 
-        // SQL Oracle：限定 C001 后的 baselineRatio (global first)
-        String sql = "WITH base AS ( " +
-                "  SELECT t2.category_name as category_name, t3.month as month_name, SUM(t1.sales_amount) as sales_amount " +
+        String sql = "SELECT t2.category_name as category_name, t3.month as month_name, " +
+                "SUM(t1.sales_amount) as sales_amount " +
                 "  FROM fact_sales t1 " +
                 "  LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
                 "  LEFT JOIN dim_date t3 ON t1.date_key = t3.date_key " +
                 "  WHERE t2.category_id = 'CAT001' " +
-                "  GROUP BY t2.category_name, t3.month " +
-                "), global_bounds AS ( " +
-                "  SELECT MIN(month_name) as first_month FROM base " +
-                "), first_baseline AS ( " +
-                "  SELECT b.category_name, b.sales_amount as first_sales " +
-                "  FROM base b, global_bounds g " +
-                "  WHERE b.month_name = g.first_month " +
-                ") " +
-                "SELECT b.category_name, b.month_name, b.sales_amount, " +
-                "  b.sales_amount / NULLIF(fb.first_sales, 0) as idx_first " +
-                "FROM base b " +
-                "LEFT JOIN first_baseline fb ON b.category_name = fb.category_name";
+                "  GROUP BY t2.category_name, t3.month";
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
 
-        assertParityMultiDim(sqlItems, pivotItems,
-                List.of("category_name", "month_name"),
-                List.of("product$categoryName", "salesDate$month"),
-                "idx_first", "idxFirst");
+        assertBaselineRatioParity(sqlItems, pivotItems, true, "idxFirst");
 
         log.info("S12: baselineRatio + systemSlice Parity 验证通过");
     }
@@ -955,7 +877,6 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     @Test
     @DisplayName("S12: baselineRatio + user slice parity")
     void testBaselineRatioUserSliceParity() {
-        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName")));
         pivot.setColumns(List.of(axis("salesDate$month")));
@@ -984,31 +905,16 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
 
-        // SQL Oracle：限定 year=2024 后的 baselineRatio (global last)
-        String sql = "WITH base AS ( " +
-                "  SELECT t2.category_name as category_name, t3.month as month_name, SUM(t1.sales_amount) as sales_amount " +
+        String sql = "SELECT t2.category_name as category_name, t3.month as month_name, " +
+                "SUM(t1.sales_amount) as sales_amount " +
                 "  FROM fact_sales t1 " +
                 "  LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
                 "  LEFT JOIN dim_date t3 ON t1.date_key = t3.date_key " +
                 "  WHERE t3.year = 2024 " +
-                "  GROUP BY t2.category_name, t3.month " +
-                "), global_bounds AS ( " +
-                "  SELECT MAX(month_name) as last_month FROM base " +
-                "), last_baseline AS ( " +
-                "  SELECT b.category_name, b.sales_amount as last_sales " +
-                "  FROM base b, global_bounds g " +
-                "  WHERE b.month_name = g.last_month " +
-                ") " +
-                "SELECT b.category_name, b.month_name, b.sales_amount, " +
-                "  b.sales_amount / NULLIF(lb.last_sales, 0) as idx_last " +
-                "FROM base b " +
-                "LEFT JOIN last_baseline lb ON b.category_name = lb.category_name";
+                "  GROUP BY t2.category_name, t3.month";
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
 
-        assertParityMultiDim(sqlItems, pivotItems,
-                List.of("category_name", "month_name"),
-                List.of("product$categoryName", "salesDate$month"),
-                "idx_last", "idxLast");
+        assertBaselineRatioParity(sqlItems, pivotItems, false, "idxLast");
 
         log.info("S12: baselineRatio + user slice Parity 验证通过");
     }
@@ -1102,23 +1008,16 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     private void assertParity(List<Map<String, Object>> sqlItems, List<Map<String, Object>> pivotItems,
                               String sqlDimKey, String pivotDimKey, String sqlMetricKey, String pivotMetricKey) {
 
-        Map<String, Double> sqlMap = sqlItems.stream()
-                .filter(r -> r.get(sqlDimKey) != null && r.get(sqlMetricKey) != null)
-                .collect(Collectors.toMap(
-                        r -> String.valueOf(r.get(sqlDimKey)),
-                        r -> ((Number) r.get(sqlMetricKey)).doubleValue()
-                ));
+        assertFalse(sqlItems.isEmpty(), "SQL oracle must return deterministic rows");
+        assertEquals(sqlItems.size(), pivotItems.size(),
+                "SQL oracle and Pivot must expose the same row cardinality");
+        Map<List<Object>, Double> sqlMap = metricIndex(
+                sqlItems, List.of(sqlDimKey), sqlMetricKey, "SQL");
+        Map<List<Object>, Double> pivotMap = metricIndex(
+                pivotItems, List.of(pivotDimKey), pivotMetricKey, "Pivot");
 
-        Map<String, Double> pivotMap = pivotItems.stream()
-                .filter(r -> r.get(pivotDimKey) != null && r.get(pivotMetricKey) != null)
-                .collect(Collectors.toMap(
-                        r -> String.valueOf(r.get(pivotDimKey)),
-                        r -> ((Number) r.get(pivotMetricKey)).doubleValue()
-                ));
-
-        assertEquals(sqlMap.size(), pivotMap.size(), "Result size mismatch between SQL and Pivot");
-        for (Map.Entry<String, Double> entry : sqlMap.entrySet()) {
-            assertTrue(pivotMap.containsKey(entry.getKey()), "Pivot missing key: " + entry.getKey());
+        assertEquals(sqlMap.keySet(), pivotMap.keySet(), "Dimension members differ between SQL and Pivot");
+        for (Map.Entry<List<Object>, Double> entry : sqlMap.entrySet()) {
             assertEquals(entry.getValue(), pivotMap.get(entry.getKey()), 0.01, "Value mismatch for " + entry.getKey());
         }
     }
@@ -1126,28 +1025,187 @@ class PivotSqlParityIT extends EcommerceTestSupport {
     private void assertParityMultiDim(List<Map<String, Object>> sqlItems, List<Map<String, Object>> pivotItems,
                               List<String> sqlDimKeys, List<String> pivotDimKeys, String sqlMetricKey, String pivotMetricKey) {
 
-        Map<String, Double> sqlMap = sqlItems.stream()
-                .filter(r -> r.get(sqlMetricKey) != null)
-                .collect(Collectors.toMap(
-                        r -> sqlDimKeys.stream().map(k -> String.valueOf(r.get(k))).collect(Collectors.joining("-")),
-                        r -> ((Number) r.get(sqlMetricKey)).doubleValue(),
-                        (a, b) -> a  // 忽略重复 key（NULL category 等 edge case）
-                ));
+        assertFalse(sqlItems.isEmpty(), "SQL oracle must return deterministic rows");
+        assertEquals(sqlItems.size(), pivotItems.size(),
+                "SQL oracle and Pivot must expose the same row cardinality");
+        Map<List<Object>, Double> sqlMap = metricIndex(sqlItems, sqlDimKeys, sqlMetricKey, "SQL");
+        Map<List<Object>, Double> pivotMap = metricIndex(pivotItems, pivotDimKeys, pivotMetricKey, "Pivot");
 
-        Map<String, Double> pivotMap = pivotItems.stream()
-                .filter(r -> r.get(pivotMetricKey) != null)
-                .collect(Collectors.toMap(
-                        r -> pivotDimKeys.stream().map(k -> String.valueOf(r.get(k))).collect(Collectors.joining("-")),
-                        r -> ((Number) r.get(pivotMetricKey)).doubleValue(),
-                        (a, b) -> a
-                ));
-
-        // 校验 Pivot 结果的每一行都与 SQL Oracle 一致（交集比较）
-        assertTrue(pivotMap.size() > 0, "Pivot should have non-null results");
-        for (Map.Entry<String, Double> entry : pivotMap.entrySet()) {
-            assertTrue(sqlMap.containsKey(entry.getKey()), "SQL oracle missing key present in Pivot: " + entry.getKey());
-            assertEquals(sqlMap.get(entry.getKey()), entry.getValue(), 0.01, "Value mismatch for " + entry.getKey());
+        assertEquals(sqlMap.keySet(), pivotMap.keySet(), "Dimension tuples differ between SQL and Pivot");
+        for (Map.Entry<List<Object>, Double> entry : sqlMap.entrySet()) {
+            assertEquals(entry.getValue(), pivotMap.get(entry.getKey()), 0.01,
+                    "Value mismatch for " + entry.getKey());
         }
+    }
+
+    private void assertParentShareParity(List<Map<String, Object>> sqlItems,
+                                         List<Map<String, Object>> pivotItems) {
+        assertFalse(sqlItems.isEmpty(), "parentShare SQL oracle must return deterministic rows");
+        assertEquals(sqlItems.size(), pivotItems.size(),
+                "parentShare must preserve the complete grouped row set");
+
+        Map<Object, Double> totalsByCategory = new LinkedHashMap<>();
+        Map<List<Object>, Double> salesByTuple = metricIndex(
+                sqlItems, List.of("category_name", "month"), "sales_amount", "SQL");
+        for (Map.Entry<List<Object>, Double> entry : salesByTuple.entrySet()) {
+            totalsByCategory.merge(entry.getKey().get(0), entry.getValue(), Double::sum);
+        }
+
+        Map<List<Object>, Double> actual = metricIndex(
+                pivotItems,
+                List.of("product$categoryName", "salesDate$month"),
+                "monthShare",
+                "Pivot");
+        assertEquals(salesByTuple.keySet(), actual.keySet(),
+                "parentShare dimension tuples differ between SQL and Pivot");
+        for (Map.Entry<List<Object>, Double> entry : salesByTuple.entrySet()) {
+            double expected = entry.getValue() / totalsByCategory.get(entry.getKey().get(0));
+            assertEquals(expected, actual.get(entry.getKey()), 0.001,
+                    "parentShare mismatch for " + entry.getKey());
+        }
+    }
+
+    private void assertBaselineRatioParity(List<Map<String, Object>> sqlItems,
+                                           List<Map<String, Object>> pivotItems,
+                                           boolean first,
+                                           String pivotMetricKey) {
+        assertFalse(sqlItems.isEmpty(), "baselineRatio SQL oracle must return deterministic rows");
+        assertEquals(sqlItems.size(), pivotItems.size(),
+                "baselineRatio must preserve the complete grouped row set");
+
+        BigDecimal baselineMonth = null;
+        for (Map<String, Object> row : sqlItems) {
+            Object rawMonth = requiredColumn(row, "month_name", "SQL baseline dimension");
+            // SQL MIN/MAX ignore NULL axis members. Keep the NULL tuple in the
+            // parity set, but do not let it become the global baseline.
+            if (rawMonth == null) {
+                continue;
+            }
+            assertTrue(rawMonth instanceof Number,
+                    "SQL baseline month must be numeric: " + rawMonth);
+            BigDecimal month = normalizeNumber((Number) rawMonth);
+            if (baselineMonth == null
+                    || (first && month.compareTo(baselineMonth) < 0)
+                    || (!first && month.compareTo(baselineMonth) > 0)) {
+                baselineMonth = month;
+            }
+        }
+        assertNotNull(baselineMonth, "global baseline month must be resolved");
+
+        Map<List<Object>, Double> salesByTuple = metricIndex(
+                sqlItems, List.of("category_name", "month_name"), "sales_amount", "SQL");
+        Map<Object, Double> baselineByCategory = new LinkedHashMap<>();
+        for (Map.Entry<List<Object>, Double> entry : salesByTuple.entrySet()) {
+            if (baselineMonth.equals(entry.getKey().get(1))) {
+                baselineByCategory.put(entry.getKey().get(0), entry.getValue());
+            }
+        }
+
+        Map<List<Object>, Double> actual = nullableMetricIndex(
+                pivotItems,
+                List.of("product$categoryName", "salesDate$month"),
+                pivotMetricKey,
+                "Pivot");
+        assertEquals(salesByTuple.keySet(), actual.keySet(),
+                "baselineRatio dimension tuples differ between SQL and Pivot");
+        for (Map.Entry<List<Object>, Double> entry : salesByTuple.entrySet()) {
+            Double baseline = baselineByCategory.get(entry.getKey().get(0));
+            Double expected = baseline == null || baseline == 0d
+                    ? null
+                    : entry.getValue() / baseline;
+            Double actualValue = actual.get(entry.getKey());
+            if (expected == null) {
+                assertNull(actualValue, "baselineRatio must remain null without a valid baseline: " + entry.getKey());
+            } else {
+                assertNotNull(actualValue, "baselineRatio is missing for " + entry.getKey());
+                assertEquals(expected, actualValue, 0.001,
+                        "baselineRatio mismatch for " + entry.getKey());
+            }
+        }
+    }
+
+    private Map<List<Object>, Double> metricIndex(List<Map<String, Object>> rows,
+                                                   List<String> dimensionKeys,
+                                                   String metricKey,
+                                                   String label) {
+        Map<List<Object>, Double> index = nullableMetricIndex(rows, dimensionKeys, metricKey, label);
+        for (Map.Entry<List<Object>, Double> entry : index.entrySet()) {
+            assertNotNull(entry.getValue(), label + " metric must be numeric and non-null for " + entry.getKey());
+        }
+        return index;
+    }
+
+    private Map<List<Object>, Double> nullableMetricIndex(List<Map<String, Object>> rows,
+                                                           List<String> dimensionKeys,
+                                                           String metricKey,
+                                                           String label) {
+        Map<List<Object>, Double> index = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            List<Object> tuple = dimensionTuple(row, dimensionKeys, label + " dimension");
+            assertFalse(index.containsKey(tuple), label + " contains a duplicate dimension tuple: " + tuple);
+            Object metric = requiredColumn(row, metricKey, label + " metric");
+            assertTrue(metric == null || metric instanceof Number,
+                    label + " metric must be numeric: " + metricKey + "=" + metric);
+            index.put(tuple, metric == null ? null : ((Number) metric).doubleValue());
+        }
+        return index;
+    }
+
+    private List<Object> dimensionTuple(Map<String, Object> row, List<String> keys, String label) {
+        List<Object> tuple = new ArrayList<>(keys.size());
+        for (String key : keys) {
+            Object value = requiredColumn(row, key, label);
+            tuple.add(value instanceof Number ? normalizeNumber((Number) value) : value);
+        }
+        return tuple;
+    }
+
+    private Object requiredColumn(Map<String, Object> row, String key, String label) {
+        assertTrue(row.containsKey(key), label + " column is missing: " + key + " in " + row.keySet());
+        return row.get(key);
+    }
+
+    private BigDecimal normalizeNumber(Number value) {
+        return new BigDecimal(value.toString()).stripTrailingZeros();
+    }
+
+    private List<Map<String, Object>> topNPerGroup(List<Map<String, Object>> rows,
+                                                    String groupKey,
+                                                    String memberKey,
+                                                    String metricKey,
+                                                    int limit) {
+        assertFalse(rows.isEmpty(), "per-group TopN SQL oracle must return deterministic rows");
+        Map<Object, List<Map<String, Object>>> groups = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object group = requiredColumn(row, groupKey, "SQL group dimension");
+            groups.computeIfAbsent(group, ignored -> new ArrayList<>()).add(row);
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (List<Map<String, Object>> groupRows : groups.values()) {
+            groupRows.sort((left, right) -> {
+                double leftMetric = requiredNumericColumn(left, metricKey, "SQL ranking metric");
+                double rightMetric = requiredNumericColumn(right, metricKey, "SQL ranking metric");
+                int metricOrder = Double.compare(rightMetric, leftMetric);
+                if (metricOrder != 0) {
+                    return metricOrder;
+                }
+                Object leftMember = requiredColumn(left, memberKey, "SQL ranking member");
+                Object rightMember = requiredColumn(right, memberKey, "SQL ranking member");
+                if (leftMember == null || rightMember == null) {
+                    return leftMember == rightMember ? 0 : (leftMember == null ? 1 : -1);
+                }
+                return String.valueOf(leftMember).compareTo(String.valueOf(rightMember));
+            });
+            result.addAll(groupRows.subList(0, Math.min(limit, groupRows.size())));
+        }
+        return result;
+    }
+
+    private double requiredNumericColumn(Map<String, Object> row, String key, String label) {
+        Object value = requiredColumn(row, key, label);
+        assertTrue(value instanceof Number, label + " must be numeric: " + key + "=" + value);
+        return ((Number) value).doubleValue();
     }
 
     private void assertAccessDeniedFailure(Exception ex) {

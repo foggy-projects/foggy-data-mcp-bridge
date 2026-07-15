@@ -89,7 +89,7 @@ mvn -q -P\!multi-db,\!model-lifecycle,\!query-cache-real-query \
 - [x] extend QueryFacade/native parity to MySQL 8 and SQL Server
 - [x] replay v933-only preflight and full batch6 real-query without changing frozen counts
 - [ ] make the final runner verify container image ID and SQLite JAR byte SHA
-- [ ] replace required assumption/early-return paths with positive/refusal assertions
+- [x] replace required assumption/early-return paths with positive/refusal assertions
 - [x] repair Pivot pre-aggregation physical-column mapping and execute its SQL/oracle
 - [x] provide homogeneous five-database pre-aggregation schema/data fixtures
 - [ ] implement exact 46-execution Step 3 runner/report verifier and negative probes
@@ -113,6 +113,24 @@ the final fresh-storage runner, exact 46-execution collector, remaining assumpti
 cleanup, required external matrix, or negative-probe checklist. The DDL/refresh Addon has a
 separate confirmed lifecycle gap tracked by
 `BUG-step3-preagg-addon-materialization-contract.md`.
+
+## 2026-07-15 Required Database S0 Diagnostic Check-in
+
+数据库侧 frozen selector 的 false-green 路径已清除：
+
+- Pivot/cascade 不再使用 assumption；支持能力执行正向 request，不支持能力精确断言
+  typed/dialect refusal；
+- MultiDatabase 不再以空 fixture、日志或无断言 return 通过；确定性数据断言覆盖分页、
+  aggregate、join、subquery、null、CTE/window/LAG/moving average；
+- 五个标准 lane 加 MySQL 8/PostgreSQL 定向 variant 的最终 raw XML 精确为
+  `29 reports / 370 tests / F0/E0/S0`；
+- 外库 test-owned fixture 在诊断后全部清理为
+  `sentinel_rows=0 fixture_tables=0`。
+
+证据见 `step3-db-required-s0-diagnostic-20260715.md`。该结果仍来自 fixed demo
+containers，`inventory_consumption=0`；fresh/run-scoped provision、exact runner/collector、
+required external matrix 与全套 negative probes 仍未完成，所以本 BUG 保持
+`in-progress`，`execute all required lanes` 也不得提前勾选。
 
 ## Verification
 

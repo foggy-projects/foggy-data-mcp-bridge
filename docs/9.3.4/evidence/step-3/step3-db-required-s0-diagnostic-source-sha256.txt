@@ -1,0 +1,3 @@
+1f2bf17a2fa20b864a975c5556bdc37d3490cfd4feb1b1412e99d62c26a4df88  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java
+15ad89b97496ecfea4db1bc7a3c955d8fa71bd8c6d5b8d80eb146c3358a24dcd  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotCascadeGenerateSqlParityIT.java
+b0686b19f16be43ef763b7dbd6c36ac757282d9167c9cfb0ae048ca15eb2aaf6  foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/multidb/MultiDatabaseQueryTest.java

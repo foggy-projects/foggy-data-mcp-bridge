@@ -4,7 +4,7 @@ bug_source: code-review
 version: 9.3.4
 ticket: BUG-934-STEP3-PREAGG-ADDON-MATERIALIZATION-CONTRACT
 severity: critical
-status: open
+status: in-progress
 reproduction_status: confirmed
 test_strategy: unit-and-integration-test
 automation_decision: required
@@ -70,6 +70,27 @@ query-path 的绿色结果扩大为预聚合全生命周期正确性。
 `step3-pivot-preagg-method-diagnostic-20260715.md` 不包含 Addon DDL/refresh。当前批次允许
 以 query-path diagnostic 合入，但 Step 3 exit 和“预聚合全生命周期物理契约统一”声明
 均被本 BUG 阻止。
+
+## 2026-07-15 Candidate Review Check-in
+
+首个 Addon resolver/DDL builder candidate 已补出 explicit mapping、source/materialized
+watermark 与 fail-closed 单测，但独立代码复核确认其尚不可合入：
+
+- `COUNT(*)` 物化不应要求同名 source measure，目标列也不能建成 DECIMAL；
+- formula/`semanticScaleFactor` measure 必须消费 model-rendered expression，不能把
+  semantic measure name 当物理列；
+- SQLite 的 `DEFAULT datetime('now')` 不能直接作为当前 DDL default 执行；
+- 当前 refresh API 传入 `LocalDate`，而内置增量模型的 `salesDate$id`/`returnDate$id`
+  实际是整数 `date_key`。candidate 正确拒绝类型错配，却会使现有模型全部不可刷新；
+  必须迁移到显式 DATE watermark 或设计 typed date-key codec；
+- 内置 monthly/daily-customer-channel 模型缺少所有 grain 的 explicit mapping，且
+  `category_name`/`categoryName`、`channel_type`/`channelType` 尚未按既有命名规则归一化，
+  candidate 会重复解析或直接 fail。
+
+这些 finding 是阻止本 candidate 合入的高风险兼容缺口，不影响数据库 query selector 的
+`29/370/S0` diagnostic。当前 workitem 提升为 `in-progress`，但 Required Fix Checklist
+保持未完成；只有内置 TM 迁移、真实 SQLite + 外库 lifecycle 和 exact collector 同时绿色
+后才能关闭。
 
 ## References
 

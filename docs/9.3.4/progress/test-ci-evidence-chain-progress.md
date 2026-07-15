@@ -302,6 +302,45 @@ Decision：本批 query diagnostic 可合入并作为后续 exact runner 的前�
 被剩余 required Pivot/MultiDatabase execution、完整 29+16 matrix、fresh storage、exact
 collector/negative probes 和 Addon 生命周期 follow-up 阻止。
 
+## Execution Check-in — Step 3（in-progress / required DB S0 diagnostic）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-15
+- owner: current 9.3.4 root session
+- scope: 清除 Pivot/cascade/MultiDatabase 的 required assumption、empty-fixture、
+  early-return 与局部 oracle 伪绿色；在五库重放 frozen database selector。
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`、
+  `docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-source-sha256.txt`。
+
+实现结果：
+
+- Pivot/cascade 的支持能力走真实正向执行；MySQL 5.7 不支持能力走 typed/refusal
+  assertion；结果采用完整 cardinality、结构化 key set、duplicate 与 value parity。
+- MultiDatabase 对分页、offset、aggregate、join、subquery、null、CTE、window、LAG、
+  moving average 执行确定性断言；MySQL 5.7 与 SQLite 的 dialect refusal 校验实际异常
+  类型/code，不再 skip 或空返回。
+- 标准五库各 `5 reports / 50 tests`，合计 `25/250`；MySQL 8 `PivotIT=55`，
+  PostgreSQL `PivotIT+2 CTE suites=65`。最终为
+  `29 reports / 370 tests / F0/E0/S0`。
+- PostgreSQL 首轮 diagnostic 抓到 NULL dimension group 的 baseline oracle 偏差；修复为
+  与 SQL `MIN/MAX` 一致地忽略 NULL 选择 baseline，同时 NULL group 仍参加完整 parity。
+- 外库 fixture 最终 clean 均为 `sentinel_rows=0 fixture_tables=0`。
+
+Evidence boundary / non-goals：
+
+- raw XML 位于 ignored `target/v934-step3-db-s0-diagnostic-r1`，运行的是 long-lived fixed
+  demo container/volume，不是 fresh/run-scoped authority；`inventory_consumption=0`。
+- exact 46-execution runner/collector、image/JAR identity、negative probes、16 个 required
+  external execution 与 optional LLM disposition 仍未完成。
+- Addon DDL/refresh candidate 未进入本批：独立复核发现 COUNT、公式/semantic-scale、
+  SQLite timestamp default、整数 date-key watermark 和内置 TM mapping normalization 等
+  高风险兼容缺口，workitem 保持 `in-progress`。
+
+Decision：required database false-green cleanup 可独立合入；Step 3 仍为 `in-progress`。
+下一批优先建立 fresh/run-owned database runner/collector，同时继续在独立提交中修复并
+真实执行 Addon lifecycle；不得以本 diagnostic 进入 Step 4。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -365,10 +404,12 @@ collector/negative probes 和 Addon 生命周期 follow-up 阻止。
 `deferred-step3.tsv` SHA
 `89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601` 为输入。
 SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 的 preflight 与 QueryFacade parity
-foundation 已 diagnostic `10/F0/E0/S0`，证据见
-`docs/9.3.4/evidence/step-3/step3-five-db-foundation-20260715.md`。下一批先修复 Pivot
-preagg 物理列映射并让 relation/oracle 真执行，再清除 Pivot/MultiDatabase 的 required
-skip/early-return，随后实现 fresh-volume exact matrix runner，并按
+foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一步达到
+`29 reports / 370 tests / F0/E0/S0`，证据见
+`docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。下一批实现
+fresh-volume exact matrix runner/collector，并按
 Redis→Mongo/DataViewer→MCP/MySQL57→Vector 顺序消费 16 个 required external
-execution；1 个 external LLM 保持 optional reviewed disposition。Step 4 coverage 不得提前
-混入本阶段 correctness evidence。
+execution；1 个 external LLM 保持 optional reviewed disposition。Addon lifecycle 继续
+按独立 workitem 修复 COUNT/formula/SQLite/watermark/TM normalization 后执行 SQLite +
+外库真实 create/full/incremental/query parity。Step 4 coverage 不得提前混入本阶段
+correctness evidence。
