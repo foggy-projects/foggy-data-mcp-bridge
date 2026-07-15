@@ -4,7 +4,7 @@ bug_source: test-governance-found
 version: 9.3.4
 ticket: BUG-934-STEP3-MONGO-VIEWER-FIXTURE-CLEANUP
 severity: major
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -37,12 +37,16 @@ source amendment 绑定修改后的测试源码；报告数量与 testcase 数�
 
 - [x] 原始正式候选在测试 XML 全绿时仍因残留 fixture fail closed
 - [x] 失败候选不生成 summary/candidate，Docker residue 为 `0/0`
-- [ ] 修改后 exact Mongo/DataViewer selector 为 `4/30/F0/E0/S0`
-- [ ] suite 后 `list_presets=0` 且 viewer database 只包含该集合
-- [ ] candidate verifier 与 INT/TERM/HUP 清理证据通过
+- [x] 修改后 exact Mongo/DataViewer selector 为 `4/30/F0/E0/S0`
+- [x] suite 后 `list_presets=0` 且 viewer database 只包含该集合
+- [x] candidate verifier 与 INT/TERM/HUP 清理证据通过
+
+Closed by committed candidate `external-mongo-candidate-ccb29f47-r1`; evidence is recorded in
+`docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`.
 
 ## References
 
 - `addons/foggy-data-viewer/src/test/java/com/foggyframework/dataviewer/service/listpreset/MongoListPresetStoreIT.java`
 - `scripts/verify-v934-external-mongo.sh`
 - `docs/9.3.4/workitems/BUG-step3-external-matrix-gaps.md`
+- `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`

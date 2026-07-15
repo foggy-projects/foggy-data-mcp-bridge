@@ -4,7 +4,7 @@ bug_source: test-governance-found
 version: 9.3.4
 ticket: BUG-934-STEP3-MONGO-SENSITIVE-PROBE-SELF-MATCH
 severity: major
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -38,12 +38,16 @@ owner: scripts/v934/step3
 
 - [x] 原始正式候选因 probe evidence self-match fail closed
 - [x] `sensitive-scan.matches` 精确指向 `negative/sensitive-probes.tsv`
-- [ ] 六个短凭据 fixture 全部被扫描器检出
-- [ ] durable probe evidence 自身不匹配敏感模式
+- [x] 六个短凭据 fixture 全部被扫描器检出
+- [x] durable probe evidence 自身不匹配敏感模式
 - [x] 未同步 verifier 的正式运行以 `E_CANDIDATE` 拒绝旧标签契约漂移
-- [ ] exact Mongo candidate 通过全目录 sensitive scan 并生成可复核 manifest
+- [x] exact Mongo candidate 通过全目录 sensitive scan 并生成可复核 manifest
+
+Closed by committed candidate `external-mongo-candidate-ccb29f47-r1`; evidence is recorded in
+`docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`.
 
 ## References
 
 - `scripts/verify-v934-external-mongo.sh`
 - `docs/9.3.4/workitems/BUG-step3-external-matrix-gaps.md`
+- `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`

@@ -59,7 +59,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed fresh Redis subset `2/3` + signal cleanup；remaining DB `24/320` + external `14/73` + state negatives pending |
+| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；committed Redis + Mongo subsets `6/33` + signal cleanup；remaining DB `24/320` + external `10/43` + state negatives pending |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
@@ -417,6 +417,57 @@ Decision：Redis subset candidate=`passed`，Step 3=`in-progress / not passed`�
 variant 按顺序进入 Mongo/DataViewer `4/30`；同时保留 DB-state 与 Redis resource-state
 negative backlog，不进入 Step 4。
 
+## Execution Check-in — Step 3（in-progress / committed Mongo external subset）
+
+- started_at: 2026-07-15
+- completed_at: 2026-07-15
+- owner: current 9.3.4 root session
+- commit: `ccb29f476e0a7d6040f52e4192fe54b68aac5aa0`
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`。
+
+实现与验证结果：
+
+- committed run `external-mongo-candidate-ccb29f47-r1` 使用 digest-pinned MongoDB `6.0.27`、
+  动态 loopback、两个 run-labelled named volumes 与两个 hash-derived database，得到 exact
+  `4 reports / 30 testcase / F0/E0/S0`。
+- DataViewer source amendment 增加 `@AfterEach` fixture teardown；post-test viewer
+  `list_presets=0`，model collections/count 与 foreign database 也精确匹配。
+- candidate manifest 绑定 31 个文件并重验通过；source before/after、Mongo variant bytecode
+  seal、12/12 report negatives、6/6 short-sensitive probes 与全目录 sensitive scan 通过。
+- 本地 disposable-copy 复验中，touched status、missing cleanup、extra file 三类 candidate
+  副本均以 `E_CANDIDATE` 拒绝；副本已删除，不把它们记为 durable candidate artifact。
+- real signal group `external-mongo-signal-ccb29f47-r1` 的 INT/TERM/HUP 分别为
+  `130/143/129`；durable status 均 failed，summary/candidate/FIFO absent，container/two-volume
+  residue=`0/0`。
+- Mongo loader 仍隐式读取 JDBC dialect；本 lane 只用 run-local SQLite + `dual` guard 解锁
+  Step 3，不把它描述为产品级解耦修复。
+
+Evidence boundary / non-goals：
+
+- Mongo final manifest 为 `complete=false`。Redis 与 Mongo 两个独立 candidates 合计只关闭
+  external `6/33`，remaining external=`10/43`；二者不能跨 run 拼成 external `16/76`。
+- wrong-image/version、dirty-state、forced cleanup-failure resource negatives，数据库四外库
+  `24/320`、MCP/MySQL57、Vector、optional LLM 与 Addon lifecycle 仍开放。
+- `external-mongo-candidate-142f4360-r2`、`ef0dae38-r1`、`5b95f6f9-r1` 分别暴露 fixture
+  残留、敏感探针自匹配与 verifier 标签漂移；均 fail closed 且禁止拼接。
+
+Decision：Mongo subset candidate=`passed`，Step 3=`in-progress / not passed`。下一 external
+variant 按顺序进入 MCP/MySQL57 `8/23`，随后 Vector `2/20`；不进入 Step 4。
+
+### Implementation Quality Self-check — Mongo external subset
+
+- mode: `lightweight-self-check`；formal Step 3 quality gate 仍在完整 `45/446` exit 前执行。
+- implementation closure: runner/tool/contract、SQLite test dependency、DataViewer teardown 与
+  两个 test-governance BUG 已收口；protected source before/after exact，未改生产 Mongo 查询。
+- verification: test-compile、Bash/JSON/Python static checks、contract validator、candidate
+  verifier、4/30 fresh execution、candidate local tamper self-check、signals 和 Docker residue
+  均通过；独立 candidate/docs review blocker=`0`。
+- open risks: production Mongo loader JDBC dialect coupling、resource-state negatives、run-local
+  mtime portability 与 remaining Step 3 lanes 均继续显式开放。
+- decision: `passed-subset / needs-formal-quality-gate-at-step3-exit`，不允许提升为 full
+  authority、coverage entry 或 version acceptance。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -484,10 +535,10 @@ SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 的 preflight 与 QueryFacade p
 foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一步达到
 `29 reports / 370 tests / F0/E0/S0`，证据见
 `docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。
-runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；committed Redis
-external subset=`2/3/F0/E0/S0` 且 real signals=`130/143/129`。下一批推进 Mongo/DataViewer
-`4/30`，随后 MCP/MySQL57 `8/23` 与 Vector `2/20`，并补齐 unavailable/wrong identity/
-fixture mutation/provision cleanup 等 DB/Redis state negatives。在冻结端口空闲的 clean
+runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；committed Redis +
+Mongo external subsets=`6/33/F0/E0/S0`，两条 lane 的 real signals 均为 `130/143/129`。
+下一批推进 MCP/MySQL57 `8/23`，随后 Vector `2/20`，并补齐 unavailable/wrong identity/
+fixture mutation/provision cleanup 等 DB/resource state negatives。在冻结端口空闲的 clean
 host 上再以同一 commit 重放四外库 remaining `24/320`；1 个 external LLM 保持 optional
 reviewed disposition。Addon lifecycle 继续
 按独立 workitem 修复 COUNT/formula/SQLite/watermark/TM normalization 后执行 SQLite +

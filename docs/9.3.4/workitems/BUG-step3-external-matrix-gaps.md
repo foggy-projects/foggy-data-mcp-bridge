@@ -85,8 +85,9 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] land Redis run-scoped runner/collector and exact report/candidate negatives
 - [x] prove real Redis INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
 - [ ] add Redis wrong identity/mount, dirty-state and cleanup-failure resource negatives
-- [ ] replace Mongo unavailable assumption and DataViewer environment false green
-- [ ] provision fresh Mongo 6 and execute exact 4/30/S0
+- [x] close Mongo unavailable assumption and DataViewer environment false green in the run-scoped Mongo runner
+- [x] provision fresh Mongo 6 and execute exact 4/30/S0
+- [x] prove real Mongo INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
 - [x] make MCP direct nodes fail when any required direct case fails or executes zero cases
 - [ ] provision fresh MySQL57 and execute exact 8/23/S0 without optional LLM
 - [ ] replace Vector assumption/disabled paths with a deterministic local embedding fixture
@@ -108,8 +109,9 @@ failure instead of signing `22/23` as green. Its diagnosis and the isolated ecom
 unblock are tracked in `BUG-step3-mysql57-direct-default-catalog-assembly.md`; no MySQL57 required
 result is inferred from the source amendment.
 
-No Mongo/MySQL57/Vector result may be inferred from the Redis result. Long-lived demo containers
-remain diagnostic-only and cannot be spliced into the final external manifest.
+Committed Redis and Mongo candidates independently close `2/3` and `4/30`; their two run-local
+manifests cannot be spliced into a full external authority. No MySQL57/Vector result may be inferred
+from either subset. Long-lived demo containers remain diagnostic-only.
 
 ## References
 
@@ -118,6 +120,8 @@ remain diagnostic-only and cannot be spliced into the final external manifest.
 - `scripts/v934/successor/step2/deferred-step3.tsv`
 - `scripts/v934/step3/external-matrix-contract.json`
 - `scripts/verify-v934-external-redis.sh`
+- `scripts/verify-v934-external-mongo.sh`
 - `docs/9.3.4/workitems/BUG-step3-mysql57-direct-default-catalog-assembly.md`
 - `docs/9.3.4/workitems/BUG-step3-mongo-loader-jdbc-dialect-dependency.md`
 - `docs/9.3.4/evidence/step-3/step3-external-redis-runner-candidate-20260715.md`
+- `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`
