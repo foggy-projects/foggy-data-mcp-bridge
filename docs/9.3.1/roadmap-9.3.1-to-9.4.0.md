@@ -3,7 +3,7 @@ doc_role: root_plan_review
 doc_purpose: Record the reviewed dependency order and release gates from 9.3.1 through 9.4.0.
 status: active
 created_at: 2026-07-13
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # 9.3.1 → 9.4.0 迭代顺序评审
@@ -30,7 +30,7 @@ updated_at: 2026-07-15
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–2 passed / Step 3 in-progress | [执行文档包](../9.3.4/README.md)；five-DB foundation 已 diagnostic 10/F0/E0/S0，下一批先修 Pivot preagg 伪绿，再消费 exact 45 required + 1 optional deferred |
+| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 ready-not-started | [执行文档包](../9.3.4/README.md)；formal r4 exact `45/446/F0E0S0`，DB state `18/18`、Redis state `4/4`、Addon companion `2/6`；Step 3 feature accepted |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,15 +85,19 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–2 passed / Step 3 in-progress`；入口为
+当前状态：`in-progress / Steps 1–3 passed / Step 4 ready-not-started`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。confirmed run
 `step1-candidate-r8-20260714` 已冻结 532 sources、820 discovery rows、829 execution
 keys、519 predecessor nodes/edges，28/28 expected-negative probes 通过；两路独立
 复核 blocker=0。Step 2 保持该 baseline immutable，并将 59 个 zero-test outer report
 typed 为 structural；confirmed r8e successor 为 `770 positive = 724 Step 2 + 46 Step 3`
 和 519 typed predecessor refs。Surefire/Failsafe 实际通过 `5,205 testcase / F0/E0/S0`，
-INT/TERM/HUP durable fail-closed probe=`130/143/129`；r8d 已作废。Step 3 以 exact 46
-external executions 进入五库/Redis/Mongo matrix；9.3.5 仍为 queued。
+INT/TERM/HUP durable fail-closed probe=`130/143/129`；r8d 已作废。Step 3 formal parent
+`step3-required-20260716-final-r4` 在同一 committed HEAD 上完成 database `29/370` 与
+required external `16/76` 的 exact union `45/446/F0E0S0`，gap/overlap/extra=
+`0/0/0`；DB state=`18/18`、Redis state=`4/4`，Addon companion=`2/6` 且不计入
+union。Step 3 quality→coverage→feature acceptance 已完成；Step 4 尚未开工，9.3.5
+仍为 queued。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

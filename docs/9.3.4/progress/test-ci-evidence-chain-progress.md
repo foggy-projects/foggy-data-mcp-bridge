@@ -59,8 +59,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 |---:|---|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
-| 3 | 五数据库与外部集成 required matrix | in-progress | Step 2 exit passed | fresh SQLite subset `5/50`；single-outer external `7 variants / 16 reports / 76 testcase / F0/E0/S0` + outer signal group；remaining DB `24/320` + state negatives + optional LLM pending |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | pending | Step 3 exit | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
+| 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | ready / not-started | Step 3 exit passed | pending：all-lane agent rerun、XML verifier、model merged-exec check、negative proof |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -653,6 +653,72 @@ disposition；不进入 Step 4。
 - decision: `passed-external-subset / needs-step3-remaining-work`；本质量结论不签收 Step 3
   remaining `24/320`、state negatives、optional LLM、Addon lifecycle 或 Step 4。
 
+## Execution Check-in — Step 3（passed / required matrix exit）
+
+- started_at: 2026-07-15T20:18:24Z
+- completed_at: 2026-07-15T20:42:19Z
+- owner: current 9.3.4 root session
+- tested commit: `ce3d70c391c7b8bd8046fe66dde0ad568d66601e`
+- authority run: `step3-required-20260716-final-r4`
+- evidence:
+  `docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`
+- scope: PreAgg runtime watermark/materialized-column lifecycle、fresh five-DB matrix、
+  required Redis/Mongo/MySQL/Vector、exact deferred-union collector、state/report/sensitive
+  negatives、resource cleanup 与 optional LLM disposition。
+- non-goals: 不生成/接受 JaCoCo exec；不做 Step 5 portable archive、Step 6 CI/branch
+  protection、Step 7 clean release authority；不签收 9.3.4 version。
+
+Development：
+
+- Addon `PreAggPhysicalColumnContract` 统一物化列显式映射，query 消费一致的 explicit
+  mapping data；shared strict-DAY `PreAggWatermarkResolver` 统一 semantic/source/
+  materialized watermark roles。DATE watermark 固定为 exclusive upper bound，hybrid=
+  `materialized < W / source >= W`；事务成功后才分别发布 runtime refresh time/W，失败不
+  发布；service 以 runtime preAgg 串行化 refresh，scheduler 以 taskInfo 锁覆盖
+  capture→service→mirror publication。
+- matcher/rewriter 对 null、非 `LocalDate`、future W、无 source JOIN proof fail closed；
+  reload/restart 后 W 为空，首次 refresh 回落 FULL，不声明持久化。
+- 五库补齐原生 DATE fixture、SQLite TEXT 绑定、dialect fail-closed resolution；MySQL
+  provision readiness 绑定业务 identity 与 final init marker。
+- external MySQL 69-table content/snapshot hash 已与 native DATE canonical fixture 同步；
+  runner/report verifier 均冻结同一值。
+- `MultiThreadExecutor` 等待输出改为 debug logger，并增加 shutdown=false、错误传播与
+  waiter interrupt 三个 deterministic Step 4 prerequisite tests。
+
+Testing：
+
+- parent required=`45 reports / 446 testcase / F0E0S0`；DB/external execution keys=
+  `29/16`，gap/overlap/extra=`0/0/0`。
+- database=`29/370/F0E0S0`：SQLite `5/50`、MySQL 5.7 `5/50`、MySQL 8 `6/105`、
+  PostgreSQL 15 `8/115`、SQL Server 2022 `5/50`。
+- external=`16/76/F0E0S0`：Redis `2/3`、Mongo `4/30`、MySQL57 `8/23`、Vector `2/20`。
+- required companion Addon=`2/6/F0E0S0`，明确不计入 45/446。
+- negatives：parent `17/17`、DB state `18/18`、DB report `14/14`、external report
+  `12/12`、external sensitive `24/24`、Redis state `4/4`、Addon `4/4`。
+- source/fixture before=after；run-owned container/volume/network residue=`0/0/0`；父
+  final/candidate 与所有 child authority verifier 独立重放通过。
+- same-HEAD focused prerequisite：`MultiThreadExecutorTest=3/3/F0E0S0`。
+  Companion artifact identity 见
+  `docs/9.3.4/evidence/step-3/step3-multithread-prerequisite-evidence-20260716.md`，
+  raw XML SHA=
+  `5d3ba9ff2778886160262b499999753f98a0b9251f5a76f6b9f86c45d723291a`。
+
+Experience：`N/A`。本 Step 是后端 build/test authority 与数据生命周期治理，无 UI、
+浏览器或人工体验交付。
+
+Deviations / failed attempts：r1（MySQL business readiness）、r2（final init 尚未完成）、
+r3（native DATE fixture hash 传播）均按预期 fail closed、无 candidate、零残留；
+external MySQL hash diagnostics/native-date r1/r2 只用于修复与预验证，不进入 r4 authority。
+
+Blockers：none。独立 source/final evidence 审计得到 blocker/high/medium=`0/0/0`；
+required workitems 的真实 checklist 已闭合。已知 Mongo loader production JDBC 解耦、
+runtime watermark 非持久化、缓存非立即一致等边界保持显式，不影响 Step 3 exit。
+
+Self-check decision：`ready-for-formal-quality-gate`。Step 3 correctness、negative、cleanup、
+optional disposition、Addon companion 与 Step 4 并发前置条件全部满足；此时 Step 4
+仅为 `entry-candidate / not-started`，待 formal quality→coverage→feature acceptance
+顺序完成后才标记 ready。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -675,14 +741,15 @@ disposition；不进入 Step 4。
   key rename + 4 structural rename，计划外 source/semantic delta=`0`。
 - v933 Batch 7 冻结旧 FQCN/count，重命名后不能原样重跑；519-node predecessor
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
-- MySQL 8/SQL Server 已进入统一 runner 契约，但尚未在冻结端口空闲的 clean host 完成
-  同一 run 的 fresh-storage authority replay。
+- Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
+  Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
 - 当前只有 model 局部门，无 reviewed reactor aggregate baseline；0.80/0.70 只是
   critical-class candidate floor；aggregate XML verifier 尚未实现。
 - remote required check、five-cell collector、branch protection、release artifact reuse
   和 Docker embedded-JAR equality 尚无实际证据。
-- 当前工作树不是 clean commit；可做 Step 1–6 实现与 diagnostic，不能作为 Step 7
-  final authority。
+- Step 3 authority 永久绑定 tested commit
+  `ce3d70c391c7b8bd8046fe66dde0ad568d66601e`；其后的纯文档收口 commit 不是新的
+  tested commit。Step 7 仍须在未来 exact clean commit 上完成全量回放。
 
 上述是已知执行风险，不是已通过项。触发 implementation plan 的 stop condition 时，
 当前 Step 保持未通过并记录 blocker，不继续后续 Step。
@@ -704,29 +771,19 @@ disposition；不进入 Step 4。
 
 | Gate | 状态 | 证据 |
 |---|---|---|
-| implementation self-check | Steps 1–2 passed | r8e 双路 successor review + raw Unit/IT independent recomputation；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 2 ready-with-risks | `docs/9.3.4/quality/step2-runner-split-implementation-quality.md`；open blocker/high/medium=0 |
-| coverage evidence audit | Step 2 ready-for-acceptance | `docs/9.3.4/coverage/step2-runner-split-coverage-audit.md`；15/15 BUG covered；critical/major gap=0 |
+| implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
+| formal implementation quality | Step 3 ready-for-coverage-audit | `docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；open blocker/high/medium=0 |
+| coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
+| feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 3 in-progress recorded | roadmap 保持 Steps 1–2 passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
+| roadmap sync / downstream | Step 4 ready-not-started recorded | roadmap 为 Steps 1–3 passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
 
 ## Next Action
 
-继续 Step 3：以 confirmed successor manifest
-`4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919` 和
-`deferred-step3.tsv` SHA
-`89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601` 为输入。
-SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 的 preflight 与 QueryFacade parity
-foundation 已 diagnostic `10/F0/E0/S0`，数据库 frozen selectors 已进一步达到
-`29 reports / 370 tests / F0/E0/S0`，证据见
-`docs/9.3.4/evidence/step-3/step3-db-required-s0-diagnostic-20260715.md`。
-runner/collector candidate 已实现，真实 fresh SQLite=`5/50/F0/E0/S0`；committed Redis +
-Mongo + MySQL + Vector historical subsets 已由 single outer candidate
-`external-matrix-candidate-47d1afd7-r1` 取代为 `complete=true / 7 variants / 16 reports /
-76 testcase / F0/E0/S0`；outer real INT/TERM/HUP 的 parent/child durable exit 均为
-`130/143/129`。下一批补齐 unavailable/wrong identity/fixture mutation/provision cleanup
-等 DB/resource state negatives。在冻结端口空闲的 clean host 上以同一 commit 重放四外库
-remaining `24/320`；1 个 external LLM 保持 optional reviewed disposition。Addon lifecycle 继续
-按独立 workitem 修复 COUNT/formula/SQLite/watermark/TM normalization 后执行 SQLite +
-外库真实 create/full/incremental/query parity。Step 4 coverage 不得提前混入本阶段
-correctness evidence。
+开始 Step 4 前置规划/实现：以 Step 3 formal parent
+`step3-required-20260716-final-r4` 和 tested commit
+`ce3d70c391c7b8bd8046fe66dde0ad568d66601e` 为 correctness 输入，但不复用其 XML
+冒充 coverage。先冻结 JaCoCo unit/IT argLine、每 lane 唯一 exec naming/provenance 与
+aggregate XML verifier contract，再带 agent 重跑 all unit、hermetic/SQLite、five-DB 和
+全部 required external lanes。Step 4 当前仅 `ready / not-started`；本次收口到此停止，
+不提前创建 exec、aggregate baseline 或 coverage pass。

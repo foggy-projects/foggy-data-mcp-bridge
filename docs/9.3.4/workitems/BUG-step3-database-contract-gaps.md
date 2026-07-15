@@ -4,7 +4,7 @@ bug_source: acceptance-found
 version: 9.3.4
 ticket: BUG-934-STEP3-DATABASE-CONTRACT-GAPS
 severity: critical
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -93,8 +93,8 @@ mvn -q -P\!multi-db,\!model-lifecycle,\!query-cache-real-query \
 - [x] repair Pivot pre-aggregation physical-column mapping and execute its SQL/oracle
 - [x] provide homogeneous five-database pre-aggregation schema/data fixtures
 - [x] implement exact 29-execution database runner/report/cell verifier and 14 report negatives
-- [ ] extend the Step 3 authority to all 45 required executions and DB-state negatives
-- [ ] execute all required lanes with `Failures=0, Errors=0, Skipped=0`
+- [x] extend the Step 3 authority to all 45 required executions and DB-state negatives
+- [x] execute all required lanes with `Failures=0, Errors=0, Skipped=0`
 
 ## 2026-07-15 Pivot PreAgg Diagnostic Check-in
 
@@ -192,6 +192,20 @@ The item can move to `ready-for-verification` only when the Step 3 authority sum
 
 The runner must use fresh/run-scoped database storage. The long-lived demo volumes were used only
 for diagnostics and cannot prove fixture isolation or sequence identity.
+
+## 2026-07-16 Formal Closure
+
+同一 committed HEAD `ce3d70c391c7b8bd8046fe66dde0ad568d66601e` 的父运行
+`step3-required-20260716-final-r4` 已用 fresh/run-scoped storage 完成五库：SQLite
+`5/50`、MySQL 5.7 `5/50`、MySQL 8 `6/105`、PostgreSQL 15 `8/115`、SQL Server
+2022 `5/50`，合计 `29 reports / 370 testcase / F0E0S0`。数据库状态负向=`18/18`、
+report/final-bundle 负向=`14/14`，fixture/source before=after，run-owned resource residue
+为零。
+
+同一父 authority 随后消费 required external `16/76`，exact union=`45/446`，
+gap/overlap/extra=`0/0/0`；optional LLM 以 reviewed exclusion 单列。正式证据见
+`docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。r1/r2/r3 与其他
+diagnostic 均被排除，未参与绿色拼接。本 BUG 的 Step 3 database-contract scope 关闭。
 
 ## References
 

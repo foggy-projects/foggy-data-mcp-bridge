@@ -4,7 +4,7 @@ bug_source: acceptance-found
 version: 9.3.4
 ticket: BUG-934-S3-PREAGG-WATERMARK
 severity: critical
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -63,20 +63,37 @@ SQLite/MySQL 5.7 生命周期用例只直接对比源表和物化表，没有证
 
 ## Fix Checklist
 
-- [ ] 先建立可稳定复现的 refresh -> matcher/rewriter 失败断言。
-- [ ] 明确 DATE watermark 为物化历史的 exclusive upper bound。
-- [ ] FULL/INCREMENTAL 成功后返回首个未闭合 bucket 的 exclusive boundary。
-- [ ] 仅在刷新事务成功后把 watermark/刷新时间发布到运行时 PreAggregation。
-- [ ] 保证运行时查询线程能看到已发布状态。
-- [ ] 为 Addon XML 增加 run/variant 身份绑定，拒绝跨变体复制报告。
-- [ ] 重跑单元、Addon 2×3、数据库/外部矩阵与顶层并集闸门。
+- [x] 先建立可稳定复现的 refresh -> matcher/rewriter 失败断言。
+- [x] 明确 DATE watermark 为物化历史的 exclusive upper bound。
+- [x] FULL/INCREMENTAL 成功后返回首个未闭合 bucket 的 exclusive boundary。
+- [x] 仅在刷新事务成功后把 watermark/刷新时间发布到运行时 PreAggregation。
+- [x] 保证运行时查询线程能看到已发布状态。
+- [x] 为 Addon XML 增加 run/variant 身份绑定，拒绝跨变体复制报告。
+- [x] 重跑单元、Addon 2×3、数据库/外部矩阵与顶层并集闸门。
 
 ## Verification
 
-待修复后回写：失败测试、修复后测试、正式同 HEAD 总闸门与资源残留证据。
+正式同 HEAD 总闸门与资源残留证据见下方 closure 及 Step 3 exit evidence。
+
+## 2026-07-16 Formal Closure
+
+刷新/查询契约已固定为 exclusive boundary：materialized 分支 `< W`，source 分支
+`>= W`。首个无 runtime watermark 的 incremental 请求回落 FULL；直接 incremental
+缺 W fail closed。只有成功事务提交后才向 runtime `PreAggregation` 发布 W/refresh
+time，失败刷新不发布；matcher/rewriter 拒绝 null、非 `LocalDate` 与 future W，同日
+迟到数据仍由 source 分支返回。refresh service 以 runtime `PreAggregation` 为锁串行化
+刷新；scheduler 另以 `taskInfo` 为锁覆盖 capture→service→mirror publication，并保持
+固定 `taskInfo → preAgg` 嵌套顺序。查询只读取一次 runtime W。
+
+正式 parent=`step3-required-20260716-final-r4`：Addon companion=`2/6/F0E0S0`、
+database=`29/370/F0E0S0`、external=`16/76/F0E0S0`、required union=
+`45/446/F0E0S0`，资源残留均为零。该 closure 只声明运行时发布：模型重载/进程重启后
+`W=null`，首次刷新回落 FULL；没有 durable watermark persistence 或刷新后缓存立即
+一致的声明。
 
 ## References
 
+- `docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`
 - `docs/9.3.4/acceptance-evidence-plan.md`
-- `docs/9.3.4/test-plan.md`
+- `docs/9.3.4/test/test-ci-evidence-chain-test-plan.md`
 - `docs/9.3.4/workitems/BUG-step3-preagg-addon-materialization-contract.md`

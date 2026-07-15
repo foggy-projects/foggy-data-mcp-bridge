@@ -4,7 +4,7 @@ doc_purpose: Define the strict Step 1-7 implementation and verification order fo
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # 9.3.4 Implementation Plan
@@ -137,6 +137,16 @@ Exit：SQLite/MySQL57/MySQL8/PostgreSQL15/SQLServer2022 全部 required、fresh�
 S0；Step 2 deferred 中 45 个 required execution 全部 actual pass，1 个 optional LLM
 保留 reviewed disposition；identity/sentinel/fixture exact；
 negative probes 全生效；required inventory execution gap=0。Progress 回写 Step 3。
+
+Recorded result（2026-07-16）：`passed`。tested commit=
+`ce3d70c391c7b8bd8046fe66dde0ad568d66601e`；formal run=
+`step3-required-20260716-final-r4`。Database=`29 reports / 370 testcase / F0E0S0`，
+required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
+`0/0/0`；DB state=`18/18`、Redis state=`4/4`。PreAgg Addon required companion=
+`2/6/F0E0S0`，按契约不计入 45/446；optional LLM=
+`reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
+`evidence/step-3/step3-required-matrix-exit-20260716.md`。Step 4 entry=
+`ready / not-started`；尚未生成 JaCoCo exec，也未开始 Step 4 实现。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 

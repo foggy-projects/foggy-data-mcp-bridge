@@ -145,19 +145,18 @@ updated_at: 2026-07-16
 
 ## Current Progress
 
-- version status：`in-progress`；Steps 1–2=`passed`；Step 3=`in-progress`；
+- version status：`in-progress`；Steps 1–3=`passed`；Step 4=`ready / not-started`；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
   F/E/S=`0/0/0`；
-- Step 3 exact deferred=`46`（`45 required + 1 optional LLM`）；five-DB
-  preflight/QueryFacade foundation 已 diagnostic `10/F0/E0/S0`，run-owned fresh SQLite=
-  `5/50/F0/E0/S0`，v933 batch6 real-query replacement=`11 tests / 6 reports / F0/E0/S0`；
-  committed Redis + Mongo + MySQL + Vector subset history 已由 shared outer run
-  `external-matrix-candidate-47d1afd7-r1` 取代为完整 external subset authority：
-  `7 variants / 16 reports / 76 testcase / F0/E0/S0`、`complete=true`、required selector
-  gap=`0`；Pivot preagg 真执行、数据库 remaining `24/320`、state negatives 与其余 required
-  gap 仍待清零；
+- Step 3 formal parent=`step3-required-20260716-final-r4`，tested commit=
+  `ce3d70c391c7b8bd8046fe66dde0ad568d66601e`；five-DB=`29/370/F0E0S0`，
+  required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
+  `0/0/0`；DB state=`18/18`、Redis state=`4/4`，Addon companion=`2/6/F0E0S0`
+  且不计入 union；1 个 optional LLM=`reviewed-optional-excluded`；
+- Step 3 implementation quality、test evidence coverage 与 feature acceptance 已按序
+  完成；feature decision=`accepted`，但 version acceptance 仍为 `not-started`；
 - r8d authority 因 signal fail-open 作废；r8e 已以 INT/TERM/HUP=`130/143/129`
   动态探针证明 durable fail closed；
-- 五库、coverage、CI、release 和 version acceptance 仍未完成，不能据此签收 9.3.4
-  或把 9.3.5 标为 ready。
+- Step 4 JaCoCo、Step 5 portable authority、Step 6 CI/release 与 Step 7 version
+  acceptance 仍未完成，不能据此签收 9.3.4 或把 9.3.5 标为 ready。

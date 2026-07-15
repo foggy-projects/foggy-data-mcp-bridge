@@ -34,6 +34,11 @@ updated_at: 2026-07-16
 - r8d successor 及其 Unit/Integration 因 `completed` 窗口 signal fail-open 被明确
   作废，禁止用于 coverage/acceptance；r8e 的 INT/TERM/HUP 动态探针分别以
   `130/143/129` fail closed。
+- Step 3 已由同一 committed HEAD 的正式父运行
+  `step3-required-20260716-final-r4` 通过：database `29/370` + required external
+  `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
+  Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
+  已按序完成，Step 4=`ready / not-started`。
 
 ## 执行资料
 
@@ -72,6 +77,16 @@ updated_at: 2026-07-16
   [evidence/step-3/step3-external-vector-runner-candidate-20260715.md](evidence/step-3/step3-external-vector-runner-candidate-20260715.md)
 - Step 3 shared external matrix candidate（single outer / complete external subset）：
   [evidence/step-3/step3-shared-external-matrix-candidate-20260716.md](evidence/step-3/step3-shared-external-matrix-candidate-20260716.md)
+- Step 3 formal required-matrix exit：
+  [evidence/step-3/step3-required-matrix-exit-20260716.md](evidence/step-3/step3-required-matrix-exit-20260716.md)
+- Step 4 MultiThread prerequisite companion evidence：
+  [evidence/step-3/step3-multithread-prerequisite-evidence-20260716.md](evidence/step-3/step3-multithread-prerequisite-evidence-20260716.md)
+- Step 3 implementation quality：
+  [quality/step3-required-matrix-implementation-quality.md](quality/step3-required-matrix-implementation-quality.md)
+- Step 3 test evidence coverage audit：
+  [coverage/step3-required-matrix-coverage-audit.md](coverage/step3-required-matrix-coverage-audit.md)
+- Step 3 feature acceptance：
+  [acceptance/step3-required-matrix-acceptance.md](acceptance/step3-required-matrix-acceptance.md)
 
 ## 1~7 顺序
 
@@ -79,8 +94,8 @@ updated_at: 2026-07-16
 |---:|---|---|---|
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
-| 3 | 五数据库与外部集成 required matrix | in-progress | shared external matrix `7 variants / 16 reports / 76 testcase / F0/E0/S0`，outer INT/TERM/HUP parent+child durable cleanup；剩余四库 `24/320`、DB/resource-state negatives、optional LLM disposition pending |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | pending | 全 required lane 重新带 agent 执行；XML verifier + module checks fail closed |
+| 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | ready / not-started | 全 required lane 重新带 agent 执行；XML verifier + module checks fail closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

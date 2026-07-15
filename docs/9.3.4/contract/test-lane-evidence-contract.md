@@ -4,7 +4,7 @@ doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and rel
 version: 9.3.4
 status: confirmed
 created_at: 2026-07-14
-updated_at: 2026-07-15
+updated_at: 2026-07-16
 ---
 
 # Test Lane and Evidence Contract
@@ -367,3 +367,25 @@ decision=`passed`，reviewer=
 Step 2 actual runner evidence 为 `5,205 testcase / F0/E0/S0`，并通过
 INT/TERM/HUP=`130/143/129` durable fail-closed probe。证据：
 `docs/9.3.4/evidence/step-2/step2-runner-split-exit-r8e-20260715.md`。
+
+## Step 3 Confirmed Exit Record
+
+Confirmed result（2026-07-16）：tested commit=
+`ce3d70c391c7b8bd8046fe66dde0ad568d66601e`，parent run=
+`step3-required-20260716-final-r4`，contract SHA=
+`f2bd52df7ed2829051ad263f97d560d3f8babe048d25864edb725eb671ba4d1b`。
+Database child=`29 reports / 370 testcase / F0E0S0`，required external child=
+`16/76/F0E0S0`；两者 execution-key exact union=`45/446`，
+gap/overlap/extra=`0/0/0`。DB state=`18/18`、Redis state=`4/4`，source/fixture
+before=after，resource residue=`0/0/0`。
+
+PreAgg Addon lifecycle=`2 reports / 6 testcase / F0E0S0` 是 required companion，
+`included_in_required_totals=false`，不得加到 45/446。Optional LLM=
+`reviewed-optional-excluded`，未执行、未计为 passed，next review=`2026-08-31`。
+Parent final/candidate SHA=
+`9040bff263101ed7ad33dbc4681bbf37f48e39b00957d2bf8224fb506afa5282` /
+`6b1e5f3502dd2e666e5546ecf3c6469e9b5060bdafa8e7d4e1068fd41688cfa4`。
+
+本 record 只确认 Step 3 correctness。它没有 JaCoCo exec；Step 4 必须用带 agent 的
+canonical runners 重新执行 unit、hermetic/SQLite、五库与全部 required external lanes。
+证据：`docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。

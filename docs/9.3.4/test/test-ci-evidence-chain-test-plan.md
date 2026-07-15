@@ -6,7 +6,7 @@ status: in-progress
 result: in-progress
 step1_result: passed
 step2_result: passed
-step3_result: in-progress
+step3_result: passed
 created_at: 2026-07-14
 updated_at: 2026-07-16
 ---
@@ -122,13 +122,13 @@ Required external contract 精确冻结为：Redis `2 reports / 3 testcase`、Mo
 optional LLM 独立为 `1/1`。collector 除 missing/extra/duplicate/F/E/S/stale 外，还必须拒绝
 flaky/rerun outcome、raw-report run-context splice、wrong selector/marker 与 cross-run manifest。
 
-Committed Redis、Mongo/DataViewer、MySQL57 与 Vector subset candidates 的历史进度分别为
-`2/3`、`4/30`、`8/23` 与 `2/20`；它们仍不得彼此拼接。当前 complete external subset 只接受
-shared outer run `external-matrix-candidate-47d1afd7-r1`：单一 outer/HEAD/contract 下精确
-`7 variants / 16 reports / 76 testcase / F0/E0/S0`、`complete=true`，四条 nested candidate
-和 final candidate 均重验通过。修复后的 outer real INT/TERM/HUP 分别为 `130/143/129`，
-parent/Redis child durable status、双层 cleanup、成功制品缺失与 Docker `0/0/0` 均通过。
-wrong image/version、dirty state 和 forced cleanup failure 仍是 Step 3 resource-negative backlog。
+Historical Redis、Mongo/DataViewer、MySQL57 与 Vector subset candidates 分别为
+`2/3`、`4/30`、`8/23` 与 `2/20`，且仍不得彼此拼接。当前 Step 3 authority 只接受同一
+committed HEAD 的 parent run `step3-required-20260716-final-r4`：database `29/370` +
+external `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`。DB state=
+`18/18`、Redis resource state=`4/4`；Addon companion=`2/6/F0E0S0` 且不计入
+45/446；optional LLM=`reviewed-optional-excluded`。Step 3 correctness 没有 coverage
+exec，Step 4 必须重新带 agent 执行全部 required lanes。
 
 ## Step 4 — Coverage
 
@@ -232,16 +232,15 @@ Final acceptance 至少验证：
   `315` testcase；combined `5,205`，F/E/S=`0/0/0`，report negatives 各 `20/20`。
 - INT/TERM/HUP 实际信号探针为 `130/143/129` 且失败 summary absent；r8d 及其 runner
   evidence 已 superseded，不参与当前结果。
-- Step 3 database runner/collector candidate contract=
-  `5 cells / 7 variants / 29 reports / 370 testcase`；authority inputs=`66/66`，
-  report/final-bundle negatives=`14/14`。
-- 最终冻结字节下的真实 run-owned SQLite=`5 reports / 50 tests / F0/E0/S0`，fixture 与
-  JDBC JAR before/after hash 一致且 cleanup residue=`0`。完整 runner 在当前主机因冻结
-  MySQL57 port 被长期诊断容器占用而 fail closed，未执行正向 lane、未创建 run resource。
-- 数据库 runner candidate 仍是 run-local 且 not authority：四个非 SQLite 数据库 fresh replay、
-  DB/resource-state negatives 和 portable archive contract 尚未完成。External 已由 single outer
-  candidate `external-matrix-candidate-47d1afd7-r1` 完成精确 `16/76/F0/E0/S0`；历史四个
-  `complete=false` subsets 仍不得与 SQLite、数据库或彼此跨 run 拼接。
+- Step 3 formal parent=`step3-required-20260716-final-r4`，tested commit=
+  `ce3d70c391c7b8bd8046fe66dde0ad568d66601e`；database=`29/370/F0E0S0`，
+  external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=`0/0/0`。
+- 五库分项：SQLite `5/50`、MySQL 5.7 `5/50`、MySQL 8 `6/105`、PostgreSQL 15
+  `8/115`、SQL Server 2022 `5/50`；DB state=`18/18`、report negatives=`14/14`。
+- external 分项：Redis `2/3`、Mongo `4/30`、MySQL57 `8/23`、Vector `2/20`；
+  Redis state=`4/4`、external report/sensitive negatives=`12/12`、`24/24`。
+- Addon companion=`2/6/F0E0S0`，不计入 45/446；optional LLM reviewed、未执行、
+  excluded。Parent/child source/fixture seals与 cleanup verifier通过，residue=`0/0/0`。
 - evidence：
   `docs/9.3.4/evidence/step-1/inventory-contract-freeze-20260714.md`；
   `docs/9.3.4/evidence/step-2/step2-successor-r8e-independent-review-20260715.md`；
@@ -251,6 +250,7 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-3/step3-external-mongo-runner-candidate-20260715.md`；
   `docs/9.3.4/evidence/step-3/step3-external-mysql-runner-candidate-20260715.md`；
   `docs/9.3.4/evidence/step-3/step3-external-vector-runner-candidate-20260715.md`；
-  `docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`。
-- next executable action: 补 Step 3 DB/resource-state negatives；在 clean host 对同一 commit 完成四外库 remaining
-  fresh `24/320` replay；optional LLM 维持 reviewed disposition。
+  `docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`；
+  `docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。
+- next executable action: Step 4=`ready / not-started`；接入 JaCoCo agent 后在新 authority
+  中重跑 unit、hermetic/SQLite、五库与全部 required external lanes。

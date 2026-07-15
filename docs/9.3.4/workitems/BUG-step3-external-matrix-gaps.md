@@ -4,7 +4,7 @@ bug_source: acceptance-found
 version: 9.3.4
 ticket: BUG-934-STEP3-EXTERNAL-MATRIX-GAPS
 severity: critical
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -85,7 +85,7 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] prove fresh Redis feasibility as 2 reports / 3 testcase / F0/E0/S0 / residue 0
 - [x] land Redis run-scoped runner/collector and exact report/candidate negatives
 - [x] prove real Redis INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
-- [ ] add Redis wrong identity/mount, dirty-state and cleanup-failure resource negatives
+- [x] add Redis wrong identity/mount, dirty-state and cleanup-failure resource negatives
 - [x] close Mongo unavailable assumption and DataViewer environment false green in the run-scoped Mongo runner
 - [x] provision fresh Mongo 6 and execute exact 4/30/S0
 - [x] prove real Mongo INT/TERM/HUP durable cleanup as 130/143/129 with zero residue
@@ -100,7 +100,7 @@ SHA-256=89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601
 - [x] replay and merge exact external 16/76 under one outer marker/HEAD/contract
 - [x] prove shared outer INT/TERM/HUP parent+child durable cleanup as 130/143/129
 - [x] finalize optional LLM reviewed disposition
-- [ ] merge external 16/76 with database 29/370 as exact Step 3 45/446/F0/E0/S0
+- [x] merge external 16/76 with database 29/370 as exact Step 3 45/446/F0/E0/S0
 
 ## Optional LLM Reviewed Disposition
 
@@ -173,6 +173,20 @@ content gate，并生成 69 表、69 主键及全部关键行数均匹配的 can
 report tool 内仍冻结的旧 content hash 再次拒绝。该 run 同样无候选、零残留。第二个
 冻结点已同步为同一新哈希，后续必须由 production runner 同时通过 snapshot verifier
 与完整 variants 才能成为有效证据。
+
+## 2026-07-16 Formal Closure
+
+正式父运行 `step3-required-20260716-final-r4` 在 tested commit
+`ce3d70c391c7b8bd8046fe66dde0ad568d66601e` 下完成 required external：Redis
+`2/3`、Mongo/DataViewer `4/30`、MCP/MySQL57 `8/23`、Vector/Milvus `2/20`，合计
+`16 reports / 76 testcase / F0E0S0`。Redis wrong identity/mount、dirty state、forced
+cleanup failure=`4/4`，external report negatives=`12/12`、sensitive negatives=`24/24`，
+container/volume/network residue=`0/0/0`。
+
+该 external authority 与同一父 outer 下的 database `29/370` 形成 exact required
+union=`45/446`，gap/overlap/extra=`0/0/0`。Optional LLM 保持
+`reviewed-optional-excluded`、未执行、未计为 pass，next review=`2026-08-31`。证据见
+`docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。本 BUG 关闭。
 
 ## References
 

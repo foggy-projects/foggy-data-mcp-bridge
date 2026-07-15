@@ -109,3 +109,12 @@ can_enter_acceptance=yes`）。所有 Step 2 critical/major requirement 与 15 �
 自动化 positive/negative evidence，missing/overlap/skip/open checklist=`0`。
 follow-up_required=`yes` 仅表示继续完成 Step 3–7 与 Low 补强；9.3.4 仍为
 `in-progress`，Step 3=`ready`，9.3.5=`queued`。
+
+## 2026-07-16 Follow-up Closure
+
+MultiThreadExecutor 的原 minor 已关闭：同一 Step 3 tested HEAD 上新增并执行
+`shutdown=false`、`stopIfHasError=true`、waiter interrupt 三个 deterministic tests，
+结果=`3/3/F0E0S0`；exact artifact/source provenance 见
+`docs/9.3.4/evidence/step-3/step3-multithread-prerequisite-evidence-20260716.md`。
+runner PASS/disarm、symlink check 与编排复杂度的维护性 minor 仍由
+Step 5 处理；本记录原 conclusion 保持不变。

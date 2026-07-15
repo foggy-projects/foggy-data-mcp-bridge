@@ -22,17 +22,18 @@ updated_at: 2026-07-16
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | confirmed；Step 1 passed |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 confirmed / later runtime evidence pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Steps 4–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–2 passed / Step 3 in-progress |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Step 2 runner result passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–2 authority present；Step 3 required external single-outer subset passed、database foundation remains diagnostic / overall not passed；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` | Step 2 reviewed / ready-with-risks；open B/H/M=0 |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` | Step 2 ready-for-acceptance；critical/major gap=0 |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 ready-not-started |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；open B/H/M=0 |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；critical/major gap=0 |
+| Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | planned after signoff |
+| roadmap/status sync | `README.md` + authoritative roadmap | Step 3 synced；final version sync after version signoff |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -47,12 +48,14 @@ successor manifest SHA-256=
 `4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919`，actual result=
 `724 positive + 59 structural / 5,205 testcase / F0/E0/S0`。Step 3 deferred=`46`。
 
-Current Step 3 evidence：five-DB foundation 仍为 diagnostic，数据库 fresh matrix 未完成；
-required external 已由
-`docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`
-确认 single-outer `7 variants / 16 reports / 76 testcase / F0/E0/S0` 与
-INT/TERM/HUP parent+child durable cleanup。该结果只关闭 external subset，不满足 Step 3
-`45/446` exit 或版本 acceptance。
+Current Step 3 evidence：
+`docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。正式 parent
+`step3-required-20260716-final-r4` 在 tested commit
+`ce3d70c391c7b8bd8046fe66dde0ad568d66601e` 上确认 database `29/370`、required
+external `16/76`、exact union `45/446/F0E0S0`、gap/overlap/extra=`0/0/0`，DB state=
+`18/18`、Redis state=`4/4`、Addon companion=`2/6`、optional LLM reviewed exclusion。
+Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结果满足 Step 3 exit，
+但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 ## Mandatory Acceptance Evidence
 
@@ -126,6 +129,18 @@ Step 7 implementation check-in + progress
 
 任一上游 gate 未通过，不创建下游绿色记录。quality 只审实现质量，不代替测试
 覆盖；coverage audit 只审 requirement/BUG/evidence 映射，不代替正式签收。
+
+Step 3 feature 已使用同一顺序完成独立门：
+
+```text
+Step 3 execution check-in
+  -> Step 3 implementation quality
+  -> Step 3 test evidence coverage audit
+  -> Step 3 feature acceptance
+```
+
+该 feature 链只打开 Step 4，不替代上方 Step 7 的 version-scope quality、coverage 与
+version acceptance；Step 7 仍需在最终 clean authority 后重新执行版本后置门。
 
 ## Final Signoff Contract
 

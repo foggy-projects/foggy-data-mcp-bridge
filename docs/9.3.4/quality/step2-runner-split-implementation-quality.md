@@ -108,3 +108,13 @@ Open non-blocking findings：
 `ready-with-risks`。Blocker/High/Medium open=`0/0/0`；五个 Low 已有 owner/后续阶段，
 不影响进入 Step 2 coverage evidence audit。该决定只放行 Step 2 feature evidence，
 9.3.4 仍为 `in-progress`，Step 3=`ready`，9.3.5=`queued`。
+
+## 2026-07-16 Follow-up Closure
+
+- Low 4（`MultiThreadExecutor` 标准输出）已关闭：等待日志改为 debug logger。
+- Low 5（缺 deterministic 分支测试）已关闭：`shutdown=false`、
+  `stopIfHasError=true`、waiter interrupt 三个测试在同一 Step 3 tested HEAD 上
+  `3/3/F0E0S0`；provenance 见
+  `docs/9.3.4/evidence/step-3/step3-multithread-prerequisite-evidence-20260716.md`。
+- Low 1–3 保持原 owner，继续由 Step 5 single authority runner 收敛；不影响 Step 3
+  feature gate，也不改变本记录原 decision=`ready-with-risks`。

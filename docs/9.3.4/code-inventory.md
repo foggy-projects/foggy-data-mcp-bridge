@@ -262,6 +262,30 @@ code_inventory:
   governance；
 - Step 3–7 planned paths remain `expected_change`，不得从本 Step 2 result 推断已实现。
 
+## Step 3 Inventory Result
+
+- implemented authority：`scripts/verify-v934-step3-required-matrix.sh`，
+  `scripts/verify-v934-database-matrix.sh`，四个 external lane runner，PreAgg Addon
+  lifecycle runner，以及 `scripts/v934/step3/` 下 parent/DB/external/Addon contract、
+  report tool、state-negative tool 与 shared launcher/context；
+- implemented database/fixture surface：five-DB run-scoped compose/provision/cleanup，
+  native DATE fixtures，SQLite role-aware binding，MySQL final-init readiness marker，
+  identity/sentinel/parity/report/resource-state verifiers；
+- implemented PreAgg surface：Addon `PreAggPhysicalColumnContract`、shared strict-DAY
+  `PreAggWatermarkResolver` 与 explicit query mapping contract，另含 DDL/refresh builder、
+  success-only runtime watermark publication、matcher/hybrid rewriter、scheduler/service
+  synchronization/state snapshots、SQLite/MySQL57 lifecycle IT；
+- implemented Step 4 prerequisite：`MultiThreadExecutor` debug logger 与 shutdown=false、
+  error propagation、waiter interrupt deterministic tests；
+- actual result：tested commit
+  `ce3d70c391c7b8bd8046fe66dde0ad568d66601e`，run
+  `step3-required-20260716-final-r4`，DB `29/370` + external `16/76` = exact
+  `45/446/F0E0S0`，DB state `18/18`，Redis state `4/4`，Addon companion `2/6`；
+- explicit boundary：Addon `2/6` 不计入 45/446；optional LLM reviewed/excluded；
+  runtime watermark 非持久化；Mongo production JDBC dialect 解耦未宣称完成；
+- Step 4–7 的 coverage reporter/exec、single release runner、workflow、runtime-only image
+  与 version authority paths 仍保持 planned/not-started，不得从 Step 3 result 推断已实现。
+
 ## Protected Boundaries
 
 - `docs/9.3.3/evidence/**` and existing `target/v933-*` are historical authority；

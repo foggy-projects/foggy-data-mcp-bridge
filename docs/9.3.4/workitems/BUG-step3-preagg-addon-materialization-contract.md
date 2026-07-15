@@ -4,7 +4,7 @@ bug_source: code-review
 version: 9.3.4
 ticket: BUG-934-STEP3-PREAGG-ADDON-MATERIALIZATION-CONTRACT
 severity: critical
-status: in-progress
+status: closed
 reproduction_status: confirmed
 test_strategy: unit-and-integration-test
 automation_decision: required
@@ -53,17 +53,18 @@ query-path 的绿色结果扩大为预聚合全生命周期正确性。
 
 ## Required Fix Checklist
 
-- [ ] 提取 query/Add-on 可共同消费的 materialized-column resolver，避免循环依赖
-- [ ] DDL 对所有 dimension property 使用明确 materialized mapping，未知字段拒绝生成
-- [ ] measure DDL/refresh 只使用声明的 physical measure column 与兼容 aggregation
-- [ ] 将 semantic watermark、source physical watermark、materialized physical watermark
+- [x] 提取 Addon-owned physical-column contract，并让 query/Addon 消费一致的 explicit
+      mapping data；watermark roles 通过 shared resolver 统一
+- [x] DDL 对所有 dimension property 使用明确 materialized mapping，未知字段拒绝生成
+- [x] measure DDL/refresh 只使用声明的 physical measure column 与兼容 aggregation
+- [x] 将 semantic watermark、source physical watermark、materialized physical watermark
       分开解析；禁止字符串截断和跨侧复用
-- [ ] semantic `$id` 要求 source foreign key 与 materialized id mapping 均非空
-- [ ] 为 explicit mapping、caption/id/time bucket、裸物理 watermark 与未知 mapping 增加
+- [x] semantic `$id` 要求 source foreign key 与 materialized id mapping 均非空
+- [x] 为 explicit mapping、caption/id/time bucket、裸物理 watermark 与未知 mapping 增加
       正向/负向单测
-- [ ] 在至少 SQLite + 一个外部数据库真实执行 create/full refresh/incremental refresh/
+- [x] 在至少 SQLite + 一个外部数据库真实执行 create/full refresh/incremental refresh/
       query parity，并证明错误配置 fail closed
-- [ ] 将 Addon lifecycle execution 纳入 Step 3 exact report collector
+- [x] 将 Addon lifecycle execution 纳入 Step 3 exact report collector
 
 ## Current Batch Boundary
 
@@ -91,6 +92,20 @@ watermark 与 fail-closed 单测，但独立代码复核确认其尚不可合入
 `29/370/S0` diagnostic。当前 workitem 提升为 `in-progress`，但 Required Fix Checklist
 保持未完成；只有内置 TM 迁移、真实 SQLite + 外库 lifecycle 和 exact collector 同时绿色
 后才能关闭。
+
+## 2026-07-16 Formal Closure
+
+Addon `PreAggPhysicalColumnContract` 已统一物化列 explicit mapping，query 消费一致的
+mapping data；共享 strict-DAY `PreAggWatermarkResolver` 统一 semantic/source/
+materialized watermark roles。DDL/refresh 对 COUNT、formula、caption/id/time bucket、
+未知映射与 watermark 类型采用一致的 fail-closed 契约。正式父运行的 required companion 在 SQLite
+和 MySQL 5.7 分别执行 create/full/incremental/query parity，合计
+`2 reports / 6 testcase / F0E0S0`，report negatives=`4/4`，资源残留=`0/0/0`。
+
+Addon companion 由父 run `step3-required-20260716-final-r4`、同一 tested commit 与
+source seal 绑定，但按冻结契约明确不计入 required union `45/446`。证据见
+`docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。本 workitem 的
+SQLite+外库生命周期范围关闭；不把该结果扩大为五库、Controller 或 Cache 全生命周期。
 
 ## References
 

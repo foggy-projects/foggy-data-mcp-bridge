@@ -92,6 +92,17 @@ expected: <10000> but was: <0>
 `FsscriptClientProxyTest` 为 `10/0/0/0`。完整类报告 SHA-256 为
 `10836166550a35146ad071898623245390b2bead1c72a1929b9f336ba74810bf`。
 
+## 2026-07-16 Step 4 Prerequisite Closure
+
+Step 2 quality/coverage 中保留的并发分支补强已完成：等待循环改为 debug logger，新增
+deterministic tests 覆盖 `shutdown=false` 的 task snapshot completion、
+`stopIfHasError=true` 的错误传播，以及 waiter interrupt 的中断恢复/退出行为。同一
+tested HEAD 执行 `mvn -pl foggy-core -Dtest=MultiThreadExecutorTest test -q`，结果=
+`3 tests / F0E0S0`。该补强关闭 Step 4 entry 的相关 Low/Minor，不重写 Step 2 原始
+premature-completion 签收结论。Exact raw XML provenance、source/test SHA 与三个
+testcase 见
+`docs/9.3.4/evidence/step-3/step3-multithread-prerequisite-evidence-20260716.md`。
+
 ## References
 
 - `addons/foggy-fsscript-client/target/surefire-reports/TEST-com.foggyframework.fsscript.client.test.support.FsscriptClientProxyTest.xml`
