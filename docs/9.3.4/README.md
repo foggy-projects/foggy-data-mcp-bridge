@@ -40,7 +40,7 @@ updated_at: 2026-07-17
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
   已按序完成；Step 4 仍为 `in-progress`。diagnostic r7 在无 ambient DB listener 的环境中
   暴露 Unit 对 `127.0.0.1:13306` 的隐式依赖并 fail closed，尚无 coverage pass 或
-  aggregate baseline/review。
+  可复用的 reviewed aggregate baseline。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -206,15 +206,29 @@ updated_at: 2026-07-17
   原 lifecycle quality 结论被重新打开。coded executable-stream 修复现已通过完整 regression：
   Unit/Integration shape=`16/16 + 14/14`、semantic stream=`2/2 + 5/5`、raw seal=`2/2`、
   outer/library=`3/3 + 3/3`；三路独立正式质量最终 B/H/M/L=`0/0/0/0`。
-- 当前状态为 `in-progress / r9 excluded / exec-scope remediation implemented /
-  lifecycle semantic remediation implemented / quality passed / commit pending`。
+- fresh all-lane r10=`step4-coverage-20260717-diagnostic-r10` 已从 clean/pushed commit
+  `47e0c027cd205a49d40db400ba26b99e6f97d60e` 完成 required=
+  `773+59/5,707/F0E0S0`、Addon=`2/6`、`23 exec / 48 sessions / 16,947 class IDs`、
+  aggregate/observation/source-after/cleanup；最终因 demo identity producer 复用
+  credential-shaped authorization label，在 `sensitive-scan` fail closed。sensitive/summary
+  receipt absent，r10=`excluded/non-reusable`；line=`54,478/76,830`、branch=
+  `25,980/44,870` 只是 failed-run partial observation，不得冻结 threshold。record/BUG=
+  [r10 sensitive-scan failure](evidence/step-4/step4-coverage-diagnostic-r10-sensitive-scan-fail-closed-20260717.md) /
+  [BUG-step4-sensitive-scan-authorization-context-false-positive](workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md)。
+- remediation 保持五条 sensitive patterns 原样不变，仅把 producer 改成明确的 demo identity
+  result wording；outer bootstrap-negative 以同一数组执行内存 `7 dangerous + 3 safe` probe，
+  `rg rc>1` 双路径 fail closed，fixture 不落 run root。launcher request smoke、manifest、
+  coverage contract 与 successor overlay focused validation 已通过。
+- 当前状态为 `in-progress / r10 sensitive-scan excluded / producer-label remediation
+  quality passed / commit + fresh r11 pending`。
   `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r9、Unit fixture quality r1/r2 与 focused/static 结果都不是
-  Step 4 exit evidence，r3 只通过 Unit remediation subgate；formal remediation quality
-  与 r8 lifecycle remediation quality 的历史结论已由当前 superseding quality PASS 取代。
+  `diagnostic-pending`；r1–r10、Unit fixture quality r1/r2 与 focused/static 结果都不是
+  Step 4 exit evidence，r3 只通过 Unit remediation subgate；r9 remediation quality 是历史
+  通过结论；当前 r10 diff 的首轮 Medium exact-count 伪绿已关闭，两路 post-fix formal
+  quality 最终 B/H/M/L=`0/0/0/0`。
   `can_enter_coverage_audit=no`；
-  本轮权威 closure 必须完成 lifecycle semantic 正式质量、commit/push 并证明 clean
-  `HEAD == origin/main`，再以新 run ID 执行 fresh r10；Step 5、formal、coverage audit 与
+  本轮权威 closure 必须 commit/push 并证明 clean `HEAD == origin/main`，再以新 run ID
+  执行 fresh r11；Step 5、formal、coverage audit 与
   acceptance 仍关闭。
 
 ## 执行资料
@@ -264,6 +278,10 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md)
 - Step 4 diagnostic r9 exec class scope failed evidence：
   [evidence/step-4/step4-coverage-diagnostic-r9-exec-class-scope-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r9-exec-class-scope-fail-closed-20260717.md)
+- Step 4 diagnostic r10 sensitive-scan failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r10-sensitive-scan-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r10-sensitive-scan-fail-closed-20260717.md)
+- Step 4 sensitive-scan producer-label regression：
+  [workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md](workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md)
 - Step 4 exec class-ID scope regression：
   [workitems/BUG-step4-exec-class-id-scope-drift.md](workitems/BUG-step4-exec-class-id-scope-drift.md)
 - Step 4 lifecycle semantic validator bypass regression：
@@ -320,7 +338,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r9 excluded / remediation quality passed / commit pending | r9 required lanes 与 `23/48` exec 到达 coverage-report，因 all-loaded-class name scope 漂移 fail closed；production-scope/JaCoCo-ID union 已实现并通过 `17/17 + 21/21 + 68/68 + 12/12` focused；lifecycle coded regression 与三路独立质量已通过，B/H/M/L=`0/0/0/0`；fresh r10 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r10 sensitive-scan excluded / remediation quality passed / commit pending | r10 已完成 required、`23/48` exec、aggregate/observation，因 demo producer credential-label collision 在 sensitive-scan fail closed；patterns 不变，exact `7+3` probe 与两路质量通过；fresh r11 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

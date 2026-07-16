@@ -157,7 +157,7 @@ code_inventory:
     path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_contract_negative_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade..., pre-r4 exact-54/SHA 589a7d..., post-r4 exact-54/SHA ebda814..., database-state-remediation exact-56/SHA be8c4c..., fixture-hardened exact-59/SHA 2a52db..., profile-isolation exact-60/SHA 6056a930..., and r8 lifecycle exact-60/SHA 0c4e6c... are historical identities; current r9-remediation identity is exact-60/SHA 6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; prior exact identities remain historical; current r10 producer-label remediation identity is exact-60/SHA b2f02f142ee78fc5abff5a307a8403861e3e213f09d68e037f7b7eb2df2054c5
   - module: v934-step4-unit-mysql57-fixture
     path: scripts/v934/step4/{unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py}; scripts/verify-v934-unit.sh
     role: replace the complete Step 4 Unit lane with one run-owned pinned MySQL 5.7 fixture while retaining the frozen Unit execution identities and cardinality
@@ -182,7 +182,7 @@ code_inventory:
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: r1-r9 remain excluded failed diagnostics; r9 reached all required lanes and 23/48 exec then failed before exec-manifest because all-loaded class names were treated as one identity; production-scope/JaCoCo-ID remediation is implemented, lifecycle semantic validation is reopened, and fresh r10 remains required; partial lanes are non-reusable
+    notes: r1-r10 remain excluded failed diagnostics; r10 reached all required lanes, 23/48 exec, aggregate and observation then failed at sensitive-scan because a demo producer reused a credential-shaped label; patterns remain unchanged, producer/probe remediation is implemented, and fresh r11 remains required; partial evidence is non-reusable
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -340,8 +340,8 @@ code_inventory:
 ## Step 4 Diagnostic / Fix Inventory Result
 
 - state：`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
-  lifecycle semantic remediation implemented / quality passed / commit pending /
-  fresh r10 pending`，不是
+  lifecycle semantic remediation implemented / r10 sensitive-scan excluded /
+  producer-label remediation quality passed / commit + fresh r11 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
@@ -544,6 +544,30 @@ code_inventory:
   B/H/M/L=`0/0/0/0`；
 - 当前 evidence boundary：r1–r9 均不能作为 threshold/formal/Step 4 exit；fresh r10 pending，
   `can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与 acceptance 关闭。
+
+### Superseding r10 remediation inventory
+
+- r10 immutable record/BUG：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r10-sensitive-scan-fail-closed-20260717.md`、
+  `docs/9.3.4/workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md`；
+  required=`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48/16,947 IDs`、aggregate 与
+  observation 已生成，但 sensitive/summary receipt absent，excluded/non-reusable；
+- modified producer：
+  `foggy-mcp-launcher/src/main/java/com/foggyframework/mcp/launcher/DemoSecurityIdentityResolver.java`，
+  仅把 credential-shaped label 改成明确的 demo identity result；source SHA-256=
+  `5372ba04a92334e75ad1b4628ccbfe36063c29e90fba34aa9f8a22e9baf60a7d`；
+- modified outer：`scripts/verify-v934-step4-coverage.sh`，五条 pattern 原样上移为唯一数组；
+  bootstrap 内存 probes=`7 dangerous + 3 safe`，`rg rc>1` 双路径 fail closed，不落 run root；
+  SHA-256=`57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649`；
+- identity：top Step 4 manifest=`60/60` / SHA-256=
+  `b2f02f142ee78fc5abff5a307a8403861e3e213f09d68e037f7b7eb2df2054c5`；successor
+  manifest/overlay bindings不变；
+- focused evidence：launcher request smoke=`1/F0E0S0`，bash syntax、contract=`21/21`、
+  overlay=`12/12`、manifest exact 与 diff check 通过；
+- 当前 evidence boundary：r1–r10 均不能作为 threshold/formal/Step 4 exit；两路 post-fix
+  formal quality B/H/M/L=`0/0/0/0`，commit/push/clean HEAD 与 fresh r11 pending；
+  `can_enter_coverage_audit=no`，Step 5、formal、
+  coverage audit 与 acceptance 关闭。
 
 ## Protected Boundaries
 

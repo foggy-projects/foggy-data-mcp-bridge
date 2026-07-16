@@ -67,7 +67,7 @@ public class DemoSecurityIdentityResolver implements SecurityIdentityResolver {
             attributes.put("userName", "赵六（普通用户）");
         }
 
-        log.info("Resolved identity from authorization: userId={}, deptId={}, tenantId={}",
+        log.info("Resolved demo identity: userId={}, deptId={}, tenantId={}",
                 userId, deptId, tenantId);
 
         return new ResolvedIdentity(userId, deptId, tenantId, attributes);

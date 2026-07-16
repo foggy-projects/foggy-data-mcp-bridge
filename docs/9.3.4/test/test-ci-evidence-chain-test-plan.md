@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r9 coverage-report excluded / remediations implemented / quality passed / commit pending / fresh r10 pending`
+- step4_result: `in-progress / r10 sensitive-scan excluded / producer-label remediation quality passed / commit+fresh r11 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -581,3 +581,26 @@ Final acceptance 至少验证：
   r10 diagnostic 完整成功后才可执行 threshold freeze，随后必须 fresh formal。
 
 当前 `can_enter_coverage_audit=no`；focused/static 绿色不得当作 r10、formal 或 Step 4 exit。
+
+## Superseding r10 / r11 test delta（2026-07-17）
+
+- r10 result：required=`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=
+  `23/48/16,947 class IDs`、aggregate/observation/source-after/cleanup 已到达；最终
+  sensitive scan 因 demo producer label 碰撞 fail closed，summary/sensitive receipt absent，
+  r10 excluded/non-reusable；
+- invariant：原五条 pattern 逐字不变，最终扫描路径、extensions 与 fail-closed rc contract
+  不变；不允许 path/class/value whitelist；
+- positive/safe probe：修复后的 demo identity log 与两个 null credential-shaped fields
+  不命中，共 `3/3`；
+- negative probe：旧 producer shape、credential env、Bearer、password、API key、credential
+  URI 与 CLI password 共 `7/7` 必须命中；`rg rc>1` 的 positive/safe 两条控制路径都必须
+  fail closed；
+- fixture hygiene：全部 probe 使用 stdin memory，不写 `RUN_ROOT`，成功只输出 exact count，
+  不回显 fixture；bootstrap 与 final scan 复用唯一 pattern array；
+- focused production：`LauncherExplicitTestRoutesSmokeTest=1/F0E0S0`，真实请求产生修复后的
+  demo identity log；bash syntax、top manifest=`60/60`、coverage contract=`21/21`、successor
+  overlay=`12/12` 通过；
+- fresh r11 必须来自新的 clean/pushed commit 和空 run root，禁止复用 r10 partials。只有 r11
+  diagnostic 完整成功后才可 threshold freeze，随后必须 fresh formal。
+
+当前 `can_enter_coverage_audit=no`；focused/static 绿色不得当作 r11、formal 或 Step 4 exit。

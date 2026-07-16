@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
-lifecycle semantic remediation implemented / quality passed / commit pending`。
+`in-progress / r10 sensitive-scan excluded / producer-label remediation quality passed /
+commit + fresh r11 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -614,3 +614,22 @@ r9 在完成全部 required lane 后于 exec inventory fail closed。进入 fres
    tested commit 的 direct single parent child，变更范围遵守 frozen allowlist；
 7. freeze 后执行 fresh formal；再做最终 implementation quality、test coverage audit 与
    acceptance。任一步失败继续 fail closed，不开始 Step 5。
+
+## Step 4 r10 remediation addendum（2026-07-17）
+
+r10 已完成全部 lane、aggregate 与 coverage observation，但在最终 sensitive scan fail closed。
+进入 fresh r11 前增加以下顺序约束：
+
+1. 封存 r10 immutable failure、absence、cleanup 与 external restoration；r10 全部 partial
+   lane/exec/XML/observation 均不得拼接或冻结 threshold；
+2. 五条 sensitive pattern、全 run-root extension set 与 fail-closed policy 保持不变；仅修复
+   `DemoSecurityIdentityResolver` 的 credential-shaped producer label；
+3. outer bootstrap-negative 最前执行不落盘、不回显的内存 probe；旧 label、env、Bearer、
+   password、API key、credential URI、CLI password 必须命中，修复后 label 与 null 字段必须
+   安全，`rg rc>1` 必须 fail closed；bootstrap 与最终扫描复用唯一 pattern 数组；
+4. launcher request smoke、bash syntax、exact manifest、coverage contract negatives、successor
+   overlay negatives、diff check 全部通过后，执行独立 formal remediation quality；
+5. B/H/M=0 后 commit/push 并证明 clean `HEAD == origin/main`；停止四个 exact demo DB
+   containers、确认 frozen ports free，以全新 run ID 执行 r11，退出后恢复 exact IDs；
+6. 只有 r11 完整发布 sensitive scan、summary、cleanup 与 exact observation 后才允许 threshold
+   review/freeze；后续 direct-child freeze、fresh formal 与 post-gates 顺序不变。

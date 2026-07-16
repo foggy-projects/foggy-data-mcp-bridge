@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
-  lifecycle semantic remediation implemented / quality passed / commit pending`
+  `in-progress / r10 sensitive-scan excluded / producer-label remediation implemented /
+  formal remediation quality passed / commit+r11 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -194,7 +194,7 @@ updated_at: 2026-07-17
   successor declared amendments=`18`，SHA-256=
   `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；本地
   `SHA256SUMS`=`60/60`，SHA-256=
-  `6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`；
+  `b2f02f142ee78fc5abff5a307a8403861e3e213f09d68e037f7b7eb2df2054c5`；
   successor=`14/14`，SHA-256=
   `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`；coverage
   contract diagnostic/formal SHA-256=
@@ -207,7 +207,7 @@ updated_at: 2026-07-17
   overlay tool / outer SHA-256=
   `001963c511b036d54c08abab2fcf0a0ab204b920614b35e10da809ed3f42c4d8` /
   `780e9a3d61626b8a37f85a185942de7c1862a119cd10b553962a98d5e2acd301` /
-  `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；
+  `57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649`；
   successor database/required contracts SHA-256=
   `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
   `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
@@ -318,7 +318,8 @@ updated_at: 2026-07-17
   审计与版本验收全部通过后，才允许带上述分类债务签收；任一失败即撤销临时例外并保持
   Step 5 关闭。该债务不得跨过 9.3.5 版本验收；
 - Step 4 threshold 仍为
-  `diagnostic-pending`，尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。
+  `diagnostic-pending`；r10 observation 是 failed run 的不可复用 partial evidence，尚无
+  reviewed/frozen baseline 或 Step 4 exit evidence。
   `can_enter_coverage_audit=no`，Step 5/formal/coverage audit/acceptance
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
   据此签收 9.3.4 或把 9.3.5 标为 ready。
@@ -346,3 +347,22 @@ updated_at: 2026-07-17
   `can_enter_coverage_audit=no`。只有 remediation commit/push/clean HEAD 与 fresh r10
   diagnostic 全部通过，才允许进入 exact threshold
   review/freeze；Step 5、formal、coverage audit、acceptance 与 9.3.5 保持关闭。
+
+## Superseding r10 requirement boundary（2026-07-17）
+
+- r10=`step4-coverage-20260717-diagnostic-r10` 在 clean/pushed commit
+  `47e0c027cd205a49d40db400ba26b99e6f97d60e` 上完成全部 required lanes、inventory=
+  `773+59/5,707/F0E0S0`、`23 exec / 48 sessions / 16,947 class IDs`、aggregate exact
+  union、coverage observation、source-after 与 cleanup，随后在 `sensitive-scan` fail closed；
+- aggregate partial observation：line=`54,478/76,830`、branch=`25,980/44,870`，但
+  `sensitive-scan.env` 与 `summary.env` absent，r10 excluded/non-reusable，禁止冻结阈值或
+  拼接后续 evidence；
+- root cause：demo identity producer 使用 credential-shaped authorization label 描述非凭据
+  identity result；五条扫描规则行为正确且保持不变；
+- remediation：producer 改用明确的 demo identity result 措辞；outer bootstrap-negative
+  新增内存 `7 dangerous + 3 safe` probe，和最终扫描共用同一 pattern 数组，`rg rc>1`
+  双向 fail closed，不落 `RUN_ROOT`、不回显 fixture；launcher request smoke test 通过；
+- 当前 Step 4=`in-progress`，formal remediation quality 最终 B/H/M/L=`0/0/0/0`；
+  commit/push/clean HEAD 与 fresh r11 仍 required。threshold=`diagnostic-pending`、
+  `can_enter_coverage_audit=no`；Step 5、formal、
+  coverage audit、acceptance 与 9.3.5 保持关闭。

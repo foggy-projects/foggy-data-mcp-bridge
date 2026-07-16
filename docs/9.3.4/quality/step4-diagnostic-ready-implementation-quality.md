@@ -667,3 +667,50 @@ identity，于 `coverage-report` fail closed；exec manifest、aggregate、sourc
 - threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
 - 本闸门不表示 r10、threshold freeze、fresh formal、最终实现质量、coverage audit、Step 4
   exit、Step 5、9.3.5 或 acceptance 已通过。
+
+## Superseding Main Quality Gate — r10 sensitive-scan producer-label remediation（2026-07-17）
+
+本节只复核 r10 最终 sensitive-scan failure、producer wording 与 bootstrap regression；不把
+r10 的 lane、exec、aggregate 或 observation 拼接成 Step 4 exit。r10 tested commit=
+`47e0c027cd205a49d40db400ba26b99e6f97d60e`，在全部 required evidence 后于
+`sensitive-scan` fail closed；`sensitive-scan.env` 与 `summary.env` absent，run=
+`excluded/non-reusable`。
+
+### Reviewed implementation
+
+- `DemoSecurityIdentityResolver` 只把 credential-shaped producer label 改成明确的 demo
+  identity result wording；identity 分支、attributes 与返回值未变；
+- 五条 sensitive pattern 与 r10/HEAD 原规则逐字一致，只上移成 bootstrap probe 与最终
+  run-root scan 共用的唯一数组；扫描 extensions、hidden/recursive path 与 rc policy 未变；
+- bootstrap-negative 最前执行 stdin-memory fixtures：dangerous=`7`、safe=`3`；执行前固定
+  断言 arrays=`7/3`，执行后固定断言 passed=`7/3`；成功 receipt 精确为
+  `positive=7/7 safe=3/3 probes=10/10`；
+- fixture 不写 `RUN_ROOT`、不回显；失败只输出类别、index/count 或 rc；positive/safe 任一
+  `rg rc>1` 均 fail closed。
+
+### Verification and findings closure
+
+- launcher request smoke=`1/F0E0S0`；真实输出中新 producer log=`1`、旧 log=`0`；
+- pattern identity=`5/5`；dangerous/safe=`7/7 + 3/3`；positive/safe `rg rc=2`=
+  fail-closed `2/2`；删除一个 dangerous 或 safe fixture 的 mutation 在扫描前分别以
+  `expected=7 actual=6`、`expected=3 actual=2` fail closed，cardinality mutation=`2/2`；
+- outer/source/top-manifest SHA-256=
+  `57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649` /
+  `5372ba04a92334e75ad1b4628ccbfe36063c29e90fba34aa9f8a22e9baf60a7d` /
+  `b2f02f142ee78fc5abff5a307a8403861e3e213f09d68e037f7b7eb2df2054c5`；
+  manifest=`60/60`，successor manifest=`14/14`；
+- coverage contract full validation、mutations=`21/21`、successor overlay validation 与
+  negatives=`12/12`、Shell syntax、Markdown relative links 与 `git diff --check` PASS；
+- 独立证据复核首轮发现 1 个 Medium：旧 PASS receipt 的分母来自同一动态 passed 总数，删除
+  fixture 可伪绿为 `9/9`。上述 pre/post exact cardinality 与分项 fixed receipt 已关闭该
+  finding；两路独立 post-fix 复核最终 Blocker/High/Medium/Low=`0/0/0/0`。
+
+### Decision
+
+- decision=`pass / ready-for-remediation-commit-and-fresh-r11`；
+- 只放行当前 producer/outer/manifest/evidence/BUG/quality/writeback 的 commit/push；随后必须
+  证明 clean `HEAD == origin/main`，停止四个 exact demo DB containers 并从空 run root
+  执行 fresh r11 diagnostic；
+- threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
+- 本闸门不表示 r11、threshold freeze、fresh formal、最终实现质量、coverage audit、Step 4
+  exit、Step 5、9.3.5 或 acceptance 已通过。

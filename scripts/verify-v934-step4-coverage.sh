@@ -25,6 +25,13 @@ AUTHORITY_NEGATIVE="$STEP4_DIR/authority_parent_negative_test.sh"
 STEP1_FREEZE="$ROOT_DIR/scripts/v934/contract-freeze.json"
 JACOCO_AGENT_JAR="$HOME/.m2/repository/org/jacoco/org.jacoco.agent/0.8.12/org.jacoco.agent-0.8.12-runtime.jar"
 JACOCO_AGENT_SHA256="115e8e6e6593ca3a9892dfef695df4d487c706e59e71e64dc0ab95716ee02622"
+SENSITIVE_PATTERNS=(
+  '(?i)(?:MYSQL_PWD|SQLCMDPASSWORD|REDIS_PASSWORD|REDIS_USERNAME|REDIS_URI|MONGO(?:DB)?_(?:URI|PASSWORD|USERNAME)|MYSQL_(?:PASSWORD|ROOT_PASSWORD)|MINIO_ROOT_(?:USER|PASSWORD)|AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY))'
+  '(?i)"?(?:password|passwd|pwd|credential|credentials|api[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|secret|authorization)"?[[:space:]]*[:=][[:space:]]*(?!"?null"?(?:[[:space:],}\]]|$))"?[^"[:space:],}\]]+'
+  '(?i)(?:authorization[[:space:]]*[:=][[:space:]]*)?bearer[[:space:]]+[A-Za-z0-9._~+/-]{8,}'
+  '(?i)(?:redis|mongodb(?:\+srv)?|mysql|postgres(?:ql)?|sqlserver|s3)://[^/@:[:space:]]+:[^/@[:space:]]+@'
+  '(?i)(?:--password|--passwd|--pwd)(?:=|[[:space:]])[^[:space:]]+'
+)
 
 usage() {
   cat <<'EOF'
@@ -42,6 +49,56 @@ EOF
 fail() {
   echo "[v934-step4-coverage] ERROR: $*" >&2
   exit 1
+}
+
+run_sensitive_pattern_regression_probes() {
+  local fixture probe_rc positive_passed=0 safe_passed=0
+  local expected_positive=7 expected_safe=3
+  local -a scan_args=() positive_fixtures safe_fixtures
+  positive_fixtures=(
+    'MYSQL_PWD=fixture-only-value'
+    'Resolved identity from authorization: userId=user_fixture, deptId=dept_fixture, tenantId=tenant_fixture'
+    'Authorization: Bearer fixture.token.12345678'
+    'password=fixture-only-value'
+    'api_key: fixture-only-value'
+    'mongodb://fixture-user:fixture-password@localhost:27017/example'
+    '--password fixture-only-value'
+  )
+  safe_fixtures=(
+    'Resolved demo identity: userId=user_fixture, deptId=dept_fixture, tenantId=tenant_fixture'
+    'MongoClientSettings{credential=null, applicationName=null}'
+    '{"password": null, "authorization": null}'
+  )
+  [[ "${#positive_fixtures[@]}" -eq "$expected_positive" ]] || \
+    fail "sensitive positive probe cardinality changed: expected=$expected_positive actual=${#positive_fixtures[@]}"
+  [[ "${#safe_fixtures[@]}" -eq "$expected_safe" ]] || \
+    fail "sensitive safe probe cardinality changed: expected=$expected_safe actual=${#safe_fixtures[@]}"
+  for fixture in "${SENSITIVE_PATTERNS[@]}"; do
+    scan_args+=(-e "$fixture")
+  done
+  for fixture in "${positive_fixtures[@]}"; do
+    if rg --pcre2 -q "${scan_args[@]}" - <<< "$fixture" >/dev/null 2>&1; then
+      positive_passed=$((positive_passed + 1))
+    else
+      probe_rc=$?
+      [[ "$probe_rc" -eq 1 ]] || fail "sensitive positive probe scan failed: rc=$probe_rc"
+      fail "sensitive positive probe did not match: index=$((positive_passed + 1))"
+    fi
+  done
+  for fixture in "${safe_fixtures[@]}"; do
+    if rg --pcre2 -q "${scan_args[@]}" - <<< "$fixture" >/dev/null 2>&1; then
+      fail "sensitive safe probe matched: index=$((safe_passed + 1))"
+    else
+      probe_rc=$?
+      [[ "$probe_rc" -eq 1 ]] || fail "sensitive safe probe scan failed: rc=$probe_rc"
+      safe_passed=$((safe_passed + 1))
+    fi
+  done
+  [[ "$positive_passed" -eq "$expected_positive" ]] || \
+    fail "sensitive positive probe pass count changed: expected=$expected_positive actual=$positive_passed"
+  [[ "$safe_passed" -eq "$expected_safe" ]] || \
+    fail "sensitive safe probe pass count changed: expected=$expected_safe actual=$safe_passed"
+  echo "[v934-step4-coverage] sensitive-pattern PASS positive=$positive_passed/$expected_positive safe=$safe_passed/$expected_safe probes=$((positive_passed + safe_passed))/$((expected_positive + expected_safe))"
 }
 
 # The authority lock, HEAD, index, shallow boundary, grafts, and object store
@@ -2260,6 +2317,7 @@ else
 fi
 
 PHASE=bootstrap-negative
+run_sensitive_pattern_regression_probes
 "$AUTHORITY_NEGATIVE"
 python3 "$COVERAGE_CONTRACT_NEGATIVE_TOOL" \
   --repo-root "$ROOT_DIR" \
@@ -2733,13 +2791,6 @@ PHASE=run-log-flush
 close_run_log || fail "run log did not flush"
 
 PHASE=sensitive-scan
-SENSITIVE_PATTERNS=(
-  '(?i)(?:MYSQL_PWD|SQLCMDPASSWORD|REDIS_PASSWORD|REDIS_USERNAME|REDIS_URI|MONGO(?:DB)?_(?:URI|PASSWORD|USERNAME)|MYSQL_(?:PASSWORD|ROOT_PASSWORD)|MINIO_ROOT_(?:USER|PASSWORD)|AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY))'
-  '(?i)"?(?:password|passwd|pwd|credential|credentials|api[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|secret|authorization)"?[[:space:]]*[:=][[:space:]]*(?!"?null"?(?:[[:space:],}\]]|$))"?[^"[:space:],}\]]+'
-  '(?i)(?:authorization[[:space:]]*[:=][[:space:]]*)?bearer[[:space:]]+[A-Za-z0-9._~+/-]{8,}'
-  '(?i)(?:redis|mongodb(?:\+srv)?|mysql|postgres(?:ql)?|sqlserver|s3)://[^/@:[:space:]]+:[^/@[:space:]]+@'
-  '(?i)(?:--password|--passwd|--pwd)(?:=|[[:space:]])[^[:space:]]+'
-)
 SENSITIVE_SCAN_ARGS=()
 for pattern in "${SENSITIVE_PATTERNS[@]}"; do
   SENSITIVE_SCAN_ARGS+=(-e "$pattern")

@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r9 excluded / remediation quality passed / commit pending | Step 3 exit passed | r9 required lanes + `23/48` exec 后在 coverage-report fail closed；exec-scope=`17/17`、contract=`21/21`、XML=`68/68`、lifecycle coded regression 与三路质量均通过；fresh r10 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r10 sensitive-scan excluded / remediation quality passed / commit pending | Step 3 exit passed | r10 完成 required=`773+59/5,707`、`23/48` exec、aggregate/observation 后在 sensitive-scan fail closed；producer-label fix + exact `7+3` probe 与两路质量已通过；fresh r11 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1257,7 +1257,7 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1–r9 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
+- r1–r10 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
   不完整 Unit 产物不可复用，
   当前仍无 reviewed
   reactor aggregate baseline；
@@ -1290,23 +1290,23 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 remediation quality passed / commit pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r9 exec-scope 与 lifecycle semantic remediation 三路独立复核最终 B/H/M/L=`0/0/0/0`，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r10 remediation quality passed / commit pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r10 首轮 Medium cardinality 伪绿已关闭，两路 post-fix B/H/M/L=`0/0/0/0`，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r9 excluded / remediations implemented / quality + fresh r10 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r10 excluded / remediation implemented / quality + commit + fresh r11 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-r9 已在全部 required lane 与 23/48 exec 后证明 all-loaded class-name identity 规则错误，
-并在 exec-manifest 前正确 fail closed。production-scope/JaCoCo-ID union 已实现；新的质量审计
-又复现 lifecycle semantic validator comment/dead-context/dynamic-trap bypass，其 coded
-executable-stream regression 也已通过。下一步是完成两路 formal quality、commit/push/clean
-HEAD，停止四个 repo demo DB 容器，并以
-fresh r10 从 source seal 开始执行 all-lane diagnostic。只有 r10 完整成功后才评审 exact
-observed thresholds。
-当前 threshold=`diagnostic-pending`，r1–r9 与 Unit remediation r2 都是 excluded failed
-evidence，历史 partial/incomplete 产物不可复用，尚无 aggregate baseline/review 或 Step 4
+r10 已完整运行 required lanes、`23/48` exec、aggregate 与 observation，但 demo identity
+日志复用 credential-shaped label，最终 sensitive scan 正确 fail closed。五条规则保持不变；
+producer wording 与 bootstrap `7 dangerous + 3 safe` 内存 probe 已完成，launcher smoke、
+contract/manifest/overlay focused validation 通过；首轮 Medium exact-count 伪绿已关闭，两路
+post-fix quality=`0/0/0/0`。下一步是 commit/push/clean HEAD，停止四个 repo demo DB 容器，
+并以 fresh r11 从 source seal 开始执行
+all-lane diagnostic。只有 r11 完整成功后才评审 exact observed thresholds。
+当前 threshold=`diagnostic-pending`，r1–r10 与 Unit remediation r2 都是 excluded failed
+evidence，历史 partial/incomplete 产物不可复用，尚无 reviewed/frozen baseline 或 Step 4
 exit evidence；
 `can_enter_coverage_audit=no`，
 Step 5 仍不得开始，coverage audit/acceptance 不得启动。
@@ -1350,3 +1350,31 @@ Step 5 仍不得开始，coverage audit/acceptance 不得启动。
 - next gate：commit/push/clean HEAD → fresh r10 diagnostic。r10 成功前不得 threshold freeze；
   threshold=`diagnostic-pending`、`can_enter_coverage_audit=no`，Step 5/formal/audit/
   acceptance 均关闭。
+
+### Superseding Post-diagnostic Check-in — r10 sensitive-scan fail-closed / r11 remediation
+
+- recorded_at: 2026-07-17；
+- immutable run：`step4-coverage-20260717-diagnostic-r10`，tested commit=
+  `47e0c027cd205a49d40db400ba26b99e6f97d60e`；outer=
+  `failed / sensitive-scan / exit 1`；source-before=after=
+  `7c60f5ce6a7174487d77ea64881be37d68408129bf3c570972918a818a04a000`；
+- completed boundary：Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0`、
+  database=`29/370`、external=`16/76`、Step 3 required=`45/446`、Addon=`2/6`、Step 4
+  inventory=`773+59/5,707/F0E0S0`、exec=`23/48/16,947 class IDs`；aggregate line=
+  `54,478/76,830`、branch=`25,980/44,870`，thresholds_frozen_by_observe=`false`；
+- failure/absence：`run.log` 唯一脱敏命中来自 demo identity producer 的 credential-shaped
+  authorization label；match SHA-256=
+  `d375d94172c0dbded90d08b61f8425e5bb8ed28d8b43141ef3e7cacc80d06c59`；
+  `sensitive-scan.env`、`summary.env`、gate/candidate absent，r10 excluded/non-reusable；
+- cleanup/restoration：run-owned container/volume/network=`0/0/0`；四个 exact demo DB
+  containers 已在 evidence window 外恢复原 ID 且 running/healthy；
+- remediation：五条扫描规则不变；producer 改为明确的 demo identity result wording；outer
+  在 bootstrap-negative 最前以同一 pattern 数组执行 `7 dangerous + 3 safe` 内存 probe，
+  `rg rc>1` fail closed，fixture 不进入 run root/log；launcher request smoke=`1/F0E0S0`；
+  top manifest=`60/60`，contract=`21/21`、overlay=`12/12` focused validation 通过；
+- records：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r10-sensitive-scan-fail-closed-20260717.md`、
+  `docs/9.3.4/workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md`；
+- next gate：commit/push/clean HEAD → fresh r11 diagnostic。
+  r11 成功前不得 threshold freeze；threshold=`diagnostic-pending`、
+  `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 均关闭。
