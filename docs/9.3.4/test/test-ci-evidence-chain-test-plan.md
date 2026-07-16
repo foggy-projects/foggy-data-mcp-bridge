@@ -378,8 +378,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r4 historical fail-closed / source-policy remediation
-  statically passed / final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`
+- step4_result: `in-progress / r5 historical fail-closed / database-state successor
+  remediation quality passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -429,9 +429,31 @@ Final acceptance 至少验证：
   closed，run-owned source/Git seal 与全部 lane absent。source-policy remediation focused
   static=`20/22/63/12`，top/successor identity=`54/54 + 12/12`；r4 仍为
   `excluded-from-step4-exit`。
-- final-byte quality：decision=`ready-with-risks`，B/H/M/L=`0/0/0/2`、two Low accepted，只
-  放行 amend/push + fresh r5；
-- next executable action: amend/push 并确认 clean worktree、`HEAD == origin/main`，再执行
-  fresh r5 all-lane diagnostic。threshold 仍为
+- Step 4 r5：clean/pushed tested commit=`a35b99cb08f42817d8e75c440f18910b6961841b`；
+  Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0`、Addon=`2/6/F0E0S0`
+  后，database-state companion 因误选 frozen Step 3 authority manifest 以
+  `E_AUTHORITY_MANIFEST` fail closed。database cells、external、aggregate、threshold、
+  source-after 与 summary absent，r5=`excluded-from-step4-exit`，partial lanes 不可复用；
+- successor remediation regression：database-state/required-report/report-inventory 均经 Step 4
+  adapters 选择 successor authority；original frozen state control 仍 fail closed。current identity：
+  coverage contract diagnostic/formal=
+  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
+  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`，
+  successor=`14/14` / `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`，
+  top=`56/56` / `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`，
+  overlay contract/tool=
+  `cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
+  `4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a`，
+  coverage tool=`bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a`，
+  amendments=`17` / `187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`，
+  database/required contracts=
+  `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
+  `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
+- evidence/BUG：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`；
+  `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
+- implementation quality：`pass`，B/H/M/L=`0/0/0/0`；
+- next executable action: commit/push 并确认 clean worktree、
+  `HEAD == origin/main`，再执行 fresh r6 all-lane diagnostic。threshold 仍为
   `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、coverage audit 与 acceptance
   仍关闭。

@@ -31,7 +31,7 @@
     },
     "database_contract": {
       "path": "scripts/v934/step4/successor/database-matrix-contract.json",
-      "sha256": "b1f03fcbd93142df4e0bba497d44f7e8053fcbd2633d4ca17adff3d73bc87641"
+      "sha256": "553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea"
     },
     "database_report_tool": {
       "path": "scripts/v934/step4/successor/database_matrix_report_tool.py",
@@ -39,7 +39,7 @@
     },
     "database_runner": {
       "path": "scripts/verify-v934-database-matrix.sh",
-      "sha256": "400dee74c06142d9834455dbdea0643c7f9d4f8967a920c2c37e8c681df151bd"
+      "sha256": "dc62d869aa38db19bdb39c806d9de58186d1524b6a1277be25fb6f60e9803c0a"
     },
     "deferred_inventory": {
       "path": "scripts/v934/successor/step2/deferred-step3.tsv",
@@ -58,12 +58,12 @@
       "sha256": "f935683ad8cfbf79266ba7912223c8c511511f6c045d95d0988e5f3d8895ad91"
     },
     "required_report_tool": {
-      "path": "scripts/v934/step3/step3_required_report_tool.py",
-      "sha256": "7856a5a14aaac2e6b182666097ab035446f98bdbeda6f4eadffbdb7503f17e58"
+      "path": "scripts/v934/step4/successor/step3_required_report_tool.py",
+      "sha256": "a7407789dba4fdeb544eeba2d921eab56db10100880c76554eb2187cf73d99bf"
     },
     "required_runner": {
       "path": "scripts/verify-v934-step3-required-matrix.sh",
-      "sha256": "39864f0bba0f0c93b130a02b12bfd4573d01a452aac4722fd6490b13efcf0578"
+      "sha256": "afbf5de027d6733258c1ad5e8bf95b8954cf8ff3f926be0864fd0b88b550867a"
     },
     "step4_prereq_multithread_executor": {
       "path": "foggy-core/src/main/java/com/foggyframework/core/thread/MultiThreadExecutor.java",

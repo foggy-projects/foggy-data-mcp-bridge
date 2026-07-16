@@ -24,12 +24,12 @@ updated_at: 2026-07-16
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r4 historical fail-closed + source-policy remediation static + final review B/H/M/L=0/0/0/2 / amend/push + fresh r5 and Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r5 historical fail-closed + successor remediation quality passed / fresh r6 and Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r4 excluded / remediation static + final review passed / amend/push + fresh r5 pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r5 excluded / partial lanes non-reusable / successor remediation quality passed / fresh r6 pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1/r2/r3/r4 failed runs recorded but exit evidence absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 final-byte review ready-with-risks，B/H/M/L=0/0/0/2、two Low accepted，只放行 amend/push + fresh r5，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r5 failed runs recorded but exit evidence absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 successor remediation B/H/M/L=0/0/0/0，fresh r6 前 can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -58,8 +58,8 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-16）：状态仅为
-`in-progress / r4 historical fail-closed / source-policy remediation statically passed /
-final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。
+`in-progress / r5 historical fail-closed / database-state successor remediation quality passed
+B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`。
 静态执行结构仍精确为
 `23 exec / 48 sessions`，required
 report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
@@ -70,27 +70,30 @@ raw 工具版本、ASM `9.6/9.7/9.7.1` 三层 realm 和 24 个 production module
 effective compiler。report amendment=`11 rows = 4 new + 7 changed`，SHA-256=
 `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`，successor
 declared amendments=`17`，SHA-256=
-`1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`。本地 Step 4
-`SHA256SUMS`=`54/54`，SHA-256=
-`ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；
-successor=`12/12`，SHA-256=
-`751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；coverage contract
+`187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`。本地 Step 4
+`SHA256SUMS`=`56/56`，SHA-256=
+`be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
+successor=`14/14`，SHA-256=
+`9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；coverage contract
 diagnostic/formal SHA-256=
-`5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
-`58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；coverage tool /
+`16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
+`d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；coverage tool /
 contract-negative / XML tool SHA-256=
-`07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+`bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a` /
 `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
 `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
 overlay tool / outer SHA-256=
-`2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
-`a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+`cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
+`4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a` /
 `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。tracked FIFO
 preflight fail-fast 与 before/after raw stat identity 并发重写拒绝均已纳入 `22/22`。
 source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
 candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed
 attributes 若声明 external clean filter，则在任何 worktree-aware Git hash/driver hook
 执行前 fail closed，negative 证明 hook 未执行。
+successor database/required contracts SHA-256=
+`553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
+`893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`。
 
 首次 clean all-lane attempt 已执行但不是 acceptance evidence：clean/pushed HEAD
 `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
@@ -133,6 +136,21 @@ reported launch head 不是 run-owned `tested_commit`。immutable failed evidenc
 `docs/9.3.4/workitems/BUG-step4-source-inventory-filemode-false.md`；decision=
 `excluded-from-step4-exit`。
 
+第五次 attempt 同样不是 acceptance evidence：r5 tested commit=
+`a35b99cb08f42817d8e75c440f18910b6961841b`，run=
+`step4-coverage-20260716-diagnostic-r5`。r5 建立 run-owned source seal 并完成
+Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0`、
+Addon=`2/6/F0E0S0`；database-state companion 随后因 frozen Step 3 authority manifest
+的 model POM SHA stale 而以 `E_AUTHORITY_MANIFEST` fail closed。database cells、
+external、aggregate、threshold、source-after 与 summary 均 absent，r5=
+`excluded-from-step4-exit`，partial lanes 不可复用。immutable failed evidence=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`；BUG=
+`docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`。
+
+successor database-state/required-report adapters 已实现，database runner、required
+runner 与 report_inventory 均绑定 successor selector，frozen Step 3 保持不变；
+focused/static remediation 通过，但不是 all-lane coverage evidence。
+
 Cdiag implementation 已收口 managed FIFO logger、logger close/reap 负例、
 PID/PGID/SID/starttime/boot-id child identity、清理前 member snapshot、typed child
 lifecycle/XML/formalization-delta validator 与 generic XML negative tool。成功
@@ -144,14 +162,16 @@ pre-r4 最终快测、正式实现质量闸门与 identity/manifest 级联属于
 source-policy 实现、focused static 与新 identity/manifest 级联；这些仍不是运行时 coverage
 evidence。最终字节 review=`ready-with-risks`、B/H/M/L=`0/0/0/2`；两项 Low 均 accepted：
 `/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build authority，未来更强隔离改用
-readonly snapshot/独立 checkout。当前仅放行 amend/push + fresh r5，Step 5 仍关闭。
+readonly snapshot/独立 checkout。该结论保留为 r4 前历史 review；当前只放行
+successor remediation full static/quality 已通过；commit/push/clean HEAD 和 fresh r6 之前，
+Step 5 仍关闭。
 
 Step 4 implementation quality 已记录于
 `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
 `ready-with-risks` 的 r1/r2 结论仅作历史记录。Cdiag pre-r4 main gate 已以
 `ready-with-risks`、open Blocker/High/Medium=`0/0/0` 放行了历史 clean-HEAD r4；source-policy
 最终字节修正的正式复核为 `ready-with-risks`、B/H/M/L=`0/0/0/2`，两项 Low accepted。当前
-`can_enter_coverage_audit=no`；fresh r5、
+`can_enter_coverage_audit=no`；fresh r6、
 aggregate review、confirmed thresholds 与 fresh formal 完成前不得启动 coverage audit。
 
 ## Mandatory Acceptance Evidence

@@ -448,3 +448,66 @@ negative 证明 hook 未执行。
   freeze commit 并运行 fresh formal；
 - boundary: 本闸门不表示 r5 已运行、Step 4 已 passed，也不创建 exit evidence，不放行
   coverage audit、Step 5、9.3.5 或 acceptance。
+
+## Superseding Main Quality Gate — r5 fail-closed / successor remediation ready for r6（2026-07-16）
+
+r5 在 tested commit `a35b99cb08f42817d8e75c440f18910b6961841b` 完成 source seal、
+Unit、Integration 与 Addon 后，database-state companion 因误选 frozen Step 3 authority
+manifest 以 `E_AUTHORITY_MANIFEST` fail closed。database cells、external matrix、aggregate、
+threshold、source-after 与 summary 未完成；r5 及其 partial lanes 均为
+`excluded-from-step4-exit / non-reusable`。immutable evidence 与 BUG 分别为：
+
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`；
+- `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`。
+
+### Implementation closure
+
+修复不改动 frozen Step 3 字节，而在 Step 4 successor 中增加两个薄适配器：state adapter
+只替换 matrix contract 选择；required-report adapter 只把 frozen state verifier argv 精确
+改写到 state adapter，非目标 verifier argv 不变。三个运行时消费者均已绑定：
+
+1. database runner 选择 successor state adapter；
+2. required runner 选择 successor required-report adapter；
+3. Step 4 report inventory 复核同样选择 successor required-report adapter。
+
+overlay 在每次 preflight 中精确检查上述三个 selector，真实执行 state validate、required
+rewrite self-test 和 required contract validate。original frozen state control 继续因 predecessor
+authority stale 而 fail closed，证明修复没有偷改 predecessor contract/tool。
+
+### Final-byte verification
+
+- coverage contract=`23 exec / 48 sessions`，required=`773 positive + 59 structural / 5,707`；
+- contract mutation/source identity=`20/20 + 22/22`；
+- XML/gate/freeze/frozen replay=`63/63`；authority parent=`2 positive + 14 negative`；
+- managed logger=`14 case`；report inventory negative=`27/27`；overlay=`positive + 12/12`；
+- successor database-state standalone static=`12/12`，manifest 绑定 database contract
+  `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea`，
+  Docker residue=`0/0/0`；
+- required adapter validate=`45 reports / 446 nodes / F0E0S0`，contract SHA-256=
+  `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
+- coverage contract diagnostic/formal SHA-256=
+  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
+  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；
+- successor manifest=`14/14`，SHA-256=
+  `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；
+  top manifest=`56/56`，SHA-256=
+  `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
+- overlay contract/tool SHA-256=
+  `cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
+  `4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a`；
+- coverage tool / declared amendments SHA-256=
+  `bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a` /
+  `187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`；
+- shell `bash -n`、Python `py_compile`、inner/outer manifests 与 `git diff --check` 全通过。
+
+### Findings and decision
+
+- Blocker/High/Medium/Low=`0/0/0/0`；
+- 未发现仍使用 frozen required/state verifier 的 Step 4 runtime consumer；剩余 frozen 路径
+  仅存在于 frozen Step 3 文件、parent authority/hash 清单与两个 adapter 的受控委托；
+- adapter 未改变 Step 3 totals、negative semantics、coverage denominator、threshold floor、
+  formal dual-state projection 或 formal commit allowlist；
+- decision=`pass / ready-for-commit-and-fresh-r6`；仅放行 commit/push、clean source seal 与
+  fresh r6，不表示 Step 4 passed；
+- threshold=`diagnostic-pending`；`can_enter_coverage_audit=no`；Step 5、9.3.5、coverage
+  audit 与 acceptance 继续关闭。

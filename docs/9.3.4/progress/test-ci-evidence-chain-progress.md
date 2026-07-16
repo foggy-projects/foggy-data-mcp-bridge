@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r4 historical fail-closed / remediation static / final review passed | Step 3 exit passed | exact 23/48 + 773/59/5707；contract/source/XML/overlay=`20/22/63/12`；top 54/54；quality B/H/M/L=`0/0/0/2`、two Low accepted；amend/push + fresh r5 pending；audit/Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r5 historical fail-closed / successor remediation quality passed | Step 3 exit passed | r5 excluded、partial lanes non-reusable；B/H/M/L=`0/0/0/0`；commit-push + fresh r6 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1022,6 +1022,44 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - deviations、open risks、blockers 和下一步 entry decision；
 - self-check decision，以及是否允许进入 formal quality gate。
 
+### Superseding Post-diagnostic Check-in — Step 4 r5 fail-closed / successor remediation
+
+- recorded_at: 2026-07-16
+- status decision: `in-progress / r5 historical fail-closed / database-state successor
+  remediation quality passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`，不是
+  Step 4 `passed`；
+- immutable r5: tested commit=`a35b99cb08f42817d8e75c440f18910b6961841b`，run=
+  `step4-coverage-20260716-diagnostic-r5`，source-before=`3,970 files` / SHA-256=
+  `1d8fedc784e3f3a2f70d21666e38417de8aba76d55a51df7cf76919d78c1ad17`；
+- failed boundary: Unit=`681 positive + 55 structural / 4,941 / F0E0S0`、Integration=
+  `47 positive + 4 structural / 320 / F0E0S0`、Addon=`2/6/F0E0S0` 已完成；
+  database-state companion 随后因 frozen Step 3 authority manifest 中 model POM SHA stale
+  而以 `E_AUTHORITY_MANIFEST` fail closed。database cells、external matrix、aggregate、
+  threshold、source-after 和 summary 均 absent；r5=`excluded-from-step4-exit`，上述
+  partial lanes 不得拼接或复用；
+- remediation: 保持 frozen Step 3 字节不变，新增 Step 4 successor
+  database-state 与 required-report adapters，使 database positive/state/final verifier 共用
+  successor authority。current static identity：contract diagnostic/formal=
+  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
+  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`，
+  successor=`14/14` / `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`，
+  top=`56/56` / `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`，
+  overlay contract/tool=
+  `cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
+  `4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a`，
+  coverage tool=`bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a`，
+  declared amendments=`17` / `187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`，
+  database/required contracts=
+  `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
+  `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
+- records:
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`；
+  `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
+- quality: formal gate=`pass`，B/H/M/L=`0/0/0/0`；
+- next gate: commit/push 并证明 clean `HEAD == origin/main`，
+  再执行全新 `step4-coverage-20260716-diagnostic-r6`。threshold=
+  `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5 保持关闭。
+
 ## Current Risks / Stop Conditions
 
 - 33 个 frozen rename + 2 个 Mongo corrective rename 已由 r8e successor exact
@@ -1031,7 +1069,8 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1–r4 均已 fail closed/excluded，当前仍无 reviewed reactor aggregate baseline；
+- r1–r5 均已 fail closed/excluded，r5 partial lanes 不可复用，当前仍无 reviewed
+  reactor aggregate baseline；
   0.80/0.70 只是 critical-class candidate floor，必须由 fresh all-lane observation
   与人工 review 确认。
 - remote required check、five-cell collector、branch protection、release artifact reuse
@@ -1061,18 +1100,18 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 final-byte ready-with-risks | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 B/H/M/L=`0/0/0/2`、two Low accepted，只放行 amend/push + fresh r5，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 successor remediation passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 B/H/M/L=`0/0/0/0`，只放行 commit-push + fresh r6，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r4 fail-closed / remediation statically passed / r5 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r5 fail-closed / successor remediation static / r6 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-最终字节 review 已以 `ready-with-risks`、B/H/M/L=`0/0/0/2` 通过，两项 Low 均 accepted。
-下一步 amend/push，验证
-clean worktree 且 `HEAD == origin/main`，再以唯一新 run id
-执行 fresh r5 all-lane diagnostic，观察全部 required lane、aggregate/critical classes 并评审
-exact observed thresholds。当前 threshold=`diagnostic-pending`，r1–r4 都是 excluded failed
-diagnostic，尚无 aggregate baseline/review 或 Step 4 exit evidence；`can_enter_coverage_audit=no`，
+database-state successor remediation 的 full static/quality 已通过；下一步 commit/push、验证
+clean worktree 且 `HEAD == origin/main`，以全新 run id 执行 fresh r6 all-lane diagnostic，
+观察全部 required lane、aggregate/critical classes 并评审 exact observed thresholds。
+当前 threshold=`diagnostic-pending`，r1–r5 都是 excluded failed diagnostic，r5 partial
+lanes 不可复用，尚无 aggregate baseline/review 或 Step 4 exit evidence；
+`can_enter_coverage_audit=no`，
 Step 5 仍不得开始，coverage audit/acceptance 不得启动。

@@ -593,3 +593,47 @@ final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。decision=
 amend/push + fresh r5。threshold 仍为
 `diagnostic-pending`，`can_enter_coverage_audit=no`；r1–r4 均不得拼接，clean commit/push 与
 fresh r5 完成前 Step 5、formal、coverage audit、acceptance 和 9.3.5 都保持关闭。
+
+Superseding r5 record（2026-07-16）：tested commit=
+`a35b99cb08f42817d8e75c440f18910b6961841b`，run=
+`step4-coverage-20260716-diagnostic-r5`。r5 建立 run-owned Git/source seal，完成
+Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0` 与
+Addon=`2/6/F0E0S0`；随后 database-state companion 因选择 frozen Step 3 authority
+manifest，以 `E_AUTHORITY_MANIFEST: stale authority artifact:
+foggy-dataset-model/pom.xml` fail closed。database cells、external、aggregate、threshold、
+source-after 和 summary 均 absent，r5=`excluded-from-step4-exit`，已通过的 partial
+lanes 不得跨 run 拼接或复用。immutable record=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`，BUG=
+`docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`。
+
+Step 4 successor contract 现明确要求：database positive report、database-state
+companion、required final verifier 与 report_inventory replay 必须从同一 successor
+database authority 派生。frozen Step 3 tools/contracts 必须保持字节不变；Step 4
+`database_state_negative_tool.py` 只改写 matrix contract selector，
+`step3_required_report_tool.py` 只改写 exact frozen state-tool argv，非目标 verifier
+argv 必须保持不变。database runner、required runner 与 report_inventory 必须
+各自精确绑定 successor adapter；adapter/selector/contract/manifest 任一漂移必须
+fail closed，original frozen state validate 保留为 stale-predecessor 负例对照。
+
+当前 successor remediation 静态身份为：coverage contract diagnostic/formal=
+`16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
+`d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；
+successor manifest=`14/14` / SHA-256=
+`9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；
+top manifest=`56/56` / SHA-256=
+`be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
+overlay contract/tool=
+`cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
+`4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a`；
+coverage tool=`bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a`；
+declared amendments=`17` / SHA-256=
+`187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`；
+database/required contracts=
+`553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
+`893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`。
+
+当前 Step 4=`in-progress / r5 historical fail-closed / database-state successor
+remediation quality passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`。threshold 仍为
+`diagnostic-pending`，`can_enter_coverage_audit=no`；r1–r5 均不得拼接，完成
+commit/push/clean HEAD 与 fresh r6 之前，Step 5、formal、coverage
+audit、acceptance 和 9.3.5 都保持关闭。

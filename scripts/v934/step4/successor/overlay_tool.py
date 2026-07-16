@@ -101,6 +101,7 @@ EXPECTED_SUCCESSOR_FILES = (
     "database-matrix-protected-trees.tsv",
     "database-matrix-source-amendment.tsv",
     "database_matrix_report_tool.py",
+    "database_state_negative_tool.py",
     "declared-amendments.tsv",
     "external-matrix-contract.json",
     "external_matrix_report_tool.py",
@@ -108,6 +109,7 @@ EXPECTED_SUCCESSOR_FILES = (
     "overlay_tool.py",
     "preagg-addon-lifecycle-contract.json",
     "step3-required-contract.json",
+    "step3_required_report_tool.py",
 )
 EXPECTED_PAIR_RULES = {
     "required": {
@@ -116,7 +118,8 @@ EXPECTED_PAIR_RULES = {
         "allowed": {
             "addon_contract", "addon_runner", "database_contract",
             "database_report_tool", "database_runner", "external_contract",
-            "external_report_tool", "external_runner", "required_runner",
+            "external_report_tool", "external_runner", "required_report_tool",
+            "required_runner",
         },
         "paths": {
             "addon_contract": "scripts/v934/step4/successor/preagg-addon-lifecycle-contract.json",
@@ -127,6 +130,7 @@ EXPECTED_PAIR_RULES = {
             "external_contract": "scripts/v934/step4/successor/external-matrix-contract.json",
             "external_report_tool": "scripts/v934/step4/successor/external_matrix_report_tool.py",
             "external_runner": "scripts/verify-v934-external-matrix.sh",
+            "required_report_tool": "scripts/v934/step4/successor/step3_required_report_tool.py",
             "required_runner": "scripts/verify-v934-step3-required-matrix.sh",
         },
     },
@@ -191,8 +195,8 @@ EXPECTED_PROTECTED_SCOPE = {
     ],
 }
 EXPECTED_ACTIVATION_REQUIREMENTS = [
-    "Step 4 required runner must select the successor required contract.",
-    "Database runner must select the successor database contract, source amendment, and database wrapper.",
+    "Step 4 required runner and report verifier must select the successor required contract and adapter.",
+    "Database runner and state companion must select the successor database contract and adapters.",
     "External runner must select the successor external contract and external wrapper.",
     "Addon runner must select the successor Addon contract.",
 ]
@@ -204,17 +208,17 @@ EXPECTED_STEP4_RUNTIME_BINDINGS = {
         "diagnostic": {
             "contract_status": "diagnostic-ready",
             "publication_status": "diagnostic-ready",
-            "sha256": "5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d",
+            "sha256": "16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af",
         },
         "formal": {
             "contract_status": "formal-ready",
             "publication_status": "formal-ready",
-            "sha256": "58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405",
+            "sha256": "d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463",
         },
     },
     "scripts/v934/step4/coverage-report-amendment.tsv": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9",
+    "scripts/v934/step4/coverage_tool.py": "bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a",
     "scripts/v934/step4/step2-report-view-contract.json": "c016ec18fa0a637e5c5470385c3f26cce152c461eb1dc1b64b52f28f5e8b8a67",
     "scripts/v934/step4/step2_report_view_tool.py": "b828869dec191a6ded51e7b28654f8878c65455007ca002e247347a0cb5e217a",
 }
@@ -643,6 +647,94 @@ def verify_successor_manifest(path: Path) -> None:
             reject("E_SUCCESSOR_MANIFEST", f"successor artifact differs: {name}")
 
 
+def run_successor_adapter(arguments: list[str], label: str) -> dict[str, Any]:
+    completed = subprocess.run(
+        [sys.executable, *arguments],
+        cwd=ROOT,
+        env=git_environment(),
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        reject(
+            "E_SUCCESSOR_RUNTIME",
+            f"{label} failed: {completed.stderr.strip() or completed.stdout.strip()}",
+        )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise OverlayError("E_SUCCESSOR_RUNTIME", f"{label} output is not JSON") from error
+    if not isinstance(payload, dict):
+        reject("E_SUCCESSOR_RUNTIME", f"{label} output is not an object")
+    return payload
+
+
+def verify_successor_runtime_adapters() -> None:
+    database_runner = safe_repo_path(
+        "scripts/verify-v934-database-matrix.sh",
+        "E_SUCCESSOR_RUNTIME",
+    ).read_text(encoding="utf-8")
+    required_runner = safe_repo_path(
+        "scripts/verify-v934-step3-required-matrix.sh",
+        "E_SUCCESSOR_RUNTIME",
+    ).read_text(encoding="utf-8")
+    report_inventory = safe_repo_path(
+        "scripts/v934/step4/report_inventory_tool.py",
+        "E_SUCCESSOR_RUNTIME",
+    ).read_text(encoding="utf-8")
+    if database_runner.count(
+        'STATE_NEGATIVE_TOOL="$STEP4_SUCCESSOR_DIR/database_state_negative_tool.py"'
+    ) != 1:
+        reject("E_SUCCESSOR_RUNTIME", "database runner does not select the state adapter")
+    if required_runner.count(
+        'REPORT_TOOL="$STEP4_DIR/successor/step3_required_report_tool.py"'
+    ) != 1:
+        reject("E_SUCCESSOR_RUNTIME", "required runner does not select the report adapter")
+    if report_inventory.count(
+        'STEP3_REPORT_TOOL = Path("scripts/v934/step4/successor/step3_required_report_tool.py")'
+    ) != 1:
+        reject("E_SUCCESSOR_RUNTIME", "report inventory does not select the report adapter")
+
+    state_tool = HERE / "database_state_negative_tool.py"
+    state_contract = ROOT / "scripts/v934/step3/database_state_contract.json"
+    database_contract = HERE / "database-matrix-contract.json"
+    state = run_successor_adapter([str(state_tool), "validate"], "database-state adapter")
+    if state != {
+        "database_contract_sha256": sha256(database_contract),
+        "probes": 18,
+        "state_contract_sha256": sha256(state_contract),
+        "status": "passed",
+    }:
+        reject("E_SUCCESSOR_RUNTIME", "database-state adapter selected the wrong contract")
+
+    required_tool = HERE / "step3_required_report_tool.py"
+    rewrite = run_successor_adapter(
+        [str(required_tool), "successor-self-test"],
+        "required-report state rewrite",
+    )
+    if rewrite != {"state_verifier_rewrites": 1, "status": "passed"}:
+        reject("E_SUCCESSOR_RUNTIME", "required-report state rewrite differs")
+    required_contract = HERE / "step3-required-contract.json"
+    required = run_successor_adapter(
+        [
+            str(required_tool),
+            "--repo-root", str(ROOT),
+            "--contract", str(required_contract),
+            "validate",
+        ],
+        "required-report adapter",
+    )
+    if (
+        required.get("status") != "passed"
+        or required.get("contract_sha256") != sha256(required_contract)
+        or required.get("reports") != 45
+        or required.get("testcase_nodes") != 446
+    ):
+        reject("E_SUCCESSOR_RUNTIME", "required-report adapter selected the wrong contract")
+
+
 def validate(contract_path: Path, manifest_path: Path) -> None:
     contract = load_json(contract_path, "E_CONTRACT")
     expected_fields = {
@@ -690,6 +782,7 @@ def validate(contract_path: Path, manifest_path: Path) -> None:
     verify_successor_contracts(contract)
     verify_protected_drift(contract, amendments)
     verify_successor_manifest(manifest_path)
+    verify_successor_runtime_adapters()
 
 
 def expect(code: str, callback: Callable[[], None]) -> None:

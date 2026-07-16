@@ -146,9 +146,9 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `2/6/F0E0S0`，按契约不计入 45/446；optional LLM=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
-entry 结论；当前 Step 4 已由下方 superseding record 提升为
-`in-progress / r4 historical fail-closed / source-policy remediation statically passed /
-final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。
+entry 结论；当前 Step 4 已由下方 superseding record 更新为
+`in-progress / r5 historical fail-closed / database-state successor remediation quality passed
+B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -338,6 +338,40 @@ entry）：
 - current entry：amend/push 并证明 clean `HEAD == origin/main`，随后以唯一新 run id
   执行 fresh r5。threshold=
   `diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、acceptance 与 9.3.5 保持关闭。
+
+Diagnostic r5 result and successor authority remediation（2026-07-16，supersedes current
+entry）：
+
+- tested commit=`a35b99cb08f42817d8e75c440f18910b6961841b`，run=
+  `step4-coverage-20260716-diagnostic-r5`；run-owned source seal 已建立；
+- r5 完成 Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0` 和
+  Addon=`2/6/F0E0S0` 后，database-state companion 因 frozen Step 3 authority manifest
+  的 model POM SHA stale 而以 `E_AUTHORITY_MANIFEST` fail closed。database cells、
+  external、aggregate、threshold、source-after 与 summary absent；r5=
+  `excluded-from-step4-exit`，partial lanes 不得复用；
+- implementation：保持 frozen Step 3 字节不变，新增 successor
+  `database_state_negative_tool.py` 与 `step3_required_report_tool.py`；database runner、
+  required runner 与 report_inventory 均选择 successor adapter，非 state verifier
+  argv 保持不变；
+- current static identity：coverage contract diagnostic/formal=
+  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
+  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；
+  successor=`14/14` / `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；
+  top=`56/56` / `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
+  overlay contract/tool=
+  `cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
+  `4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a`；
+  coverage tool=`bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a`；
+  amendments=`17` / `187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`；
+  database/required contracts=
+  `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
+  `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
+- record=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`，BUG=
+  `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
+- current entry：full static/quality 已通过，B/H/M/L=`0/0/0/0`；commit/push 并证明 clean
+  `HEAD == origin/main`，再执行 fresh r6。threshold=`diagnostic-pending`，
+  `can_enter_coverage_audit=no`；Step 5、acceptance 与 9.3.5 保持关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 
