@@ -471,7 +471,7 @@ canonical runners 重新执行 unit、hermetic/SQLite、五库与全部 required
 
 ## Step 4 Diagnostic / Fix Record
 
-Superseding status（2026-07-16）：Step 4=
+Pre-r4 status（2026-07-16，historical）：Step 4=
 `in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
 fresh r4 pending`，不是
 `passed`。静态契约已收口为 exact `23 exec / 48 sessions`；required report
@@ -544,3 +544,52 @@ threshold 仍为 `diagnostic-pending`，尚无 all-lane aggregate baseline/revie
 threshold 或 Step 4 exit evidence。formal 模式仍不可开启；只有 fresh r4 完整通过、
 阈值人工 review 并由 direct-single-parent `Cfreeze` 冻结后，才能从 fresh formal
 replay 继续。`can_enter_coverage_audit=no`，Step 5、9.3.5 与 acceptance 保持关闭。
+
+Superseding r4 record（2026-07-16）：reported launch head=
+`ceea084ca25a9d679ba128e3f6bd50a63322c112`，run=
+`step4-coverage-20260716-diagnostic-r4`。r4 在任何 lane 前于 `source-before` 以 exit code
+`2` fail closed；run-owned Git/source seal、run context、summary、aggregate/threshold 全
+absent，decision=`excluded-from-step4-exit`。reported launch head 不得改写为 run-owned
+`tested_commit`。immutable record=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md`。
+
+source identity 合同现明确区分 authoritative Git mode 与 worktree permission bits：
+HEAD/index 的 path+Git mode+blob 必须 exact；worktree 必须是 canonical regular file、exact
+content、当前 owner 与可证明 private primary group、single link、stable stat/inode，且禁止
+world-write/special-bit。worktree executable bit 不得替代 Git mode。security Git 调用关闭
+fsmonitor/untracked-cache 并要求 ordinary index flags；错误详情必须写入日志但不替代 typed
+status/seal。tracked full-path canonical preflight 必须在任何 worktree-aware Git 操作前拒绝
+FIFO 等特殊文件；完整读取前后的 raw stat identity 必须 exact，不能因 Git clean 过滤后内容
+等价而接受运行中的并发重写。
+source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个 candidate，
+使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed attributes 若声明
+external clean filter，则在任何 worktree-aware Git hash/driver hook 执行前 fail closed，
+negative 证明 hook 未执行。
+
+当前静态合同结果为 contract=`20/20`、source identity=`22/22`、XML=`63/63`、overlay=
+`12/12`。declared amendments SHA-256 保持
+`1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；diagnostic/formal
+coverage contract SHA-256=
+`5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+`58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；successor
+manifest=`12/12`，SHA-256=
+`751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；top manifest=
+`54/54`，SHA-256=
+`ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；coverage tool /
+contract-negative / XML tool SHA-256=
+`07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+`732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+`b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+overlay tool / outer SHA-256=
+`2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+`a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+`254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。
+
+当前 Step 4=
+`in-progress / r4 historical fail-closed / source-policy remediation statically passed /
+final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。decision=
+`ready-with-risks`；两项 Low 均 accepted：`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID
+视为 build authority，未来更强隔离改用 readonly snapshot/独立 checkout。只放行
+amend/push + fresh r5。threshold 仍为
+`diagnostic-pending`，`can_enter_coverage_audit=no`；r1–r4 均不得拼接，clean commit/push 与
+fresh r5 完成前 Step 5、formal、coverage audit、acceptance 和 9.3.5 都保持关闭。

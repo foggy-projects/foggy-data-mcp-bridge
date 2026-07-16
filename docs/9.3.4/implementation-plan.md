@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 提升为
-`in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
-fresh r4 pending`。
+`in-progress / r4 historical fail-closed / source-policy remediation statically passed /
+final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -295,6 +295,49 @@ Diagnostic r3 result and Cdiag hardening（2026-07-16，supersedes current next 
   identity/manifest 级联已通过；下一动作是 commit/push 并确认 clean
   `HEAD == origin/main`，然后启动 fresh r4 all-lane diagnostic。threshold
   仍为 `diagnostic-pending`，Step 5、coverage audit、acceptance 和 Step 4 pass 均继续关闭。
+
+Diagnostic r4 result and source-policy remediation（2026-07-16，supersedes current next
+entry）：
+
+- reported launch head=`ceea084ca25a9d679ba128e3f6bd50a63322c112`，run=
+  `step4-coverage-20260716-diagnostic-r4`；该值是调用方启动前报告，不是 run-owned Git
+  seal。outer 在 `source-before` 以 exit code `2` fail closed，run-owned Git/source
+  identity、全部 lane、aggregate、threshold 与 summary 均 absent；r4=
+  `excluded-from-step4-exit`；
+- root cause：`core.fileMode=false` checkout 中 `3,968` 个 tracked file 有 `3,452` 个
+  Git `100644`→executable-worktree row；旧 validator 错把 worktree executable bit 等同于
+  authoritative Git mode，误拒绝 clean source；
+- remediation：Git HEAD/index path+mode+blob 保持 exact；worktree 独立验证 regular file、
+  exact content、owner/private-primary-group、single-link、stable stat，拒绝 world-write、
+  special-bit、hardlink 与内容/identity 漂移；security Git 调用关闭 fsmonitor/untracked-cache
+  并绑定 ordinary index flags；tracked FIFO 在 worktree-aware Git 前 preflight fail-fast，
+  before/after raw stat identity 拒绝 Git-clean-equivalent concurrent rewrite；
+- clean-equivalence：source seal 清除 ambient/global Git clean 配置并显式复算 raw 与
+  CRLF-input 两个 candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；
+  HEAD-fixed attributes 若声明 external clean filter，则在任何 worktree-aware Git
+  hash/driver hook 执行前 fail closed，negative 证明 hook 未执行；
+- static verification：contract=`20/20`、source identity=`22/22`、XML=`63/63`、overlay=
+  `12/12`；declared amendments SHA 保持
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；coverage contract
+  diagnostic/formal=
+  `5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+  `58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；successor
+  `12/12` SHA=`751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；
+  top `54/54` SHA=`ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；
+  coverage tool / contract-negative / XML tool SHA=
+  `07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+  overlay tool / outer SHA=
+  `2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+  `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`；
+- quality：最终字节 review=`ready-with-risks`，B/H/M/L=`0/0/0/2`；两项 Low 均 accepted：
+  `/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build authority，未来更强隔离改用
+  readonly snapshot/独立 checkout。当前只放行 amend/push + fresh r5；
+- current entry：amend/push 并证明 clean `HEAD == origin/main`，随后以唯一新 run id
+  执行 fresh r5。threshold=
+  `diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、acceptance 与 9.3.5 保持关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

@@ -151,8 +151,9 @@
         "shallow_repository": "forbidden",
         "replace_refs": "forbidden",
         "nonempty_grafts": "forbidden",
-        "index_flags": "ordinary-H-only",
-        "head_index_worktree": "exact-path-mode-blob"
+        "nonempty_info_attributes": "forbidden",
+        "index_flags": "ordinary-H-only-no-fsmonitor-valid",
+        "head_index_worktree": "head-index-exact-path-gitmode-blob+worktree-canonical-euid-egid-private-primary-group-single-link-group-write-exec-unbound-other-write-special-bits-forbidden-stable-raw-sha256-sealed-external-filter-forbidden-ambient-clean-config-denied-git-clean-raw-or-crlf-input-equivalent"
       },
       "required_exact_paths": [
         "scripts/v934/step4/coverage-thresholds.json",

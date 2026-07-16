@@ -154,10 +154,10 @@ code_inventory:
     expected_change: create
     notes: XML/HTML only; no production classes; no empty-project jacoco:check; not packaged in Launcher
   - module: v934-step4-contract
-    path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
+    path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_contract_negative_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade... remains the sealed r2/r3 historical identity; current Cdiag is exact-54/SHA 589a7d... after typed lifecycle/formal/XML/Git provenance hardening
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade... and pre-r4 exact-54/SHA 589a7d... remain historical identities; current source-policy remediation is exact-54/SHA ebda814... with source identity 22/22
   - module: v934-step4-run-log-lifecycle
     path: scripts/v934/step4/{run_log_lifecycle_lib.sh,run_log_lifecycle_negative_test.sh}
     role: owned FIFO logger close/reap protocol and process-group residue regression authority
@@ -172,7 +172,7 @@ code_inventory:
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: r1/r2/r3 all remain excluded failed diagnostics; r3 passed Unit then rejected a live async tee in the child process group; Cdiag binds PID/PGID/SID/starttime/boot-id receipts and member snapshots; quick checks, main quality gate and identity passed, while commit/push and fresh r4 remain pending
+    notes: r1/r2/r3/r4 all remain excluded failed diagnostics; r4 stopped at source-before with no run-owned Git/source seal; file-mode policy remediation static checks and final ready-with-risks review B/H/M/L=0/0/0/2 passed; two Low accepted; amend/push and fresh r5 remain pending
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -329,13 +329,13 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
-  fresh r4 pending`，不是
+- state：`in-progress / r4 historical fail-closed / source-policy remediation statically passed /
+  final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
-- fail-closed static evidence：contract/source-Git=`20/20 + 7/7`、effective POM=
+- fail-closed static evidence：contract/source identity=`20/20 + 22/22`、effective POM=
   `4/4`、toolchain receipt=`5/5`、report inventory=`27/27`、Step 2 derived view=
   `12/12`、successor overlay=`12/12`、XML=`63/63`、logger=`9 类 / 14 case`；
 - build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
@@ -353,9 +353,20 @@ code_inventory:
   `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；required total
   保持 `773/59/5707`；
 - publication boundary：Step 4 `SHA256SUMS`=`54/54`，manifest SHA-256=
-  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+  `ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；
   successor manifest=`12/12`，SHA-256=
-  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`；
+  `751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；coverage contract
+  diagnostic/formal SHA-256=
+  `5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+  `58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；coverage tool /
+  contract-negative / XML tool SHA-256=
+  `07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+  overlay tool / outer SHA-256=
+  `2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+  `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`；
 - diagnostic r1：clean/pushed HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
   `step4-coverage-20260716-diagnostic-r1`，child-unit=`3115/1/0/0`，正确 fail closed；
   wrong-table corruption 与 raw-vs-raw/nullable-empty 缺陷见
@@ -375,8 +386,8 @@ code_inventory:
 - Pivot fix inventory：legacy fallback 两次稳定 RED；仅 legacy 分支关闭 hybrid，V934 FULL
   保持 production 默认；legacy/V934 SQLite 各 `1/F0E0S0`，source SHA-256=
   `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`；
-- static result：contract/Git/XML/logger/view/successor/DB/external negatives=
-  `20/7/63/14/12/12/14/12`，positives coverage=
+- static result：contract/source/XML/logger/view/successor/DB/external negatives=
+  `20/22/63/14/12/12/14/12`，positives coverage=
   `773/59/5707`、Step 2=`724/59`、DB=`7/29/370`、overlay required=`45/446`、Addon=
   `2/6`，全部通过；
 - diagnostic r3：clean/pushed HEAD=`e16693297239f2a861f3b93b3de60c1bb783bda0`，Unit=
@@ -399,9 +410,26 @@ code_inventory:
   在 diagnostic commit 上取回历史 threshold/contract blob 并重算 run evidence；
   拒绝 synthetic run，且 `Cfreeze` 必须是 diagnostic commit 的唯一直接
   single-parent child，拒绝 merge/multi-commit/shallow/replace/graft；
-- evidence boundary：threshold 仍为 `diagnostic-pending`，r3 未生成 all-lane aggregate
-  baseline/review 或 Step 4 exit evidence。Cdiag 最终快测、正式实现质量闸门与
-  identity/manifest 级联已通过；尚待 commit/push 与 fresh r4；
+- diagnostic r4：reported launch head=
+  `ceea084ca25a9d679ba128e3f6bd50a63322c112`，run=
+  `step4-coverage-20260716-diagnostic-r4`；outer 在 `source-before` 以 exit code `2`
+  fail closed，run-owned Git/source seal、所有 lane、aggregate/threshold/summary 均 absent；
+  record=`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md`；
+- source-policy inventory：exact HEAD/index path+Git mode+blob 与安全 worktree permission/
+  content 分层验证；关闭 fsmonitor/untracked-cache，绑定 ordinary index flags，新增安全
+  file-mode mapping positives 与 world-write/special-bit/hardlink 等 negatives；tracked FIFO
+  在任何 worktree-aware Git 读取前 preflight fail-fast；before/after raw stat identity 比较拒绝
+  Git-clean-equivalent concurrent rewrite；
+- clean-equivalence inventory：source seal 清除 ambient/global Git clean 配置并显式复算
+  raw 与 CRLF-input 两个 candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时
+  通过；HEAD-fixed attributes 若声明 external clean filter，则在任何 worktree-aware Git
+  hash/driver hook 执行前 fail closed，negative 证明 hook 未执行；
+- evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r4 均未生成 all-lane
+  aggregate baseline/review 或 Step 4 exit evidence。source-policy remediation static、
+  identity/manifest 级联与 final review 已通过；decision=`ready-with-risks`，B/H/M/L=
+  `0/0/0/2`。两项 Low 均 accepted：`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为
+  build authority，未来更强隔离改用 readonly snapshot/独立 checkout。只放行 amend/push +
+  fresh r5；
   Step 5、coverage audit 与 acceptance 仍关闭。
 
 ## Protected Boundaries

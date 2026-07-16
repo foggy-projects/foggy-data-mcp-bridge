@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-r4 quality passed / identity refreshed | Step 3 exit passed | exact 23/48 + 773/59/5707；top 54/54；contract 20/20+Git 7/7；XML 63/63；logger 9 类/14 case；threshold diagnostic-pending；Cdiag commit/push + fresh r4 pending |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r4 historical fail-closed / remediation static / final review passed | Step 3 exit passed | exact 23/48 + 773/59/5707；contract/source/XML/overlay=`20/22/63/12`；top 54/54；quality B/H/M/L=`0/0/0/2`、two Low accepted；amend/push + fresh r5 pending；audit/Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -946,6 +946,67 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   `step4-coverage-20260716-diagnostic-r4`。threshold=`diagnostic-pending`，
   `can_enter_coverage_audit=no`，Step 5/9.3.5/acceptance 仍关闭。
 
+### Superseding Post-diagnostic Check-in — Step 4 r4 fail-closed / source-policy remediation
+
+- recorded_at: 2026-07-16
+- status decision: `in-progress / r4 historical fail-closed / source-policy remediation
+  statically passed / final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`，
+  不是 Step 4
+  `passed`；
+- reported launch identity: 调用方报告启动前 HEAD/origin/main=
+  `ceea084ca25a9d679ba128e3f6bd50a63322c112`，run=
+  `step4-coverage-20260716-diagnostic-r4`。r4 没有发布 run-owned Git/source seal，故该
+  commit 只记为 `reported_launch_head`，不得改写成 run-owned `tested_commit`；
+- immutable result: 前置 full contract、contract negative=`20/20`、当时的 source Git
+  identity=`7/7`、XML=`63/63`、successor overlay=`12/12` 与 logger=`14/14` 通过；outer
+  随后在 `source-before` 以 `exit_code=2` fail closed。`git_head/started_at/source_*` 字段
+  为空，source-before/after、run-context、所有 test lane、aggregate、threshold、summary
+  均 absent，cleanup residue=`0/0/0`；decision=`excluded-from-step4-exit`；
+- evidence boundary: row 1 的 `worktree executable mode differs` 是失败后对同
+  commit/worktree 的直接重放结果，不是 immutable `run.log` 原文；r4 record=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md`，BUG=
+  `docs/9.3.4/workitems/BUG-step4-source-inventory-filemode-false.md`；
+- root cause: `.git/config core.fileMode=false`；r4 commit 跟踪 `3,968` 个文件，其中
+  `3,452` 个 Git `100644` 文件在 worktree 带 executable bit。旧 validator 把 authoritative
+  Git mode 与 worktree permission executable bit 错误等价，因而误拒绝 clean checkout；
+- remediation: source identity 现在分层验证 exact HEAD/index path+Git mode+blob 与安全
+  worktree regular-file/content/owner/private-primary-group/link/stat；worktree executable bit
+  不再冒充 Git mode。world-write、special-bit、hardlink、错误 owner/group、内容/identity
+  漂移继续 fail closed；security Git 调用固定关闭 fsmonitor/untracked-cache，并要求
+  ordinary index flags；tracked FIFO 在 worktree-aware Git 前 preflight fail-fast；
+  before/after raw stat identity 拒绝 Git-clean-equivalent concurrent rewrite；outer 现会重放
+  source-hash 错误；
+- clean-equivalence: source seal 清除 ambient/global Git clean 配置并显式复算 raw 与
+  CRLF-input 两个 candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；
+  HEAD-fixed attributes 若声明 external clean filter，则在任何 worktree-aware Git
+  hash/driver hook 执行前 fail closed，negative 证明 hook 未执行；
+- independent static evidence: contract=`20/20`、source identity=`22/22`、XML=`63/63`、
+  overlay=`12/12`。declared amendments 保持 `17`，SHA-256=
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；coverage
+  contract diagnostic/formal SHA-256=
+  `5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+  `58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；successor
+  manifest=`12/12`，SHA-256=
+  `751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；top
+  manifest=`54/54`，SHA-256=
+  `ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；coverage tool /
+  contract-negative / XML tool SHA-256=
+  `07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+  overlay tool / outer SHA-256=
+  `2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+  `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`；
+- final-byte quality: decision=`ready-with-risks`，open Blocker/High/Medium/Low=`0/0/0/2`；
+  两项 Low 均 accepted：`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build
+  authority，未来更强隔离改用 readonly snapshot/独立 checkout。当前只放行 amend/push 与
+  fresh r5，不开放 audit 或 Step 5；
+- Next Gate: amend/push，证明 clean worktree 且 `HEAD == origin/main`，再用唯一新 run id
+  执行 fresh r5 all-lane
+  diagnostic。threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、9.3.5
+  与 acceptance 继续关闭。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -970,7 +1031,7 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1 已在 Unit fail closed，当前仍无 reviewed reactor aggregate baseline；
+- r1–r4 均已 fail closed/excluded，当前仍无 reviewed reactor aggregate baseline；
   0.80/0.70 只是 critical-class candidate floor，必须由 fresh all-lane observation
   与人工 review 确认。
 - remote required check、five-cell collector、branch protection、release artifact reuse
@@ -1000,17 +1061,18 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 pre-r4 ready-with-risks | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md` main gate open B/H/M=`0/0/0`，`can_enter_coverage_audit=no`，仅放行 Cdiag commit/push 后的 clean-HEAD r4 |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 final-byte ready-with-risks | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 B/H/M/L=`0/0/0/2`、two Low accepted，只放行 amend/push + fresh r5，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 pre-r4 gate passed / r4 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
+| roadmap sync / downstream | Step 4 r4 fail-closed / remediation statically passed / r5 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-提交并推送 Cdiag logger/Git/provenance/formal tooling 与 54/54 identity，验证
-clean worktree 且 `HEAD == origin/main`，再执行唯一
-`step4-coverage-20260716-diagnostic-r4`，观察全部 required lane、aggregate/critical
-classes 并评审 exact observed thresholds。当前 threshold=`diagnostic-pending`，r1/r2/r3
-都是 excluded failed diagnostic，尚无 aggregate baseline/review 或 Step 4 exit evidence；
+最终字节 review 已以 `ready-with-risks`、B/H/M/L=`0/0/0/2` 通过，两项 Low 均 accepted。
+下一步 amend/push，验证
+clean worktree 且 `HEAD == origin/main`，再以唯一新 run id
+执行 fresh r5 all-lane diagnostic，观察全部 required lane、aggregate/critical classes 并评审
+exact observed thresholds。当前 threshold=`diagnostic-pending`，r1–r4 都是 excluded failed
+diagnostic，尚无 aggregate baseline/review 或 Step 4 exit evidence；`can_enter_coverage_audit=no`，
 Step 5 仍不得开始，coverage audit/acceptance 不得启动。

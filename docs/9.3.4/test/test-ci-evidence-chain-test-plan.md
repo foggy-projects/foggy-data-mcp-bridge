@@ -265,6 +265,44 @@ Runner/evidence regression（Cdiag，pre-r4 main quality gate 已通过）：
   successor=`12/12` / SHA=
   `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`。
 
+Post-r4 source-policy regression（superseding current entry）：
+
+- r4 reported launch head=`ceea084ca25a9d679ba128e3f6bd50a63322c112`，run=
+  `step4-coverage-20260716-diagnostic-r4`；outer 在 `source-before` 以 `rc=2` fail
+  closed，run-owned Git/source seal 与全部 lane/aggregate/summary absent，明确排除 Step 4
+  exit；reported head 不是 run-owned `tested_commit`；
+- BUG=`BUG-step4-source-inventory-filemode-false.md`：`core.fileMode=false` clean checkout
+  的 worktree executable bit 不得被当作 authoritative Git mode；
+- positives 覆盖安全 `100644 -> 0775` 与 `100755 -> 0644` permission mapping；negatives
+  覆盖 world-write、special-bit、hardlink、owner/group、content/blob/index flags、fsmonitor/
+  untracked-cache 等边界；另以 tracked FIFO 证明 canonical preflight 在 worktree-aware Git
+  读取前 fail-fast，并以受控并发重写证明 before/after raw stat identity 会拒绝即使 Git clean
+  过滤后内容等价的变化；
+- source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
+  candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed
+  attributes 若声明 external clean filter，则在任何 worktree-aware Git hash/driver hook
+  执行前 fail closed，negative 证明 hook 未执行；
+- focused static result：contract=`20/20`、source identity=`22/22`、XML=`63/63`、overlay=
+  `12/12`；top=`54/54` / SHA=
+  `ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`，successor=
+  `12/12` / SHA=`751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；
+  coverage contract diagnostic/formal SHA=
+  `5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+  `58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；coverage tool /
+  contract-negative / XML tool SHA=
+  `07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+  overlay tool / outer SHA=
+  `2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+  `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`；
+- these tests prove remediation only；final-byte review=`ready-with-risks`，B/H/M/L=
+  `0/0/0/2`；两项 Low 均 accepted：`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为
+  build authority，未来更强隔离改用 readonly snapshot/独立 checkout。当前只放行
+  amend/push 与 fresh r5 all-lane diagnostic；
+  `can_enter_coverage_audit=no`，Step 5 关闭。
+
 ## Step 5 — Authority Rehearsal / Immutable Candidate
 
 Positive：
@@ -340,8 +378,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r3 historical fail-closed / pre-r4 quality passed /
-  identity refreshed / fresh r4 pending`
+- step4_result: `in-progress / r4 historical fail-closed / source-policy remediation
+  statically passed / final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -373,7 +411,7 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。
 - Step 4 static readiness：exact `23 exec / 48 sessions`、
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`；
-  contract/Git/XML/logger=`20/7/63/14`，effective POM/toolchain/report inventory=
+  contract/source/XML/logger=`20/17/63/14`，effective POM/toolchain/report inventory=
   `4/5/27`，derived view/overlay/DB/external=`12/12/14/12`。
   threshold 仍为
   `diagnostic-pending`，没有 aggregate baseline/review 或 Step 4 exit evidence。
@@ -387,7 +425,13 @@ Final acceptance 至少验证：
   未执行。Cdiag 的 managed logger、Git/source provenance、typed XML/formal
   validation、绿色 status 最后发布、真实 frozen diagnostic replay 与 direct-
   single-parent freeze policy 已通过 pre-r4 main quality gate 与 54/54 identity；
-- next executable action: commit/push Cdiag，确认 clean worktree、
-  `HEAD == origin/main`，再
-  执行 fresh r4 all-lane diagnostic。threshold 仍为 `diagnostic-pending`，Step 5、
-  coverage audit 与 acceptance 仍关闭。
+- Step 4 r4：reported launch head=`ceea084c`；outer 在 `source-before` 以 `rc=2` fail
+  closed，run-owned source/Git seal 与全部 lane absent。source-policy remediation focused
+  static=`20/22/63/12`，top/successor identity=`54/54 + 12/12`；r4 仍为
+  `excluded-from-step4-exit`。
+- final-byte quality：decision=`ready-with-risks`，B/H/M/L=`0/0/0/2`、two Low accepted，只
+  放行 amend/push + fresh r5；
+- next executable action: amend/push 并确认 clean worktree、`HEAD == origin/main`，再执行
+  fresh r5 all-lane diagnostic。threshold 仍为
+  `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、coverage audit 与 acceptance
+  仍关闭。

@@ -38,13 +38,13 @@ updated_at: 2026-07-16
   `step3-required-20260716-final-r4` 通过：database `29/370` + required external
   `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
-  已按序完成；Step 4 仍为 `in-progress`，diagnostic r3 已 fail closed，尚无 coverage
+  已按序完成；Step 4 仍为 `in-progress`，diagnostic r4 已 fail closed，尚无 coverage
   pass 或 aggregate baseline/review。
-- Step 4 Cdiag pre-r4 实现质量闸门已通过，两层独立库存保持：coverage execution=
+- Step 4 r4 后 source-policy remediation 已静态通过，两层独立库存保持：coverage execution=
   `23 exec / 48 sessions`；
   required report overlay=`773 positive + 59 structural / 5,707 testcase`，Addon companion=
   `2/6`；required 总计预期 `F0E0S0`。coverage contract mutations=`20/20`、
-  source Git identity=`7/7`、effective POM=`4/4`、toolchain receipt=`5/5`、
+  source identity=`22/22`、effective POM=`4/4`、toolchain receipt=`5/5`、
   report inventory=`27/27`；Step 2 derived view/successor overlay=`12/12`/`12/12`，
   XML/provenance=`63/63`，logger lifecycle=`9 类 / 14 case`。
 - toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
@@ -55,9 +55,26 @@ updated_at: 2026-07-16
   declared amendments=`17`，SHA-256=
   `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`。本地 Step 4
   `SHA256SUMS` 已通过 exact `54/54`，manifest SHA-256=
-  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+  `ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；
   successor manifest=`12/12`，SHA-256=
-  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`。
+  `751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；coverage
+  contract diagnostic/formal SHA-256=
+  `5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+  `58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；coverage tool /
+  contract-negative / XML tool SHA-256=
+  `07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+  overlay tool / outer SHA-256=
+  `2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+  `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。
+  新增回归证明 tracked FIFO 会在 worktree-aware Git 读取前 fail-fast，且 before/after raw
+  stat identity 比较会拒绝内容可被 Git clean 等价化、但运行中发生的并发重写。
+  source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
+  candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed
+  attributes 若声明 external clean filter，则在任何 worktree-aware Git hash/driver hook
+  执行前 fail closed，negative 证明 hook 未执行。
 - 静态复核还发现并修复 root coverage `argLine` 早解析 fail-open：legacy
   profile 现在实际生成/读取 exec，低于既有门时正确失败；生产代码不变，
   canonical `@{argLine}` 已由 versioned contract guard 与 `8/8` negatives 自动保护。详见
@@ -90,10 +107,17 @@ updated_at: 2026-07-16
   fail closed。r3 summary/observation absent，后续所有 lane/gate 均未执行；见
   [r3 failed evidence](evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md)
   与 [logger race BUG](workitems/BUG-step4-child-run-log-tee-residue-race.md)。
-- `coverage-thresholds.json` 仍为 `diagnostic-pending`；r1/r2/r3 与 focused XML 都不是
-  Step 4 exit evidence。managed logger、Git/source provenance、pending-safe formal 工具、
-  identity 级联与正式 pre-r4 quality 已通过；下一动作是提交/push 该 Cdiag、
-  确认 clean `HEAD == origin/main` 后执行 fresh r4。Step 5 仍关闭，
+- r4 的 reported launch head 为 `ceea084ca25a9d679ba128e3f6bd50a63322c112`；outer 在
+  `source-before` 以 exit code `2` fail closed，run-owned Git/source seal、全部测试 lane、
+  aggregate 与 summary 均 absent，decision=`excluded-from-step4-exit`。根因是
+  `core.fileMode=false` checkout 被错误要求 worktree executable bit 与 Git mode 完全一致；
+  详见 [r4 failed evidence](evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md)
+  与 [source inventory BUG](workitems/BUG-step4-source-inventory-filemode-false.md)。
+- 当前状态为 `in-progress / r4 historical fail-closed / source-policy remediation statically
+  passed / final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。两项 Low
+  均 accepted：`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build authority，
+  未来更强隔离改用 readonly snapshot/独立 checkout。`coverage-thresholds.json` 仍为
+  `diagnostic-pending`；r1–r4 与 focused/static 结果都不是 Step 4 exit evidence。Step 5 仍关闭，
   `can_enter_coverage_audit=no`。
 
 ## 执行资料
@@ -125,6 +149,10 @@ updated_at: 2026-07-16
   [workitems/BUG-step4-git-environment-override-bypass.md](workitems/BUG-step4-git-environment-override-bypass.md)
 - Step 4 source/context/raw-exec provenance regression：
   [workitems/BUG-step4-source-context-crosslink-gap.md](workitems/BUG-step4-source-context-crosslink-gap.md)
+- Step 4 diagnostic r4 failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md)
+- Step 4 source inventory file-mode regression：
+  [workitems/BUG-step4-source-inventory-filemode-false.md](workitems/BUG-step4-source-inventory-filemode-false.md)
 - Step 1 confirmed evidence:
   [evidence/step-1/inventory-contract-freeze-20260714.md](evidence/step-1/inventory-contract-freeze-20260714.md)
 - Step 2 structural amendment evidence：
@@ -169,7 +197,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-r4 quality passed / identity refreshed | 静态契约 exact 23/48 + 773/59/5707；top 54/54；r3 历史 fail-closed；阈值 diagnostic-pending；下一动作是 Cdiag clean/pushed HEAD 的 fresh r4 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r4 historical fail-closed / source-policy remediation statically passed | 静态契约 exact 23/48 + 773/59/5707；contract/source/XML/overlay=`20/22/63/12`；top 54/54；final review B/H/M/L=`0/0/0/2`、two Low accepted；amend/push + fresh r5 pending；`can_enter_coverage_audit=no` |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

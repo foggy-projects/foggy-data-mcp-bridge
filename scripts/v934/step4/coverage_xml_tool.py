@@ -66,7 +66,7 @@ UNSIGNED_PATTERN = re.compile(r"0|[1-9][0-9]*")
 SESSION_PREFIX_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 GIT_HEAD_PATTERN = re.compile(r"[0-9a-f]{40}")
 ENV_KEY_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
-SOURCE_INVENTORY_HEADER = b"mode\tpath\tsha256\tsize\n"
+SOURCE_INVENTORY_HEADER = b"git_mode\tpath\tsha256\tsize\n"
 MAX_SOURCE_INVENTORY_BYTES = 64 * 1024 * 1024
 MAX_RAW_EXEC_BYTES = 512 * 1024 * 1024
 UTC_TIMESTAMP_PATTERN = re.compile(
@@ -108,25 +108,36 @@ FORMALIZATION_EXACT_PATHS = (
     "scripts/v934/step4/SHA256SUMS",
 )
 FORMALIZATION_ALLOWED_PREFIXES = ("docs/9.3.4/",)
+HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
+    "head-index-exact-path-gitmode-blob+worktree-canonical-euid-egid-private-"
+    "primary-group-single-link-group-write-exec-unbound-other-write-special-"
+    "bits-forbidden-stable-raw-sha256-sealed-external-filter-forbidden-ambient-"
+    "clean-config-denied-git-clean-raw-or-crlf-input-equivalent"
+)
+INDEX_FLAGS_IDENTITY_POLICY = "ordinary-H-only-no-fsmonitor-valid"
 FORMAL_REPOSITORY_IDENTITY_POLICY = {
     "object_format": "sha1",
     "commit_relation": "direct-single-parent",
     "shallow_repository": "forbidden",
     "replace_refs": "forbidden",
     "nonempty_grafts": "forbidden",
-    "index_flags": "ordinary-H-only",
-    "head_index_worktree": "exact-path-mode-blob",
+    "nonempty_info_attributes": "forbidden",
+    "index_flags": INDEX_FLAGS_IDENTITY_POLICY,
+    "head_index_worktree": HEAD_INDEX_WORKTREE_IDENTITY_POLICY,
 }
 FORMAL_REPOSITORY_IDENTITY_FIELDS = (
     "object_format",
     "shallow_repository",
     "replace_ref_count",
     "nonempty_grafts",
+    "nonempty_info_attributes",
     "index_flags",
     "head_index_worktree",
     "head_tree_sha256",
     "index_stage_sha256",
     "index_flags_sha256",
+    "filter_attributes_sha256",
+    "worktree_git_clean_blob_sha256",
     "commit_relation",
     "parent_count",
     "source_file_count",
@@ -3516,11 +3527,9 @@ def validate_git_relative_path(value: Any, code: str, label: str) -> str:
 
 def git_changed_paths(repo_root: Path, parent: str, current: str) -> list[str]:
     require_git_ancestor(repo_root, parent, current)
-    process = subprocess.run(
+    process = frozen_git_process(
+        repo_root,
         [
-            "git",
-            "-C",
-            str(repo_root),
             "--no-pager",
             "diff",
             "--name-only",
@@ -3531,10 +3540,6 @@ def git_changed_paths(repo_root: Path, parent: str, current: str) -> list[str]:
             current,
             "--",
         ],
-        env=git_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
     )
     require(process.returncode == 0, "E_FORMAL_DELTA_GIT", "formal Git diff failed")
     changed: list[str] = []
@@ -3553,12 +3558,9 @@ def git_changed_paths(repo_root: Path, parent: str, current: str) -> list[str]:
 
 
 def require_direct_single_parent(repo_root: Path, parent: str, current: str) -> None:
-    process = subprocess.run(
-        ["git", "-C", str(repo_root), "rev-list", "--parents", "-n", "1", current],
-        env=git_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
+    process = frozen_git_process(
+        repo_root,
+        ["rev-list", "--parents", "-n", "1", current],
     )
     expected = f"{current} {parent}\n".encode("ascii")
     require(
@@ -3715,26 +3717,6 @@ def validate_formalization_delta(
         "formal receipt is not bound to current committed HEAD",
     )
     require_direct_single_parent(repo_root, parent_head, current_head)
-    status_process = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "status",
-            "--porcelain=v1",
-            "-z",
-            "--untracked-files=all",
-        ],
-        env=git_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    require(
-        status_process.returncode == 0 and status_process.stdout == b"",
-        "E_FORMAL_DELTA_DIRTY",
-        "formal validation requires an exact clean committed worktree",
-    )
     contract = load_json(contract_path, "E_CONTRACT")
     successor = contract.get("threshold_successor")
     require(type(successor) is dict, "E_CONTRACT", "threshold successor is missing")
@@ -3785,8 +3767,10 @@ def validate_formalization_delta(
         and type(repository_identity["replace_ref_count"]) is int
         and repository_identity["replace_ref_count"] == 0
         and repository_identity["nonempty_grafts"] is False
-        and repository_identity["index_flags"] == "ordinary-H-only"
-        and repository_identity["head_index_worktree"] == "exact-path-mode-blob"
+        and repository_identity["nonempty_info_attributes"] is False
+        and repository_identity["index_flags"] == INDEX_FLAGS_IDENTITY_POLICY
+        and repository_identity["head_index_worktree"]
+        == HEAD_INDEX_WORKTREE_IDENTITY_POLICY
         and repository_identity["commit_relation"] == "direct-single-parent"
         and type(repository_identity["parent_count"]) is int
         and repository_identity["parent_count"] == 1
@@ -3801,6 +3785,8 @@ def validate_formalization_delta(
             "head_tree_sha256",
             "index_stage_sha256",
             "index_flags_sha256",
+            "filter_attributes_sha256",
+            "worktree_git_clean_blob_sha256",
             "source_sha256",
         ),
         code,
@@ -4641,7 +4627,18 @@ def frozen_git_process(
     arguments: list[str],
 ) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
-        ["git", "-C", str(repo_root), *arguments],
+        [
+            "git",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.untrackedCache=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+            str(repo_root),
+            *arguments,
+        ],
         env=git_environment(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

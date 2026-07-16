@@ -24,12 +24,12 @@ updated_at: 2026-07-16
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r3 historical fail-closed + pre-r4 quality passed + identity refreshed / fresh r4 and Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r4 historical fail-closed + source-policy remediation static + final review B/H/M/L=0/0/0/2 / amend/push + fresh r5 and Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 pre-r4 gate passed / Cdiag commit+push and fresh r4 pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r4 excluded / remediation static + final review passed / amend/push + fresh r5 pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1/r2/r3 failed runs recorded but exit evidence absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 pre-r4 main gate=`ready-with-risks`，open B/H/M=`0/0/0`，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1/r2/r3/r4 failed runs recorded but exit evidence absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 final-byte review ready-with-risks，B/H/M/L=0/0/0/2、two Low accepted，只放行 amend/push + fresh r5，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -58,11 +58,12 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-16）：状态仅为
-`in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
-fresh r4 pending`。静态执行结构仍精确为
+`in-progress / r4 historical fail-closed / source-policy remediation statically passed /
+final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。
+静态执行结构仍精确为
 `23 exec / 48 sessions`，required
 report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
-companion 仍单列 `2/6`。contract/source-Git=`20/20 + 7/7`，effective POM/
+companion 仍单列 `2/6`。contract/source identity=`20/20 + 22/22`，effective POM/
 toolchain/report inventory=`4/4 + 5/5 + 27/27`；Step 2 derived view/successor
 overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`；toolchain receipt 绑定 Step 1
 raw 工具版本、ASM `9.6/9.7/9.7.1` 三层 realm 和 24 个 production module
@@ -71,9 +72,25 @@ effective compiler。report amendment=`11 rows = 4 new + 7 changed`，SHA-256=
 declared amendments=`17`，SHA-256=
 `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`。本地 Step 4
 `SHA256SUMS`=`54/54`，SHA-256=
-`589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+`ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；
 successor=`12/12`，SHA-256=
-`961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`。
+`751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；coverage contract
+diagnostic/formal SHA-256=
+`5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+`58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；coverage tool /
+contract-negative / XML tool SHA-256=
+`07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+`732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+`b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+overlay tool / outer SHA-256=
+`2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+`a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+`254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。tracked FIFO
+preflight fail-fast 与 before/after raw stat identity 并发重写拒绝均已纳入 `22/22`。
+source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
+candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed
+attributes 若声明 external clean filter，则在任何 worktree-aware Git hash/driver hook
+执行前 fail closed，negative 证明 hook 未执行。
 
 首次 clean all-lane attempt 已执行但不是 acceptance evidence：clean/pushed HEAD
 `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
@@ -107,6 +124,15 @@ bug record=
 `docs/9.3.4/workitems/BUG-step4-child-run-log-tee-residue-race.md`。未受管
 `exec > >(tee ...)` 的 close/wait 竞态已被稳定定位，r3 Unit 绿色不得拼接使用。
 
+第四次 attempt 同样不是 acceptance evidence：r4 的 reported launch head=
+`ceea084ca25a9d679ba128e3f6bd50a63322c112`，run=
+`step4-coverage-20260716-diagnostic-r4`。outer 在 `source-before` 以 exit code `2` fail
+closed；run-owned Git/source seal、全部 test lane、aggregate、threshold 和 summary 均 absent。
+reported launch head 不是 run-owned `tested_commit`。immutable failed evidence=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md`；BUG=
+`docs/9.3.4/workitems/BUG-step4-source-inventory-filemode-false.md`；decision=
+`excluded-from-step4-exit`。
+
 Cdiag implementation 已收口 managed FIFO logger、logger close/reap 负例、
 PID/PGID/SID/starttime/boot-id child identity、清理前 member snapshot、typed child
 lifecycle/XML/formalization-delta validator 与 generic XML negative tool。成功
@@ -114,15 +140,19 @@ lifecycle/XML/formalization-delta validator 与 generic XML negative tool。成�
 发布；formal 必须真实重放 threshold 所指 diagnostic run 的冻结
 threshold/contract，拒绝合成 run。`Cfreeze` 只允许 diagnostic commit 的一个
 direct-single-parent child，merge、multi-commit、shallow、replace/graft 均 fail closed。
-最终快测、正式实现质量闸门与 identity/manifest 级联已通过；这些
-仍不是运行时 coverage evidence。尚待 commit/push 与 fresh r4，Step 5 仍关闭。
+pre-r4 最终快测、正式实现质量闸门与 identity/manifest 级联属于历史状态。r4 后已完成
+source-policy 实现、focused static 与新 identity/manifest 级联；这些仍不是运行时 coverage
+evidence。最终字节 review=`ready-with-risks`、B/H/M/L=`0/0/0/2`；两项 Low 均 accepted：
+`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build authority，未来更强隔离改用
+readonly snapshot/独立 checkout。当前仅放行 amend/push + fresh r5，Step 5 仍关闭。
 
 Step 4 implementation quality 已记录于
 `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
 `ready-with-risks` 的 r1/r2 结论仅作历史记录。Cdiag pre-r4 main gate 已以
-`ready-with-risks`、open Blocker/High/Medium=`0/0/0` 放行 clean-HEAD r4，但
-`can_enter_coverage_audit=no`；fresh r4、aggregate review、confirmed thresholds 与 fresh
-formal 完成前不得启动 coverage audit。
+`ready-with-risks`、open Blocker/High/Medium=`0/0/0` 放行了历史 clean-HEAD r4；source-policy
+最终字节修正的正式复核为 `ready-with-risks`、B/H/M/L=`0/0/0/2`，两项 Low accepted。当前
+`can_enter_coverage_audit=no`；fresh r5、
+aggregate review、confirmed thresholds 与 fresh formal 完成前不得启动 coverage audit。
 
 ## Mandatory Acceptance Evidence
 

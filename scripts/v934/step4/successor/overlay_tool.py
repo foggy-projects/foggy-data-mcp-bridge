@@ -204,17 +204,17 @@ EXPECTED_STEP4_RUNTIME_BINDINGS = {
         "diagnostic": {
             "contract_status": "diagnostic-ready",
             "publication_status": "diagnostic-ready",
-            "sha256": "1cf9633310326e9e9848fd967dac8749e899a5bc127fcae21f73f249ba057ffb",
+            "sha256": "5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d",
         },
         "formal": {
             "contract_status": "formal-ready",
             "publication_status": "formal-ready",
-            "sha256": "9a21776543349b048afa27ab78245a9411acbdd7ca5b66a251157b7e7f795d8d",
+            "sha256": "58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405",
         },
     },
     "scripts/v934/step4/coverage-report-amendment.tsv": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "c2f848aefb6a0a7551aedf9de96a79b79ab2b0e610fbe66870ae4f16007af1ea",
+    "scripts/v934/step4/coverage_tool.py": "07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9",
     "scripts/v934/step4/step2-report-view-contract.json": "c016ec18fa0a637e5c5470385c3f26cce152c461eb1dc1b64b52f28f5e8b8a67",
     "scripts/v934/step4/step2_report_view_tool.py": "b828869dec191a6ded51e7b28654f8878c65455007ca002e247347a0cb5e217a",
 }
@@ -294,7 +294,18 @@ def git_environment() -> dict[str, str]:
 
 def git(*arguments: str, binary: bool = False) -> bytes | str:
     completed = subprocess.run(
-        ["git", "-C", str(ROOT), *arguments],
+        [
+            "git",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.untrackedCache=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+            str(ROOT),
+            *arguments,
+        ],
         env=git_environment(),
         check=False,
         stdout=subprocess.PIPE,
@@ -652,7 +663,21 @@ def validate(contract_path: Path, manifest_path: Path) -> None:
     if COMMIT_PATTERN.fullmatch(contract["parent_commit"]) is None:
         reject("E_CONTRACT", "parent commit is malformed")
     completed = subprocess.run(
-        ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", EXPECTED_PARENT_COMMIT, "HEAD"],
+        [
+            "git",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.untrackedCache=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+            str(ROOT),
+            "merge-base",
+            "--is-ancestor",
+            EXPECTED_PARENT_COMMIT,
+            "HEAD",
+        ],
         env=git_environment(),
         check=False,
     )

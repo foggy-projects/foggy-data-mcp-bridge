@@ -146,8 +146,8 @@ updated_at: 2026-07-16
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
-  fresh r4 pending`
+  `in-progress / r4 historical fail-closed / source-policy remediation statically passed /
+  final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -163,7 +163,7 @@ updated_at: 2026-07-16
   动态探针证明 durable fail closed；
 - Step 4 已完成 diagnostic-ready 静态收口：exact `23 exec / 48 sessions`，
   required report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，
-  Addon companion 单列 `2/6`；contract/source-Git=`20/20 + 7/7`，
+  Addon companion 单列 `2/6`；contract/source identity=`20/20 + 22/22`，
   effective POM/toolchain/report inventory=`4/4 + 5/5 + 27/27`；Step 2 derived view/
   successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`；
 - toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
@@ -173,9 +173,20 @@ updated_at: 2026-07-16
   successor declared amendments=`17`，SHA-256=
   `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；本地
   `SHA256SUMS`=`54/54`，SHA-256=
-  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+  `ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；
   successor=`12/12`，SHA-256=
-  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`；
+  `751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；coverage
+  contract diagnostic/formal SHA-256=
+  `5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+  `58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；coverage tool /
+  contract-negative / XML tool SHA-256=
+  `07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+  overlay tool / outer SHA-256=
+  `2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+  `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -201,9 +212,24 @@ updated_at: 2026-07-16
   close/wait，outer 以 live process-group residue fail closed。r3 summary/observation absent，
   failed evidence 见
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`；
-- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，r3 未到 aggregate/report 阶段，
-  尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。managed logger、
-  process identity、Git/source provenance、pending-safe formal tooling、identity 与 pre-r4 质量闸门
-  已通过；下一动作是提交/push 并验证 clean Cdiag HEAD 后执行 fresh r4。Step 5
+- diagnostic r4 的 reported launch head=
+  `ceea084ca25a9d679ba128e3f6bd50a63322c112`；outer 在 `source-before` 以 exit code `2`
+  fail closed，run-owned Git/source seal、所有测试 lane、aggregate、threshold 与 summary 均
+  absent，decision=`excluded-from-step4-exit`。根因是 `core.fileMode=false` 的 clean checkout
+  被错误要求 worktree executable bit 与 Git mode 完全一致；
+- source-policy remediation 已实现并静态通过 contract=`20/20`、source identity=`22/22`、
+  XML=`63/63`、overlay=`12/12` 与新 identity manifests；tracked FIFO preflight fail-fast
+  及 before/after raw stat identity 对 Git-clean-equivalent concurrent rewrite 的拒绝均有直接
+  回归；这些不是 all-lane evidence。
+- source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
+  candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed
+  attributes 若声明 external clean filter，则在任何 worktree-aware Git hash/driver hook
+  执行前 fail closed，negative 证明 hook 未执行；
+- 最终字节 review=`ready-with-risks`、B/H/M/L=`0/0/0/2`；两项 Low 均 accepted：
+  `/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build authority，未来更强隔离改用
+  readonly snapshot/独立 checkout。当前只放行 amend/push + fresh r5；
+- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，尚无 all-lane aggregate
+  baseline/review 或 Step 4 exit evidence。下一动作是 amend/push 并验证 clean HEAD 后执行
+  fresh r5。`can_enter_coverage_audit=no`，Step 5
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
   据此签收 9.3.4 或把 9.3.5 标为 ready。

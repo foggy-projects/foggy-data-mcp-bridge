@@ -5,7 +5,7 @@ version: 9.3.4
 target: STEP4-DIAGNOSTIC-READY
 status: reviewed
 decision: ready-with-risks
-reviewed_by: Codex root session
+reviewed_by: Codex root session + independent code review
 reviewed_at: 2026-07-16
 follow_up_required: yes
 ---
@@ -360,4 +360,91 @@ identity manifest。
 - follow_up_required: `yes`；fresh r4 完整通过后才可评审 exact observed
   thresholds、生成 direct-single-parent `Cfreeze` 并运行 fresh formal；
 - boundary: 本闸门不表示 Step 4 passed，不创建 exit evidence，不启动
+  coverage audit、Step 5、9.3.5 或 acceptance。
+
+## Superseding Main Quality Gate — r4 fail-closed / remediation ready for r5（2026-07-16）
+
+本节 supersede 上一节的 r4 next action，但保留 pre-r4 结论及 r1–r4 执行历史。
+r4 从调用方已确认 clean、committed、pushed 的 HEAD=
+`ceea084ca25a9d679ba128e3f6bd50a63322c112` 启动，却在发布 run-owned Git/source seal
+之前于 `source-before` fail closed；所有 lane、aggregate、threshold 与 summary 均 absent，
+decision=`excluded-from-step4-exit`。失败证据与回归记录分别为：
+
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r4-fail-closed-20260716.md`；
+- `docs/9.3.4/workitems/BUG-step4-source-inventory-filemode-false.md`。
+
+r4 根因是旧 source validator 把 authoritative Git `100644/100755` mode 与
+`core.fileMode=false` checkout 的 POSIX executable bit 强制等同；当前 worktree 有
+`3,968` 个 tracked file，其中 `3,452` 个为 Git `100644`、worktree 带 executable bit。
+修复继续精确绑定 HEAD/index path、Git mode、blob 与工作树内容，只解除错误的 executable
+映射；工作树必须为 canonical regular file、当前 euid/egid、NSS 私有主组、single-link、
+稳定 stat，且禁止 other-write/special-bit。Git 调用固定关闭 fsmonitor/untracked-cache，
+同时独立读取并绑定普通 index flags 与持久 fsmonitor-valid flags；source TSV 字段显式改为
+`git_mode`。outer 也会把 source-before/source-after 的失败 JSON 写回 run log。
+source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个 candidate，
+使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed attributes 若声明
+external clean filter，则在任何 worktree-aware Git hash/driver hook 执行前 fail closed，
+negative 证明 hook 未执行。
+
+### Final-byte verification
+
+- Shell/Python 静态：相关 shell `bash -n=7/7`、Python `py_compile=12/12`、
+  `git diff --check` 全通过；
+- coverage contract：exact `23 exec / 48 sessions`、required
+  `773 positive + 59 structural / 5,707 testcase`；contract mutation=`20/20`；
+- source identity=`22/22`：包含 Git `100644 -> worktree 0775` 与
+  `100755 -> 0644` positive，world-write、hardlink、special-bit、assume-unchanged、
+  skip-worktree、fsmonitor-valid、hostile Git environment，以及 shared primary GID、
+  foreign `gr_mem`、foreign tracked GID fail-closed；新增 tracked FIFO preflight fail-fast，
+  以及 before/after raw stat identity 对 Git-clean-equivalent concurrent rewrite 的拒绝；
+- XML/gate/freeze/frozen replay fast negative=`63/63`；successor overlay=
+  positive + `12/12`；managed logger=`9 类 / 14 case`；authority parent=
+  `2 positive + 14 negative`；Step 2 derived view=`12/12`；
+- database successor=`7 variants / 5 cells / 29 reports / 370 nodes + 14/14`；
+  external successor=`7 variants / 16 reports / 76 nodes / optional 1 + 12/12`；
+- coverage contract diagnostic/formal 双态 SHA-256=
+  `5f4b49fd161b4f381a4f8c2238583eb56f27b577973ff93ce0659d84cca75f1d` /
+  `58c3479666d0b786ea0ad8327b72b05c9e006dfdb516eacce9098ea83ef4c405`；
+- successor manifest=`12/12`，SHA-256=
+  `751018ac7c2357cface77dd125c5edc757ad488a500a3c8d9eece0354767381a`；
+  top manifest=`54/54`，SHA-256=
+  `ebda814b1278f92cf1ba7dc202170e4a77cb7e1f4485e6cb1375d152592a76d0`；
+  declared amendments 仍为 `17`，SHA-256=
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；
+- coverage tool / contract-negative / XML tool SHA-256=
+  `07a36a2be8edc0afc0ab1031b052c2208a4e32769c4cdb475a397f81e6121ac9` /
+  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
+  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；
+- overlay contract / overlay tool / outer SHA-256=
+  `2d4fe0024caac33199e2ccf87289dd9a262302d3faabad6b038adadb2b2974cb` /
+  `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
+  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。
+
+### Findings and risk decision
+
+- resolved Major：source mode 语义不再误拒绝 `core.fileMode=false` 的 clean checkout，
+  也没有通过批量 chmod、跳过 source seal、降低 threshold 或扩大 exclusion 换取绿色；
+- resolved Medium：NSS 私有主组与文件 owner/group 的声明最初缺直接失败控制；新增与生产
+  路径共用的 pure policy hooks，并以 shared primary GID、foreign explicit member、foreign
+  tracked GID 三项 hermetic negative 关闭证据缺口；
+- final review open Blocker/High/Medium/Low=`0/0/0/2`；
+- accepted Low 1：持久 fsmonitor-valid 的只读探针依赖当前 Linux 上 canonical、root-owned、
+  single-link `/usr/bin/echo`；探针缺失或属性漂移会 fail closed，不提供弱化 fallback；
+- accepted Low 2：逐文件 descriptor/lstat/fstat/final-stat 与 source-before/source-after
+  双 seal 不把同一 UID、可精确恢复 stat 的瞬时恶意替换纳入威胁模型；同 UID 被视为同一
+  build authority。若未来要求隔离该主体，应迁移到只读 snapshot/独立 checkout，而不是在
+  当前 validator 中声称软件轮询可彻底消除该窗口。
+
+### Superseding decision
+
+- decision: `ready-with-risks`；最终复核 B/H/M/L=`0/0/0/2`，两项 Low 均按上述边界
+  accepted。当前状态边界仍只放行 amend/push 本轮 remediation，确认 clean
+  `HEAD == origin/main` 后，以全新 run id
+  `step4-coverage-20260716-diagnostic-r5` 启动唯一 fresh all-lane diagnostic；
+- threshold: `diagnostic-pending`；
+- can_enter_coverage_audit: `no`；
+- follow_up_required: `yes`；r5 必须完整产生同一 run 的 all-lane、aggregate、critical
+  counters 与 sealed observation，之后才可评审 exact thresholds、创建 direct-single-parent
+  freeze commit 并运行 fresh formal；
+- boundary: 本闸门不表示 r5 已运行、Step 4 已 passed，也不创建 exit evidence，不放行
   coverage audit、Step 5、9.3.5 或 acceptance。

@@ -16,12 +16,15 @@ import importlib.util
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable, Sequence
 
 
@@ -955,8 +958,559 @@ def source_hash_git_identity_probes(root: Path, temporary_root: Path) -> dict[st
             "skip-worktree",
         ),
     ]
+    cases.extend(source_hash_clean_equivalence_probes(root, temporary_root))
+    cases.extend(source_hash_worktree_permission_probes(root, temporary_root))
+    cases.extend(source_hash_private_group_probes(root))
+    cases.extend(source_hash_fsmonitor_probes(root, temporary_root))
     cases.extend(source_hash_git_override_probes(root, temporary_root))
     return {"case_count": len(cases), "cases": cases, "status": "passed"}
+
+
+def source_hash_clean_equivalence_probes(
+    root: Path,
+    temporary_root: Path,
+) -> list[dict[str, Any]]:
+    crlf = temporary_root / "source-hash-crlf-clean-equivalence"
+    crlf.mkdir(mode=0o700)
+    run_fixture_git(crlf, ["init", "-q", "--object-format=sha1"])
+    run_fixture_git(crlf, ["config", "user.name", "v934-negative"])
+    run_fixture_git(crlf, ["config", "user.email", "v934-negative@example.invalid"])
+    crlf_tracked = crlf / "tracked.txt"
+    raw_payload = b"first\r\nsecond\r\n"
+    crlf_tracked.write_bytes(raw_payload)
+    crlf_tracked.chmod(0o644)
+    run_fixture_git(
+        crlf, ["-c", "core.autocrlf=input", "add", "--", "tracked.txt"]
+    )
+    run_fixture_git(crlf, ["commit", "-q", "-m", "crlf-fixture"])
+    index_row = run_fixture_git(
+        crlf, ["ls-files", "--stage", "--", "tracked.txt"]
+    ).stdout
+    index_object = index_row.split()[1]
+    raw_object = hashlib.sha1(
+        f"blob {len(raw_payload)}\0".encode("ascii") + raw_payload
+    ).hexdigest()
+    run_fixture_git(crlf, ["-c", "core.autocrlf=input", "diff", "--quiet"])
+    ambient_config = temporary_root / "ambient-autocrlf.gitconfig"
+    ambient_config.write_text(
+        "[core]\n\tautocrlf = input\n\tsafecrlf = true\n", encoding="ascii"
+    )
+    local_config = run_fixture_git(crlf, ["config", "--local", "--list"]).stdout
+    require(
+        index_row.startswith("100644 ")
+        and raw_object != index_object
+        and "core.autocrlf" not in local_config,
+        "CRLF Git-clean equivalence fixture differs",
+    )
+    # The repository has no local autocrlf value; the ambient global value is
+    # deliberately stripped by the validator, so only its explicit candidate
+    # computation can make this pass.
+    return_code, payload = run_source_hash_cli(
+        root,
+        crlf,
+        git_overrides={"GIT_CONFIG_GLOBAL": str(ambient_config)},
+    )
+    require(
+        return_code == 0
+        and payload.get("command") == "source-hash"
+        and payload.get("status") == "passed",
+        f"CRLF Git-clean worktree was rejected: {payload}",
+    )
+    cases: list[dict[str, Any]] = [
+        {
+            "case": "crlf-git-clean-equivalence",
+            "ambient_core_autocrlf": "input-stripped",
+            "expected_return_code": 0,
+            "git_blob_differs_from_raw_blob": True,
+            "observed_return_code": return_code,
+            "repository_core_autocrlf": "unset",
+            "status": "passed",
+        }
+    ]
+
+    hostile_local = temporary_root / "source-hash-hostile-local-autocrlf"
+    initialize_source_hash_repository(hostile_local, (b"hostile-local-config\n",))
+    run_fixture_git(hostile_local, ["config", "core.autocrlf", "true"])
+    run_fixture_git(hostile_local, ["config", "core.safecrlf", "true"])
+    return_code, payload = run_source_hash_cli(root, hostile_local)
+    require(
+        return_code == 0 and payload.get("status") == "passed",
+        f"explicit clean candidates did not override local autocrlf config: {payload}",
+    )
+    cases.append(
+        {
+            "case": "local-autocrlf-safecrlf-config-denied",
+            "expected_return_code": 0,
+            "local_core_autocrlf": "true",
+            "local_core_safecrlf": "true",
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+    )
+
+    filtered = temporary_root / "source-hash-external-filter"
+    initialize_source_hash_repository(filtered, (b"external-filter\n",))
+    attributes = filtered / ".gitattributes"
+    attributes.write_text("tracked.txt filter=v934-negative\n", encoding="ascii")
+    run_fixture_git(filtered, ["add", "--", ".gitattributes"])
+    run_fixture_git(filtered, ["commit", "-q", "-m", "filter-attribute"])
+    filter_hook = filtered / ".git" / "v934-filter-driver"
+    filter_hook.write_text(
+        '#!/bin/sh\n: > "${0}.invoked"\ncat\n', encoding="ascii"
+    )
+    filter_hook.chmod(0o700)
+    marker = Path(f"{filter_hook}.invoked")
+    run_fixture_git(
+        filtered, ["config", "filter.v934-negative.clean", str(filter_hook)]
+    )
+    run_fixture_git(filtered, ["config", "filter.v934-negative.required", "true"])
+    return_code, payload = run_source_hash_cli(root, filtered)
+    error = payload.get("error")
+    require(
+        return_code == 2
+        and payload.get("command") == "source-hash"
+        and payload.get("status") == "failed"
+        and isinstance(error, str)
+        and "filter attribute must be unspecified or unset" in error
+        and not marker.exists(),
+        f"external filter was not rejected before execution: {payload}",
+    )
+    cases.append(
+        {
+            "case": "external-filter-rejected-before-execution",
+            "expected_return_code": 2,
+            "filter_hook_invoked": False,
+            "observed_error": error,
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+    )
+
+    fifo = temporary_root / "source-hash-tracked-fifo"
+    initialize_source_hash_repository(fifo, (b"fifo\n",))
+    fifo_tracked = fifo / "tracked.txt"
+    fifo_tracked.unlink()
+    os.mkfifo(fifo_tracked, 0o644)
+    started = time.monotonic()
+    return_code, payload = run_source_hash_cli(root, fifo)
+    elapsed = time.monotonic() - started
+    error = payload.get("error")
+    require(
+        return_code == 2
+        and elapsed < 5
+        and isinstance(error, str)
+        and "not a canonical regular file" in error,
+        f"tracked FIFO did not fail closed promptly: elapsed={elapsed:.3f} payload={payload}",
+    )
+    cases.append(
+        {
+            "case": "tracked-fifo-preflight",
+            "elapsed_millis": int(elapsed * 1000),
+            "expected_return_code": 2,
+            "observed_error": error,
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+    )
+
+    concurrent = temporary_root / "source-hash-concurrent-clean-equivalent-rewrite"
+    concurrent.mkdir(mode=0o700)
+    run_fixture_git(concurrent, ["init", "-q", "--object-format=sha1"])
+    run_fixture_git(concurrent, ["config", "user.name", "v934-negative"])
+    run_fixture_git(
+        concurrent,
+        ["config", "user.email", "v934-negative@example.invalid"],
+    )
+    concurrent_tracked = concurrent / "tracked.txt"
+    before_payload = b"first\r\nsecond\r\n"
+    after_payload = b"first\nsecond\r\n"
+    concurrent_tracked.write_bytes(before_payload)
+    concurrent_tracked.chmod(0o644)
+    run_fixture_git(
+        concurrent,
+        ["-c", "core.autocrlf=input", "add", "--", "tracked.txt"],
+    )
+    run_fixture_git(concurrent, ["commit", "-q", "-m", "concurrent-fixture"])
+    expected_object = run_fixture_git(
+        concurrent, ["ls-files", "--stage", "--", "tracked.txt"]
+    ).stdout.split()[1]
+    before_clean_object = run_fixture_git(
+        concurrent,
+        ["-c", "core.autocrlf=input", "hash-object", "--", "tracked.txt"],
+    ).stdout.strip()
+    module = load_validator_module(
+        root, "v934_coverage_tool_concurrent_clean_equivalent_probe"
+    )
+    original_capture_git_identity = module.capture_git_identity
+    capture_count = 0
+
+    def rewrite_before_second_git_identity(repo_root: Path) -> dict[str, Any]:
+        nonlocal capture_count
+        capture_count += 1
+        if capture_count == 2:
+            concurrent_tracked.write_bytes(after_payload)
+        return original_capture_git_identity(repo_root)
+
+    module.capture_git_identity = rewrite_before_second_git_identity
+    try:
+        concurrent_error = expect_validator_contract_error(
+            module,
+            lambda: module.tracked_source_inventory(concurrent),
+            "raw worktree identity changed during audit",
+        )
+    finally:
+        module.capture_git_identity = original_capture_git_identity
+    after_clean_object = run_fixture_git(
+        concurrent,
+        ["-c", "core.autocrlf=input", "hash-object", "--", "tracked.txt"],
+    ).stdout.strip()
+    require(
+        capture_count == 2
+        and before_payload != after_payload
+        and before_clean_object == expected_object
+        and after_clean_object == expected_object,
+        "concurrent Git-clean-equivalent rewrite fixture differs",
+    )
+    cases.append(
+        {
+            "case": "concurrent-git-clean-equivalent-raw-rewrite",
+            "expected_exception": "ContractError",
+            "git_clean_blob_stayed_equal_to_head": True,
+            "observed_error": concurrent_error,
+            "observed_exception": "ContractError",
+            "raw_bytes_changed": True,
+            "status": "passed",
+        }
+    )
+    return cases
+
+
+def source_hash_worktree_permission_probes(
+    root: Path,
+    temporary_root: Path,
+) -> list[dict[str, Any]]:
+    safe_mismatch = temporary_root / "source-hash-filemode-false-safe-mismatch"
+    initialize_source_hash_repository(safe_mismatch, (b"safe-mode-mismatch\n",))
+    run_fixture_git(safe_mismatch, ["config", "core.fileMode", "false"])
+    safe_tracked = safe_mismatch / "tracked.txt"
+    safe_tracked.chmod(0o775)
+    safe_index = run_fixture_git(
+        safe_mismatch, ["ls-files", "--stage", "--", "tracked.txt"]
+    ).stdout
+    safe_status = run_fixture_git(
+        safe_mismatch,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+    ).stdout
+    require(
+        safe_index.startswith("100644 ")
+        and stat.S_IMODE(safe_tracked.stat().st_mode) == 0o775
+        and safe_status == "",
+        "core.fileMode=false safe permission mismatch fixture differs",
+    )
+    return_code, payload = run_source_hash_cli(root, safe_mismatch)
+    require(
+        return_code == 0
+        and payload.get("command") == "source-hash"
+        and payload.get("file_count") == 1
+        and payload.get("status") == "passed",
+        f"safe core.fileMode=false permission mismatch was rejected: {payload}",
+    )
+    cases: list[dict[str, Any]] = [
+        {
+            "case": "core-filemode-false-safe-permission-mismatch",
+            "expected_return_code": 0,
+            "git_mode": "100644",
+            "observed_return_code": return_code,
+            "status": "passed",
+            "worktree_mode": "0775",
+        }
+    ]
+
+    world_writable = temporary_root / "source-hash-world-writable"
+    initialize_source_hash_repository(world_writable, (b"world-writable\n",))
+    run_fixture_git(world_writable, ["config", "core.fileMode", "false"])
+    writable_tracked = world_writable / "tracked.txt"
+    writable_tracked.chmod(0o666)
+    writable_status = run_fixture_git(
+        world_writable,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+    ).stdout
+    require(
+        stat.S_IMODE(writable_tracked.stat().st_mode) == 0o666
+        and writable_status == "",
+        "world-writable worktree fixture must remain Git-clean",
+    )
+    return_code, payload = run_source_hash_cli(root, world_writable)
+    error = payload.get("error")
+    expected_error = "world-writable or has special permission bits"
+    require(
+        return_code == 2
+        and payload.get("command") == "source-hash"
+        and payload.get("status") == "failed"
+        and isinstance(error, str)
+        and expected_error in error,
+        f"world-writable tracked source did not fail closed: {payload}",
+    )
+    cases.append(
+        {
+            "case": "world-writable-tracked-source",
+            "expected_error_contains": expected_error,
+            "expected_return_code": 2,
+            "git_status_was_clean": True,
+            "observed_error": error,
+            "observed_return_code": return_code,
+            "status": "passed",
+            "worktree_mode": "0666",
+        }
+    )
+
+    executable_index = temporary_root / "source-hash-filemode-false-git-executable"
+    initialize_source_hash_repository(executable_index, (b"git-executable\n",))
+    executable_tracked = executable_index / "tracked.txt"
+    executable_tracked.chmod(0o755)
+    run_fixture_git(executable_index, ["add", "--", "tracked.txt"])
+    run_fixture_git(executable_index, ["commit", "-q", "--amend", "--no-edit"])
+    run_fixture_git(executable_index, ["config", "core.fileMode", "false"])
+    executable_tracked.chmod(0o644)
+    executable_index_row = run_fixture_git(
+        executable_index, ["ls-files", "--stage", "--", "tracked.txt"]
+    ).stdout
+    executable_status = run_fixture_git(
+        executable_index,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+    ).stdout
+    require(
+        executable_index_row.startswith("100755 ") and executable_status == "",
+        "Git executable/worktree non-executable fixture differs",
+    )
+    return_code, payload = run_source_hash_cli(root, executable_index)
+    require(
+        return_code == 0 and payload.get("status") == "passed",
+        f"safe Git100755/worktree0644 mismatch was rejected: {payload}",
+    )
+    cases.append(
+        {
+            "case": "core-filemode-false-git-executable-worktree-nonexec",
+            "expected_return_code": 0,
+            "git_mode": "100755",
+            "observed_return_code": return_code,
+            "status": "passed",
+            "worktree_mode": "0644",
+        }
+    )
+
+    hardlinked = temporary_root / "source-hash-hardlink"
+    initialize_source_hash_repository(hardlinked, (b"hardlink\n",))
+    hardlinked_tracked = hardlinked / "tracked.txt"
+    os.link(hardlinked_tracked, hardlinked / ".git" / "tracked-hardlink")
+    require(hardlinked_tracked.stat().st_nlink == 2, "hardlink fixture link count differs")
+    return_code, payload = run_source_hash_cli(root, hardlinked)
+    error = payload.get("error")
+    require(
+        return_code == 2
+        and isinstance(error, str)
+        and "current euid/egid with one link" in error,
+        f"hardlinked tracked source did not fail closed: {payload}",
+    )
+    cases.append(
+        {
+            "case": "hardlinked-tracked-source",
+            "expected_return_code": 2,
+            "observed_error": error,
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+    )
+
+    special = temporary_root / "source-hash-special-bit"
+    initialize_source_hash_repository(special, (b"special-bit\n",))
+    run_fixture_git(special, ["config", "core.fileMode", "false"])
+    special_tracked = special / "tracked.txt"
+    special_tracked.chmod(0o4744)
+    require(
+        special_tracked.stat().st_mode & stat.S_ISUID,
+        "special-bit fixture did not retain setuid",
+    )
+    return_code, payload = run_source_hash_cli(root, special)
+    error = payload.get("error")
+    require(
+        return_code == 2
+        and isinstance(error, str)
+        and "special permission bits" in error,
+        f"special-bit tracked source did not fail closed: {payload}",
+    )
+    cases.append(
+        {
+            "case": "special-bit-tracked-source",
+            "expected_return_code": 2,
+            "observed_error": error,
+            "observed_return_code": return_code,
+            "status": "passed",
+            "worktree_mode": "04744",
+        }
+    )
+    return cases
+
+
+def load_validator_module(root: Path, module_name: str) -> Any:
+    spec = importlib.util.spec_from_file_location(module_name, root / VALIDATOR_PATH)
+    require(spec is not None and spec.loader is not None, "cannot load coverage validator")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def expect_validator_contract_error(
+    module: Any,
+    callback: Callable[[], Any],
+    expected_error: str,
+) -> str:
+    try:
+        callback()
+    except module.ContractError as exc:
+        observed = str(exc)
+        require(
+            expected_error in observed,
+            f"validator error differs: expected={expected_error!r} observed={observed!r}",
+        )
+        return observed
+    raise NegativeError(f"validator accepted forbidden identity: {expected_error}")
+
+
+def source_hash_private_group_probes(root: Path) -> list[dict[str, Any]]:
+    module = load_validator_module(root, "v934_coverage_tool_private_group_probe")
+    euid = 41001
+    egid = 41002
+    current_user = SimpleNamespace(pw_uid=euid, pw_gid=egid, pw_name="v934-current")
+    current_group = SimpleNamespace(gr_gid=egid, gr_name="v934-private", gr_mem=())
+
+    shared_error = expect_validator_contract_error(
+        module,
+        lambda: module.validate_private_primary_group_records(
+            euid,
+            egid,
+            current_user,
+            current_group,
+            (
+                current_user,
+                SimpleNamespace(pw_uid=41003, pw_gid=egid, pw_name="v934-foreign"),
+            ),
+        ),
+        "current primary group is shared by another NSS user",
+    )
+    member_error = expect_validator_contract_error(
+        module,
+        lambda: module.validate_private_primary_group_records(
+            euid,
+            egid,
+            current_user,
+            SimpleNamespace(
+                gr_gid=egid,
+                gr_name="v934-private",
+                gr_mem=("v934-foreign",),
+            ),
+            (current_user,),
+        ),
+        "current primary group has another explicit NSS member",
+    )
+    gid_error = expect_validator_contract_error(
+        module,
+        lambda: module.validate_tracked_worktree_security(
+            SimpleNamespace(
+                st_uid=euid,
+                st_gid=egid + 1,
+                st_nlink=1,
+                st_mode=stat.S_IFREG | 0o644,
+            ),
+            euid,
+            egid,
+            1,
+        ),
+        "must use current euid/egid with one link",
+    )
+    return [
+        {
+            "case": "shared-primary-gid",
+            "expected_exception": "ContractError",
+            "observed_error": shared_error,
+            "observed_exception": "ContractError",
+            "status": "passed",
+            "validation_scope": "pure-policy-hook",
+        },
+        {
+            "case": "explicit-foreign-primary-group-member",
+            "expected_exception": "ContractError",
+            "observed_error": member_error,
+            "observed_exception": "ContractError",
+            "status": "passed",
+            "validation_scope": "pure-policy-hook",
+        },
+        {
+            "case": "tracked-source-foreign-gid",
+            "expected_exception": "ContractError",
+            "observed_error": gid_error,
+            "observed_exception": "ContractError",
+            "status": "passed",
+            "validation_scope": "pure-policy-hook",
+        },
+    ]
+
+
+def source_hash_fsmonitor_probes(
+    root: Path,
+    temporary_root: Path,
+) -> list[dict[str, Any]]:
+    configured = temporary_root / "source-hash-fsmonitor-config"
+    initialize_source_hash_repository(configured, (b"fsmonitor-config\n",))
+    hook = configured / ".git" / "v934-fsmonitor-hook"
+    hook.write_text('#!/bin/sh\n: > "${0}.invoked"\nexit 1\n', encoding="ascii")
+    hook.chmod(0o700)
+    marker = Path(f"{hook}.invoked")
+    run_fixture_git(configured, ["config", "core.fsmonitor", str(hook)])
+    run_fixture_git(configured, ["config", "core.untrackedCache", "true"])
+    return_code, payload = run_source_hash_cli(root, configured)
+    require(
+        return_code == 0 and payload.get("status") == "passed" and not marker.exists(),
+        f"local fsmonitor/untracked-cache config was not disabled: {payload}",
+    )
+    cases: list[dict[str, Any]] = [
+        {
+            "case": "local-fsmonitor-untracked-cache-config-disabled",
+            "expected_return_code": 0,
+            "fsmonitor_hook_invoked": False,
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+    ]
+
+    valid = temporary_root / "source-hash-fsmonitor-valid"
+    initialize_source_hash_repository(valid, (b"fsmonitor-valid\n",))
+    valid_hook = valid / ".git" / "v934-fsmonitor-hook"
+    valid_hook.write_text('#!/bin/sh\nprintf "0\\n"\n', encoding="ascii")
+    valid_hook.chmod(0o700)
+    run_fixture_git(valid, ["config", "core.fsmonitor", str(valid_hook)])
+    run_fixture_git(valid, ["update-index", "--fsmonitor"])
+    run_fixture_git(valid, ["update-index", "--fsmonitor-valid", "--", "tracked.txt"])
+    flags = run_fixture_git(valid, ["ls-files", "-f", "-z"]).stdout
+    require(flags == "h tracked.txt\0", "fsmonitor-valid fixture flag differs")
+    return_code, payload = run_source_hash_cli(root, valid)
+    error = payload.get("error")
+    require(
+        return_code == 2
+        and isinstance(error, str)
+        and "fsmonitor index flags must be ordinary H" in error,
+        f"fsmonitor-valid index entry did not fail closed: {payload}",
+    )
+    cases.append(
+        {
+            "case": "fsmonitor-valid-index-entry",
+            "expected_return_code": 2,
+            "observed_error": error,
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+    )
+    return cases
 
 
 def initialize_source_hash_repository(
@@ -1097,6 +1651,8 @@ def source_hash_git_override_probes(
     initialize_source_hash_repository(clean, (b"clean\n",))
     hostile = {
         "GIT_ALTERNATE_OBJECT_DIRECTORIES": str(missing),
+        "GIT_ATTR_NOSYSTEM": "0",
+        "GIT_ATTR_SOURCE": "0" * 40,
         "GIT_COMMON_DIR": str(missing),
         "GIT_CONFIG_COUNT": "1",
         "GIT_CONFIG_GLOBAL": str(missing),
@@ -1148,6 +1704,8 @@ def validator_git_environment_policy(root: Path) -> dict[str, Any]:
     spec.loader.exec_module(module)
     hostile_names = {
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_ATTR_NOSYSTEM",
+        "GIT_ATTR_SOURCE",
         "GIT_COMMON_DIR",
         "GIT_CONFIG_COUNT",
         "GIT_CONFIG_GLOBAL",
@@ -1176,6 +1734,7 @@ def validator_git_environment_policy(root: Path) -> dict[str, Any]:
             else:
                 os.environ[name] = value
     allowed = {
+        "GIT_ATTR_NOSYSTEM": "1",
         "GIT_CONFIG_GLOBAL": os.devnull,
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_NO_REPLACE_OBJECTS": "1",

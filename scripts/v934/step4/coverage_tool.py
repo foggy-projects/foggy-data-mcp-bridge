@@ -12,10 +12,12 @@ from __future__ import annotations
 import argparse
 import csv
 import fcntl
+import grp
 import hashlib
 import io
 import json
 import os
+import pwd
 import re
 import signal
 import stat
@@ -108,6 +110,13 @@ REVIEWED_THRESHOLD_POLICY = {
     "critical_line_floor_fraction": "4/5",
     "critical_branch_floor_fraction": "7/10",
 }
+INDEX_FLAGS_IDENTITY_POLICY = "ordinary-H-only-no-fsmonitor-valid"
+HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
+    "head-index-exact-path-gitmode-blob+worktree-canonical-euid-egid-private-"
+    "primary-group-single-link-group-write-exec-unbound-other-write-special-"
+    "bits-forbidden-stable-raw-sha256-sealed-external-filter-forbidden-ambient-"
+    "clean-config-denied-git-clean-raw-or-crlf-input-equivalent"
+)
 FORMALIZATION_DELTA = {
     "parent_git_head_source": "aggregate_observed.evidence.git_head",
     "diagnostic_threshold_sha256": DIAGNOSTIC_THRESHOLD_SHA256,
@@ -117,8 +126,9 @@ FORMALIZATION_DELTA = {
         "shallow_repository": "forbidden",
         "replace_refs": "forbidden",
         "nonempty_grafts": "forbidden",
-        "index_flags": "ordinary-H-only",
-        "head_index_worktree": "exact-path-mode-blob",
+        "nonempty_info_attributes": "forbidden",
+        "index_flags": INDEX_FLAGS_IDENTITY_POLICY,
+        "head_index_worktree": HEAD_INDEX_WORKTREE_IDENTITY_POLICY,
     },
     "required_exact_paths": [
         "scripts/v934/step4/coverage-thresholds.json",
@@ -1955,6 +1965,7 @@ def git_environment() -> dict[str, str]:
         {
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_ATTR_NOSYSTEM": "1",
             "GIT_NO_REPLACE_OBJECTS": "1",
             "GIT_OPTIONAL_LOCKS": "0",
             "LC_ALL": "C",
@@ -1964,14 +1975,45 @@ def git_environment() -> dict[str, str]:
     return environment
 
 
-def run_git(repo_root: Path, arguments: list[str], label: str) -> subprocess.CompletedProcess[bytes]:
-    process = subprocess.run(
-        ["git", "-C", str(repo_root), *arguments],
-        env=git_environment(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+def run_git(
+    repo_root: Path,
+    arguments: list[str],
+    label: str,
+    input_payload: bytes | None = None,
+    attr_source: str | None = None,
+) -> subprocess.CompletedProcess[bytes]:
+    environment = git_environment()
+    if attr_source is not None:
+        require(
+            re.fullmatch(r"[0-9a-f]{40}", attr_source) is not None,
+            f"{label}: invalid Git attribute source",
+        )
+        environment["GIT_ATTR_SOURCE"] = attr_source
+    try:
+        process = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "core.attributesFile=/dev/null",
+                "-C",
+                str(repo_root),
+                *arguments,
+            ],
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            input=input_payload,
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ContractError(f"{label}: Git command timed out") from exc
     require(process.returncode == 0, f"{label}: Git command failed")
     return process
 
@@ -1981,6 +2023,28 @@ def git_single_line(repo_root: Path, arguments: list[str], label: str) -> bytes:
     lines = output.splitlines()
     require(len(lines) == 1 and lines[0] != b"", f"{label}: expected one non-empty line")
     return lines[0]
+
+
+def trusted_fsmonitor_flag_probe() -> str:
+    # Disabling fsmonitor makes Git mask persisted CE_FSMONITOR_VALID bits from
+    # `ls-files -f`. A fixed root-owned echo hook exposes the on-disk bit without
+    # executing repository-controlled configuration or accepting change paths.
+    probe = Path("/usr/bin/echo")
+    try:
+        probe_stat = probe.lstat()
+    except OSError as exc:
+        raise ContractError("source inventory: trusted fsmonitor flag probe is unavailable") from exc
+    require(
+        probe.resolve(strict=True) == probe
+        and stat.S_ISREG(probe_stat.st_mode)
+        and probe_stat.st_uid == 0
+        and probe_stat.st_gid == 0
+        and probe_stat.st_nlink == 1
+        and probe_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH) == 0
+        and probe_stat.st_mode & 0o111 != 0,
+        "source inventory: trusted fsmonitor flag probe is unsafe",
+    )
+    return str(probe)
 
 
 def validate_git_path(relative: bytes, label: str) -> None:
@@ -2043,23 +2107,252 @@ def parse_index_stage(payload: bytes) -> tuple[tuple[bytes, bytes, bytes], ...]:
     return tuple(records)
 
 
-def parse_index_flags(payload: bytes) -> tuple[bytes, ...]:
+def parse_index_flags(payload: bytes, label: str) -> tuple[bytes, ...]:
     paths: list[bytes] = []
     seen: set[bytes] = set()
     for number, record in enumerate((item for item in payload.split(b"\0") if item), 1):
-        require(len(record) >= 3 and record[1:2] == b" ", f"source inventory: malformed index flag row {number}")
+        require(
+            len(record) >= 3 and record[1:2] == b" ",
+            f"source inventory: malformed {label} flag row {number}",
+        )
         flag = record[:1]
         relative = record[2:]
-        validate_git_path(relative, f"source inventory flag row {number}")
-        require(relative not in seen, f"source inventory: duplicate index flag path at row {number}")
+        validate_git_path(relative, f"source inventory {label} flag row {number}")
+        require(
+            relative not in seen,
+            f"source inventory: duplicate {label} flag path at row {number}",
+        )
         require(
             flag == b"H",
-            f"source inventory: index flags must be ordinary H at row {number}",
+            f"source inventory: {label} flags must be ordinary H at row {number}",
         )
         seen.add(relative)
         paths.append(relative)
-    require(paths, "source inventory: index flag set is empty")
+    require(paths, f"source inventory: {label} flag set is empty")
     return tuple(paths)
+
+
+def validate_private_primary_group_records(
+    euid: int,
+    egid: int,
+    current_user: Any,
+    current_group: Any,
+    passwd_rows: Iterable[Any],
+) -> tuple[int, int, str, str, tuple[str, ...], tuple[str, ...]]:
+    """Validate an already-resolved NSS view for the effective identity.
+
+    Keeping the policy decision separate from NSS I/O lets the negative suite
+    prove shared-primary-GID and explicit-member failures hermetically while
+    production still resolves the authoritative host records itself.
+    """
+    primary_users = tuple(
+        sorted(row.pw_name for row in passwd_rows if row.pw_gid == egid)
+    )
+    group_members = tuple(sorted(current_group.gr_mem))
+    require(
+        current_user.pw_uid == euid
+        and current_user.pw_gid == egid
+        and current_group.gr_gid == egid,
+        "source inventory: effective identity does not use its NSS primary group",
+    )
+    require(
+        primary_users == (current_user.pw_name,),
+        "source inventory: current primary group is shared by another NSS user",
+    )
+    require(
+        all(member == current_user.pw_name for member in group_members),
+        "source inventory: current primary group has another explicit NSS member",
+    )
+    return (
+        euid,
+        egid,
+        current_user.pw_name,
+        current_group.gr_name,
+        primary_users,
+        group_members,
+    )
+
+
+def private_primary_group_identity() -> tuple[int, int, str, str, tuple[str, ...], tuple[str, ...]]:
+    euid = os.geteuid()
+    egid = os.getegid()
+    try:
+        current_user = pwd.getpwuid(euid)
+        current_group = grp.getgrgid(egid)
+        passwd_rows = pwd.getpwall()
+    except (KeyError, OSError) as exc:
+        raise ContractError("source inventory: cannot resolve private primary group through NSS") from exc
+    return validate_private_primary_group_records(
+        euid,
+        egid,
+        current_user,
+        current_group,
+        passwd_rows,
+    )
+
+
+def validate_tracked_worktree_security(
+    path_stat: os.stat_result,
+    euid: int,
+    egid: int,
+    row_number: int,
+) -> None:
+    require(
+        path_stat.st_uid == euid
+        and path_stat.st_gid == egid
+        and path_stat.st_nlink == 1,
+        f"source inventory: tracked row {row_number} must use current euid/egid with one link",
+    )
+    require(
+        (
+            path_stat.st_mode
+            & (stat.S_IWOTH | stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX)
+        )
+        == 0,
+        f"source inventory: tracked row {row_number} is world-writable or has special permission bits",
+    )
+
+
+WORKTREE_STABLE_FIELDS = (
+    "st_dev",
+    "st_ino",
+    "st_mode",
+    "st_uid",
+    "st_gid",
+    "st_size",
+    "st_mtime_ns",
+    "st_ctime_ns",
+    "st_nlink",
+)
+
+
+def preflight_tracked_worktree_security(
+    repo_root: Path,
+    head_records: tuple[tuple[bytes, bytes, bytes], ...],
+    euid: int,
+    egid: int,
+) -> tuple[tuple[int, ...], ...]:
+    identities: list[tuple[int, ...]] = []
+    for number, (_, relative_bytes, _) in enumerate(head_records, 1):
+        relative = os.fsdecode(relative_bytes)
+        path = repo_root.joinpath(*relative.split("/"))
+        try:
+            path_stat = path.lstat()
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
+            raise ContractError(
+                f"source inventory: cannot preflight tracked row {number}"
+            ) from exc
+        require(
+            resolved == path.absolute() and stat.S_ISREG(path_stat.st_mode),
+            f"source inventory: tracked row {number} is not a canonical regular file",
+        )
+        validate_tracked_worktree_security(path_stat, euid, egid, number)
+        identities.append(
+            tuple(getattr(path_stat, field) for field in WORKTREE_STABLE_FIELDS)
+        )
+    return tuple(identities)
+
+
+def capture_untracked_identity(repo_root: Path) -> str:
+    payload = run_git(
+        repo_root,
+        ["ls-files", "--others", "--exclude-standard", "-z"],
+        "source inventory untracked files",
+    ).stdout
+    require(
+        payload == b"",
+        "source inventory: non-ignored untracked files are forbidden",
+    )
+    return hashlib.sha256(payload).hexdigest()
+
+
+def capture_worktree_git_clean_equivalence(
+    repo_root: Path,
+    head_records: tuple[tuple[bytes, bytes, bytes], ...],
+    git_head: str,
+) -> dict[str, str]:
+    paths = tuple(record[1] for record in head_records)
+    attribute_input = b"\0".join(paths) + b"\0"
+    attribute_payload = run_git(
+        repo_root,
+        ["check-attr", "-z", "--stdin", "filter"],
+        "source inventory filter attributes",
+        input_payload=attribute_input,
+        attr_source=git_head,
+    ).stdout
+    attribute_fields = attribute_payload.split(b"\0")
+    require(
+        attribute_fields[-1:] == [b""]
+        and len(attribute_fields) == len(paths) * 3 + 1,
+        "source inventory: filter attribute payload framing differs",
+    )
+    for number, relative in enumerate(paths, 1):
+        offset = (number - 1) * 3
+        observed_path, attribute, value = attribute_fields[offset : offset + 3]
+        require(
+            observed_path == relative and attribute == b"filter",
+            f"source inventory: filter attribute identity/order differs at row {number}",
+        )
+        require(
+            value in (b"unspecified", b"unset"),
+            f"source inventory: filter attribute must be unspecified or unset at row {number}",
+        )
+
+    # Evaluate only two explicit, ambient-independent clean candidates. External
+    # clean filters cannot run because every path was proven
+    # filter=unspecified/unset before these commands.
+    path_input = b"\n".join(paths) + b"\n"
+    candidate_ids: dict[bytes, list[bytes]] = {}
+    for mode, autocrlf in ((b"raw", "false"), (b"crlf-input", "input")):
+        hash_payload = run_git(
+            repo_root,
+            [
+                "-c",
+                f"core.autocrlf={autocrlf}",
+                "-c",
+                "core.safecrlf=false",
+                "hash-object",
+                "--stdin-paths",
+            ],
+            f"source inventory Git-clean {mode.decode('ascii')} worktree blobs",
+            input_payload=path_input,
+            attr_source=git_head,
+        ).stdout
+        object_ids = hash_payload.splitlines()
+        require(
+            len(object_ids) == len(head_records)
+            and all(
+                re.fullmatch(rb"[0-9a-f]{40}", value) is not None
+                for value in object_ids
+            ),
+            f"source inventory: Git-clean {mode.decode('ascii')} blob payload framing differs",
+        )
+        candidate_ids[mode] = object_ids
+    canonical_blob_rows: list[bytes] = []
+    for number, (_, relative, expected_object_id) in enumerate(head_records, 1):
+        raw_object_id = candidate_ids[b"raw"][number - 1]
+        input_object_id = candidate_ids[b"crlf-input"][number - 1]
+        if raw_object_id == expected_object_id:
+            selected_mode = b"raw"
+        elif input_object_id == expected_object_id:
+            selected_mode = b"crlf-input"
+        else:
+            selected_mode = b""
+        require(
+            selected_mode != b"",
+            f"source inventory: neither raw nor CRLF-input Git-clean blob matches HEAD/index at row {number}",
+        )
+        canonical_blob_rows.append(
+            relative + b"\0" + selected_mode + b"\0" + expected_object_id + b"\0"
+        )
+    canonical_blob_payload = b"".join(canonical_blob_rows)
+    return {
+        "filter_attributes_sha256": hashlib.sha256(attribute_payload).hexdigest(),
+        "worktree_git_clean_blob_sha256": hashlib.sha256(
+            canonical_blob_payload
+        ).hexdigest(),
+    }
 
 
 def capture_git_identity(repo_root: Path) -> dict[str, Any]:
@@ -2133,12 +2426,26 @@ def capture_git_identity(repo_root: Path) -> dict[str, Any]:
         grafts_nonempty = grafts_stat.st_size > 0
     require(not grafts_nonempty, "source inventory: non-empty grafts are forbidden")
 
-    status = run_git(
-        repo_root,
-        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-        "source inventory status",
-    ).stdout
-    require(status == b"", "source inventory: exact clean committed worktree is required")
+    info_attributes = info_dir / "attributes"
+    try:
+        info_attributes_stat = info_attributes.lstat()
+    except FileNotFoundError:
+        info_attributes_nonempty = False
+    except OSError as exc:
+        raise ContractError("source inventory: cannot inspect Git info attributes") from exc
+    else:
+        require(
+            stat.S_ISREG(info_attributes_stat.st_mode)
+            and not stat.S_ISLNK(info_attributes_stat.st_mode)
+            and info_attributes.resolve(strict=True) == info_attributes.absolute(),
+            "source inventory: Git info attributes must be a regular non-symlink file",
+        )
+        info_attributes_nonempty = info_attributes_stat.st_size > 0
+    require(
+        not info_attributes_nonempty,
+        "source inventory: non-empty Git info attributes are forbidden",
+    )
+
     head_raw = git_single_line(
         repo_root,
         ["rev-parse", "--verify", "HEAD^{commit}"],
@@ -2163,35 +2470,72 @@ def capture_git_identity(repo_root: Path) -> dict[str, Any]:
         ["ls-files", "-v", "-z"],
         "source inventory index flags",
     ).stdout
+    fsmonitor_flags_payload = run_git(
+        repo_root,
+        [
+            "-c",
+            f"core.fsmonitor={trusted_fsmonitor_flag_probe()}",
+            "ls-files",
+            "-f",
+            "-z",
+        ],
+        "source inventory fsmonitor flags",
+    ).stdout
     head_records = parse_head_tree(head_tree_payload)
     index_records = parse_index_stage(index_stage_payload)
     require(
         head_records == index_records,
         "source inventory: HEAD tree and stage-zero index path/mode/blob differ",
     )
-    flag_paths = parse_index_flags(index_flags_payload)
-    require(
-        flag_paths == tuple(record[1] for record in head_records),
-        "source inventory: index flag path/order differs from HEAD",
+    flag_paths = parse_index_flags(index_flags_payload, "index")
+    fsmonitor_flag_paths = parse_index_flags(
+        fsmonitor_flags_payload, "fsmonitor index"
     )
+    require(
+        flag_paths == tuple(record[1] for record in head_records)
+        and fsmonitor_flag_paths == flag_paths,
+        "source inventory: index/fsmonitor flag path/order differs from HEAD",
+    )
+    index_flags_digest = hashlib.sha256()
+    for name, payload in (
+        (b"git-ls-files-v-z", index_flags_payload),
+        (b"git-ls-files-f-z", fsmonitor_flags_payload),
+    ):
+        index_flags_digest.update(name + b"\0")
+        index_flags_digest.update(len(payload).to_bytes(8, "big"))
+        index_flags_digest.update(payload)
     return {
         "git_head": head_raw.decode("ascii"),
         "object_format": "sha1",
         "shallow_repository": False,
         "replace_ref_count": 0,
         "nonempty_grafts": False,
+        "nonempty_info_attributes": False,
         "head_records": head_records,
         "head_tree_sha256": hashlib.sha256(head_tree_payload).hexdigest(),
         "index_stage_sha256": hashlib.sha256(index_stage_payload).hexdigest(),
-        "index_flags_sha256": hashlib.sha256(index_flags_payload).hexdigest(),
-        "status_sha256": hashlib.sha256(status).hexdigest(),
+        "index_flags_sha256": index_flags_digest.hexdigest(),
     }
 
 
 def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
+    group_identity_before = private_primary_group_identity()
+    euid, egid = group_identity_before[:2]
     before = capture_git_identity(repo_root)
-    rows = [b"mode\tpath\tsha256\tsize\n"]
-    for number, (mode, relative_bytes, object_id) in enumerate(before["head_records"], 1):
+    preflight_before = preflight_tracked_worktree_security(
+        repo_root, before["head_records"], euid, egid
+    )
+    before["untracked_sha256"] = capture_untracked_identity(repo_root)
+    before.update(
+        capture_worktree_git_clean_equivalence(
+            repo_root, before["head_records"], before["git_head"]
+        )
+    )
+    # The TSV git_mode is the exact Git HEAD/index mode. POSIX worktree execute
+    # and group-write bits are deployment properties when core.fileMode=false;
+    # they are not evidence that may redefine the committed Git mode.
+    rows = [b"git_mode\tpath\tsha256\tsize\n"]
+    for number, (mode, relative_bytes, _object_id) in enumerate(before["head_records"], 1):
         relative = os.fsdecode(relative_bytes)
         path = repo_root.joinpath(*relative.split("/"))
         try:
@@ -2203,19 +2547,13 @@ def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
             resolved == path.absolute() and stat.S_ISREG(path_stat.st_mode),
             f"source inventory: tracked row {number} is not a canonical regular file",
         )
-        expected_executable = mode == b"100755"
+        validate_tracked_worktree_security(path_stat, euid, egid, number)
         require(
-            bool(path_stat.st_mode & 0o111) == expected_executable,
-            f"source inventory: worktree executable mode differs at row {number}",
-        )
-        stable_fields = (
-            "st_dev",
-            "st_ino",
-            "st_mode",
-            "st_size",
-            "st_mtime_ns",
-            "st_ctime_ns",
-            "st_nlink",
+            tuple(
+                getattr(path_stat, field) for field in WORKTREE_STABLE_FIELDS
+            )
+            == preflight_before[number - 1],
+            f"source inventory: tracked row {number} changed after security preflight",
         )
         descriptor = -1
         try:
@@ -2231,12 +2569,10 @@ def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
                 stat.S_ISREG(opened.st_mode)
                 and all(
                     getattr(opened, field) == getattr(path_stat, field)
-                    for field in stable_fields
+                    for field in WORKTREE_STABLE_FIELDS
                 ),
                 f"source inventory: tracked row {number} changed while opening",
             )
-            blob_digest = hashlib.sha1()
-            blob_digest.update(f"blob {opened.st_size}\0".encode("ascii"))
             content_digest = hashlib.sha256()
             byte_count = 0
             while True:
@@ -2244,7 +2580,6 @@ def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
                 if not chunk:
                     break
                 byte_count += len(chunk)
-                blob_digest.update(chunk)
                 content_digest.update(chunk)
             closed_view = os.fstat(descriptor)
         except OSError as exc:
@@ -2257,14 +2592,16 @@ def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
         except OSError as exc:
             raise ContractError(f"source inventory: cannot re-inspect tracked row {number}") from exc
         require(
-            all(getattr(opened, field) == getattr(closed_view, field) for field in stable_fields)
-            and all(getattr(opened, field) == getattr(final_path_stat, field) for field in stable_fields)
+            all(
+                getattr(opened, field) == getattr(closed_view, field)
+                for field in WORKTREE_STABLE_FIELDS
+            )
+            and all(
+                getattr(opened, field) == getattr(final_path_stat, field)
+                for field in WORKTREE_STABLE_FIELDS
+            )
             and byte_count == opened.st_size,
             f"source inventory: tracked row {number} changed while hashing",
-        )
-        require(
-            blob_digest.hexdigest().encode("ascii") == object_id,
-            f"source inventory: worktree blob differs from HEAD/index at row {number}",
         )
         rows.append(
             mode
@@ -2278,7 +2615,27 @@ def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
         )
     payload = b"".join(rows)
     after = capture_git_identity(repo_root)
-    require(before == after, "source inventory: Git HEAD/index/flags/status changed during audit")
+    preflight_after = preflight_tracked_worktree_security(
+        repo_root, after["head_records"], euid, egid
+    )
+    require(
+        preflight_after == preflight_before,
+        "source inventory: raw worktree identity changed during audit",
+    )
+    after["untracked_sha256"] = capture_untracked_identity(repo_root)
+    after.update(
+        capture_worktree_git_clean_equivalence(
+            repo_root, after["head_records"], after["git_head"]
+        )
+    )
+    require(
+        before == after,
+        "source inventory: Git HEAD/index/flags/untracked/clean identity changed during audit",
+    )
+    require(
+        private_primary_group_identity() == group_identity_before,
+        "source inventory: private primary group identity changed during audit",
+    )
     return {
         "payload": payload,
         "file_count": len(before["head_records"]),
@@ -2289,11 +2646,16 @@ def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
             "shallow_repository": before["shallow_repository"],
             "replace_ref_count": before["replace_ref_count"],
             "nonempty_grafts": before["nonempty_grafts"],
-            "index_flags": "ordinary-H-only",
-            "head_index_worktree": "exact-path-mode-blob",
+            "nonempty_info_attributes": before["nonempty_info_attributes"],
+            "index_flags": INDEX_FLAGS_IDENTITY_POLICY,
+            "head_index_worktree": HEAD_INDEX_WORKTREE_IDENTITY_POLICY,
             "head_tree_sha256": before["head_tree_sha256"],
             "index_stage_sha256": before["index_stage_sha256"],
             "index_flags_sha256": before["index_flags_sha256"],
+            "filter_attributes_sha256": before["filter_attributes_sha256"],
+            "worktree_git_clean_blob_sha256": before[
+                "worktree_git_clean_blob_sha256"
+            ],
         },
     }
 

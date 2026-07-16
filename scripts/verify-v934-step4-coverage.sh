@@ -2006,10 +2006,16 @@ for required_file in \
 done
 [[ "$(sha256_file "$JACOCO_AGENT_JAR")" == "$JACOCO_AGENT_SHA256" ]] || \
   fail "JaCoCo 0.8.12 runtime agent hash differs"
-[[ "$(git -C "$ROOT_DIR" rev-parse --show-toplevel)" == "$ROOT_DIR" ]] || \
+[[ "$(git -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null -C "$ROOT_DIR" rev-parse --show-toplevel)" == "$ROOT_DIR" ]] || \
   fail "repository root differs from the canonical Git worktree root"
-[[ -z "$(git -C "$ROOT_DIR" status --porcelain=v1 --untracked-files=all)" ]] || \
-  fail "$MODE requires an exact clean committed HEAD"
+if SOURCE_PREFLIGHT_RESULT="$(python3 "$COVERAGE_TOOL" source-hash \
+  --repo-root "$ROOT_DIR")"; then
+  :
+else
+  source_preflight_code=$?
+  printf '%s\n' "$SOURCE_PREFLIGHT_RESULT" >&2
+  fail "source preflight failed: rc=$source_preflight_code"
+fi
 docker info >/dev/null 2>&1 || fail "Docker daemon is unavailable"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose is unavailable"
 
@@ -2250,8 +2256,14 @@ python3 "$SUCCESSOR_OVERLAY_TOOL" negative \
 PHASE=source-before
 NOT_BEFORE_NS="$(python3 -c 'import time; print(time.time_ns())')"
 [[ "$NOT_BEFORE_NS" =~ ^[1-9][0-9]*$ ]] || fail "cannot establish the coverage not-before boundary"
-SOURCE_RESULT="$(python3 "$COVERAGE_TOOL" source-hash \
-  --repo-root "$ROOT_DIR" --output "$RUN_ROOT/source-before.tsv")"
+if SOURCE_RESULT="$(python3 "$COVERAGE_TOOL" source-hash \
+  --repo-root "$ROOT_DIR" --output "$RUN_ROOT/source-before.tsv")"; then
+  :
+else
+  source_hash_code=$?
+  printf '%s\n' "$SOURCE_RESULT" >&2
+  fail "source-before seal failed: rc=$source_hash_code"
+fi
 mapfile -t SOURCE_FIELDS < <(python3 - "$SOURCE_RESULT" <<'PY'
 import json
 import re
@@ -2651,8 +2663,14 @@ python3 "$COVERAGE_XML_TOOL" negative \
   --output-dir "$NEGATIVE_ROOT/coverage-xml"
 
 PHASE=source-after
-SOURCE_RESULT="$(python3 "$COVERAGE_TOOL" source-hash \
-  --repo-root "$ROOT_DIR" --output "$RUN_ROOT/source-after.tsv")"
+if SOURCE_RESULT="$(python3 "$COVERAGE_TOOL" source-hash \
+  --repo-root "$ROOT_DIR" --output "$RUN_ROOT/source-after.tsv")"; then
+  :
+else
+  source_hash_code=$?
+  printf '%s\n' "$SOURCE_RESULT" >&2
+  fail "source-after seal failed: rc=$source_hash_code"
+fi
 SOURCE_AFTER="$(python3 - "$SOURCE_RESULT" <<'PY'
 import json
 import re
@@ -2668,10 +2686,8 @@ PY
 [[ "$SOURCE_AFTER" == "$SOURCE_BEFORE" ]] || fail "tracked source seal changed during diagnostic execution"
 cmp -s -- "$RUN_ROOT/source-before.tsv" "$RUN_ROOT/source-after.tsv" || \
   fail "tracked source inventory changed during diagnostic execution"
-[[ "$(git -C "$ROOT_DIR" rev-parse --verify 'HEAD^{commit}')" == "$GIT_HEAD" ]] || \
+[[ "$(git -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null -C "$ROOT_DIR" rev-parse --verify 'HEAD^{commit}')" == "$GIT_HEAD" ]] || \
   fail "Git HEAD changed during diagnostic execution"
-[[ -z "$(git -C "$ROOT_DIR" status --porcelain=v1 --untracked-files=all)" ]] || \
-  fail "worktree changed during diagnostic execution"
 
 PHASE=final-class-verify
 python3 "$COVERAGE_EXEC_TOOL" verify-classes \
