@@ -146,10 +146,22 @@ Positive：
 - 同一 source/class 对 coverage report、tested JAR 和 authority manifest 一致。
 - Step 4 后 canonical lanes 一次执行即产 exec；coverage collect/check 在 Step 5–7
   只消费 upstream exec，测试 FQCN execution ledger 不出现 coverage-induced duplicate。
+- Unit/Integration 的 run logger 必须为 owned FIFO process；在发布 child green 前
+  关闭写端并 wait logger，并由 ready/completion receipt 绑定 PID/PGID/SID/
+  starttime/boot-id。真实组残留在 kill 前生成 bytes-safe member snapshot。
+- XML verifier 对 child lifecycle、formalization delta、canonical gate/candidate/final/status
+  path 执行 typed 重算；成功 status 是全部其他证据通过后的最后一次
+  原子发布，发布后不再有可使 run 转红的 post-verification。
+- confirmed formal 必须重放 threshold 指向的真实 frozen diagnostic run，从该
+  diagnostic commit 读取历史 threshold/contract blob 并重算；threshold freeze
+  仅允许 diagnostic commit 的一个 direct-single-parent child。
 
 Expected-negative：missing/empty/truncated exec/XML、missing expected class/package、
 错误 commit/class/source hash、zero counter、低于门槛、阈值被私降、exclusion
-漂移、同名 exec 并发覆盖、空 reporter `jacoco:check`、只有 unit 或只有 IT exec 均失败。
+漂移、同名 exec 并发覆盖、空 reporter `jacoco:check`、只有 unit 或只有 IT exec、
+slow/nonzero/timeout logger、持管道 descendant、ready receipt 缺字段/换 inode/错
+starttime、非 canonical final path、伪造 diagnostic run、merge/multi-commit/shallow/
+replace-ref/graft formal delta 均失败。
 
 Diagnostic-ready result（2026-07-16，不是 Step 4 pass）：静态执行结构为
 `23 exec / 48 sessions`，required report overlay 为
@@ -181,6 +193,16 @@ caffeine=`2/F0E0S0`、hermetic=`3/F0E0S0`、sqlite-broad=`307/F1E0S0`，合计
 `child-integration` fail closed，summary absent，database/external/Addon/aggregate/
 threshold 均未运行。failed evidence=
 `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md`。
+
+Diagnostic r3 result（2026-07-16，failed evidence，不是 Step 4 pass）：clean/pushed
+HEAD=`e16693297239f2a861f3b93b3de60c1bb783bda0`，run=
+`step4-coverage-20260716-diagnostic-r3`。contract/successor/toolchain/Step 2 view/fresh
+class universe 通过，Unit=`681 positive + 55 structural / 4,941 testcase /
+F0E0S0`。outer 在 Unit leader 返回后检测到同 PGID live member，因而在
+`child-unit` fail closed；Integration/database/external/Addon/aggregate/threshold 均未执行，
+summary absent。failed evidence=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`。
+r3 Unit 不得与 r1/r2/focused 结果拼接为绿色。
 
 Build regression：
 
@@ -221,6 +243,27 @@ Test regression：
   `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1` /
   `6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`；
   coverage/view/successor/DB negatives=`8/12/8/14` 全绿。focused 结果仍不替代 r3。
+
+Runner/evidence regression（Cdiag，pre-r4 main quality gate 已通过）：
+
+- `BUG-step4-child-run-log-tee-residue-race.md` 确认 Unit/Integration 的
+  `exec > >(tee ...)` logger 未被 close/wait；实现改为共享 managed FIFO
+  lifecycle，绿色 status/summary 必须在 logger flush/reap 之后；
+- `run_log_lifecycle_negative_test.sh` 以 `9 类 / 14 case` 定义 slow/nonzero/timeout/
+  PID-reuse/early-signal/capture-failure/exit/clean-group/persistent-residue 负例；outer 的
+  ready/completion receipt 和 cleanup snapshot 定义
+  process identity 与 residue 证据边界；
+- `coverage_xml_negative_tool.py` 与 typed XML validator=`63/63`，覆盖 child
+  lifecycle、source/context/manifest 四元绑定、exact retained raw exec replay、
+  formalization delta 与 canonical evidence path；成功 status 最后发布，formal
+  frozen replay 不允许 synthetic diagnostic；
+- contract mutations=`20/20`、source Git identity=`7/7`；`Cfreeze` 只允许一个
+  direct single-parent commit，merge、multi-commit、shallow、replace/graft 及 allowlist
+  外 delta 均 RED。这些已由主线程正式复核，但不替代 fresh r4 all-lane evidence；
+- identity：top=`54/54` / SHA=
+  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`，
+  successor=`12/12` / SHA=
+  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`。
 
 ## Step 5 — Authority Rehearsal / Immutable Candidate
 
@@ -297,7 +340,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`
+- step4_result: `in-progress / r3 historical fail-closed / pre-r4 quality passed /
+  identity refreshed / fresh r4 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -328,8 +372,9 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`；
   `docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。
 - Step 4 static readiness：exact `23 exec / 48 sessions`、
-  `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`；四类
-  negatives=`8/8 + 4/4 + 5/5 + 27/27`，derived view/overlay=`12/12 + 8/8`。
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`；
+  contract/Git/XML/logger=`20/7/63/14`，effective POM/toolchain/report inventory=
+  `4/5/27`，derived view/overlay/DB/external=`12/12/14/12`。
   threshold 仍为
   `diagnostic-pending`，没有 aggregate baseline/review 或 Step 4 exit evidence。
 - Step 4 r1：clean/pushed `bc100b0f` 的 `child-unit`=`3115/1/0/0` fail closed；修复
@@ -337,6 +382,12 @@ Final acceptance 至少验证：
 - Step 4 r2：clean/pushed `0101a44a` 的 Unit=`4941/F0E0S0`；Integration=
   `312/F1E0S0` 后 fail closed。L2 修复=`1/0`、组合=`30/0`；Pivot legacy/V934 SQLite
   各=`1/0`；top identity=`51`，但未产生 aggregate evidence。
-- next executable action: 提交并推送最终修复与 successor refresh，确认新的 clean worktree
-  且 `HEAD == origin/main`，再执行 r3 all-lane diagnostic。Step 5、coverage audit 与
-  acceptance 仍关闭。
+- Step 4 r3：clean/pushed `e1669329` 的 Unit=`4941/F0E0S0`；outer 因未管理
+  async `tee` 仍在 child PGID 而在 `child-unit` fail closed，后续 lane/aggregate
+  未执行。Cdiag 的 managed logger、Git/source provenance、typed XML/formal
+  validation、绿色 status 最后发布、真实 frozen diagnostic replay 与 direct-
+  single-parent freeze policy 已通过 pre-r4 main quality gate 与 54/54 identity；
+- next executable action: commit/push Cdiag，确认 clean worktree、
+  `HEAD == origin/main`，再
+  执行 fresh r4 all-lane diagnostic。threshold 仍为 `diagnostic-pending`，Step 5、
+  coverage audit 与 acceptance 仍关闭。

@@ -199,10 +199,22 @@ EXPECTED_ACTIVATION_REQUIREMENTS = [
 EXPECTED_STEP4_RUNTIME_BINDINGS = {
     "scripts/v934/step4/authority_parent_lib.sh": "35024328ec6f181f4454a36b702f76c20dfd049af8a38a84b5f3117ac94254fa",
     "scripts/v934/step4/authority_parent_negative_test.sh": "2329d6211d51f673b29aae407e4e0a1f99af2f5bac0425d56cade3d1e1c148ca",
-    "scripts/v934/step4/coverage-contract.json": "2abdbd17b8286f50d52e3ddf48e7a5ad184ebafc4b44e19aa64dc1017f660a2f",
+    "scripts/v934/step4/coverage-contract.json": {
+        "kind": "workflow-dual-sha256",
+        "diagnostic": {
+            "contract_status": "diagnostic-ready",
+            "publication_status": "diagnostic-ready",
+            "sha256": "1cf9633310326e9e9848fd967dac8749e899a5bc127fcae21f73f249ba057ffb",
+        },
+        "formal": {
+            "contract_status": "formal-ready",
+            "publication_status": "formal-ready",
+            "sha256": "9a21776543349b048afa27ab78245a9411acbdd7ca5b66a251157b7e7f795d8d",
+        },
+    },
     "scripts/v934/step4/coverage-report-amendment.tsv": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "7d2f15762126b00e6a62d1e957984b0076c179a047f746556ae4d8b46d3d0275",
+    "scripts/v934/step4/coverage_tool.py": "c2f848aefb6a0a7551aedf9de96a79b79ab2b0e610fbe66870ae4f16007af1ea",
     "scripts/v934/step4/step2-report-view-contract.json": "c016ec18fa0a637e5c5470385c3f26cce152c461eb1dc1b64b52f28f5e8b8a67",
     "scripts/v934/step4/step2_report_view_tool.py": "b828869dec191a6ded51e7b28654f8878c65455007ca002e247347a0cb5e217a",
 }
@@ -254,9 +266,36 @@ def load_json(path: Path, code: str = "E_SCHEMA") -> dict[str, Any]:
     return value
 
 
+def git_environment() -> dict[str, str]:
+    """Return a Git environment that cannot redirect repository identity.
+
+    Git has both documented and internal ``GIT_*`` overrides for the worktree,
+    index, object store, namespaces, config, shallow boundary, and grafts.  A
+    deny-list is easy to outgrow, so the overlay verifier drops the complete
+    namespace and restores only the two fixed safety controls it owns.
+    """
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("GIT_")
+    }
+    environment.update(
+        {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "LC_ALL": "C",
+            "LANG": "C",
+        }
+    )
+    return environment
+
+
 def git(*arguments: str, binary: bool = False) -> bytes | str:
     completed = subprocess.run(
         ["git", "-C", str(ROOT), *arguments],
+        env=git_environment(),
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -360,11 +399,73 @@ def verify_parent_artifacts(contract: dict[str, Any]) -> None:
             reject("E_PARENT_ARTIFACT", f"immutable parent artifact differs: {relative}")
 
 
+def select_coverage_contract_digest(
+    binding: dict[str, Any],
+    workflow_contract: dict[str, Any],
+) -> str:
+    expected_keys = {"kind", "diagnostic", "formal"}
+    if set(binding) != expected_keys or binding.get("kind") != "workflow-dual-sha256":
+        reject("E_STEP4_BINDING", "coverage workflow binding schema differs")
+    expected_states = {
+        "diagnostic": ("diagnostic-ready", "diagnostic-ready"),
+        "formal": ("formal-ready", "formal-ready"),
+    }
+    for state, (contract_status, publication_status) in expected_states.items():
+        record = binding.get(state)
+        if (
+            not isinstance(record, dict)
+            or set(record) != {"contract_status", "publication_status", "sha256"}
+            or record.get("contract_status") != contract_status
+            or record.get("publication_status") != publication_status
+            or SHA_PATTERN.fullmatch(str(record.get("sha256", ""))) is None
+        ):
+            reject("E_STEP4_BINDING", f"coverage workflow binding differs: {state}")
+
+    tooling_manifest = workflow_contract.get("tooling_manifest")
+    if not isinstance(tooling_manifest, dict):
+        reject("E_STEP4_BINDING", "coverage contract tooling manifest is missing")
+    matches = [
+        state
+        for state, (contract_status, publication_status) in expected_states.items()
+        if workflow_contract.get("status") == contract_status
+        and tooling_manifest.get("publication_status") == publication_status
+    ]
+    if len(matches) != 1:
+        reject("E_STEP4_BINDING", "coverage contract workflow state is forbidden")
+
+    # Both allowed byte identities are derived from the same exact JSON object
+    # by changing only the two workflow status fields.  This pre-authorizes the
+    # direct-child formal freeze without weakening any other contract byte.
+    for state, (contract_status, publication_status) in expected_states.items():
+        projection = copy.deepcopy(workflow_contract)
+        projection["status"] = contract_status
+        projection["tooling_manifest"]["publication_status"] = publication_status
+        projection_payload = (
+            json.dumps(projection, indent=2, ensure_ascii=True) + "\n"
+        ).encode("utf-8")
+        projection_sha = hashlib.sha256(projection_payload).hexdigest()
+        if projection_sha != binding[state]["sha256"]:
+            reject("E_STEP4_BINDING", f"coverage contract {state} projection hash differs")
+    return binding[matches[0]]["sha256"]
+
+
 def verify_step4_runtime_bindings(contract: dict[str, Any]) -> None:
     if contract["step4_runtime_bindings"] != EXPECTED_STEP4_RUNTIME_BINDINGS:
         reject("E_STEP4_BINDING", "Step 4 authority/view binding set differs")
-    for relative, digest in EXPECTED_STEP4_RUNTIME_BINDINGS.items():
-        if sha256(safe_repo_path(relative, "E_STEP4_BINDING")) != digest:
+    for relative, binding in EXPECTED_STEP4_RUNTIME_BINDINGS.items():
+        path = safe_repo_path(relative, "E_STEP4_BINDING")
+        if relative == "scripts/v934/step4/coverage-contract.json":
+            if not isinstance(binding, dict):
+                reject("E_STEP4_BINDING", "coverage workflow binding must be typed")
+            digest = select_coverage_contract_digest(
+                binding,
+                load_json(path, "E_STEP4_BINDING"),
+            )
+        else:
+            if not isinstance(binding, str) or SHA_PATTERN.fullmatch(binding) is None:
+                reject("E_STEP4_BINDING", f"Step 4 runtime binding is not a SHA: {relative}")
+            digest = binding
+        if sha256(path) != digest:
             reject("E_STEP4_BINDING", f"Step 4 authority/view input differs: {relative}")
 
 
@@ -552,6 +653,7 @@ def validate(contract_path: Path, manifest_path: Path) -> None:
         reject("E_CONTRACT", "parent commit is malformed")
     completed = subprocess.run(
         ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", EXPECTED_PARENT_COMMIT, "HEAD"],
+        env=git_environment(),
         check=False,
     )
     if completed.returncode != 0:
@@ -643,9 +745,40 @@ def publish_no_clobber(path: Path, payload: bytes) -> None:
                 reject("E_OUTPUT", f"published output was replaced concurrently: {path}")
 
 
-def negative(output: Path) -> None:
+def negative(output: Path) -> int:
     contract = load_json(DEFAULT_CONTRACT)
     probes: list[tuple[str, str, Callable[[], None]]] = []
+    coverage_binding = contract["step4_runtime_bindings"][
+        "scripts/v934/step4/coverage-contract.json"
+    ]
+    canonical_coverage_contract = load_json(
+        safe_repo_path(
+            "scripts/v934/step4/coverage-contract.json",
+            "E_STEP4_BINDING",
+        ),
+        "E_STEP4_BINDING",
+    )
+    formal_projection = copy.deepcopy(canonical_coverage_contract)
+    formal_projection["status"] = "formal-ready"
+    formal_projection["tooling_manifest"]["publication_status"] = "formal-ready"
+    if (
+        select_coverage_contract_digest(coverage_binding, formal_projection)
+        != coverage_binding["formal"]["sha256"]
+    ):
+        reject("E_STEP4_BINDING", "formal workflow binding positive control differs")
+    verify_git_environment_isolation()
+    crossed_projection = copy.deepcopy(formal_projection)
+    crossed_projection["tooling_manifest"]["publication_status"] = "diagnostic-ready"
+    probes.append((
+        "coverage-workflow-crossed-state", "E_STEP4_BINDING",
+        lambda: select_coverage_contract_digest(coverage_binding, crossed_projection),
+    ))
+    formal_hash_mutation = copy.deepcopy(coverage_binding)
+    formal_hash_mutation["formal"]["sha256"] = "0" * 64
+    probes.append((
+        "coverage-workflow-formal-hash-drift", "E_STEP4_BINDING",
+        lambda: select_coverage_contract_digest(formal_hash_mutation, formal_projection),
+    ))
     parent_mutation = copy.deepcopy(contract)
     parent_mutation["parent_manifests"]["step1"]["sha256"] = "0" * 64
     probes.append((
@@ -717,7 +850,10 @@ def negative(output: Path) -> None:
         "undeclared-protected-drift", "E_UNDECLARED_DRIFT",
         lambda: validate_drift_rows({"protected/file"}, set()),
     ))
-    rows = []
+    rows = [
+        ("coverage-workflow-formal-positive", "validated", "validated", "passed"),
+        ("git-environment-isolation-positive", "validated", "validated", "passed"),
+    ]
     for name, code, callback in probes:
         expect(code, callback)
         rows.append((name, code, code, "passed"))
@@ -728,6 +864,55 @@ def negative(output: Path) -> None:
             + "".join("\t".join(row) + "\n" for row in rows)
         ).encode("utf-8"),
     )
+    return len(rows)
+
+
+def verify_git_environment_isolation() -> None:
+    baseline_root = git("rev-parse", "--show-toplevel")
+    baseline_shallow = git("rev-parse", "--is-shallow-repository")
+    baseline_parent = git("rev-list", "--parents", "-n", "1", "HEAD")
+    overrides = {
+        "GIT_DIR": "/definitely-missing/v934-overlay-git-dir",
+        "GIT_WORK_TREE": "/definitely-missing/v934-overlay-worktree",
+        "GIT_INDEX_FILE": "/definitely-missing/v934-overlay-index",
+        "GIT_COMMON_DIR": "/definitely-missing/v934-overlay-common-dir",
+        "GIT_OBJECT_DIRECTORY": "/definitely-missing/v934-overlay-objects",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES": "/definitely-missing/v934-overlay-alternates",
+        "GIT_SHALLOW_FILE": "/definitely-missing/v934-overlay-shallow",
+        "GIT_GRAFT_FILE": "/definitely-missing/v934-overlay-grafts",
+        "GIT_REPLACE_REF_BASE": "refs/forged-replace/",
+        "GIT_NAMESPACE": "forged-overlay-namespace",
+        "GIT_CONFIG_PARAMETERS": "'core.worktree=/definitely-missing/v934-overlay-config'",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.worktree",
+        "GIT_CONFIG_VALUE_0": "/definitely-missing/v934-overlay-counted-config",
+    }
+    previous = {name: os.environ.get(name) for name in overrides}
+    try:
+        os.environ.update(overrides)
+        sanitized = git_environment()
+        retained_git_names = {
+            name for name in sanitized if name.startswith("GIT_")
+        }
+        if retained_git_names != {
+            "GIT_CONFIG_GLOBAL",
+            "GIT_CONFIG_NOSYSTEM",
+            "GIT_NO_REPLACE_OBJECTS",
+            "GIT_OPTIONAL_LOCKS",
+        }:
+            reject("E_NEGATIVE", "unsafe ambient Git variable survived isolation")
+        if (
+            git("rev-parse", "--show-toplevel") != baseline_root
+            or git("rev-parse", "--is-shallow-repository") != baseline_shallow
+            or git("rev-list", "--parents", "-n", "1", "HEAD") != baseline_parent
+        ):
+            reject("E_NEGATIVE", "ambient Git override changed overlay repository identity")
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def parse_hash_manifest_rows_for_negative(rows: dict[str, str]) -> None:
@@ -756,8 +941,8 @@ def main() -> int:
                 "parents=3 contracts=4 amendments=17 step4_bindings=8 required=45/446 addon=2/6 status=passed"
             )
         else:
-            negative(args.output.absolute())
-            print("V934_STEP4_SUCCESSOR_NEGATIVE passed=8 total=8")
+            count = negative(args.output.absolute())
+            print(f"V934_STEP4_SUCCESSOR_NEGATIVE passed={count} total={count}")
     except (OverlayError, OSError) as error:
         if isinstance(error, OverlayError):
             print(f"[{error.code}] {error}", file=sys.stderr)

@@ -154,15 +154,25 @@ code_inventory:
     expected_change: create
     notes: XML/HTML only; no production classes; no empty-project jacoco:check; not packaged in Launcher
   - module: v934-step4-contract
-    path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
+    path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; local Step 4 SHA256SUMS is exact-51 verified (SHA-256 348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1), with exact-12 successor manifest SHA-256 6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade... remains the sealed r2/r3 historical identity; current Cdiag is exact-54/SHA 589a7d... after typed lifecycle/formal/XML/Git provenance hardening
+  - module: v934-step4-run-log-lifecycle
+    path: scripts/v934/step4/{run_log_lifecycle_lib.sh,run_log_lifecycle_negative_test.sh}
+    role: owned FIFO logger close/reap protocol and process-group residue regression authority
+    expected_change: create
+    notes: Unit/Integration publish durable green only after logger flush/reap; slow, nonzero, timeout, exit, clean-group and persistent-residue cases are expected-negative checks, not all-lane coverage evidence
+  - module: v934-step4-formal-evidence
+    path: scripts/v934/step4/{coverage_tool.py,coverage_contract_negative_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,coverage-contract.json}
+    role: pending-safe diagnostic/freeze/formal state machine and typed canonical evidence replay
+    expected_change: update
+    notes: success run-status is the final atomic publication; formal replays the real frozen diagnostic under its historical contract/threshold blobs; Cfreeze is one direct single-parent commit and rejects merge, multi-commit, shallow, replace-ref and graft histories
   - module: v934-step4-diagnostic-runner
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: diagnostic-ready is not passed; r1 failed closed in child-unit and r2 from clean committed/pushed 0101a44a passed Unit before failing closed in child-integration/sqlite-broad; r3 requires the L2/Pivot fixes and refreshed identity on a new clean committed/pushed HEAD
+    notes: r1/r2/r3 all remain excluded failed diagnostics; r3 passed Unit then rejected a live async tee in the child process group; Cdiag binds PID/PGID/SID/starttime/boot-id receipts and member snapshots; quick checks, main quality gate and identity passed, while commit/push and fresh r4 remain pending
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -319,14 +329,15 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`，不是
+- state：`in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
+  fresh r4 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
-- fail-closed static evidence：raw contract=`8/8`、effective POM=`4/4`、toolchain
-  receipt=`5/5`、report inventory=`27/27`、Step 2 derived view=`12/12`、successor
-  overlay=`8/8`；
+- fail-closed static evidence：contract/source-Git=`20/20 + 7/7`、effective POM=
+  `4/4`、toolchain receipt=`5/5`、report inventory=`27/27`、Step 2 derived view=
+  `12/12`、successor overlay=`12/12`、XML=`63/63`、logger=`9 类 / 14 case`；
 - build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
   `@{argLine}` late evaluation，修复 legacy coverage 无 exec 却 BUILD SUCCESS；三态
   focused 验证已完成，`coverage_tool.py` + manifest + `validate-contract` +
@@ -339,12 +350,12 @@ code_inventory:
   `11 rows / 4 new + 7 changed`，SHA-256=
   `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；declared
   amendments=`17`，SHA-256=
-  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`；required total
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；required total
   保持 `773/59/5707`；
-- publication boundary：Step 4 `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
-  `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；successor
-  manifest exact=`12`，SHA-256=
-  `6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`；
+- publication boundary：Step 4 `SHA256SUMS`=`54/54`，manifest SHA-256=
+  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+  successor manifest=`12/12`，SHA-256=
+  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`；
 - diagnostic r1：clean/pushed HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
   `step4-coverage-20260716-diagnostic-r1`，child-unit=`3115/1/0/0`，正确 fail closed；
   wrong-table corruption 与 raw-vs-raw/nullable-empty 缺陷见
@@ -364,12 +375,34 @@ code_inventory:
 - Pivot fix inventory：legacy fallback 两次稳定 RED；仅 legacy 分支关闭 hybrid，V934 FULL
   保持 production 默认；legacy/V934 SQLite 各 `1/F0E0S0`，source SHA-256=
   `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`；
-- static result：coverage/view/successor/DB negatives=`8/12/8/14`，positives coverage=
+- static result：contract/Git/XML/logger/view/successor/DB/external negatives=
+  `20/7/63/14/12/12/14/12`，positives coverage=
   `773/59/5707`、Step 2=`724/59`、DB=`7/29/370`、overlay required=`45/446`、Addon=
   `2/6`，全部通过；
-- evidence boundary：threshold 仍为 `diagnostic-pending`，r2 未生成 all-lane aggregate
-  baseline/review 或 Step 4 exit evidence。下一动作为提交并推送最终修复与 identity，再在
-  新的 clean committed/pushed HEAD 上执行 r3；Step 5、coverage audit 与 acceptance 仍关闭。
+- diagnostic r3：clean/pushed HEAD=`e16693297239f2a861f3b93b3de60c1bb783bda0`，Unit=
+  `681 positive + 55 structural / 4,941 testcase / F0E0S0`；outer 在 `child-unit`
+  leader 返回后检测到 live PGID member 并 fail closed，后续 lane 与
+  aggregate/threshold 未执行；immutable failed evidence=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`；
+- r3 bug inventory：`docs/9.3.4/workitems/BUG-step4-child-run-log-tee-residue-race.md`
+  记录 Unit/Integration 未管理 process-substitution `tee` 的 close/wait 竞态；受控复现
+  证明显式拥有 FIFO logger、关写端并 wait logger 后不再先返回 leader；
+- managed lifecycle inventory：`run_log_lifecycle_lib.sh` 被 Unit/Integration 共用，
+  `run_log_lifecycle_negative_test.sh` 覆盖 slow/nonzero/timeout/exit/clean-group/
+  persistent-residue；child ready/completion 回执绑定 PID/PGID/SID/starttime/
+  boot-id、schema/mode/link/inode/hash，真实残留在 kill 前留 bytes-safe member snapshot；
+- typed XML/formal inventory：`coverage_xml_negative_tool.py` 与扩展后的
+  `coverage_xml_tool.py`/`coverage_tool.py` 类型化验证 child lifecycle、
+  formalization delta 与 canonical gate/candidate/final/status path；success status 是全部
+  证据通过后最后一次原子发布，不允许 post-green verification；
+- frozen replay inventory：formal 从 confirmed threshold 定位真实 diagnostic run，
+  在 diagnostic commit 上取回历史 threshold/contract blob 并重算 run evidence；
+  拒绝 synthetic run，且 `Cfreeze` 必须是 diagnostic commit 的唯一直接
+  single-parent child，拒绝 merge/multi-commit/shallow/replace/graft；
+- evidence boundary：threshold 仍为 `diagnostic-pending`，r3 未生成 all-lane aggregate
+  baseline/review 或 Step 4 exit evidence。Cdiag 最终快测、正式实现质量闸门与
+  identity/manifest 级联已通过；尚待 commit/push 与 fresh r4；
+  Step 5、coverage audit 与 acceptance 仍关闭。
 
 ## Protected Boundaries
 

@@ -240,21 +240,52 @@ run-owned toolchain receipt。receipt 绑定 Step 1 raw 工具版本、实际 Ma
 链路、compiler realm ASM `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM
 `9.7.1` 和 24 个 production module effective compiler；任一字段缺失、非 canonical
 JSON、跨 run 替换、版本/realm/hash 漂移均必须 fail closed。本地出版的
-`scripts/v934/step4/SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
+`scripts/v934/step4/SHA256SUMS` 的 r2/r3 historical identity 已通过 exact 51 项
+校验，manifest SHA-256=
 `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；successor
 manifest exact=`12`，SHA-256=
-`6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`。
+`6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`。Cdiag 工具增量
+必须完成 fresh identity/manifest 级联后才可运行 r4，不得延用该历史哈希。
+
+Unit/Integration 子 runner 必须显式拥有 run logger：只允许 managed FIFO
+logger、保存 logger PID、关闭全部写端并 bounded wait。logger flush/reap 成功之前
+不得发布 child `completed`/summary；slow logger、logger nonzero/timeout、持有 pipe 的
+descendant 和真实 process-group residue 均必须由
+`run_log_lifecycle_negative_test.sh` 拒绝，不得以 fixed sleep 或降低 residue 检查强度
+规避。
+
+outer 只能消费 exact typed child ready/completion receipt。ready identity 至少绑定
+run/child/PID/PGID/SID/starttime/boot-id/status，并按 mode、link count、inode、hash 和
+`O_NOFOLLOW` 式读取复验；信号与 cleanup 操作必须核对 starttime/boot-id 身份，
+不得仅对可重用的裸 PID 操作。发现残留时，必须在 kill 前持久化 bytes-safe
+PID/PPID/PGID/SID/stat/starttime/comm/cmdline snapshot。
+
+Step 4 diagnostic/formal 发布是双态 fail-closed state machine：
+
+- diagnostic 只能在 `diagnostic-pending` threshold 上生成 observation，不产生
+  formal gate/candidate/final；formal 只能消费 confirmed threshold；
+- gate/candidate/final/status 必须是 run id 推导的 canonical run-root path，
+  `coverage_xml_tool.py` 对 child lifecycle、formalization delta 与该路径执行 typed
+  重算，`coverage_xml_negative_tool.py` 负责 pending/confirmed-safe fail-closed 负例；
+- 成功 `run-status.env` 只允许在 summary 与所有该 mode 必需证据已经验证
+  后作为最后一次不可逆原子发布；不得先发布绿色 status 再 post-verify；
+- formal 必须从 confirmed threshold 的 diagnostic commit/run id 定位真实历史 run，
+  从该 commit 读取当时 threshold/contract blob，对 canonical diagnostic run 重算
+  aggregate、reviewed 与 critical evidence；仅结构正确的 synthetic run 不得通过；
+- threshold freeze commit `Cfreeze` 必须是 diagnostic commit 的唯一直接单父
+  child，只允许 reviewed threshold/contract/manifest 与文档 allowlist delta；merge、多提交、
+  shallow repository、replace refs 或 grafts 均必须 fail closed。
 
 Step 4 report successor 保持执行库存与报告库存分离：
 `coverage-report-amendment.tsv` exact=`11 rows = 4 new + 7 changed`，SHA-256=
 `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；
 successor declared amendments=`17`，SHA-256=
-`be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`。L2 fixture
+`1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`。L2 fixture
 作为 Integration report source amendment；Pivot fixture 作为 database source successor
 amendment。两者均不改变 report identity/testcase，
 因此 required overlay 仍为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，
 exec/session 仍为 `23/48`。Step 2 derived view negatives=`12/12`，successor overlay
-negatives=`8/8`；后者新增 Redis 显式路径错绑负例。
+negatives=`12/12`；后者包含 Redis 显式路径错绑与 Git 环境隔离探针。
 
 Historical `scripts/verify-v934-step2-successor.sh` 继续冻结 Step 2 的 24 个
 production reactor generation 语义。Step 4 加入第 25 个 build-only reporter 后，
@@ -441,12 +472,13 @@ canonical runners 重新执行 unit、hermetic/SQLite、五库与全部 required
 ## Step 4 Diagnostic / Fix Record
 
 Superseding status（2026-07-16）：Step 4=
-`in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`，不是
+`in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
+fresh r4 pending`，不是
 `passed`。静态契约已收口为 exact `23 exec / 48 sessions`；required report
 overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion=
-`2/6` 仍与 required 总计分离。raw contract/effective POM/toolchain/report inventory
-负例分别精确为 `8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view/successor
-overlay=`12/12`、`8/8`。
+`2/6` 仍与 required 总计分离。contract/source-Git=`20/20 + 7/7`，
+effective POM/toolchain/report inventory=`4/4 + 5/5 + 27/27`；Step 2 derived view/
+successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`。
 
 clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
 `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
@@ -489,3 +521,26 @@ Matcher、hybrid 默认、threshold/exclusion 均未修改。
 review、confirmed threshold 或 Step 4 exit evidence。修复与 identity 必须先提交、推送并
 验证新的 clean HEAD，才可执行 r3；`can_enter_coverage_audit=no`，Step 5、9.3.5 与
 acceptance 必须保持关闭。
+
+r3 从 clean/pushed HEAD `e16693297239f2a861f3b93b3de60c1bb783bda0` 启动：
+contract/successor/toolchain/Step 2 view/fresh class universe 全部通过，Unit=
+`681 positive + 55 structural / 4,941 testcase / F0E0S0`。Unit leader 返回后，
+outer 在同 process group 观测到 live member 并在 `child-unit` fail closed；
+Integration/database/external/Addon/aggregate/threshold 均未执行，summary absent。
+immutable failed record=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`，
+canonical bug=
+`docs/9.3.4/workitems/BUG-step4-child-run-log-tee-residue-race.md`。r3 Unit 不得与其他
+run 拼接，该段 supersede 上文的 r3 next entry，但保留 r1/r2 失败历史。
+
+r3 根因为 Unit/Integration 的异步 `exec > >(tee ...)` logger 未被保存 PID、
+close 和 wait，child shell 可以在同 PGID logger 排空前返回。Cdiag 已改为
+managed FIFO logger，并收口 9 类 / 14 case lifecycle 负例、PID/PGID/SID/
+starttime/boot-id ready/completion identity、kill-before member snapshot、Git 环境隔离、
+source/context/manifest 四元绑定、exact raw exec replay 与 typed XML/formal validation。
+最终快测、正式质量闸门与 54/54 identity 已通过；尚待 commit/push 与 fresh r4。
+
+threshold 仍为 `diagnostic-pending`，尚无 all-lane aggregate baseline/review、confirmed
+threshold 或 Step 4 exit evidence。formal 模式仍不可开启；只有 fresh r4 完整通过、
+阈值人工 review 并由 direct-single-parent `Cfreeze` 冻结后，才能从 fresh formal
+replay 继续。`can_enter_coverage_audit=no`，Step 5、9.3.5 与 acceptance 保持关闭。

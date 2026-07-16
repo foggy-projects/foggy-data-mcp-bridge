@@ -13,6 +13,7 @@ AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
 STEP4_AUTHORITY_LIB="$ROOT_DIR/scripts/v934/step4/authority_parent_lib.sh"
 STEP1_FREEZE="$ROOT_DIR/scripts/v934/contract-freeze.json"
 COVERAGE_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
+RUN_LOG_LIB="$ROOT_DIR/scripts/v934/step4/run_log_lifecycle_lib.sh"
 STEP4_TOOL="$ROOT_DIR/scripts/v934/step4/coverage_tool.py"
 REPORT_VIEW_TOOL="$ROOT_DIR/scripts/v934/step4/step2_report_view_tool.py"
 OUTER_MARKER="$RUN_ROOT/run-context.json"
@@ -29,7 +30,7 @@ for command_name in bash flock git mvn python3 tee; do
 done
 for required_file in \
   "$STEP1_TOOL" "$STEP1_FREEZE" "$REPORT_TOOL" "$AUTHORITY_LIB" \
-  "$STEP4_AUTHORITY_LIB" "$COVERAGE_LIB" "$STEP4_TOOL" "$REPORT_VIEW_TOOL"; do
+  "$STEP4_AUTHORITY_LIB" "$COVERAGE_LIB" "$RUN_LOG_LIB" "$STEP4_TOOL" "$REPORT_VIEW_TOOL"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
@@ -49,6 +50,8 @@ source "$AUTHORITY_LIB"
 source "$STEP4_AUTHORITY_LIB"
 # shellcheck source=scripts/v934/step4/coverage_runner_lib.sh
 source "$COVERAGE_LIB"
+# shellcheck source=scripts/v934/step4/run_log_lifecycle_lib.sh
+source "$RUN_LOG_LIB"
 CURRENT_STEP4_SOURCE=""
 if [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == inherited ]]; then
   CURRENT_STEP4_SOURCE="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
@@ -72,8 +75,9 @@ SOURCE_AFTER=""
 OUTER_MARKER_SHA256=""
 SUCCESSOR_MANIFEST_SHA256=""
 FINAL_REPORT_MANIFEST_SHA256=""
-exec > >(tee -a "$RUN_ROOT/run.log") 2>&1
 v934_install_run_status_traps
+trap 'v934_run_log_exit_trap "$?" v934_record_run_status' EXIT
+v934_run_log_open "$RUN_ROOT" v934-integration || fail "cannot open the owned run logger"
 
 PHASE="source-baseline"
 if [[ -n "$CURRENT_STEP4_SOURCE" ]]; then
@@ -314,6 +318,12 @@ print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
 PY
 )"
 
+PHASE="run-log-flush"
+echo "[v934-integration] evidence prepared; flushing owned run logger"
+v934_run_log_close || fail "owned run logger did not flush and exit cleanly"
+
+# Green status and its hash-bound summary are published only after the logger
+# has flushed and been reaped. This keeps the durable evidence order acyclic.
 PHASE="completed"
 v934_write_run_status 0
 RUN_STATUS_SHA256="$(python3 - "$RUN_ROOT/run-status.env" <<'PY'

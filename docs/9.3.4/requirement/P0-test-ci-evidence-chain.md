@@ -146,7 +146,8 @@ updated_at: 2026-07-16
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`
+  `in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
+  fresh r4 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -162,17 +163,19 @@ updated_at: 2026-07-16
   动态探针证明 durable fail closed；
 - Step 4 已完成 diagnostic-ready 静态收口：exact `23 exec / 48 sessions`，
   required report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，
-  Addon companion 单列 `2/6`；raw contract/effective POM/toolchain/report inventory
-  负例分别为 `8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view/successor
-  overlay 负例=`12/12`、`8/8`；
+  Addon companion 单列 `2/6`；contract/source-Git=`20/20 + 7/7`，
+  effective POM/toolchain/report inventory=`4/4 + 5/5 + 27/27`；Step 2 derived view/
+  successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`；
 - toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
   `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；Step 4 report
   amendment=`11 rows = 4 new + 7 changed`，SHA-256=
   `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`，
   successor declared amendments=`17`，SHA-256=
-  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`；本地
-  `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
-  `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；本地
+  `SHA256SUMS`=`54/54`，SHA-256=
+  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+  successor=`12/12`，SHA-256=
+  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -193,8 +196,14 @@ updated_at: 2026-07-16
   `1/F0E0S0`，source SHA-256=
   `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`；两项均只改测试
   fixture/assertion，不改生产 hybrid 默认、Matcher、threshold 或 exclusion；
-- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，r2 未到 aggregate/report 阶段，
-  尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。下一动作是提交、推送
-  最终修复与 identity 并验证新的 clean HEAD 后执行 r3。Step 5
+- diagnostic r3 从 clean/pushed `e16693297239f2a861f3b93b3de60c1bb783bda0` 启动，
+  Unit=`4,941/F0E0S0`；child PASS 后因 Unit/Integration 共用的未托管日志 `tee` 没有
+  close/wait，outer 以 live process-group residue fail closed。r3 summary/observation absent，
+  failed evidence 见
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`；
+- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，r3 未到 aggregate/report 阶段，
+  尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。managed logger、
+  process identity、Git/source provenance、pending-safe formal tooling、identity 与 pre-r4 质量闸门
+  已通过；下一动作是提交/push 并验证 clean Cdiag HEAD 后执行 fresh r4。Step 5
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
   据此签收 9.3.4 或把 9.3.5 标为 ready。

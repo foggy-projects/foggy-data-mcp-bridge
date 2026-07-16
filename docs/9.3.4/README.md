@@ -38,23 +38,26 @@ updated_at: 2026-07-16
   `step3-required-20260716-final-r4` 通过：database `29/370` + required external
   `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
-  已按序完成；Step 4 仍为 `in-progress`，diagnostic r2 已 fail closed，尚无 coverage
+  已按序完成；Step 4 仍为 `in-progress`，diagnostic r3 已 fail closed，尚无 coverage
   pass 或 aggregate baseline/review。
-- Step 4 diagnostic-ready baseline 已冻结两层独立库存：coverage execution=
+- Step 4 Cdiag pre-r4 实现质量闸门已通过，两层独立库存保持：coverage execution=
   `23 exec / 48 sessions`；
   required report overlay=`773 positive + 59 structural / 5,707 testcase`，Addon companion=
-  `2/6`；required 总计预期 `F0E0S0`。raw contract、effective POM、toolchain
-  receipt 与 report inventory 负例分别精确通过 `8/8`、`4/4`、`5/5`、
-  `27/27`；Step 2 derived view 与 successor overlay 负例保持 `12/12`、`8/8`。
+  `2/6`；required 总计预期 `F0E0S0`。coverage contract mutations=`20/20`、
+  source Git identity=`7/7`、effective POM=`4/4`、toolchain receipt=`5/5`、
+  report inventory=`27/27`；Step 2 derived view/successor overlay=`12/12`/`12/12`，
+  XML/provenance=`63/63`，logger lifecycle=`9 类 / 14 case`。
 - toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
   `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1` 以及 24 个
   production module 的 effective compiler。report amendment 现为 exact
   `11 rows = 4 new + 7 changed`，SHA-256=
   `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；successor
   declared amendments=`17`，SHA-256=
-  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`。本地 Step 4
-  `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
-  `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`。
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`。本地 Step 4
+  `SHA256SUMS` 已通过 exact `54/54`，manifest SHA-256=
+  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+  successor manifest=`12/12`，SHA-256=
+  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`。
 - 静态复核还发现并修复 root coverage `argLine` 早解析 fail-open：legacy
   profile 现在实际生成/读取 exec，低于既有门时正确失败；生产代码不变，
   canonical `@{argLine}` 已由 versioned contract guard 与 `8/8` negatives 自动保护。详见
@@ -81,9 +84,17 @@ updated_at: 2026-07-16
   focused 各 `1/F0E0S0`，源码 SHA-256=
   `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`。生产
   Matcher、hybrid 默认、threshold/exclusion 均未修改。
-- `coverage-thresholds.json` 仍为 `diagnostic-pending`；r1/r2 与 focused XML 都不是
-  Step 4 exit evidence。必须先提交并推送最终修复与 identity，确认新的 clean HEAD，再执行
-  r3；Step 5 仍关闭，`can_enter_coverage_audit=no`。
+- clean/pushed HEAD `e16693297239f2a861f3b93b3de60c1bb783bda0` 的 r3 完整通过 Unit
+  `681 execution + 55 structural / 4,941 testcase / F0E0S0`，随后因 Unit runner 未
+  close/wait 异步日志 `tee`，outer 在 `child-unit` 报 live process-group residue 并
+  fail closed。r3 summary/observation absent，后续所有 lane/gate 均未执行；见
+  [r3 failed evidence](evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md)
+  与 [logger race BUG](workitems/BUG-step4-child-run-log-tee-residue-race.md)。
+- `coverage-thresholds.json` 仍为 `diagnostic-pending`；r1/r2/r3 与 focused XML 都不是
+  Step 4 exit evidence。managed logger、Git/source provenance、pending-safe formal 工具、
+  identity 级联与正式 pre-r4 quality 已通过；下一动作是提交/push 该 Cdiag、
+  确认 clean `HEAD == origin/main` 后执行 fresh r4。Step 5 仍关闭，
+  `can_enter_coverage_audit=no`。
 
 ## 执行资料
 
@@ -106,6 +117,14 @@ updated_at: 2026-07-16
   [workitems/BUG-step4-preagg-l2-hybrid-fixture-drift.md](workitems/BUG-step4-preagg-l2-hybrid-fixture-drift.md)
 - Step 4 proactive Pivot legacy fixture regression：
   [workitems/BUG-step4-pivot-legacy-hybrid-fixture-drift.md](workitems/BUG-step4-pivot-legacy-hybrid-fixture-drift.md)
+- Step 4 diagnostic r3 failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md)
+- Step 4 child logger lifecycle regression：
+  [workitems/BUG-step4-child-run-log-tee-residue-race.md](workitems/BUG-step4-child-run-log-tee-residue-race.md)
+- Step 4 Git environment isolation regression：
+  [workitems/BUG-step4-git-environment-override-bypass.md](workitems/BUG-step4-git-environment-override-bypass.md)
+- Step 4 source/context/raw-exec provenance regression：
+  [workitems/BUG-step4-source-context-crosslink-gap.md](workitems/BUG-step4-source-context-crosslink-gap.md)
 - Step 1 confirmed evidence:
   [evidence/step-1/inventory-contract-freeze-20260714.md](evidence/step-1/inventory-contract-freeze-20260714.md)
 - Step 2 structural amendment evidence：
@@ -150,7 +169,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r2 fail-closed / L2+Pivot focused-green / r3 pending | 静态契约 exact 23/48 + 773/59/5707；r2 Unit=`4941/F0E0S0`、Integration=`312/F1E0S0`；L2=`1/0`、组合=`30/0`，Pivot legacy/V934 SQLite 各=`1/0`；阈值 diagnostic-pending；下一动作是新修复 clean/pushed HEAD 的 r3 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-r4 quality passed / identity refreshed | 静态契约 exact 23/48 + 773/59/5707；top 54/54；r3 历史 fail-closed；阈值 diagnostic-pending；下一动作是 Cdiag clean/pushed HEAD 的 fresh r4 |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

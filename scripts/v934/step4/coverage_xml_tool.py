@@ -4,17 +4,25 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import copy
 import csv
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+import errno
+from fractions import Fraction
 import hashlib
+import importlib.util
 import json
 import math
 import os
 from pathlib import Path, PurePosixPath
 import re
+import secrets
 import stat
+import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Iterable, Sequence
 
@@ -40,6 +48,9 @@ EXPECTED_STEP1_FREEZE_SHA256 = (
 EXPECTED_LEDGER_SHA256 = (
     "10ddf85daa0426d530bec3ccd9bb1a10446aa426d920c6c5c433163455552711"
 )
+EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256 = (
+    "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96"
+)
 LEDGER_HEADER = (
     "exec_file",
     "runner",
@@ -53,6 +64,176 @@ LEDGER_HEADER = (
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 UNSIGNED_PATTERN = re.compile(r"0|[1-9][0-9]*")
 SESSION_PREFIX_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+GIT_HEAD_PATTERN = re.compile(r"[0-9a-f]{40}")
+ENV_KEY_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+SOURCE_INVENTORY_HEADER = b"mode\tpath\tsha256\tsize\n"
+MAX_SOURCE_INVENTORY_BYTES = 64 * 1024 * 1024
+MAX_RAW_EXEC_BYTES = 512 * 1024 * 1024
+UTC_TIMESTAMP_PATTERN = re.compile(
+    r"(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])"
+    r"T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z"
+)
+BOOT_ID_PATTERN = re.compile(
+    r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+)
+CHILD_NAMES = ("unit", "integration", "step3-required")
+CHILD_READY_FIELDS = (
+    "schema_version",
+    "kind",
+    "run_id",
+    "child",
+    "pid",
+    "pgid",
+    "sid",
+    "starttime_ticks",
+    "boot_id",
+    "status",
+)
+CHILD_COMPLETION_FIELDS = (
+    "run_id",
+    "child",
+    "leader_pid",
+    "leader_sid",
+    "leader_starttime_ticks",
+    "boot_id",
+    "leader_exit_code",
+    "leader_reaped",
+    "ready_receipt_sha256",
+    "process_group_residue",
+    "status",
+)
+FORMALIZATION_EXACT_PATHS = (
+    "scripts/v934/step4/coverage-thresholds.json",
+    "scripts/v934/step4/coverage-contract.json",
+    "scripts/v934/step4/SHA256SUMS",
+)
+FORMALIZATION_ALLOWED_PREFIXES = ("docs/9.3.4/",)
+FORMAL_REPOSITORY_IDENTITY_POLICY = {
+    "object_format": "sha1",
+    "commit_relation": "direct-single-parent",
+    "shallow_repository": "forbidden",
+    "replace_refs": "forbidden",
+    "nonempty_grafts": "forbidden",
+    "index_flags": "ordinary-H-only",
+    "head_index_worktree": "exact-path-mode-blob",
+}
+FORMAL_REPOSITORY_IDENTITY_FIELDS = (
+    "object_format",
+    "shallow_repository",
+    "replace_ref_count",
+    "nonempty_grafts",
+    "index_flags",
+    "head_index_worktree",
+    "head_tree_sha256",
+    "index_stage_sha256",
+    "index_flags_sha256",
+    "commit_relation",
+    "parent_count",
+    "source_file_count",
+    "source_sha256",
+)
+
+THRESHOLD_ROOT_KEYS = (
+    "schema_version",
+    "kind",
+    "status",
+    "parent_policy",
+    "jacoco",
+    "model_inherited_gate",
+    "critical_candidate_floor",
+    "aggregate_observed",
+    "aggregate_reviewed_thresholds",
+    "critical_reviewed_thresholds",
+    "review",
+)
+THRESHOLD_EVIDENCE_KEYS = (
+    "run_id",
+    "git_head",
+    "source_sha256",
+    "run_status_sha256",
+    "summary_sha256",
+    "observation_sha256",
+    "coverage_contract_sha256",
+    "threshold_predecessor_sha256",
+    "exec_manifest_sha256",
+    "aggregate_exec_sha256",
+    "aggregate_xml_sha256",
+    "workspace_class_tree_sha256",
+)
+DIAGNOSTIC_SUMMARY_FIELDS = (
+    "run_id",
+    "mode",
+    "git_head",
+    "threshold_status",
+    "source_before_sha256",
+    "source_after_sha256",
+    "coverage_contract_sha256",
+    "outer_marker_sha256",
+    "class_universe_sha256",
+    "child_lifecycle_sha256",
+    "toolchain_receipt_sha256",
+    "toolchain_pre_compile_seal_replay_sha256",
+    "toolchain_post_children_replay_sha256",
+    "toolchain_reporter_pre_replay_sha256",
+    "toolchain_reporter_post_replay_sha256",
+    "toolchain_post_reporter_replay_sha256",
+    "toolchain_post_model_replay_sha256",
+    "report_inventory_sha256",
+    "exec_manifest_sha256",
+    "aggregate_exec_sha256",
+    "aggregate_provenance_sha256",
+    "report_provenance_sha256",
+    "coverage_observation_sha256",
+    "successor_overlay_negative_sha256",
+    "coverage_contract_negative_sha256",
+    "toolchain_receipt_negative_sha256",
+    "effective_reporter_pom_negative_sha256",
+    "report_inventory_negative_sha256",
+    "coverage_exec_negative_sha256",
+    "coverage_xml_negative_sha256",
+    "coverage_xml_generic_negative_sha256",
+    "run_log_lifecycle_negative_sha256",
+    "model_gate_sha256",
+    "cleanup_sha256",
+    "sensitive_scan_sha256",
+    "exec_files",
+    "sessions",
+    "required_reports",
+    "required_structural_reports",
+    "required_testcase_nodes",
+    "addon_reports",
+    "addon_testcase_nodes",
+    "model_external_gate",
+    "acceptance_candidate",
+    "status",
+)
+_FORMAL_SUMMARY_INSERT = DIAGNOSTIC_SUMMARY_FIELDS.index("toolchain_receipt_sha256")
+FORMAL_SUMMARY_FIELDS = (
+    *DIAGNOSTIC_SUMMARY_FIELDS[:_FORMAL_SUMMARY_INSERT],
+    "formalization_delta_sha256",
+    *DIAGNOSTIC_SUMMARY_FIELDS[_FORMAL_SUMMARY_INSERT:],
+)
+DIAGNOSTIC_RUN_STATUS_FIELDS = (
+    "run_id",
+    "mode",
+    "git_head",
+    "started_at",
+    "finished_at",
+    "last_phase",
+    "exit_code",
+    "source_before_sha256",
+    "source_after_sha256",
+    "outer_marker_sha256",
+    "toolchain_receipt_sha256",
+    "summary_sha256",
+    "status",
+)
+FORMAL_RUN_STATUS_FIELDS = DIAGNOSTIC_RUN_STATUS_FIELDS[:-1] + (
+    "coverage_gate_sha256",
+    "candidate_manifest_sha256",
+    "final_manifest_sha256",
+    "status",
+)
 
 
 class CoverageXmlError(RuntimeError):
@@ -178,16 +359,166 @@ def json_sha256(value: Any, code: str, label: str) -> str:
     return value
 
 
-def decimal_ratio(value: Any, code: str, label: str) -> Decimal:
+def json_git_head(value: Any, code: str, label: str) -> str:
+    require(
+        isinstance(value, str) and GIT_HEAD_PATTERN.fullmatch(value) is not None,
+        code,
+        f"{label} must be a lowercase SHA-1 Git commit identity",
+    )
+    return value
+
+
+def decimal_ratio(value: Any, code: str, label: str) -> Fraction:
     require(type(value) in (int, float), code, f"{label} must be a JSON number")
     if type(value) is float:
         require(math.isfinite(value), code, f"{label} must be finite")
     try:
-        result = Decimal(str(value))
+        decimal = Decimal(str(value))
     except InvalidOperation:
         reject(code, f"{label} is not a decimal ratio")
-    require(Decimal("0") <= result <= Decimal("1"), code, f"{label} must be in [0, 1]")
-    return result
+    require(Decimal("0") <= decimal <= Decimal("1"), code, f"{label} must be in [0, 1]")
+    return Fraction(decimal)
+
+
+def exact_counter(covered: Any, total: Any, code: str, label: str) -> dict[str, Any]:
+    """Return the canonical, lossless representation of a coverage counter."""
+
+    covered_number = json_integer(covered, code, f"{label}.covered")
+    total_number = json_integer(total, code, f"{label}.total", positive=True)
+    require(
+        covered_number <= total_number,
+        code,
+        f"{label}.covered exceeds total",
+    )
+    return {
+        "covered": covered_number,
+        "total": total_number,
+        "fraction": f"{covered_number}/{total_number}",
+    }
+
+
+def validate_exact_counter(value: Any, code: str, label: str) -> dict[str, Any]:
+    counter = exact_keys(value, ("covered", "total", "fraction"), code, label)
+    expected = exact_counter(counter["covered"], counter["total"], code, label)
+    require(counter == expected, code, f"{label}.fraction is not canonical")
+    return expected
+
+
+def counter_fraction(value: Any, code: str, label: str) -> Fraction:
+    counter = validate_exact_counter(value, code, label)
+    return Fraction(counter["covered"], counter["total"])
+
+
+def counter_at_least(
+    actual: Any,
+    minimum: Any,
+    code: str,
+    label: str,
+) -> bool:
+    actual_counter = validate_exact_counter(actual, code, f"{label}.actual")
+    minimum_counter = validate_exact_counter(minimum, code, f"{label}.minimum")
+    return (
+        actual_counter["covered"] * minimum_counter["total"]
+        >= minimum_counter["covered"] * actual_counter["total"]
+    )
+
+
+def counter_at_least_ratio(
+    actual: Any,
+    numerator: int,
+    denominator: int,
+    code: str,
+    label: str,
+) -> bool:
+    counter = validate_exact_counter(actual, code, label)
+    require(
+        numerator >= 0 and denominator > 0 and numerator <= denominator,
+        code,
+        f"{label} comparison ratio is invalid",
+    )
+    return counter["covered"] * denominator >= numerator * counter["total"]
+
+
+def require_sha256_fields(value: dict[str, Any], fields: Iterable[str], code: str, label: str) -> None:
+    for field in fields:
+        json_sha256(value[field], code, f"{label}.{field}")
+
+
+def validate_utc_timestamp(value: Any, code: str, label: str) -> str:
+    require(
+        isinstance(value, str) and UTC_TIMESTAMP_PATTERN.fullmatch(value) is not None,
+        code,
+        f"{label} must be a canonical UTC second timestamp",
+    )
+    return value
+
+
+def load_env(
+    path: Path,
+    expected_fields: Sequence[str],
+    code: str,
+    label: str,
+) -> dict[str, str]:
+    regular_file(path, code)
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        reject(code, f"cannot read {label}: {exc.__class__.__name__}")
+    return parse_env_bytes(payload, expected_fields, code, label)
+
+
+def parse_env_bytes(
+    payload: bytes,
+    expected_fields: Sequence[str],
+    code: str,
+    label: str,
+) -> dict[str, str]:
+    require(b"\x00" not in payload, code, f"{label} contains NUL")
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeError:
+        reject(code, f"{label} is not UTF-8")
+    require(text.endswith("\n"), code, f"{label} must end with one newline")
+    require("\r" not in text, code, f"{label} contains a carriage return")
+    rows = text[:-1].split("\n")
+    values: dict[str, str] = {}
+    order: list[str] = []
+    for number, row in enumerate(rows, 1):
+        require(row and "=" in row, code, f"malformed {label} row {number}")
+        key, value = row.split("=", 1)
+        require(
+            ENV_KEY_PATTERN.fullmatch(key) is not None,
+            code,
+            f"unsafe {label} key at row {number}",
+        )
+        require(key not in values, code, f"duplicate {label} key: {key}")
+        require("\n" not in value and "\r" not in value, code, f"unsafe {label} value: {key}")
+        order.append(key)
+        values[key] = value
+    require(
+        tuple(order) == tuple(expected_fields),
+        code,
+        f"{label} fields/order differ: expected={list(expected_fields)} actual={order}",
+    )
+    return values
+
+
+def encode_env(values: dict[str, str], fields: Sequence[str], code: str) -> bytes:
+    require(tuple(values) == tuple(fields), code, "environment fields/order differ")
+    rows: list[str] = []
+    for key in fields:
+        value = values[key]
+        require(
+            ENV_KEY_PATTERN.fullmatch(key) is not None
+            and isinstance(value, str)
+            and "\n" not in value
+            and "\r" not in value
+            and "\x00" not in value,
+            code,
+            f"unsafe environment field: {key}",
+        )
+        rows.append(f"{key}={value}")
+    return ("\n".join(rows) + "\n").encode("utf-8")
 
 
 def display_path(repo_root: Path, path: Path) -> str:
@@ -198,46 +529,358 @@ def display_path(repo_root: Path, path: Path) -> str:
         return str(resolved)
 
 
-def atomic_json(path: Path, value: dict[str, Any]) -> None:
-    if path.exists() or path.is_symlink():
-        reject("E_OUTPUT_EXISTS", f"refusing to overwrite output: {path}")
+def atomic_bytes(path: Path, payload: bytes, *, mode: int = 0o600) -> None:
+    require(path.is_absolute(), "E_OUTPUT_PATH", "atomic output path must be absolute")
+    require(mode in (0o600, 0o644), "E_OUTPUT_PATH", "atomic output mode is unsupported")
+    require(path.name not in ("", ".", ".."), "E_OUTPUT_PATH", "atomic output name is unsafe")
     parent = path.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    real_directory(parent, "E_OUTPUT_DIR")
-    temporary = parent / f".{path.name}.{os.getpid()}.tmp"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    descriptor: int | None = None
-    published = False
     try:
-        descriptor = os.open(temporary, flags, 0o600)
-        payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
-        with os.fdopen(descriptor, "wb", closefd=True) as stream:
-            descriptor = None
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.link(temporary, path, follow_symlinks=False)
-        published = True
-        temporary.unlink()
-        directory_flags = os.O_RDONLY
-        if hasattr(os, "O_DIRECTORY"):
-            directory_flags |= os.O_DIRECTORY
-        if hasattr(os, "O_NOFOLLOW"):
-            directory_flags |= os.O_NOFOLLOW
-        directory_descriptor = os.open(parent, directory_flags)
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            os.close(directory_descriptor)
+        parent_before = parent.lstat()
+        parent_resolved = parent.resolve(strict=True)
     except OSError as exc:
-        if descriptor is not None:
-            os.close(descriptor)
-        temporary.unlink(missing_ok=True)
-        if published:
-            path.unlink(missing_ok=True)
+        reject("E_OUTPUT_DIR", f"cannot inspect output parent: {exc.__class__.__name__}")
+    require(
+        stat.S_ISDIR(parent_before.st_mode)
+        and not stat.S_ISLNK(parent_before.st_mode)
+        and parent_resolved == parent,
+        "E_OUTPUT_DIR",
+        "output parent must be an existing canonical directory without symlinked ancestors",
+    )
+    directory_fd = -1
+    descriptor = -1
+    temporary_name = f".{path.name}.{os.getpid()}.{secrets.token_hex(16)}.tmp"
+    temporary_identity: tuple[int, int] | None = None
+    published_identity: tuple[int, int] | None = None
+    published = False
+    completed = False
+    try:
+        directory_fd = os.open(
+            parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        bound_parent = os.fstat(directory_fd)
+        require(
+            stat.S_ISDIR(bound_parent.st_mode)
+            and (bound_parent.st_dev, bound_parent.st_ino)
+            == (parent_before.st_dev, parent_before.st_ino),
+            "E_OUTPUT_DIR",
+            "output parent changed while opening",
+        )
+        try:
+            os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            reject("E_OUTPUT_EXISTS", f"refusing to overwrite output: {path}")
+        descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            mode,
+            dir_fd=directory_fd,
+        )
+        opened = os.fstat(descriptor)
+        require(
+            stat.S_ISREG(opened.st_mode)
+            and opened.st_uid == os.getuid()
+            and opened.st_nlink == 1,
+            "E_OUTPUT",
+            "new staged output identity/link-count differs",
+        )
+        temporary_identity = (opened.st_dev, opened.st_ino)
+        os.fchmod(descriptor, mode)
+        view = memoryview(payload)
+        while view:
+            written = os.write(descriptor, view)
+            require(written > 0, "E_OUTPUT", "short write while staging output")
+            view = view[written:]
+        os.fsync(descriptor)
+        staged = os.fstat(descriptor)
+        require(
+            stat.S_ISREG(staged.st_mode)
+            and staged.st_uid == os.getuid()
+            and stat.S_IMODE(staged.st_mode) == mode
+            and staged.st_nlink == 1
+            and staged.st_size == len(payload),
+            "E_OUTPUT",
+            "staged output identity/mode/link-count/size differs",
+        )
+        require(
+            (staged.st_dev, staged.st_ino) == temporary_identity,
+            "E_OUTPUT",
+            "staged output inode changed while writing",
+        )
+        published_identity = temporary_identity
+        os.close(descriptor)
+        descriptor = -1
+        try:
+            os.link(
+                temporary_name,
+                path.name,
+                src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+        except FileExistsError:
+            reject("E_OUTPUT_EXISTS", f"refusing to overwrite output: {path}")
+        published = True
+        current = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        require(
+            stat.S_ISREG(current.st_mode)
+            and (current.st_dev, current.st_ino) == published_identity,
+            "E_OUTPUT",
+            "published output identity differs from staged inode",
+        )
+        os.fsync(directory_fd)
+        temporary_current = os.stat(
+            temporary_name,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        require(
+            (temporary_current.st_dev, temporary_current.st_ino) == temporary_identity,
+            "E_OUTPUT",
+            "staged temporary identity changed before cleanup",
+        )
+        os.unlink(temporary_name, dir_fd=directory_fd)
+        temporary_identity = None
+        os.fsync(directory_fd)
+        parent_after = parent.lstat()
+        output_after = path.lstat()
+        require(
+            not stat.S_ISLNK(parent_after.st_mode)
+            and (parent_after.st_dev, parent_after.st_ino)
+            == (bound_parent.st_dev, bound_parent.st_ino)
+            and parent.resolve(strict=True) == parent
+            and stat.S_ISREG(output_after.st_mode)
+            and (output_after.st_dev, output_after.st_ino) == published_identity,
+            "E_OUTPUT",
+            "output or parent identity changed during publication",
+        )
+        require(
+            output_after.st_uid == os.getuid()
+            and stat.S_IMODE(output_after.st_mode) == mode
+            and output_after.st_nlink == 1
+            and output_after.st_size == len(payload),
+            "E_OUTPUT",
+            "published output identity/mode/link-count/size differs",
+        )
+        completed = True
+    except CoverageXmlError:
+        raise
+    except OSError as exc:
         reject("E_OUTPUT", f"cannot publish output {path}: {exc.__class__.__name__}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if directory_fd >= 0:
+            if temporary_identity is not None:
+                try:
+                    current = os.stat(
+                        temporary_name,
+                        dir_fd=directory_fd,
+                        follow_symlinks=False,
+                    )
+                    if (current.st_dev, current.st_ino) == temporary_identity:
+                        os.unlink(temporary_name, dir_fd=directory_fd)
+                except FileNotFoundError:
+                    pass
+            if published and not completed and published_identity is not None:
+                try:
+                    current = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino) == published_identity:
+                        os.unlink(path.name, dir_fd=directory_fd)
+                        os.fsync(directory_fd)
+                except FileNotFoundError:
+                    pass
+            os.close(directory_fd)
+
+
+def atomic_json(path: Path, value: dict[str, Any]) -> None:
+    payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    atomic_bytes(path, payload)
+
+
+def final_publish_bytes(
+    path: Path,
+    payload: bytes,
+    *,
+    mode: int = 0o644,
+    exit_on_commit: bool = False,
+) -> None:
+    """Publish the canonical success marker with one final no-clobber syscall.
+
+    Unlike ordinary evidence publication, a success marker may not become
+    visible before later cleanup, durability, identity, or validation work.
+    Everything is therefore staged and verified first.  A successful
+    renameat2(RENAME_NOREPLACE) is the commit point and this function performs
+    no filesystem operation after it returns success.
+    """
+
+    require(path.is_absolute(), "E_FINAL_OUTPUT_PATH", "final output path must be absolute")
+    require(mode == 0o644, "E_FINAL_OUTPUT_PATH", "final output mode must be 0644")
+    require(path.name not in ("", ".", ".."), "E_FINAL_OUTPUT_PATH", "final output name is unsafe")
+    parent = path.parent
+    try:
+        parent_before = parent.lstat()
+        parent_resolved = parent.resolve(strict=True)
+    except OSError as exc:
+        reject("E_FINAL_OUTPUT_DIR", f"cannot inspect final output parent: {exc.__class__.__name__}")
+    require(
+        stat.S_ISDIR(parent_before.st_mode)
+        and not stat.S_ISLNK(parent_before.st_mode)
+        and parent_resolved == parent,
+        "E_FINAL_OUTPUT_DIR",
+        "final output parent must be an existing canonical directory",
+    )
+
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = libc.renameat2
+        renameat2.argtypes = (
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        )
+        renameat2.restype = ctypes.c_int
+    except (AttributeError, OSError) as exc:
+        reject("E_FINAL_OUTPUT_UNSUPPORTED", f"renameat2 is unavailable: {exc.__class__.__name__}")
+
+    rename_noreplace = 1
+    directory_fd = -1
+    descriptor = -1
+    temporary_name = f".{path.name}.{os.getpid()}.{secrets.token_hex(16)}.commit"
+    committed = False
+    try:
+        directory_fd = os.open(
+            parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        bound_parent = os.fstat(directory_fd)
+        require(
+            stat.S_ISDIR(bound_parent.st_mode)
+            and (bound_parent.st_dev, bound_parent.st_ino)
+            == (parent_before.st_dev, parent_before.st_ino),
+            "E_FINAL_OUTPUT_DIR",
+            "final output parent changed while opening",
+        )
+        try:
+            os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            reject("E_FINAL_OUTPUT_EXISTS", f"refusing to overwrite final output: {path}")
+
+        descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            mode,
+            dir_fd=directory_fd,
+        )
+        os.fchmod(descriptor, mode)
+        view = memoryview(payload)
+        while view:
+            written = os.write(descriptor, view)
+            require(written > 0, "E_FINAL_OUTPUT", "short write while staging final output")
+            view = view[written:]
+        os.fsync(descriptor)
+        staged = os.fstat(descriptor)
+        require(
+            stat.S_ISREG(staged.st_mode)
+            and staged.st_uid == os.getuid()
+            and stat.S_IMODE(staged.st_mode) == mode
+            and staged.st_nlink == 1
+            and staged.st_size == len(payload),
+            "E_FINAL_OUTPUT",
+            "staged final output identity/mode/link-count/size differs",
+        )
+        os.close(descriptor)
+        descriptor = -1
+
+        staged_after_close = os.stat(
+            temporary_name,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        parent_after_stage = parent.lstat()
+        require(
+            stat.S_ISREG(staged_after_close.st_mode)
+            and (staged_after_close.st_dev, staged_after_close.st_ino)
+            == (staged.st_dev, staged.st_ino)
+            and staged_after_close.st_uid == os.getuid()
+            and stat.S_IMODE(staged_after_close.st_mode) == mode
+            and staged_after_close.st_nlink == 1
+            and staged_after_close.st_size == len(payload)
+            and stat.S_ISDIR(parent_after_stage.st_mode)
+            and not stat.S_ISLNK(parent_after_stage.st_mode)
+            and (parent_after_stage.st_dev, parent_after_stage.st_ino)
+            == (bound_parent.st_dev, bound_parent.st_ino)
+            and parent.resolve(strict=True) == parent,
+            "E_FINAL_OUTPUT",
+            "staged final output or parent changed before commit",
+        )
+        os.fsync(directory_fd)
+
+        # COMMIT POINT: do not add filesystem I/O, validation, printing, or
+        # cleanup after a successful call.  RENAME_NOREPLACE makes the staged
+        # inode canonical without a visible pre-commit green marker.
+        result = renameat2(
+            directory_fd,
+            os.fsencode(temporary_name),
+            directory_fd,
+            os.fsencode(path.name),
+            rename_noreplace,
+        )
+        if result != 0:
+            error_number = ctypes.get_errno()
+            if error_number == errno.EEXIST:
+                reject("E_FINAL_OUTPUT_EXISTS", f"refusing to overwrite final output: {path}")
+            raise OSError(error_number, os.strerror(error_number))
+        committed = True
+        if exit_on_commit:
+            # seal-run inherits ignored INT/TERM/HUP from the outer finalizer.
+            # Define the marker as the commit authority and terminate without
+            # interpreter cleanup immediately after the rename commit point.
+            os._exit(0)
+        return
+    except CoverageXmlError:
+        raise
+    except OSError as exc:
+        reject("E_FINAL_OUTPUT", f"cannot publish final output {path}: {exc.__class__.__name__}")
+    finally:
+        if not committed:
+            if descriptor >= 0:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+            if directory_fd >= 0:
+                try:
+                    os.unlink(temporary_name, dir_fd=directory_fd)
+                    os.fsync(directory_fd)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    pass
+                try:
+                    os.close(directory_fd)
+                except OSError:
+                    pass
 
 
 def load_ledger(repo_root: Path) -> list[dict[str, str]]:
@@ -331,13 +974,201 @@ def load_frozen_modules(repo_root: Path) -> tuple[list[str], dict[str, str], str
     return modules, artifact_to_module, freeze_sha
 
 
-def load_thresholds(repo_root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]]:
+def validate_threshold_evidence(value: Any, code: str = "E_THRESHOLD") -> dict[str, Any]:
+    evidence = exact_keys(value, THRESHOLD_EVIDENCE_KEYS, code, "threshold evidence")
+    require(
+        isinstance(evidence["run_id"], str)
+        and SESSION_PREFIX_PATTERN.fullmatch(evidence["run_id"]) is not None
+        and len(evidence["run_id"]) <= 128,
+        code,
+        "threshold evidence run_id is unsafe",
+    )
+    require(
+        isinstance(evidence["git_head"], str)
+        and GIT_HEAD_PATTERN.fullmatch(evidence["git_head"]) is not None,
+        code,
+        "threshold evidence git_head differs",
+    )
+    require_sha256_fields(
+        evidence,
+        (field for field in THRESHOLD_EVIDENCE_KEYS if field.endswith("_sha256")),
+        code,
+        "threshold evidence",
+    )
+    require(
+        evidence["threshold_predecessor_sha256"]
+        == EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256,
+        code,
+        "threshold evidence predecessor is not the frozen diagnostic successor",
+    )
+    return evidence
+
+
+def validate_confirmed_thresholds(
+    repo_root: Path,
+    step1: dict[str, Any],
+    step4: dict[str, Any],
+) -> None:
+    aggregate_observed = exact_keys(
+        step4["aggregate_observed"],
+        ("evidence", "line", "branch"),
+        "E_THRESHOLD",
+        "confirmed aggregate observation",
+    )
+    evidence = validate_threshold_evidence(aggregate_observed["evidence"])
+    observed_line = validate_exact_counter(
+        aggregate_observed["line"], "E_THRESHOLD", "confirmed aggregate line"
+    )
+    observed_branch = validate_exact_counter(
+        aggregate_observed["branch"], "E_THRESHOLD", "confirmed aggregate branch"
+    )
+    reviewed = exact_keys(
+        step4["aggregate_reviewed_thresholds"],
+        ("line", "branch"),
+        "E_THRESHOLD",
+        "confirmed aggregate reviewed thresholds",
+    )
+    require(
+        validate_exact_counter(reviewed["line"], "E_THRESHOLD", "reviewed aggregate line")
+        == observed_line
+        and validate_exact_counter(
+            reviewed["branch"], "E_THRESHOLD", "reviewed aggregate branch"
+        )
+        == observed_branch,
+        "E_THRESHOLD_LOWERED",
+        "aggregate reviewed thresholds must exactly freeze observed counters",
+    )
+
+    critical = step4["critical_reviewed_thresholds"]
+    expected_rows = step1["critical_classes"]
+    require(
+        type(critical) is list and len(critical) == len(expected_rows),
+        "E_THRESHOLD",
+        "confirmed critical threshold count differs",
+    )
+    for number, (actual, expected) in enumerate(zip(critical, expected_rows), 1):
+        row = exact_keys(
+            actual,
+            ("fqcn", "module", "line", "branch"),
+            "E_THRESHOLD",
+            f"confirmed critical row {number}",
+        )
+        require(
+            row["fqcn"] == expected["fqcn"] and row["module"] == expected["module"],
+            "E_THRESHOLD",
+            f"confirmed critical identity/order differs at row {number}",
+        )
+        for metric, numerator, denominator in (
+            ("line", 4, 5),
+            ("branch", 7, 10),
+        ):
+            metric_value = exact_keys(
+                row[metric],
+                ("observed", "minimum"),
+                "E_THRESHOLD",
+                f"confirmed critical row {number} {metric}",
+            )
+            observed = validate_exact_counter(
+                metric_value["observed"],
+                "E_THRESHOLD",
+                f"confirmed critical row {number} {metric} observed",
+            )
+            minimum = validate_exact_counter(
+                metric_value["minimum"],
+                "E_THRESHOLD",
+                f"confirmed critical row {number} {metric} minimum",
+            )
+            require(
+                observed == minimum,
+                "E_THRESHOLD_LOWERED",
+                f"critical reviewed threshold was lowered at row {number} {metric}",
+            )
+            require(
+                counter_at_least_ratio(
+                    observed,
+                    numerator,
+                    denominator,
+                    "E_THRESHOLD",
+                    f"confirmed critical row {number} {metric}",
+                ),
+                "E_THRESHOLD_FLOOR",
+                f"critical {metric} is below its immutable candidate floor at row {number}",
+            )
+
+    review = exact_keys(
+        step4["review"],
+        (
+            "reviewer",
+            "reviewed_at",
+            "diagnostic_run_id",
+            "evidence_path",
+            "evidence_sha256",
+            "decision",
+        ),
+        "E_THRESHOLD",
+        "confirmed threshold review",
+    )
+    require(
+        isinstance(review["reviewer"], str)
+        and review["reviewer"]
+        and review["reviewer"].strip() == review["reviewer"],
+        "E_THRESHOLD",
+        "confirmed threshold reviewer is missing or padded",
+    )
+    validate_utc_timestamp(review["reviewed_at"], "E_THRESHOLD", "confirmed review time")
+    require(
+        review["diagnostic_run_id"] == evidence["run_id"],
+        "E_THRESHOLD",
+        "confirmed review diagnostic run differs from aggregate evidence",
+    )
+    require(
+        review["decision"] == "confirm-observed-thresholds",
+        "E_THRESHOLD",
+        "confirmed threshold review decision differs",
+    )
+    evidence_path_text = review["evidence_path"]
+    require(
+        isinstance(evidence_path_text, str)
+        and evidence_path_text
+        and evidence_path_text.startswith("docs/9.3.4/")
+        and "\\" not in evidence_path_text,
+        "E_THRESHOLD",
+        "confirmed review evidence path must be under docs/9.3.4",
+    )
+    evidence_pure = PurePosixPath(evidence_path_text)
+    require(
+        not evidence_pure.is_absolute()
+        and all(part not in ("", ".", "..") for part in evidence_pure.parts),
+        "E_THRESHOLD",
+        "confirmed review evidence path must be repository-relative",
+    )
+    evidence_path = repo_root.joinpath(*evidence_pure.parts)
+    require(
+        sha256_file(evidence_path, "E_THRESHOLD")
+        == json_sha256(
+            review["evidence_sha256"], "E_THRESHOLD", "confirmed review evidence SHA"
+        ),
+        "E_THRESHOLD",
+        "confirmed review evidence hash differs",
+    )
+
+
+def load_thresholds(
+    repo_root: Path,
+    *,
+    _step4_path_override: Path | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]]:
     step1_path = repo_root / "scripts/v934/coverage-thresholds.json"
-    step4_path = repo_root / "scripts/v934/step4/coverage-thresholds.json"
+    step4_path = (
+        _step4_path_override
+        if _step4_path_override is not None
+        else repo_root / "scripts/v934/step4/coverage-thresholds.json"
+    )
     step1_sha = sha256_file(step1_path, "E_THRESHOLD")
     require(step1_sha == EXPECTED_STEP1_POLICY_SHA256, "E_THRESHOLD_SHA", "immutable Step 1 coverage policy differs")
     step1 = load_json(step1_path, "E_THRESHOLD")
     step4 = load_json(step4_path, "E_THRESHOLD")
+    exact_keys(step4, THRESHOLD_ROOT_KEYS, "E_THRESHOLD", "Step 4 thresholds")
     require(step1.get("schema_version") == 1, "E_THRESHOLD", "Step 1 coverage schema differs")
     require(
         step1.get("status") == "step1-policy-frozen-observed-baseline-deferred-to-step4",
@@ -382,6 +1213,27 @@ def load_thresholds(repo_root: Path) -> tuple[dict[str, Any], dict[str, Any], di
         require(isinstance(module, str) and module, "E_THRESHOLD", f"invalid critical module at row {number}")
         require(fqcn not in identities, "E_THRESHOLD", f"duplicate critical class: {fqcn}")
         identities.add(fqcn)
+    if step4["status"] == "diagnostic-pending":
+        require(
+            step4["aggregate_observed"] is None
+            and step4["aggregate_reviewed_thresholds"] is None
+            and step4["critical_reviewed_thresholds"] is None,
+            "E_THRESHOLD",
+            "pending thresholds must not contain reviewed observations",
+        )
+        require(
+            step4["review"]
+            == {
+                "reviewer": None,
+                "reviewed_at": None,
+                "diagnostic_run_id": None,
+                "decision": "pending-all-lane-diagnostic",
+            },
+            "E_THRESHOLD",
+            "pending threshold review differs",
+        )
+    else:
+        validate_confirmed_thresholds(repo_root, step1, step4)
     return step1, step4, {
         "step1_policy_sha256": step1_sha,
         "step4_successor_sha256": sha256_file(step4_path, "E_THRESHOLD"),
@@ -449,6 +1301,9 @@ def validate_manifest(
     manifest_path: Path,
     ledger: list[dict[str, str]],
     frozen_modules: list[str],
+    *,
+    _contract_path_override: Path | None = None,
+    _expected_git_head: str | None = None,
 ) -> tuple[dict[str, Any], list[str], dict[str, Any]]:
     manifest = load_json(manifest_path, "E_MANIFEST")
     exact_keys(
@@ -487,6 +1342,15 @@ def validate_manifest(
     require(isinstance(run_id, str) and SESSION_PREFIX_PATTERN.fullmatch(run_id), "E_MANIFEST", "unsafe run id")
     require(isinstance(session_prefix, str) and SESSION_PREFIX_PATTERN.fullmatch(session_prefix), "E_MANIFEST", "unsafe session prefix")
     require(run_id == session_prefix, "E_MANIFEST", "run id and session prefix must be identical")
+    run_root = canonical_run_root(repo_root, run_id)
+    expected_manifest_path = run_root / "exec-manifest.json"
+    require(
+        manifest_path.is_absolute()
+        and manifest_path == expected_manifest_path
+        and manifest_path.resolve(strict=True) == expected_manifest_path,
+        "E_MANIFEST_PROVENANCE",
+        "exec manifest is not the canonical run-owned artifact",
+    )
     json_integer(manifest["not_before_ns"], "E_MANIFEST", "not_before_ns", positive=True)
     json_sha256(manifest["run_context_sha256"], "E_MANIFEST", "run context SHA")
     require(
@@ -496,6 +1360,46 @@ def validate_manifest(
         "invalid manifest Git HEAD",
     )
     json_sha256(manifest["source_sha256"], "E_MANIFEST", "source SHA")
+
+    contract_path = (
+        _contract_path_override
+        if _contract_path_override is not None
+        else repo_root / "scripts/v934/step4/coverage-contract.json"
+    )
+    contract_sha = sha256_file(contract_path, "E_CONTRACT")
+    context, context_sha = validate_run_context(
+        repo_root,
+        run_root / "run-context.json",
+        run_id,
+        contract_sha,
+    )
+    expected_git_head = (
+        git_current_head(repo_root)
+        if _expected_git_head is None
+        else json_git_head(
+            _expected_git_head,
+            "E_MANIFEST_PROVENANCE",
+            "expected manifest Git HEAD",
+        )
+    )
+    require_expected_run_git_head(
+        context,
+        expected_git_head,
+        "E_MANIFEST_PROVENANCE",
+        "exec manifest",
+    )
+    manifest_context = validate_manifest_context_binding(
+        manifest,
+        context,
+        context_sha,
+    )
+    source_context = validate_run_source_seals(
+        run_root,
+        context,
+        context_sha,
+        require_after=False,
+    )
+
     class_universe_sha = json_sha256(
         manifest["fresh_class_universe_sha256"],
         "E_MANIFEST",
@@ -533,8 +1437,6 @@ def validate_manifest(
     workspace_class_count = json_integer(manifest["workspace_class_count"], "E_MANIFEST", "workspace class count", positive=True)
     json_sha256(manifest["workspace_class_tree_sha256"], "E_MANIFEST", "workspace class tree SHA")
 
-    contract_path = repo_root / "scripts/v934/step4/coverage-contract.json"
-    contract_sha = sha256_file(contract_path, "E_CONTRACT")
     require(
         json_sha256(manifest["coverage_contract_sha256"], "E_MANIFEST", "coverage contract SHA") == contract_sha,
         "E_MANIFEST_PROVENANCE",
@@ -630,6 +1532,11 @@ def validate_manifest(
             }
         )
     require(len(flattened_sessions) == 48 and len(set(flattened_sessions)) == 48, "E_MANIFEST", "manifest sessions are not exact 48 unique identities")
+    raw_exec_validation = validate_raw_exec_replay(
+        run_root,
+        exec_files,
+        manifest["not_before_ns"],
+    )
     provenance_sha = hashlib.sha256(
         "".join(
             f"{row['exec_file']}\t{row['sha256']}\t{row['size']}\t{row['class_shape_sha256']}\n"
@@ -644,6 +1551,9 @@ def validate_manifest(
         "workspace_class_tree_sha256": manifest["workspace_class_tree_sha256"],
         "input_exec_tree_sha256": provenance_sha,
         "input_exec_files": input_provenance_rows,
+        "manifest_context": manifest_context,
+        "source_context": source_context,
+        "raw_exec_validation": raw_exec_validation,
     }
 
 
@@ -1516,8 +2426,8 @@ def critical_observations(
     critical_rows: list[dict[str, str]],
     class_index: dict[str, tuple[str, CounterVector]],
     artifact_to_module: dict[str, str],
-    line_floor: Decimal,
-    branch_floor: Decimal,
+    line_floor: Fraction,
+    branch_floor: Fraction,
 ) -> tuple[list[dict[str, Any]], int, int]:
     results: list[dict[str, Any]] = []
     below_floor_count = 0
@@ -1539,7 +2449,7 @@ def critical_observations(
                 gap: float | None = None
                 not_applicable_count += 1
             else:
-                actual = Decimal(covered) / Decimal(total)
+                actual = Fraction(covered, total)
                 if actual >= floor:
                     outcome = "at-or-above-floor"
                     gap = 0.0
@@ -1575,14 +2485,26 @@ def observe_data(
     aggregate_exec_path: Path,
     aggregate_provenance_path: Path,
     report_provenance_path: Path,
+    *,
+    _threshold_path_override: Path | None = None,
+    _contract_path_override: Path | None = None,
+    _expected_git_head: str | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     real_directory(repo_root, "E_REPO_ROOT")
     ledger = load_ledger(repo_root)
     modules, artifact_to_module, freeze_sha = load_frozen_modules(repo_root)
-    step1, step4, threshold_hashes = load_thresholds(repo_root)
+    step1, step4, threshold_hashes = load_thresholds(
+        repo_root,
+        _step4_path_override=_threshold_path_override,
+    )
     manifest, expected_sessions, input_provenance = validate_manifest(
-        repo_root, manifest_path, ledger, modules
+        repo_root,
+        manifest_path,
+        ledger,
+        modules,
+        _contract_path_override=_contract_path_override,
+        _expected_git_head=_expected_git_head,
     )
     aggregate_provenance = validate_aggregate_provenance(
         repo_root,
@@ -1717,6 +2639,2832 @@ def observe_command(args: argparse.Namespace) -> None:
         f"below_floor={result['critical_candidate_floor']['below_floor_class_count']} "
         f"output={args.output}"
     )
+
+
+def canonical_run_root(repo_root: Path, run_id: str) -> Path:
+    require(
+        isinstance(run_id, str)
+        and SESSION_PREFIX_PATTERN.fullmatch(run_id) is not None
+        and run_id not in (".", "..")
+        and len(run_id) <= 128,
+        "E_RUN_ID",
+        "unsafe Step 4 run id",
+    )
+    root = repo_root / "target/v934-step4-coverage/runs" / run_id
+    real_directory(root, "E_RUN_ROOT")
+    require(
+        root.resolve() == root,
+        "E_RUN_ROOT",
+        "Step 4 run root contains a symlinked component",
+    )
+    return root
+
+
+def require_canonical_run_artifact_path(
+    repo_root: Path,
+    run_id: str,
+    path: Path,
+    filename: str,
+    code: str,
+) -> Path:
+    require(
+        filename in {"coverage-gate.json", "candidate-manifest.json", "final-manifest.json"},
+        code,
+        "unsupported formal artifact identity",
+    )
+    expected = canonical_run_root(repo_root.resolve(), run_id) / filename
+    require(
+        path.is_absolute() and path == expected and path.resolve(strict=False) == expected,
+        code,
+        f"formal artifact must use canonical run-owned path: {expected}",
+    )
+    return expected
+
+
+def artifact_record(repo_root: Path, path: Path, code: str) -> dict[str, Any]:
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(repo_root.resolve())
+    except (OSError, ValueError):
+        reject(code, f"artifact is outside the repository: {path}")
+    require(path.absolute() == resolved, code, f"artifact path is not canonical: {path}")
+    path = resolved
+    file_stat = regular_file(path, code)
+    return {
+        "path": display_path(repo_root, path),
+        "sha256": sha256_file(path, code),
+        "size": file_stat.st_size,
+    }
+
+
+def resolve_record_path(repo_root: Path, value: Any, code: str, label: str) -> Path:
+    require(isinstance(value, str) and value and "\\" not in value, code, f"{label} path is unsafe")
+    pure = PurePosixPath(value)
+    require(
+        not pure.is_absolute()
+        and all(part not in ("", ".", "..") for part in pure.parts),
+        code,
+        f"{label} path must be repository-relative",
+    )
+    path = repo_root.joinpath(*pure.parts)
+    try:
+        resolved = path.resolve(strict=False)
+        resolved.relative_to(repo_root)
+    except (OSError, ValueError):
+        reject(code, f"{label} path escapes the repository")
+    require(path.absolute() == resolved, code, f"{label} path is not canonical")
+    return resolved
+
+
+def validate_artifact_record(
+    repo_root: Path,
+    value: Any,
+    code: str,
+    label: str,
+    *,
+    expected_path: Path | None = None,
+) -> Path:
+    record = exact_keys(value, ("path", "sha256", "size"), code, label)
+    path = resolve_record_path(repo_root, record["path"], code, label)
+    if expected_path is not None:
+        require(
+            path == expected_path,
+            code,
+            f"{label} does not reference its canonical run-owned path",
+        )
+    file_stat = regular_file(path, code)
+    require(
+        json_integer(record["size"], code, f"{label}.size", positive=True) == file_stat.st_size,
+        code,
+        f"{label} size differs",
+    )
+    require(
+        json_sha256(record["sha256"], code, f"{label}.sha256") == sha256_file(path, code),
+        code,
+        f"{label} hash differs",
+    )
+    return path
+
+
+def parse_source_inventory(payload: bytes, code: str) -> dict[str, Any]:
+    require(
+        payload.startswith(SOURCE_INVENTORY_HEADER)
+        and payload.endswith(b"\n")
+        and b"\r" not in payload
+        and b"\0" not in payload,
+        code,
+        "source inventory framing/header differs",
+    )
+    records = payload[len(SOURCE_INVENTORY_HEADER) :].splitlines()
+    require(records, code, "source inventory contains no tracked rows")
+    paths: list[bytes] = []
+    total_size = 0
+    for number, record in enumerate(records, 1):
+        fields = record.split(b"\t")
+        require(
+            len(fields) == 4,
+            code,
+            f"source inventory row {number} column count differs",
+        )
+        mode, relative, digest, size_text = fields
+        parts = relative.split(b"/")
+        require(
+            mode in (b"100644", b"100755")
+            and relative
+            and not relative.startswith(b"/")
+            and all(part not in (b"", b".", b"..") for part in parts)
+            and b"\\" not in relative
+            and re.fullmatch(rb"[0-9a-f]{64}", digest) is not None
+            and re.fullmatch(rb"0|[1-9][0-9]*", size_text) is not None,
+            code,
+            f"source inventory row {number} is not canonical",
+        )
+        paths.append(relative)
+        total_size += int(size_text, 10)
+    require(
+        len(paths) == len(set(paths)) and paths == sorted(paths),
+        code,
+        "source inventory paths are not sorted unique",
+    )
+    return {
+        "file_count": len(records),
+        "tracked_byte_count": total_size,
+        "inventory_sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def validate_run_source_seals(
+    run_root: Path,
+    context: dict[str, Any],
+    context_sha256: str,
+    *,
+    require_after: bool,
+) -> dict[str, Any]:
+    code = "E_RUN_SOURCE"
+    expected_context_sha = json_sha256(
+        context_sha256,
+        code,
+        "canonical run-context SHA",
+    )
+    expected_source_sha = json_sha256(
+        context.get("source_sha256"),
+        code,
+        "run-context source SHA",
+    )
+    context_payload, actual_context_sha = strict_bounded_file(
+        run_root / "run-context.json",
+        run_root,
+        0o644,
+        code,
+        "canonical run context",
+        maximum_size=64 * 1024,
+    )
+    require(
+        actual_context_sha == expected_context_sha
+        and parse_json_object_bytes(
+            context_payload,
+            code,
+            "canonical run context",
+        )
+        == context,
+        code,
+        "source seal context object/hash differs from canonical run-context bytes",
+    )
+    before_payload, before_sha = strict_bounded_file(
+        run_root / "source-before.tsv",
+        run_root,
+        0o644,
+        code,
+        "source-before inventory",
+        maximum_size=MAX_SOURCE_INVENTORY_BYTES,
+    )
+    before_semantics = parse_source_inventory(before_payload, code)
+    require(
+        before_sha == expected_source_sha
+        and before_semantics["inventory_sha256"] == expected_source_sha,
+        code,
+        "source-before inventory is not the exact run-context source seal",
+    )
+    result: dict[str, Any] = {
+        "run_context_sha256": expected_context_sha,
+        "git_head": json_git_head(
+            context.get("git_head"), code, "run-context Git HEAD"
+        ),
+        "source_sha256": expected_source_sha,
+        "not_before_ns": json_integer(
+            context.get("not_before_ns"),
+            code,
+            "run-context not-before",
+            positive=True,
+        ),
+        "file_count": before_semantics["file_count"],
+        "tracked_byte_count": before_semantics["tracked_byte_count"],
+        "source_before_sha256": before_sha,
+        "source_after_sha256": None,
+        "status": "source-before-exact",
+    }
+    if require_after:
+        after_payload, after_sha = strict_bounded_file(
+            run_root / "source-after.tsv",
+            run_root,
+            0o644,
+            code,
+            "source-after inventory",
+            maximum_size=MAX_SOURCE_INVENTORY_BYTES,
+        )
+        after_semantics = parse_source_inventory(after_payload, code)
+        require(
+            after_payload == before_payload
+            and after_sha == before_sha == expected_source_sha
+            and after_semantics == before_semantics,
+            code,
+            "source-before/source-after are not the same exact run-context source seal",
+        )
+        result["source_after_sha256"] = after_sha
+        result["status"] = "exact-before-after-context-bound"
+    return result
+
+
+def validate_manifest_context_binding(
+    manifest: dict[str, Any],
+    context: dict[str, Any],
+    context_sha256: str,
+) -> dict[str, Any]:
+    code = "E_MANIFEST_PROVENANCE"
+    expected = {
+        "run_context_sha256": json_sha256(
+            context_sha256,
+            code,
+            "canonical run-context SHA",
+        ),
+        "git_head": json_git_head(context.get("git_head"), code, "run-context Git HEAD"),
+        "source_sha256": json_sha256(
+            context.get("source_sha256"),
+            code,
+            "run-context source SHA",
+        ),
+        "not_before_ns": json_integer(
+            context.get("not_before_ns"),
+            code,
+            "run-context not-before",
+            positive=True,
+        ),
+    }
+    actual = {key: manifest.get(key) for key in expected}
+    require(
+        actual == expected,
+        code,
+        "exec manifest run-context/source/Git/not-before binding differs from the canonical run context",
+    )
+    return {**expected, "status": "exact-canonical-context"}
+
+
+def require_expected_run_git_head(
+    context: dict[str, Any],
+    expected_git_head: Any,
+    code: str,
+    label: str,
+) -> str:
+    expected = json_git_head(expected_git_head, code, f"{label} expected Git HEAD")
+    actual = json_git_head(context.get("git_head"), code, f"{label} context Git HEAD")
+    require(
+        actual == expected,
+        code,
+        f"{label} context Git HEAD differs from the expected validation commit",
+    )
+    return actual
+
+
+def validate_raw_exec_replay(
+    run_root: Path,
+    exec_rows: list[dict[str, Any]],
+    not_before_ns: int,
+) -> dict[str, Any]:
+    code = "E_RAW_EXEC_REPLAY"
+    boundary = json_integer(
+        not_before_ns,
+        code,
+        "raw exec not-before",
+        positive=True,
+    )
+    require(
+        isinstance(exec_rows, list) and len(exec_rows) == 23,
+        code,
+        "raw exec replay requires exact 23 manifest rows",
+    )
+    names = [row.get("exec_file") if isinstance(row, dict) else None for row in exec_rows]
+    require(
+        all(
+            isinstance(name, str)
+            and re.fullmatch(r"jacoco-(?:ut|it)-?[a-z0-9-]*\.exec", name)
+            is not None
+            for name in names
+        )
+        and len(set(names)) == 23,
+        code,
+        "raw exec replay manifest names are not exact safe unique identities",
+    )
+    exec_root = run_root / "exec"
+    real_directory(exec_root, code)
+    require(
+        exec_root.is_absolute()
+        and exec_root.parent == run_root
+        and exec_root.resolve(strict=True) == exec_root,
+        code,
+        "raw exec directory is not the canonical run-owned directory",
+    )
+
+    directory_fd = -1
+    verified_rows: list[dict[str, Any]] = []
+    try:
+        directory_before = exec_root.lstat()
+        directory_fd = os.open(
+            exec_root,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        bound_directory = os.fstat(directory_fd)
+        require(
+            stat.S_ISDIR(bound_directory.st_mode)
+            and (bound_directory.st_dev, bound_directory.st_ino)
+            == (directory_before.st_dev, directory_before.st_ino)
+            and sorted(os.listdir(directory_fd)) == sorted(names),
+            code,
+            "raw exec directory identity or exact file set differs",
+        )
+        for number, (name, row) in enumerate(zip(names, exec_rows), 1):
+            expected_sha = json_sha256(
+                row.get("sha256"), code, f"raw exec row {number} SHA"
+            )
+            expected_size = json_integer(
+                row.get("size"),
+                code,
+                f"raw exec row {number} size",
+                positive=True,
+            )
+            expected_mtime = json_integer(
+                row.get("mtime_ns"),
+                code,
+                f"raw exec row {number} mtime",
+                positive=True,
+            )
+            require(
+                expected_size <= MAX_RAW_EXEC_BYTES and expected_mtime >= boundary,
+                code,
+                f"raw exec row {number} size/freshness boundary differs",
+            )
+            descriptor = -1
+            try:
+                descriptor = os.open(
+                    name,
+                    os.O_RDONLY
+                    | getattr(os, "O_CLOEXEC", 0)
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | getattr(os, "O_NONBLOCK", 0),
+                    dir_fd=directory_fd,
+                )
+                file_before = os.fstat(descriptor)
+                require(
+                    stat.S_ISREG(file_before.st_mode)
+                    and file_before.st_uid == os.getuid()
+                    and file_before.st_nlink == 1
+                    and not file_before.st_mode & 0o111
+                    and not file_before.st_mode & 0o002
+                    and file_before.st_size == expected_size
+                    and file_before.st_mtime_ns == expected_mtime,
+                    code,
+                    f"raw exec row {number} file identity/size/mtime is unsafe or differs",
+                )
+                digest = hashlib.sha256()
+                byte_count = 0
+                while True:
+                    chunk = os.read(descriptor, 1024 * 1024)
+                    if not chunk:
+                        break
+                    byte_count += len(chunk)
+                    require(
+                        byte_count <= expected_size,
+                        code,
+                        f"raw exec row {number} grew while hashing",
+                    )
+                    digest.update(chunk)
+                file_after = os.fstat(descriptor)
+                path_after = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                stable_fields = (
+                    "st_dev",
+                    "st_ino",
+                    "st_mode",
+                    "st_uid",
+                    "st_nlink",
+                    "st_size",
+                    "st_mtime_ns",
+                    "st_ctime_ns",
+                )
+                actual_sha = digest.hexdigest()
+                require(
+                    byte_count == expected_size
+                    and actual_sha == expected_sha
+                    and all(
+                        getattr(file_before, field) == getattr(file_after, field)
+                        == getattr(path_after, field)
+                        for field in stable_fields
+                    ),
+                    code,
+                    f"raw exec row {number} bytes or stable inode identity differs",
+                )
+                verified_rows.append(
+                    {
+                        "exec_file": name,
+                        "sha256": actual_sha,
+                        "size": expected_size,
+                        "mtime_ns": expected_mtime,
+                    }
+                )
+            except CoverageXmlError:
+                raise
+            except OSError as exc:
+                reject(
+                    code,
+                    f"cannot verify raw exec row {number}: {exc.__class__.__name__}",
+                )
+            finally:
+                if descriptor >= 0:
+                    os.close(descriptor)
+        directory_after = exec_root.lstat()
+        require(
+            (directory_after.st_dev, directory_after.st_ino)
+            == (bound_directory.st_dev, bound_directory.st_ino)
+            and sorted(os.listdir(directory_fd)) == sorted(names),
+            code,
+            "raw exec directory changed during exact byte replay",
+        )
+    except CoverageXmlError:
+        raise
+    except OSError as exc:
+        reject(code, f"cannot verify raw exec directory: {exc.__class__.__name__}")
+    finally:
+        if directory_fd >= 0:
+            os.close(directory_fd)
+
+    tree_payload = "".join(
+        f"{row['exec_file']}\t{row['sha256']}\t{row['size']}\t{row['mtime_ns']}\n"
+        for row in verified_rows
+    ).encode("utf-8")
+    return {
+        "mode": "exact-retained-raw-exec-byte-replay",
+        "identity_policy": "canonical-dirfd-nofollow-stable-inode",
+        "freshness_policy": "exact-manifest-mtime-at-or-after-not-before",
+        "exec_count": len(verified_rows),
+        "byte_tree_sha256": hashlib.sha256(tree_payload).hexdigest(),
+        "status": "verified",
+    }
+
+
+def validate_run_context(
+    repo_root: Path,
+    path: Path,
+    run_id: str,
+    contract_sha256: str,
+) -> tuple[dict[str, Any], str]:
+    run_root = canonical_run_root(repo_root.resolve(), run_id)
+    expected_path = run_root / "run-context.json"
+    require(
+        path.is_absolute()
+        and path == expected_path
+        and path.resolve(strict=True) == expected_path,
+        "E_RUN_CONTEXT",
+        "Step 4 run context is not the canonical run-owned artifact",
+    )
+    payload, context_sha = strict_bounded_file(
+        path,
+        run_root,
+        0o644,
+        "E_RUN_CONTEXT",
+        "Step 4 run context",
+        maximum_size=64 * 1024,
+    )
+    context = parse_json_object_bytes(payload, "E_RUN_CONTEXT", "Step 4 run context")
+    exact_keys(
+        context,
+        (
+            "schema_version",
+            "kind",
+            "authority_kind",
+            "run_id",
+            "git_head",
+            "contract_sha256",
+            "source_sha256",
+            "not_before_ns",
+            "started_at",
+        ),
+        "E_RUN_CONTEXT",
+        "Step 4 run context",
+    )
+    require(
+        context["schema_version"] == 1
+        and type(context["schema_version"]) is int
+        and context["kind"] == "v934-step4-run-context"
+        and context["authority_kind"] == "step4-coverage"
+        and context["run_id"] == run_id,
+        "E_RUN_CONTEXT",
+        "Step 4 run context identity differs",
+    )
+    require(
+        isinstance(context["git_head"], str)
+        and GIT_HEAD_PATTERN.fullmatch(context["git_head"]) is not None,
+        "E_RUN_CONTEXT",
+        "Step 4 run context Git HEAD differs",
+    )
+    require(
+        json_sha256(context["contract_sha256"], "E_RUN_CONTEXT", "run context contract SHA")
+        == contract_sha256,
+        "E_RUN_CONTEXT",
+        "Step 4 run context contract hash differs",
+    )
+    json_sha256(context["source_sha256"], "E_RUN_CONTEXT", "run context source SHA")
+    not_before_ns = json_integer(
+        context["not_before_ns"],
+        "E_RUN_CONTEXT",
+        "run context not-before",
+        positive=True,
+    )
+    require(
+        path.lstat().st_mtime_ns >= not_before_ns,
+        "E_RUN_CONTEXT",
+        "Step 4 run context predates its not-before boundary",
+    )
+    validate_utc_timestamp(context["started_at"], "E_RUN_CONTEXT", "run context started_at")
+    return context, context_sha
+
+
+def validate_workflow_contract(
+    repo_root: Path,
+    mode: str,
+    *,
+    _contract_path_override: Path | None = None,
+) -> tuple[Path, str]:
+    contract_path = (
+        _contract_path_override
+        if _contract_path_override is not None
+        else repo_root / "scripts/v934/step4/coverage-contract.json"
+    )
+    contract = load_json(contract_path, "E_CONTRACT")
+    expected_status = "diagnostic-ready" if mode == "diagnostic" else "formal-ready"
+    tooling = contract.get("tooling_manifest")
+    successor = contract.get("threshold_successor")
+    require(type(tooling) is dict and type(successor) is dict, "E_CONTRACT", "coverage workflow contract is incomplete")
+    require(
+        contract.get("schema_version") == 1
+        and type(contract.get("schema_version")) is int
+        and contract.get("kind") == "v934-step4-coverage-contract"
+        and contract.get("status") == expected_status
+        and tooling.get("publication_status") == expected_status
+        and successor.get("required_status_for_diagnostic") == "diagnostic-pending"
+        and successor.get("required_status_for_exit") == "confirmed",
+        "E_CONTRACT_WORKFLOW",
+        f"coverage contract is not in exact {mode} workflow state",
+    )
+    return contract_path, sha256_file(contract_path, "E_CONTRACT")
+
+
+def strict_bounded_file(
+    path: Path,
+    expected_parent: Path,
+    expected_mode: int,
+    code: str,
+    label: str,
+    *,
+    maximum_size: int = 4096,
+) -> tuple[bytes, str]:
+    require(
+        path.is_absolute()
+        and expected_parent.is_absolute()
+        and path.parent == expected_parent
+        and path.name not in ("", ".", ".."),
+        code,
+        f"{label} path is not canonical",
+    )
+    directory_fd = -1
+    descriptor = -1
+    try:
+        parent_before = expected_parent.lstat()
+        require(
+            stat.S_ISDIR(parent_before.st_mode)
+            and not stat.S_ISLNK(parent_before.st_mode)
+            and expected_parent.resolve(strict=True) == expected_parent,
+            code,
+            f"{label} parent is unsafe",
+        )
+        directory_fd = os.open(
+            expected_parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        bound_parent = os.fstat(directory_fd)
+        require(
+            (bound_parent.st_dev, bound_parent.st_ino)
+            == (parent_before.st_dev, parent_before.st_ino),
+            code,
+            f"{label} parent changed while opening",
+        )
+        descriptor = os.open(
+            path.name,
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=directory_fd,
+        )
+        file_stat = os.fstat(descriptor)
+        require(
+            stat.S_ISREG(file_stat.st_mode)
+            and file_stat.st_uid == os.getuid()
+            and stat.S_IMODE(file_stat.st_mode) == expected_mode
+            and file_stat.st_nlink == 1
+            and 0 < file_stat.st_size <= maximum_size,
+            code,
+            f"{label} file identity/mode/link-count/size is unsafe",
+        )
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            chunk = os.read(descriptor, maximum_size + 1 - size)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+            require(size <= maximum_size, code, f"{label} exceeds its size limit")
+        data = b"".join(chunks)
+        file_after = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        parent_after = expected_parent.lstat()
+        require(
+            (file_after.st_dev, file_after.st_ino)
+            == (file_stat.st_dev, file_stat.st_ino)
+            and file_after.st_size == file_stat.st_size == len(data)
+            and file_after.st_uid == os.getuid()
+            and stat.S_IMODE(file_after.st_mode) == expected_mode
+            and file_after.st_nlink == 1
+            and (parent_after.st_dev, parent_after.st_ino)
+            == (bound_parent.st_dev, bound_parent.st_ino)
+            and expected_parent.resolve(strict=True) == expected_parent,
+            code,
+            f"{label} changed while reading",
+        )
+        return data, hashlib.sha256(data).hexdigest()
+    except CoverageXmlError:
+        raise
+    except OSError as exc:
+        reject(code, f"cannot strictly read {label}: {exc.__class__.__name__}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if directory_fd >= 0:
+            os.close(directory_fd)
+
+
+def strict_directory_names(path: Path, expected: Sequence[str], code: str, label: str) -> None:
+    real_directory(path, code)
+    require(path.resolve(strict=True) == path, code, f"{label} contains a symlinked ancestor")
+    directory_fd = -1
+    try:
+        before = path.lstat()
+        directory_fd = os.open(
+            path,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        bound = os.fstat(directory_fd)
+        require(
+            (before.st_dev, before.st_ino) == (bound.st_dev, bound.st_ino),
+            code,
+            f"{label} changed while opening",
+        )
+        actual = sorted(os.listdir(directory_fd))
+        require(
+            actual == sorted(expected),
+            code,
+            f"{label} exact file set differs: expected={sorted(expected)} actual={actual}",
+        )
+        after = path.lstat()
+        require(
+            (after.st_dev, after.st_ino) == (bound.st_dev, bound.st_ino),
+            code,
+            f"{label} changed while listing",
+        )
+    except CoverageXmlError:
+        raise
+    except OSError as exc:
+        reject(code, f"cannot list {label}: {exc.__class__.__name__}")
+    finally:
+        if directory_fd >= 0:
+            os.close(directory_fd)
+
+
+def parse_json_object_bytes(payload: bytes, code: str, label: str) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            payload.decode("utf-8", errors="strict"),
+            object_pairs_hook=unique_json_object,
+            parse_constant=reject_json_constant,
+        )
+    except CoverageXmlError:
+        raise
+    except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        reject(code, f"invalid {label} JSON: {exc.__class__.__name__}")
+    require(type(value) is dict, code, f"{label} root must be an object")
+    return value
+
+
+def validate_child_lifecycle(run_root: Path, run_id: str) -> dict[str, Any]:
+    code = "E_CHILD_LIFECYCLE"
+    ready_root = run_root / "child-ready"
+    completion_root = run_root / "child-lifecycle"
+    strict_directory_names(
+        ready_root,
+        tuple(f"{child}.json" for child in CHILD_NAMES),
+        code,
+        "child-ready directory",
+    )
+    strict_directory_names(
+        completion_root,
+        tuple(f"{child}-complete.env" for child in CHILD_NAMES),
+        code,
+        "child-lifecycle directory",
+    )
+
+    children: list[dict[str, Any]] = []
+    for child in CHILD_NAMES:
+        ready_data, ready_sha = strict_bounded_file(
+            ready_root / f"{child}.json",
+            ready_root,
+            0o600,
+            code,
+            f"child-ready {child}",
+        )
+        ready = parse_json_object_bytes(ready_data, code, f"child-ready {child}")
+        exact_keys(ready, CHILD_READY_FIELDS, code, f"child-ready {child}")
+        require(
+            type(ready["schema_version"]) is int
+            and ready["schema_version"] == 1
+            and ready["kind"] == "v934-step4-child-ready"
+            and ready["run_id"] == run_id
+            and ready["child"] == child
+            and type(ready["pid"]) is int
+            and ready["pid"] > 1
+            and type(ready["pgid"]) is int
+            and ready["pgid"] == ready["pid"]
+            and type(ready["sid"]) is int
+            and ready["sid"] == ready["pid"]
+            and type(ready["starttime_ticks"]) is int
+            and ready["starttime_ticks"] > 0
+            and isinstance(ready["boot_id"], str)
+            and BOOT_ID_PATTERN.fullmatch(ready["boot_id"]) is not None
+            and ready["status"] == "ready",
+            code,
+            f"child-ready typed identity differs: {child}",
+        )
+
+        completion_data, completion_sha = strict_bounded_file(
+            completion_root / f"{child}-complete.env",
+            completion_root,
+            0o644,
+            code,
+            f"child completion {child}",
+        )
+        completion = parse_env_bytes(
+            completion_data,
+            CHILD_COMPLETION_FIELDS,
+            code,
+            f"child completion {child}",
+        )
+        require(
+            completion
+            == {
+                "run_id": run_id,
+                "child": child,
+                "leader_pid": str(ready["pid"]),
+                "leader_sid": str(ready["sid"]),
+                "leader_starttime_ticks": str(ready["starttime_ticks"]),
+                "boot_id": ready["boot_id"],
+                "leader_exit_code": "0",
+                "leader_reaped": "1",
+                "ready_receipt_sha256": ready_sha,
+                "process_group_residue": "0",
+                "status": "passed",
+            },
+            code,
+            f"child completion identity/residue differs: {child}",
+        )
+        children.append(
+            {
+                "child": child,
+                "complete_sha256": completion_sha,
+                "leader_pid": ready["pid"],
+                "leader_sid": ready["sid"],
+                "leader_starttime_ticks": ready["starttime_ticks"],
+                "boot_id": ready["boot_id"],
+                "leader_reaped": 1,
+                "process_group_residue": 0,
+                "ready_receipt_sha256": ready_sha,
+                "status": "passed",
+            }
+        )
+
+    expected_manifest = {
+        "schema_version": 1,
+        "kind": "v934-step4-child-lifecycle",
+        "run_id": run_id,
+        "child_count": len(CHILD_NAMES),
+        "children": children,
+        "status": "passed",
+    }
+    manifest = load_json(run_root / "child-lifecycle.json", code)
+    require(
+        manifest == expected_manifest,
+        code,
+        "child lifecycle manifest differs from typed ready/completion recomputation",
+    )
+    return manifest
+
+
+def validate_git_relative_path(value: Any, code: str, label: str) -> str:
+    require(
+        isinstance(value, str)
+        and value
+        and "\\" not in value
+        and "\n" not in value
+        and "\r" not in value
+        and "\t" not in value,
+        code,
+        f"{label} is unsafe",
+    )
+    pure = PurePosixPath(value)
+    require(
+        not pure.is_absolute()
+        and all(part not in ("", ".", "..") for part in pure.parts),
+        code,
+        f"{label} is not a canonical repository-relative path",
+    )
+    return value
+
+
+def git_changed_paths(repo_root: Path, parent: str, current: str) -> list[str]:
+    require_git_ancestor(repo_root, parent, current)
+    process = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "--no-pager",
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--no-ext-diff",
+            "-z",
+            parent,
+            current,
+            "--",
+        ],
+        env=git_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    require(process.returncode == 0, "E_FORMAL_DELTA_GIT", "formal Git diff failed")
+    changed: list[str] = []
+    for raw_path in process.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        try:
+            relative = raw_path.decode("utf-8", errors="strict")
+        except UnicodeError:
+            reject("E_FORMAL_DELTA_PATH", "formal changed path is not UTF-8")
+        validate_git_relative_path(relative, "E_FORMAL_DELTA_PATH", "formal changed path")
+        require(relative not in changed, "E_FORMAL_DELTA_PATH", "duplicate formal changed path")
+        changed.append(relative)
+    require(changed == sorted(changed), "E_FORMAL_DELTA_PATH", "formal changed paths are not sorted")
+    return changed
+
+
+def require_direct_single_parent(repo_root: Path, parent: str, current: str) -> None:
+    process = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-list", "--parents", "-n", "1", current],
+        env=git_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    expected = f"{current} {parent}\n".encode("ascii")
+    require(
+        process.returncode == 0 and process.stdout == expected,
+        "E_FORMAL_DELTA_PARENT",
+        "formal commit must be the diagnostic commit's direct single-parent child",
+    )
+
+
+def validate_formal_delta_policy(policy: Any, changed_paths: list[str]) -> dict[str, Any]:
+    code = "E_FORMAL_DELTA_POLICY"
+    policy = exact_keys(
+        policy,
+        (
+            "parent_git_head_source",
+            "diagnostic_threshold_sha256",
+            "repository_identity",
+            "required_exact_paths",
+            "allowed_exact_paths",
+            "allowed_path_prefixes",
+            "other_changes",
+        ),
+        code,
+        "formalization delta policy",
+    )
+    json_sha256(
+        policy["diagnostic_threshold_sha256"],
+        code,
+        "formalization diagnostic threshold SHA",
+    )
+    repository_identity = exact_keys(
+        policy["repository_identity"],
+        FORMAL_REPOSITORY_IDENTITY_POLICY,
+        code,
+        "formalization repository identity policy",
+    )
+    require(
+        repository_identity == FORMAL_REPOSITORY_IDENTITY_POLICY,
+        code,
+        "formalization repository identity policy differs",
+    )
+    for field in ("required_exact_paths", "allowed_exact_paths", "allowed_path_prefixes"):
+        values = policy[field]
+        require(
+            type(values) is list
+            and values
+            and all(isinstance(value, str) for value in values),
+            code,
+            f"{field} must be a non-empty string list",
+        )
+        require(len(values) == len(set(values)), code, f"{field} contains duplicates")
+        for number, value in enumerate(values, 1):
+            validate_git_relative_path(value, code, f"{field}[{number}]")
+    require(
+        policy["parent_git_head_source"] == "aggregate_observed.evidence.git_head"
+        and policy["diagnostic_threshold_sha256"]
+        == EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256
+        and policy["repository_identity"] == FORMAL_REPOSITORY_IDENTITY_POLICY
+        and tuple(policy["required_exact_paths"]) == FORMALIZATION_EXACT_PATHS
+        and tuple(policy["allowed_exact_paths"]) == FORMALIZATION_EXACT_PATHS
+        and tuple(policy["allowed_path_prefixes"])
+        == FORMALIZATION_ALLOWED_PREFIXES
+        and policy["other_changes"] == "forbidden-requires-new-diagnostic",
+        code,
+        "formalization delta policy frozen values differ",
+    )
+    required = policy["required_exact_paths"]
+    allowed_exact = policy["allowed_exact_paths"]
+    allowed_prefixes = policy["allowed_path_prefixes"]
+    require(
+        all(relative in allowed_exact for relative in required),
+        code,
+        "required formalization paths are not exact-allowed",
+    )
+    forbidden = [
+        relative
+        for relative in changed_paths
+        if relative not in allowed_exact
+        and not any(
+            relative.startswith(prefix) and len(relative) > len(prefix)
+            for prefix in allowed_prefixes
+        )
+    ]
+    require(
+        not forbidden,
+        "E_FORMAL_DELTA_FORBIDDEN",
+        f"formal changes outside the allowlist require a new diagnostic: {forbidden}",
+    )
+    missing = [relative for relative in required if relative not in changed_paths]
+    require(
+        not missing,
+        "E_FORMAL_DELTA_MISSING",
+        f"required formalization changes are missing: {missing}",
+    )
+    return policy
+
+
+def validate_formalization_delta(
+    repo_root: Path,
+    run_root: Path,
+    context: dict[str, Any],
+    step4: dict[str, Any],
+    contract_path: Path,
+) -> dict[str, Any]:
+    code = "E_FORMAL_DELTA"
+    receipt = load_json(run_root / "formalization-delta.json", code)
+    exact_keys(
+        receipt,
+        (
+            "schema_version",
+            "kind",
+            "parent_git_head",
+            "current_git_head",
+            "repository_identity_policy",
+            "repository_identity",
+            "changed_paths",
+            "required_exact_paths",
+            "allowed_exact_paths",
+            "allowed_path_prefixes",
+            "workflow_state",
+            "status",
+        ),
+        code,
+        "formalization delta receipt",
+    )
+    require(
+        type(receipt["schema_version"]) is int
+        and receipt["schema_version"] == 1
+        and receipt["kind"] == "v934-step4-formal-delta"
+        and receipt["workflow_state"] == "formal"
+        and receipt["status"] == "passed",
+        code,
+        "formalization delta receipt identity/status differs",
+    )
+    current_head = json_git_head(
+        receipt["current_git_head"], code, "formalization current Git HEAD"
+    )
+    parent_head = json_git_head(
+        receipt["parent_git_head"], code, "formalization parent Git HEAD"
+    )
+    require(current_head == context["git_head"], code, "formal run Git identity differs")
+    evidence = validate_threshold_evidence(
+        step4["aggregate_observed"]["evidence"],
+        code,
+    )
+    require(
+        parent_head == evidence["git_head"] and parent_head != current_head,
+        code,
+        "formal receipt is not bound to the diagnostic parent",
+    )
+    require(
+        git_current_head(repo_root) == current_head,
+        code,
+        "formal receipt is not bound to current committed HEAD",
+    )
+    require_direct_single_parent(repo_root, parent_head, current_head)
+    status_process = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+        ],
+        env=git_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    require(
+        status_process.returncode == 0 and status_process.stdout == b"",
+        "E_FORMAL_DELTA_DIRTY",
+        "formal validation requires an exact clean committed worktree",
+    )
+    contract = load_json(contract_path, "E_CONTRACT")
+    successor = contract.get("threshold_successor")
+    require(type(successor) is dict, "E_CONTRACT", "threshold successor is missing")
+    changed_paths = receipt["changed_paths"]
+    require(
+        type(changed_paths) is list
+        and all(isinstance(relative, str) for relative in changed_paths)
+        and changed_paths == sorted(changed_paths)
+        and len(changed_paths) == len(set(changed_paths)),
+        code,
+        "formal changed paths must be a sorted unique list",
+    )
+    for number, relative in enumerate(changed_paths, 1):
+        validate_git_relative_path(relative, code, f"formal changed path {number}")
+    require(
+        git_changed_paths(repo_root, parent_head, current_head) == changed_paths,
+        code,
+        "formal changed paths differ from exact Git recomputation",
+    )
+    policy = validate_formal_delta_policy(
+        successor.get("formalization_delta"), changed_paths
+    )
+    require(
+        policy["diagnostic_threshold_sha256"] == evidence["threshold_predecessor_sha256"],
+        "E_FORMAL_DELTA_POLICY",
+        "formalization policy is not bound to the diagnostic predecessor threshold",
+    )
+    repository_policy = exact_keys(
+        receipt["repository_identity_policy"],
+        FORMAL_REPOSITORY_IDENTITY_POLICY,
+        code,
+        "formal receipt repository identity policy",
+    )
+    require(
+        repository_policy == policy["repository_identity"],
+        code,
+        "formal receipt repository identity policy differs from contract",
+    )
+    repository_identity = exact_keys(
+        receipt["repository_identity"],
+        FORMAL_REPOSITORY_IDENTITY_FIELDS,
+        code,
+        "formal receipt repository identity",
+    )
+    require(
+        repository_identity["object_format"] == "sha1"
+        and repository_identity["shallow_repository"] is False
+        and type(repository_identity["replace_ref_count"]) is int
+        and repository_identity["replace_ref_count"] == 0
+        and repository_identity["nonempty_grafts"] is False
+        and repository_identity["index_flags"] == "ordinary-H-only"
+        and repository_identity["head_index_worktree"] == "exact-path-mode-blob"
+        and repository_identity["commit_relation"] == "direct-single-parent"
+        and type(repository_identity["parent_count"]) is int
+        and repository_identity["parent_count"] == 1
+        and type(repository_identity["source_file_count"]) is int
+        and repository_identity["source_file_count"] > 0,
+        code,
+        "formal receipt repository identity typed values differ",
+    )
+    require_sha256_fields(
+        repository_identity,
+        (
+            "head_tree_sha256",
+            "index_stage_sha256",
+            "index_flags_sha256",
+            "source_sha256",
+        ),
+        code,
+        "formal receipt repository identity",
+    )
+
+    source_tool_path = repo_root / "scripts/v934/step4/coverage_tool.py"
+    regular_file(source_tool_path, "E_FORMAL_DELTA_HOOK")
+    require(
+        source_tool_path.resolve(strict=True) == source_tool_path,
+        "E_FORMAL_DELTA_HOOK",
+        "formal delta source validator path is not canonical",
+    )
+    try:
+        specification = importlib.util.spec_from_file_location(
+            "_v934_step4_coverage_tool_hook",
+            source_tool_path,
+        )
+        require(
+            specification is not None and specification.loader is not None,
+            "E_FORMAL_DELTA_HOOK",
+            "formal delta source validator cannot be loaded",
+        )
+        source_tool = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(source_tool)
+        source_validator = getattr(
+            source_tool,
+            "validate_formalization_delta_receipt",
+            None,
+        )
+        require(
+            callable(source_validator),
+            "E_FORMAL_DELTA_HOOK",
+            "formal delta source validator hook is unavailable",
+        )
+        expected = source_validator(repo_root, copy.deepcopy(receipt))
+    except CoverageXmlError:
+        raise
+    except Exception as exc:
+        reject(
+            "E_FORMAL_DELTA_RECOMPUTE",
+            f"source formal delta recomputation failed: {exc.__class__.__name__}",
+        )
+    require(
+        type(expected) is dict and receipt == expected,
+        code,
+        "formalization delta receipt differs from exact source recomputation",
+    )
+    return receipt
+
+
+def validate_supporting_env(run_root: Path) -> None:
+    model = load_env(
+        run_root / "model-gate.env",
+        (
+            "profile",
+            "aggregate_exec_sha256",
+            "bundle_line_minimum",
+            "bundle_branch_minimum",
+            "semantic_scale_line_minimum",
+            "semantic_scale_branch_minimum",
+            "status",
+        ),
+        "E_RUN_EVIDENCE",
+        "model gate",
+    )
+    require(
+        model
+        == {
+            "profile": "v934-coverage-model-check",
+            "aggregate_exec_sha256": sha256_file(
+                run_root / "report/jacoco-aggregate.exec", "E_RUN_EVIDENCE"
+            ),
+            "bundle_line_minimum": "0.77",
+            "bundle_branch_minimum": "0.62",
+            "semantic_scale_line_minimum": "1.00",
+            "semantic_scale_branch_minimum": "1.00",
+            "status": "passed",
+        },
+        "E_RUN_EVIDENCE",
+        "model gate values differ",
+    )
+    cleanup = load_env(
+        run_root / "cleanup.env",
+        ("container_residue", "volume_residue", "network_residue", "status"),
+        "E_RUN_EVIDENCE",
+        "cleanup evidence",
+    )
+    require(
+        cleanup
+        == {
+            "container_residue": "0",
+            "volume_residue": "0",
+            "network_residue": "0",
+            "status": "passed",
+        },
+        "E_RUN_EVIDENCE",
+        "run-owned resource cleanup is incomplete",
+    )
+    sensitive = load_env(
+        run_root / "sensitive-scan.env",
+        ("patterns", "text_extensions", "status"),
+        "E_RUN_EVIDENCE",
+        "sensitive scan",
+    )
+    require(
+        sensitive
+        == {
+            "patterns": "5",
+            "text_extensions": "log,env,json,tsv,xml",
+            "status": "passed",
+        },
+        "E_RUN_EVIDENCE",
+        "sensitive scan evidence differs",
+    )
+
+
+def validate_summary_artifact_hashes(
+    run_root: Path,
+    summary: dict[str, str],
+    mode: str,
+    *,
+    _contract_path_override: Path | None = None,
+) -> None:
+    bindings = {
+        "coverage_contract_sha256": (
+            _contract_path_override
+            if _contract_path_override is not None
+            else run_root.parents[3] / "scripts/v934/step4/coverage-contract.json"
+        ),
+        "outer_marker_sha256": run_root / "run-context.json",
+        "class_universe_sha256": run_root / "class-universe.json",
+        "child_lifecycle_sha256": run_root / "child-lifecycle.json",
+        "toolchain_receipt_sha256": run_root / "toolchain-receipt.json",
+        "toolchain_pre_compile_seal_replay_sha256": run_root / "toolchain-replay/pre-compile-seal.env",
+        "toolchain_post_children_replay_sha256": run_root / "toolchain-replay/post-children.env",
+        "toolchain_reporter_pre_replay_sha256": run_root / "report/toolchain-replay-pre.json",
+        "toolchain_reporter_post_replay_sha256": run_root / "report/toolchain-replay-post.json",
+        "toolchain_post_reporter_replay_sha256": run_root / "toolchain-replay/post-reporter.env",
+        "toolchain_post_model_replay_sha256": run_root / "toolchain-replay/post-model.env",
+        "report_inventory_sha256": run_root / "report-inventory.json",
+        "exec_manifest_sha256": run_root / "exec-manifest.json",
+        "aggregate_exec_sha256": run_root / "report/jacoco-aggregate.exec",
+        "aggregate_provenance_sha256": run_root / "report/aggregate-provenance.json",
+        "report_provenance_sha256": run_root / "report/report-provenance.json",
+        "coverage_observation_sha256": run_root / "coverage-observation.json",
+        "successor_overlay_negative_sha256": run_root / "negative/successor-overlay-probes.tsv",
+        "coverage_contract_negative_sha256": run_root / "negative/coverage-contract.json",
+        "toolchain_receipt_negative_sha256": run_root / "negative/toolchain-receipt.json",
+        "effective_reporter_pom_negative_sha256": run_root / "negative/effective-reporter-pom.json",
+        "report_inventory_negative_sha256": run_root / "negative/report-inventory-probes.tsv",
+        "coverage_exec_negative_sha256": run_root / "negative/coverage-exec/negative-result.json",
+        "coverage_xml_negative_sha256": run_root / "negative/coverage-xml/negative-result.json",
+        "coverage_xml_generic_negative_sha256": run_root / "negative/coverage-xml-generic/negative-result.json",
+        "run_log_lifecycle_negative_sha256": run_root / "negative/run-log-lifecycle.txt",
+        "model_gate_sha256": run_root / "model-gate.env",
+        "cleanup_sha256": run_root / "cleanup.env",
+        "sensitive_scan_sha256": run_root / "sensitive-scan.env",
+    }
+    formalization_path = run_root / "formalization-delta.json"
+    if mode == "formal":
+        bindings["formalization_delta_sha256"] = formalization_path
+    else:
+        require(
+            not formalization_path.exists() and not formalization_path.is_symlink(),
+            "E_RUN_SUMMARY",
+            "diagnostic run must not contain formalization-delta.json",
+        )
+    for field, path in bindings.items():
+        require(
+            json_sha256(summary[field], "E_RUN_SUMMARY", field)
+            == sha256_file(path, "E_RUN_SUMMARY"),
+            "E_RUN_SUMMARY",
+            f"summary binding differs: {field}",
+        )
+
+
+def run_binding_records(
+    repo_root: Path,
+    run_root: Path,
+    mode: str,
+) -> dict[str, dict[str, Any]]:
+    paths = {
+        "run_context": run_root / "run-context.json",
+        "source_before": run_root / "source-before.tsv",
+        "source_after": run_root / "source-after.tsv",
+        "summary": run_root / "summary.env",
+        "class_universe": run_root / "class-universe.json",
+        "child_lifecycle": run_root / "child-lifecycle.json",
+        "toolchain_receipt": run_root / "toolchain-receipt.json",
+        "report_inventory": run_root / "report-inventory.json",
+        "exec_manifest": run_root / "exec-manifest.json",
+        "aggregate_exec": run_root / "report/jacoco-aggregate.exec",
+        "aggregate_provenance": run_root / "report/aggregate-provenance.json",
+        "report_provenance": run_root / "report/report-provenance.json",
+        "aggregate_xml": run_root / "report/jacoco-aggregate/jacoco.xml",
+        "coverage_observation": run_root / "coverage-observation.json",
+        "model_gate": run_root / "model-gate.env",
+        "cleanup": run_root / "cleanup.env",
+        "sensitive_scan": run_root / "sensitive-scan.env",
+        "coverage_exec_negative": run_root / "negative/coverage-exec/negative-result.json",
+        "coverage_xml_negative": run_root / "negative/coverage-xml/negative-result.json",
+    }
+    if mode == "formal":
+        paths["formalization_delta"] = run_root / "formalization-delta.json"
+    return {name: artifact_record(repo_root, path, "E_RUN_EVIDENCE") for name, path in paths.items()}
+
+
+def validate_run_status(
+    run_root: Path,
+    run_id: str,
+    mode: str,
+    context: dict[str, Any],
+    summary: dict[str, str],
+    expected_artifact_hashes: dict[str, str] | None = None,
+) -> tuple[dict[str, str], str]:
+    status_path = run_root / "run-status.env"
+    fields = DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+    status = load_env(status_path, fields, "E_RUN_STATUS", "run status")
+    expected_status = "diagnostic-observed" if mode == "diagnostic" else "formal-passed"
+    require(
+        status["run_id"] == run_id
+        and status["mode"] == mode
+        and status["git_head"] == context["git_head"]
+        and status["started_at"] == context["started_at"]
+        and status["last_phase"] == "completed"
+        and status["exit_code"] == "0"
+        and status["source_before_sha256"] == context["source_sha256"]
+        and status["source_after_sha256"] == context["source_sha256"]
+        and status["outer_marker_sha256"] == sha256_file(run_root / "run-context.json", "E_RUN_STATUS")
+        and status["toolchain_receipt_sha256"]
+        == sha256_file(run_root / "toolchain-receipt.json", "E_RUN_STATUS")
+        and status["summary_sha256"] == sha256_file(run_root / "summary.env", "E_RUN_STATUS")
+        and status["status"] == expected_status,
+        "E_RUN_STATUS",
+        "run status identity or success state differs",
+    )
+    finished_at = validate_utc_timestamp(status["finished_at"], "E_RUN_STATUS", "finished_at")
+    require(finished_at >= context["started_at"], "E_RUN_STATUS", "run finished before it started")
+    if mode == "formal":
+        require_sha256_fields(
+            status,
+            ("coverage_gate_sha256", "candidate_manifest_sha256", "final_manifest_sha256"),
+            "E_RUN_STATUS",
+            "formal run status",
+        )
+        canonical_hashes = {
+            "coverage_gate_sha256": sha256_file(
+                run_root / "coverage-gate.json", "E_RUN_STATUS"
+            ),
+            "candidate_manifest_sha256": sha256_file(
+                run_root / "candidate-manifest.json", "E_RUN_STATUS"
+            ),
+            "final_manifest_sha256": sha256_file(
+                run_root / "final-manifest.json", "E_RUN_STATUS"
+            ),
+        }
+        require(
+            all(status[key] == value for key, value in canonical_hashes.items()),
+            "E_RUN_STATUS",
+            "formal run status does not bind canonical gate/candidate/final",
+        )
+        if expected_artifact_hashes is not None:
+            require(
+                set(expected_artifact_hashes) == set(canonical_hashes),
+                "E_RUN_STATUS",
+                "expected formal artifact hash set differs",
+            )
+            require(
+                all(status[key] == value for key, value in expected_artifact_hashes.items()),
+                "E_RUN_STATUS",
+                "formal run status artifact hashes differ",
+            )
+    return status, sha256_file(status_path, "E_RUN_STATUS")
+
+
+def validate_run_data(
+    repo_root: Path,
+    run_id: str,
+    *,
+    mode: str,
+    require_run_status: bool,
+    expected_artifact_hashes: dict[str, str] | None = None,
+    _threshold_path_override: Path | None = None,
+    _contract_path_override: Path | None = None,
+    _expected_git_head: str | None = None,
+    _preseal: bool = False,
+) -> dict[str, Any]:
+    require(mode in ("diagnostic", "formal"), "E_RUN_MODE", "unsupported coverage run mode")
+    require(
+        not _preseal or not require_run_status,
+        "E_RUN_STATUS",
+        "preseal validation cannot require an already-published status",
+    )
+    require(
+        mode == "formal" or expected_artifact_hashes is None,
+        "E_RUN_STATUS",
+        "artifact hashes are formal-only",
+    )
+    repo_root = repo_root.resolve()
+    real_directory(repo_root, "E_REPO_ROOT")
+    run_root = canonical_run_root(repo_root, run_id)
+    threshold_path = (
+        _threshold_path_override
+        if _threshold_path_override is not None
+        else repo_root / "scripts/v934/step4/coverage-thresholds.json"
+    )
+    _, step4, threshold_hashes = load_thresholds(
+        repo_root,
+        _step4_path_override=_threshold_path_override,
+    )
+    expected_threshold_status = "diagnostic-pending" if mode == "diagnostic" else "confirmed"
+    if step4["status"] != expected_threshold_status:
+        code = "E_FORMAL_THRESHOLD_STATUS" if mode == "formal" else "E_DIAGNOSTIC_THRESHOLD_STATUS"
+        reject(code, f"{mode} run requires threshold status {expected_threshold_status}")
+
+    contract_path, contract_sha = validate_workflow_contract(
+        repo_root,
+        mode,
+        _contract_path_override=_contract_path_override,
+    )
+    context, context_sha = validate_run_context(
+        repo_root,
+        run_root / "run-context.json",
+        run_id,
+        contract_sha,
+    )
+    expected_git_head = (
+        git_current_head(repo_root)
+        if _expected_git_head is None
+        else json_git_head(
+            _expected_git_head,
+            "E_RUN_CONTEXT",
+            "expected run Git HEAD",
+        )
+    )
+    require_expected_run_git_head(
+        context,
+        expected_git_head,
+        "E_RUN_CONTEXT",
+        "Step 4 run",
+    )
+    source_context = validate_run_source_seals(
+        run_root,
+        context,
+        context_sha,
+        require_after=True,
+    )
+    summary = load_env(
+        run_root / "summary.env",
+        DIAGNOSTIC_SUMMARY_FIELDS if mode == "diagnostic" else FORMAL_SUMMARY_FIELDS,
+        "E_RUN_SUMMARY",
+        "run summary",
+    )
+    expected_summary_status = "diagnostic-observed" if mode == "diagnostic" else "formal-candidate-ready"
+    expected_acceptance = "not-generated" if mode == "diagnostic" else "required"
+    require(
+        summary["run_id"] == run_id
+        and summary["mode"] == mode
+        and summary["git_head"] == context["git_head"]
+        and summary["threshold_status"] == expected_threshold_status
+        and summary["source_before_sha256"] == context["source_sha256"]
+        and summary["source_after_sha256"] == context["source_sha256"]
+        and summary["coverage_contract_sha256"] == contract_sha
+        and summary["acceptance_candidate"] == expected_acceptance
+        and summary["status"] == expected_summary_status,
+        "E_RUN_SUMMARY",
+        "run summary identity or state differs",
+    )
+    require(
+        {
+            "exec_files": summary["exec_files"],
+            "sessions": summary["sessions"],
+            "required_reports": summary["required_reports"],
+            "required_structural_reports": summary["required_structural_reports"],
+            "required_testcase_nodes": summary["required_testcase_nodes"],
+            "addon_reports": summary["addon_reports"],
+            "addon_testcase_nodes": summary["addon_testcase_nodes"],
+            "model_external_gate": summary["model_external_gate"],
+        }
+        == {
+            "exec_files": "23",
+            "sessions": "48",
+            "required_reports": "773",
+            "required_structural_reports": "59",
+            "required_testcase_nodes": "5707",
+            "addon_reports": "2",
+            "addon_testcase_nodes": "6",
+            "model_external_gate": "passed",
+        },
+        "E_RUN_SUMMARY",
+        "run summary exact counts differ",
+    )
+    child_lifecycle = validate_child_lifecycle(run_root, run_id)
+    formalization_delta: dict[str, Any] | None = None
+    if mode == "formal":
+        formalization_delta = validate_formalization_delta(
+            repo_root,
+            run_root,
+            context,
+            step4,
+            contract_path,
+        )
+    validate_summary_artifact_hashes(
+        run_root,
+        summary,
+        mode,
+        _contract_path_override=_contract_path_override,
+    )
+    validate_supporting_env(run_root)
+    manifest_path = run_root / "exec-manifest.json"
+    aggregate_exec_path = run_root / "report/jacoco-aggregate.exec"
+    aggregate_provenance_path = run_root / "report/aggregate-provenance.json"
+    report_provenance_path = run_root / "report/report-provenance.json"
+    xml_path = run_root / "report/jacoco-aggregate/jacoco.xml"
+    stored_observation = load_json(run_root / "coverage-observation.json", "E_OBSERVATION")
+    recomputed_observation = observe_data(
+        repo_root,
+        xml_path,
+        manifest_path,
+        aggregate_exec_path,
+        aggregate_provenance_path,
+        report_provenance_path,
+        _threshold_path_override=_threshold_path_override,
+        _contract_path_override=_contract_path_override,
+        _expected_git_head=expected_git_head,
+    )
+    require(
+        stored_observation == recomputed_observation,
+        "E_OBSERVATION_DRIFT",
+        "stored coverage observation differs from exact recomputation",
+    )
+    require(
+        stored_observation["run_id"] == run_id
+        and stored_observation["provenance"]["report_provenance"]["git_head"]
+        == context["git_head"],
+        "E_OBSERVATION_DRIFT",
+        "coverage observation run/Git identity differs",
+    )
+
+    status: dict[str, str] | None = None
+    status_sha: str | None = None
+    status_path = run_root / "run-status.env"
+    if _preseal:
+        require(
+            not status_path.exists() and not status_path.is_symlink(),
+            "E_RUN_STATUS_EXISTS",
+            "preseal validation requires an unpublished run status",
+        )
+    elif require_run_status or status_path.exists() or status_path.is_symlink():
+        status, status_sha = validate_run_status(
+            run_root,
+            run_id,
+            mode,
+            context,
+            summary,
+            expected_artifact_hashes,
+        )
+    evidence = {
+        "run_id": run_id,
+        "git_head": context["git_head"],
+        "source_sha256": context["source_sha256"],
+        "summary_sha256": sha256_file(run_root / "summary.env", "E_RUN_SUMMARY"),
+        "observation_sha256": sha256_file(
+            run_root / "coverage-observation.json", "E_OBSERVATION"
+        ),
+        "coverage_contract_sha256": contract_sha,
+        "threshold_sha256": threshold_hashes["step4_successor_sha256"],
+        "exec_manifest_sha256": sha256_file(manifest_path, "E_MANIFEST"),
+        "aggregate_exec_sha256": sha256_file(aggregate_exec_path, "E_AGGREGATE_EXEC"),
+        "aggregate_xml_sha256": sha256_file(xml_path, "E_XML_INVALID"),
+        "workspace_class_tree_sha256": load_json(manifest_path, "E_MANIFEST")[
+            "workspace_class_tree_sha256"
+        ],
+    }
+    # Diagnostic threshold evidence must bind its seal.  Formal gate evidence
+    # is deliberately preseal-stable because formal run-status binds the gate,
+    # candidate, and final in the opposite direction (avoiding a hash cycle).
+    if status_sha is not None and mode == "diagnostic":
+        evidence["run_status_sha256"] = status_sha
+    return {
+        "mode": mode,
+        "run_root": run_root,
+        "context": context,
+        "source_context": source_context,
+        "summary": summary,
+        "run_status": status,
+        "child_lifecycle": child_lifecycle,
+        "formalization_delta": formalization_delta,
+        "observation": stored_observation,
+        "raw_exec_validation": stored_observation["provenance"][
+            "raw_exec_validation"
+        ],
+        "evidence": evidence,
+        "bindings": run_binding_records(repo_root, run_root, mode),
+        "threshold": step4,
+        "threshold_path": threshold_path,
+    }
+
+
+def validate_diagnostic_command(args: argparse.Namespace) -> None:
+    validation = validate_run_data(
+        args.repo_root,
+        args.run_id,
+        mode="diagnostic",
+        require_run_status=True,
+    )
+    print(
+        "[v934-coverage-xml] DIAGNOSTIC VALID "
+        f"run={args.run_id} observation={validation['evidence']['observation_sha256']}"
+    )
+
+
+def seal_run_data(
+    repo_root: Path,
+    run_id: str,
+    mode: str,
+    *,
+    _exit_on_commit: bool = False,
+) -> dict[str, Any]:
+    require(mode in ("diagnostic", "formal"), "E_RUN_MODE", "unsupported seal mode")
+    repo_root = repo_root.resolve()
+    validation = validate_run_data(
+        repo_root,
+        run_id,
+        mode=mode,
+        require_run_status=False,
+        _preseal=True,
+    )
+    run_root = validation["run_root"]
+    artifact_hashes: dict[str, str] = {}
+    if mode == "formal":
+        gate_path = run_root / "coverage-gate.json"
+        candidate_path = run_root / "candidate-manifest.json"
+        final_path = run_root / "final-manifest.json"
+        gate = validate_coverage_gate(repo_root, gate_path)
+        candidate = validate_acceptance_candidate(repo_root, candidate_path)
+        final = validate_acceptance_final(repo_root, final_path)
+        require(
+            gate["run_id"] == candidate["run_id"] == final["run_id"] == run_id,
+            "E_ACCEPTANCE_ARTIFACT",
+            "formal gate/candidate/final run identities differ",
+        )
+        artifact_hashes = {
+            "coverage_gate_sha256": sha256_file(gate_path, "E_COVERAGE_GATE"),
+            "candidate_manifest_sha256": sha256_file(
+                candidate_path, "E_ACCEPTANCE_CANDIDATE"
+            ),
+            "final_manifest_sha256": sha256_file(final_path, "E_ACCEPTANCE_FINAL"),
+        }
+
+    context = validation["context"]
+    finished_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    validate_utc_timestamp(finished_at, "E_RUN_STATUS", "seal finished_at")
+    require(
+        finished_at >= context["started_at"],
+        "E_RUN_STATUS",
+        "run cannot be sealed before its start time",
+    )
+    status_value = "diagnostic-observed" if mode == "diagnostic" else "formal-passed"
+    status_values = {
+        "run_id": run_id,
+        "mode": mode,
+        "git_head": context["git_head"],
+        "started_at": context["started_at"],
+        "finished_at": finished_at,
+        "last_phase": "completed",
+        "exit_code": "0",
+        "source_before_sha256": context["source_sha256"],
+        "source_after_sha256": context["source_sha256"],
+        "outer_marker_sha256": sha256_file(
+            run_root / "run-context.json", "E_RUN_STATUS"
+        ),
+        "toolchain_receipt_sha256": sha256_file(
+            run_root / "toolchain-receipt.json", "E_RUN_STATUS"
+        ),
+        "summary_sha256": sha256_file(run_root / "summary.env", "E_RUN_STATUS"),
+        **artifact_hashes,
+        "status": status_value,
+    }
+    fields = DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+    payload = encode_env(status_values, fields, "E_RUN_STATUS")
+    status_path = run_root / "run-status.env"
+    result = {
+        "schema_version": 1,
+        "kind": "v934-step4-run-seal",
+        "mode": mode,
+        "run_id": run_id,
+        "git_head": context["git_head"],
+        "run_status": {
+            "path": display_path(repo_root, status_path),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "size": len(payload),
+            "status": status_value,
+        },
+        "status": "sealed",
+    }
+    # The success marker is the final irreversible evidence action.  Do not
+    # read or revalidate run evidence after this no-clobber publication.
+    final_publish_bytes(
+        status_path,
+        payload,
+        mode=0o644,
+        exit_on_commit=_exit_on_commit,
+    )
+    return result
+
+
+def seal_run_command(args: argparse.Namespace) -> None:
+    # Intentionally quiet: run-status publication inside seal_run_data is the
+    # final potentially failing I/O/validation action of the success path.
+    seal_run_data(
+        args.repo_root,
+        args.run_id,
+        args.mode,
+        _exit_on_commit=True,
+    )
+
+
+def observation_exact_counter(value: Any, code: str, label: str) -> dict[str, Any]:
+    counter = exact_keys(
+        value,
+        ("missed", "covered", "total", "ratio", "fraction"),
+        code,
+        label,
+    )
+    missed = json_integer(counter["missed"], code, f"{label}.missed")
+    covered = json_integer(counter["covered"], code, f"{label}.covered")
+    total = json_integer(counter["total"], code, f"{label}.total", positive=True)
+    require(missed + covered == total, code, f"{label} total arithmetic differs")
+    exact = exact_counter(covered, total, code, label)
+    require(counter["fraction"] == exact["fraction"], code, f"{label} fraction differs")
+    require(
+        type(counter["ratio"]) in (int, float)
+        and math.isfinite(float(counter["ratio"])),
+        code,
+        f"{label} display ratio differs",
+    )
+    return exact
+
+
+def threshold_candidate_data(
+    validation: dict[str, Any],
+    step1: dict[str, Any],
+) -> dict[str, Any]:
+    observation = validation["observation"]
+    aggregate = observation["aggregate_observed"]
+    aggregate_line = observation_exact_counter(
+        aggregate["line"], "E_FREEZE_COUNTER", "aggregate line"
+    )
+    aggregate_branch = observation_exact_counter(
+        aggregate["branch"], "E_FREEZE_COUNTER", "aggregate branch"
+    )
+    evidence_source = validation["evidence"]
+    require(
+        "run_status_sha256" in evidence_source,
+        "E_FREEZE_RUN_STATUS",
+        "threshold freeze requires a sealed diagnostic run status",
+    )
+    evidence = {
+        "run_id": evidence_source["run_id"],
+        "git_head": evidence_source["git_head"],
+        "source_sha256": evidence_source["source_sha256"],
+        "run_status_sha256": evidence_source["run_status_sha256"],
+        "summary_sha256": evidence_source["summary_sha256"],
+        "observation_sha256": evidence_source["observation_sha256"],
+        "coverage_contract_sha256": evidence_source["coverage_contract_sha256"],
+        "threshold_predecessor_sha256": evidence_source["threshold_sha256"],
+        "exec_manifest_sha256": evidence_source["exec_manifest_sha256"],
+        "aggregate_exec_sha256": evidence_source["aggregate_exec_sha256"],
+        "aggregate_xml_sha256": evidence_source["aggregate_xml_sha256"],
+        "workspace_class_tree_sha256": evidence_source["workspace_class_tree_sha256"],
+    }
+    validate_threshold_evidence(evidence, "E_FREEZE_EVIDENCE")
+
+    observed_rows = observation["critical_classes"]
+    require(
+        type(observed_rows) is list and len(observed_rows) == len(step1["critical_classes"]),
+        "E_FREEZE_CRITICAL",
+        "diagnostic critical observation set differs",
+    )
+    critical_thresholds: list[dict[str, Any]] = []
+    for number, (observed_row, expected_row) in enumerate(
+        zip(observed_rows, step1["critical_classes"]), 1
+    ):
+        require(
+            isinstance(observed_row, dict)
+            and observed_row.get("fqcn") == expected_row["fqcn"]
+            and observed_row.get("module") == expected_row["module"],
+            "E_FREEZE_CRITICAL",
+            f"diagnostic critical identity/order differs at row {number}",
+        )
+        metrics: dict[str, Any] = {}
+        for metric, numerator, denominator in (
+            ("line", 4, 5),
+            ("branch", 7, 10),
+        ):
+            try:
+                metric_value = observed_row[metric]
+            except KeyError:
+                reject("E_FREEZE_CRITICAL", f"missing critical {metric} at row {number}")
+            exact = observation_exact_counter(
+                metric_value,
+                "E_FREEZE_ZERO_COUNTER",
+                f"critical row {number} {metric}",
+            )
+            require(
+                counter_at_least_ratio(
+                    exact,
+                    numerator,
+                    denominator,
+                    "E_FREEZE_COUNTER",
+                    f"critical row {number} {metric}",
+                ),
+                "E_FREEZE_FLOOR",
+                f"critical {metric} is below candidate floor at row {number}",
+            )
+            metrics[metric] = {"observed": exact, "minimum": exact}
+        critical_thresholds.append(
+            {
+                "fqcn": expected_row["fqcn"],
+                "module": expected_row["module"],
+                "line": metrics["line"],
+                "branch": metrics["branch"],
+            }
+        )
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-coverage-threshold-freeze-candidate",
+        "status": "review-required",
+        "predecessor": {
+            "path": "scripts/v934/step4/coverage-thresholds.json",
+            "sha256": evidence["threshold_predecessor_sha256"],
+            "status": "diagnostic-pending",
+        },
+        "aggregate_observed": {
+            "evidence": evidence,
+            "line": aggregate_line,
+            "branch": aggregate_branch,
+        },
+        "aggregate_reviewed_thresholds": {
+            "line": aggregate_line,
+            "branch": aggregate_branch,
+        },
+        "critical_reviewed_thresholds": critical_thresholds,
+        "review_requirements": {
+            "diagnostic_run_id": evidence["run_id"],
+            "decision": "confirm-observed-thresholds",
+            "required_fields": [
+                "reviewer",
+                "reviewed_at",
+                "evidence_path",
+                "evidence_sha256",
+            ],
+        },
+    }
+
+
+def freeze_thresholds_data(repo_root: Path, run_id: str) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    step1, step4, _ = load_thresholds(repo_root)
+    require(
+        step4["status"] == "diagnostic-pending",
+        "E_FREEZE_THRESHOLD_STATUS",
+        "threshold freeze requires the diagnostic-pending predecessor",
+    )
+    validation = validate_run_data(
+        repo_root,
+        run_id,
+        mode="diagnostic",
+        require_run_status=True,
+    )
+    return threshold_candidate_data(validation, step1)
+
+
+def freeze_thresholds_command(args: argparse.Namespace) -> None:
+    candidate = freeze_thresholds_data(args.repo_root, args.run_id)
+    atomic_json(args.output, candidate)
+    print(
+        "[v934-coverage-xml] THRESHOLD CANDIDATE "
+        f"run={args.run_id} output={args.output}"
+    )
+
+
+def verify_threshold_candidate_data(repo_root: Path, candidate_path: Path) -> dict[str, Any]:
+    candidate = load_json(candidate_path, "E_THRESHOLD_CANDIDATE")
+    require(
+        candidate.get("kind") == "v934-step4-coverage-threshold-freeze-candidate",
+        "E_THRESHOLD_CANDIDATE",
+        "threshold candidate kind differs",
+    )
+    aggregate = candidate.get("aggregate_observed")
+    require(type(aggregate) is dict, "E_THRESHOLD_CANDIDATE", "threshold candidate aggregate is missing")
+    evidence = aggregate.get("evidence")
+    validated_evidence = validate_threshold_evidence(evidence, "E_THRESHOLD_CANDIDATE")
+    _step1, step4, _hashes = load_thresholds(repo_root)
+    if step4["status"] == "diagnostic-pending":
+        expected = freeze_thresholds_data(repo_root, validated_evidence["run_id"])
+    else:
+        frozen = validate_frozen_diagnostic_data(repo_root)
+        expected = threshold_candidate_from_frozen_result(frozen)
+    require(candidate == expected, "E_THRESHOLD_CANDIDATE", "threshold candidate differs from recomputation")
+    return candidate
+
+
+def verify_threshold_candidate_command(args: argparse.Namespace) -> None:
+    candidate = verify_threshold_candidate_data(args.repo_root.resolve(), args.candidate)
+    print(
+        "[v934-coverage-xml] THRESHOLD CANDIDATE VALID "
+        f"run={candidate['aggregate_observed']['evidence']['run_id']}"
+    )
+
+
+def git_environment() -> dict[str, str]:
+    # Frozen replay must not inherit repository/object/ref/index/worktree,
+    # shallow/graft, or config redirection.  A non-Git allowlist also fails
+    # closed for future GIT_* variables that are unknown today.
+    environment = {
+        name: os.environ[name]
+        for name in ("PATH", "SYSTEMROOT", "TMPDIR", "TMP", "TEMP")
+        if name in os.environ
+    }
+    environment.update(
+        {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "LC_ALL": "C",
+            "LANG": "C",
+        }
+    )
+    return environment
+
+
+def frozen_git_process(
+    repo_root: Path,
+    arguments: list[str],
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        ["git", "-C", str(repo_root), *arguments],
+        env=git_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+
+def require_safe_frozen_git_repository(repo_root: Path) -> None:
+    """Reject repository topologies that can make frozen replay ambiguous."""
+    try:
+        canonical_root = repo_root.resolve(strict=True)
+    except OSError as exc:
+        raise CoverageXmlError(
+            "E_FROZEN_GIT", "cannot resolve frozen Git repository root"
+        ) from exc
+    require(
+        canonical_root == repo_root.absolute()
+        and repo_root.is_dir()
+        and not repo_root.is_symlink(),
+        "E_FROZEN_GIT",
+        "frozen Git repository root is not canonical",
+    )
+
+    top_level = frozen_git_process(repo_root, ["rev-parse", "--show-toplevel"])
+    object_format = frozen_git_process(
+        repo_root, ["rev-parse", "--show-object-format"]
+    )
+    shallow = frozen_git_process(
+        repo_root, ["rev-parse", "--is-shallow-repository"]
+    )
+    common_dir = frozen_git_process(
+        repo_root,
+        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )
+    replace_refs = frozen_git_process(
+        repo_root,
+        ["for-each-ref", "--format=%(refname)", "refs/replace"],
+    )
+    require(
+        top_level.returncode == 0
+        and top_level.stdout == os.fsencode(str(canonical_root)) + b"\n"
+        and object_format.returncode == 0
+        and object_format.stdout == b"sha1\n"
+        and shallow.returncode == 0
+        and shallow.stdout == b"false\n"
+        and common_dir.returncode == 0
+        and common_dir.stdout.endswith(b"\n")
+        and common_dir.stdout.count(b"\n") == 1
+        and replace_refs.returncode == 0
+        and replace_refs.stdout == b"",
+        "E_FROZEN_GIT",
+        "frozen Git repository topology is unsafe or ambiguous",
+    )
+    common_path = Path(os.fsdecode(common_dir.stdout[:-1])).absolute()
+    require(
+        common_path.is_dir()
+        and not common_path.is_symlink()
+        and common_path.resolve(strict=True) == common_path,
+        "E_FROZEN_GIT",
+        "frozen Git common directory is not canonical",
+    )
+    info_dir = common_path / "info"
+    try:
+        info_stat = info_dir.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise CoverageXmlError(
+            "E_FROZEN_GIT", "cannot inspect frozen Git graft metadata"
+        ) from exc
+    require(
+        stat.S_ISDIR(info_stat.st_mode)
+        and not stat.S_ISLNK(info_stat.st_mode)
+        and info_dir.resolve(strict=True) == info_dir.absolute(),
+        "E_FROZEN_GIT",
+        "frozen Git info directory is not canonical",
+    )
+    grafts = info_dir / "grafts"
+    try:
+        grafts_stat = grafts.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise CoverageXmlError(
+            "E_FROZEN_GIT", "cannot inspect frozen Git graft metadata"
+        ) from exc
+    require(
+        stat.S_ISREG(grafts_stat.st_mode)
+        and not stat.S_ISLNK(grafts_stat.st_mode)
+        and grafts.resolve(strict=True) == grafts.absolute()
+        and grafts_stat.st_size == 0,
+        "E_FROZEN_GIT",
+        "frozen Git graft metadata is unsafe or non-empty",
+    )
+
+
+def git_current_head(repo_root: Path) -> str:
+    require_safe_frozen_git_repository(repo_root)
+    process = frozen_git_process(
+        repo_root, ["rev-parse", "--verify", "HEAD^{commit}"]
+    )
+    try:
+        value = process.stdout.decode("ascii", errors="strict").strip()
+    except UnicodeError:
+        value = ""
+    require(
+        process.returncode == 0 and GIT_HEAD_PATTERN.fullmatch(value) is not None,
+        "E_FROZEN_GIT",
+        "current committed Git HEAD is unavailable",
+    )
+    return value
+
+
+def require_git_ancestor(repo_root: Path, ancestor: str, current_head: str) -> None:
+    require(
+        GIT_HEAD_PATTERN.fullmatch(ancestor) is not None
+        and GIT_HEAD_PATTERN.fullmatch(current_head) is not None,
+        "E_FROZEN_GIT",
+        "frozen diagnostic Git identity is invalid",
+    )
+    require_safe_frozen_git_repository(repo_root)
+    process = frozen_git_process(
+        repo_root,
+        ["merge-base", "--is-ancestor", ancestor, current_head],
+    )
+    if process.returncode == 1:
+        reject(
+            "E_FROZEN_ANCESTOR",
+            "confirmed diagnostic commit is not an ancestor of current HEAD",
+        )
+    require(
+        process.returncode == 0,
+        "E_FROZEN_GIT",
+        "cannot verify the confirmed diagnostic commit ancestry",
+    )
+
+
+def git_show_blob(repo_root: Path, commit: str, relative_path: str) -> bytes:
+    require(
+        GIT_HEAD_PATTERN.fullmatch(commit) is not None,
+        "E_FROZEN_GIT",
+        "Git blob commit identity is invalid",
+    )
+    require(
+        relative_path
+        in {
+            "scripts/v934/step4/coverage-thresholds.json",
+            "scripts/v934/step4/coverage-contract.json",
+        },
+        "E_FROZEN_GIT",
+        "Git blob path is not an internal frozen-diagnostic input",
+    )
+    require_safe_frozen_git_repository(repo_root)
+    process = frozen_git_process(
+        repo_root,
+        [
+            "--no-pager",
+            "show",
+            "--no-ext-diff",
+            "--no-textconv",
+            f"{commit}:{relative_path}",
+        ],
+    )
+    require(
+        process.returncode == 0 and 0 < len(process.stdout) <= 4 * 1024 * 1024,
+        "E_FROZEN_BLOB",
+        f"cannot read bounded frozen Git blob: {relative_path}",
+    )
+    return process.stdout
+
+
+def require_frozen_blob_hash(
+    payload: bytes,
+    expected_sha256: Any,
+    label: str,
+) -> str:
+    expected = json_sha256(expected_sha256, "E_FROZEN_BLOB", f"{label} expected SHA")
+    actual = hashlib.sha256(payload).hexdigest()
+    require(actual == expected, "E_FROZEN_BLOB", f"{label} Git blob hash differs")
+    return actual
+
+
+def write_private_blob(directory: Path, name: str, payload: bytes) -> Path:
+    real_directory(directory, "E_FROZEN_TEMP")
+    directory_stat = directory.lstat()
+    require(
+        stat.S_IMODE(directory_stat.st_mode) & 0o077 == 0,
+        "E_FROZEN_TEMP",
+        "frozen diagnostic temporary directory is not private",
+    )
+    require(name in {"coverage-thresholds.json", "coverage-contract.json"}, "E_FROZEN_TEMP", "unsafe frozen blob name")
+    path = directory / name
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        view = memoryview(payload)
+        while view:
+            written = os.write(descriptor, view)
+            require(written > 0, "E_FROZEN_TEMP", "short write for frozen Git blob")
+            view = view[written:]
+        os.fsync(descriptor)
+    except OSError as exc:
+        path.unlink(missing_ok=True)
+        reject("E_FROZEN_TEMP", f"cannot stage frozen Git blob: {exc.__class__.__name__}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    regular_file(path, "E_FROZEN_TEMP")
+    return path
+
+
+def validate_frozen_candidate_equivalence(
+    confirmed: dict[str, Any],
+    candidate: dict[str, Any],
+) -> None:
+    confirmed_aggregate = confirmed["aggregate_observed"]
+    candidate_aggregate = candidate["aggregate_observed"]
+    require(
+        confirmed_aggregate["evidence"] == candidate_aggregate["evidence"],
+        "E_FROZEN_EVIDENCE",
+        "confirmed diagnostic evidence differs from full run recomputation",
+    )
+    require(
+        confirmed_aggregate == candidate_aggregate,
+        "E_FROZEN_RECOMPUTE",
+        "confirmed aggregate observation differs from full run recomputation",
+    )
+    require(
+        confirmed["aggregate_reviewed_thresholds"]
+        == candidate["aggregate_reviewed_thresholds"],
+        "E_FROZEN_RECOMPUTE",
+        "confirmed aggregate reviewed thresholds differ from recomputation",
+    )
+    require(
+        confirmed["critical_reviewed_thresholds"]
+        == candidate["critical_reviewed_thresholds"],
+        "E_FROZEN_RECOMPUTE",
+        "confirmed critical reviewed thresholds differ from recomputation",
+    )
+
+
+def threshold_candidate_from_frozen_result(result: dict[str, Any]) -> dict[str, Any]:
+    evidence = result["evidence"]
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-coverage-threshold-freeze-candidate",
+        "status": "review-required",
+        "predecessor": {
+            "path": "scripts/v934/step4/coverage-thresholds.json",
+            "sha256": result["frozen_blobs"]["threshold"]["sha256"],
+            "status": "diagnostic-pending",
+        },
+        "aggregate_observed": result["aggregate_observed"],
+        "aggregate_reviewed_thresholds": result["aggregate_reviewed_thresholds"],
+        "critical_reviewed_thresholds": result["critical_reviewed_thresholds"],
+        "review_requirements": {
+            "diagnostic_run_id": evidence["run_id"],
+            "decision": "confirm-observed-thresholds",
+            "required_fields": [
+                "reviewer",
+                "reviewed_at",
+                "evidence_path",
+                "evidence_sha256",
+            ],
+        },
+    }
+
+
+def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    real_directory(repo_root, "E_REPO_ROOT")
+    step1, confirmed, threshold_hashes = load_thresholds(repo_root)
+    require(
+        confirmed["status"] == "confirmed",
+        "E_FROZEN_THRESHOLD_STATUS",
+        "frozen diagnostic validation requires canonical confirmed thresholds",
+    )
+    confirmed_evidence = validate_threshold_evidence(
+        confirmed["aggregate_observed"]["evidence"],
+        "E_FROZEN_EVIDENCE",
+    )
+    current_head = git_current_head(repo_root)
+    diagnostic_head = confirmed_evidence["git_head"]
+    require_git_ancestor(repo_root, diagnostic_head, current_head)
+
+    threshold_relative = "scripts/v934/step4/coverage-thresholds.json"
+    contract_relative = "scripts/v934/step4/coverage-contract.json"
+    threshold_blob = git_show_blob(repo_root, diagnostic_head, threshold_relative)
+    contract_blob = git_show_blob(repo_root, diagnostic_head, contract_relative)
+    threshold_blob_sha = require_frozen_blob_hash(
+        threshold_blob,
+        confirmed_evidence["threshold_predecessor_sha256"],
+        "diagnostic threshold",
+    )
+    contract_blob_sha = require_frozen_blob_hash(
+        contract_blob,
+        confirmed_evidence["coverage_contract_sha256"],
+        "diagnostic coverage contract",
+    )
+
+    with tempfile.TemporaryDirectory(prefix="v934-frozen-diagnostic-") as temporary_name:
+        temporary_root = Path(temporary_name)
+        threshold_path = write_private_blob(
+            temporary_root,
+            "coverage-thresholds.json",
+            threshold_blob,
+        )
+        contract_path = write_private_blob(
+            temporary_root,
+            "coverage-contract.json",
+            contract_blob,
+        )
+        old_step1, old_threshold, old_hashes = load_thresholds(
+            repo_root,
+            _step4_path_override=threshold_path,
+        )
+        require(old_step1 == step1, "E_FROZEN_RECOMPUTE", "Step 1 policy changed during replay")
+        require(
+            old_threshold["status"] == "diagnostic-pending"
+            and old_hashes["step4_successor_sha256"] == threshold_blob_sha,
+            "E_FROZEN_BLOB",
+            "frozen threshold blob is not the exact diagnostic-pending predecessor",
+        )
+        _contract_path, validated_contract_sha = validate_workflow_contract(
+            repo_root,
+            "diagnostic",
+            _contract_path_override=contract_path,
+        )
+        require(
+            validated_contract_sha == contract_blob_sha,
+            "E_FROZEN_BLOB",
+            "frozen contract blob is not the exact diagnostic-ready contract",
+        )
+        validation = validate_run_data(
+            repo_root,
+            confirmed_evidence["run_id"],
+            mode="diagnostic",
+            require_run_status=True,
+            _threshold_path_override=threshold_path,
+            _contract_path_override=contract_path,
+            _expected_git_head=diagnostic_head,
+        )
+        candidate = threshold_candidate_data(validation, old_step1)
+
+    validate_frozen_candidate_equivalence(confirmed, candidate)
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-frozen-diagnostic-validation",
+        "status": "passed",
+        "run_id": confirmed_evidence["run_id"],
+        "diagnostic_git_head": diagnostic_head,
+        "current_git_head": current_head,
+        "ancestor_verified": True,
+        "confirmed_threshold_sha256": threshold_hashes["step4_successor_sha256"],
+        "frozen_blobs": {
+            "threshold": {
+                "git_path": threshold_relative,
+                "sha256": threshold_blob_sha,
+                "status": "diagnostic-pending",
+            },
+            "contract": {
+                "git_path": contract_relative,
+                "sha256": contract_blob_sha,
+                "status": "diagnostic-ready",
+            },
+        },
+        "replay_receipt": {
+            "run_context_sha256": validation["source_context"][
+                "run_context_sha256"
+            ],
+            "source_sha256": validation["source_context"]["source_sha256"],
+            "not_before_ns": validation["source_context"]["not_before_ns"],
+            "git_head": validation["source_context"]["git_head"],
+            "raw_exec_replay": validation["raw_exec_validation"],
+            "scope": "exact-retained-diagnostic-run-bytes",
+            "status": "verified",
+        },
+        "evidence": confirmed_evidence,
+        "aggregate_observed": candidate["aggregate_observed"],
+        "aggregate_reviewed_thresholds": candidate["aggregate_reviewed_thresholds"],
+        "critical_reviewed_thresholds": candidate["critical_reviewed_thresholds"],
+    }
+
+
+def validate_frozen_diagnostic_command(args: argparse.Namespace) -> None:
+    result = validate_frozen_diagnostic_data(args.repo_root)
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+
+
+def require_formal_class_tree(formal_sha256: Any, diagnostic_sha256: Any) -> None:
+    formal = json_sha256(formal_sha256, "E_FORMAL_CLASS_TREE", "formal class-tree SHA")
+    diagnostic = json_sha256(
+        diagnostic_sha256,
+        "E_FORMAL_CLASS_TREE",
+        "diagnostic class-tree SHA",
+    )
+    require(
+        formal == diagnostic,
+        "E_FORMAL_CLASS_TREE",
+        "formal workspace class tree differs from the reviewed diagnostic baseline",
+    )
+
+
+def formal_metric_result(
+    actual_value: Any,
+    diagnostic_value: Any,
+    minimum_value: Any,
+    label: str,
+) -> dict[str, Any]:
+    actual = validate_exact_counter(actual_value, "E_FORMAL_COUNTER", f"{label} observed")
+    diagnostic = validate_exact_counter(
+        diagnostic_value,
+        "E_FORMAL_THRESHOLD",
+        f"{label} diagnostic observed",
+    )
+    minimum = validate_exact_counter(
+        minimum_value,
+        "E_FORMAL_THRESHOLD",
+        f"{label} minimum",
+    )
+    require(
+        actual["total"] == diagnostic["total"] == minimum["total"],
+        "E_FORMAL_DENOMINATOR",
+        f"{label} denominator differs from the reviewed diagnostic baseline",
+    )
+    require(
+        counter_at_least(actual, minimum, "E_FORMAL_COUNTER", label),
+        "E_FORMAL_LOW",
+        f"{label} is below the reviewed threshold",
+    )
+    return {"observed": actual, "minimum": minimum, "outcome": "passed"}
+
+
+def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    step1, step4, threshold_hashes = load_thresholds(repo_root)
+    if step4["status"] != "confirmed":
+        reject(
+            "E_FORMAL_THRESHOLD_STATUS",
+            "formal coverage requires a confirmed threshold successor",
+        )
+    # Standalone gate recomputation must mechanically prove that the confirmed
+    # successor still derives from its exact commit-frozen diagnostic inputs.
+    # Do not rely on an earlier runner/contract preflight for this provenance.
+    frozen_diagnostic = validate_frozen_diagnostic_data(repo_root)
+    validation = validate_run_data(
+        repo_root,
+        run_id,
+        mode="formal",
+        require_run_status=False,
+    )
+    require_formal_class_tree(
+        validation["evidence"]["workspace_class_tree_sha256"],
+        step4["aggregate_observed"]["evidence"]["workspace_class_tree_sha256"],
+    )
+    observation = validation["observation"]
+    reviewed_aggregate = step4["aggregate_reviewed_thresholds"]
+    aggregate_results: dict[str, Any] = {}
+    for metric in ("line", "branch"):
+        observed = observation_exact_counter(
+            observation["aggregate_observed"][metric],
+            "E_FORMAL_COUNTER",
+            f"formal aggregate {metric}",
+        )
+        aggregate_results[metric] = formal_metric_result(
+            observed,
+            step4["aggregate_observed"][metric],
+            reviewed_aggregate[metric],
+            f"formal aggregate {metric}",
+        )
+
+    observed_rows = observation["critical_classes"]
+    reviewed_rows = step4["critical_reviewed_thresholds"]
+    require(
+        type(observed_rows) is list
+        and len(observed_rows) == len(step1["critical_classes"])
+        and type(reviewed_rows) is list
+        and len(reviewed_rows) == len(step1["critical_classes"]),
+        "E_FORMAL_CRITICAL",
+        "formal critical set cardinality differs",
+    )
+    critical_results: list[dict[str, Any]] = []
+    for number, (expected, observed_row, reviewed_row) in enumerate(
+        zip(step1["critical_classes"], observed_rows, reviewed_rows), 1
+    ):
+        require(
+            observed_row.get("fqcn") == expected["fqcn"]
+            and observed_row.get("module") == expected["module"]
+            and reviewed_row.get("fqcn") == expected["fqcn"]
+            and reviewed_row.get("module") == expected["module"],
+            "E_FORMAL_CRITICAL",
+            f"formal critical identity/order differs at row {number}",
+        )
+        metrics: dict[str, Any] = {}
+        for metric in ("line", "branch"):
+            observed = observation_exact_counter(
+                observed_row[metric],
+                "E_FORMAL_COUNTER",
+                f"formal critical row {number} {metric}",
+            )
+            reviewed_metric = exact_keys(
+                reviewed_row[metric],
+                ("observed", "minimum"),
+                "E_FORMAL_THRESHOLD",
+                f"reviewed critical row {number} {metric}",
+            )
+            metrics[metric] = formal_metric_result(
+                observed,
+                reviewed_metric["observed"],
+                reviewed_metric["minimum"],
+                f"formal critical row {number} {metric}",
+            )
+        critical_results.append(
+            {
+                "fqcn": expected["fqcn"],
+                "module": expected["module"],
+                "line": metrics["line"],
+                "branch": metrics["branch"],
+            }
+        )
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-coverage-gate",
+        "status": "passed",
+        "run_id": run_id,
+        "git_head": validation["context"]["git_head"],
+        "threshold": artifact_record(
+            repo_root,
+            repo_root / "scripts/v934/step4/coverage-thresholds.json",
+            "E_FORMAL_THRESHOLD",
+        ),
+        "threshold_sha256": threshold_hashes["step4_successor_sha256"],
+        "frozen_diagnostic": frozen_diagnostic,
+        "diagnostic_baseline": step4["aggregate_observed"]["evidence"],
+        "formal_evidence": validation["evidence"],
+        "bindings": validation["bindings"],
+        "aggregate": aggregate_results,
+        "critical_classes": critical_results,
+    }
+
+
+def formal_check_command(args: argparse.Namespace) -> None:
+    _step1, step4, _hashes = load_thresholds(args.repo_root.resolve())
+    if step4["status"] != "confirmed":
+        reject(
+            "E_FORMAL_THRESHOLD_STATUS",
+            "formal coverage requires a confirmed threshold successor",
+        )
+    output = require_canonical_run_artifact_path(
+        args.repo_root.resolve(),
+        args.run_id,
+        args.output,
+        "coverage-gate.json",
+        "E_COVERAGE_GATE_PATH",
+    )
+    result = formal_check_data(args.repo_root, args.run_id)
+    atomic_json(output, result)
+    print(f"[v934-coverage-xml] FORMAL PASS run={args.run_id} output={output}")
+
+
+def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
+    gate = load_json(gate_path, "E_COVERAGE_GATE")
+    require(
+        gate.get("kind") == "v934-step4-coverage-gate"
+        and gate.get("status") == "passed"
+        and isinstance(gate.get("run_id"), str),
+        "E_COVERAGE_GATE",
+        "coverage gate identity/status differs",
+    )
+    canonical_gate = require_canonical_run_artifact_path(
+        repo_root,
+        gate["run_id"],
+        gate_path,
+        "coverage-gate.json",
+        "E_COVERAGE_GATE_PATH",
+    )
+    require(gate_path.absolute() == canonical_gate, "E_COVERAGE_GATE_PATH", "coverage gate path differs")
+    expected = formal_check_data(repo_root, gate["run_id"])
+    require(gate == expected, "E_COVERAGE_GATE", "coverage gate differs from exact recomputation")
+    return gate
+
+
+def acceptance_candidate_data(
+    repo_root: Path,
+    run_id: str,
+    gate_path: Path,
+) -> dict[str, Any]:
+    gate_path = require_canonical_run_artifact_path(
+        repo_root,
+        run_id,
+        gate_path,
+        "coverage-gate.json",
+        "E_COVERAGE_GATE_PATH",
+    )
+    gate = validate_coverage_gate(repo_root, gate_path)
+    require(gate["run_id"] == run_id, "E_ACCEPTANCE_CANDIDATE", "gate/run identity differs")
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-coverage-acceptance-artifact",
+        "stage": "candidate",
+        "status": "formal-candidate",
+        "run_id": run_id,
+        "git_head": gate["git_head"],
+        "threshold": gate["threshold"],
+        "coverage_gate": artifact_record(repo_root, gate_path, "E_COVERAGE_GATE"),
+        "evidence": gate["formal_evidence"],
+        "bindings": gate["bindings"],
+    }
+
+
+def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict[str, Any]:
+    candidate = load_json(candidate_path, "E_ACCEPTANCE_CANDIDATE")
+    exact_keys(
+        candidate,
+        (
+            "schema_version",
+            "kind",
+            "stage",
+            "status",
+            "run_id",
+            "git_head",
+            "threshold",
+            "coverage_gate",
+            "evidence",
+            "bindings",
+        ),
+        "E_ACCEPTANCE_CANDIDATE",
+        "formal acceptance candidate",
+    )
+    require(
+        candidate["schema_version"] == 1
+        and type(candidate["schema_version"]) is int
+        and candidate["kind"] == "v934-step4-coverage-acceptance-artifact"
+        and candidate["stage"] == "candidate"
+        and candidate["status"] == "formal-candidate",
+        "E_ACCEPTANCE_CANDIDATE",
+        "formal acceptance candidate identity/status differs",
+    )
+    candidate_path = require_canonical_run_artifact_path(
+        repo_root,
+        candidate["run_id"],
+        candidate_path,
+        "candidate-manifest.json",
+        "E_ACCEPTANCE_CANDIDATE_PATH",
+    )
+    expected_gate_path = canonical_run_root(repo_root, candidate["run_id"]) / "coverage-gate.json"
+    gate_path = validate_artifact_record(
+        repo_root,
+        candidate["coverage_gate"],
+        "E_ACCEPTANCE_CANDIDATE",
+        "candidate coverage gate",
+        expected_path=expected_gate_path,
+    )
+    expected = acceptance_candidate_data(repo_root, candidate["run_id"], gate_path)
+    require(
+        candidate == expected,
+        "E_ACCEPTANCE_CANDIDATE",
+        "formal acceptance candidate differs from recomputation",
+    )
+    return candidate
+
+
+def acceptance_final_data(repo_root: Path, candidate_path: Path) -> dict[str, Any]:
+    candidate = validate_acceptance_candidate(repo_root, candidate_path)
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-coverage-acceptance-artifact",
+        "stage": "final",
+        "status": "formal-final",
+        "run_id": candidate["run_id"],
+        "git_head": candidate["git_head"],
+        "threshold": candidate["threshold"],
+        "coverage_gate": candidate["coverage_gate"],
+        "candidate_manifest": artifact_record(
+            repo_root, candidate_path, "E_ACCEPTANCE_CANDIDATE"
+        ),
+        "evidence": candidate["evidence"],
+        "bindings": candidate["bindings"],
+    }
+
+
+def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, Any]:
+    final = load_json(final_path, "E_ACCEPTANCE_FINAL")
+    exact_keys(
+        final,
+        (
+            "schema_version",
+            "kind",
+            "stage",
+            "status",
+            "run_id",
+            "git_head",
+            "threshold",
+            "coverage_gate",
+            "candidate_manifest",
+            "evidence",
+            "bindings",
+        ),
+        "E_ACCEPTANCE_FINAL",
+        "formal acceptance final",
+    )
+    require(
+        final["schema_version"] == 1
+        and type(final["schema_version"]) is int
+        and final["kind"] == "v934-step4-coverage-acceptance-artifact"
+        and final["stage"] == "final"
+        and final["status"] == "formal-final",
+        "E_ACCEPTANCE_FINAL",
+        "formal acceptance final identity/status differs",
+    )
+    final_path = require_canonical_run_artifact_path(
+        repo_root,
+        final["run_id"],
+        final_path,
+        "final-manifest.json",
+        "E_ACCEPTANCE_FINAL_PATH",
+    )
+    expected_candidate_path = canonical_run_root(repo_root, final["run_id"]) / "candidate-manifest.json"
+    candidate_path = validate_artifact_record(
+        repo_root,
+        final["candidate_manifest"],
+        "E_ACCEPTANCE_FINAL",
+        "final candidate manifest",
+        expected_path=expected_candidate_path,
+    )
+    expected = acceptance_final_data(repo_root, candidate_path)
+    require(final == expected, "E_ACCEPTANCE_FINAL", "formal final differs from recomputation")
+    return final
+
+
+def build_artifact_command(args: argparse.Namespace) -> None:
+    repo_root = args.repo_root.resolve()
+    # Both acceptance stages are formal-only. Check this before looking at an
+    # attacker-controlled candidate/gate path so pending can never fall through.
+    _, step4, _ = load_thresholds(repo_root)
+    if step4["status"] != "confirmed":
+        reject(
+            "E_FORMAL_THRESHOLD_STATUS",
+            "formal artifacts require a confirmed threshold successor",
+        )
+    if args.stage == "candidate":
+        require(args.run_id is not None, "E_ARGUMENT", "candidate stage requires --run-id")
+        require(args.coverage_gate is not None, "E_ARGUMENT", "candidate stage requires --coverage-gate")
+        require(args.candidate is None, "E_ARGUMENT", "candidate stage forbids --candidate")
+        value = acceptance_candidate_data(repo_root, args.run_id, args.coverage_gate)
+        output = require_canonical_run_artifact_path(
+            repo_root,
+            value["run_id"],
+            args.output,
+            "candidate-manifest.json",
+            "E_ACCEPTANCE_CANDIDATE_PATH",
+        )
+    else:
+        require(args.candidate is not None, "E_ARGUMENT", "final stage requires --candidate")
+        require(args.run_id is None, "E_ARGUMENT", "final stage forbids --run-id")
+        require(args.coverage_gate is None, "E_ARGUMENT", "final stage forbids --coverage-gate")
+        value = acceptance_final_data(repo_root, args.candidate)
+        output = require_canonical_run_artifact_path(
+            repo_root,
+            value["run_id"],
+            args.output,
+            "final-manifest.json",
+            "E_ACCEPTANCE_FINAL_PATH",
+        )
+    atomic_json(output, value)
+    print(
+        f"[v934-coverage-xml] ARTIFACT {args.stage.upper()} "
+        f"run={value['run_id']} output={output}"
+    )
+
+
+def verify_artifact_command(args: argparse.Namespace) -> None:
+    repo_root = args.repo_root.resolve()
+    _, step4, _ = load_thresholds(repo_root)
+    if step4["status"] != "confirmed":
+        reject(
+            "E_FORMAL_THRESHOLD_STATUS",
+            "formal artifact verification requires confirmed thresholds",
+        )
+    payload = load_json(args.artifact, "E_ACCEPTANCE_ARTIFACT")
+    stage = payload.get("stage")
+    if stage == "candidate":
+        require(args.run_status is None, "E_ARGUMENT", "--run-status is final-only")
+        value = validate_acceptance_candidate(repo_root, args.artifact)
+    elif stage == "final":
+        require(
+            args.run_status is not None,
+            "E_RUN_STATUS",
+            "public final verification requires the canonical formal run status",
+        )
+        value = validate_acceptance_final(repo_root, args.artifact)
+        run_root = canonical_run_root(repo_root, value["run_id"])
+        canonical_status = run_root / "run-status.env"
+        require(
+            args.run_status.is_absolute()
+            and args.run_status == canonical_status
+            and args.run_status.resolve(strict=False) == canonical_status,
+            "E_RUN_STATUS",
+            "--run-status is not the canonical formal run status",
+        )
+        expected_hashes = {
+            "coverage_gate_sha256": value["coverage_gate"]["sha256"],
+            "candidate_manifest_sha256": value["candidate_manifest"]["sha256"],
+            "final_manifest_sha256": sha256_file(args.artifact, "E_ACCEPTANCE_FINAL"),
+        }
+        validate_run_data(
+            repo_root,
+            value["run_id"],
+            mode="formal",
+            require_run_status=True,
+            expected_artifact_hashes=expected_hashes,
+        )
+    else:
+        reject("E_ACCEPTANCE_ARTIFACT", "formal acceptance artifact stage differs")
+    print(f"[v934-coverage-xml] ARTIFACT VALID stage={stage} run={value['run_id']}")
 
 
 def write_xml_fixture(path: Path, root: ET.Element) -> None:
@@ -1915,6 +5663,77 @@ def build_parser() -> argparse.ArgumentParser:
     observe.add_argument("--report-provenance", type=Path, required=True)
     observe.add_argument("--output", type=Path, required=True)
     observe.set_defaults(function=observe_command)
+
+    validate_diagnostic = commands.add_parser(
+        "validate-diagnostic-run",
+        help="recompute and validate a sealed all-lane diagnostic run",
+    )
+    validate_diagnostic.add_argument("--repo-root", type=Path, required=True)
+    validate_diagnostic.add_argument("--run-id", required=True)
+    validate_diagnostic.set_defaults(function=validate_diagnostic_command)
+
+    freeze = commands.add_parser(
+        "freeze-thresholds",
+        help="build an immutable reviewed-threshold candidate from a diagnostic run",
+    )
+    freeze.add_argument("--repo-root", type=Path, required=True)
+    freeze.add_argument("--run-id", required=True)
+    freeze.add_argument("--output", type=Path, required=True)
+    freeze.set_defaults(function=freeze_thresholds_command)
+
+    verify_threshold = commands.add_parser(
+        "verify-threshold-candidate",
+        help="recompute and verify a threshold freeze candidate",
+    )
+    verify_threshold.add_argument("--repo-root", type=Path, required=True)
+    verify_threshold.add_argument("--candidate", type=Path, required=True)
+    verify_threshold.set_defaults(function=verify_threshold_candidate_command)
+
+    frozen_diagnostic = commands.add_parser(
+        "validate-frozen-diagnostic",
+        help="replay the confirmed diagnostic run against its commit-frozen inputs",
+    )
+    frozen_diagnostic.add_argument("--repo-root", type=Path, required=True)
+    frozen_diagnostic.set_defaults(function=validate_frozen_diagnostic_command)
+
+    seal_run = commands.add_parser(
+        "seal-run",
+        help="fully prevalidate and atomically publish the canonical success status",
+    )
+    seal_run.add_argument("--mode", choices=("diagnostic", "formal"), required=True)
+    seal_run.add_argument("--repo-root", type=Path, required=True)
+    seal_run.add_argument("--run-id", required=True)
+    seal_run.set_defaults(function=seal_run_command)
+
+    formal = commands.add_parser(
+        "formal-check",
+        help="apply confirmed exact coverage gates to a fresh formal run",
+    )
+    formal.add_argument("--repo-root", type=Path, required=True)
+    formal.add_argument("--run-id", required=True)
+    formal.add_argument("--output", type=Path, required=True)
+    formal.set_defaults(function=formal_check_command)
+
+    build_artifact = commands.add_parser(
+        "build-artifact",
+        help="build a formal acceptance candidate or final manifest",
+    )
+    build_artifact.add_argument("--repo-root", type=Path, required=True)
+    build_artifact.add_argument("--stage", choices=("candidate", "final"), required=True)
+    build_artifact.add_argument("--run-id")
+    build_artifact.add_argument("--coverage-gate", type=Path)
+    build_artifact.add_argument("--candidate", type=Path)
+    build_artifact.add_argument("--output", type=Path, required=True)
+    build_artifact.set_defaults(function=build_artifact_command)
+
+    verify_artifact = commands.add_parser(
+        "verify-artifact",
+        help="recompute a formal candidate or verify a sealed formal final",
+    )
+    verify_artifact.add_argument("--repo-root", type=Path, required=True)
+    verify_artifact.add_argument("--artifact", type=Path, required=True)
+    verify_artifact.add_argument("--run-status", type=Path)
+    verify_artifact.set_defaults(function=verify_artifact_command)
 
     negative = commands.add_parser("negative", help="prove malformed and incomplete XML evidence fails closed")
     negative.add_argument("--repo-root", type=Path, required=True)

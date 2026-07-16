@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r2 fail-closed / L2+Pivot focused-green / r3 pending | Step 3 exit passed | exact 23 exec/48 sessions + 773/59/5707 静态门已收口；r2 Unit 4941/F0E0S0、Integration 312/F1E0S0；L2 1/0+组合30/0；Pivot legacy/V934 SQLite 各1/0；threshold diagnostic-pending |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-r4 quality passed / identity refreshed | Step 3 exit passed | exact 23/48 + 773/59/5707；top 54/54；contract 20/20+Git 7/7；XML 63/63；logger 9 类/14 case；threshold diagnostic-pending；Cdiag commit/push + fresh r4 pending |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -893,6 +893,59 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   实现 blocker；threshold=`diagnostic-pending`、`can_enter_coverage_audit=no`。提交、推送并
   证明 clean HEAD 后运行唯一 r3；Step 5、9.3.5 与 acceptance 保持关闭。
 
+### Superseding Post-diagnostic Check-in — Step 4 r3 fail-closed / Cdiag remediation
+
+- recorded_at: 2026-07-16
+- run identity: clean/pushed HEAD=`e16693297239f2a861f3b93b3de60c1bb783bda0`，run=
+  `step4-coverage-20260716-diagnostic-r3`，outer=`failed / exit_code=1 /
+  last_phase=child-unit / summary absent`。
+- immutable result: contract/successor/toolchain/Step 2 view/fresh class universe 均通过；Unit=
+  `681 positive + 55 structural / 4,941 testcase / F0E0S0`。Unit PASS 后 outer 报
+  `child returned with live process-group residue: unit`；Integration、database、required
+  external、Addon、aggregate、model gate、coverage observation 与 threshold review 均未执行；
+  cleanup residue=`0/0/0`。
+- root cause: Unit/Integration 使用异步 `exec > >(tee -a run.log)`，没有保存并 wait logger。
+  child leader 与 process-substitution tee 位于同一 PGID；outer 只 wait leader 后立即探测
+  PGID，因此可在 tee flush 窗口误判 residue。受控原模式立即探测=`100/100 alive`、10ms 后=
+  `0/100 alive`；显式 close/write-end + wait logger 后立即残留=`0/100`。
+- evidence: immutable record=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`；BUG=
+  `docs/9.3.4/workitems/BUG-step4-child-run-log-tee-residue-race.md`；decision=
+  `excluded-from-step4-exit`。
+- remediation boundary: managed logger 是根修复；同时增加 child PGID ready receipt 与真实
+  residue member snapshot。下一代 Cdiag 一次性加入 pending/confirmed 双态、exact fraction、
+  freeze candidate、formal gate/candidate/final 通用能力，但 threshold 继续
+  `diagnostic-pending`，formal 必须 fail closed。
+- Quality/Next Gate: 当前 `can_enter_coverage_audit=no`。完成 runtime negatives、identity、
+  formal implementation quality，分阶段 commit/push 并证明 clean HEAD 后，才运行 fresh r4；
+  r4 observation 通过前不得 freeze threshold、启动 Step 5 或验收。
+
+### Superseding Pre-r4 Check-in — quality passed / identity refreshed
+
+- recorded_at: 2026-07-16
+- status decision: `in-progress / pre-r4 quality passed / identity refreshed / fresh r4
+  pending`，不是 Step 4 `passed`；
+- implementation: Unit/Integration 共享 owned FIFO logger，child lifecycle 绑定
+  PID/PGID/SID/starttime/boot-id；outer 在首个 Git/lock 前清除 ambient `GIT_*`；
+  live/frozen XML verifier strict-read canonical source/context，并对 exact retained 23 raw
+  exec 执行 dirfd/nofollow/stable-inode 逐字节重放；
+- independent static evidence: authority=`2 positive + 14 negative`，contract=
+  `20/20`，source Git identity=`7/7`，XML=`63/63`，logger=`9 类 / 14 case`，
+  Step 2 view=`12/12`，overlay=`12/12`，DB=`14/14`，external=`12/12`；
+- publication: declared amendments=`17`，SHA-256=
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；
+  successor manifest=`12/12`，SHA-256=
+  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`；
+  top manifest=`54/54`，SHA-256=
+  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+- formal implementation quality: `ready-with-risks`，open Blocker/High/Medium=
+  `0/0/0`；唯一开放边界是保留 diagnostic raw exec 直到 Cfreeze/formal，任何
+  byte/mtime/identity 漂移都会 fail closed；
+- Next Gate: 提交并推送最终 Cdiag，确认 worktree clean 且
+  `HEAD == origin/main`，再执行唯一
+  `step4-coverage-20260716-diagnostic-r4`。threshold=`diagnostic-pending`，
+  `can_enter_coverage_audit=no`，Step 5/9.3.5/acceptance 仍关闭。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -947,17 +1000,17 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 ready-with-risks + r2 post-review pending r3 | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`，open blocker/high/medium=0；Step 4：`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md` 已追加 r2 post-review，`can_enter_coverage_audit=no`，仅放行最终修复/identity 的 clean-HEAD r3 |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 pre-r4 ready-with-risks | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md` main gate open B/H/M=`0/0/0`，`can_enter_coverage_audit=no`，仅放行 Cdiag commit/push 后的 clean-HEAD r4 |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r2 fail-closed / r3 pending recorded | roadmap 为 Steps 1–3 passed / Step 4 not passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
+| roadmap sync / downstream | Step 4 pre-r4 gate passed / r4 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
 
 ## Next Action
 
-提交并推送 L2/Pivot 最终 fixture 修复与 successor/identity refresh，验证新的 clean
-worktree 且 `HEAD == origin/main`，再执行唯一
-`step4-coverage-20260716-diagnostic-r3`（或同义唯一新 run id），观察全部 required lane、
-aggregate/critical classes 并评审 successor thresholds。当前 threshold=`diagnostic-pending`，
-r2 只有 Unit GREEN 与 Integration fail-closed 证据，没有 aggregate baseline/review 或 Step 4
-exit evidence；Step 5 仍不得开始，coverage audit/acceptance 不得启动。
+提交并推送 Cdiag logger/Git/provenance/formal tooling 与 54/54 identity，验证
+clean worktree 且 `HEAD == origin/main`，再执行唯一
+`step4-coverage-20260716-diagnostic-r4`，观察全部 required lane、aggregate/critical
+classes 并评审 exact observed thresholds。当前 threshold=`diagnostic-pending`，r1/r2/r3
+都是 excluded failed diagnostic，尚无 aggregate baseline/review 或 Step 4 exit evidence；
+Step 5 仍不得开始，coverage audit/acceptance 不得启动。

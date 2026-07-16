@@ -245,3 +245,119 @@ Non-blocker coverage-audit follow-up：现有证据分别覆盖 hybrid rewrite/m
 identity 与执行顺序，但尚无单一集成用例直接验证“带已发布 watermark 的 hybrid UNION SQL
 及其参数作为 L2 cache key”。这不阻断 r3；coverage audit 应决定是否登记为后续测试增强，
 不得为补该用例降低当前门槛或扩大 exclusion。
+
+## Pre-r4 Implementation Review Candidate — Diagnostic r3 fail-closed / Cdiag converged（2026-07-16）
+
+本节 supersede 上一节的 r3 next action，但不改写 r1/r2 已执行 quality
+history。本节只登记主线程正式 quality gate 之前的检查候选面，不声称已再次
+执行 `foggy-implementation-quality-gate`。
+
+r3 从 clean/pushed HEAD=`e16693297239f2a861f3b93b3de60c1bb783bda0` 启动，
+run=`step4-coverage-20260716-diagnostic-r3`。Unit=
+`681 positive + 55 structural / 4,941 testcase / F0E0S0`，但 outer 在
+`child-unit` leader 返回后检测到 live process-group member 并 fail closed。后续
+Integration/database/external/Addon/aggregate/threshold 未执行，summary absent。该失败封存于
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`；
+root cause 与回归策略登记于
+`docs/9.3.4/workitems/BUG-step4-child-run-log-tee-residue-race.md`。r3 Unit 结果不得
+拼接成 Step 4 绿色。
+
+### Candidate changed surface
+
+- Unit/Integration 从未捕获的 `exec > >(tee ...)` 改为共享 managed FIFO
+  logger；保存 logger PID，关闭写端、flush/reap 完成后才可发布 child green；
+- `run_log_lifecycle_lib.sh` / `run_log_lifecycle_negative_test.sh` 定义 slow、
+  nonzero、timeout、exit、clean-group 与 persistent-residue 边界；
+- outer/launcher 的 child ready/completion receipt 绑定 PID/PGID/SID/starttime/boot-id，
+  并要求 exact schema、mode/link/inode/hash 和 kill-before bytes-safe member snapshot；
+- `coverage_xml_tool.py` / `coverage_xml_negative_tool.py` 对 child lifecycle、
+  formalization delta、canonical gate/candidate/final/status path 进行 typed 复算；
+- green `run-status.env` 被收紧为所有证据验证后的最后一次原子发布，
+  禁止发绿后再执行可失败校验；
+- formal 必须对 confirmed threshold 指向的真实 diagnostic run 执行
+  frozen replay，从 diagnostic commit 取回历史 threshold/contract blob；
+  `Cfreeze` 只允许一个 direct-single-parent child，拒绝 merge、multi-commit、
+  shallow、replace-ref、graft 和 allowlist 外 delta。
+
+### Main quality gate inspection objects
+
+1. 确认 managed logger 在 success、ordinary failure、INT/TERM/HUP、logger timeout/
+   nonzero 与持管道 descendant 路径都不留绿色 summary，也不吞原始 child
+   exit code。
+2. 确认 PID reuse、ready receipt 替换/硬链接/模式漂移、fake starttime 不会导致
+   错杀或 fail-open，且 residue snapshot 能处理非 UTF-8 `comm/cmdline`。
+3. 确认 diagnostic/formal 双态没有交叉产物；canonical path、typed child lifecycle、
+   formalization delta 和 public final verification 的约束没有 alternate-path 绕过。
+4. 确认 success status 确为 final publication；seal 失败后 summary/final absent，只可留
+   failed status，不存在可观察的短暂伪绿。
+5. 确认 formal 的 frozen diagnostic replay 不信任合成 run id，source/worktree clean 校验
+   不受 assume-unchanged/skip-worktree、replace refs、grafts 或 shallow history 绕过，且
+   direct-single-parent delta receipt 可独立重算。
+6. 确认新文件、successor overlay 和 top `SHA256SUMS` 级联与实际字节一致，
+   最终快测全绿后才允许 commit/push 与 fresh r4。
+
+### Candidate decision
+
+- decision: `pending-main-quality-gate`。Cdiag 实现面已收口，但主线程尚未对
+  上述最终字节执行正式实现质量闸门，因而不继承 r2 的
+  `ready-with-risks` 作为当前放行决定。
+- next action: 主线程最终快测→正式质量闸门→identity/manifest 级联→
+  commit/push→确认 clean `HEAD == origin/main`→fresh r4 all-lane diagnostic。
+- threshold: `diagnostic-pending`；can_enter_coverage_audit: `no`。
+- boundary: 不表示 r4 已运行、threshold 已 confirmed、coverage audit 已开始、
+  Step 4 已 passed，也不放行 Step 5、9.3.5 或 acceptance。
+
+## Superseding Main Quality Gate — Cdiag pre-r4（2026-07-16）
+
+本节是对上述 candidate 的主线正式实现质量闸门，不改写 r1/r2/r3 历史。
+检查对象是最终 Cdiag 字节：managed logger、child/process identity、Git 环境隔离、
+source/context/manifest 四元绑定、exact 23 raw exec 重放、pending/formal 状态机与双层
+identity manifest。
+
+### Final-byte verification
+
+- Shell/Python 静态：相关 shell `bash -n`、五个 Python 工具 `py_compile`、
+  `git diff --check` 均通过；
+- logger lifecycle：9 类 / 14 case 通过，精确为 slow=`2`、nonzero=`2`、
+  timeout=`1`、PID reuse=`1`、early signal=`3`、capture failure=`1`、exit=`2`、
+  clean group=`1`、persistent residue=`1`；
+- canonical provenance：XML/gate/freeze/frozen-replay negatives=`63/63`，包含
+  source-before/after/context SHA、manifest context/source/not-before/Git 四元组、expected
+  Git-head splice 与 raw exec byte/mtime/missing/extra；
+- Git identity：coverage contract mutations=`20/20`，真实 source Git identity=
+  `7/7`；shallow、graft、replace 与 17-key hostile ambient control 全部 fail closed；
+- parent/successor：authority=`2 positive + 14 negative`、Step 2 derived view=`12/12`、
+  successor overlay=`12/12`、database=`14/14`、external=`12/12`；
+- identity：top manifest=`54/54`，SHA-256=
+  `589a7d67f35a0f09c7f1a026dbbf07e56dc89f099ca51291418cd1c6cc5fd077`；
+  successor manifest=`12/12`，SHA-256=
+  `961e50350cef1c7984c6ff6b4fd0b5716ac5bb87d42271a3478233258b30784f`；
+  declared amendments=`17`，SHA-256=
+  `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`。
+
+### Findings and risk decision
+
+- resolved critical：所有安全边界的 Git 子进程改为 non-Git allowlist，outer 在首个
+  Git/lock 之前清除 ambient `GIT_*`；子 launcher、frozen validator 与 overlay 不再
+  看到不同 repository view；workitem=
+  `docs/9.3.4/workitems/BUG-step4-git-environment-override-bypass.md`；
+- resolved critical：XML live/frozen validation 不再只信 manifest 自述，必须从
+  canonical run root strict-read source/context，并逐字节重放 exact retained 23 exec；
+  workitem=`docs/9.3.4/workitems/BUG-step4-source-context-crosslink-gap.md`；
+- resolved major：Unit/Integration 不再使用无主的 process-substitution `tee`；所有
+  success/failure/signal 路径均先 close/reap logger，再允许 durable child status；
+- open Blocker/High/Medium=`0/0/0`；
+- accepted Low risk：diagnostic 与 formal 之间必须保留原 run 的 23 个 raw exec 原字节。
+  任一缺失、mtime/owner/link/mode/inode/SHA 漂移都会 fail closed；这是有意的
+  evidence-retention 约束，不是可降级的 fallback。
+
+### Superseding decision
+
+- decision: `ready-with-risks`；放行边界仅为提交/push 最终 Cdiag、确认 clean
+  `HEAD == origin/main`，然后执行唯一 fresh r4 all-lane diagnostic；
+- threshold: `diagnostic-pending`；
+- can_enter_coverage_audit: `no`；
+- follow_up_required: `yes`；fresh r4 完整通过后才可评审 exact observed
+  thresholds、生成 direct-single-parent `Cfreeze` 并运行 fresh formal；
+- boundary: 本闸门不表示 Step 4 passed，不创建 exit evidence，不启动
+  coverage audit、Step 5、9.3.5 或 acceptance。

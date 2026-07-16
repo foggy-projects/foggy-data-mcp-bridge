@@ -147,7 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 提升为
-`in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`。
+`in-progress / r3 historical fail-closed / pre-r4 quality passed / identity refreshed /
+fresh r4 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -258,6 +259,42 @@ Diagnostic r2 result and remediation（2026-07-16，supersedes current next entr
 - next entry：提交并推送最终修复与 identity，确认新 `HEAD == origin/main` 且 worktree
   clean，再运行唯一 r3 all-lane diagnostic。threshold=`diagnostic-pending`、
   `can_enter_coverage_audit=no`；Step 5 entry 继续关闭。
+
+Diagnostic r3 result and Cdiag hardening（2026-07-16，supersedes current next entry）：
+
+- clean/pushed tested HEAD=`e16693297239f2a861f3b93b3de60c1bb783bda0`，run=
+  `step4-coverage-20260716-diagnostic-r3`；contract/successor/toolchain/Step 2 view 与
+  fresh class universe 通过，Unit=`681 positive + 55 structural / 4,941 testcase /
+  F0E0S0`；outer 随后在 `child-unit` 检测到 live process-group member 并 fail
+  closed，Integration/database/external/Addon/aggregate/threshold 均未执行；
+- immutable failed evidence=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r3-fail-closed-20260716.md`，
+  bug record=
+  `docs/9.3.4/workitems/BUG-step4-child-run-log-tee-residue-race.md`；r3 Unit 绿色
+  不得与 r1/r2/focused 证据拼接；
+- root cause：Unit/Integration 的 `exec > >(tee ...)` 是未捕获、未 wait 的异步
+  logger；child leader 返回后 `tee` 仍可在同 PGID 排空，outer 的组残留检测
+  因而正确拒绝该 run；
+- managed logging implementation：Unit/Integration 改用共享 FIFO logger，显式保存
+  logger PID，关闭写端并 bounded wait；只有 logger flush/reap 成功后才可发布
+  child green。`run_log_lifecycle_negative_test.sh` 覆盖 slow/nonzero/timeout/exit/
+  clean-group/persistent-residue，但该 focused 实现结果不替代 fresh r4；
+- process identity implementation：child ready receipt 绑定 PID/PGID/SID/starttime/boot-id，
+  ready/completion receipt 按 exact schema、mode/link/inode/hash 校验，清理前持久化 bytes-safe
+  member snapshot；信号与回收依据身份而不对可重用的裸 PID 操作；
+- typed XML/formal implementation：`coverage_xml_negative_tool.py` 与扩展的
+  `coverage_xml_tool.py` 对 child lifecycle、formalization delta、canonical gate/candidate/
+  final path 和成功 status 执行类型化复算；绿色 `run-status.env` 必须是全部
+  证据验证后的最后一次不可逆原子发布，禁止先发绿再校验；
+- formal freeze policy：formal 必须对 confirmed threshold 所指向的真实
+  diagnostic run 执行 frozen replay，从 diagnostic commit 取回当时
+  threshold/contract blob 并重算原 run，不接受伪造的合成 run id。阈值冻结
+  `Cfreeze` 只允许一个直接单父提交，拒绝 merge、多提交、shallow、
+  replace refs 或 grafts；fresh formal 只允许以该 direct child 作为权威输入；
+- current entry：Cdiag 最终快测、pre-r4 正式实现质量闸门和 54/54
+  identity/manifest 级联已通过；下一动作是 commit/push 并确认 clean
+  `HEAD == origin/main`，然后启动 fresh r4 all-lane diagnostic。threshold
+  仍为 `diagnostic-pending`，Step 5、coverage audit、acceptance 和 Step 4 pass 均继续关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

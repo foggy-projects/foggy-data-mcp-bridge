@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Run versioned fail-closed mutations against the Step 4 coverage contract.
 
-Every probe copies all three governed POMs to an isolated temporary directory,
-mutates exactly one copy, and invokes the public ``validate-contract`` CLI with
-all POM override arguments.  Canonical project files are never edited.
+Every probe copies all governed JSON/POM inputs to an isolated temporary
+directory and mutates exactly one copy. Synthetic diagnostic and formal
+fixtures invoke the explicitly named structure-only negative-fixture command
+after proving that the full validator rejects non-canonical overrides. The
+formal fixture uses forged all-``1`` evidence. Canonical files are never edited.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -32,6 +35,12 @@ POM_PATHS = {
     "model": Path("foggy-dataset-model/pom.xml"),
     "reporter": Path("build-support/foggy-coverage-report/pom.xml"),
 }
+JSON_PATHS = {
+    "contract": Path("scripts/v934/step4/coverage-contract.json"),
+    "thresholds": Path("scripts/v934/step4/coverage-thresholds.json"),
+}
+INPUT_PATHS = {**POM_PATHS, **JSON_PATHS}
+DIAGNOSTIC_THRESHOLD_SHA256 = "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96"
 
 
 class NegativeError(RuntimeError):
@@ -41,6 +50,35 @@ class NegativeError(RuntimeError):
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise NegativeError(message)
+
+
+def process_environment() -> dict[str, str]:
+    environment = {
+        name: os.environ[name]
+        for name in ("PATH", "SYSTEMROOT", "TMPDIR", "TMP", "TEMP")
+        if name in os.environ
+    }
+    environment.update(
+        {
+            "LANG": "C",
+            "LC_ALL": "C",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+    )
+    return environment
+
+
+def fixture_git_environment() -> dict[str, str]:
+    environment = process_environment()
+    environment.update(
+        {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+        }
+    )
+    return environment
 
 
 def q(name: str) -> str:
@@ -95,6 +133,7 @@ def validate_repo_root(value: Path) -> Path:
     try:
         observed = subprocess.check_output(
             ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+            env=fixture_git_environment(),
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()
@@ -152,6 +191,31 @@ def write_tree(path: Path, tree: ET.ElementTree) -> None:
     except OSError as exc:
         temporary.unlink(missing_ok=True)
         raise NegativeError(f"cannot write mutated POM: {exc.__class__.__name__}") from exc
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise NegativeError(f"cannot parse mutation fixture {path.name}: {exc.__class__.__name__}") from exc
+    require(type(value) is dict, f"mutation fixture is not a JSON object: {path.name}")
+    return value
+
+
+def write_json(path: Path, value: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.mutated.tmp")
+    require(not temporary.exists() and not temporary.is_symlink(), "mutation temporary path already exists")
+    encoded = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except OSError as exc:
+        temporary.unlink(missing_ok=True)
+        raise NegativeError(f"cannot write mutated JSON: {exc.__class__.__name__}") from exc
 
 
 def mutate_reporter_excludes(path: Path) -> None:
@@ -249,6 +313,100 @@ def mutate_model_missing_gate(path: Path) -> None:
     write_tree(path, tree)
 
 
+def mutate_contract_formal_while_pending(path: Path) -> None:
+    value = read_json(path)
+    value["status"] = "formal-ready"
+    value["tooling_manifest"]["publication_status"] = "formal-ready"
+    write_json(path, value)
+
+
+def mutate_threshold_premature_confirmed(path: Path) -> None:
+    value = read_json(path)
+    value["status"] = "confirmed"
+    write_json(path, value)
+
+
+def mutate_threshold_pending_observed(path: Path) -> None:
+    value = read_json(path)
+    value["aggregate_observed"] = {}
+    write_json(path, value)
+
+
+def mutate_threshold_parent_floor_lowering(path: Path) -> None:
+    value = read_json(path)
+    value["critical_candidate_floor"]["line"] = 0.79
+    write_json(path, value)
+
+
+def mutate_threshold_model_gate_lowering(path: Path) -> None:
+    value = read_json(path)
+    value["model_inherited_gate"]["bundle"]["line"] = 0.76
+    write_json(path, value)
+
+
+def mutate_contract_expand_formal_allowlist(path: Path) -> None:
+    value = read_json(path)
+    value["threshold_successor"]["formalization_delta"]["allowed_exact_paths"].append(
+        "scripts/v934/step4/coverage_tool.py"
+    )
+    write_json(path, value)
+
+
+def mutate_formal_aggregate_lowering(path: Path) -> None:
+    value = read_json(path)
+    value["aggregate_reviewed_thresholds"]["line"] = {
+        "covered": 8,
+        "total": 10,
+        "fraction": "8/10",
+    }
+    write_json(path, value)
+
+
+def mutate_formal_critical_lowering(path: Path) -> None:
+    value = read_json(path)
+    value["critical_reviewed_thresholds"][0]["line"]["minimum"] = {
+        "covered": 8,
+        "total": 10,
+        "fraction": "8/10",
+    }
+    write_json(path, value)
+
+
+def mutate_formal_critical_below_floor(path: Path) -> None:
+    value = read_json(path)
+    value["critical_reviewed_thresholds"][0]["branch"]["observed"] = {
+        "covered": 6,
+        "total": 10,
+        "fraction": "6/10",
+    }
+    value["critical_reviewed_thresholds"][0]["branch"]["minimum"] = {
+        "covered": 6,
+        "total": 10,
+        "fraction": "6/10",
+    }
+    write_json(path, value)
+
+
+def mutate_formal_fraction_alias(path: Path) -> None:
+    value = read_json(path)
+    value["aggregate_observed"]["line"]["fraction"] = "90/100"
+    write_json(path, value)
+
+
+def mutate_formal_duplicate_critical(path: Path) -> None:
+    value = read_json(path)
+    value["critical_reviewed_thresholds"][1]["fqcn"] = value["critical_reviewed_thresholds"][0]["fqcn"]
+    value["critical_reviewed_thresholds"][1]["module"] = value["critical_reviewed_thresholds"][0]["module"]
+    write_json(path, value)
+
+
+def mutate_formal_contract_diagnostic(path: Path) -> None:
+    value = read_json(path)
+    value["status"] = "diagnostic-ready"
+    value["tooling_manifest"]["publication_status"] = "diagnostic-ready"
+    write_json(path, value)
+
+
 @dataclass(frozen=True)
 class Probe:
     probe_id: str
@@ -256,6 +414,7 @@ class Probe:
     mutation: str
     expected_error_contains: str
     mutate: Callable[[Path], None]
+    baseline: str = "diagnostic"
 
 
 PROBES = (
@@ -315,16 +474,119 @@ PROBES = (
         "model POM: legacy and Step4 coverage profiles are required",
         mutate_model_missing_gate,
     ),
+    Probe(
+        "formal-contract-with-pending-threshold",
+        "contract",
+        "publish formal contract while threshold remains diagnostic-pending",
+        "coverage workflow state: contract/publication/threshold status tuple is forbidden",
+        mutate_contract_formal_while_pending,
+    ),
+    Probe(
+        "premature-confirmed-threshold",
+        "thresholds",
+        "mark null diagnostic threshold confirmed",
+        "coverage thresholds.aggregate_observed: expected object",
+        mutate_threshold_premature_confirmed,
+    ),
+    Probe(
+        "pending-threshold-with-observation",
+        "thresholds",
+        "add observation to diagnostic-pending threshold",
+        "coverage thresholds.aggregate_observed: expected null before diagnostic",
+        mutate_threshold_pending_observed,
+    ),
+    Probe(
+        "threshold-parent-floor-lowering",
+        "thresholds",
+        "lower the immutable Step 1 critical line floor",
+        "coverage thresholds critical line floor: expected 0.8",
+        mutate_threshold_parent_floor_lowering,
+    ),
+    Probe(
+        "threshold-model-gate-lowering",
+        "thresholds",
+        "lower the inherited model bundle line gate",
+        "coverage thresholds model bundle line: expected 0.77",
+        mutate_threshold_model_gate_lowering,
+    ),
+    Probe(
+        "formal-allowlist-expansion",
+        "contract",
+        "allow coverage tooling changes during formalization",
+        "coverage contract.threshold_successor: frozen values changed",
+        mutate_contract_expand_formal_allowlist,
+    ),
+    Probe(
+        "formal-aggregate-lowering",
+        "thresholds",
+        "lower aggregate reviewed line minimum below observed",
+        "coverage thresholds aggregate line: reviewed minimum must exactly equal observed counter",
+        mutate_formal_aggregate_lowering,
+        "formal",
+    ),
+    Probe(
+        "formal-critical-lowering",
+        "thresholds",
+        "lower one critical reviewed line minimum below observed",
+        "minimum must exactly equal observed counter",
+        mutate_formal_critical_lowering,
+        "formal",
+    ),
+    Probe(
+        "formal-critical-below-floor",
+        "thresholds",
+        "confirm one critical branch counter below the frozen floor",
+        "observed counter is below frozen candidate floor",
+        mutate_formal_critical_below_floor,
+        "formal",
+    ),
+    Probe(
+        "formal-fraction-alias",
+        "thresholds",
+        "replace canonical fraction identity with an equivalent alias",
+        "fraction: expected canonical covered/total string",
+        mutate_formal_fraction_alias,
+        "formal",
+    ),
+    Probe(
+        "formal-duplicate-critical",
+        "thresholds",
+        "duplicate a critical class identity",
+        "identity/order differs from Step 1 policy",
+        mutate_formal_duplicate_critical,
+        "formal",
+    ),
+    Probe(
+        "confirmed-threshold-with-diagnostic-contract",
+        "contract",
+        "downgrade formal contract while threshold remains confirmed",
+        "coverage workflow state: contract/publication/threshold status tuple is forbidden",
+        mutate_formal_contract_diagnostic,
+        "formal",
+    ),
 )
 
 
-def validator_command(root: Path, copies: dict[str, Path]) -> list[str]:
+def validator_command(
+    root: Path,
+    copies: dict[str, Path],
+    *,
+    structure_only_negative_fixture: bool = False,
+) -> list[str]:
     return [
         sys.executable,
         str(root / VALIDATOR_PATH),
-        "validate-contract",
+        (
+            "validate-contract-structure-only-negative-fixture"
+            if structure_only_negative_fixture
+            else "validate-contract"
+        ),
         "--repo-root",
         str(root),
+        "--contract",
+        str(copies["contract"]),
+        "--thresholds",
+        str(copies["thresholds"]),
         "--root-pom",
         str(copies["root"]),
         "--model-pom",
@@ -334,17 +596,23 @@ def validator_command(root: Path, copies: dict[str, Path]) -> list[str]:
     ]
 
 
-def run_validator(root: Path, copies: dict[str, Path]) -> tuple[int, dict[str, Any]]:
-    environment = {
-        "HOME": os.environ.get("HOME", ""),
-        "LANG": "C.UTF-8",
-        "LC_ALL": "C.UTF-8",
-        "PATH": os.environ.get("PATH", ""),
-        "PYTHONDONTWRITEBYTECODE": "1",
-    }
+def run_validator(
+    root: Path,
+    copies: dict[str, Path],
+    *,
+    structure_only_negative_fixture: bool = False,
+    git_overrides: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    environment = process_environment()
+    if git_overrides is not None:
+        environment.update(git_overrides)
     try:
         completed = subprocess.run(
-            validator_command(root, copies),
+            validator_command(
+                root,
+                copies,
+                structure_only_negative_fixture=structure_only_negative_fixture,
+            ),
             cwd=root,
             env=environment,
             text=True,
@@ -359,48 +627,183 @@ def run_validator(root: Path, copies: dict[str, Path]) -> tuple[int, dict[str, A
     return completed.returncode, parse_validator_json(completed.stdout)
 
 
-def copy_poms(root: Path, directory: Path) -> dict[str, Path]:
+def copy_inputs(root: Path, directory: Path) -> dict[str, Path]:
     copies: dict[str, Path] = {}
-    for role, relative in POM_PATHS.items():
+    for role, relative in INPUT_PATHS.items():
         source = root / relative
-        require(source.is_file() and not source.is_symlink(), f"canonical {role} POM is missing or symlinked")
-        destination = directory / f"{role}-pom.xml"
+        require(source.is_file() and not source.is_symlink(), f"canonical {role} input is missing or symlinked")
+        destination = directory / f"{role}{relative.suffix}"
         try:
             shutil.copyfile(source, destination)
         except OSError as exc:
-            raise NegativeError(f"cannot copy canonical {role} POM: {exc.__class__.__name__}") from exc
-        require(destination.is_file() and not destination.is_symlink(), f"temporary {role} POM copy is unsafe")
-        require(destination.read_bytes() == source.read_bytes(), f"temporary {role} POM copy differs")
+            raise NegativeError(f"cannot copy canonical {role} input: {exc.__class__.__name__}") from exc
+        require(destination.is_file() and not destination.is_symlink(), f"temporary {role} input copy is unsafe")
+        require(destination.read_bytes() == source.read_bytes(), f"temporary {role} input copy differs")
         copies[role] = destination
     return copies
 
 
-def run_baseline(root: Path, temporary_root: Path) -> dict[str, Any]:
-    directory = temporary_root / "baseline"
+def fraction(covered: int, total: int) -> dict[str, Any]:
+    return {"covered": covered, "total": total, "fraction": f"{covered}/{total}"}
+
+
+def make_formal_fixture(root: Path, copies: dict[str, Path]) -> None:
+    contract = read_json(copies["contract"])
+    contract["status"] = "formal-ready"
+    contract["tooling_manifest"]["publication_status"] = "formal-ready"
+    write_json(copies["contract"], contract)
+
+    step1 = read_json(root / "scripts/v934/coverage-thresholds.json")
+    critical_rows = step1.get("critical_classes")
+    require(type(critical_rows) is list and len(critical_rows) == 12, "formal fixture requires exact 12 Step 1 critical classes")
+    review_path = root / "docs/9.3.4/README.md"
+    require(review_path.is_file() and not review_path.is_symlink(), "formal fixture review evidence is missing")
+    head = subprocess.check_output(
+        ["git", "-C", str(root), "rev-parse", "--verify", "HEAD^{commit}"],
+        env=fixture_git_environment(),
+        text=True,
+    ).strip()
+    hashes = {
+        name: (DIAGNOSTIC_THRESHOLD_SHA256 if name == "threshold_predecessor_sha256" else "1" * 64)
+        for name in (
+            "source_sha256",
+            "run_status_sha256",
+            "summary_sha256",
+            "observation_sha256",
+            "coverage_contract_sha256",
+            "threshold_predecessor_sha256",
+            "exec_manifest_sha256",
+            "aggregate_exec_sha256",
+            "aggregate_xml_sha256",
+            "workspace_class_tree_sha256",
+        )
+    }
+    thresholds = read_json(copies["thresholds"])
+    thresholds["status"] = "confirmed"
+    thresholds["aggregate_observed"] = {
+        "evidence": {"run_id": "formal-negative-fixture", "git_head": head, **hashes},
+        "line": fraction(9, 10),
+        "branch": fraction(8, 10),
+    }
+    thresholds["aggregate_reviewed_thresholds"] = {
+        "line": fraction(9, 10),
+        "branch": fraction(8, 10),
+    }
+    thresholds["critical_reviewed_thresholds"] = [
+        {
+            "fqcn": row["fqcn"],
+            "module": row["module"],
+            "line": {"observed": fraction(9, 10), "minimum": fraction(9, 10)},
+            "branch": {"observed": fraction(8, 10), "minimum": fraction(8, 10)},
+        }
+        for row in critical_rows
+    ]
+    thresholds["review"] = {
+        "reviewer": "negative-tool-fixture",
+        "reviewed_at": "2026-07-16T00:00:00Z",
+        "diagnostic_run_id": "formal-negative-fixture",
+        "evidence_path": "docs/9.3.4/README.md",
+        "evidence_sha256": sha256_file(review_path),
+        "decision": "confirm-observed-thresholds",
+    }
+    write_json(copies["thresholds"], thresholds)
+
+
+def make_diagnostic_fixture(copies: dict[str, Path]) -> None:
+    contract = read_json(copies["contract"])
+    contract["status"] = "diagnostic-ready"
+    contract["tooling_manifest"]["publication_status"] = "diagnostic-ready"
+    write_json(copies["contract"], contract)
+
+    thresholds = read_json(copies["thresholds"])
+    thresholds["status"] = "diagnostic-pending"
+    thresholds["aggregate_observed"] = None
+    thresholds["aggregate_reviewed_thresholds"] = None
+    thresholds["critical_reviewed_thresholds"] = None
+    thresholds["review"] = {
+        "reviewer": None,
+        "reviewed_at": None,
+        "diagnostic_run_id": None,
+        "decision": "pending-all-lane-diagnostic",
+    }
+    write_json(copies["thresholds"], thresholds)
+
+
+def make_workflow_fixture(root: Path, copies: dict[str, Path], baseline: str) -> None:
+    require(baseline in ("diagnostic", "formal"), f"unsupported workflow fixture: {baseline}")
+    if baseline == "diagnostic":
+        make_diagnostic_fixture(copies)
+    else:
+        make_formal_fixture(root, copies)
+
+
+def run_baseline(root: Path, temporary_root: Path, baseline: str) -> dict[str, Any]:
+    directory = temporary_root / f"baseline-{baseline}"
     directory.mkdir(mode=0o700)
-    copies = copy_poms(root, directory)
-    return_code, payload = run_validator(root, copies)
-    require(return_code == 0, f"unmodified copied POM baseline failed with rc={return_code}")
-    require(payload.get("command") == "validate-contract" and payload.get("status") == "passed", "unmodified copied POM baseline was not accepted")
-    return {"return_code": 0, "status": "passed"}
+    copies = copy_inputs(root, directory)
+    canonical_hashes = {role: sha256_file(path) for role, path in copies.items()}
+    make_workflow_fixture(root, copies, baseline)
+    fixture_hashes = {role: sha256_file(path) for role, path in copies.items()}
+    full_return_code, full_payload = run_validator(root, copies)
+    require(
+        full_return_code == 2
+        and full_payload.get("command") == "validate-contract"
+        and full_payload.get("status") == "failed"
+        and "requires canonical inputs and forbids overrides"
+        in str(full_payload.get("error")),
+        f"synthetic {baseline} copied-input fixture unexpectedly passed full validation",
+    )
+    return_code, payload = run_validator(
+        root,
+        copies,
+        structure_only_negative_fixture=True,
+    )
+    require(return_code == 0, f"{baseline} copied-input baseline failed with rc={return_code}: {payload.get('error')!r}")
+    expected_command = "validate-contract-structure-only-negative-fixture"
+    require(payload.get("command") == expected_command and payload.get("status") == "passed", f"{baseline} copied-input baseline was not accepted")
+    require(payload.get("workflow_state") == baseline, f"{baseline} baseline returned wrong workflow state")
+    result = {
+        "command": expected_command,
+        "canonical_input_sha256": canonical_hashes,
+        "fixture_input_sha256": fixture_hashes,
+        "return_code": 0,
+        "validation_scope": payload.get("validation_scope"),
+        "workflow_state": baseline,
+        "status": "passed",
+    }
+    result.update(
+        {
+            "full_validation_command": "validate-contract",
+            "full_validation_error": full_payload.get("error"),
+            "full_validation_return_code": full_return_code,
+            "full_validation_status": "failed-closed",
+        }
+    )
+    return result
 
 
-def run_probe(root: Path, temporary_root: Path, probe: Probe, source_hashes: dict[str, str]) -> dict[str, Any]:
+def run_probe(root: Path, temporary_root: Path, probe: Probe) -> dict[str, Any]:
     directory = temporary_root / probe.probe_id
     directory.mkdir(mode=0o700)
-    copies = copy_poms(root, directory)
+    copies = copy_inputs(root, directory)
+    make_workflow_fixture(root, copies, probe.baseline)
     before = {role: sha256_file(path) for role, path in copies.items()}
-    require(before == source_hashes, f"{probe.probe_id}: copied POM hashes differ from canonical inputs")
     probe.mutate(copies[probe.target])
     after = {role: sha256_file(path) for role, path in copies.items()}
     require(after[probe.target] != before[probe.target], f"{probe.probe_id}: mutation did not change target POM bytes")
     require(
-        all(after[role] == before[role] for role in POM_PATHS if role != probe.target),
-        f"{probe.probe_id}: mutation changed a non-target POM",
+        all(after[role] == before[role] for role in INPUT_PATHS if role != probe.target),
+        f"{probe.probe_id}: mutation changed a non-target input",
     )
-    return_code, payload = run_validator(root, copies)
+    structure_only = True
+    return_code, payload = run_validator(
+        root,
+        copies,
+        structure_only_negative_fixture=structure_only,
+    )
     require(return_code == 2, f"{probe.probe_id}: validator returned unexpected rc={return_code}")
-    require(payload.get("command") == "validate-contract" and payload.get("status") == "failed", f"{probe.probe_id}: validator did not return failed status")
+    expected_command = "validate-contract-structure-only-negative-fixture"
+    require(payload.get("command") == expected_command and payload.get("status") == "failed", f"{probe.probe_id}: validator did not return failed status")
     error = payload.get("error")
     require(type(error) is str and probe.expected_error_contains in error, f"{probe.probe_id}: unexpected validator error: {error!r}")
     require(str(temporary_root) not in error, f"{probe.probe_id}: validator error leaks temporary path")
@@ -410,38 +813,422 @@ def run_probe(root: Path, temporary_root: Path, probe: Probe, source_hashes: dic
         "mutated_sha256": after[probe.target],
         "observed_error": error,
         "probe_id": probe.probe_id,
+        "baseline": probe.baseline,
+        "command": expected_command,
         "return_code": return_code,
         "status": "passed",
         "target": probe.target,
     }
 
 
+def run_fixture_git(repository: Path, arguments: list[str]) -> subprocess.CompletedProcess[str]:
+    environment = fixture_git_environment()
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise NegativeError(f"source-hash Git fixture command failed: {exc.__class__.__name__}") from exc
+    require(
+        completed.returncode == 0,
+        f"source-hash Git fixture command returned rc={completed.returncode}: {arguments[0]}",
+    )
+    return completed
+
+
+def run_source_hash_cli(
+    root: Path,
+    repository: Path,
+    *,
+    git_overrides: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    environment = process_environment()
+    if git_overrides is not None:
+        environment.update(git_overrides)
+    try:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(root / VALIDATOR_PATH),
+                "source-hash",
+                "--repo-root",
+                str(repository),
+            ],
+            cwd=root,
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise NegativeError(f"cannot run source-hash Git identity probe: {exc.__class__.__name__}") from exc
+    require(completed.stderr == "", "source-hash Git identity probe wrote unexpected stderr")
+    return completed.returncode, parse_validator_json(completed.stdout)
+
+
+def source_hash_git_identity_case(
+    root: Path,
+    temporary_root: Path,
+    case_name: str,
+    index_flag: str | None,
+) -> dict[str, Any]:
+    repository = temporary_root / f"source-hash-{case_name}"
+    repository.mkdir(mode=0o700)
+    run_fixture_git(repository, ["init", "-q", "--object-format=sha1"])
+    run_fixture_git(repository, ["config", "user.name", "v934-negative"])
+    run_fixture_git(repository, ["config", "user.email", "v934-negative@example.invalid"])
+    tracked = repository / "tracked.txt"
+    tracked.write_bytes(b"committed\n")
+    tracked.chmod(0o644)
+    run_fixture_git(repository, ["add", "--", "tracked.txt"])
+    run_fixture_git(repository, ["commit", "-q", "-m", "fixture"])
+
+    if index_flag is None:
+        return_code, payload = run_source_hash_cli(root, repository)
+        require(
+            return_code == 0
+            and payload.get("command") == "source-hash"
+            and payload.get("file_count") == 1
+            and payload.get("status") == "passed",
+            f"source-hash normal control failed: {payload}",
+        )
+        return {
+            "case": case_name,
+            "expected_return_code": 0,
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+
+    require(
+        index_flag in ("assume-unchanged", "skip-worktree"),
+        f"unsupported source-hash index flag fixture: {index_flag}",
+    )
+    run_fixture_git(repository, ["update-index", f"--{index_flag}", "--", "tracked.txt"])
+    tracked.write_bytes(f"hidden-{index_flag}\n".encode("ascii"))
+    hidden_status = run_fixture_git(
+        repository,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+    ).stdout
+    require(hidden_status == "", f"{case_name}: Git did not hide the worktree mutation")
+    return_code, payload = run_source_hash_cli(root, repository)
+    error = payload.get("error")
+    require(
+        return_code == 2
+        and payload.get("command") == "source-hash"
+        and payload.get("status") == "failed"
+        and isinstance(error, str)
+        and "index flags must be ordinary H" in error,
+        f"{case_name}: source-hash did not reject the hidden mutation: {payload}",
+    )
+    return {
+        "case": case_name,
+        "expected_error_contains": "index flags must be ordinary H",
+        "expected_return_code": 2,
+        "observed_error": error,
+        "observed_return_code": return_code,
+        "porcelain_was_empty": True,
+        "status": "passed",
+    }
+
+
+def source_hash_git_identity_probes(root: Path, temporary_root: Path) -> dict[str, Any]:
+    cases = [
+        source_hash_git_identity_case(root, temporary_root, "normal", None),
+        source_hash_git_identity_case(
+            root,
+            temporary_root,
+            "assume-unchanged-hidden-mutation",
+            "assume-unchanged",
+        ),
+        source_hash_git_identity_case(
+            root,
+            temporary_root,
+            "skip-worktree-hidden-mutation",
+            "skip-worktree",
+        ),
+    ]
+    cases.extend(source_hash_git_override_probes(root, temporary_root))
+    return {"case_count": len(cases), "cases": cases, "status": "passed"}
+
+
+def initialize_source_hash_repository(
+    repository: Path,
+    contents: Sequence[bytes],
+) -> list[str]:
+    repository.mkdir(mode=0o700)
+    run_fixture_git(repository, ["init", "-q", "--object-format=sha1"])
+    run_fixture_git(repository, ["config", "user.name", "v934-negative"])
+    run_fixture_git(
+        repository,
+        ["config", "user.email", "v934-negative@example.invalid"],
+    )
+    tracked = repository / "tracked.txt"
+    heads: list[str] = []
+    for number, payload in enumerate(contents, 1):
+        tracked.write_bytes(payload)
+        tracked.chmod(0o644)
+        run_fixture_git(repository, ["add", "--", "tracked.txt"])
+        run_fixture_git(repository, ["commit", "-q", "-m", f"fixture-{number}"])
+        heads.append(
+            run_fixture_git(
+                repository, ["rev-parse", "--verify", "HEAD^{commit}"]
+            ).stdout.strip()
+        )
+    return heads
+
+
+def require_source_hash_rejection(
+    root: Path,
+    repository: Path,
+    case_name: str,
+    expected_error: str,
+    overrides: dict[str, str],
+) -> dict[str, Any]:
+    return_code, payload = run_source_hash_cli(
+        root,
+        repository,
+        git_overrides=overrides,
+    )
+    error = payload.get("error")
+    require(
+        return_code == 2
+        and payload.get("command") == "source-hash"
+        and payload.get("status") == "failed"
+        and isinstance(error, str)
+        and expected_error in error,
+        f"{case_name}: source-hash did not fail closed: {payload}",
+    )
+    return {
+        "case": case_name,
+        "expected_error_contains": expected_error,
+        "expected_return_code": 2,
+        "hostile_git_environment": sorted(overrides),
+        "observed_error": error,
+        "observed_return_code": return_code,
+        "status": "passed",
+    }
+
+
+def source_hash_git_override_probes(
+    root: Path,
+    temporary_root: Path,
+) -> list[dict[str, Any]]:
+    missing = temporary_root / "must-not-exist"
+    require(not missing.exists() and not missing.is_symlink(), "hostile Git override sentinel exists")
+
+    origin = temporary_root / "source-hash-shallow-origin"
+    initialize_source_hash_repository(origin, (b"first\n", b"second\n"))
+    shallow = temporary_root / "source-hash-real-shallow"
+    run_fixture_git(
+        temporary_root,
+        [
+            "clone",
+            "-q",
+            "--depth=1",
+            "--no-local",
+            origin.as_uri(),
+            str(shallow),
+        ],
+    )
+    require(
+        run_fixture_git(shallow, ["rev-parse", "--is-shallow-repository"]).stdout
+        == "true\n",
+        "real shallow fixture was not shallow",
+    )
+    cases = [
+        require_source_hash_rejection(
+            root,
+            shallow,
+            "real-shallow-hidden-by-git-shallow-file",
+            "shallow repositories are forbidden",
+            {"GIT_SHALLOW_FILE": str(missing)},
+        )
+    ]
+
+    grafted = temporary_root / "source-hash-real-graft"
+    graft_head = initialize_source_hash_repository(grafted, (b"grafted\n",))[0]
+    common_dir = Path(
+        run_fixture_git(
+            grafted,
+            ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        ).stdout.strip()
+    )
+    info_dir = common_dir / "info"
+    info_dir.mkdir(exist_ok=True)
+    (info_dir / "grafts").write_text(f"{graft_head}\n", encoding="ascii")
+    cases.append(
+        require_source_hash_rejection(
+            root,
+            grafted,
+            "real-graft-hidden-by-git-graft-file",
+            "non-empty grafts are forbidden",
+            {"GIT_GRAFT_FILE": str(missing)},
+        )
+    )
+
+    replaced = temporary_root / "source-hash-real-replace"
+    replace_heads = initialize_source_hash_repository(
+        replaced,
+        (b"replace-old\n", b"replace-new\n"),
+    )
+    run_fixture_git(
+        replaced,
+        ["update-ref", f"refs/replace/{replace_heads[0]}", replace_heads[1]],
+    )
+    cases.append(
+        require_source_hash_rejection(
+            root,
+            replaced,
+            "real-replace-hidden-by-ref-base",
+            "replace refs are forbidden",
+            {"GIT_REPLACE_REF_BASE": "refs/v934-hidden-replace"},
+        )
+    )
+
+    clean = temporary_root / "source-hash-hostile-environment-control"
+    initialize_source_hash_repository(clean, (b"clean\n",))
+    hostile = {
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES": str(missing),
+        "GIT_COMMON_DIR": str(missing),
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_GLOBAL": str(missing),
+        "GIT_CONFIG_KEY_0": "core.repositoryformatversion",
+        "GIT_CONFIG_NOSYSTEM": "0",
+        "GIT_CONFIG_SYSTEM": str(missing),
+        "GIT_CONFIG_VALUE_0": "999",
+        "GIT_DIR": str(missing),
+        "GIT_EXEC_PATH": str(missing),
+        "GIT_GRAFT_FILE": str(missing),
+        "GIT_INDEX_FILE": str(missing),
+        "GIT_NAMESPACE": "v934-hostile",
+        "GIT_OBJECT_DIRECTORY": str(missing),
+        "GIT_REPLACE_REF_BASE": "refs/v934-hostile",
+        "GIT_SHALLOW_FILE": str(missing),
+        "GIT_WORK_TREE": str(missing),
+    }
+    return_code, payload = run_source_hash_cli(
+        root,
+        clean,
+        git_overrides=hostile,
+    )
+    require(
+        return_code == 0
+        and payload.get("command") == "source-hash"
+        and payload.get("file_count") == 1
+        and payload.get("status") == "passed",
+        f"hostile Git environment was not fully ignored: {payload}",
+    )
+    cases.append(
+        {
+            "case": "ambient-high-risk-git-overrides-denied",
+            "expected_return_code": 0,
+            "hostile_git_environment": sorted(hostile),
+            "observed_return_code": return_code,
+            "status": "passed",
+        }
+    )
+    return cases
+
+
+def validator_git_environment_policy(root: Path) -> dict[str, Any]:
+    spec = importlib.util.spec_from_file_location(
+        "v934_coverage_tool_environment_probe",
+        root / VALIDATOR_PATH,
+    )
+    require(spec is not None and spec.loader is not None, "cannot load validator environment policy")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    hostile_names = {
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_COMMON_DIR",
+        "GIT_CONFIG_COUNT",
+        "GIT_CONFIG_GLOBAL",
+        "GIT_CONFIG_KEY_0",
+        "GIT_CONFIG_NOSYSTEM",
+        "GIT_CONFIG_SYSTEM",
+        "GIT_CONFIG_VALUE_0",
+        "GIT_DIR",
+        "GIT_EXEC_PATH",
+        "GIT_GRAFT_FILE",
+        "GIT_INDEX_FILE",
+        "GIT_NAMESPACE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_SHALLOW_FILE",
+        "GIT_WORK_TREE",
+    }
+    previous = {name: os.environ.get(name) for name in hostile_names}
+    try:
+        os.environ.update({name: "v934-hostile-sentinel" for name in hostile_names})
+        environment = module.git_environment()
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+    allowed = {
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+    }
+    observed_git = {
+        name: value for name, value in environment.items() if name.startswith("GIT_")
+    }
+    require(observed_git == allowed, "validator Git environment is not exact deny-by-default")
+    require(
+        all(name not in environment for name in hostile_names if name not in allowed),
+        "validator forwarded an ambient Git override",
+    )
+    return {
+        "allowed_git_environment": allowed,
+        "denied_hostile_git_names": sorted(hostile_names - set(allowed)),
+        "status": "passed",
+    }
+
+
 def build_result(root: Path) -> dict[str, Any]:
     tool = root / TOOL_PATH
     validator = root / VALIDATOR_PATH
-    source_hashes = {role: sha256_file(root / relative) for role, relative in POM_PATHS.items()}
+    source_hashes = {role: sha256_file(root / relative) for role, relative in INPUT_PATHS.items()}
     tool_hash = sha256_file(tool)
     validator_hash = sha256_file(validator)
     with tempfile.TemporaryDirectory(prefix="v934-step4-coverage-contract-negative-") as temporary_name:
         temporary_root = Path(temporary_name)
-        baseline = run_baseline(root, temporary_root)
-        cases = [run_probe(root, temporary_root, probe, source_hashes) for probe in PROBES]
+        baselines = {
+            baseline: run_baseline(root, temporary_root, baseline)
+            for baseline in ("diagnostic", "formal")
+        }
+        cases = [run_probe(root, temporary_root, probe) for probe in PROBES]
+        source_hash_identity = source_hash_git_identity_probes(root, temporary_root)
+        git_environment_policy = validator_git_environment_policy(root)
     require(
-        source_hashes == {role: sha256_file(root / relative) for role, relative in POM_PATHS.items()},
-        "canonical POM changed while running negative probes",
+        source_hashes == {role: sha256_file(root / relative) for role, relative in INPUT_PATHS.items()},
+        "canonical input changed while running negative probes",
     )
     require(tool_hash == sha256_file(tool), "negative tool changed while running")
     require(validator_hash == sha256_file(validator), "coverage validator changed while running")
     return {
         "schema_version": 1,
         "kind": "v934-step4-coverage-contract-negative",
-        "baseline": baseline,
+        "baselines": baselines,
         "inputs": {
             role: {"path": relative.as_posix(), "sha256": source_hashes[role]}
-            for role, relative in POM_PATHS.items()
+            for role, relative in INPUT_PATHS.items()
         },
         "probe_count": len(cases),
         "probes": cases,
+        "git_environment_policy": git_environment_policy,
+        "source_hash_git_identity": source_hash_identity,
         "status": "passed",
         "tool": {"path": TOOL_PATH.as_posix(), "sha256": tool_hash},
         "validator": {"path": VALIDATOR_PATH.as_posix(), "sha256": validator_hash},

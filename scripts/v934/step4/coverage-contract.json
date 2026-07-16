@@ -5,7 +5,7 @@
   "tooling_manifest": {
     "path": "scripts/v934/step4/SHA256SUMS",
     "path_semantics": "repository-relative-posix",
-    "required_entries": 51,
+    "required_entries": 54,
     "publication_status": "diagnostic-ready"
   },
   "parent_links": {
@@ -96,7 +96,13 @@
     "aggregate_html": "report/jacoco-aggregate/index.html",
     "aggregate_provenance": "report/aggregate-provenance.json",
     "report_provenance": "report/report-provenance.json",
-    "coverage_observation": "coverage-observation.json"
+    "coverage_observation": "coverage-observation.json",
+    "child_ready_receipt": "child-ready/<child>.json",
+    "child_lifecycle": "child-lifecycle.json",
+    "formalization_delta": "formalization-delta.json",
+    "coverage_gate": "coverage-gate.json",
+    "candidate_manifest": "candidate-manifest.json",
+    "final_manifest": "final-manifest.json"
   },
   "reporter": {
     "module": "build-support/foggy-coverage-report",
@@ -110,6 +116,58 @@
   "threshold_successor": {
     "path": "scripts/v934/step4/coverage-thresholds.json",
     "required_status_for_diagnostic": "diagnostic-pending",
-    "required_status_for_exit": "confirmed"
+    "required_status_for_exit": "confirmed",
+    "workflow_states": {
+      "diagnostic": {
+        "contract_status": "diagnostic-ready",
+        "publication_status": "diagnostic-ready",
+        "threshold_status": "diagnostic-pending"
+      },
+      "formal": {
+        "contract_status": "formal-ready",
+        "publication_status": "formal-ready",
+        "threshold_status": "confirmed"
+      }
+    },
+    "reviewed_threshold_policy": {
+      "counter_keys": [
+        "covered",
+        "total",
+        "fraction"
+      ],
+      "fraction_format": "<covered>/<total>",
+      "comparison": "integer-cross-multiplication",
+      "aggregate_minimum": "exact-observed",
+      "critical_minimum": "exact-observed",
+      "critical_line_floor_fraction": "4/5",
+      "critical_branch_floor_fraction": "7/10"
+    },
+    "formalization_delta": {
+      "parent_git_head_source": "aggregate_observed.evidence.git_head",
+      "diagnostic_threshold_sha256": "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96",
+      "repository_identity": {
+        "object_format": "sha1",
+        "commit_relation": "direct-single-parent",
+        "shallow_repository": "forbidden",
+        "replace_refs": "forbidden",
+        "nonempty_grafts": "forbidden",
+        "index_flags": "ordinary-H-only",
+        "head_index_worktree": "exact-path-mode-blob"
+      },
+      "required_exact_paths": [
+        "scripts/v934/step4/coverage-thresholds.json",
+        "scripts/v934/step4/coverage-contract.json",
+        "scripts/v934/step4/SHA256SUMS"
+      ],
+      "allowed_exact_paths": [
+        "scripts/v934/step4/coverage-thresholds.json",
+        "scripts/v934/step4/coverage-contract.json",
+        "scripts/v934/step4/SHA256SUMS"
+      ],
+      "allowed_path_prefixes": [
+        "docs/9.3.4/"
+      ],
+      "other_changes": "forbidden-requires-new-diagnostic"
+    }
   }
 }

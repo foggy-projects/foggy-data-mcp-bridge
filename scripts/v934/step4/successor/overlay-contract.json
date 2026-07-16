@@ -26,7 +26,7 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java"
     ],
-    "sha256": "be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548"
+    "sha256": "1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47"
   },
   "frozen_semantics": {
     "addon": {
@@ -131,10 +131,22 @@
   "step4_runtime_bindings": {
     "scripts/v934/step4/authority_parent_lib.sh": "35024328ec6f181f4454a36b702f76c20dfd049af8a38a84b5f3117ac94254fa",
     "scripts/v934/step4/authority_parent_negative_test.sh": "2329d6211d51f673b29aae407e4e0a1f99af2f5bac0425d56cade3d1e1c148ca",
-    "scripts/v934/step4/coverage-contract.json": "2abdbd17b8286f50d52e3ddf48e7a5ad184ebafc4b44e19aa64dc1017f660a2f",
+    "scripts/v934/step4/coverage-contract.json": {
+      "diagnostic": {
+        "contract_status": "diagnostic-ready",
+        "publication_status": "diagnostic-ready",
+        "sha256": "1cf9633310326e9e9848fd967dac8749e899a5bc127fcae21f73f249ba057ffb"
+      },
+      "formal": {
+        "contract_status": "formal-ready",
+        "publication_status": "formal-ready",
+        "sha256": "9a21776543349b048afa27ab78245a9411acbdd7ca5b66a251157b7e7f795d8d"
+      },
+      "kind": "workflow-dual-sha256"
+    },
     "scripts/v934/step4/coverage-report-amendment.tsv": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "7d2f15762126b00e6a62d1e957984b0076c179a047f746556ae4d8b46d3d0275",
+    "scripts/v934/step4/coverage_tool.py": "c2f848aefb6a0a7551aedf9de96a79b79ab2b0e610fbe66870ae4f16007af1ea",
     "scripts/v934/step4/step2-report-view-contract.json": "c016ec18fa0a637e5c5470385c3f26cce152c461eb1dc1b64b52f28f5e8b8a67",
     "scripts/v934/step4/step2_report_view_tool.py": "b828869dec191a6ded51e7b28654f8878c65455007ca002e247347a0cb5e217a"
   },

@@ -31,6 +31,22 @@ MAVEN_NS = "http://maven.apache.org/POM/4.0.0"
 NS = {"m": MAVEN_NS}
 REPORTER_MODULE = "build-support/foggy-coverage-report"
 REPORTER_ARTIFACT = "foggy-coverage-report"
+FROZEN_DIAGNOSTIC_VALIDATOR = "scripts/v934/step4/coverage_xml_tool.py"
+FROZEN_DIAGNOSTIC_RESULT_KEYS = (
+    "schema_version",
+    "kind",
+    "status",
+    "run_id",
+    "diagnostic_git_head",
+    "current_git_head",
+    "ancestor_verified",
+    "confirmed_threshold_sha256",
+    "frozen_blobs",
+    "evidence",
+    "aggregate_observed",
+    "aggregate_reviewed_thresholds",
+    "critical_reviewed_thresholds",
+)
 
 EXPECTED_PARENT_LINKS: dict[str, dict[str, Any]] = {
     "step1_coverage_policy": {
@@ -68,6 +84,55 @@ EXPECTED_PARENT_LINKS: dict[str, dict[str, Any]] = {
 EXPECTED_LEDGER_SHA256 = (
     "10ddf85daa0426d530bec3ccd9bb1a10446aa426d920c6c5c433163455552711"
 )
+DIAGNOSTIC_THRESHOLD_SHA256 = (
+    "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96"
+)
+WORKFLOW_STATES = {
+    "diagnostic": {
+        "contract_status": "diagnostic-ready",
+        "publication_status": "diagnostic-ready",
+        "threshold_status": "diagnostic-pending",
+    },
+    "formal": {
+        "contract_status": "formal-ready",
+        "publication_status": "formal-ready",
+        "threshold_status": "confirmed",
+    },
+}
+REVIEWED_THRESHOLD_POLICY = {
+    "counter_keys": ["covered", "total", "fraction"],
+    "fraction_format": "<covered>/<total>",
+    "comparison": "integer-cross-multiplication",
+    "aggregate_minimum": "exact-observed",
+    "critical_minimum": "exact-observed",
+    "critical_line_floor_fraction": "4/5",
+    "critical_branch_floor_fraction": "7/10",
+}
+FORMALIZATION_DELTA = {
+    "parent_git_head_source": "aggregate_observed.evidence.git_head",
+    "diagnostic_threshold_sha256": DIAGNOSTIC_THRESHOLD_SHA256,
+    "repository_identity": {
+        "object_format": "sha1",
+        "commit_relation": "direct-single-parent",
+        "shallow_repository": "forbidden",
+        "replace_refs": "forbidden",
+        "nonempty_grafts": "forbidden",
+        "index_flags": "ordinary-H-only",
+        "head_index_worktree": "exact-path-mode-blob",
+    },
+    "required_exact_paths": [
+        "scripts/v934/step4/coverage-thresholds.json",
+        "scripts/v934/step4/coverage-contract.json",
+        "scripts/v934/step4/SHA256SUMS",
+    ],
+    "allowed_exact_paths": [
+        "scripts/v934/step4/coverage-thresholds.json",
+        "scripts/v934/step4/coverage-contract.json",
+        "scripts/v934/step4/SHA256SUMS",
+    ],
+    "allowed_path_prefixes": ["docs/9.3.4/"],
+    "other_changes": "forbidden-requires-new-diagnostic",
+}
 EXPECTED_STEP4_MANIFEST_PATHS = (
     "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java",
     "build-support/foggy-coverage-report/pom.xml",
@@ -90,9 +155,12 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "scripts/v934/step4/coverage_report_runner.sh",
     "scripts/v934/step4/coverage_runner_lib.sh",
     "scripts/v934/step4/coverage_tool.py",
+    "scripts/v934/step4/coverage_xml_negative_tool.py",
     "scripts/v934/step4/coverage_xml_tool.py",
     "scripts/v934/step4/report_inventory_tool.py",
     "scripts/v934/step4/reporter_effective_pom_tool.py",
+    "scripts/v934/step4/run_log_lifecycle_lib.sh",
+    "scripts/v934/step4/run_log_lifecycle_negative_test.sh",
     "scripts/v934/step4/step2-report-view-contract.json",
     "scripts/v934/step4/step2_report_view_tool.py",
     "scripts/v934/step4/successor/SHA256SUMS",
@@ -345,7 +413,7 @@ def find_plugin(container: ET.Element, artifact_id: str, label: str) -> ET.Eleme
     return only(matches, f"{label} plugin {artifact_id}")
 
 
-def validate_contract_json(contract: dict[str, Any]) -> None:
+def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> str:
     require_exact_keys(
         contract,
         (
@@ -366,7 +434,10 @@ def validate_contract_json(contract: dict[str, Any]) -> None:
     )
     require(type(contract["schema_version"]) is int and contract["schema_version"] == 1, "coverage contract.schema_version: expected integer 1")
     require(contract["kind"] == "v934-step4-coverage-contract", "coverage contract.kind: unexpected value")
-    require(contract["status"] == "diagnostic-ready", "coverage contract.status: expected diagnostic-ready")
+    require(
+        contract["status"] in {"diagnostic-ready", "formal-ready"},
+        "coverage contract.status: expected diagnostic-ready or formal-ready",
+    )
 
     tooling_manifest = require_exact_keys(
         contract["tooling_manifest"],
@@ -374,13 +445,11 @@ def validate_contract_json(contract: dict[str, Any]) -> None:
         "coverage contract.tooling_manifest",
     )
     require(
-        tooling_manifest
-        == {
-            "path": "scripts/v934/step4/SHA256SUMS",
-            "path_semantics": "repository-relative-posix",
-            "required_entries": len(EXPECTED_STEP4_MANIFEST_PATHS),
-            "publication_status": "diagnostic-ready",
-        },
+        tooling_manifest["path"] == "scripts/v934/step4/SHA256SUMS"
+        and tooling_manifest["path_semantics"] == "repository-relative-posix"
+        and type(tooling_manifest["required_entries"]) is int
+        and tooling_manifest["required_entries"] == len(EXPECTED_STEP4_MANIFEST_PATHS)
+        and tooling_manifest["publication_status"] in {"diagnostic-ready", "formal-ready"},
         "coverage contract.tooling_manifest: frozen values changed",
     )
 
@@ -498,6 +567,12 @@ def validate_contract_json(contract: dict[str, Any]) -> None:
             "aggregate_provenance",
             "report_provenance",
             "coverage_observation",
+            "child_ready_receipt",
+            "child_lifecycle",
+            "formalization_delta",
+            "coverage_gate",
+            "candidate_manifest",
+            "final_manifest",
         ),
         "coverage contract.run_layout",
     )
@@ -513,6 +588,12 @@ def validate_contract_json(contract: dict[str, Any]) -> None:
         "aggregate_provenance": "report/aggregate-provenance.json",
         "report_provenance": "report/report-provenance.json",
         "coverage_observation": "coverage-observation.json",
+        "child_ready_receipt": "child-ready/<child>.json",
+        "child_lifecycle": "child-lifecycle.json",
+        "formalization_delta": "formalization-delta.json",
+        "coverage_gate": "coverage-gate.json",
+        "candidate_manifest": "candidate-manifest.json",
+        "final_manifest": "final-manifest.json",
     }, "coverage contract.run_layout: frozen values changed")
 
     reporter = require_exact_keys(
@@ -538,17 +619,66 @@ def validate_contract_json(contract: dict[str, Any]) -> None:
 
     successor = require_exact_keys(
         contract["threshold_successor"],
-        ("path", "required_status_for_diagnostic", "required_status_for_exit"),
+        (
+            "path",
+            "required_status_for_diagnostic",
+            "required_status_for_exit",
+            "workflow_states",
+            "reviewed_threshold_policy",
+            "formalization_delta",
+        ),
         "coverage contract.threshold_successor",
     )
-    require(successor == {
-        "path": "scripts/v934/step4/coverage-thresholds.json",
-        "required_status_for_diagnostic": "diagnostic-pending",
-        "required_status_for_exit": "confirmed",
-    }, "coverage contract.threshold_successor: frozen values changed")
+    require(
+        successor
+        == {
+            "path": "scripts/v934/step4/coverage-thresholds.json",
+            "required_status_for_diagnostic": "diagnostic-pending",
+            "required_status_for_exit": "confirmed",
+            "workflow_states": WORKFLOW_STATES,
+            "reviewed_threshold_policy": REVIEWED_THRESHOLD_POLICY,
+            "formalization_delta": FORMALIZATION_DELTA,
+        },
+        "coverage contract.threshold_successor: frozen values changed",
+    )
+    matches = [
+        name
+        for name, state in WORKFLOW_STATES.items()
+        if contract["status"] == state["contract_status"]
+        and tooling_manifest["publication_status"] == state["publication_status"]
+        and threshold_status == state["threshold_status"]
+    ]
+    require(
+        len(matches) == 1,
+        "coverage workflow state: contract/publication/threshold status tuple is forbidden",
+    )
+    return matches[0]
 
 
-def validate_thresholds(thresholds: dict[str, Any]) -> None:
+def validate_fraction_counter(value: Any, label: str) -> dict[str, Any]:
+    counter = require_exact_keys(value, ("covered", "total", "fraction"), label)
+    covered = counter["covered"]
+    total = counter["total"]
+    require(type(covered) is int and covered >= 0, f"{label}.covered: expected non-negative integer")
+    require(type(total) is int and total > 0, f"{label}.total: expected positive integer")
+    require(covered <= total, f"{label}: covered must not exceed total")
+    require(counter["fraction"] == f"{covered}/{total}", f"{label}.fraction: expected canonical covered/total string")
+    return counter
+
+
+def same_fraction_counter(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return (
+        left["covered"] == right["covered"]
+        and left["total"] == right["total"]
+        and left["fraction"] == right["fraction"]
+    )
+
+
+def ratio_at_least(counter: dict[str, Any], numerator: int, denominator: int) -> bool:
+    return counter["covered"] * denominator >= numerator * counter["total"]
+
+
+def validate_thresholds(repo_root: Path, thresholds: dict[str, Any]) -> str:
     require_exact_keys(
         thresholds,
         (
@@ -568,7 +698,8 @@ def validate_thresholds(thresholds: dict[str, Any]) -> None:
     )
     require(type(thresholds["schema_version"]) is int and thresholds["schema_version"] == 1, "coverage thresholds.schema_version: expected integer 1")
     require(thresholds["kind"] == "v934-step4-coverage-threshold-successor", "coverage thresholds.kind: unexpected value")
-    require(thresholds["status"] == "diagnostic-pending", "coverage thresholds.status: expected diagnostic-pending")
+    status = thresholds["status"]
+    require(status in {"diagnostic-pending", "confirmed"}, "coverage thresholds.status: expected diagnostic-pending or confirmed")
 
     parent = require_exact_keys(thresholds["parent_policy"], ("path", "sha256", "immutable"), "coverage thresholds.parent_policy")
     require(parent["path"] == EXPECTED_PARENT_LINKS["step1_coverage_policy"]["path"], "coverage thresholds.parent_policy.path: unexpected value")
@@ -593,11 +724,145 @@ def validate_thresholds(thresholds: dict[str, Any]) -> None:
     floor = require_exact_keys(thresholds["critical_candidate_floor"], ("line", "branch"), "coverage thresholds.critical_candidate_floor")
     require(type(floor["line"]) is float and floor["line"] == 0.8, "coverage thresholds critical line floor: expected 0.8")
     require(type(floor["branch"]) is float and floor["branch"] == 0.7, "coverage thresholds critical branch floor: expected 0.7")
-    require(thresholds["aggregate_observed"] is None, "coverage thresholds.aggregate_observed: expected null before diagnostic")
-    require(thresholds["aggregate_reviewed_thresholds"] is None, "coverage thresholds.aggregate_reviewed_thresholds: expected null before review")
-    require(thresholds["critical_reviewed_thresholds"] is None, "coverage thresholds.critical_reviewed_thresholds: expected null before review")
-    review = require_exact_keys(thresholds["review"], ("reviewer", "reviewed_at", "diagnostic_run_id", "decision"), "coverage thresholds.review")
-    require(review == {"reviewer": None, "reviewed_at": None, "diagnostic_run_id": None, "decision": "pending-all-lane-diagnostic"}, "coverage thresholds.review: unexpected pre-diagnostic values")
+    if status == "diagnostic-pending":
+        require(thresholds["aggregate_observed"] is None, "coverage thresholds.aggregate_observed: expected null before diagnostic")
+        require(thresholds["aggregate_reviewed_thresholds"] is None, "coverage thresholds.aggregate_reviewed_thresholds: expected null before review")
+        require(thresholds["critical_reviewed_thresholds"] is None, "coverage thresholds.critical_reviewed_thresholds: expected null before review")
+        review = require_exact_keys(thresholds["review"], ("reviewer", "reviewed_at", "diagnostic_run_id", "decision"), "coverage thresholds.review")
+        require(review == {"reviewer": None, "reviewed_at": None, "diagnostic_run_id": None, "decision": "pending-all-lane-diagnostic"}, "coverage thresholds.review: unexpected pre-diagnostic values")
+        return status
+
+    aggregate = require_exact_keys(
+        thresholds["aggregate_observed"],
+        ("evidence", "line", "branch"),
+        "coverage thresholds.aggregate_observed",
+    )
+    evidence = require_exact_keys(
+        aggregate["evidence"],
+        (
+            "run_id",
+            "git_head",
+            "source_sha256",
+            "run_status_sha256",
+            "summary_sha256",
+            "observation_sha256",
+            "coverage_contract_sha256",
+            "threshold_predecessor_sha256",
+            "exec_manifest_sha256",
+            "aggregate_exec_sha256",
+            "aggregate_xml_sha256",
+            "workspace_class_tree_sha256",
+        ),
+        "coverage thresholds.aggregate_observed.evidence",
+    )
+    require(
+        type(evidence["run_id"]) is str
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", evidence["run_id"]) is not None
+        and evidence["run_id"] not in {".", ".."},
+        "coverage thresholds evidence.run_id: unsafe value",
+    )
+    require(
+        type(evidence["git_head"]) is str
+        and re.fullmatch(r"[0-9a-f]{40}", evidence["git_head"]) is not None,
+        "coverage thresholds evidence.git_head: expected Git SHA-1 commit",
+    )
+    for name in (
+        "source_sha256",
+        "run_status_sha256",
+        "summary_sha256",
+        "observation_sha256",
+        "coverage_contract_sha256",
+        "threshold_predecessor_sha256",
+        "exec_manifest_sha256",
+        "aggregate_exec_sha256",
+        "aggregate_xml_sha256",
+        "workspace_class_tree_sha256",
+    ):
+        require(
+            type(evidence[name]) is str and re.fullmatch(r"[0-9a-f]{64}", evidence[name]) is not None,
+            f"coverage thresholds evidence.{name}: expected lowercase SHA-256",
+        )
+    require(
+        evidence["threshold_predecessor_sha256"] == DIAGNOSTIC_THRESHOLD_SHA256,
+        "coverage thresholds evidence.threshold_predecessor_sha256: diagnostic predecessor changed",
+    )
+
+    aggregate_observed = {
+        metric: validate_fraction_counter(aggregate[metric], f"coverage thresholds.aggregate_observed.{metric}")
+        for metric in ("line", "branch")
+    }
+    reviewed = require_exact_keys(
+        thresholds["aggregate_reviewed_thresholds"],
+        ("line", "branch"),
+        "coverage thresholds.aggregate_reviewed_thresholds",
+    )
+    for metric in ("line", "branch"):
+        reviewed_counter = validate_fraction_counter(
+            reviewed[metric],
+            f"coverage thresholds.aggregate_reviewed_thresholds.{metric}",
+        )
+        require(
+            same_fraction_counter(reviewed_counter, aggregate_observed[metric]),
+            f"coverage thresholds aggregate {metric}: reviewed minimum must exactly equal observed counter",
+        )
+
+    step1_path = safe_repo_path(repo_root, parent["path"], "Step 1 coverage policy")
+    require(sha256_file(step1_path, "Step 1 coverage policy") == parent["sha256"], "Step 1 coverage policy: hash mismatch")
+    step1_policy = load_json(step1_path, "Step 1 coverage policy")
+    expected_critical = step1_policy.get("critical_classes")
+    require(type(expected_critical) is list and len(expected_critical) == 12, "Step 1 coverage policy: expected exact 12 critical classes")
+    critical = thresholds["critical_reviewed_thresholds"]
+    require(type(critical) is list and len(critical) == len(expected_critical), "coverage thresholds.critical_reviewed_thresholds: expected exact 12 rows")
+    identities: list[dict[str, str]] = []
+    for number, row_value in enumerate(critical, 1):
+        label = f"coverage thresholds.critical_reviewed_thresholds[{number - 1}]"
+        row = require_exact_keys(row_value, ("fqcn", "module", "line", "branch"), label)
+        require(type(row["fqcn"]) is str and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$.]*", row["fqcn"]) is not None, f"{label}.fqcn: invalid value")
+        require(type(row["module"]) is str and re.fullmatch(r"[A-Za-z0-9._/-]+", row["module"]) is not None, f"{label}.module: invalid value")
+        identities.append({"fqcn": row["fqcn"], "module": row["module"]})
+        for metric, numerator, denominator in (("line", 4, 5), ("branch", 7, 10)):
+            metric_value = require_exact_keys(row[metric], ("observed", "minimum"), f"{label}.{metric}")
+            observed = validate_fraction_counter(metric_value["observed"], f"{label}.{metric}.observed")
+            minimum = validate_fraction_counter(metric_value["minimum"], f"{label}.{metric}.minimum")
+            require(
+                same_fraction_counter(minimum, observed),
+                f"{label}.{metric}: minimum must exactly equal observed counter",
+            )
+            require(
+                ratio_at_least(observed, numerator, denominator),
+                f"{label}.{metric}: observed counter is below frozen candidate floor",
+            )
+    require(identities == expected_critical, "coverage thresholds.critical_reviewed_thresholds: identity/order differs from Step 1 policy")
+
+    review = require_exact_keys(
+        thresholds["review"],
+        ("reviewer", "reviewed_at", "diagnostic_run_id", "evidence_path", "evidence_sha256", "decision"),
+        "coverage thresholds.review",
+    )
+    require(
+        type(review["reviewer"]) is str
+        and 1 <= len(review["reviewer"]) <= 128
+        and review["reviewer"].strip() == review["reviewer"]
+        and not any(ord(character) < 32 or ord(character) == 127 for character in review["reviewer"]),
+        "coverage thresholds.review.reviewer: expected non-empty printable identity",
+    )
+    require(
+        type(review["reviewed_at"]) is str
+        and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", review["reviewed_at"]) is not None,
+        "coverage thresholds.review.reviewed_at: expected UTC second timestamp",
+    )
+    require(review["diagnostic_run_id"] == evidence["run_id"], "coverage thresholds.review.diagnostic_run_id: differs from evidence run")
+    require(review["decision"] == "confirm-observed-thresholds", "coverage thresholds.review.decision: unexpected value")
+    require(type(review["evidence_path"]) is str and review["evidence_path"].startswith("docs/9.3.4/"), "coverage thresholds.review.evidence_path: expected 9.3.4 documentation path")
+    review_path = safe_repo_path(repo_root, review["evidence_path"], "coverage thresholds review evidence")
+    require(review_path.is_file(), "coverage thresholds review evidence: missing regular file")
+    require(
+        type(review["evidence_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", review["evidence_sha256"]) is not None
+        and sha256_file(review_path, "coverage thresholds review evidence") == review["evidence_sha256"],
+        "coverage thresholds.review.evidence_sha256: evidence hash mismatch",
+    )
+    return status
 
 
 def validate_parent_lineage(repo_root: Path, contract: dict[str, Any], thresholds: dict[str, Any]) -> int:
@@ -1530,138 +1795,534 @@ def resolve_override(repo_root: Path, value: str | None, default: str) -> Path:
     return candidate.resolve(strict=False)
 
 
-def tracked_source_inventory(repo_root: Path) -> tuple[bytes, int]:
+def atomic_publish_bytes(path: Path, payload: bytes, label: str, mode: int = 0o600) -> None:
+    parent = path.parent.absolute()
+    require(path.name not in {"", ".", ".."}, f"{label}: unsafe output name")
+    require(parent.is_dir() and not parent.is_symlink(), f"{label}: parent must be an existing real directory")
+    require(parent.resolve(strict=True) == parent, f"{label}: parent path must be canonical")
+    require(not path.exists() and not path.is_symlink(), f"{label}: refusing overwrite")
+    parent_before = parent.lstat()
+    directory_fd = -1
+    descriptor = -1
+    temporary_name = f".{path.name}.{os.getpid()}.{os.urandom(12).hex()}.tmp"
+    published = False
+    published_identity: tuple[int, int] | None = None
+    completed = False
+    try:
+        directory_fd = os.open(
+            parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        bound_parent = os.fstat(directory_fd)
+        require(
+            stat.S_ISDIR(bound_parent.st_mode)
+            and (bound_parent.st_dev, bound_parent.st_ino)
+            == (parent_before.st_dev, parent_before.st_ino),
+            f"{label}: parent changed while opening",
+        )
+        try:
+            os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise ContractError(f"{label}: refusing overwrite")
+        descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            mode,
+            dir_fd=directory_fd,
+        )
+        opened = os.fstat(descriptor)
+        require(
+            stat.S_ISREG(opened.st_mode) and opened.st_nlink == 1,
+            f"{label}: opened staging identity differs",
+        )
+        published_identity = (opened.st_dev, opened.st_ino)
+        os.fchmod(descriptor, mode)
+        view = memoryview(payload)
+        while view:
+            written = os.write(descriptor, view)
+            require(written > 0, f"{label}: short write")
+            view = view[written:]
+        os.fsync(descriptor)
+        staged = os.fstat(descriptor)
+        require(
+            stat.S_ISREG(staged.st_mode)
+            and (staged.st_dev, staged.st_ino) == published_identity
+            and stat.S_IMODE(staged.st_mode) == mode
+            and staged.st_size == len(payload)
+            and staged.st_nlink == 1,
+            f"{label}: staged output identity/mode/size differs",
+        )
+        os.close(descriptor)
+        descriptor = -1
+        os.link(
+            temporary_name,
+            path.name,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        published = True
+        current = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        require(
+            stat.S_ISREG(current.st_mode)
+            and (current.st_dev, current.st_ino) == published_identity
+            and stat.S_IMODE(current.st_mode) == mode
+            and current.st_size == len(payload)
+            and current.st_nlink == 2,
+            f"{label}: published identity differs",
+        )
+        os.fsync(directory_fd)
+        os.unlink(temporary_name, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+        final_output = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+        canonical_output = path.lstat()
+        parent_after = parent.lstat()
+        require(
+            stat.S_ISREG(final_output.st_mode)
+            and (final_output.st_dev, final_output.st_ino) == published_identity
+            and stat.S_IMODE(final_output.st_mode) == mode
+            and final_output.st_size == len(payload)
+            and final_output.st_nlink == 1
+            and stat.S_ISREG(canonical_output.st_mode)
+            and (canonical_output.st_dev, canonical_output.st_ino) == published_identity
+            and stat.S_IMODE(canonical_output.st_mode) == mode
+            and canonical_output.st_size == len(payload)
+            and canonical_output.st_nlink == 1
+            and not stat.S_ISLNK(parent_after.st_mode)
+            and stat.S_ISDIR(parent_after.st_mode)
+            and (parent_after.st_dev, parent_after.st_ino)
+            == (bound_parent.st_dev, bound_parent.st_ino)
+            and parent.resolve(strict=True) == parent,
+            f"{label}: final output or parent identity differs",
+        )
+        completed = True
+    except (OSError, RuntimeError) as exc:
+        if isinstance(exc, ContractError):
+            raise
+        raise ContractError(f"{label}: atomic publish failed ({exc.__class__.__name__})") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if directory_fd >= 0:
+            if published_identity is not None:
+                try:
+                    temporary = os.stat(
+                        temporary_name,
+                        dir_fd=directory_fd,
+                        follow_symlinks=False,
+                    )
+                    if (temporary.st_dev, temporary.st_ino) == published_identity:
+                        os.unlink(temporary_name, dir_fd=directory_fd)
+                except FileNotFoundError:
+                    pass
+            if published and not completed and published_identity is not None:
+                try:
+                    current = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino) == published_identity:
+                        os.unlink(path.name, dir_fd=directory_fd)
+                        os.fsync(directory_fd)
+                except FileNotFoundError:
+                    pass
+            os.close(directory_fd)
+
+
+def atomic_publish_json(path: Path, value: dict[str, Any], label: str, mode: int = 0o600) -> None:
+    encoded = (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    atomic_publish_bytes(path, encoded, label, mode)
+
+
+def git_environment() -> dict[str, str]:
+    # Git's ambient GIT_* namespace can redirect every identity surface used by
+    # this validator (repository, worktree, index, object database, refs,
+    # shallow/graft metadata, and config).  Build from a non-Git allowlist so a
+    # newly introduced Git override is denied by default instead of relying on
+    # an inevitably incomplete blocklist.
+    environment = {
+        name: os.environ[name]
+        for name in ("PATH", "SYSTEMROOT", "TMPDIR", "TMP", "TEMP")
+        if name in os.environ
+    }
+    environment.update(
+        {
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "LC_ALL": "C",
+            "LANG": "C",
+        }
+    )
+    return environment
+
+
+def run_git(repo_root: Path, arguments: list[str], label: str) -> subprocess.CompletedProcess[bytes]:
     process = subprocess.run(
-        ["git", "-C", str(repo_root), "ls-files", "--stage", "-z"],
+        ["git", "-C", str(repo_root), *arguments],
+        env=git_environment(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
     )
-    require(process.returncode == 0, "source inventory: git ls-files failed")
-    records = [record for record in process.stdout.split(b"\0") if record]
-    require(records, "source inventory: tracked file set is empty")
-    rows = [b"mode\tpath\tsha256\tsize\n"]
+    require(process.returncode == 0, f"{label}: Git command failed")
+    return process
+
+
+def git_single_line(repo_root: Path, arguments: list[str], label: str) -> bytes:
+    output = run_git(repo_root, arguments, label).stdout
+    lines = output.splitlines()
+    require(len(lines) == 1 and lines[0] != b"", f"{label}: expected one non-empty line")
+    return lines[0]
+
+
+def validate_git_path(relative: bytes, label: str) -> None:
+    parts = relative.split(b"/")
+    require(
+        relative
+        and not relative.startswith(b"/")
+        and all(part not in (b"", b".", b"..") for part in parts)
+        and b"\\" not in relative
+        and b"\t" not in relative
+        and b"\n" not in relative
+        and b"\r" not in relative,
+        f"{label}: unsafe tracked path",
+    )
+
+
+def parse_head_tree(payload: bytes) -> tuple[tuple[bytes, bytes, bytes], ...]:
+    records: list[tuple[bytes, bytes, bytes]] = []
     seen: set[bytes] = set()
-    for number, record in enumerate(records, 1):
+    for number, record in enumerate((item for item in payload.split(b"\0") if item), 1):
         try:
-            metadata, relative_bytes = record.split(b"\t", 1)
-            mode_bytes, object_id, stage = metadata.split(b" ", 2)
+            metadata, relative = record.split(b"\t", 1)
+            mode, kind, object_id = metadata.split(b" ", 2)
         except ValueError as exc:
-            raise ContractError(f"source inventory: malformed git row {number}") from exc
-        require(stage == b"0", f"source inventory: unmerged index entry at row {number}")
-        require(mode_bytes in (b"100644", b"100755"), f"source inventory: unsupported tracked mode at row {number}")
-        require(re.fullmatch(b"[0-9a-f]{40,64}", object_id) is not None, f"source inventory: invalid object ID at row {number}")
-        require(relative_bytes not in seen, f"source inventory: duplicate path at row {number}")
+            raise ContractError(f"source inventory: malformed HEAD tree row {number}") from exc
+        validate_git_path(relative, f"source inventory HEAD row {number}")
+        require(relative not in seen, f"source inventory: duplicate HEAD path at row {number}")
+        require(mode in (b"100644", b"100755"), f"source inventory: unsupported HEAD mode at row {number}")
+        require(kind == b"blob", f"source inventory: non-blob HEAD entry at row {number}")
         require(
-            relative_bytes
-            and b"\t" not in relative_bytes
-            and b"\n" not in relative_bytes
-            and b"\r" not in relative_bytes
-            and b"\\" not in relative_bytes,
-            f"source inventory: unsafe tracked path at row {number}",
+            re.fullmatch(rb"[0-9a-f]{40}", object_id) is not None,
+            f"source inventory: invalid HEAD blob at row {number}",
         )
-        seen.add(relative_bytes)
+        seen.add(relative)
+        records.append((mode, relative, object_id))
+    require(records, "source inventory: tracked HEAD tree is empty")
+    return tuple(records)
+
+
+def parse_index_stage(payload: bytes) -> tuple[tuple[bytes, bytes, bytes], ...]:
+    records: list[tuple[bytes, bytes, bytes]] = []
+    seen: set[bytes] = set()
+    for number, record in enumerate((item for item in payload.split(b"\0") if item), 1):
+        try:
+            metadata, relative = record.split(b"\t", 1)
+            mode, object_id, stage = metadata.split(b" ", 2)
+        except ValueError as exc:
+            raise ContractError(f"source inventory: malformed index row {number}") from exc
+        validate_git_path(relative, f"source inventory index row {number}")
+        require(relative not in seen, f"source inventory: duplicate index path at row {number}")
+        require(stage == b"0", f"source inventory: non-stage-zero index row {number}")
+        require(mode in (b"100644", b"100755"), f"source inventory: unsupported index mode at row {number}")
+        require(
+            re.fullmatch(rb"[0-9a-f]{40}", object_id) is not None,
+            f"source inventory: invalid index blob at row {number}",
+        )
+        seen.add(relative)
+        records.append((mode, relative, object_id))
+    require(records, "source inventory: tracked index is empty")
+    return tuple(records)
+
+
+def parse_index_flags(payload: bytes) -> tuple[bytes, ...]:
+    paths: list[bytes] = []
+    seen: set[bytes] = set()
+    for number, record in enumerate((item for item in payload.split(b"\0") if item), 1):
+        require(len(record) >= 3 and record[1:2] == b" ", f"source inventory: malformed index flag row {number}")
+        flag = record[:1]
+        relative = record[2:]
+        validate_git_path(relative, f"source inventory flag row {number}")
+        require(relative not in seen, f"source inventory: duplicate index flag path at row {number}")
+        require(
+            flag == b"H",
+            f"source inventory: index flags must be ordinary H at row {number}",
+        )
+        seen.add(relative)
+        paths.append(relative)
+    require(paths, "source inventory: index flag set is empty")
+    return tuple(paths)
+
+
+def capture_git_identity(repo_root: Path) -> dict[str, Any]:
+    top_level_raw = git_single_line(
+        repo_root,
+        ["rev-parse", "--show-toplevel"],
+        "source inventory repository root",
+    )
+    top_level = Path(os.fsdecode(top_level_raw)).resolve(strict=True)
+    require(top_level == repo_root, "source inventory: repository root differs from Git worktree root")
+
+    object_format = git_single_line(
+        repo_root,
+        ["rev-parse", "--show-object-format"],
+        "source inventory object format",
+    )
+    require(object_format == b"sha1", "source inventory: Git object format must be sha1")
+    shallow = git_single_line(
+        repo_root,
+        ["rev-parse", "--is-shallow-repository"],
+        "source inventory shallow state",
+    )
+    require(shallow == b"false", "source inventory: shallow repositories are forbidden")
+    replace_refs = run_git(
+        repo_root,
+        ["for-each-ref", "--format=%(refname)", "refs/replace"],
+        "source inventory replace refs",
+    ).stdout
+    require(replace_refs == b"", "source inventory: replace refs are forbidden")
+
+    common_dir_raw = git_single_line(
+        repo_root,
+        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        "source inventory Git common directory",
+    )
+    common_dir = Path(os.fsdecode(common_dir_raw)).absolute()
+    require(
+        common_dir.is_dir()
+        and not common_dir.is_symlink()
+        and common_dir.resolve(strict=True) == common_dir,
+        "source inventory: Git common directory is not canonical",
+    )
+    info_dir = common_dir / "info"
+    try:
+        info_stat = info_dir.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise ContractError("source inventory: cannot inspect Git info directory") from exc
+    else:
+        require(
+            stat.S_ISDIR(info_stat.st_mode)
+            and not stat.S_ISLNK(info_stat.st_mode)
+            and info_dir.resolve(strict=True) == info_dir.absolute(),
+            "source inventory: Git info directory is not canonical",
+        )
+    grafts = info_dir / "grafts"
+    try:
+        grafts_stat = grafts.lstat()
+    except FileNotFoundError:
+        grafts_nonempty = False
+    except OSError as exc:
+        raise ContractError("source inventory: cannot inspect grafts") from exc
+    else:
+        require(
+            stat.S_ISREG(grafts_stat.st_mode)
+            and not stat.S_ISLNK(grafts_stat.st_mode)
+            and grafts.resolve(strict=True) == grafts.absolute(),
+            "source inventory: grafts path must be a regular non-symlink file",
+        )
+        grafts_nonempty = grafts_stat.st_size > 0
+    require(not grafts_nonempty, "source inventory: non-empty grafts are forbidden")
+
+    status = run_git(
+        repo_root,
+        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        "source inventory status",
+    ).stdout
+    require(status == b"", "source inventory: exact clean committed worktree is required")
+    head_raw = git_single_line(
+        repo_root,
+        ["rev-parse", "--verify", "HEAD^{commit}"],
+        "source inventory HEAD",
+    )
+    require(
+        re.fullmatch(rb"[0-9a-f]{40}", head_raw) is not None,
+        "source inventory: committed HEAD identity is unavailable",
+    )
+    head_tree_payload = run_git(
+        repo_root,
+        ["ls-tree", "-r", "-z", "--full-tree", head_raw.decode("ascii")],
+        "source inventory HEAD tree",
+    ).stdout
+    index_stage_payload = run_git(
+        repo_root,
+        ["ls-files", "--stage", "-z"],
+        "source inventory index",
+    ).stdout
+    index_flags_payload = run_git(
+        repo_root,
+        ["ls-files", "-v", "-z"],
+        "source inventory index flags",
+    ).stdout
+    head_records = parse_head_tree(head_tree_payload)
+    index_records = parse_index_stage(index_stage_payload)
+    require(
+        head_records == index_records,
+        "source inventory: HEAD tree and stage-zero index path/mode/blob differ",
+    )
+    flag_paths = parse_index_flags(index_flags_payload)
+    require(
+        flag_paths == tuple(record[1] for record in head_records),
+        "source inventory: index flag path/order differs from HEAD",
+    )
+    return {
+        "git_head": head_raw.decode("ascii"),
+        "object_format": "sha1",
+        "shallow_repository": False,
+        "replace_ref_count": 0,
+        "nonempty_grafts": False,
+        "head_records": head_records,
+        "head_tree_sha256": hashlib.sha256(head_tree_payload).hexdigest(),
+        "index_stage_sha256": hashlib.sha256(index_stage_payload).hexdigest(),
+        "index_flags_sha256": hashlib.sha256(index_flags_payload).hexdigest(),
+        "status_sha256": hashlib.sha256(status).hexdigest(),
+    }
+
+
+def tracked_source_inventory(repo_root: Path) -> dict[str, Any]:
+    before = capture_git_identity(repo_root)
+    rows = [b"mode\tpath\tsha256\tsize\n"]
+    for number, (mode, relative_bytes, object_id) in enumerate(before["head_records"], 1):
         relative = os.fsdecode(relative_bytes)
-        pure = PurePosixPath(relative)
-        require(not pure.is_absolute() and ".." not in pure.parts, f"source inventory: path escapes repository at row {number}")
-        path = repo_root.joinpath(*pure.parts)
+        path = repo_root.joinpath(*relative.split("/"))
         try:
-            file_stat = path.lstat()
+            path_stat = path.lstat()
+            resolved = path.resolve(strict=True)
         except OSError as exc:
-            raise ContractError(f"source inventory: cannot inspect {relative!r}") from exc
-        require(stat.S_ISREG(file_stat.st_mode), f"source inventory: tracked path is not a regular file: {relative!r}")
-        digest = hashlib.sha256()
+            raise ContractError(f"source inventory: cannot inspect tracked row {number}") from exc
+        require(
+            resolved == path.absolute() and stat.S_ISREG(path_stat.st_mode),
+            f"source inventory: tracked row {number} is not a canonical regular file",
+        )
+        expected_executable = mode == b"100755"
+        require(
+            bool(path_stat.st_mode & 0o111) == expected_executable,
+            f"source inventory: worktree executable mode differs at row {number}",
+        )
+        stable_fields = (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+            "st_nlink",
+        )
+        descriptor = -1
         try:
-            with path.open("rb") as stream:
-                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                    digest.update(chunk)
+            descriptor = os.open(
+                path,
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0),
+            )
+            opened = os.fstat(descriptor)
+            require(
+                stat.S_ISREG(opened.st_mode)
+                and all(
+                    getattr(opened, field) == getattr(path_stat, field)
+                    for field in stable_fields
+                ),
+                f"source inventory: tracked row {number} changed while opening",
+            )
+            blob_digest = hashlib.sha1()
+            blob_digest.update(f"blob {opened.st_size}\0".encode("ascii"))
+            content_digest = hashlib.sha256()
+            byte_count = 0
+            while True:
+                chunk = os.read(descriptor, 1024 * 1024)
+                if not chunk:
+                    break
+                byte_count += len(chunk)
+                blob_digest.update(chunk)
+                content_digest.update(chunk)
+            closed_view = os.fstat(descriptor)
         except OSError as exc:
-            raise ContractError(f"source inventory: cannot hash {relative!r}") from exc
+            raise ContractError(f"source inventory: cannot hash tracked row {number}") from exc
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+        try:
+            final_path_stat = path.lstat()
+        except OSError as exc:
+            raise ContractError(f"source inventory: cannot re-inspect tracked row {number}") from exc
+        require(
+            all(getattr(opened, field) == getattr(closed_view, field) for field in stable_fields)
+            and all(getattr(opened, field) == getattr(final_path_stat, field) for field in stable_fields)
+            and byte_count == opened.st_size,
+            f"source inventory: tracked row {number} changed while hashing",
+        )
+        require(
+            blob_digest.hexdigest().encode("ascii") == object_id,
+            f"source inventory: worktree blob differs from HEAD/index at row {number}",
+        )
         rows.append(
-            mode_bytes
+            mode
             + b"\t"
             + relative_bytes
             + b"\t"
-            + digest.hexdigest().encode("ascii")
+            + content_digest.hexdigest().encode("ascii")
             + b"\t"
-            + str(file_stat.st_size).encode("ascii")
+            + str(opened.st_size).encode("ascii")
             + b"\n"
         )
-    return b"".join(rows), len(records)
+    payload = b"".join(rows)
+    after = capture_git_identity(repo_root)
+    require(before == after, "source inventory: Git HEAD/index/flags/status changed during audit")
+    return {
+        "payload": payload,
+        "file_count": len(before["head_records"]),
+        "git_head": before["git_head"],
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "repository_identity": {
+            "object_format": before["object_format"],
+            "shallow_repository": before["shallow_repository"],
+            "replace_ref_count": before["replace_ref_count"],
+            "nonempty_grafts": before["nonempty_grafts"],
+            "index_flags": "ordinary-H-only",
+            "head_index_worktree": "exact-path-mode-blob",
+            "head_tree_sha256": before["head_tree_sha256"],
+            "index_stage_sha256": before["index_stage_sha256"],
+            "index_flags_sha256": before["index_flags_sha256"],
+        },
+    }
 
 
 def source_hash_command(args: argparse.Namespace) -> dict[str, Any]:
     repo_root = Path(args.repo_root).expanduser().resolve(strict=True)
     require(repo_root.is_dir(), "repo root: expected directory")
-    status = subprocess.run(
-        ["git", "-C", str(repo_root), "status", "--porcelain=v1", "--untracked-files=all"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    require(status.returncode == 0, "source inventory: git status failed")
-    require(status.stdout == b"", "source inventory: exact clean committed worktree is required")
-    head_process = subprocess.run(
-        ["git", "-C", str(repo_root), "rev-parse", "--verify", "HEAD^{commit}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    git_head = head_process.stdout.strip().decode("ascii", errors="strict")
-    require(
-        head_process.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", git_head) is not None,
-        "source inventory: committed HEAD identity is unavailable",
-    )
-    payload, count = tracked_source_inventory(repo_root)
-    digest = hashlib.sha256(payload).hexdigest()
+    audit = tracked_source_inventory(repo_root)
     if args.output:
-        output = Path(args.output).expanduser()
-        if not output.is_absolute():
-            output = repo_root / output
-        require(not output.exists() and not output.is_symlink(), "source inventory output: refusing overwrite")
-        output.parent.mkdir(parents=True, exist_ok=True)
+        output_input = Path(args.output).expanduser()
+        if not output_input.is_absolute():
+            output_input = repo_root / output_input
+        output = output_input.absolute()
+        try:
+            output.relative_to(repo_root)
+        except ValueError as exc:
+            raise ContractError("source inventory output: path must be inside repository") from exc
         require(
             output.parent.is_dir()
             and not output.parent.is_symlink()
             and output.parent.resolve(strict=True) == output.parent,
-            "source inventory output: unsafe parent",
+            "source inventory output: parent must be an existing canonical directory",
         )
-        temporary = output.with_name(f".{output.name}.{os.getpid()}.tmp")
-        published = False
-        try:
-            descriptor = os.open(
-                temporary,
-                os.O_WRONLY
-                | os.O_CREAT
-                | os.O_EXCL
-                | getattr(os, "O_NOFOLLOW", 0),
-                0o644,
-            )
-            with os.fdopen(descriptor, "wb") as stream:
-                stream.write(payload)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.link(temporary, output, follow_symlinks=False)
-            published = True
-            temporary.unlink()
-            directory_fd = os.open(
-                output.parent,
-                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
-            )
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
-        except (OSError, RuntimeError) as exc:
-            temporary.unlink(missing_ok=True)
-            if published:
-                output.unlink(missing_ok=True)
-            raise ContractError("source inventory output: atomic publish failed") from exc
+        atomic_publish_bytes(output, audit["payload"], "source inventory output", 0o644)
     return {
         "command": "source-hash",
-        "file_count": count,
-        "git_head": git_head,
-        "sha256": digest,
+        "file_count": audit["file_count"],
+        "git_head": audit["git_head"],
+        "sha256": audit["sha256"],
         "status": "passed",
     }
 
@@ -1675,6 +2336,22 @@ def launch_child_command(args: argparse.Namespace) -> None:
         and len(args.run_id) <= 128,
         "child launcher: unsafe run id",
     )
+    ready_input = Path(args.ready_path).expanduser()
+    if not ready_input.is_absolute():
+        ready_input = repo_root / ready_input
+    ready_path = ready_input.absolute()
+    require(ready_path.name not in {"", ".", ".."}, "child launcher: unsafe ready receipt path")
+    try:
+        ready_path.relative_to(repo_root)
+    except ValueError as exc:
+        raise ContractError("child launcher: ready receipt must be inside the repository") from exc
+    require(
+        ready_path.parent.is_dir()
+        and not ready_path.parent.is_symlink()
+        and ready_path.parent.resolve(strict=True) == ready_path.parent,
+        "child launcher: ready receipt parent must be an existing canonical directory",
+    )
+    require(not ready_path.exists() and not ready_path.is_symlink(), "child launcher: refusing to overwrite ready receipt")
     child_paths = {
         "unit": "scripts/verify-v934-unit.sh",
         "integration": "scripts/verify-v934-integration.sh",
@@ -1694,15 +2371,12 @@ def launch_child_command(args: argparse.Namespace) -> None:
         and os.environ.get("V934_PARENT_RUN_ID") == args.run_id,
         "child launcher: inherited authority environment differs",
     )
-    git_dir_process = subprocess.run(
-        ["git", "-C", str(repo_root), "rev-parse", "--absolute-git-dir"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
+    git_dir = git_single_line(
+        repo_root,
+        ["rev-parse", "--absolute-git-dir"],
+        "child launcher Git directory",
     )
-    require(git_dir_process.returncode == 0, "child launcher: cannot resolve Git directory")
-    expected_lock = Path(git_dir_process.stdout.strip()) / "v934-step2-authority.lock"
+    expected_lock = Path(os.fsdecode(git_dir)) / "v934-step2-authority.lock"
     require(expected_lock.is_file() and not expected_lock.is_symlink(), "child launcher: canonical lock is missing")
     try:
         descriptor_stat = os.fstat(args.lock_fd)
@@ -1723,18 +2397,411 @@ def launch_child_command(args: argparse.Namespace) -> None:
         if value is not None:
             signal.signal(value, signal.SIG_DFL)
     os.setsid()
+    pid = os.getpid()
+    pgid = os.getpgrp()
+    sid = os.getsid(0)
     require(
-        os.getsid(0) == os.getpid() and os.getpgrp() == os.getpid(),
+        sid == pid and pgid == pid,
         "child launcher: failed to establish a process group",
+    )
+    try:
+        stat_bytes = Path(f"/proc/{pid}/stat").read_bytes()
+        stat_right = stat_bytes.rindex(b")")
+        stat_fields = stat_bytes[stat_right + 2 :].split()
+        require(len(stat_fields) >= 20, "child launcher: process stat is truncated")
+        stat_pgid = int(stat_fields[2])
+        stat_sid = int(stat_fields[3])
+        starttime_ticks = int(stat_fields[19])
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="ascii").strip()
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ContractError("child launcher: cannot seal process identity") from exc
+    require(
+        stat_pgid == pid
+        and stat_sid == pid
+        and starttime_ticks > 0
+        and re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            boot_id,
+        )
+        is not None,
+        "child launcher: process identity is not canonical",
+    )
+    atomic_publish_json(
+        ready_path,
+        {
+            "schema_version": 1,
+            "kind": "v934-step4-child-ready",
+            "run_id": args.run_id,
+            "child": args.child,
+            "pid": pid,
+            "pgid": pgid,
+            "sid": sid,
+            "starttime_ticks": starttime_ticks,
+            "boot_id": boot_id,
+            "status": "ready",
+        },
+        "child launcher ready receipt",
+        0o600,
     )
     os.chdir(repo_root)
     environment = os.environ.copy()
     os.execve(str(runner), [str(runner), args.run_id], environment)
 
 
-def validate_all(args: argparse.Namespace) -> dict[str, Any]:
+def git_commit(repo_root: Path, label: str) -> str:
+    value_raw = git_single_line(
+        repo_root,
+        ["rev-parse", "--verify", "HEAD^{commit}"],
+        label,
+    )
+    require(
+        re.fullmatch(rb"[0-9a-f]{40}", value_raw) is not None,
+        f"{label}: committed HEAD identity is unavailable",
+    )
+    return value_raw.decode("ascii")
+
+
+def validate_formal_changed_paths(policy: dict[str, Any], changed_paths: list[str]) -> None:
+    require(changed_paths == sorted(changed_paths), "formal delta: Git changed paths must be sorted")
+    allowed_exact = set(policy["allowed_exact_paths"])
+    allowed_prefixes = tuple(policy["allowed_path_prefixes"])
+    forbidden = [
+        relative
+        for relative in changed_paths
+        if relative not in allowed_exact
+        and not any(relative.startswith(prefix) and len(relative) > len(prefix) for prefix in allowed_prefixes)
+    ]
+    require(not forbidden, f"formal delta: forbidden changes require a new diagnostic: {forbidden}")
+    missing = [relative for relative in policy["required_exact_paths"] if relative not in changed_paths]
+    require(not missing, f"formal delta: required formalization changes are missing: {missing}")
+
+
+def recompute_formalization_delta(repo_root: Path) -> dict[str, Any]:
+    repo_root = repo_root.expanduser().resolve(strict=True)
+    require(repo_root.is_dir(), "formal delta: repository root is not a directory")
+    identity_before = tracked_source_inventory(repo_root)
+    contract_path = safe_repo_path(repo_root, "scripts/v934/step4/coverage-contract.json", "coverage contract")
+    thresholds_path = safe_repo_path(repo_root, "scripts/v934/step4/coverage-thresholds.json", "coverage thresholds")
+    contract = load_json(contract_path, "coverage contract")
+    thresholds = load_json(thresholds_path, "coverage thresholds")
+    threshold_status = validate_thresholds(repo_root, thresholds)
+    workflow_state = validate_contract_json(contract, threshold_status)
+    require(workflow_state == "formal", "formal delta: exact formal workflow state is required")
+
+    validation_args = argparse.Namespace(
+        repo_root=str(repo_root),
+        contract=None,
+        thresholds=None,
+        ledger=None,
+        root_pom=None,
+        model_pom=None,
+        reporter_pom=None,
+    )
+    validation = validate_all(validation_args)
+    require(validation["workflow_state"] == "formal", "formal delta: full contract validation is not formal")
+    identity_after = tracked_source_inventory(repo_root)
+    require(
+        identity_before == identity_after,
+        "formal delta: repository identity changed during contract validation",
+    )
+
+    current_head = identity_after["git_head"]
+    parent_head = thresholds["aggregate_observed"]["evidence"]["git_head"]
+    require(parent_head != current_head, "formal delta: diagnostic parent and formal commit must differ")
+    parent_commit = git_single_line(
+        repo_root,
+        ["rev-parse", "--verify", f"{parent_head}^{{commit}}"],
+        "formal delta diagnostic parent",
+    )
+    require(
+        parent_commit == parent_head.encode("ascii"),
+        "formal delta: diagnostic evidence commit identity differs",
+    )
+    parent_line = git_single_line(
+        repo_root,
+        ["rev-list", "--parents", "-n", "1", current_head],
+        "formal delta current commit parents",
+    )
+    parent_tokens = parent_line.split(b" ")
+    require(
+        parent_tokens == [current_head.encode("ascii"), parent_head.encode("ascii")],
+        "formal delta: current commit must be the diagnostic HEAD's direct single-parent child",
+    )
+    changed_process = run_git(
+        repo_root,
+        [
+            "diff",
+            "--no-ext-diff",
+            "--ignore-submodules=none",
+            "--name-only",
+            "--no-renames",
+            "-z",
+            parent_head,
+            current_head,
+            "--",
+        ],
+        "formal delta changed paths",
+    )
+    changed_paths: list[str] = []
+    for raw_path in changed_process.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        try:
+            relative = raw_path.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ContractError("formal delta: changed path is not UTF-8") from exc
+        require(
+            relative
+            and "\\" not in relative
+            and "\n" not in relative
+            and "\r" not in relative
+            and "\t" not in relative
+            and not PurePosixPath(relative).is_absolute()
+            and ".." not in PurePosixPath(relative).parts,
+            "formal delta: unsafe changed path",
+        )
+        require(relative not in changed_paths, f"formal delta: duplicate changed path {relative!r}")
+        changed_paths.append(relative)
+    policy = contract["threshold_successor"]["formalization_delta"]
+    validate_formal_changed_paths(policy, changed_paths)
+    observed_identity = dict(identity_after["repository_identity"])
+    observed_identity.update(
+        {
+            "commit_relation": "direct-single-parent",
+            "parent_count": 1,
+            "source_file_count": identity_after["file_count"],
+            "source_sha256": identity_after["sha256"],
+        }
+    )
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-formal-delta",
+        "parent_git_head": parent_head,
+        "current_git_head": current_head,
+        "repository_identity_policy": policy["repository_identity"],
+        "repository_identity": observed_identity,
+        "changed_paths": changed_paths,
+        "required_exact_paths": policy["required_exact_paths"],
+        "allowed_exact_paths": policy["allowed_exact_paths"],
+        "allowed_path_prefixes": policy["allowed_path_prefixes"],
+        "workflow_state": workflow_state,
+        "status": "passed",
+    }
+
+
+def validate_formalization_delta_receipt(
+    repo_root: Path,
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    require_exact_keys(
+        receipt,
+        (
+            "schema_version",
+            "kind",
+            "parent_git_head",
+            "current_git_head",
+            "repository_identity_policy",
+            "repository_identity",
+            "changed_paths",
+            "required_exact_paths",
+            "allowed_exact_paths",
+            "allowed_path_prefixes",
+            "workflow_state",
+            "status",
+        ),
+        "formal delta receipt",
+    )
+    expected = recompute_formalization_delta(repo_root)
+    require(receipt == expected, "formal delta receipt: differs from exact recomputation")
+    return expected
+
+
+def formal_delta_command(args: argparse.Namespace) -> dict[str, Any]:
+    repo_root = Path(args.repo_root).expanduser().resolve(strict=True)
+    result = recompute_formalization_delta(repo_root)
+    output_input = Path(args.output).expanduser()
+    if not output_input.is_absolute():
+        output_input = repo_root / output_input
+    output = output_input.absolute()
+    try:
+        output.relative_to(repo_root)
+    except ValueError as exc:
+        raise ContractError("formal delta output: path must be inside repository") from exc
+    require(
+        output.parent.is_dir()
+        and not output.parent.is_symlink()
+        and output.parent.resolve(strict=True) == output.parent,
+        "formal delta output: parent must be an existing canonical directory",
+    )
+    atomic_publish_json(output, result, "formal delta output", 0o644)
+    return result
+
+
+def validate_frozen_diagnostic_receipt(
+    repo_root: Path,
+    thresholds_path: Path,
+    thresholds: dict[str, Any],
+) -> dict[str, Any]:
+    validator_path = safe_repo_path(
+        repo_root,
+        FROZEN_DIAGNOSTIC_VALIDATOR,
+        "frozen diagnostic validator",
+    )
+    require(
+        validator_path.is_file()
+        and not validator_path.is_symlink()
+        and validator_path.resolve(strict=True) == validator_path,
+        "frozen diagnostic validator: expected canonical regular file",
+    )
+    # The XML validator performs its own frozen Git replay.  Give it the same
+    # deny-by-default Git environment as this process; do not forward Python
+    # import overrides into the security boundary either.
+    environment = git_environment()
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    try:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(validator_path),
+                "validate-frozen-diagnostic",
+                "--repo-root",
+                str(repo_root),
+            ],
+            cwd=repo_root,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=600,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ContractError(
+            f"frozen diagnostic validator: execution failed ({exc.__class__.__name__})"
+        ) from exc
+    require(
+        completed.returncode == 0,
+        f"frozen diagnostic validator: returned rc={completed.returncode}",
+    )
+    require(completed.stderr == b"", "frozen diagnostic validator: unexpected stderr")
+    stdout = completed.stdout
+    require(
+        stdout.endswith(b"\n")
+        and stdout.count(b"\n") == 1
+        and stdout[:-1] != b"",
+        "frozen diagnostic validator: expected one non-empty JSON line",
+    )
+    try:
+        receipt = json.loads(
+            stdout.decode("utf-8", errors="strict"),
+            object_pairs_hook=unique_object,
+            parse_constant=reject_json_constant,
+        )
+    except ContractError:
+        raise
+    except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ContractError("frozen diagnostic validator: malformed JSON receipt") from exc
+    receipt = require_exact_keys(
+        receipt,
+        FROZEN_DIAGNOSTIC_RESULT_KEYS,
+        "frozen diagnostic validator receipt",
+    )
+    canonical_receipt = (
+        json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    ).encode("utf-8")
+    require(
+        stdout == canonical_receipt,
+        "frozen diagnostic validator: receipt is not canonical one-line JSON",
+    )
+    require(
+        type(receipt["schema_version"]) is int
+        and receipt["schema_version"] == 1
+        and receipt["kind"] == "v934-step4-frozen-diagnostic-validation"
+        and receipt["status"] == "passed"
+        and receipt["ancestor_verified"] is True,
+        "frozen diagnostic validator: receipt identity/status differs",
+    )
+    aggregate = thresholds["aggregate_observed"]
+    evidence = aggregate["evidence"]
+    require(
+        receipt["run_id"] == evidence["run_id"]
+        and receipt["diagnostic_git_head"] == evidence["git_head"]
+        and receipt["current_git_head"] == git_commit(repo_root, "frozen diagnostic validator")
+        and receipt["confirmed_threshold_sha256"]
+        == sha256_file(thresholds_path, "confirmed coverage thresholds")
+        and receipt["evidence"] == evidence
+        and receipt["aggregate_observed"] == aggregate
+        and receipt["aggregate_reviewed_thresholds"]
+        == thresholds["aggregate_reviewed_thresholds"]
+        and receipt["critical_reviewed_thresholds"]
+        == thresholds["critical_reviewed_thresholds"],
+        "frozen diagnostic validator: receipt differs from confirmed threshold input",
+    )
+    frozen_blobs = require_exact_keys(
+        receipt["frozen_blobs"],
+        ("threshold", "contract"),
+        "frozen diagnostic validator receipt.frozen_blobs",
+    )
+    frozen_threshold = require_exact_keys(
+        frozen_blobs["threshold"],
+        ("git_path", "sha256", "status"),
+        "frozen diagnostic validator receipt.frozen_blobs.threshold",
+    )
+    frozen_contract = require_exact_keys(
+        frozen_blobs["contract"],
+        ("git_path", "sha256", "status"),
+        "frozen diagnostic validator receipt.frozen_blobs.contract",
+    )
+    require(
+        frozen_threshold
+        == {
+            "git_path": "scripts/v934/step4/coverage-thresholds.json",
+            "sha256": evidence["threshold_predecessor_sha256"],
+            "status": "diagnostic-pending",
+        }
+        and frozen_contract
+        == {
+            "git_path": "scripts/v934/step4/coverage-contract.json",
+            "sha256": evidence["coverage_contract_sha256"],
+            "status": "diagnostic-ready",
+        },
+        "frozen diagnostic validator: frozen blob identities differ",
+    )
+    return {
+        "schema_version": 1,
+        "kind": receipt["kind"],
+        "status": receipt["status"],
+        "run_id": receipt["run_id"],
+        "diagnostic_git_head": receipt["diagnostic_git_head"],
+        "current_git_head": receipt["current_git_head"],
+        "ancestor_verified": True,
+        "confirmed_threshold_sha256": receipt["confirmed_threshold_sha256"],
+        "receipt_sha256": hashlib.sha256(canonical_receipt).hexdigest(),
+    }
+
+
+def validate_all(
+    args: argparse.Namespace,
+    *,
+    structure_only_negative_fixture: bool = False,
+) -> dict[str, Any]:
     repo_root = Path(args.repo_root).expanduser().resolve(strict=True)
     require(repo_root.is_dir(), "repo root: expected directory")
+    if not structure_only_negative_fixture:
+        require(
+            all(
+                getattr(args, name) is None
+                for name in (
+                    "contract",
+                    "thresholds",
+                    "ledger",
+                    "root_pom",
+                    "model_pom",
+                    "reporter_pom",
+                )
+            ),
+            "full validate-contract requires canonical inputs and forbids overrides",
+        )
 
     contract_path = resolve_override(repo_root, args.contract, "scripts/v934/step4/coverage-contract.json")
     thresholds_path = resolve_override(repo_root, args.thresholds, "scripts/v934/step4/coverage-thresholds.json")
@@ -1745,15 +2812,14 @@ def validate_all(args: argparse.Namespace) -> dict[str, Any]:
 
     contract = load_json(contract_path, "coverage contract")
     thresholds = load_json(thresholds_path, "coverage thresholds")
-    validate_contract_json(contract)
+    threshold_status = validate_thresholds(repo_root, thresholds)
+    workflow_state = validate_contract_json(contract, threshold_status)
     step4_manifest_path = safe_repo_path(
         repo_root,
         contract["tooling_manifest"]["path"],
         "Step 4 diagnostic tooling manifest",
     )
     step4_manifest_files = validate_step4_manifest(repo_root, step4_manifest_path)
-    validate_thresholds(thresholds)
-    require(contract["threshold_successor"]["required_status_for_diagnostic"] == thresholds["status"], "coverage thresholds: status disagrees with contract diagnostic status")
     parent_files = validate_parent_lineage(repo_root, contract, thresholds)
     lane_counts = validate_ledger(ledger_path, contract)
     report_amendments = validate_report_amendment(repo_root, contract)
@@ -1762,8 +2828,25 @@ def validate_all(args: argparse.Namespace) -> dict[str, Any]:
     validate_model_gate_profile(model_pom_path)
     validate_reporter(repo_root, reporter_pom_path, frozen_modules)
 
+    if structure_only_negative_fixture:
+        require(
+            args.contract is not None and args.thresholds is not None,
+            "structure-only negative fixture validation requires contract and threshold overrides",
+        )
+        frozen_diagnostic_validation = None
+        command = "validate-contract-structure-only-negative-fixture"
+        validation_scope = "structure-only-negative-fixture"
+    else:
+        frozen_diagnostic_validation = (
+            validate_frozen_diagnostic_receipt(repo_root, thresholds_path, thresholds)
+            if workflow_state == "formal"
+            else None
+        )
+        command = "validate-contract"
+        validation_scope = "full"
+
     return {
-        "command": "validate-contract",
+        "command": command,
         "exec_files": contract["execution_ledger"]["exec_files"],
         "expected_sessions": contract["execution_ledger"]["expected_sessions"],
         "lane_counts": lane_counts,
@@ -1776,6 +2859,10 @@ def validate_all(args: argparse.Namespace) -> dict[str, Any]:
         "production_modules": len(frozen_modules),
         "reactor_modules": len(current_modules),
         "model_gate_profiles": 2,
+        "threshold_status": threshold_status,
+        "workflow_state": workflow_state,
+        "validation_scope": validation_scope,
+        "frozen_diagnostic_validation": frozen_diagnostic_validation,
         "status": "passed",
     }
 
@@ -1783,14 +2870,21 @@ def validate_all(args: argparse.Namespace) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate Foggy 9.3.4 Step 4 coverage evidence")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    validate = subparsers.add_parser("validate-contract", help="validate the Step 4 bootstrap contract")
-    validate.add_argument("--repo-root", required=True, help="repository root")
-    validate.add_argument("--contract", help="coverage contract override (negative probes)")
-    validate.add_argument("--thresholds", help="coverage threshold successor override (negative probes)")
-    validate.add_argument("--ledger", help="coverage exec ledger override (negative probes)")
-    validate.add_argument("--root-pom", help="root POM override (negative probes)")
-    validate.add_argument("--model-pom", help="model POM override (negative probes)")
-    validate.add_argument("--reporter-pom", help="reporter POM override (negative probes)")
+    for command, help_text in (
+        ("validate-contract", "validate the Step 4 bootstrap contract"),
+        (
+            "validate-contract-structure-only-negative-fixture",
+            "validate only copied workflow fixture structure for fail-closed negative probes",
+        ),
+    ):
+        validate = subparsers.add_parser(command, help=help_text)
+        validate.add_argument("--repo-root", required=True, help="repository root")
+        validate.add_argument("--contract", help="copied coverage contract (structure-only negative fixtures)")
+        validate.add_argument("--thresholds", help="copied threshold successor (structure-only negative fixtures)")
+        validate.add_argument("--ledger", help="copied coverage exec ledger (structure-only negative fixtures)")
+        validate.add_argument("--root-pom", help="copied root POM (structure-only negative fixtures)")
+        validate.add_argument("--model-pom", help="copied model POM (structure-only negative fixtures)")
+        validate.add_argument("--reporter-pom", help="copied reporter POM (structure-only negative fixtures)")
     source_hash = subparsers.add_parser("source-hash", help="seal the exact tracked worktree bytes")
     source_hash.add_argument("--repo-root", required=True, help="repository root")
     source_hash.add_argument("--output", help="optional non-existing TSV inventory output")
@@ -1799,6 +2893,10 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("--child", choices=("unit", "integration", "step3-required"), required=True)
     launch.add_argument("--run-id", required=True)
     launch.add_argument("--lock-fd", type=int, required=True)
+    launch.add_argument("--ready-path", required=True, help="new run-owned no-clobber ready receipt")
+    formal_delta = subparsers.add_parser("validate-formal-delta", help="validate the diagnostic-to-formal commit allowlist")
+    formal_delta.add_argument("--repo-root", required=True, help="repository root")
+    formal_delta.add_argument("--output", required=True, help="new run-owned no-clobber JSON receipt")
     return parser
 
 
@@ -1808,11 +2906,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "validate-contract":
             result = validate_all(args)
+        elif args.command == "validate-contract-structure-only-negative-fixture":
+            result = validate_all(args, structure_only_negative_fixture=True)
         elif args.command == "source-hash":
             result = source_hash_command(args)
         elif args.command == "launch-child":
             launch_child_command(args)
             raise ContractError("child launcher returned without exec")
+        elif args.command == "validate-formal-delta":
+            result = formal_delta_command(args)
         else:  # argparse makes this unreachable; keep dispatch fail-closed.
             raise ContractError(f"unsupported command {args.command!r}")
     except (ContractError, FileNotFoundError, OSError) as exc:
