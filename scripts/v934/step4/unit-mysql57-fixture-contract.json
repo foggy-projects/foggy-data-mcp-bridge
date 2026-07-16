@@ -14,6 +14,18 @@
     "path": "docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md",
     "sha256": "f2d83006864fd59687daed8952fd0cdb4625c7e4ea95715391c30a268e006d5c"
   },
+  "datasource_adapter": {
+    "path": "foggy-dataset/src/test/resources/application.yml",
+    "sha256": "9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256",
+    "environment_keys": [
+      "V934_UNIT_MYSQL57_URL",
+      "V934_UNIT_MYSQL57_USERNAME",
+      "V934_UNIT_MYSQL57_PASSWORD"
+    ],
+    "scope": "foggy-dataset-test-resource-only",
+    "inventory_authority": "committed-head-tree-with-scrubbed-git-environment",
+    "default_compatibility": "preserved-with-placeholder-defaults"
+  },
   "scope": {
     "authority": "step4-unit-lane-replacement",
     "fixture_kind": "run-owned-mysql57",
@@ -61,6 +73,11 @@
     "coverage_exec_files": 23,
     "coverage_sessions": 48,
     "ambient_listener_reuse": "forbidden",
+    "global_spring_datasource_override": "forbidden",
+    "profile_specific_datasources": "preserved",
+    "restricted_credential_receipt": "exclusive-non-super-unit-maven-window",
+    "connection_observation_close": "disable-init-connect-before-receipt-read",
+    "connection_receipt_rows": "ordered-connection-id-and-observed-user",
     "fixture_cleanup": "container-volume-network-zero-and-port-free"
   },
   "supersession": {

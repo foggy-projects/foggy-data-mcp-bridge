@@ -152,6 +152,7 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
     "foggy-dataset/src/test/java/com/foggyframework/dataset/table/curd/BugFixInsertUpdateMapTest.java",
+    "foggy-dataset/src/test/resources/application.yml",
     "pom.xml",
     "scripts/v934/authority_runner_lib.sh",
     "scripts/v934/step4/JaCoCoExecInspector.java",

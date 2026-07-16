@@ -148,8 +148,11 @@ Positive：
 - r7 触发的 9.3.4-only Unit replacement 以
   `scripts/v934/step4/unit-mysql57-fixture-contract.json` 为机器权威：在同一次 Maven
   invocation 中完整执行 `681 positive + 55 structural / 4,941 testcase`，只连接
-  pinned/run-owned MySQL 5.7，并生成 typed connection/schema receipt、before/after seal、
-  publisher/lifecycle 与 cleanup evidence。Step 2 旧绿色、ambient MySQL 或仅重跑已知
+  pinned/run-owned MySQL 5.7，并生成 restricted non-super exclusive connection receipt、
+  typed schema receipt、before/after seal、publisher/lifecycle 与 cleanup evidence。
+  datasource override 只通过 `foggy-dataset` test resource 的
+  `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` 三个 placeholder 生效，不得覆盖其他模块的
+  SQLite/其他 profile。Step 2 旧绿色、ambient MySQL 或仅重跑已知
   6 keys / 11 nodes 均不能替代该完整 lane。
 - 6 keys / 11 nodes 只是 r7 已知消费者清单；发现新增消费者时必须同步更新 fixture
   contract 与
@@ -180,9 +183,10 @@ starttime、非 canonical final path、伪造 diagnostic run、merge/multi-commi
 replace-ref/graft formal delta 均失败。Unit replacement 还必须拒绝 fixture contract 与
 parent execution/discovery metadata 不一致、ambient/既有容器复用、connection receipt
 缺失/为空/类型错误、schema seal 漂移、publisher 非原子或 lifecycle/cleanup 不完整、
-仅重跑已知 6 keys，以及绕过 DEBT acceptance gate。
+全局 Spring datasource/profile 覆盖、placeholder 错绑/跨模块消费、non-super connection
+未独占 restricted credential、仅重跑已知 6 keys，以及绕过 DEBT acceptance gate。
 
-Diagnostic-ready result（2026-07-16，不是 Step 4 pass）：静态执行结构为
+Historical diagnostic-ready result（2026-07-16，不是 Step 4 pass）：静态执行结构为
 `23 exec / 48 sessions`，required report overlay 为
 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
 `2/6`。raw contract/effective POM/toolchain/report inventory expected-negative 已分别得到
@@ -397,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r7 historical Unit hermeticity fail-closed / remediation quality review / fresh r8 pending`
+- step4_result: `in-progress / Unit quality r2 profile-boundary fail-closed / fresh r3 Unit / remediation quality / commit-push / fresh r8 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -430,9 +434,10 @@ Final acceptance 至少验证：
 - Step 4 static readiness：exact `23 exec / 48 sessions`、
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`；
   contract/source/XML/logger=`20/22/63/14`，effective POM/toolchain/report inventory=
-  `4/5/30`，derived view/overlay/DB/external=`12/12/14/12`；Unit fixture negative receipt=
-  `27/27`（原 fixture/manifest probes `20/20`、connection schema typed `4/4`、atomic
-  publisher `3/3`），negative receipt 文件 schema/tamper 另为 `4/4`，真实 lifecycle=`5/5`。
+  `4/5/30`，derived view/overlay/DB/external=`12/12/14/12`；Unit fixture negatives=
+  `36/36`（原 fixture/manifest probes `20/20`、connection typed `7/7`、atomic
+  publisher `3/3`、profile boundary `6/6`），negative receipt 文件 schema/tamper 另为
+  `4/4`，真实 lifecycle=`5/5`，report inventory=`30/30`。
   threshold 仍为
   `diagnostic-pending`；fresh r8 diagnostic 与 subsequent formal 尚未执行，没有 aggregate
   baseline/review、当前实现质量通过或 Step 4 exit evidence。
@@ -469,29 +474,49 @@ Final acceptance 至少验证：
   ports 均无 listener 时，Unit 出现 6 suites / 11 errors，证明旧绿色隐式依赖 ambient
   `127.0.0.1:13306` MySQL/schema。outer=`child-unit / exit 1`，后续 lane、aggregate、
   threshold、source-after、summary absent；r7 与不完整 Unit exec excluded/non-reusable；
+- Unit fixture quality r2=`step4-unit-fixture-quality-20260716-r2`：commit=
+  `a603f839a98d99b2d7beb8379f76b4d85539328c`，source-before=`3,981 files` /
+  `087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`；
+  lifecycle `5/5` 后，完整 Maven invocation 因全局 `spring.datasource.*` 覆盖
+  `foggy-dataset-model` SQLite profile 而以 `3,115 tests / 631 errors` fail closed。
+  根因=`org.sqlite.JDBC` + `jdbc:mysql://127.0.0.1:13306/...` mismatch；r2
+  excluded/non-reusable；
 - Unit fixture remediation focused：run-owned pinned MySQL 5.7 下保持
-  `681+55/4,941/F0E0S0`，schema before=after，temporary residue=`0/0/0`、port free；
+  schema before/after、temporary residue=`0/0/0`、port free；当前 adapter 只在
+  `foggy-dataset` test resource 消费三个 `V934_UNIT_MYSQL57_*` placeholder，其他 profile
+  保持原配置。outer/callback negatives 覆盖 underscore/dotted/hyphen Spring/custom key、
+  `@argfile`、`VMOptionsFile`、`javaagent/agentlib/agentpath`；adapter inventory 在 scrubbed
+  Git environment 下读取 `HEAD` tree 并禁用 replace object；
   existing-port negative preflight fail closed 且不改变外部容器。机器权威为
   `scripts/v934/step4/unit-mysql57-fixture-contract.json`；其中 6 keys / 11 nodes 只是已知
   清单，replacement 范围是完整 Unit lane。Step 2 identity/cardinality 仅保留结构证明，
   correctness 由 fresh Step 4 replacement 取代；
+- connection receipt test：root 配置 `init_connect` 后运行 Maven；Maven 返回后同一 root
+  batch 必须先 disable、再按 `connection_id` SELECT。receipt 保存有序 observed user，closed
+  window 内全部 non-super connection 必须为 `v934_unit`；callback 后 provisioner `foggy`
+  控制面连接在窗口外；
 - 当前 Unit replacement 静态/负向/lifecycle readiness 为 contract `20/20`、fixture
-  negative receipt `27/27`（原 fixture/manifest probes `20/20`、connection schema typed
-  `4/4`、atomic publisher `3/3`）、negative receipt 文件 schema/tamper 另为 `4/4`、真实
-  lifecycle `5/5`、report inventory `30/30`；这些 focused/static 证据不是 fresh r8
-  diagnostic 或 subsequent formal，也不表示实现质量已经通过；
+  negatives `36/36`（原 fixture/manifest probes `20/20`、connection typed `7/7`、atomic
+  publisher `3/3`、profile boundary `6/6`）、negative receipt 文件 schema/tamper 另为
+  `4/4`、真实 lifecycle `5/5`、report inventory `30/30`；这些 focused/static 证据不是
+  fresh r3 Unit、fresh r8 diagnostic 或 subsequent formal，也不表示实现质量已经通过；
 - successor remediation regression：database-state/required-report/report-inventory 均经 Step 4
   adapters 选择 successor authority；original frozen state control 仍 fail closed。current identity：
   coverage contract diagnostic/formal=
-  `553050b9268ec76b87dd35ea4d68f56b5aaac67022cfd51a6f0cdf6897a01bac` /
-  `d78825e5eed99ef17b362368dab7197282aac8058870f206bf6187b684131345`，
-  successor=`14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`，
-  top=`59/59` / `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`，
+  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
+  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`，
+  successor=`14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`，
+  top=`60/60` / `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`，
   overlay contract/tool=
-  `baf4992390fbd31690840dd9bcb50a5a0ad02be0c227f770158a2d328b7209b0` /
-  `6976b33dc49c2af4e4b98106268f9b2e09fbb24feea4f5398fd1d3a6602f1f4e`，
-  coverage tool=`4fb2b803acc80d4c808e94c153bba541b0bebd2543224cfddfa52783dbb3d1f1`，
-  amendments=`17` / `183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`，
+  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
+  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`，
+  coverage tool=`27afd37350fa7f1646fba4be59791ec6bdec94fe57e0cdfecc2a08e0f43f2f18`，
+  amendments=`18` / `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`，
+  fixture contract/tool/Unit runner/datasource adapter=
+  `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
+  `cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
+  `45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66` /
+  `9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256`，
   database/required contracts=
   `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
   `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
@@ -506,11 +531,12 @@ Final acceptance 至少验证：
 - r7 evidence/BUG：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`；
   `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`；
-- next executable action: 完成 Unit fixture remediation 正式实现质量闸门，commit/push 后
-  在四个 frozen ports 无 listener 的 evidence window 执行 fresh r8 all-lane diagnostic。
+- next executable action: 先执行 fresh r3 Unit；通过后完成 Unit fixture remediation 正式
+  实现质量闸门与 commit/push，再在四个 frozen ports 无 listener 的 evidence window 执行
+  fresh r8 all-lane diagnostic。
   threshold 仍为
-  `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、coverage audit 与 acceptance
-  仍关闭。只有 fresh formal、实现质量闸门与测试证据覆盖审计全部通过，9.3.4 才可按
+  `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与
+  acceptance 仍关闭。只有 fresh formal、实现质量闸门与测试证据覆盖审计全部通过，9.3.4 才可按
   例外携带已登记债务签收；
   `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` 必须在
   9.3.5 验收前关闭。

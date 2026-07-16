@@ -147,7 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r7 historical Unit hermeticity fail-closed / formal remediation quality pending / fresh r8 pending`。
+`in-progress / Unit remediation r2 profile-isolation fail-closed / fresh Unit r3 + formal
+remediation quality + commit-push + fresh r8 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -428,6 +429,51 @@ Diagnostic r7 Unit hermeticity result（2026-07-16，supersedes current entry）
 - current entry：正式实现质量闸门和 fresh r8 均 pending；质量通过后再 commit/push，证明
   clean `HEAD == origin/main`，并以 fresh r8 重跑全部 lane。`can_enter_coverage_audit=no`；
   Step 5、acceptance 与 9.3.5 保持关闭。
+
+Unit remediation r2 profile-isolation result（2026-07-16，supersedes current entry）：
+
+- immutable failed run=`step4-unit-fixture-quality-20260716-r2`，tested commit=
+  `a603f839a98d99b2d7beb8379f76b4d85539328c`，source-before=`3,981 files` /
+  `087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`；真实 lifecycle
+  negatives=`5/5` 后，`foggy-dataset-model` Unit=
+  `3,115 tests / 0 failures / 631 errors / 0 skipped`；
+- root cause：callback 的全 reactor `-Dspring.datasource.*` 把 MySQL URL 覆盖进默认
+  `sqlite` profile，但 profile 仍提供 `org.sqlite.JDBC`，首因是 SQLite driver 明确拒绝
+  `jdbc:mysql`。Unit final manifest/summary、fixture after/receipt、aggregate 与 threshold
+  全部 absent，r2=`excluded/non-reusable`；
+- cleanup：child=`unit-mysql57-90da4977dc197f81` 的 container/volume/network=`0/0/0`、
+  `13306=free`；原 demo MySQL exact container 已在 evidence window 外恢复为
+  `running/healthy`；
+- minimal repair：只有 `foggy-dataset` test resource 通过
+  `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholders 消费受控 credential；callback
+  移除全部全局 Spring datasource 参数，其他 SQLite/显式 profile 不变。outer/callback
+  双层拒绝 underscore/dotted/hyphen Spring/custom key 及 `@argfile`、`VMOptionsFile`、
+  `javaagent/agentlib/agentpath` 间接注入；adapter path/hash 与唯一 consumer 范围由 scrubbed
+  Git environment、`HEAD` tree、no-replace object inventory 约束。closed Unit Maven
+  observation window 从配置 `init_connect` 到 Maven 返回后同一 root batch 先 disable 再
+  SELECT；receipt 保存有序 `connection_id + observed user`，窗口内全部 non-super 连接必须
+  使用 `v934_unit`，callback 后 provisioner `foggy` 控制面位于窗口外；
+- repaired static closure：Unit negatives=`36/36`（`20+7+3+profile 6`）、negative receipt
+  schema=`4/4`、lifecycle=`5/5`、report inventory=`30/30`；top manifest=`60/60` /
+  `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`，successor=
+  `14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
+  diagnostic/formal contract=
+  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
+  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；
+  fixture contract/tool/runner=
+  `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
+  `cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
+  `45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66`；
+  declared amendments=`18` /
+  `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；
+  overlay contract/tool=
+  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
+  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`；
+- record=
+  `docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`；
+- current entry：fresh Unit remediation r3、正式 remediation quality、commit/push/clean HEAD
+  与 fresh all-lane r8 均 pending。上述静态结果不是质量或 r8 通过；
+  `can_enter_coverage_audit=no`，Step 5、acceptance 与 9.3.5 保持关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

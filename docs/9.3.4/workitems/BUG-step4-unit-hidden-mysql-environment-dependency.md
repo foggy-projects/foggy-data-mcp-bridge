@@ -44,6 +44,12 @@ Step 4 diagnostic r7 在四个 repo demo DB 容器均已停止、冻结端口均
 这形成了“测试声明外部依赖、authority 不声明资源”的断链。将这些测试临时迁移到 H2、
 SQLite 或放宽 selector 都会改变 MySQL 方言语义或冻结 inventory，不是本轮最小可信修复。
 
+首次完整 fixture remediation r2 又暴露第二层根因：callback 通过全 reactor
+`-Dspring.datasource.*` 注入 MySQL URL/credential，覆盖了 `foggy-dataset-model` 默认
+SQLite URL，但没有改变其 `sqlite` profile 的 `org.sqlite.JDBC`。结果是 SQLite driver +
+MySQL URL，不能用“给所有模块补 MySQL driver/profile”修正，否则会继续改变其余 Unit
+测试的既有 profile 语义。
+
 ## Remediation
 
 1. Unit runner 为 outer run 派生唯一 child/project，前台同步复用 frozen MySQL 5.7
@@ -63,29 +69,58 @@ SQLite 或放宽 selector 都会改变 MySQL 方言语义或冻结 inventory，�
    `DEBT-unit-mysql57-fixture-classification-migration.md` 跟踪。
 8. 使用 restricted test credential 并生成非空连接回执；真实执行 INT/TERM/HUP、callback
    failure 与 leader-kill fallback 共 5 个 lifecycle probe，所有路径均要求精确资源 cleanup。
+9. 仅在 `foggy-dataset` test resource 中以
+   `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholders 接收 callback 受控环境，移除所有
+   global Spring datasource 参数；adapter path/hash/唯一 consumer 进入机器契约，inventory
+   使用 scrubbed Git environment、`HEAD` tree 与 no-replace object。outer 与 callback 双层
+   拒绝 underscore/dotted/hyphen Spring/custom key 及 `@argfile`、`VMOptionsFile`、
+   `javaagent/agentlib/agentpath` 间接注入。
+10. closed Unit Maven observation window 由 root 配置 `init_connect` 开始；Maven 返回后同一
+    root batch 先 disable、再按 `connection_id` SELECT。receipt 保存有序 observed user，
+    窗口内全部 non-super connection 必须 exclusively 使用 restricted `v934_unit`；callback
+    后 provisioner `foggy` 控制面位于窗口外。
 
 ## Regression Evidence
 
 - r7 RED：6 suites / 11 errors，outer=`child-unit / exit 1`；source-before=
   `b3fc04ee0d16a7a81f5e9697b10b5edeaafec0f59cd5dbec1e65625381c3fe43`；
+- Unit remediation r2 RED：run=`step4-unit-fixture-quality-20260716-r2`，commit=
+  `a603f839a98d99b2d7beb8379f76b4d85539328c`，source-before=`3,981` /
+  `087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`，lifecycle=`5/5`；
+  `foggy-dataset-model=3,115/F0E631S0`，首因=`org.sqlite.JDBC` 拒绝 `jdbc:mysql`；final
+  manifest/summary absent。child=`unit-mysql57-90da4977dc197f81` cleanup=`0/0/0`、port
+  free，r2 excluded/non-reusable；
 - focused GREEN：run-owned MySQL 5.7 下 Unit=
   `681+55 / 4,941 / F0E0S0`，schema before=after=
   `93a9a8d51c8e8188173ce905965293adbd163e2d1e21c12d2f1f8637bbe4da0d`；
 - cleanup：temporary container/volume/network=`0/0/0`，port free；
 - occupied-port negative：preflight exit `1 / E_PORT_OWNED`，ambient demo container identity
   before/after exact；
-- static negatives：Unit negative receipt=`27/27`，其中原 fixture/manifest schema/tamper=
-  `20/20`、connection receipt typed=`4/4`、atomic publisher=`3/3`；negative receipt schema
+- static negatives：Unit negative receipt=`36/36`，其中原 fixture/manifest schema/tamper=
+  `20/20`、connection receipt typed=`7/7`、atomic publisher=`3/3`、profile isolation=
+  `6/6`；negative receipt schema
   tamper 另为 `4/4`；report inventory=`30/30`、overlay=`12/12`；
 - lifecycle：真实 process probes=`5/5`，覆盖 INT/TERM/HUP、callback failure、leader-kill
   fallback，逐项 residue=`0/0/0` 且 port free；
-- exact contract：coverage=`23 exec / 48 sessions`；fixture hardening 后 top tooling
-  manifest=`59/59` / `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`，
-  successor=`14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`。
+- exact contract：coverage=`23 exec / 48 sessions`；profile isolation hardening 后 top tooling
+  manifest=`60/60` / `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`，
+  successor=`14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
+  diagnostic/formal contract=
+  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
+  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`，fixture
+  contract/tool/runner=
+  `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
+  `cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
+  `45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66`；
+  declared amendments=`18` /
+  `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`，overlay
+  contract/tool=
+  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
+  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`。
 
-focused/static 结果只证明修复可进入 fresh diagnostic，不是 Step 4 exit evidence。
-当前 `formal remediation quality=pending / fresh r8=pending`；不得宣称 Step 4、coverage
-audit 或验收通过。
+focused/static 结果只证明修复可进入 fresh Unit r3，不是 Step 4 exit evidence。
+当前 `fresh Unit r3=pending / formal remediation quality=pending / commit-push=pending /
+fresh r8=pending`；不得宣称 Step 4、coverage audit 或验收通过，Step 5 保持关闭。
 
 ## Verification Checklist
 
@@ -98,10 +133,13 @@ audit 或验收通过。
 - [x] fixture evidence 字段纳入 Unit summary、report inventory 与 amendment schema。
 - [x] machine contract 与 DEBT workitem 明确 full Unit replacement、known `6/11` 和 Step 2
       structure-only/correctness-non-reuse 边界。
-- [x] restricted test connection receipt、`27/27 + receipt schema 4/4` negatives 与真实
+- [x] r2 profile-isolation failure 已封存为 excluded/non-reusable；
+- [x] profile-scoped adapter、ambient 双层拒绝、restricted exclusive receipt 与
+      `36/36 + receipt schema 4/4` negatives、真实
       lifecycle `5/5` 纳入 fail-closed evidence。
-- [x] 按最终工作树刷新并复验 top exact manifest=`59/59`、SHA-256=
-      `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`。
+- [x] 按最终工作树刷新并复验 top exact manifest=`60/60`、SHA-256=
+      `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`。
+- [ ] fresh Unit remediation r3 通过。
 - [ ] 正式实现质量闸门通过。
 - [ ] commit/push 后 fresh r8 all-lane 通过 `23 exec / 48 sessions`。
 - [ ] fresh formal 复验通过后关闭本 BUG。
@@ -109,6 +147,7 @@ audit 或验收通过。
 ## References
 
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
+- `docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`
 - `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
 - `scripts/verify-v934-unit.sh`
 - `scripts/v934/step4/unit_mysql_fixture_tool.py`

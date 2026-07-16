@@ -108,23 +108,53 @@ port-occupied negative 使用原 demo MySQL 验证：child=
 `6ef91181f31461977c94db46d8059edc19ee0d21598c83b6d24625097e103318` /
 `ea14720829c1ac1f6318e62e97e75017005c7e3af9829b377acf5429fba9de27`。
 
+## Follow-up Unit remediation r2 boundary
+
+第一次完整 fixture authority retry=`step4-unit-fixture-quality-20260716-r2` 在 commit
+`a603f839a98d99b2d7beb8379f76b4d85539328c` 上建立 source-before=`3,981 files` /
+`087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`，并先完成真实
+lifecycle=`5/5`。主 fixture 随后成功启动，但 callback 以全 reactor
+`-Dspring.datasource.*` 覆盖 MySQL URL，`foggy-dataset-model` 默认 `sqlite` profile 仍保留
+`org.sqlite.JDBC`，最终得到 `3,115/F0E631S0`，首因是 SQLite driver 拒绝 `jdbc:mysql`。
+
+r2 没有 final manifest/summary、fixture after/receipt 或 source-after；child=
+`unit-mysql57-90da4977dc197f81` 已 cleanup `0/0/0` 且 port free，demo exact container 在
+evidence window 外恢复 healthy。r2=`excluded/non-reusable`，不得与 focused/r7/r8 证据拼接。
+完整记录见
+`docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`。
+
+最小修复只让 `foggy-dataset` test resource 通过
+`V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholders 消费 callback 受控环境，移除所有
+global Spring datasource args并保持其余模块 profile 不变。outer/callback 双层拒绝
+underscore/dotted/hyphen Spring/custom key 及 `@argfile`、`VMOptionsFile`、
+`javaagent/agentlib/agentpath`；adapter path/hash/唯一 consumer 进入机器契约，其 inventory
+使用 scrubbed Git environment 枚举 `HEAD` tree 并禁用 replace object。connection receipt
+只覆盖 closed Unit Maven observation window：root 配置 `init_connect` 后运行 Maven，随后在
+同一 root batch 先 disable 再按 `connection_id` SELECT，保存有序 observed user；该窗口内
+所有 non-super connections 必须为 restricted `v934_unit`，callback 后 provisioner 的
+`foggy` 控制面连接位于窗口外。
+
 ## Contract closure before r8
 
 - successor overlay positive/negative=`12/12`；
-- Unit negative receipt=`27/27`：原 fixture/manifest schema/tamper=`20/20`、connection receipt typed=
-  `4/4`、atomic publisher=`3/3`；negative receipt schema tamper 另为 `4/4`；
+- Unit negative receipt=`36/36`：原 fixture/manifest schema/tamper=`20/20`、connection receipt typed=
+  `7/7`、atomic publisher=`3/3`、profile isolation=`6/6`；negative receipt schema tamper
+  另为 `4/4`；
 - 真实 fixture lifecycle=`5/5`：INT/TERM/HUP、callback failure 与 leader-kill fallback
   均返回约定 exit，逐项 container/volume/network=`0/0/0` 且 `13306=free`；
 - report inventory negatives=`30/30`；fixture manifest、negative receipt、lifecycle receipt 与
   classification contract/debt 引用进入 typed inventory；
 - coverage execution contract 仍为 `23 exec / 48 sessions`；required inventory 仍为
   `773 positive + 59 structural / 5,707 testcase`，Addon=`2/6`；
-- fixture hardening 后 top tooling manifest=`59/59` /
-  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`，successor=
-  `14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`；
+- profile isolation hardening 后 top tooling manifest=`60/60` /
+  `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`，successor=
+  `14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
+  diagnostic/formal contract=
+  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
+  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；
   threshold 仍为 `diagnostic-pending`，未修改 threshold 或 exclusion。
 
-以上 focused/static 结果只允许提交修复并发起 fresh r8，不得替代 all-lane diagnostic。
+以上 static 结果只允许发起 fresh Unit r3，不能替代正式质量或 all-lane r8。
 
 ## Next gate
 
@@ -134,13 +164,15 @@ port-occupied negative 使用原 demo MySQL 验证：child=
 - [x] focused Unit 保持 `681+55 / 4,941 / F0E0S0`；port collision fail closed；
 - [x] machine contract/DEBT 固定 full Unit replacement、known `6/11` 与 Step 2
       structure-only/correctness-non-reuse 边界；
-- [x] Unit negative receipt=`27/27`、negative receipt schema tamper=`4/4`、真实 lifecycle=
+- [x] r2 profile-isolation failure 已封存为 excluded/non-reusable；
+- [x] Unit negative receipt=`36/36`、negative receipt schema tamper=`4/4`、真实 lifecycle=
       `5/5`、report inventory negatives=`30/30`；
-- [x] 按最终工作树刷新并复验 top exact manifest=`59/59`、SHA-256=
-      `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`；
+- [x] 按最终工作树刷新并复验 top exact manifest=`60/60`、SHA-256=
+      `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`；
+- [ ] fresh Unit remediation r3 通过；
 - [ ] 正式实现质量闸门通过并 commit/push；
 - [ ] 从 clean/pushed HEAD 执行 fresh r8 all-lane diagnostic；
 - [ ] reviewed threshold freeze、fresh formal 与最终质量闸门完成。
 
-正式实现质量与 fresh r8 当前均 pending。在 fresh r8、threshold freeze、formal 与最终质量完成前，
+fresh Unit r3、正式实现质量、commit/push 与 fresh r8 当前均 pending。在 fresh r8、threshold freeze、formal 与最终质量完成前，
 `can_enter_coverage_audit=no`，Step 5 保持关闭。

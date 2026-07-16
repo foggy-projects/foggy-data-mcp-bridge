@@ -60,21 +60,35 @@ for required_file in "$UNIT_FIXTURE_TOOL" "$DATABASE_PROVISIONER"; do
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
   variable_value="${!variable_name:-}"
-  if [[ "$variable_value" =~ (skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*|spring[._]) ]]; then
+  if [[ "$variable_value" == *"@"* || "$variable_value" =~ -[Xx][Xx]:[Vv][Mm][Oo][Pp][Tt][Ii][Oo][Nn][Ss][Ff][Ii][Ll][Ee] || "$variable_value" =~ -([Jj][Aa][Vv][Aa][Aa][Gg][Ee][Nn][Tt]|[Aa][Gg][Ee][Nn][Tt][Ll][Ii][Bb]|[Aa][Gg][Ee][Nn][Tt][Pp][Aa][Tt][Hh]): ]]; then
+    fail "$variable_name contains forbidden option indirection"
+  fi
+  if [[ "$variable_value" =~ (skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*|[Ss][Pp][Rr][Ii][Nn][Gg][._-]|[Vv]934[._-][Uu][Nn][Ii][Tt][._-][Mm][Yy][Ss][Qq][Ll]57) ]]; then
     fail "$variable_name contains a forbidden lane override"
   fi
 done
+for variable_name in V934_UNIT_MYSQL57_URL V934_UNIT_MYSQL57_USERNAME V934_UNIT_MYSQL57_PASSWORD; do
+  [[ -z "${!variable_name+x}" ]] || fail "ambient Unit fixture environment is forbidden: $variable_name"
+done
 while IFS='=' read -r environment_key _; do
-  [[ "$environment_key" != SPRING_* ]] || fail "ambient Spring environment is forbidden: $environment_key"
+  normalized_environment_key="${environment_key^^}"
+  [[ "$normalized_environment_key" != SPRING_* && "$normalized_environment_key" != SPRING.* && "$normalized_environment_key" != SPRING-* ]] || \
+    fail "ambient Spring environment is forbidden: $environment_key"
+  normalized_fixture_key="${normalized_environment_key//./_}"
+  normalized_fixture_key="${normalized_fixture_key//-/_}"
+  [[ "$normalized_fixture_key" != V934_UNIT_MYSQL57_* ]] || \
+    fail "ambient Unit fixture environment is forbidden: $environment_key"
 done < <(env)
 for variable_name in JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS; do
-  [[ ! "${!variable_name:-}" =~ [Ss][Pp][Rr][Ii][Nn][Gg][._] ]] || \
-    fail "$variable_name contains a Spring datasource/config override"
+  [[ "${!variable_name:-}" != *"@"* && ! "${!variable_name:-}" =~ -[Xx][Xx]:[Vv][Mm][Oo][Pp][Tt][Ii][Oo][Nn][Ss][Ff][Ii][Ll][Ee] && ! "${!variable_name:-}" =~ -([Jj][Aa][Vv][Aa][Aa][Gg][Ee][Nn][Tt]|[Aa][Gg][Ee][Nn][Tt][Ll][Ii][Bb]|[Aa][Gg][Ee][Nn][Tt][Pp][Aa][Tt][Hh]): ]] || \
+    fail "$variable_name contains forbidden option indirection"
+  [[ ! "${!variable_name:-}" =~ ([Ss][Pp][Rr][Ii][Nn][Gg][._-]|[Vv]934[._-][Uu][Nn][Ii][Tt][._-][Mm][Yy][Ss][Qq][Ll]57) ]] || \
+    fail "$variable_name contains a datasource/config override"
 done
 for config_file in "$ROOT_DIR/.mvn/maven.config" "$ROOT_DIR/.mvn/jvm.config"; do
   if [[ -e "$config_file" || -L "$config_file" ]]; then
     [[ -f "$config_file" && ! -L "$config_file" ]] || fail "Maven config is not a real file: $config_file"
-    if grep -Eq '(skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*|[Ss][Pp][Rr][Ii][Nn][Gg][._])' "$config_file"; then
+    if grep -Eq '(@|-[Xx][Xx]:[Vv][Mm][Oo][Pp][Tt][Ii][Oo][Nn][Ss][Ff][Ii][Ll][Ee]|-([Jj][Aa][Vv][Aa][Aa][Gg][Ee][Nn][Tt]|[Aa][Gg][Ee][Nn][Tt][Ll][Ii][Bb]|[Aa][Gg][Ee][Nn][Tt][Pp][Aa][Tt][Hh]):|skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*|[Ss][Pp][Rr][Ii][Nn][Gg][._-]|[Vv]934[._-][Uu][Nn][Ii][Tt][._-][Mm][Yy][Ss][Qq][Ll]57)' "$config_file"; then
       fail "Maven config contains a forbidden lane or Spring override: $config_file"
     fi
   fi

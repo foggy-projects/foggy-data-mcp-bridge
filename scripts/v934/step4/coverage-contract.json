@@ -5,7 +5,7 @@
   "tooling_manifest": {
     "path": "scripts/v934/step4/SHA256SUMS",
     "path_semantics": "repository-relative-posix",
-    "required_entries": 59,
+    "required_entries": 60,
     "publication_status": "diagnostic-ready"
   },
   "parent_links": {

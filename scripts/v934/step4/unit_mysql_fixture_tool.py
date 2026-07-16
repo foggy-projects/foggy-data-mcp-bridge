@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
@@ -37,19 +38,28 @@ CANONICAL_FIXTURE_SHA256 = "70b1a5d755bd781004cd35abd8d11525a997b857335165e0b0e2
 SELF_PATH = Path("scripts/v934/step4/unit_mysql_fixture_tool.py")
 PROVISIONER_PATH = Path("scripts/v934/step3/provision-database-cell.sh")
 FIXTURE_CONTRACT_PATH = Path("scripts/v934/step4/unit-mysql57-fixture-contract.json")
-FIXTURE_CONTRACT_SHA256 = "78275ebca15e34c09183c870f69a0130f650b4699902569378d95cc7732ba5a3"
+FIXTURE_CONTRACT_SHA256 = "7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a"
 STEP2_EXECUTION_PATH = Path("scripts/v934/successor/step2/step2-required-execution.tsv")
 STEP2_EXECUTION_SHA256 = "42a9467cdbcfbed5ed54d0bdfa276d92daa7fa2c83795cd13a21df931d0fc1d0"
 STEP2_DISCOVERY_PATH = Path("scripts/v934/successor/step2/discovery-inventory.tsv")
 STEP2_DISCOVERY_SHA256 = "634a5fbc5732676114bb4203498e20c032f8b34e113243705b1306569418404e"
 MIGRATION_WORKITEM_PATH = Path("docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md")
 MIGRATION_WORKITEM_SHA256 = "f2d83006864fd59687daed8952fd0cdb4625c7e4ea95715391c30a268e006d5c"
+DATASOURCE_ADAPTER_PATH = Path("foggy-dataset/src/test/resources/application.yml")
+DATASOURCE_ADAPTER_SHA256 = "9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256"
 REACTOR_FREEZE_PATH = Path("scripts/v934/contract-freeze.json")
 REACTOR_FREEZE_SHA256 = "ff418e04f6a938a853ce7bbd0700223627f42520705530e819a53e5591e82876"
 FROZEN_REACTOR_SHA256 = "eff20373aa46e0c25747172ce1c2c59630451870335b175406ebedd361bb1809"
 UNIT_DATABASE_USER = "v934_unit"
 UNIT_DATABASE_PASSWORD = "v934_unit_934"
 UNIT_DATABASE_URL = "jdbc:mysql://127.0.0.1:13306/foggy_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&enabledTLSProtocols=TLSv1.2"
+CONNECTION_OBSERVATION_SCOPE = "unit-maven-invocation"
+DATASOURCE_ENVIRONMENT = {
+    "V934_UNIT_MYSQL57_URL": UNIT_DATABASE_URL,
+    "V934_UNIT_MYSQL57_USERNAME": UNIT_DATABASE_USER,
+    "V934_UNIT_MYSQL57_PASSWORD": UNIT_DATABASE_PASSWORD,
+}
+DATASOURCE_ENV_KEYS = tuple(DATASOURCE_ENVIRONMENT)
 CELL_FILES = (
     "cleanup.env",
     "database-identity.txt",
@@ -153,6 +163,7 @@ NEGATIVE_PROBE_SPECS = (
     ("wrong-database-identity", "E_IDENTITY"),
     ("wrong-tool-binding", "E_BINDING"),
     ("wrong-contract-binding", "E_BINDING"),
+    ("wrong-datasource-adapter-binding", "E_BINDING"),
     ("wrong-ddl-binding", "E_BINDING"),
     ("wrong-reactor-binding", "E_BINDING"),
     ("fixture-mutation", "E_FIXTURE"),
@@ -162,6 +173,14 @@ NEGATIVE_PROBE_SPECS = (
     ("boolean-connection-receipt-count", "E_DATASOURCE"),
     ("empty-connection-ids", "E_DATASOURCE"),
     ("duplicate-connection-ids", "E_DATASOURCE"),
+    ("wrong-connection-observation-scope", "E_DATASOURCE"),
+    ("open-connection-observation", "E_DATASOURCE"),
+    ("wrong-observed-connection-user", "E_DATASOURCE"),
+    ("ambient-fixture-environment", "E_DATASOURCE"),
+    ("global-spring-override", "E_DATASOURCE"),
+    ("dotted-fixture-environment", "E_DATASOURCE"),
+    ("dotted-spring-environment", "E_DATASOURCE"),
+    ("option-argument-indirection", "E_DATASOURCE"),
     ("cleanup-residue", "E_CLEANUP"),
     ("boolean-cleanup-count", "E_CLEANUP"),
     ("port-occupied", "E_CLEANUP"),
@@ -447,6 +466,14 @@ def expected_fixture_contract() -> dict[str, Any]:
             "path": MIGRATION_WORKITEM_PATH.as_posix(),
             "sha256": MIGRATION_WORKITEM_SHA256,
         },
+        "datasource_adapter": {
+            "path": DATASOURCE_ADAPTER_PATH.as_posix(),
+            "sha256": DATASOURCE_ADAPTER_SHA256,
+            "environment_keys": list(DATASOURCE_ENV_KEYS),
+            "scope": "foggy-dataset-test-resource-only",
+            "inventory_authority": "committed-head-tree-with-scrubbed-git-environment",
+            "default_compatibility": "preserved-with-placeholder-defaults",
+        },
         "scope": {
             "authority": "step4-unit-lane-replacement",
             "fixture_kind": "run-owned-mysql57",
@@ -471,6 +498,11 @@ def expected_fixture_contract() -> dict[str, Any]:
             "coverage_exec_files": 23,
             "coverage_sessions": 48,
             "ambient_listener_reuse": "forbidden",
+            "global_spring_datasource_override": "forbidden",
+            "profile_specific_datasources": "preserved",
+            "restricted_credential_receipt": "exclusive-non-super-unit-maven-window",
+            "connection_observation_close": "disable-init-connect-before-receipt-read",
+            "connection_receipt_rows": "ordered-connection-id-and-observed-user",
             "fixture_cleanup": "container-volume-network-zero-and-port-free",
         },
         "supersession": {
@@ -504,6 +536,7 @@ def validate_fixture_contract(root: Path) -> dict[str, Any]:
         "E_CONTRACT",
         "fixture migration workitem hash differs",
     )
+    validate_datasource_adapter_scope(root)
     try:
         inventory_text = stable_file_bytes(root / STEP2_EXECUTION_PATH, "E_CONTRACT").decode("utf-8", errors="strict")
         rows = list(csv.DictReader(io.StringIO(inventory_text), delimiter="\t"))
@@ -532,6 +565,48 @@ def validate_fixture_contract(root: Path) -> dict[str, Any]:
         observed_nodes[key] = int(row["discovered_test_nodes"])
     require(observed_nodes == EXCEPTION_TESTCASE_NODES and sum(observed_nodes.values()) == 11, "E_CONTRACT", "known hidden dependency cardinality differs")
     return contract
+
+
+def validate_datasource_adapter_scope(root: Path) -> None:
+    require(
+        sha256_file(root / DATASOURCE_ADAPTER_PATH) == DATASOURCE_ADAPTER_SHA256,
+        "E_CONTRACT",
+        "Unit datasource adapter hash differs",
+    )
+    completed = run_command(
+        [
+            "git", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false",
+            "-c", "core.hooksPath=/dev/null", "-C", str(root),
+            "ls-tree", "-r", "-z", "--name-only", "HEAD",
+        ],
+        environment=controlled_git_environment(),
+    )
+    require(completed.returncode == 0, "E_CONTRACT", "cannot enumerate committed resource adapters")
+    try:
+        tracked_paths = [item for item in completed.stdout.decode("utf-8", errors="strict").split("\0") if item]
+    except UnicodeError:
+        reject("E_CONTRACT", "tracked resource adapter inventory is not UTF-8")
+    resources: list[str] = []
+    for relative in tracked_paths:
+        parts = PurePosixPath(relative).parts
+        if any(
+            parts[index] == "src"
+            and parts[index + 1] in {"main", "test"}
+            and parts[index + 2] == "resources"
+            for index in range(max(0, len(parts) - 2))
+        ):
+            resources.append(relative)
+    needles = tuple(key.encode() for key in DATASOURCE_ENV_KEYS)
+    consumers: list[str] = []
+    for relative in resources:
+        payload = stable_file_bytes(root / relative, "E_CONTRACT")
+        if any(needle in payload for needle in needles):
+            consumers.append(relative)
+    require(
+        consumers == [DATASOURCE_ADAPTER_PATH.as_posix()],
+        "E_CONTRACT",
+        f"Unit datasource adapter scope differs: {consumers}",
+    )
 
 
 def frozen_reactor_modules(root: Path) -> list[str]:
@@ -578,9 +653,40 @@ def resource_identity(child_id: str) -> dict[str, str]:
     }
 
 
-def run_command(arguments: list[str], *, cwd: Path | None = None, input_bytes: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
+def controlled_git_environment() -> dict[str, str]:
+    environment = {
+        key: value for key, value in os.environ.items()
+        if not key.upper().startswith("GIT_") and key not in {"XDG_CONFIG_HOME"}
+    }
+    environment.update({
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "LC_ALL": "C",
+        "LANG": "C",
+    })
+    return environment
+
+
+def run_command(
+    arguments: list[str],
+    *,
+    cwd: Path | None = None,
+    input_bytes: bytes | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[bytes]:
     try:
-        return subprocess.run(arguments, cwd=cwd, input=input_bytes, stdout=subprocess.PIPE if input_bytes is None else None, stderr=subprocess.PIPE if input_bytes is None else None, check=False)
+        return subprocess.run(
+            arguments,
+            cwd=cwd,
+            input=input_bytes,
+            env=environment,
+            stdout=subprocess.PIPE if input_bytes is None else None,
+            stderr=subprocess.PIPE if input_bytes is None else None,
+            check=False,
+        )
     except OSError as exc:
         reject("E_RUNTIME", f"cannot execute {arguments[0]}: {exc.__class__.__name__}")
 
@@ -623,18 +729,46 @@ def mysql_root_command(container: str, sql: str, *, capture: bool) -> bytes:
     return completed.stdout if capture else b""
 
 
-def validate_spring_environment(root: Path) -> None:
-    spring_keys = sorted(key for key in os.environ if key.startswith("SPRING_"))
+def validate_controlled_environment(
+    environment: Mapping[str, str],
+    config_values: Mapping[str, str],
+) -> None:
+    spring_keys = sorted(
+        key for key in environment
+        if key.lower().startswith(("spring_", "spring.", "spring-"))
+    )
     require(not spring_keys, "E_DATASOURCE", f"ambient Spring environment is forbidden: {spring_keys}")
+    fixture_keys = sorted(
+        key for key in environment
+        if key.lower().replace(".", "_").replace("-", "_").startswith("v934_unit_mysql57_")
+    )
+    require(not fixture_keys, "E_DATASOURCE", f"ambient Unit fixture environment is forbidden: {fixture_keys}")
+    forbidden_tokens = (
+        "spring.", "spring_", "spring-",
+        "v934.unit.mysql57", "v934_unit_mysql57", "v934-unit-mysql57",
+    )
+    forbidden_indirection = ("@", "-xx:vmoptionsfile", "-javaagent:", "-agentlib:", "-agentpath:")
     for key in ("MAVEN_ARGS", "MAVEN_CONFIG", "MAVEN_OPTS", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS"):
-        value = os.environ.get(key, "")
-        require("spring." not in value.lower() and "spring_" not in value.lower(), "E_DATASOURCE", f"{key} contains a Spring override")
+        value = environment.get(key, "").lower()
+        require(not any(token in value for token in forbidden_tokens), "E_DATASOURCE", f"{key} contains a datasource override")
+        require(not any(token in value for token in forbidden_indirection), "E_DATASOURCE", f"{key} contains option indirection")
+    for label, value in config_values.items():
+        lowered = value.lower()
+        require(not any(token in lowered for token in forbidden_tokens), "E_DATASOURCE", f"{label} contains a datasource override")
+        require(not any(token in lowered for token in forbidden_indirection), "E_DATASOURCE", f"{label} contains option indirection")
+
+
+def validate_spring_environment(root: Path) -> None:
+    config_values: dict[str, str] = {}
     for relative in (Path(".mvn/maven.config"), Path(".mvn/jvm.config")):
         path = root / relative
         if path.exists() or path.is_symlink():
             regular_file(path, "E_DATASOURCE")
-            value = stable_file_bytes(path, "E_DATASOURCE").decode("utf-8", errors="strict").lower()
-            require("spring." not in value and "spring_" not in value, "E_DATASOURCE", f"{relative} contains a Spring override")
+            try:
+                config_values[relative.as_posix()] = stable_file_bytes(path, "E_DATASOURCE").decode("utf-8", errors="strict")
+            except UnicodeError:
+                reject("E_DATASOURCE", f"{relative} is not UTF-8")
+    validate_controlled_environment(os.environ, config_values)
 
 
 def configure_connection_receipt(container: str) -> None:
@@ -656,10 +790,10 @@ SET GLOBAL init_connect = 'INSERT INTO foggy_test.V934_UNIT_CONNECTION_RECEIPT(c
 
 
 def collect_connection_receipt(container: str, output: Path) -> dict[str, Any]:
-    sql = f"""\
+    sql = """\
+SET GLOBAL init_connect = '';
 SELECT connection_id, user_value
 FROM `V934_UNIT_CONNECTION_RECEIPT`
-WHERE user_value LIKE '{UNIT_DATABASE_USER}@%'
 ORDER BY connection_id;
 """
     raw = mysql_root_command(container, sql, capture=True)
@@ -668,19 +802,31 @@ ORDER BY connection_id;
     except UnicodeError:
         reject("E_DATASOURCE", "connection receipt is not UTF-8")
     connection_ids: list[int] = []
+    connections: list[dict[str, Any]] = []
     for line in lines:
         parts = line.split("\t")
-        require(len(parts) == 2 and parts[0].isdigit() and parts[1].startswith(f"{UNIT_DATABASE_USER}@"), "E_DATASOURCE", "connection receipt row differs")
-        connection_ids.append(int(parts[0]))
-    require(connection_ids and len(connection_ids) == len(set(connection_ids)), "E_DATASOURCE", "test JVM did not use the run-owned MySQL credential")
+        require(
+            len(parts) == 2
+            and parts[0].isdigit()
+            and parts[1].startswith(f"{UNIT_DATABASE_USER}@"),
+            "E_DATASOURCE",
+            "a non-super MySQL connection did not use the restricted run-owned credential",
+        )
+        connection_id = int(parts[0])
+        connection_ids.append(connection_id)
+        connections.append({"connection_id": connection_id, "user_value": parts[1]})
+    require(connection_ids and len(connection_ids) == len(set(connection_ids)), "E_DATASOURCE", "test JVM did not exclusively use the run-owned MySQL credential")
     payload = {
         "schema_version": 1,
         "kind": "v934-step4-unit-mysql57-connection-receipt",
         "status": "passed",
         "username": UNIT_DATABASE_USER,
         "jdbc_url": UNIT_DATABASE_URL,
+        "observation_scope": CONNECTION_OBSERVATION_SCOPE,
+        "observation_closed": True,
         "connection_count": len(connection_ids),
         "connection_ids": connection_ids,
+        "connections": connections,
     }
     validate_connection_receipt(payload)
     atomic_publish(output, json_bytes(payload))
@@ -690,14 +836,26 @@ ORDER BY connection_id;
 def validate_connection_receipt(payload: Any) -> dict[str, Any]:
     payload = exact_keys(
         payload,
-        {"schema_version", "kind", "status", "username", "jdbc_url", "connection_count", "connection_ids"},
+        {
+            "schema_version", "kind", "status", "username", "jdbc_url",
+            "observation_scope", "observation_closed", "connection_count", "connection_ids",
+            "connections",
+        },
         "E_DATASOURCE",
         "connection receipt",
     )
     require(type(payload["schema_version"]) is int and payload["schema_version"] == 1, "E_DATASOURCE", "connection receipt schema differs")
     require(payload["kind"] == "v934-step4-unit-mysql57-connection-receipt" and payload["status"] == "passed", "E_DATASOURCE", "connection receipt identity differs")
     require(payload["username"] == UNIT_DATABASE_USER and payload["jdbc_url"] == UNIT_DATABASE_URL, "E_DATASOURCE", "connection receipt coordinate differs")
+    require(
+        payload["observation_scope"] == CONNECTION_OBSERVATION_SCOPE
+        and type(payload["observation_closed"]) is bool
+        and payload["observation_closed"] is True,
+        "E_DATASOURCE",
+        "connection receipt observation window differs",
+    )
     ids = payload["connection_ids"]
+    connections = payload["connections"]
     require(
         type(ids) is list
         and ids
@@ -707,6 +865,21 @@ def validate_connection_receipt(payload: Any) -> dict[str, Any]:
         and payload["connection_count"] == len(ids),
         "E_DATASOURCE",
         "connection receipt count differs",
+    )
+    require(
+        type(connections) is list
+        and len(connections) == len(ids)
+        and all(
+            type(item) is dict
+            and set(item) == {"connection_id", "user_value"}
+            and type(item["connection_id"]) is int
+            and item["connection_id"] == ids[index]
+            and type(item["user_value"]) is str
+            and item["user_value"].startswith(f"{UNIT_DATABASE_USER}@")
+            for index, item in enumerate(connections)
+        ),
+        "E_DATASOURCE",
+        "connection receipt observed users differ",
     )
     return payload
 
@@ -738,7 +911,7 @@ def parse_snapshot(payload: bytes) -> dict[str, Any]:
 
 
 def snapshot(container: str, output: Path) -> str:
-    observed = parse_snapshot(mysql_command(container, SNAPSHOT_SQL, capture=True))
+    observed = parse_snapshot(mysql_root_command(container, SNAPSHOT_SQL, capture=True))
     atomic_publish(output, json_bytes(observed))
     return sha256_file(output)
 
@@ -844,23 +1017,17 @@ def command_callback(args: argparse.Namespace) -> None:
     mysql_command(identity["container"], UNIT_DDL, capture=False)
     configure_connection_receipt(identity["container"])
     before_sha = snapshot(identity["container"], before_path)
-    datasource_args = [
-        f"-Dspring.datasource.url={UNIT_DATABASE_URL}",
-        f"-Dspring.datasource.username={UNIT_DATABASE_USER}",
-        f"-Dspring.datasource.password={UNIT_DATABASE_PASSWORD}",
-        f"-Dspring.test.url={UNIT_DATABASE_URL}",
-        f"-Dspring.test.username={UNIT_DATABASE_USER}",
-        f"-Dspring.test.password={UNIT_DATABASE_PASSWORD}",
-    ]
     maven = [
         "mvn", "-q", "-f", str(root / "pom.xml"),
         "-P!multi-db,!model-lifecycle,!query-cache-real-query",
         "-pl", expected_reactor, "-am",
         "-DskipUnitTests=false", "-DskipITs=true", "-Dsurefire.failIfNoTests=false",
-        *datasource_args, *coverage_args, "test",
+        *coverage_args, "test",
     ]
+    maven_environment = dict(os.environ)
+    maven_environment.update(DATASOURCE_ENVIRONMENT)
     try:
-        completed = subprocess.run(maven, cwd=root, check=False)
+        completed = subprocess.run(maven, cwd=root, env=maven_environment, check=False)
     except OSError as exc:
         reject("E_RUNTIME", f"cannot execute Maven: {exc.__class__.__name__}")
     if completed.returncode != 0:
@@ -1309,6 +1476,7 @@ def validate_cell(root: Path, run_id: str) -> dict[str, Any]:
             "tool": evidence_record(root, root / SELF_PATH),
             "provisioner": evidence_record(root, root / PROVISIONER_PATH),
             "fixture_contract": evidence_record(root, root / FIXTURE_CONTRACT_PATH),
+            "datasource_adapter": evidence_record(root, root / DATASOURCE_ADAPTER_PATH),
             "step2_execution_inventory": evidence_record(root, root / STEP2_EXECUTION_PATH),
             "step2_discovery_inventory": evidence_record(root, root / STEP2_DISCOVERY_PATH),
             "reactor_freeze": evidence_record(root, root / REACTOR_FREEZE_PATH),
@@ -1347,17 +1515,19 @@ def validate_manifest_schema(payload: Any) -> None:
     require(payload["project"] == project_name(child_id) and payload["image_ref"] == IMAGE_REF and payload["image_id"] == IMAGE_ID and payload["database_identity"] == DATABASE_IDENTITY, "E_IDENTITY", "manifest runtime identity differs")
     bindings = exact_keys(
         payload["bindings"],
-        {"tool", "provisioner", "fixture_contract", "step2_execution_inventory", "step2_discovery_inventory", "reactor_freeze", "unit_ddl_sha256", "reactor_modules_sha256"},
+        {"tool", "provisioner", "fixture_contract", "datasource_adapter", "step2_execution_inventory", "step2_discovery_inventory", "reactor_freeze", "unit_ddl_sha256", "reactor_modules_sha256"},
         "E_BINDING",
         "bindings",
     )
-    for field in ("tool", "provisioner", "fixture_contract", "step2_execution_inventory", "step2_discovery_inventory", "reactor_freeze"):
+    for field in ("tool", "provisioner", "fixture_contract", "datasource_adapter", "step2_execution_inventory", "step2_discovery_inventory", "reactor_freeze"):
         validate_artifact_schema(bindings[field])
     require(
         bindings["tool"]["path"] == SELF_PATH.as_posix()
         and bindings["provisioner"]["path"] == PROVISIONER_PATH.as_posix()
         and bindings["fixture_contract"]["path"] == FIXTURE_CONTRACT_PATH.as_posix()
         and bindings["fixture_contract"]["sha256"] == FIXTURE_CONTRACT_SHA256
+        and bindings["datasource_adapter"]["path"] == DATASOURCE_ADAPTER_PATH.as_posix()
+        and bindings["datasource_adapter"]["sha256"] == DATASOURCE_ADAPTER_SHA256
         and bindings["step2_execution_inventory"]["path"] == STEP2_EXECUTION_PATH.as_posix()
         and bindings["step2_execution_inventory"]["sha256"] == STEP2_EXECUTION_SHA256
         and bindings["step2_discovery_inventory"]["path"] == STEP2_DISCOVERY_PATH.as_posix()
@@ -1447,6 +1617,7 @@ def synthetic_manifest() -> dict[str, Any]:
             "tool": artifact(SELF_PATH.as_posix()),
             "provisioner": artifact(PROVISIONER_PATH.as_posix()),
             "fixture_contract": artifact(FIXTURE_CONTRACT_PATH.as_posix(), FIXTURE_CONTRACT_SHA256),
+            "datasource_adapter": artifact(DATASOURCE_ADAPTER_PATH.as_posix(), DATASOURCE_ADAPTER_SHA256),
             "step2_execution_inventory": artifact(STEP2_EXECUTION_PATH.as_posix(), STEP2_EXECUTION_SHA256),
             "step2_discovery_inventory": artifact(STEP2_DISCOVERY_PATH.as_posix(), STEP2_DISCOVERY_SHA256),
             "reactor_freeze": artifact(REACTOR_FREEZE_PATH.as_posix(), REACTOR_FREEZE_SHA256),
@@ -1493,6 +1664,7 @@ def command_negative(args: argparse.Namespace) -> None:
     probe("wrong-database-identity", "E_IDENTITY", lambda p: p.__setitem__("database_identity", "foggy_test|8.0.0"))
     probe("wrong-tool-binding", "E_BINDING", lambda p: p["bindings"]["tool"].__setitem__("path", "forged.py"))
     probe("wrong-contract-binding", "E_BINDING", lambda p: p["bindings"]["fixture_contract"].__setitem__("path", "forged.json"))
+    probe("wrong-datasource-adapter-binding", "E_BINDING", lambda p: p["bindings"]["datasource_adapter"].__setitem__("sha256", "b" * 64))
     probe("wrong-ddl-binding", "E_BINDING", lambda p: p["bindings"].__setitem__("unit_ddl_sha256", "b" * 64))
     probe("wrong-reactor-binding", "E_BINDING", lambda p: p["bindings"].__setitem__("reactor_modules_sha256", "b" * 64))
     probe("fixture-mutation", "E_FIXTURE", lambda p: p["fixture"].__setitem__("after_sha256", "b" * 64))
@@ -1504,8 +1676,11 @@ def command_negative(args: argparse.Namespace) -> None:
         "status": "passed",
         "username": UNIT_DATABASE_USER,
         "jdbc_url": UNIT_DATABASE_URL,
+        "observation_scope": CONNECTION_OBSERVATION_SCOPE,
+        "observation_closed": True,
         "connection_count": 1,
         "connection_ids": [1],
+        "connections": [{"connection_id": 1, "user_value": f"{UNIT_DATABASE_USER}@localhost"}],
     }
 
     def connection_probe(name: str, mutate: Callable[[dict[str, Any]], None]) -> None:
@@ -1517,6 +1692,34 @@ def command_negative(args: argparse.Namespace) -> None:
     connection_probe("boolean-connection-receipt-count", lambda p: p.__setitem__("connection_count", True))
     connection_probe("empty-connection-ids", lambda p: p.__setitem__("connection_ids", []))
     connection_probe("duplicate-connection-ids", lambda p: p.update({"connection_count": 2, "connection_ids": [1, 1]}))
+    connection_probe("wrong-connection-observation-scope", lambda p: p.__setitem__("observation_scope", "fixture-lifetime"))
+    connection_probe("open-connection-observation", lambda p: p.__setitem__("observation_closed", False))
+    connection_probe("wrong-observed-connection-user", lambda p: p["connections"][0].__setitem__("user_value", "foggy@localhost"))
+    direct_probe(
+        "ambient-fixture-environment",
+        "E_DATASOURCE",
+        lambda: validate_controlled_environment({DATASOURCE_ENV_KEYS[0]: "forged"}, {}),
+    )
+    direct_probe(
+        "global-spring-override",
+        "E_DATASOURCE",
+        lambda: validate_controlled_environment({"MAVEN_ARGS": "-Dspring.datasource.url=forged"}, {}),
+    )
+    direct_probe(
+        "dotted-fixture-environment",
+        "E_DATASOURCE",
+        lambda: validate_controlled_environment({"v934.unit.mysql57.url": "forged"}, {}),
+    )
+    direct_probe(
+        "dotted-spring-environment",
+        "E_DATASOURCE",
+        lambda: validate_controlled_environment({"spring.datasource.url": "forged"}, {}),
+    )
+    direct_probe(
+        "option-argument-indirection",
+        "E_DATASOURCE",
+        lambda: validate_controlled_environment({"JDK_JAVA_OPTIONS": "@/tmp/forged.args"}, {}),
+    )
     probe("cleanup-residue", "E_CLEANUP", lambda p: p["cleanup"].__setitem__("containers", 1))
     probe("boolean-cleanup-count", "E_CLEANUP", lambda p: p["cleanup"].__setitem__("containers", False))
     probe("port-occupied", "E_CLEANUP", lambda p: p["cleanup"].__setitem__("port_free", False))
@@ -1584,7 +1787,7 @@ def command_negative(args: argparse.Namespace) -> None:
     receipt_probe(lambda p: p.__setitem__("forged", True))
     output = args.output.expanduser().absolute()
     atomic_publish(output, json_bytes(payload))
-    print(f"{PREFIX} negative PASS probes={len(probes)}/{len(probes)} receipt-schema=4/4 connection-schema=4/4 publisher=3/3 output={output}")
+    print(f"{PREFIX} negative PASS probes={len(probes)}/{len(probes)} receipt-schema=4/4 connection-schema=7/7 profile-boundary=6/6 publisher=3/3 output={output}")
 
 
 def validate_negative_receipt(payload: Any) -> dict[str, Any]:

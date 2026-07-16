@@ -49,24 +49,41 @@ updated_at: 2026-07-16
   required report overlay=`773 positive + 59 structural / 5,707 testcase`，Addon companion=
   `2/6`；required 总计预期 `F0E0S0`。coverage contract mutations=`20/20`、
   source identity=`22/22`、effective POM=`4/4`、toolchain receipt=`5/5`、
-  report inventory=`30/30`。Unit negative receipt=`27/27`，其中原
-  fixture/manifest schema/tamper=`20/20`、connection receipt typed=`4/4`、atomic
-  publisher=`3/3`；negative receipt schema tamper 另为 `4/4`，真实 fixture lifecycle=
-  `5/5`。Step 2 derived view/successor overlay=`12/12`/`12/12`，XML/provenance=
+  report inventory=`30/30`。Unit fixture negatives=`36/36`，其中原
+  fixture/manifest schema/tamper=`20/20`、connection typed=`7/7`、atomic
+  publisher=`3/3`、profile boundary=`6/6`；negative receipt 文件 schema/tamper 另为
+  `4/4`，真实 fixture lifecycle=`5/5`。restricted credential receipt 的 closed Unit Maven
+  observation window 由 `configure init_connect -> Maven -> 同一 root batch 先 disable 再
+  SELECT` 界定，按 `connection_id` 保存有序 observed user；该窗口内所有 non-super
+  connections 必须使用 run-owned `v934_unit`，callback 返回后的 provisioner `foggy`
+  控制面连接在窗口外。Step 2 derived
+  view/successor overlay=`12/12`/`12/12`，XML/provenance=
   `63/63`，logger lifecycle=`9 类 / 14 case`。
 - toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
   `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1` 以及 24 个
-  production module 的 effective compiler。run-owned Unit fixture hardening 的最终静态
-  identity 已复验：top manifest=`59/59` /
-  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`，successor=
-  `14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`，
+  production module 的 effective compiler。run-owned Unit fixture hardening 的当前静态
+  identity 已复验：top manifest=`60/60` /
+  `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`，successor=
+  `14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`，
   amendment=`12 rows / 4 new + 8 changed` /
   `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`；fixture
-  contract/tool/Unit runner/report inventory tool=
-  `78275ebca15e34c09183c870f69a0130f650b4699902569378d95cc7732ba5a3` /
-  `e39b69f5eceec026e257f948a84575d6161ed367897b35e9f0538417acf44a46` /
-  `c853b4a79a646f87ca64ece9abfc7a7a593573dcf36a394414018f48c853af7b` /
-  `7366fb0d5f56ede1bfb8697bf71c935ad6fd6600db2ddeec56aba6b87a38b5b4`。
+  contract/tool/Unit runner/datasource adapter=
+  `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
+  `cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
+  `45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66` /
+  `9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256`；
+  coverage diagnostic/formal=
+  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
+  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；
+  declared amendments=`18` /
+  `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；
+  overlay contract/tool=
+  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
+  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`。
+  datasource adapter inventory 由 scrubbed Git environment 枚举 `HEAD` tree，并以
+  `GIT_NO_REPLACE_OBJECTS=1` 禁用 replace object；ambient guard 同时覆盖 underscore、
+  dotted、hyphen 的 Spring/custom key，以及 `@argfile`、`VMOptionsFile`、`javaagent`、
+  `agentlib`、`agentpath` 间接注入。
   新增回归证明 tracked FIFO 会在 worktree-aware Git 读取前 fail-fast，且 before/after raw
   stat identity 比较会拒绝内容可被 Git clean 等价化、但运行中发生的并发重写。
   source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
@@ -137,11 +154,23 @@ updated_at: 2026-07-16
   正确性绿色不复用；机器例外契约见
   `scripts/v934/step4/unit-mysql57-fixture-contract.json`，迁移债务见
   [DEBT-unit-mysql57-fixture-classification-migration](workitems/DEBT-unit-mysql57-fixture-classification-migration.md)。
-- 当前状态为 `in-progress / r7 historical Unit hermeticity fail-closed / formal remediation
-  quality pending / fresh r8 pending`。
+- Unit fixture quality r2=`step4-unit-fixture-quality-20260716-r2` 在 commit
+  `a603f839a98d99b2d7beb8379f76b4d85539328c`、`3,981 files`、source SHA-256=
+  `087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`
+  上先通过真实 lifecycle `5/5`，随后完整 Maven invocation 因全局
+  `spring.datasource.*` 覆盖 `foggy-dataset-model` 的 SQLite profile 而 fail closed：
+  `3,115 tests / 631 errors`。直接根因为 `org.sqlite.JDBC` 被配置为连接
+  `jdbc:mysql://127.0.0.1:13306/...`；r2 excluded/non-reusable。修复已将
+  `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` 三个 placeholder 仅放入
+  `foggy-dataset` test resource，callback 不再传全局 Spring datasource/test 参数，其他
+  profile 保持原配置。
+- 当前状态为 `in-progress / r2 historical Unit profile-boundary fail-closed / fresh r3 Unit /
+  remediation quality / commit-push / fresh r8 pending`。
   `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r7 与 focused/static 结果都不是 Step 4 exit evidence。
-  `can_enter_coverage_audit=no`，Step 5 仍关闭。
+  `diagnostic-pending`；r1–r7、Unit fixture quality r1/r2 与 focused/static 结果都不是
+  Step 4 exit evidence。`can_enter_coverage_audit=no`；fresh r3 Unit、remediation quality、
+  commit/push 与 fresh r8 diagnostic 均 pending，Step 5、formal、coverage audit 与
+  acceptance 仍关闭。
 
 ## 执行资料
 
@@ -236,7 +265,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r7 Unit hermeticity fail-closed | r7 excluded；完整 Unit lane 已改用 run-owned MySQL 5.7，focused/static 与真实 lifecycle 已完成；正式质量闸门和 fresh r8 均 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / Unit quality r2 profile-boundary fail-closed | r2 excluded/non-reusable；profile-scoped datasource adapter 与 `36/36` negatives 已完成；fresh r3 Unit、remediation quality、commit/push、fresh r8 均 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

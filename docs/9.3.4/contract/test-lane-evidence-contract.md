@@ -190,6 +190,21 @@ invocation 可见，因此 exception 的实际 authority scope 是整个 frozen 
 机器契约和债务清单，并重新通过 fresh Step 4 formal、质量闸门和测试证据覆盖审计；不能把
 新 consumer 静默解释为已获授权。
 
+该 Maven invocation 不得以全局 `spring.datasource.*`、`spring.test.*` 或 active-profile
+参数覆盖其他模块的 profile datasource。run-owned MySQL 只允许通过
+`foggy-dataset/src/test/resources/application.yml` 中
+`V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` 三个 placeholder 进入 r7 已知默认/隐藏
+consumer；`foggy-dataset-model` 的 SQLite 等其他 profile 必须保持各自 URL、driver 与
+初始化脚本。outer/callback 必须拒绝 underscore/dotted/hyphen 的 Spring/custom key，以及
+`@argfile`、`VMOptionsFile`、`javaagent/agentlib/agentpath` 间接注入。adapter consumer
+inventory 必须由 scrubbed Git environment 枚举 `HEAD` tree，并设置 no-replace object。
+connection receipt 的 authority scope 是 closed Unit Maven observation window：root 先配置
+`init_connect`，再运行 Maven，Maven 返回后由同一 root batch 先 disable `init_connect`、
+再按 `connection_id` SELECT。receipt 必须保存有序 `connection_id + observed user`，并证明
+该窗口内所有 non-super MySQL connections exclusively 使用 restricted run-owned
+credential；callback 返回后的 provisioner `foggy` 控制面连接位于窗口外。superuser 只可
+用于 fixture 管理、窗口开闭与 receipt 读取。
+
 Step 2 parent 的 execution identity/cardinality 只保留结构与 migration provenance；其
 Unit 绿色在 r7 后不得作为 correctness evidence 复用。9.3.4 Unit correctness 由 fresh
 Step 4 全 lane replacement evidence 完整替代，不能用 focused、partial、failed 或跨 run
@@ -243,8 +258,9 @@ fixture mutation 或 report missing 都失败。
   和 Addon companion 2 variants；optional LLM 保持 reviewed/excluded。只有 Step 4 run
   的 23 个唯一 exec 可进 coverage。
 - 9.3.4 Step 4 的 Unit exec 必须按 `unit-mysql57-fixture-contract.json` 执行完整 Unit
-  lane replacement：pinned/run-owned MySQL 5.7、测试 JVM connection receipt、fixture
-  before/after、真实 lifecycle 与 fallback cleanup 均为同一 run 的 required evidence；
+  lane replacement：pinned/run-owned MySQL 5.7、restricted non-super exclusive connection
+  receipt、profile-scoped datasource adapter、fixture before/after、真实 lifecycle 与
+  fallback cleanup 均为同一 run 的 required evidence；
   ambient listener、旧 Step 2 Unit XML 或只重跑 6 个已知 suite 均不能替代该 authority。
 - Step 4 exit 后，canonical unit/integration/DB runner 默认在各自唯一执行中产 run-owned
   exec；Step 5–7 coverage stage 只收集/校验这些 exec，不得再次执行同一 suite。
@@ -319,8 +335,8 @@ Step 4 diagnostic/formal 发布是双态 fail-closed state machine：
 Step 4 report successor 保持执行库存与报告库存分离：
 `coverage-report-amendment.tsv` exact=`12 rows = 4 new + 8 changed`，SHA-256=
 `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`；
-successor declared amendments=`17`，SHA-256=
-`183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`。L2 fixture
+successor declared amendments=`18`，SHA-256=
+`8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`。L2 fixture
 作为 Integration report source amendment；Pivot fixture 作为 database source successor
 amendment。两者均不改变 report identity/testcase，
 因此 required overlay 仍为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，
@@ -606,7 +622,7 @@ source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-i
 external clean filter，则在任何 worktree-aware Git hash/driver hook 执行前 fail closed，
 negative 证明 hook 未执行。
 
-当前静态合同结果为 contract=`20/20`、source identity=`22/22`、XML=`63/63`、overlay=
+Historical pre-r5 静态合同结果为 contract=`20/20`、source identity=`22/22`、XML=`63/63`、overlay=
 `12/12`。declared amendments SHA-256 保持
 `1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`；diagnostic/formal
 coverage contract SHA-256=
@@ -625,7 +641,7 @@ overlay tool / outer SHA-256=
 `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
 `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。
 
-当前 Step 4=
+Historical pre-r5 Step 4=
 `in-progress / r4 historical fail-closed / source-policy remediation statically passed /
 final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`。decision=
 `ready-with-risks`；两项 Low 均 accepted：`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID
@@ -656,32 +672,46 @@ argv 必须保持不变。database runner、required runner 与 report_inventory
 fail closed，original frozen state validate 保留为 stale-predecessor 负例对照。
 
 当前 successor + Unit fixture remediation 静态身份为：coverage contract diagnostic/formal=
-`553050b9268ec76b87dd35ea4d68f56b5aaac67022cfd51a6f0cdf6897a01bac` /
-`d78825e5eed99ef17b362368dab7197282aac8058870f206bf6187b684131345`；
+`c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
+`341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；
 successor manifest=`14/14` / SHA-256=
-`bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`；
-top manifest=`59/59` / SHA-256=
-`2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`；
+`acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
+top manifest=`60/60` / SHA-256=
+`6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`；
 overlay contract/tool=
-`baf4992390fbd31690840dd9bcb50a5a0ad02be0c227f770158a2d328b7209b0` /
-`6976b33dc49c2af4e4b98106268f9b2e09fbb24feea4f5398fd1d3a6602f1f4e`；
-coverage tool=`4fb2b803acc80d4c808e94c153bba541b0bebd2543224cfddfa52783dbb3d1f1`；
-declared amendments=`17` / SHA-256=
-`183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`；
+`84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
+`1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`；
+coverage tool=`27afd37350fa7f1646fba4be59791ec6bdec94fe57e0cdfecc2a08e0f43f2f18`；
+declared amendments=`18` / SHA-256=
+`8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；
+fixture contract/tool/Unit runner/datasource adapter=
+`7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
+`cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
+`45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66` /
+`9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256`；
 database/required contracts=
 `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
 `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`。
 
-当前 Step 4=`in-progress / r7 historical Unit hermeticity fail-closed / run-owned fixture
-remediation quality review / fresh r8 pending`。Unit authority 必须为唯一 Maven invocation
+Unit fixture quality r2=`step4-unit-fixture-quality-20260716-r2` 在 commit
+`a603f839a98d99b2d7beb8379f76b4d85539328c`、source=`3,981 files` /
+`087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`
+上先通过 lifecycle `5/5`，随后因全局 Spring datasource 覆盖 SQLite profile，使
+`foggy-dataset-model` 以 `3,115 tests / 631 errors` fail closed；根因是
+`org.sqlite.JDBC` 与 `jdbc:mysql://127.0.0.1:13306/...` mismatch。该运行
+excluded/non-reusable。
+
+当前 Step 4=`in-progress / r2 historical Unit profile-boundary fail-closed / fresh r3 Unit /
+remediation quality / commit-push / fresh r8 pending`。Unit authority 必须为唯一 Maven invocation
 创建 pinned、run-owned MySQL 5.7，并封存 schema before/after、resource identity 与 cleanup；
-不得借用 ambient listener。当前 contract static=`20/20`、Unit fixture negative=
-`27/27`（原 fixture/manifest probes=`20/20`、connection receipt typed=`4/4`、atomic
-publisher=`3/3`）、negative receipt 文件 schema/tamper 另为 `4/4`、真实 lifecycle=`5/5`、
-report inventory=`30/30`；这些是 fresh r8
-前的实现证据，不是 coverage exit 或质量通过结论。threshold 仍为 `diagnostic-pending`，
-`can_enter_coverage_audit=no`；r1–r7 均不得拼接，完成 quality、commit/push/clean HEAD 与
-fresh r8 之前，Step 5、formal、coverage audit、acceptance 和 9.3.5 都保持关闭。只有
+不得借用 ambient listener。当前 contract static=`20/20`、Unit fixture negatives=
+`36/36`（原 fixture/manifest probes=`20/20`、connection typed=`7/7`、atomic
+publisher=`3/3`、profile boundary=`6/6`）、negative receipt 文件 schema/tamper 另为
+`4/4`、真实 lifecycle=`5/5`、report inventory=`30/30`；这些是 fresh r3 Unit 前的实现
+证据，不是 coverage exit 或质量通过结论。threshold 仍为 `diagnostic-pending`，
+`can_enter_coverage_audit=no`；r1–r7 与 Unit quality r1/r2 均不得拼接；fresh r3 Unit、
+quality、commit/push/clean HEAD 与 fresh r8 完成前，Step 5、formal、coverage audit、
+acceptance 和 9.3.5 都保持关闭。只有
 fresh formal、实现质量闸门、测试证据覆盖审计和 9.3.4 验收全部通过，9.3.4 才允许带
 `DEBT-unit-mysql57-fixture-classification-migration.md` 签收；该债务必须在 9.3.5
 版本验收前关闭。

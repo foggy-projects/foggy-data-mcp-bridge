@@ -24,11 +24,11 @@ updated_at: 2026-07-16
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r7 Unit hermeticity fail-closed + full Unit lane fixture replacement / formal remediation quality and fresh r8 pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 Unit remediation r2 profile-isolation fail-closed + profile-scoped repair static closed / fresh Unit r3、formal remediation quality、commit-push、fresh r8 pending / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r7 excluded / run-owned fixture remediation / fresh r8 pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r7 and Unit remediation r2 excluded / fresh Unit r3 + quality + commit-push + fresh r8 pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r7 failed runs recorded but exit evidence absent；Steps 4–6 pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r7 与 Unit remediation r2 failed evidence 已记录但 exit evidence absent；Steps 4–6 pending |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 Unit fixture remediation formal quality pending，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
@@ -58,22 +58,23 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-16）：状态仅为
-`in-progress / r7 historical Unit hermeticity fail-closed / run-owned fixture remediation
-formal quality pending / fresh r8 pending`。
+`in-progress / Unit remediation r2 profile-isolation fail-closed / profile-scoped repair static
+closed / fresh Unit r3 + formal remediation quality + commit-push + fresh r8 pending`。
 静态执行结构仍精确为
 `23 exec / 48 sessions`，required
 report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
 companion 仍单列 `2/6`。contract/source identity=`20/20 + 22/22`，effective POM/
-toolchain/report inventory=`4/4 + 5/5 + 30/30`。Unit negative receipt=`27/27`：原
-fixture/manifest schema/tamper=`20/20`、connection receipt typed=`4/4`、atomic
-publisher=`3/3`；negative receipt schema tamper 另为 `4/4`，真实 fixture lifecycle=
+toolchain/report inventory=`4/4 + 5/5 + 30/30`。Unit negative receipt=`36/36`：原
+fixture/manifest schema/tamper=`20/20`、connection receipt typed=`7/7`、atomic
+publisher=`3/3`、profile isolation=`6/6`；negative receipt schema tamper 另为 `4/4`，
+真实 fixture lifecycle=
 `5/5`。Step 2 derived view/successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=
 `9 类 / 14 case`；toolchain receipt 绑定 Step 1 raw 工具版本、ASM `9.6/9.7/9.7.1`
 三层 realm 和 24 个 production module effective compiler。tracked FIFO preflight
 fail-fast 与 before/after raw stat identity 并发重写拒绝均已纳入 `22/22`。
-fixture-hardened static identity 已复验为 top=`59/59` /
-`2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`、successor=
-`14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`、
+fixture-hardened static identity 已复验为 top=`60/60` /
+`6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`、successor=
+`14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`、
 amendment=`12 rows / 4 new + 8 changed` /
 `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`。
 source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
@@ -85,9 +86,28 @@ attributes 若声明 external clean filter，则在任何 worktree-aware Git has
 nodes` 只是已知隐藏依赖清单，不是其他 Unit 测试无 DB 访问的声明。Step 2
 identity/cardinality 继续提供结构基线，但其 Unit 正确性绿色不复用。机器例外契约为
 `scripts/v934/step4/unit-mysql57-fixture-contract.json`，迁移债务为
-`docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`。fixture hardening
-的 top manifest/amendment 最终静态身份已按上文复验；正式质量闸门与 fresh r8 仍 pending，
+`docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`。只有
+`foggy-dataset` test resource 使用 `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholder；
+其他模块 profile 不受 callback 影响。outer/callback 双层拒绝 underscore/dotted/hyphen
+Spring/custom key 及 `@argfile`、`VMOptionsFile`、`javaagent/agentlib/agentpath` 间接注入；
+adapter inventory 使用 scrubbed Git environment、`HEAD` tree 与 no-replace object。
+connection receipt 的 closed Unit Maven window 由 configure `init_connect` 开始，由同一
+root batch 先 disable 再按 `connection_id` SELECT 结束；有序 observed user 必须证明该
+窗口内全部 non-super connection exclusively 使用 restricted `v934_unit`，callback 后的
+provisioner `foggy` 控制面在窗口外。fixture hardening 的 top
+manifest/amendment 最终静态身份已按上文复验；fresh Unit r3、正式质量闸门、commit/push 与
+fresh r8 仍 pending，
 不得以静态 identity 冒充通过结论。
+
+Unit remediation r2 不是 acceptance evidence：
+`step4-unit-fixture-quality-20260716-r2` 在 commit
+`a603f839a98d99b2d7beb8379f76b4d85539328c` 上封存 source-before=`3,981 files` /
+`087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`，lifecycle=`5/5`；
+随后全 reactor `-Dspring.datasource.*` 形成 SQLite driver + MySQL URL，
+`foggy-dataset-model=3,115/F0E631S0`。final manifest/summary absent；child=
+`unit-mysql57-90da4977dc197f81` cleanup=`0/0/0`、port free，demo exact container 已恢复
+healthy。r2=`excluded/non-reusable`，record=
+`docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`。
 
 首次 clean all-lane attempt 已执行但不是 acceptance evidence：clean/pushed HEAD
 `bc100b0f63bd3ff62d1105611dae41741790aedd` 的

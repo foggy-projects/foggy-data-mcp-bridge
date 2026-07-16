@@ -159,7 +159,8 @@ updated_at: 2026-07-16
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r7 historical Unit hermeticity fail-closed / remediation quality review / fresh r8 pending`
+  `in-progress / Unit quality r2 profile-boundary fail-closed / fresh r3 Unit / remediation quality /
+  commit-push / fresh r8 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -179,38 +180,42 @@ updated_at: 2026-07-16
   Addon companion 单列 `2/6`；contract/source identity=`20/20 + 22/22`，
   effective POM/toolchain/report inventory=`4/4 + 5/5 + 30/30`；Step 2 derived view/
   successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`；Unit fixture
-  negative receipt=`27/27`（原 fixture/manifest probes=`20/20`、connection receipt typed=
-  `4/4`、atomic publisher=`3/3`），negative receipt 文件 schema/tamper 另为 `4/4`，
-  真实 lifecycle=`5/5`；
+  negatives=`36/36`（原 fixture/manifest probes=`20/20`、connection typed=`7/7`、
+  atomic publisher=`3/3`、profile boundary=`6/6`），negative receipt 文件
+  schema/tamper 另为 `4/4`，真实 lifecycle=`5/5`；restricted credential receipt 的 closed
+  Unit Maven window 必须由 root `configure init_connect -> Maven -> 同一 root batch 先
+  disable 再按 connection_id SELECT` 闭合，保存有序 observed user，并证明窗口内全部
+  non-super MySQL connections exclusively 使用 run-owned credential；callback 返回后的
+  provisioner `foggy` 控制面连接在窗口外；
 - toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
   `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；Step 4 report
   amendment=`12 rows = 4 new + 8 changed`，SHA-256=
   `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`，
-  successor declared amendments=`17`，SHA-256=
-  `183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`；本地
-  `SHA256SUMS`=`59/59`，SHA-256=
-  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`；
+  successor declared amendments=`18`，SHA-256=
+  `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；本地
+  `SHA256SUMS`=`60/60`，SHA-256=
+  `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`；
   successor=`14/14`，SHA-256=
-  `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`；coverage
+  `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；coverage
   contract diagnostic/formal SHA-256=
-  `553050b9268ec76b87dd35ea4d68f56b5aaac67022cfd51a6f0cdf6897a01bac` /
-  `d78825e5eed99ef17b362368dab7197282aac8058870f206bf6187b684131345`；coverage tool /
+  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
+  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；coverage tool /
   contract-negative / XML tool SHA-256=
-  `4fb2b803acc80d4c808e94c153bba541b0bebd2543224cfddfa52783dbb3d1f1` /
+  `27afd37350fa7f1646fba4be59791ec6bdec94fe57e0cdfecc2a08e0f43f2f18` /
   `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
   `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
   overlay tool / outer SHA-256=
-  `baf4992390fbd31690840dd9bcb50a5a0ad02be0c227f770158a2d328b7209b0` /
-  `6976b33dc49c2af4e4b98106268f9b2e09fbb24feea4f5398fd1d3a6602f1f4e` /
+  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
+  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31` /
   `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；
   successor database/required contracts SHA-256=
   `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
   `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
-- Unit fixture contract/tool/runner/report-inventory tool SHA-256=
-  `78275ebca15e34c09183c870f69a0130f650b4699902569378d95cc7732ba5a3` /
-  `e39b69f5eceec026e257f948a84575d6161ed367897b35e9f0538417acf44a46` /
-  `c853b4a79a646f87ca64ece9abfc7a7a593573dcf36a394414018f48c853af7b` /
-  `7366fb0d5f56ede1bfb8697bf71c935ad6fd6600db2ddeec56aba6b87a38b5b4`；
+- Unit fixture contract/tool/runner/datasource-adapter SHA-256=
+  `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
+  `cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
+  `45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66` /
+  `9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256`；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -273,17 +278,30 @@ updated_at: 2026-07-16
   SHA-256=`b3fc04ee0d16a7a81f5e9697b10b5edeaafec0f59cd5dbec1e65625381c3fe43`。
   Unit 因 6 suites / 11 errors 在 `child-unit` fail closed，证明既有绿色隐式依赖 ambient
   `127.0.0.1:13306` MySQL/schema；r7 与不完整 Unit exec 均 excluded/non-reusable；
+- Unit fixture quality r2=`step4-unit-fixture-quality-20260716-r2` 在 commit
+  `a603f839a98d99b2d7beb8379f76b4d85539328c`、source-before=`3,981 files` /
+  `087d074f3497aff3fe305806f82b4d62ff41cdd4d3b26556e58f034138b14c2c`
+  上先通过 lifecycle `5/5`，随后完整 Maven invocation 因全局
+  `spring.datasource.*` 覆盖 `foggy-dataset-model` 的 SQLite profile 而以
+  `3,115 tests / 631 errors` fail closed；直接根因为 `org.sqlite.JDBC` 与
+  `jdbc:mysql://127.0.0.1:13306/...` mismatch。r2 excluded/non-reusable；
 - 修复必须由 Unit authority 同步创建 pinned、run-owned MySQL 5.7、固定最小 schema，保持
   唯一 Maven invocation、`681+55/4,941` 与全局 `23 exec / 48 sessions`，并在 Unit、outer、
-  Step 3 边界证明 cleanup=`0/0/0`、`13306=free`。focused 已为
-  `681+55/4,941/F0E0S0`；当前 contract static=`20/20`、Unit fixture negative=
-  `27/27`、真实 lifecycle=`5/5`、report inventory=`30/30`。这些结果只证明修复可进入
-  正式质量复核与 fresh r8，不是 Step 4 exit evidence，也不表示质量闸门已经通过；
+  Step 3 边界证明 cleanup=`0/0/0`、`13306=free`。当前修复通过
+  `foggy-dataset/src/test/resources/application.yml` 的
+  `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` 三个 placeholder 只适配该模块默认/隐藏
+  MySQL consumer；其他 profile 保留自身 datasource。outer/callback 必须拒绝
+  underscore/dotted/hyphen Spring/custom key 与 `@argfile`、`VMOptionsFile`、
+  `javaagent/agentlib/agentpath` 间接注入；adapter consumer inventory 必须使用 scrubbed
+  Git environment、`HEAD` tree 与 no-replace object。当前 contract static=`20/20`、
+  Unit fixture negatives=`36/36`、真实 lifecycle=`5/5`、report inventory=`30/30`。
+  这些结果只证明可执行 fresh r3 Unit；fresh r3、正式质量复核、commit/push 与 fresh r8
+  均 pending，不是 Step 4 exit evidence，也不表示质量闸门已经通过；
 - 9.3.4 只有在 fresh Step 4 Unit replacement、fresh formal、实现质量闸门、测试证据覆盖
   审计与版本验收全部通过后，才允许带上述分类债务签收；任一失败即撤销临时例外并保持
   Step 5 关闭。该债务不得跨过 9.3.5 版本验收；
 - Step 4 threshold 仍为
   `diagnostic-pending`，尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。
-  `can_enter_coverage_audit=no`，Step 5
+  `can_enter_coverage_audit=no`，Step 5/formal/coverage audit/acceptance
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
   据此签收 9.3.4 或把 9.3.5 标为 ready。
