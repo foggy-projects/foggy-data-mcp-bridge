@@ -172,6 +172,16 @@ HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
 aggregate/report/threshold。失败证明 `PreAggregationDataValidationTest` 腐化 daily
 而默认 hybrid 实际命中 monthly；同类还存在 raw-vs-raw 和 nullable/empty 伪绿。
 
+Diagnostic r2 result（2026-07-16，failed evidence，不是 Step 4 pass）：clean/pushed
+HEAD=`0101a44a07784bf6b484d490c7fb508727fbab70`，run=
+`step4-coverage-20260716-diagnostic-r2`。Unit=
+`681 execution + 55 structural / 4,941 testcase / F0E0S0`；Integration 已执行
+caffeine=`2/F0E0S0`、hermetic=`3/F0E0S0`、sqlite-broad=`307/F1E0S0`，合计
+`312/F1E0S0`。唯一失败为 `PreAggregationL2CacheIT` 的 `preAggHit` 前提；outer 在
+`child-integration` fail closed，summary absent，database/external/Addon/aggregate/
+threshold 均未运行。failed evidence=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md`。
+
 Build regression：
 
 - `docs/9.3.4/workitems/BUG-step4-legacy-coverage-argline-fail-open.md` 已关闭：
@@ -195,6 +205,22 @@ Test regression：
   `57/F0E0S0`；monthly corruption diff=`1000.00`；source SHA-256=
   `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`。这些 focused
   结果证明修复面，不替代新 clean/pushed HEAD 的 Unit authority 和 r2 all-lane evidence。
+- `BUG-step4-preagg-l2-hybrid-fixture-drift.md`：L2 identity 测试显式选择 snapshot-only，
+  exact 校验 preAgg name/table、raw negative、lookup/write key、二次 hit 与单次 write；最终
+  source SHA-256=`bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`，
+  focused=`1/F0E0S0`，与 `PreAggregationIT` 组合=`30/F0E0S0`；
+- `BUG-step4-pivot-legacy-hybrid-fixture-drift.md`：legacy fallback 两次稳定 RED；只在 legacy
+  分支关闭 hybrid，V934 FULL 分支保持 production 默认，两个分支 exact 校验 name/table/raw
+  negative。最终 source SHA-256=
+  `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`，legacy 与
+  V934 SQLite focused 各 `1/F0E0S0`；
+- identity/static 验证：coverage amendment=`11 rows / 4 new + 7 changed`、declared
+  amendments=`17`、top manifest=`51/51`、successor manifest=`12/12`；对应 SHA-256=
+  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2` /
+  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548` /
+  `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1` /
+  `6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`；
+  coverage/view/successor/DB negatives=`8/12/8/14` 全绿。focused 结果仍不替代 r3。
 
 ## Step 5 — Authority Rehearsal / Immutable Candidate
 
@@ -271,7 +297,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / diagnostic r1 fail-closed / fix focused-green / r2 pending`
+- step4_result: `in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -308,5 +334,9 @@ Final acceptance 至少验证：
   `diagnostic-pending`，没有 aggregate baseline/review 或 Step 4 exit evidence。
 - Step 4 r1：clean/pushed `bc100b0f` 的 `child-unit`=`3115/1/0/0` fail closed；修复
   focused=`9/0`、组合=`57/0`，但未产生 aggregate evidence。
-- next executable action: 提交并推送修复与 successor refresh，确认新的 clean worktree
-  且 `HEAD == origin/main`，再执行 r2 all-lane diagnostic。Step 5 仍关闭。
+- Step 4 r2：clean/pushed `0101a44a` 的 Unit=`4941/F0E0S0`；Integration=
+  `312/F1E0S0` 后 fail closed。L2 修复=`1/0`、组合=`30/0`；Pivot legacy/V934 SQLite
+  各=`1/0`；top identity=`51`，但未产生 aggregate evidence。
+- next executable action: 提交并推送最终修复与 successor refresh，确认新的 clean worktree
+  且 `HEAD == origin/main`，再执行 r3 all-lane diagnostic。Step 5、coverage audit 与
+  acceptance 仍关闭。

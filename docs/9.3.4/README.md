@@ -38,7 +38,7 @@ updated_at: 2026-07-16
   `step3-required-20260716-final-r4` 通过：database `29/370` + required external
   `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
-  已按序完成；Step 4 仍为 `in-progress`，diagnostic r1 已 fail closed，尚无 coverage
+  已按序完成；Step 4 仍为 `in-progress`，diagnostic r2 已 fail closed，尚无 coverage
   pass 或 aggregate baseline/review。
 - Step 4 diagnostic-ready baseline 已冻结两层独立库存：coverage execution=
   `23 exec / 48 sessions`；
@@ -49,11 +49,12 @@ updated_at: 2026-07-16
 - toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
   `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1` 以及 24 个
   production module 的 effective compiler。report amendment 现为 exact
-  `10 rows = 4 new + 6 changed`，SHA-256=
-  `5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；successor
-  declared amendments=`15`。本地 Step 4 `SHA256SUMS` 已生成并通过 exact 49 项校验，
-  manifest SHA-256=
-  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
+  `11 rows = 4 new + 7 changed`，SHA-256=
+  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；successor
+  declared amendments=`17`，SHA-256=
+  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`。本地 Step 4
+  `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
+  `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`。
 - 静态复核还发现并修复 root coverage `argLine` 早解析 fail-open：legacy
   profile 现在实际生成/读取 exec，低于既有门时正确失败；生产代码不变，
   canonical `@{argLine}` 已由 versioned contract guard 与 `8/8` negatives 自动保护。详见
@@ -65,8 +66,24 @@ updated_at: 2026-07-16
   整类=`9/F0E0S0`，四类组合=`57/F0E0S0`；源码 SHA-256=
   `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`。详见
   [BUG-step4-preagg-validation-wrong-table](workitems/BUG-step4-preagg-validation-wrong-table.md)。
-- `coverage-thresholds.json` 仍为 `diagnostic-pending`；r1 不是 Step 4 exit evidence。
-  必须先提交并推送修复、确认新的 clean HEAD，再执行 r2；Step 5 仍关闭。
+- clean/pushed HEAD `0101a44a07784bf6b484d490c7fb508727fbab70` 的
+  `step4-coverage-20260716-diagnostic-r2` 已完整通过 Unit
+  `681 execution + 55 structural / 4,941 testcase / F0E0S0`；Integration 执行
+  caffeine=`2/F0E0S0`、hermetic=`3/F0E0S0`、sqlite-broad=`307/F1E0S0`，合计
+  `312/F1E0S0`。唯一失败为 `PreAggregationL2CacheIT` 未显式声明 snapshot-only，outer
+  在 `child-integration` fail closed，summary absent，后续 lane/aggregate/threshold 均未执行。
+  failed diagnostic 见
+  [step4-coverage-diagnostic-r2-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md)。
+- L2 fixture 已显式关闭 hybrid 并收紧 exact name/table/raw negative，最终源码 SHA-256=
+  `bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`；focused=
+  `1/F0E0S0`、与 `PreAggregationIT` 组合=`30/F0E0S0`。主动 hybrid 扫描还发现 Pivot
+  legacy fallback 两次稳定 RED；仅 legacy 分支关闭 hybrid 后，legacy/V934 SQLite
+  focused 各 `1/F0E0S0`，源码 SHA-256=
+  `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`。生产
+  Matcher、hybrid 默认、threshold/exclusion 均未修改。
+- `coverage-thresholds.json` 仍为 `diagnostic-pending`；r1/r2 与 focused XML 都不是
+  Step 4 exit evidence。必须先提交并推送最终修复与 identity，确认新的 clean HEAD，再执行
+  r3；Step 5 仍关闭，`can_enter_coverage_audit=no`。
 
 ## 执行资料
 
@@ -83,6 +100,12 @@ updated_at: 2026-07-16
   [quality/step4-diagnostic-ready-implementation-quality.md](quality/step4-diagnostic-ready-implementation-quality.md)
 - Step 4 diagnostic r1 PreAgg validation regression：
   [workitems/BUG-step4-preagg-validation-wrong-table.md](workitems/BUG-step4-preagg-validation-wrong-table.md)
+- Step 4 diagnostic r2 failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md)
+- Step 4 diagnostic r2 PreAgg L2 fixture regression：
+  [workitems/BUG-step4-preagg-l2-hybrid-fixture-drift.md](workitems/BUG-step4-preagg-l2-hybrid-fixture-drift.md)
+- Step 4 proactive Pivot legacy fixture regression：
+  [workitems/BUG-step4-pivot-legacy-hybrid-fixture-drift.md](workitems/BUG-step4-pivot-legacy-hybrid-fixture-drift.md)
 - Step 1 confirmed evidence:
   [evidence/step-1/inventory-contract-freeze-20260714.md](evidence/step-1/inventory-contract-freeze-20260714.md)
 - Step 2 structural amendment evidence：
@@ -127,7 +150,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r1 fail-closed / r2 pending | 静态契约 exact 23/48 + 773/59/5707；r1 Unit=`3115/1/0/0`；修复 focused=`9/0`、组合=`57/0`；阈值 diagnostic-pending；下一动作是新修复 clean/pushed HEAD 的 r2 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r2 fail-closed / L2+Pivot focused-green / r3 pending | 静态契约 exact 23/48 + 773/59/5707；r2 Unit=`4941/F0E0S0`、Integration=`312/F1E0S0`；L2=`1/0`、组合=`30/0`，Pivot legacy/V934 SQLite 各=`1/0`；阈值 diagnostic-pending；下一动作是新修复 clean/pushed HEAD 的 r3 |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

@@ -24,13 +24,13 @@ updated_at: 2026-07-16
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r1 fail-closed + fix focused-green / r2 and Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r2 fail-closed + L2/Pivot focused-green / r3 and Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r1 fail-closed / r2 pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r2 fail-closed / r3 pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1 failed run recorded but exit evidence absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 historical ready-with-risks 已追加 r1 post-review，仅放行修复后的 clean-HEAD r2，can_enter_coverage_audit=no |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；critical/major gap=0 |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1/r2 failed runs recorded but exit evidence absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 ready-with-risks 已追加 r2 post-review，仅放行最终修复/identity 的 clean-HEAD r3，can_enter_coverage_audit=no |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
 | roadmap/status sync | `README.md` + authoritative roadmap | Step 3 synced；final version sync after version signoff |
@@ -58,18 +58,19 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-16）：状态仅为
-`in-progress / diagnostic r1 fail-closed / r2 pending`。静态执行结构精确为
+`in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`。静态执行结构精确为
 `23 exec / 48 sessions`，required
 report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
 companion 仍单列 `2/6`。raw contract/effective POM/toolchain/report inventory 负例
 分别为 `8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view/successor overlay=
 `12/12`、`8/8`；toolchain receipt 绑定 Step 1
 raw 工具版本、ASM `9.6/9.7/9.7.1` 三层 realm 和 24 个 production module
-effective compiler。report amendment=`10 rows = 4 new + 6 changed`，SHA-256=
-`5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`，successor
-declared amendments=`15`。本地 Step 4 `SHA256SUMS` 已生成并通过 exact 49 项校验，
-manifest SHA-256=
-`c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
+effective compiler。report amendment=`11 rows = 4 new + 7 changed`，SHA-256=
+`937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`，successor
+declared amendments=`17`，SHA-256=
+`be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`。本地 Step 4
+`SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
+`348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`。
 
 首次 clean all-lane attempt 已执行但不是 acceptance evidence：clean/pushed HEAD
 `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
@@ -79,13 +80,24 @@ threshold。`PreAggregationDataValidationTest` 腐化 daily 但实际命中 mont
 raw-vs-raw/nullable-empty 伪绿；修复 focused=`9/F0E0S0`、组合=`57/F0E0S0`，source=
 `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`，见
 `docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`。threshold 仍为
-`diagnostic-pending`，尚无 aggregate baseline/review 或 Step 4 exit evidence。下一动作是
-提交并推送修复，验证新的 clean HEAD 后执行 r2；Step 5 仍关闭。
+`diagnostic-pending`，尚无 aggregate baseline/review 或 Step 4 exit evidence。
+
+第二次 clean all-lane attempt 同样不是 acceptance evidence：clean/pushed HEAD
+`0101a44a07784bf6b484d490c7fb508727fbab70` 的
+`step4-coverage-20260716-diagnostic-r2` 完整通过 Unit
+`681 execution + 55 structural / 4,941 testcase / F0E0S0`，随后 Integration=
+`312/F1E0S0`，唯一失败为 `PreAggregationL2CacheIT`；outer 在
+`child-integration` fail closed，后续 required lanes、aggregate 与 threshold 未运行。failed
+evidence 固定为
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md`。
+L2 修复后 focused=`1/F0E0S0`、组合=`30/F0E0S0`；主动发现的 Pivot legacy/V934
+SQLite 分支修复后各 `1/F0E0S0`。两项只改测试 fixture/assertion，不能替代 r3。
+下一动作是提交并推送最终修复/identity，验证新的 clean HEAD 后执行 r3；Step 5 仍关闭。
 
 Step 4 implementation quality 已记录于
 `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
-`ready-with-risks`，并已追加 r1 post-review。该决定现在只放行修复提交/推送后的
-clean-HEAD r2，明确 `can_enter_coverage_audit=no`；待完整 all-lane observation 与
+`ready-with-risks`，并已追加 r1/r2 post-review。该决定现在只放行最终修复/identity
+提交推送后的 clean-HEAD r3，明确 `can_enter_coverage_audit=no`；待完整 all-lane observation 与
 threshold review 完成后必须
 重新判断。
 

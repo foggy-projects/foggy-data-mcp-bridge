@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r1 fail-closed / r2 pending | Step 3 exit passed | exact 23 exec/48 sessions + 773/59/5707 静态门已收口；r1 Unit 3115/1/0/0；修复 focused 9/0、组合 57/0；threshold diagnostic-pending |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r2 fail-closed / L2+Pivot focused-green / r3 pending | Step 3 exit passed | exact 23 exec/48 sessions + 773/59/5707 静态门已收口；r2 Unit 4941/F0E0S0、Integration 312/F1E0S0；L2 1/0+组合30/0；Pivot legacy/V934 SQLite 各1/0；threshold diagnostic-pending |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -850,6 +850,49 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - Next Gate: 在新修复 clean/pushed HEAD 执行 r2。`coverage-thresholds.json` 仍为
   `diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5 与 9.3.5 保持关闭。
 
+### Superseding Post-diagnostic Check-in — Step 4 r2 fail-closed / r3 pending
+
+- recorded_at: 2026-07-16
+- run identity: clean/pushed HEAD=`0101a44a07784bf6b484d490c7fb508727fbab70`，run=
+  `step4-coverage-20260716-diagnostic-r2`，outer phase=`child-integration`，child phase=
+  `variant-sqlite-broad`，status=`failed / exit_code=1 / summary absent`。
+- immutable result: Unit=`681 execution + 55 structural / 4,941 testcase / F0E0S0`；
+  Integration caffeine=`2/F0E0S0`、hermetic=`3/F0E0S0`、sqlite-broad=`307/F1E0S0`，
+  合计 `312/F1E0S0`；唯一失败为
+  `PreAggregationL2CacheIT#shouldUsePostPreAggregationIdentityForL2LookupAndWrite`。
+  database、required external、Addon、aggregate、model merged-exec check 和 threshold
+  均未执行；cleanup residue=`0/0/0`。
+- artifact identity: source seal=
+  `428ede2bab82483ed97c857ea73e16b35f9e86ea750f94cded26bc3df9d13079`；outer status=
+  `e20643fe6bc8c24d1ca6c6a9979cc706bf67e8fa7f5df715b36b1671d5a584c7`；outer log=
+  `16670b8c01a3fc399ad0a6e14a1f0815085533e75f4958f0c14272352a275784`；receipt=
+  `a8c9aeccfecfa684b9aa99e56d24c115d9530b56908feaa3f3711c8ad1d96248`；Unit summary=
+  `9227f74aa266bdda3f58a146417805fc282bc81ca4a2efe5e47bd195db334f0a`；Integration
+  status=`ec1a2fcaa00458e5b998a30d323ab46ce85f4970737fcac813f0c6de2a4c6096`。
+- L2 repair: 只冻结 snapshot-only fixture、exact preAgg name/table/raw negative 与
+  post-rewrite lookup/write/hit identity；focused=`1/F0E0S0`，与 `PreAggregationIT` 组合=
+  `30/F0E0S0`，source SHA-256=
+  `bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`。
+- proactive Pivot repair: legacy 单方法两次稳定 `1/F1E0S0`；只在 legacy 分支关闭 hybrid，
+  保留 V934 FULL production 默认并断言两分支 exact identity。legacy/V934 SQLite 各
+  `1/F0E0S0`，source SHA-256=
+  `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`。
+- identity/static result: coverage amendment=`11 rows / 4 new + 7 changed`，SHA-256=
+  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；declared
+  amendments=`17`，SHA-256=
+  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`；top manifest=
+  `51/51`，SHA-256=`348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；
+  successor manifest=`12/12`，SHA-256=
+  `6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`。
+  positives coverage=`773/59/5707`、Step 2=`724/59`、DB=`7/29/370`、overlay required=
+  `45/446`、Addon=`2/6`；negatives coverage/view/successor/DB=`8/12/8/14`，全部通过。
+- evidence: failed diagnostic 固定为
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md`，decision=
+  `excluded-from-step4-exit`；对应 L2/Pivot workitem 保持 `in-progress` 到 r3。
+- Quality/Next Gate: 当前实现 `ready-with-risks`，无阻断提交最终修复/identity 并运行 r3 的
+  实现 blocker；threshold=`diagnostic-pending`、`can_enter_coverage_audit=no`。提交、推送并
+  证明 clean HEAD 后运行唯一 r3；Step 5、9.3.5 与 acceptance 保持关闭。
+
 ## Execution Check-in Template
 
 每个 Step 完成或发生关键失败时追加一节，至少记录：
@@ -904,17 +947,17 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 historical ready-with-risks + r1 post-review pending r2 | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`，open blocker/high/medium=0；Step 4：`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md` 已追加 r1 post-review，`can_enter_coverage_audit=no`，仅放行修复后的 clean-HEAD r2 |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 ready-with-risks + r2 post-review pending r3 | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`，open blocker/high/medium=0；Step 4：`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md` 已追加 r2 post-review，`can_enter_coverage_audit=no`，仅放行最终修复/identity 的 clean-HEAD r3 |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r1 fail-closed / r2 pending recorded | roadmap 为 Steps 1–3 passed / Step 4 not passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
+| roadmap sync / downstream | Step 4 r2 fail-closed / r3 pending recorded | roadmap 为 Steps 1–3 passed / Step 4 not passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
 
 ## Next Action
 
-提交并推送 `PreAggregationDataValidationTest` 修复与 successor refresh，验证新的 clean
-worktree 且 `HEAD == origin/main`，再执行
-`step4-coverage-20260716-diagnostic-r2`（或同义唯一新 run id），观察 aggregate/critical
-classes 并评审 successor thresholds。当前 threshold=`diagnostic-pending`，r1 只有
-Unit fail-closed 证据，没有 aggregate baseline/review 或 Step 4 exit evidence；Step 5
-仍不得开始。
+提交并推送 L2/Pivot 最终 fixture 修复与 successor/identity refresh，验证新的 clean
+worktree 且 `HEAD == origin/main`，再执行唯一
+`step4-coverage-20260716-diagnostic-r3`（或同义唯一新 run id），观察全部 required lane、
+aggregate/critical classes 并评审 successor thresholds。当前 threshold=`diagnostic-pending`，
+r2 只有 Unit GREEN 与 Integration fail-closed 证据，没有 aggregate baseline/review 或 Step 4
+exit evidence；Step 5 仍不得开始，coverage audit/acceptance 不得启动。

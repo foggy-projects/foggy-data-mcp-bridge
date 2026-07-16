@@ -37,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PreAggregationL2CacheIT {
 
     private static final String MODEL_NAME = "FactSalesPreAggQueryModel";
+    private static final String PRE_AGG_NAME = "daily_product_sales";
+    private static final String PRE_AGG_TABLE = "preagg_daily_product_sales";
 
     @Resource
     private QueryFacade queryFacade;
@@ -58,17 +60,24 @@ class PreAggregationL2CacheIT {
         assertNotNull(first.getPagingResult());
         assertFalse(first.getPagingResult().getItems().isEmpty());
         assertTrue(firstContext.getCacheConfig().isPreAggHit(), "首轮查询必须实际命中预聚合");
+        assertEquals(PRE_AGG_NAME, firstContext.getCacheConfig().getPreAggName(),
+                "首轮查询必须命中完整 snapshot fixture");
         assertFalse(firstContext.getCacheConfig().isL2CacheHit(), "首轮查询应为 L2 miss");
 
         CacheCall firstLookup = cacheProvider.onlyLookupFor(MODEL_NAME);
         CacheCall firstWrite = cacheProvider.onlyWriteFor(MODEL_NAME);
-        assertTrue(firstLookup.sql().contains("preagg_"), "L2 lookup 必须使用 PreAgg 改写后的 SQL");
+        assertTrue(firstLookup.sql().contains("FROM " + PRE_AGG_TABLE + " "),
+                "L2 lookup 必须使用 daily_product_sales 改写后的 SQL");
+        assertFalse(firstLookup.sql().contains("FROM fact_sales "),
+                "snapshot fixture 不得把 raw SQL 冒充 PreAgg 最终身份");
         assertEquals(firstLookup.key(), firstWrite.key(), "L2 lookup 与 write 必须使用同一最终身份");
 
         ModelResultContext secondContext = context();
         DbQueryResult second = queryFacade.queryModelResult(secondContext);
 
         assertTrue(secondContext.getCacheConfig().isPreAggHit(), "缓存命中前仍应完成 PreAgg 路由");
+        assertEquals(PRE_AGG_NAME, secondContext.getCacheConfig().getPreAggName(),
+                "缓存命中前必须复用相同的 PreAgg 路由");
         assertTrue(secondContext.getCacheConfig().isL2CacheHit(), "第二轮相同查询必须命中 L2");
         assertEquals(first.getPagingResult().getItems(), second.getPagingResult().getItems());
         assertEquals(first.getPagingResult().getTotal(), second.getPagingResult().getTotal());
@@ -99,6 +108,7 @@ class PreAggregationL2CacheIT {
                 .l1Enabled(false)
                 .l2Enabled(true)
                 .preAggEnabled(true)
+                .hybridQueryEnabled(false)
                 .build());
         return context;
     }

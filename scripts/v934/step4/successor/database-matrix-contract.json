@@ -20,11 +20,11 @@
     },
     "protected_tree_manifest": {
       "path": "scripts/v934/step4/successor/database-matrix-protected-trees.tsv",
-      "sha256": "890bda2aa1a3738d8eae40aaea338f204f8ed657305411261a9ecc49a64eca24"
+      "sha256": "09dec981066931d12644a6634a1e828ff4cb9985269eb3ceb3a78d8ad0334bcf"
     },
     "source_amendment": {
       "path": "scripts/v934/step4/successor/database-matrix-source-amendment.tsv",
-      "sha256": "38d92c2250252b0cd4eae296ec6bf4d36081f0968bf6c0a2f3faf039ce32ef0c"
+      "sha256": "2edad2d0ab1504e5f9ca5e7a7e5e508392ddbde8bf760fac6377109bcd47492a"
     },
     "successor_freeze": {
       "path": "scripts/v934/successor/step2/contract-freeze.json",

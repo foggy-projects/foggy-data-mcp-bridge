@@ -30,7 +30,7 @@ updated_at: 2026-07-16
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 r1 fail-closed | [执行文档包](../9.3.4/README.md)；Step 3 feature accepted；Step 4 clean/pushed HEAD `bc100b0f` 的 diagnostic r1 在 Unit fail closed，测试缺陷已 focused 修复，待新 clean/pushed HEAD 执行 r2；不是 coverage passed |
+| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 r2 fail-closed / r3 pending | [执行文档包](../9.3.4/README.md)；Step 3 feature accepted；r2 Unit 全绿后在 SQLite broad Integration fail closed；L2 与主动发现的 Pivot legacy fixture 已按最终源码 focused 修复且 identity 收口，待提交/push 后从新 clean HEAD 执行 r3；不是 coverage passed |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,7 +85,7 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–3 passed / Step 4 r1 fail-closed / r2 pending`；入口为
+当前状态：`in-progress / Steps 1–3 passed / Step 4 r2 fail-closed / L2+Pivot focused-green / r3 pending`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。confirmed run
 `step1-candidate-r8-20260714` 已冻结 532 sources、820 discovery rows、829 execution
 keys、519 predecessor nodes/edges，28/28 expected-negative probes 通过；两路独立
@@ -100,17 +100,28 @@ union。Step 3 quality→coverage→feature acceptance 已完成。Step 4 静态
 sessions`，required report overlay 为 `773 positive + 59 structural / 5,707
 testcase / F0E0S0`，Addon 仍单列 `2/6`；raw contract/effective POM/toolchain/
 report inventory 负例分别为 `8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view 与
-successor overlay 负例为 `12/12`、`8/8`。report amendment 已更新为 exact
-`10 rows = 4 new + 6 changed`，successor declared amendments=`15`，总量不变。
-Step 4 `SHA256SUMS` 已生成并通过 exact 49 项校验，manifest SHA-256=
-`c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
+successor overlay 负例为 `12/12`、`8/8`。当前 report amendment 已更新为 exact
+`11 rows = 4 new + 7 changed`，SHA-256=
+`937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；successor declared
+amendments=`17`，SHA-256=
+`be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`，总量不变。
+Step 4 `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
+`348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`。
 clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
 `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
 `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed：腐化 daily 表时查询实际命中
 monthly，另有 raw-vs-raw/nullable-empty 伪绿。测试修复后 focused=`9/F0E0S0`、组合
-回归=`57/F0E0S0`，但阈值仍为 `diagnostic-pending`，尚无 all-lane aggregate
-baseline/review 或 Step 4 exit evidence。下一动作是在修复提交并推送后验证新的 clean
-HEAD，再执行 r2；Step 5 和 9.3.5 仍关闭。
+回归=`57/F0E0S0`。其后 clean/pushed HEAD
+`0101a44a07784bf6b484d490c7fb508727fbab70` 的
+`step4-coverage-20260716-diagnostic-r2` 完整通过 Unit
+`681 execution + 55 structural / 4,941 testcase / F0E0S0`，随后在 Integration
+`sqlite-broad` 的 `PreAggregationL2CacheIT` 唯一失败；已执行 Integration 合计
+`312/F1E0S0`，outer 在 `child-integration` fail closed，未运行 database/external/Add-on/
+aggregate/threshold。L2 snapshot fixture 修复后为 `1/F0E0S0`、与 `PreAggregationIT`
+组合=`30/F0E0S0`；主动扫描发现的 Pivot legacy hybrid drift 两次稳定 RED，修复后 legacy
+与 V934 SQLite 分支各 `1/F0E0S0`。阈值仍为 `diagnostic-pending`，尚无 all-lane
+aggregate baseline/review 或 Step 4 exit evidence。下一动作是从修复与 identity 收口后的
+新 clean/pushed HEAD 执行 r3；Step 5 和 9.3.5 仍关闭。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

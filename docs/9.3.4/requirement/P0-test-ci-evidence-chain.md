@@ -146,7 +146,8 @@ updated_at: 2026-07-16
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / diagnostic r1 fail-closed / r2 pending`（不是 `passed`）；
+  `in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`
+  （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
   F/E/S=`0/0/0`；
@@ -166,11 +167,12 @@ updated_at: 2026-07-16
   overlay 负例=`12/12`、`8/8`；
 - toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
   `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；Step 4 report
-  amendment=`10 rows = 4 new + 6 changed`，SHA-256=
-  `5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`，
-  successor declared amendments=`15`；本地 `SHA256SUMS` 已生成并通过 exact 49 项校验，
-  manifest SHA-256=
-  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`；
+  amendment=`11 rows = 4 new + 7 changed`，SHA-256=
+  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`，
+  successor declared amendments=`17`，SHA-256=
+  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`；本地
+  `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
+  `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -179,8 +181,20 @@ updated_at: 2026-07-16
   source SHA-256=
   `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`，见
   `docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`；
-- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，r1 未到 aggregate/report 阶段，
+- diagnostic r2 从 clean/pushed HEAD `0101a44a07784bf6b484d490c7fb508727fbab70`
+  启动：Unit=`681 execution + 55 structural / 4,941 testcase / F0E0S0`；Integration=
+  `312/F1E0S0`，唯一失败为 `PreAggregationL2CacheIT`，outer 在
+  `child-integration` fail closed，summary absent，后续 database/external/Addon/
+  aggregate/threshold 未执行；failed evidence 见
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md`；
+- L2 fixture 修复后 focused=`1/F0E0S0`、与 `PreAggregationIT` 组合=`30/F0E0S0`，
+  source SHA-256=`bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`；
+  主动发现的 Pivot legacy fixture 两次稳定 RED，修复后 legacy/V934 SQLite 各
+  `1/F0E0S0`，source SHA-256=
+  `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`；两项均只改测试
+  fixture/assertion，不改生产 hybrid 默认、Matcher、threshold 或 exclusion；
+- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，r2 未到 aggregate/report 阶段，
   尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。下一动作是提交、推送
-  修复并验证新的 clean HEAD 后执行 r2。Step 5
+  最终修复与 identity 并验证新的 clean HEAD 后执行 r3。Step 5
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
   据此签收 9.3.4 或把 9.3.5 标为 ready。

@@ -118,6 +118,10 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         int sliceEnd = v934Fixture ? 20930103 : 20240331;
         String factTable = v934Fixture ? "v934_preagg_fact_sales" : "fact_sales";
         String productTable = v934Fixture ? "v934_preagg_dim_product" : "dim_product";
+        String expectedPreAggName = v934Fixture ? "v934_daily_product_sales" : "daily_product_sales";
+        String expectedPreAggTable = v934Fixture
+                ? "v934_preagg_daily_product_sales"
+                : "preagg_daily_product_sales";
 
         DbQueryRequestDef queryDef = new DbQueryRequestDef();
         queryDef.setQueryModel(queryModel);
@@ -144,6 +148,12 @@ class PivotSqlParityIT extends EcommerceTestSupport {
         resultContext.setRequest(pagingRequest);
         resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
         resultContext.setSystemSlice(List.of(systemDateSlice));
+        if (!v934Fixture) {
+            resultContext.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
+                    .preAggEnabled(true)
+                    .hybridQueryEnabled(false)
+                    .build());
+        }
 
         ManagedSqlRelation baseRelation = queryFacade.prepareManagedRelation(resultContext,
                 ManagedRelationOptions.builder()
@@ -153,7 +163,12 @@ class PivotSqlParityIT extends EcommerceTestSupport {
                         .build());
 
         assertTrue(baseRelation.isPreAggApplied(), "preAgg should be applied before outer Pivot CTE wrapping");
-        assertTrue(baseRelation.getSql().contains("preagg_"), "base SQL should query a preAgg table: " + baseRelation.getSql());
+        assertEquals(expectedPreAggName, resultContext.getCacheConfig().getPreAggName(),
+                "base relation must use the branch-specific preAgg identity");
+        assertTrue(baseRelation.getSql().contains("FROM " + expectedPreAggTable + " "),
+                "base SQL should query the exact branch-specific preAgg table: " + baseRelation.getSql());
+        assertFalse(baseRelation.getSql().contains("FROM " + factTable + " "),
+                "raw fact SQL must not masquerade as the preAgg base relation");
         assertIterableEquals(List.of(sliceStart, sliceEnd), baseRelation.getParams(),
                 "base relation params should come from the systemSlice after preAgg rewrite");
         assertTrue(baseRelation.getSql().contains("category_name"),

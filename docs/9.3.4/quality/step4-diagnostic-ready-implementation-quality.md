@@ -201,3 +201,47 @@ Post-review decision：修复与 successor refresh 可提交/push，并在新的
 `in-progress`，threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；完整 r2、
 aggregate 人工 review、confirmed thresholds 与最终实现质量复核完成前，Step 5、9.3.5
 和 acceptance 均保持关闭。
+
+## Post-review Update — Diagnostic r2 fail-closed / remediation ready for r3（2026-07-16）
+
+本节 supersede 上一节的 next action，但保留 r1 quality boundary 作为历史判断。r2 从
+clean/pushed HEAD=`0101a44a07784bf6b484d490c7fb508727fbab70` 启动，Unit=
+`681 execution + 55 structural / 4,941 testcase / F0E0S0`；Integration=
+`312/F1E0S0`，唯一失败为 `PreAggregationL2CacheIT`。outer 在
+`child-integration` fail closed，summary absent，database/external/Addon/aggregate/
+threshold 均未执行。failed evidence=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md`，decision=
+`excluded-from-step4-exit`。
+
+质量复核确认两项修复均限定在测试 fixture/assertion，不修改生产 Matcher、hybrid 默认、
+threshold 或 exclusion：
+
+- L2 测试显式选择 snapshot-only，断言 exact preAgg name/table、raw negative、lookup/write
+  SQL+params key、二次 hit 与单次 write；focused=`1/F0E0S0`，与 `PreAggregationIT` 组合=
+  `30/F0E0S0`，source SHA-256=
+  `bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`；
+- Pivot legacy fallback 两次稳定 RED；只在 legacy 分支关闭 hybrid，V934 FULL 分支保持
+  production 默认，并用 exact relation token 防止 legacy 表名子串冒充 V934 表。legacy 与
+  V934 SQLite focused 各 `1/F0E0S0`，source SHA-256=
+  `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`。
+
+身份级联已与最终源码一致：coverage amendment=`11 rows / 4 new + 7 changed`，SHA-256=
+`937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；declared
+amendments=`17`，SHA-256=
+`be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`；top manifest=
+`51/51`，SHA-256=`348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；
+successor manifest=`12/12`，SHA-256=
+`6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`。positives
+coverage=`773/59/5707`、Step 2=`724/59`、DB=`7/29/370`、overlay required=`45/446`、
+Addon=`2/6`；negatives coverage/view/successor/DB=`8/12/8/14`，全部通过。
+
+Post-review decision：`ready-with-risks`。当前未发现阻断提交/push 最终修复与 identity、并从
+clean HEAD 执行 r3 的实现 blocker。该结论不表示 Step 4 passed；threshold 仍为
+`diagnostic-pending`，`can_enter_coverage_audit=no`。只有 r3 完整 all-lane observation、
+aggregate 人工 review、confirmed thresholds 和最终实现质量复核完成后，才可考虑 coverage
+audit；Step 5、9.3.5 与 acceptance 继续关闭。
+
+Non-blocker coverage-audit follow-up：现有证据分别覆盖 hybrid rewrite/matcher、snapshot L2
+identity 与执行顺序，但尚无单一集成用例直接验证“带已发布 watermark 的 hybrid UNION SQL
+及其参数作为 L2 cache key”。这不阻断 r3；coverage audit 应决定是否登记为后续测试增强，
+不得为补该用例降低当前门槛或扩大 exclusion。

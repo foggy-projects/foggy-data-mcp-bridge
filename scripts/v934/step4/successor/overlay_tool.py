@@ -92,6 +92,8 @@ EXPECTED_AMENDMENT_PATHS = (
     REDIS_SOURCE_PATH,
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
 )
 EXPECTED_SUCCESSOR_FILES = (
     "database-authority-SHA256SUMS",
@@ -197,12 +199,12 @@ EXPECTED_ACTIVATION_REQUIREMENTS = [
 EXPECTED_STEP4_RUNTIME_BINDINGS = {
     "scripts/v934/step4/authority_parent_lib.sh": "35024328ec6f181f4454a36b702f76c20dfd049af8a38a84b5f3117ac94254fa",
     "scripts/v934/step4/authority_parent_negative_test.sh": "2329d6211d51f673b29aae407e4e0a1f99af2f5bac0425d56cade3d1e1c148ca",
-    "scripts/v934/step4/coverage-contract.json": "70327e2f828dfb0a2e3b87b37b77a0b445f2b84bc43abd8a73d23cdd3424b474",
-    "scripts/v934/step4/coverage-report-amendment.tsv": "5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504",
+    "scripts/v934/step4/coverage-contract.json": "2abdbd17b8286f50d52e3ddf48e7a5ad184ebafc4b44e19aa64dc1017f660a2f",
+    "scripts/v934/step4/coverage-report-amendment.tsv": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "5715615ebf06d606658b8c6d6b0da0c5c54482dabf9ab991aa9cac8a81b4a3fc",
-    "scripts/v934/step4/step2-report-view-contract.json": "85ef129f9612e2ec5a5766722fbd6725a9833876bc76208db5c3a228932145be",
-    "scripts/v934/step4/step2_report_view_tool.py": "6b1020f54a549488a0cd5aea5890f19020a9386f4f4f17d0dbe4fb4352f97840",
+    "scripts/v934/step4/coverage_tool.py": "7d2f15762126b00e6a62d1e957984b0076c179a047f746556ae4d8b46d3d0275",
+    "scripts/v934/step4/step2-report-view-contract.json": "c016ec18fa0a637e5c5470385c3f26cce152c461eb1dc1b64b52f28f5e8b8a67",
+    "scripts/v934/step4/step2_report_view_tool.py": "b828869dec191a6ded51e7b28654f8878c65455007ca002e247347a0cb5e217a",
 }
 REDIS_SOURCE_ID = f"v934-src|{len(REDIS_SOURCE_PATH)}:{REDIS_SOURCE_PATH}"
 
@@ -751,7 +753,7 @@ def main() -> int:
             validate(args.contract.resolve(), args.manifest.resolve())
             print(
                 "V934_STEP4_SUCCESSOR_OVERLAY "
-                "parents=3 contracts=4 amendments=15 step4_bindings=8 required=45/446 addon=2/6 status=passed"
+                "parents=3 contracts=4 amendments=17 step4_bindings=8 required=45/446 addon=2/6 status=passed"
             )
         else:
             negative(args.output.absolute())

@@ -240,14 +240,18 @@ run-owned toolchain receipt。receipt 绑定 Step 1 raw 工具版本、实际 Ma
 链路、compiler realm ASM `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM
 `9.7.1` 和 24 个 production module effective compiler；任一字段缺失、非 canonical
 JSON、跨 run 替换、版本/realm/hash 漂移均必须 fail closed。本地出版的
-`scripts/v934/step4/SHA256SUMS` 已生成并通过 exact 49 项校验，
-manifest SHA-256=
-`c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
+`scripts/v934/step4/SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
+`348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；successor
+manifest exact=`12`，SHA-256=
+`6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`。
 
 Step 4 report successor 保持执行库存与报告库存分离：
-`coverage-report-amendment.tsv` exact=`10 rows = 4 new + 6 changed`，SHA-256=
-`5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；
-successor declared amendments=`15`。该 source amendment 不改变 report identity/testcase，
+`coverage-report-amendment.tsv` exact=`11 rows = 4 new + 7 changed`，SHA-256=
+`937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；
+successor declared amendments=`17`，SHA-256=
+`be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`。L2 fixture
+作为 Integration report source amendment；Pivot fixture 作为 database source successor
+amendment。两者均不改变 report identity/testcase，
 因此 required overlay 仍为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，
 exec/session 仍为 `23/48`。Step 2 derived view negatives=`12/12`，successor overlay
 negatives=`8/8`；后者新增 Redis 显式路径错绑负例。
@@ -437,7 +441,7 @@ canonical runners 重新执行 unit、hermetic/SQLite、五库与全部 required
 ## Step 4 Diagnostic / Fix Record
 
 Superseding status（2026-07-16）：Step 4=
-`in-progress / diagnostic r1 fail-closed / fix focused-green / r2 pending`，不是
+`in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`，不是
 `passed`。静态契约已收口为 exact `23 exec / 48 sessions`；required report
 overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion=
 `2/6` 仍与 required 总计分离。raw contract/effective POM/toolchain/report inventory
@@ -461,4 +465,27 @@ workitem=`docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`。
 `coverage-thresholds.json` 仍为 `diagnostic-pending`；r1 不得拼接为绿色，且尚无
 aggregate baseline/review、confirmed threshold 或
 `docs/9.3.4/evidence/step-4/step4-coverage-exit-<date>.md`。因此 Step 4 exit 未满足，
-修复必须先提交、推送并验证新的 clean HEAD，才可执行 r2；Step 5 与 9.3.5 必须保持关闭。
+上述 r1 段作为历史失败记录保留。
+
+r2 从 clean/pushed HEAD `0101a44a07784bf6b484d490c7fb508727fbab70` 启动：Unit=
+`681 execution + 55 structural / 4,941 testcase / F0E0S0`；Integration 已执行
+`312/F1E0S0`，唯一失败为 `PreAggregationL2CacheIT`，outer 在
+`child-integration` fail closed，summary absent，未进入 database/external/Addon/
+aggregate/threshold。immutable failed record=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md`，明确
+`excluded-from-step4-exit`。
+
+L2 修复只为 snapshot fixture 显式设置 hybrid=false，并强制 exact preAgg name/table、raw
+negative 与 post-rewrite L2 identity；focused=`1/F0E0S0`、组合=`30/F0E0S0`，source
+SHA-256=`bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`。
+Pivot legacy fallback 两次稳定 RED；修复只在 legacy 分支关闭 hybrid，V934 FULL 分支继续
+使用 production 默认，legacy/V934 SQLite focused 各 `1/F0E0S0`，source SHA-256=
+`5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`。生产
+Matcher、hybrid 默认、threshold/exclusion 均未修改。
+
+最终 identity 为 amendment=`11 / 4 new + 7 changed`、declared=`17`、top manifest=
+`51/51`、successor manifest=`12/12`；static positives/negatives 全绿，required totals 保持
+`23/48 + 773/59/5707`。但 threshold 仍为 `diagnostic-pending`，尚无 aggregate baseline/
+review、confirmed threshold 或 Step 4 exit evidence。修复与 identity 必须先提交、推送并
+验证新的 clean HEAD，才可执行 r3；`can_enter_coverage_audit=no`，Step 5、9.3.5 与
+acceptance 必须保持关闭。

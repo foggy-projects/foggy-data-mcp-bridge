@@ -31,7 +31,7 @@
     },
     "database_contract": {
       "path": "scripts/v934/step4/successor/database-matrix-contract.json",
-      "sha256": "6804d49d486e98d9e28c6be9be7436d377f6442ced9d3b420aca9d92be9a21c8"
+      "sha256": "b1f03fcbd93142df4e0bba497d44f7e8053fcbd2633d4ca17adff3d73bc87641"
     },
     "database_report_tool": {
       "path": "scripts/v934/step4/successor/database_matrix_report_tool.py",

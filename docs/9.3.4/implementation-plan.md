@@ -147,7 +147,7 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 提升为
-`in-progress / diagnostic r1 fail-closed / r2 pending`。
+`in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -223,6 +223,41 @@ Diagnostic r1 result（2026-07-16，supersedes the unexecuted wording above）�
 - next entry：先提交并推送修复，确认新 `HEAD == origin/main` 且 worktree clean，再运行 r2。
   r1 不得拼接或转绿；在 r2、人工 aggregate review 与 confirmed thresholds 完成前，
   Step 5 entry 继续关闭。
+
+Diagnostic r2 result and remediation（2026-07-16，supersedes current next entry）：
+
+- clean/pushed tested HEAD=`0101a44a07784bf6b484d490c7fb508727fbab70`，run=
+  `step4-coverage-20260716-diagnostic-r2`；Unit authority=
+  `681 execution + 55 structural / 4,941 testcase / F0E0S0`；Integration 已执行
+  caffeine=`2/F0E0S0`、hermetic=`3/F0E0S0`、sqlite-broad=`307/F1E0S0`，合计
+  `312/F1E0S0`；outer 在 `child-integration` fail closed，summary absent，未进入
+  database/external/Addon/aggregate/threshold；
+- root cause：`PreAggregationL2CacheIT` 验证 post-rewrite L2 identity，却隐式继承新的
+  hybrid=true 默认；SQLite fixture 没有 watermark 时生产 Matcher 正确回退 raw，测试仍要求
+  `preAggHit=true`。修复仅为 snapshot-only fixture 显式设置 hybrid=false，并断言 exact
+  name/table、raw negative、lookup/write key、二次 hit 与单次 write；
+- L2 verification：最终 source SHA-256=
+  `bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`，focused=
+  `1/F0E0S0`，`PreAggregationIT + PreAggregationL2CacheIT=30/F0E0S0`；
+- proactive hybrid audit：`PivotSqlParityIT` legacy fallback 在同一方法精确执行两次均为
+  `1/F1E0S0`；只在 legacy 分支关闭 hybrid 并收紧 exact branch name/table/raw negative 后，
+  legacy 与 V934 SQLite 各 `1/F0E0S0`，最终 source SHA-256=
+  `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`；五数据库 FULL
+  分支继续使用 production 默认；
+- identity refresh：report amendment exact=`11 rows = 4 new + 7 changed`，SHA-256=
+  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；declared
+  amendments=`17`，SHA-256=
+  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`；top manifest
+  exact=`51`，SHA-256=`348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；
+  successor manifest exact=`12`，SHA-256=
+  `6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`；required totals
+  保持 `773/59/5707`、exec/session 保持 `23/48`，static positives/negatives 全绿；
+- evidence：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r2-fail-closed-20260716.md` 与两个
+  fixture workitem。r1/r2/focused XML 均不是 Step 4 exit evidence；
+- next entry：提交并推送最终修复与 identity，确认新 `HEAD == origin/main` 且 worktree
+  clean，再运行唯一 r3 all-lane diagnostic。threshold=`diagnostic-pending`、
+  `can_enter_coverage_audit=no`；Step 5 entry 继续关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

@@ -113,6 +113,16 @@ code_inventory:
     role: Step 4 Unit validation oracle for raw versus selected pre-aggregation data
     expected_change: update
     notes: r1 exposed wrong-table corruption plus raw-vs-raw/nullable-empty false green; fix asserts exact monthly corruption and daily/daily/daily_customer routing; source SHA-256 affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623
+  - module: step4-preagg-l2-cache-test
+    path: foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java
+    role: Step 4 Integration oracle for post-PreAgg L2 lookup/write/hit identity
+    expected_change: update
+    notes: r2 exposed an implicit pre-hybrid snapshot assumption; final fixture explicitly disables hybrid, asserts exact name/table and rejects raw fallback while preserving production defaults; focused 1/F0E0S0 plus PreAggregationIT combination 30/F0E0S0; source SHA-256 bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313
+  - module: step4-pivot-legacy-fixture-test
+    path: foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java
+    role: Legacy/V934 branch oracle for PreAgg-before-Pivot parameter order and exact table identity
+    expected_change: update
+    notes: proactive audit exposed two stable legacy RED runs after hybrid default changed; only the legacy branch disables hybrid while V934 FULL keeps production defaults; legacy and V934 SQLite focused each 1/F0E0S0; source SHA-256 5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155
   - module: model-test-config
     path: foggy-dataset-model/src/test/resources/application-*.yml
     role: five database profiles
@@ -147,12 +157,12 @@ code_inventory:
     path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; local Step 4 SHA256SUMS is generated and exact-49 verified (SHA-256 c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e)
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; local Step 4 SHA256SUMS is exact-51 verified (SHA-256 348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1), with exact-12 successor manifest SHA-256 6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948
   - module: v934-step4-diagnostic-runner
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: diagnostic-ready is not passed; r1 started from clean committed/pushed bc100b0f and failed closed in child-unit; r2 requires the fix on a new clean committed/pushed HEAD
+    notes: diagnostic-ready is not passed; r1 failed closed in child-unit and r2 from clean committed/pushed 0101a44a passed Unit before failing closed in child-integration/sqlite-broad; r3 requires the L2/Pivot fixes and refreshed identity on a new clean committed/pushed HEAD
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -309,7 +319,7 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / diagnostic r1 fail-closed / fix focused-green / r2 pending`，不是
+- state：`in-progress / diagnostic r2 fail-closed / L2+Pivot focused-green / r3 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
@@ -326,12 +336,15 @@ code_inventory:
   JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1`，并核对 24 个 production
   module effective compiler；
 - report successor：`coverage-report-amendment.tsv`=
-  `10 rows / 4 new + 6 changed`，SHA-256=
-  `5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；declared
-  amendments=`15`；required total 保持 `773/59/5707`；
-- publication boundary：Step 4 `SHA256SUMS` 已生成并通过 exact 49 项校验，manifest
-  SHA-256=
-  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`；
+  `11 rows / 4 new + 7 changed`，SHA-256=
+  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；declared
+  amendments=`17`，SHA-256=
+  `be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`；required total
+  保持 `773/59/5707`；
+- publication boundary：Step 4 `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
+  `348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`；successor
+  manifest exact=`12`，SHA-256=
+  `6ac8a24dd983c1929f6d21430f57adca503893e69b368b37a08731f5a5355948`；
 - diagnostic r1：clean/pushed HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
   `step4-coverage-20260716-diagnostic-r1`，child-unit=`3115/1/0/0`，正确 fail closed；
   wrong-table corruption 与 raw-vs-raw/nullable-empty 缺陷见
@@ -341,9 +354,22 @@ code_inventory:
   daily_customer_channel_sales`，corruption 路由=`monthly_category_sales`、diff=`1000.00`；
   source SHA-256=
   `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`；
-- evidence boundary：threshold 仍为 `diagnostic-pending`，r1 未生成 all-lane aggregate
-  baseline/review 或 Step 4 exit evidence。下一动作为提交并推送修复，再在新的 clean
-  committed/pushed HEAD 上执行 r2；Step 5 仍关闭。
+- diagnostic r2：clean/pushed HEAD=`0101a44a07784bf6b484d490c7fb508727fbab70`，Unit=
+  `681 execution + 55 structural / 4,941 testcase / F0E0S0`；Integration=
+  `312/F1E0S0`，唯一失败为 `PreAggregationL2CacheIT`；outer 在
+  `child-integration` fail closed，后续 required lanes 与 aggregate/threshold 未执行；
+- L2 fix inventory：snapshot-only fixture 显式 hybrid=false，exact name/table、raw negative、
+  lookup/write/hit identity；focused=`1/F0E0S0`、组合=`30/F0E0S0`，source SHA-256=
+  `bb5d6884401579447382587861e197feac2884ab701065d7826fe7a676e0c313`；
+- Pivot fix inventory：legacy fallback 两次稳定 RED；仅 legacy 分支关闭 hybrid，V934 FULL
+  保持 production 默认；legacy/V934 SQLite 各 `1/F0E0S0`，source SHA-256=
+  `5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155`；
+- static result：coverage/view/successor/DB negatives=`8/12/8/14`，positives coverage=
+  `773/59/5707`、Step 2=`724/59`、DB=`7/29/370`、overlay required=`45/446`、Addon=
+  `2/6`，全部通过；
+- evidence boundary：threshold 仍为 `diagnostic-pending`，r2 未生成 all-lane aggregate
+  baseline/review 或 Step 4 exit evidence。下一动作为提交并推送最终修复与 identity，再在
+  新的 clean committed/pushed HEAD 上执行 r3；Step 5、coverage audit 与 acceptance 仍关闭。
 
 ## Protected Boundaries
 
