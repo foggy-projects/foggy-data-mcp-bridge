@@ -108,6 +108,11 @@ report wrapper 选择 successor contract，而 state companion 退回 predecesso
 这些结果只证明 successor runtime binding 修复，不改变 r5 的 failed decision，也不是
 all-lane coverage evidence。
 
+r6 在 clean/pushed commit `eb10d9c10a73f379db9ce4fa3d05ff340b489fd4` 实际越过上述
+successor authority validate，随后才因 repo demo container 占用 frozen port `13306` 而以
+`E_DYNAMIC_PRECONDITION` 终止。这证明 r5 selector 缺陷未复现，但 r6 是环境阻塞的
+excluded run，不能据此关闭本 BUG；仍须 fresh r7 all-lane 与后续 formal 证明。
+
 ## Fix Checklist
 
 - [x] 封存 r5 immutable failure、partial lanes 与 residue evidence。
@@ -119,12 +124,16 @@ all-lane coverage evidence。
 - [x] adapters 纳入 successor/top exact manifests 与 overlay activation semantics。
 - [x] 补 successor state、required rewrite 正/反例、required validate 和 frozen fail-closed 对照。
 - [x] 完整 static matrix 与正式实现质量闸门通过，B/H/M/L=`0/0/0/0`。
-- [ ] commit/push 后 clean HEAD 执行 fresh r6。
-- [ ] r6 all-lane 与后续 formal 证明同一 successor state binding 后关闭 BUG。
+- [x] commit/push 后从 clean HEAD 启动 fresh r6，并实际进入 successor dynamic state
+  precondition。
+- [ ] 排除 r6 环境端口阻塞后执行 fresh r7 all-lane。
+- [ ] r7 all-lane 与后续 formal 证明同一 successor state binding 后关闭 BUG。
 
 ## References
 
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`
+- `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
 - `scripts/v934/step4/successor/database_state_negative_tool.py`
 - `scripts/v934/step4/successor/step3_required_report_tool.py`
 - `scripts/verify-v934-database-matrix.sh`

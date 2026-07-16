@@ -146,8 +146,7 @@ updated_at: 2026-07-16
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r5 historical fail-closed / database-state successor remediation quality
-  passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`
+  `in-progress / r6 historical environment fail-closed / fresh r7 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -236,8 +235,19 @@ updated_at: 2026-07-16
   lanes 明确 excluded/non-reusable；failed evidence=
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`，BUG=
   `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
-- database-state/required-report successor adapters 已静态通过，下一动作是
-  commit/push 并验证 clean HEAD 后执行 fresh r6。Step 4 threshold 仍为
+- database-state/required-report successor adapters 已静态通过；r6 在 clean/pushed commit
+  `eb10d9c10a73f379db9ce4fa3d05ff340b489fd4` 建立 `3,974 files` / SHA-256=
+  `3a4322e8442646c58ed522c0d4fb52071b3219cc1c2f204c209299bd8acc1cff` source seal，完成
+  Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0`、Addon=
+  `2/6/F0E0S0` 后，因 repo demo container `foggy-demo-mysql` 占用 frozen port `13306`
+  而以 `E_DYNAMIC_PRECONDITION` fail closed。该 failure 是 environment precondition，
+  不是产品回归；database cells、external、aggregate、threshold、source-after 与 summary
+  absent，r6 与 partial lanes 均 excluded/non-reusable。evidence=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`；
+  environment blocker=
+  `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
+- repo demo DB 容器已在 r7 evidence window 外停止，四个 frozen ports 均无 listener；
+  下一动作是执行 fresh r7。Step 4 threshold 仍为
   `diagnostic-pending`，尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。
   `can_enter_coverage_audit=no`，Step 5
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能

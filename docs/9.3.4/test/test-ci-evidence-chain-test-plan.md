@@ -378,8 +378,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r5 historical fail-closed / database-state successor
-  remediation quality passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`
+- step4_result: `in-progress / r6 historical environment fail-closed / fresh r7 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -434,6 +433,14 @@ Final acceptance 至少验证：
   后，database-state companion 因误选 frozen Step 3 authority manifest 以
   `E_AUTHORITY_MANIFEST` fail closed。database cells、external、aggregate、threshold、
   source-after 与 summary absent，r5=`excluded-from-step4-exit`，partial lanes 不可复用；
+- Step 4 r6：clean/pushed tested commit=`eb10d9c10a73f379db9ce4fa3d05ff340b489fd4`，
+  source-before=`3,974` / SHA-256=
+  `3a4322e8442646c58ed522c0d4fb52071b3219cc1c2f204c209299bd8acc1cff`；Unit=
+  `681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0`、Addon=`2/6/F0E0S0`；
+  database-state 以 `E_DYNAMIC_PRECONDITION` 拒绝被 repo demo container
+  `foggy-demo-mysql` 占用的 frozen port `13306`。database cells、external、aggregate、
+  threshold、source-after 与 summary absent；r6=`excluded-from-step4-exit`，partial lanes
+  不可复用。failure class=`environment-precondition`，不是产品回归；
 - successor remediation regression：database-state/required-report/report-inventory 均经 Step 4
   adapters 选择 successor authority；original frozen state control 仍 fail closed。current identity：
   coverage contract diagnostic/formal=
@@ -453,7 +460,10 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`；
   `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
 - implementation quality：`pass`，B/H/M/L=`0/0/0/0`；
-- next executable action: commit/push 并确认 clean worktree、
-  `HEAD == origin/main`，再执行 fresh r6 all-lane diagnostic。threshold 仍为
+- r6 evidence/blocker：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`；
+  `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
+- next executable action: repo demo DB 容器已在 r7 evidence window 外停止，四个 frozen
+  ports 均无 listener；执行 fresh r7 all-lane diagnostic。threshold 仍为
   `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、coverage audit 与 acceptance
   仍关闭。

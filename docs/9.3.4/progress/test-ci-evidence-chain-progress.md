@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r5 historical fail-closed / successor remediation quality passed | Step 3 exit passed | r5 excluded、partial lanes non-reusable；B/H/M/L=`0/0/0/0`；commit-push + fresh r6 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r6 historical environment fail-closed | Step 3 exit passed | r6 excluded、partial lanes non-reusable；`foggy-demo-mysql` 占用 frozen port `13306`；fresh r7 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1060,6 +1060,39 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   再执行全新 `step4-coverage-20260716-diagnostic-r6`。threshold=
   `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5 保持关闭。
 
+### Superseding Post-diagnostic Check-in — Step 4 r6 environment fail-closed
+
+- recorded_at: 2026-07-16
+- status decision: `in-progress / r6 historical environment fail-closed / fresh r7 pending`，
+  不是 Step 4 `passed`；
+- immutable r6: clean/pushed tested commit=
+  `eb10d9c10a73f379db9ce4fa3d05ff340b489fd4`，run=
+  `step4-coverage-20260716-diagnostic-r6`，source-before=`3,974 files` / SHA-256=
+  `3a4322e8442646c58ed522c0d4fb52071b3219cc1c2f204c209299bd8acc1cff`；
+- partial boundary: Unit=`681 positive + 55 structural / 4,941 / F0E0S0`、Integration=
+  `47 positive + 4 structural / 320 / F0E0S0`、Addon=`2/6/F0E0S0` 已完成；仅形成
+  `9/23` exec。这些结果属于 r6 failed run，禁止拼接或复用；
+- fail-closed boundary: Step 3 required child 的 database-state dynamic precondition 发现
+  frozen MySQL 5.7 port `13306` 已被 repo demo compose project
+  `foggy-dataset-demo` 的长期容器 `foggy-demo-mysql` 占用，以
+  `E_DYNAMIC_PRECONDITION` 终止；outer=`failed / child-step3-required / exit 1`；database
+  cells、external、aggregate、threshold、source-after 与 summary absent；
+- classification: `environment-precondition / product_regression=false`。r6 已越过 r5 的
+  `E_AUTHORITY_MANIFEST` 边界，successor selector remediation 未复发；runner 没有启动、
+  接管、复用或改变既有 listener，run-owned cleanup residue=`0/0/0`；
+- immutable artifact hashes: outer status/context/cleanup/class-universe/toolchain=
+  `4029bb382ffea564ee3b8c2fc20021b0d4fd4d928a631bc94ca947019463ac10` /
+  `21251c5ab1b16e401a18bd8ecbfefefb4d5059cc202d70f1d879cc60f49db332` /
+  `5524f0c68afb6ff1d13358f8fa3d2d19f7c1270454f2dfed1d2fe72cfe334ff1` /
+  `3aeaabd75ba0a75e99801f8b50e8a7453d512989da50f49afaddc35ba523e926` /
+  `3a101e4041b8186366c1d3c834f1c15e4a4c7ef47d4ed1b40221517188a65f20`；
+- records:
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`；
+  `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
+- next gate: repo demo DB 容器已在 r7 evidence window 外停止，四个 frozen ports 均无
+  listener；执行全新 `step4-coverage-20260716-diagnostic-r7`。threshold=`diagnostic-pending`，
+  `can_enter_coverage_audit=no`，Step 5 保持关闭。
+
 ## Current Risks / Stop Conditions
 
 - 33 个 frozen rename + 2 个 Mongo corrective rename 已由 r8e successor exact
@@ -1069,7 +1102,7 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1–r5 均已 fail closed/excluded，r5 partial lanes 不可复用，当前仍无 reviewed
+- r1–r6 均已 fail closed/excluded，r5/r6 partial lanes 不可复用，当前仍无 reviewed
   reactor aggregate baseline；
   0.80/0.70 只是 critical-class candidate floor，必须由 fresh all-lane observation
   与人工 review 确认。
@@ -1100,18 +1133,19 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 successor remediation passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 B/H/M/L=`0/0/0/0`，只放行 commit-push + fresh r6，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 successor remediation passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 B/H/M/L=`0/0/0/0`；r6 环境失败未进入 final gate，fresh r7 pending，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r5 fail-closed / successor remediation static / r6 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r6 environment fail-closed / r7 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-database-state successor remediation 的 full static/quality 已通过；下一步 commit/push、验证
-clean worktree 且 `HEAD == origin/main`，以全新 run id 执行 fresh r6 all-lane diagnostic，
+database-state successor remediation 的 full static/quality 已通过，r6 也未复现该 selector
+缺陷；repo demo DB 容器已在 r7 evidence window 外停止，四个 frozen ports 均无 listener；
+下一步以全新 `step4-coverage-20260716-diagnostic-r7` 从 source seal 开始执行 all-lane diagnostic，
 观察全部 required lane、aggregate/critical classes 并评审 exact observed thresholds。
-当前 threshold=`diagnostic-pending`，r1–r5 都是 excluded failed diagnostic，r5 partial
+当前 threshold=`diagnostic-pending`，r1–r6 都是 excluded failed diagnostic，r5/r6 partial
 lanes 不可复用，尚无 aggregate baseline/review 或 Step 4 exit evidence；
 `can_enter_coverage_audit=no`，
 Step 5 仍不得开始，coverage audit/acceptance 不得启动。

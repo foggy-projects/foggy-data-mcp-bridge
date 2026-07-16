@@ -147,8 +147,7 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r5 historical fail-closed / database-state successor remediation quality passed
-B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`。
+`in-progress / r6 historical environment fail-closed / fresh r7 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -372,6 +371,28 @@ entry）：
 - current entry：full static/quality 已通过，B/H/M/L=`0/0/0/0`；commit/push 并证明 clean
   `HEAD == origin/main`，再执行 fresh r6。threshold=`diagnostic-pending`，
   `can_enter_coverage_audit=no`；Step 5、acceptance 与 9.3.5 保持关闭。
+
+Diagnostic r6 environment result（2026-07-16，supersedes current entry）：
+
+- clean/pushed tested HEAD=`eb10d9c10a73f379db9ce4fa3d05ff340b489fd4`，run=
+  `step4-coverage-20260716-diagnostic-r6`；source-before=`3,974 files` / SHA-256=
+  `3a4322e8442646c58ed522c0d4fb52071b3219cc1c2f204c209299bd8acc1cff`；
+- r6 完成 Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0` 和
+  Addon=`2/6/F0E0S0` 后，database-state dynamic precondition 发现 frozen MySQL 5.7
+  port `13306` 已被 repo demo container `foggy-demo-mysql` 占用，以
+  `E_DYNAMIC_PRECONDITION` fail closed；outer=`failed / child-step3-required / exit 1`；
+- failure classification=`environment-precondition`，不是产品回归。r6 已越过 r5 的
+  `E_AUTHORITY_MANIFEST` 边界，successor selector remediation 没有复发；runner 未启动、
+  复用或改变既有 listener；run-owned cleanup residue=`0/0/0`；
+- database cells、external、aggregate、threshold、source-after 与 summary absent；r6=
+  `excluded-from-step4-exit`，Unit/Integration/Addon partial lanes 禁止拼接或复用；
+- records=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`、
+  `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
+- current entry：repo demo DB 容器已在 r7 evidence window 外以保留原 ID 的方式停止，四个
+  frozen ports 已证明无 listener；下一步以全新 `step4-coverage-20260716-diagnostic-r7`
+  从 source seal 开始。threshold=
+  `diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、acceptance 与 9.3.5 保持关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

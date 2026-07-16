@@ -38,8 +38,8 @@ updated_at: 2026-07-16
   `step3-required-20260716-final-r4` 通过：database `29/370` + required external
   `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
-  已按序完成；Step 4 仍为 `in-progress`，diagnostic r5 已 fail closed，尚无 coverage
-  pass 或 aggregate baseline/review。
+  已按序完成；Step 4 仍为 `in-progress`，diagnostic r6 因环境前置条件 fail closed，尚无
+  coverage pass 或 aggregate baseline/review。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -125,10 +125,17 @@ updated_at: 2026-07-16
   `E_AUTHORITY_MANIFEST` 拒绝 stale `foggy-dataset-model/pom.xml`。database cells、
   external、aggregate、threshold 与 summary 均未完成，r5=
   `excluded-from-step4-exit`，partial lanes 不可复用。
-- 当前状态为 `in-progress / r5 historical fail-closed / database-state successor
-  remediation quality passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`。
+- r6 tested commit=`eb10d9c10a73f379db9ce4fa3d05ff340b489fd4`，source-before=
+  `3,974 files` / SHA-256=
+  `3a4322e8442646c58ed522c0d4fb52071b3219cc1c2f204c209299bd8acc1cff`；Unit=
+  `681+55 / 4,941 / F0E0S0`、Integration=`47+4 / 320 / F0E0S0`、Addon=
+  `2/6/F0E0S0` 后，database-state 以 `E_DYNAMIC_PRECONDITION` 拒绝已被长期 repo demo
+  container `foggy-demo-mysql` 占用的 frozen port `13306`。database cells、external、
+  aggregate、threshold、source-after 与 summary 均 absent；r6=
+  `excluded-from-step4-exit`，partial lanes 不可复用。这是环境阻塞，不是产品回归。
+- 当前状态为 `in-progress / r6 historical environment fail-closed / fresh r7 pending`。
   `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r5 与 focused/static 结果都不是 Step 4 exit evidence。
+  `diagnostic-pending`；r1–r6 与 focused/static 结果都不是 Step 4 exit evidence。
   `can_enter_coverage_audit=no`，Step 5 仍关闭。
 
 ## 执行资料
@@ -168,6 +175,10 @@ updated_at: 2026-07-16
   [evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md)
 - Step 4 database-state successor authority regression：
   [workitems/BUG-step4-database-state-successor-authority-manifest.md](workitems/BUG-step4-database-state-successor-authority-manifest.md)
+- Step 4 diagnostic r6 environment failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md)
+- Step 4 r6 MySQL 5.7 port environment blocker：
+  [workitems/BLOCKER-step4-r6-mysql57-port-occupation.md](workitems/BLOCKER-step4-r6-mysql57-port-occupation.md)
 - Step 1 confirmed evidence:
   [evidence/step-1/inventory-contract-freeze-20260714.md](evidence/step-1/inventory-contract-freeze-20260714.md)
 - Step 2 structural amendment evidence：
@@ -212,7 +223,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r5 historical fail-closed / successor remediation quality passed | r5 excluded、partial lanes 不可复用；B/H/M/L=`0/0/0/0`；commit-push + fresh r6 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r6 historical environment fail-closed | r6 excluded、partial lanes 不可复用；`foggy-demo-mysql` 占用 frozen port `13306`；fresh r7 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
