@@ -108,6 +108,11 @@ code_inventory:
     role: broad semantic/unit/integration and database parity surface
     expected_change: update
     notes: split runner ownership; extend preflight/parity to MySQL8 and SQL Server; no all-suite fivefold repetition
+  - module: step4-preagg-validation-test
+    path: foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java
+    role: Step 4 Unit validation oracle for raw versus selected pre-aggregation data
+    expected_change: update
+    notes: r1 exposed wrong-table corruption plus raw-vs-raw/nullable-empty false green; fix asserts exact monthly corruption and daily/daily/daily_customer routing; source SHA-256 affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623
   - module: model-test-config
     path: foggy-dataset-model/src/test/resources/application-*.yml
     role: five database profiles
@@ -142,12 +147,12 @@ code_inventory:
     path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; local Step 4 SHA256SUMS is generated and exact-48 verified (SHA-256 c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417)
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; local Step 4 SHA256SUMS is generated and exact-49 verified (SHA-256 c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e)
   - module: v934-step4-diagnostic-runner
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: diagnostic-ready is not passed; first authoritative execution must start from clean committed/pushed HEAD
+    notes: diagnostic-ready is not passed; r1 started from clean committed/pushed bc100b0f and failed closed in child-unit; r2 requires the fix on a new clean committed/pushed HEAD
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -302,14 +307,16 @@ code_inventory:
   runtime-only image 与 version authority paths 仍保持 planned/not-started，不得从
   Step 3 result 或 Step 4 静态库存推断已通过。
 
-## Step 4 Diagnostic-ready Inventory Result
+## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / diagnostic-ready`，不是 `passed`；
+- state：`in-progress / diagnostic r1 fail-closed / fix focused-green / r2 pending`，不是
+  `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
 - fail-closed static evidence：raw contract=`8/8`、effective POM=`4/4`、toolchain
-  receipt=`5/5`、report inventory=`27/27`；
+  receipt=`5/5`、report inventory=`27/27`、Step 2 derived view=`12/12`、successor
+  overlay=`8/8`；
 - build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
   `@{argLine}` late evaluation，修复 legacy coverage 无 exec 却 BUILD SUCCESS；三态
   focused 验证已完成，`coverage_tool.py` + manifest + `validate-contract` +
@@ -318,12 +325,25 @@ code_inventory:
 - toolchain identity：receipt 绑定 Step 1 raw 工具版本、compiler realm ASM `9.6`、
   JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1`，并核对 24 个 production
   module effective compiler；
-- publication boundary：Step 4 `SHA256SUMS` 已生成并通过 exact 48 项校验，
-  manifest SHA-256=
-  `c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`；
-- evidence boundary：threshold 仍为 `diagnostic-pending`，尚无 all-lane aggregate
-  baseline/review 和 Step 4 exit evidence。下一动作为提交并推送本基线，再在
-  clean committed/pushed HEAD 上执行 fresh all-lane diagnostic；Step 5 仍关闭。
+- report successor：`coverage-report-amendment.tsv`=
+  `10 rows / 4 new + 6 changed`，SHA-256=
+  `5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；declared
+  amendments=`15`；required total 保持 `773/59/5707`；
+- publication boundary：Step 4 `SHA256SUMS` 已生成并通过 exact 49 项校验，manifest
+  SHA-256=
+  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`；
+- diagnostic r1：clean/pushed HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
+  `step4-coverage-20260716-diagnostic-r1`，child-unit=`3115/1/0/0`，正确 fail closed；
+  wrong-table corruption 与 raw-vs-raw/nullable-empty 缺陷见
+  `docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`；
+- fix inventory：只修改 `PreAggregationDataValidationTest`，focused=`9/F0E0S0`、组合=
+  `57/F0E0S0`；snapshot 路由=`daily_product_sales/daily_product_sales/
+  daily_customer_channel_sales`，corruption 路由=`monthly_category_sales`、diff=`1000.00`；
+  source SHA-256=
+  `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`；
+- evidence boundary：threshold 仍为 `diagnostic-pending`，r1 未生成 all-lane aggregate
+  baseline/review 或 Step 4 exit evidence。下一动作为提交并推送修复，再在新的 clean
+  committed/pushed HEAD 上执行 r2；Step 5 仍关闭。
 
 ## Protected Boundaries
 

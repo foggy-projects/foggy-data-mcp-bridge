@@ -240,9 +240,17 @@ run-owned toolchain receipt。receipt 绑定 Step 1 raw 工具版本、实际 Ma
 链路、compiler realm ASM `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM
 `9.7.1` 和 24 个 production module effective compiler；任一字段缺失、非 canonical
 JSON、跨 run 替换、版本/realm/hash 漂移均必须 fail closed。本地出版的
-`scripts/v934/step4/SHA256SUMS` 已生成并通过 exact 48 项校验，
+`scripts/v934/step4/SHA256SUMS` 已生成并通过 exact 49 项校验，
 manifest SHA-256=
-`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。
+`c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
+
+Step 4 report successor 保持执行库存与报告库存分离：
+`coverage-report-amendment.tsv` exact=`10 rows = 4 new + 6 changed`，SHA-256=
+`5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；
+successor declared amendments=`15`。该 source amendment 不改变 report identity/testcase，
+因此 required overlay 仍为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，
+exec/session 仍为 `23/48`。Step 2 derived view negatives=`12/12`，successor overlay
+negatives=`8/8`；后者新增 Redis 显式路径错绑负例。
 
 Historical `scripts/verify-v934-step2-successor.sh` 继续冻结 Step 2 的 24 个
 production reactor generation 语义。Step 4 加入第 25 个 build-only reporter 后，
@@ -426,16 +434,31 @@ Parent final/candidate SHA=
 canonical runners 重新执行 unit、hermetic/SQLite、五库与全部 required external lanes。
 证据：`docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。
 
-## Step 4 Diagnostic-ready Record
+## Step 4 Diagnostic / Fix Record
 
-Superseding status（2026-07-16）：Step 4=`in-progress / diagnostic-ready`，不是
+Superseding status（2026-07-16）：Step 4=
+`in-progress / diagnostic r1 fail-closed / fix focused-green / r2 pending`，不是
 `passed`。静态契约已收口为 exact `23 exec / 48 sessions`；required report
 overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion=
 `2/6` 仍与 required 总计分离。raw contract/effective POM/toolchain/report inventory
-负例分别精确为 `8/8`、`4/4`、`5/5`、`27/27`。
+负例分别精确为 `8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view/successor
+overlay=`12/12`、`8/8`。
 
-该状态只表示允许在本基线完成提交、推送并验证 clean HEAD 后启动
-fresh all-lane diagnostic。`coverage-thresholds.json` 仍为
-`diagnostic-pending`；尚无 aggregate baseline/review、confirmed threshold 或
+clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
+`step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
+`3115 tests / 1 failure / 0 errors / 0 skipped` fail closed，未进入 reporter/model/
+aggregate/threshold。根因不是生产 Matcher：测试腐化 daily，但 watermark=null 时 daily
+正确 fail closed，实际 SQL 命中 monthly；同时 raw-vs-raw 与 nullable/empty assertion
+允许伪绿。
+
+修复契约要求 monthly 腐化/恢复精确一行且先核对 hit/name；三个 snapshot 比较显式关闭
+hybrid，必须依次命中 `daily_product_sales`、`daily_product_sales`、
+`daily_customer_channel_sales`；空/缺失/null/非数值 fixture fail closed。focused class=
+`9/F0E0S0`，四类组合=`57/F0E0S0`，monthly corruption diff=`1000.00`，source
+SHA-256=`affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`；canonical
+workitem=`docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`。
+
+`coverage-thresholds.json` 仍为 `diagnostic-pending`；r1 不得拼接为绿色，且尚无
+aggregate baseline/review、confirmed threshold 或
 `docs/9.3.4/evidence/step-4/step4-coverage-exit-<date>.md`。因此 Step 4 exit 未满足，
-Step 5 必须保持关闭。
+修复必须先提交、推送并验证新的 clean HEAD，才可执行 r2；Step 5 与 9.3.5 必须保持关闭。

@@ -41,8 +41,8 @@ committed/pushed HEAD 上的 Docker/DB/external all-lane diagnostic、aggregate 
   `docs/9.3.4/workitems/BUG-step4-legacy-coverage-argline-fail-open.md`；
 - static exact evidence：coverage execution=`23 exec / 48 sessions`；required report
   overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`；Addon companion
-  单列=`2/6`；Step 4 manifest=`48/48`，manifest SHA-256=
-  `c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`；
+  单列=`2/6`；Step 4 manifest=`49/49`，manifest SHA-256=
+  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`；
 - fail-closed negatives：raw contract=`8/8`、effective POM=`4/4`、toolchain
   receipt=`5/5`、report inventory=`27/27`；
 - focused regressions：PreAgg 单类=`22/22/F0E0S0`、三类聚合=
@@ -116,7 +116,7 @@ Resolved before this decision：
    negatives=`5/5`。
 6. Major — coverage exec 数、test report 数与 testcase 数若混为一个库存，可产生漏跑
    伪绿。contract/ledger/report inventory 已分别冻结 `23/48` 与
-   `773/59/5707/F0E0S0`，Addon `2/6` 单列；local manifest exact=`48/48`。
+   `773/59/5707/F0E0S0`，Addon `2/6` 单列；local manifest exact=`49/49`。
 
 当前未发现阻止提交 diagnostic-ready baseline 的开放实现 blocker。以上结论只覆盖静态
 契约、focused regression 与诊断执行链实现，不覆盖尚未运行的 all-lane 结果。
@@ -166,3 +166,38 @@ Resolved before this decision：
 - can_enter_coverage_audit: no（待 clean all-lane diagnostic、aggregate review 与
   confirmed thresholds）。
 - follow_up_required: yes。
+
+## Post-review Update — Diagnostic r1 fail-closed（2026-07-16）
+
+本节是首次 diagnostic 后的 superseding update；保留上文“只放行 clean-HEAD
+diagnostic”的历史判断，不把上文改写成 r1 coverage review。该判断的窄边界已被实际执行：
+clean/pushed HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
+`step4-coverage-20260716-diagnostic-r1`，outer 在 `child-unit` 以
+`3115 tests / 1 failure / 0 errors / 0 skipped` fail closed，未进入 aggregate/report/
+threshold。
+
+r1 暴露 `PreAggregationDataValidationTest` 的测试 oracle 缺陷：腐化 daily 表时默认 hybrid
+因 watermark=null 正确跳过 daily，SQL 实际命中 monthly；另有 raw-vs-raw 与
+nullable/empty 伪绿。修复限定在测试 fixture/assertion，不改生产 Matcher、threshold 或
+exclusion：corruption 必须命中/修改/恢复 `monthly_category_sales` 的精确一行且差额为
+`1000.00`；三个 snapshot 对比必须依次命中 `daily_product_sales`、
+`daily_product_sales`、`daily_customer_channel_sales`，空/缺失/null/非数值数据 fail
+closed。focused class=`9/F0E0S0`，DataValidation+EdgeCase+Matcher+RequirementBuilder=
+`57/F0E0S0`，source SHA-256=
+`affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`。canonical record=
+`docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`。
+
+相应 successor 只声明测试 source amendment，不改变 report identity/cardinality：
+`coverage-report-amendment.tsv` 从 `9 rows / 4 new + 5 changed` 更新为
+`10 rows / 4 new + 6 changed`，SHA-256=
+`5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；declared
+amendments 从 `14` 更新为 `15`。required 总量仍为 `773/59/5707/F0E0S0`，
+exec/session 仍为 `23/48`。Step 2 derived view negatives=`12/12`；successor overlay
+negatives=`8/8`，新增 Redis 显式路径错绑负例。top manifest=`49/49`，SHA-256=
+`c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
+
+Post-review decision：修复与 successor refresh 可提交/push，并在新的 clean/pushed HEAD
+执行 r2；r1 和 focused module `target` XML 均不得冒充最终 evidence。Step 4 继续
+`in-progress`，threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；完整 r2、
+aggregate 人工 review、confirmed thresholds 与最终实现质量复核完成前，Step 5、9.3.5
+和 acceptance 均保持关闭。

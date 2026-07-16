@@ -145,8 +145,8 @@ updated_at: 2026-07-16
 
 ## Current Progress
 
-- version status：`in-progress`；Steps 1–3=`passed`；Step 4=`in-progress / diagnostic-ready`
-  （不是 `passed`）；
+- version status：`in-progress`；Steps 1–3=`passed`；Step 4=
+  `in-progress / diagnostic r1 fail-closed / r2 pending`（不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
   F/E/S=`0/0/0`；
@@ -162,13 +162,25 @@ updated_at: 2026-07-16
 - Step 4 已完成 diagnostic-ready 静态收口：exact `23 exec / 48 sessions`，
   required report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，
   Addon companion 单列 `2/6`；raw contract/effective POM/toolchain/report inventory
-  负例分别为 `8/8`、`4/4`、`5/5`、`27/27`；
+  负例分别为 `8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view/successor
+  overlay 负例=`12/12`、`8/8`；
 - toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
-  `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；本地 Step 4
-  `SHA256SUMS` 已生成并通过 exact 48 项校验，manifest SHA-256=
-  `c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`；
-- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，尚无 clean
-  committed/pushed HEAD 上的 all-lane aggregate baseline/review 或 Step 4 exit evidence。
-  下一动作是提交、推送并验证 clean HEAD 后执行 fresh diagnostic。Step 5
+  `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；Step 4 report
+  amendment=`10 rows = 4 new + 6 changed`，SHA-256=
+  `5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`，
+  successor declared amendments=`15`；本地 `SHA256SUMS` 已生成并通过 exact 49 项校验，
+  manifest SHA-256=
+  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`；
+- clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
+  `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
+  `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
+  `PreAggregationDataValidationTest` 腐化 daily 表但实际命中 monthly，并允许
+  raw-vs-raw/nullable-empty 伪绿；修复 focused=`9/F0E0S0`、组合=`57/F0E0S0`，
+  source SHA-256=
+  `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`，见
+  `docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`；
+- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，r1 未到 aggregate/report 阶段，
+  尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。下一动作是提交、推送
+  修复并验证新的 clean HEAD 后执行 r2。Step 5
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
   据此签收 9.3.4 或把 9.3.5 标为 ready。

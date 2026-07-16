@@ -3,7 +3,7 @@
 
 The generated directory implements the ``--successor-dir`` interface consumed
 by ``scripts/v934/step2_report_tool.py``.  It copies the confirmed Step 2
-contract, applies only the reviewed nine-row Step 4 report amendment, and keeps
+contract, applies only the reviewed ten-row Step 4 report amendment, and keeps
 the parent structural inventory byte-for-byte unchanged.
 """
 
@@ -284,10 +284,10 @@ def load_contract(root: Path) -> tuple[dict[str, Any], Path]:
     require(
         amendment == {
             "path": "scripts/v934/step4/coverage-report-amendment.tsv",
-            "sha256": "263e2ecbfeda61555f56687789a6d0ad2a2eef3dff22f5fa06617c59d2eae241",
-            "rows": 9,
+            "sha256": "5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504",
+            "rows": 10,
             "new_positive_reports": 4,
-            "changed_positive_reports": 5,
+            "changed_positive_reports": 6,
             "testcase_delta": 56,
         },
         "E_CONTRACT",
@@ -425,10 +425,10 @@ def load_amendment(
         "reviewed amendment hash differs",
     )
     rows = read_tsv(path, AMENDMENT_HEADER, "E_AMENDMENT")
-    require(len(rows) == 9, "E_AMENDMENT", "amendment must contain exactly nine rows")
+    require(len(rows) == 10, "E_AMENDMENT", "amendment must contain exactly ten rows")
     require(
-        len({row["source_path"] for row in rows}) == 9
-        and len({row["report_fqcn"] for row in rows}) == 9,
+        len({row["source_path"] for row in rows}) == 10
+        and len({row["report_fqcn"] for row in rows}) == 10,
         "E_AMENDMENT",
         "amendment paths/report identities must be unique",
     )
@@ -436,7 +436,7 @@ def load_amendment(
         "new-positive-report", "changed-positive-report"
     }}
     require(
-        kinds == {"new-positive-report": 4, "changed-positive-report": 5}
+        kinds == {"new-positive-report": 4, "changed-positive-report": 6}
         and all(row["change_kind"] in kinds for row in rows),
         "E_AMENDMENT",
         "amendment change kinds differ",
@@ -455,7 +455,7 @@ def load_amendment(
         require(re.fullmatch(r"[0-9a-f]{64}", row["step4_source_sha256"]) is not None, "E_AMENDMENT", "invalid current hash")
         old = int(row["step2_testcase_nodes"])
         new = int(row["step4_expected_testcase_nodes"])
-        require(new > 0 and new > old, "E_AMENDMENT", "amended testcase count must increase")
+        require(new > 0, "E_AMENDMENT", "amended testcase count must be positive")
         if row["change_kind"] == "new-positive-report":
             require(
                 row["step2_source_sha256"] == "absent"
@@ -469,10 +469,16 @@ def load_amendment(
         else:
             require(
                 re.fullmatch(r"[0-9a-f]{64}", row["step2_source_sha256"]) is not None
-                and row["disposition"] == "step4-cardinality-amendment",
+                and row["step2_source_sha256"] != row["step4_source_sha256"],
                 "E_AMENDMENT",
                 "changed-report amendment semantics differ",
             )
+            if row["disposition"] == "step4-cardinality-amendment":
+                require(new > old, "E_AMENDMENT", "cardinality amendment must increase testcase count")
+            elif row["disposition"] == "step4-source-amendment":
+                require(new == old, "E_AMENDMENT", "source amendment must preserve testcase count")
+            else:
+                fail("E_AMENDMENT", "changed-report disposition differs")
         workitem = root / safe_relative(row["workitem"], "amendment workitem")
         require(workitem.is_file() and not workitem.is_symlink(), "E_AMENDMENT", f"missing workitem: {workitem}")
         delta += new - old
@@ -650,7 +656,7 @@ def apply_amendment(
             "engine_ids": "junit-jupiter",
             "source_sha256": change["step4_source_sha256"],
             # Replaced for every derived discovery row by bind_current_workspace
-            # after all nine reviewed amendments have been materialized.
+            # after all ten reviewed amendments have been materialized.
             "test_classes_sha256": "0" * 64,
             "main_classes_sha256": "0" * 64,
         })
@@ -1014,7 +1020,7 @@ def validate_parent_command(args: argparse.Namespace) -> None:
     parent_dir = root / contract["parent"]["directory"]
     parent, _tool = validate_parent_directory(root, parent_dir, contract, enforce_location=True)
     load_amendment(root, root / contract["amendment"]["path"], contract)
-    print(f"{PREFIX} parent PASS positive={len(parent.rows)} structural={len(parent.structural_rows)} amendment=9")
+    print(f"{PREFIX} parent PASS positive={len(parent.rows)} structural={len(parent.structural_rows)} amendment=10")
 
 
 def generate_command(args: argparse.Namespace) -> None:

@@ -155,11 +155,22 @@ Diagnostic-ready result（2026-07-16，不是 Step 4 pass）：静态执行结�
 `23 exec / 48 sessions`，required report overlay 为
 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
 `2/6`。raw contract/effective POM/toolchain/report inventory expected-negative 已分别得到
-`8/8`、`4/4`、`5/5`、`27/27`。toolchain receipt 还必须在执行边界持续
+`8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view/successor overlay negatives=
+`12/12`、`8/8`。toolchain receipt 还必须在执行边界持续
 复验 Step 1 raw 工具版本、ASM `9.6/9.7/9.7.1` 三层 realm 和 24 个
-production module effective compiler。本地 `scripts/v934/step4/SHA256SUMS` 已生成
-并通过 exact 48 项校验，manifest SHA-256=
-`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。
+production module effective compiler。report amendment exact=
+`10 rows = 4 new + 6 changed`，SHA-256=
+`5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；successor
+declared amendments=`15`。本地 `scripts/v934/step4/SHA256SUMS` 已生成并通过 exact
+49 项校验，manifest SHA-256=
+`c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
+
+Diagnostic r1 result（2026-07-16，failed evidence，不是 Step 4 pass）：clean/pushed
+HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
+`step4-coverage-20260716-diagnostic-r1`；`child-unit` 结果=
+`3115 tests / 1 failure / 0 errors / 0 skipped`，outer 正确 fail closed，未进入
+aggregate/report/threshold。失败证明 `PreAggregationDataValidationTest` 腐化 daily
+而默认 hybrid 实际命中 monthly；同类还存在 raw-vs-raw 和 nullable/empty 伪绿。
 
 Build regression：
 
@@ -172,6 +183,18 @@ Build regression：
   24-production-reactor generation 而 fail closed 是预期 supersession boundary。正式
   Step 4 路径必须使用 immutable Step 2 parent + `step2_report_view_tool.py`
   derived view + overlay，不得为重跑 historical authority 将其放宽到 25。
+
+Test regression：
+
+- `docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md` 已关闭测试缺陷：腐化
+  探针改为实际命中的 `preagg_monthly_category_sales` 并精确 update/restore 一行，在金额
+  差断言前验证 hit/name；三个 snapshot 比较显式关闭 hybrid，路由依次为
+  `daily_product_sales`、`daily_product_sales`、`daily_customer_channel_sales`，所有
+  raw/PreAgg 列表、字段和值均拒绝 null/empty/missing/non-numeric；
+- focused class=`9/F0E0S0`；DataValidation+EdgeCase+Matcher+RequirementBuilder=
+  `57/F0E0S0`；monthly corruption diff=`1000.00`；source SHA-256=
+  `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`。这些 focused
+  结果证明修复面，不替代新 clean/pushed HEAD 的 Unit authority 和 r2 all-lane evidence。
 
 ## Step 5 — Authority Rehearsal / Immutable Candidate
 
@@ -248,7 +271,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / diagnostic-ready`（不是 `passed`）
+- step4_result: `in-progress / diagnostic r1 fail-closed / fix focused-green / r2 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -280,7 +303,10 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。
 - Step 4 static readiness：exact `23 exec / 48 sessions`、
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`；四类
-  negatives=`8/8 + 4/4 + 5/5 + 27/27`。threshold 仍为
+  negatives=`8/8 + 4/4 + 5/5 + 27/27`，derived view/overlay=`12/12 + 8/8`。
+  threshold 仍为
   `diagnostic-pending`，没有 aggregate baseline/review 或 Step 4 exit evidence。
-- next executable action: 提交并推送 diagnostic-ready baseline，确认 clean worktree 且
-  `HEAD == origin/main`，再执行 fresh all-lane diagnostic。Step 5 仍关闭。
+- Step 4 r1：clean/pushed `bc100b0f` 的 `child-unit`=`3115/1/0/0` fail closed；修复
+  focused=`9/0`、组合=`57/0`，但未产生 aggregate evidence。
+- next executable action: 提交并推送修复与 successor refresh，确认新的 clean worktree
+  且 `HEAD == origin/main`，再执行 r2 all-lane diagnostic。Step 5 仍关闭。

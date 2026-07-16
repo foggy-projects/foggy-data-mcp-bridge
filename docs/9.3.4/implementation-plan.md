@@ -147,7 +147,7 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 提升为
-`in-progress / diagnostic-ready`。
+`in-progress / diagnostic r1 fail-closed / r2 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -192,14 +192,36 @@ Recorded progress（2026-07-16，superseding bootstrap wording）：
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 单列
   `2/6`；
 - fail-closed readiness probes：raw contract=`8/8`、effective POM=`4/4`、toolchain
-  receipt=`5/5`、report inventory=`27/27`；
+  receipt=`5/5`、report inventory=`27/27`、Step 2 derived view=`12/12`、successor
+  overlay=`8/8`；
 - toolchain receipt 已约束 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
   `9.6/9.7/9.7.1` 和 24 个 production module effective compiler；
-- local Step 4 `SHA256SUMS` 已生成并通过 exact 48 项校验，manifest
-  SHA-256=`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`；
+- report amendment exact=`10 rows = 4 new + 6 changed`，SHA-256=
+  `5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；
+  successor declared amendments=`15`；local Step 4 `SHA256SUMS` 已生成并通过 exact
+  49 项校验，manifest SHA-256=
+  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`；
 - threshold 仍为 `diagnostic-pending`，尚无 all-lane aggregate baseline/review 或
-  Step 4 exit evidence。下一动作是从 clean committed/pushed HEAD 执行 fresh
-  all-lane diagnostic；在该 diagnostic、人工 review 和 confirmed thresholds 完成前，
+  Step 4 exit evidence。
+
+Diagnostic r1 result（2026-07-16，supersedes the unexecuted wording above）：
+
+- clean/pushed tested HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
+  `step4-coverage-20260716-diagnostic-r1`；outer runner 在 `child-unit` 正确 fail closed，
+  Unit=`3115 tests / 1 failure / 0 errors / 0 skipped`，未进入 aggregate/report/threshold；
+- root cause：`PreAggregationDataValidationTest#testDetectCorruptedPreAggData` 腐化
+  `preagg_daily_product_sales`，而默认 hybrid 在 watermark=null 时跳过 daily，查询实际命中
+  `preagg_monthly_category_sales`；同类另有 raw-vs-raw 与 nullable/empty 伪绿；
+- fix：腐化探针精确 update/restore monthly 一行并先断言 hit/name，三个 snapshot 对比显式
+  关闭 hybrid，强制命中 `daily_product_sales`、`daily_product_sales`、
+  `daily_customer_channel_sales`，并拒绝 null/empty/non-numeric fixture；生产 Matcher、
+  threshold 与 exclusion 不变；
+- verification：focused class=`9/F0E0S0`，DataValidation+EdgeCase+Matcher+
+  RequirementBuilder=`57/F0E0S0`，corruption delta=`1000.00`，source SHA-256=
+  `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`；workitem=
+  `docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`；
+- next entry：先提交并推送修复，确认新 `HEAD == origin/main` 且 worktree clean，再运行 r2。
+  r1 不得拼接或转绿；在 r2、人工 aggregate review 与 confirmed thresholds 完成前，
   Step 5 entry 继续关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate

@@ -5,7 +5,7 @@
   "tooling_manifest": {
     "path": "scripts/v934/step4/SHA256SUMS",
     "path_semantics": "repository-relative-posix",
-    "required_entries": 48,
+    "required_entries": 49,
     "publication_status": "diagnostic-ready"
   },
   "parent_links": {
@@ -70,12 +70,12 @@
   },
   "report_inventory": {
     "amendment_path": "scripts/v934/step4/coverage-report-amendment.tsv",
-    "amendment_sha256": "263e2ecbfeda61555f56687789a6d0ad2a2eef3dff22f5fa06617c59d2eae241",
+    "amendment_sha256": "5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504",
     "step2_parent_positive_reports": 724,
     "step2_parent_structural_reports": 59,
     "step2_parent_testcases": 5205,
     "step4_new_positive_reports": 4,
-    "step4_changed_positive_reports": 5,
+    "step4_changed_positive_reports": 6,
     "step4_step2_testcase_delta": 56,
     "step3_required_positive_reports": 45,
     "step3_required_testcases": 446,

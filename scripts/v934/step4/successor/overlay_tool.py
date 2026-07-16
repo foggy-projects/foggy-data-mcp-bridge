@@ -72,6 +72,10 @@ EXPECTED_PARENT_ARTIFACTS = {
     "scripts/v934/step3/verify-v933-real-query-compat.sh": "f6837824a1f868dfe5398e663725de51d1909cd6ae6c0c1564f60cd550fd4409",
     "scripts/v934/authority_runner_lib.sh": "65f50005f0e71489fa263f1bbcf841bb646d89bb35dd6baac44f1c7480ed5434",
 }
+REDIS_SOURCE_PATH = (
+    "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/"
+    "dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java"
+)
 EXPECTED_AMENDMENT_PATHS = (
     "pom.xml",
     "foggy-dataset-model/pom.xml",
@@ -85,8 +89,9 @@ EXPECTED_AMENDMENT_PATHS = (
     "scripts/verify-v934-external-mysql.sh",
     "scripts/verify-v934-external-vector.sh",
     "scripts/verify-v934-preagg-addon-lifecycle.sh",
-    "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java",
+    REDIS_SOURCE_PATH,
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
 )
 EXPECTED_SUCCESSOR_FILES = (
     "database-authority-SHA256SUMS",
@@ -192,17 +197,14 @@ EXPECTED_ACTIVATION_REQUIREMENTS = [
 EXPECTED_STEP4_RUNTIME_BINDINGS = {
     "scripts/v934/step4/authority_parent_lib.sh": "35024328ec6f181f4454a36b702f76c20dfd049af8a38a84b5f3117ac94254fa",
     "scripts/v934/step4/authority_parent_negative_test.sh": "2329d6211d51f673b29aae407e4e0a1f99af2f5bac0425d56cade3d1e1c148ca",
-    "scripts/v934/step4/coverage-contract.json": "9695bf12d89b375f68fb252cb6db431654ab4e5d1a2f909e335c72bf5aaf0cc9",
-    "scripts/v934/step4/coverage-report-amendment.tsv": "263e2ecbfeda61555f56687789a6d0ad2a2eef3dff22f5fa06617c59d2eae241",
+    "scripts/v934/step4/coverage-contract.json": "70327e2f828dfb0a2e3b87b37b77a0b445f2b84bc43abd8a73d23cdd3424b474",
+    "scripts/v934/step4/coverage-report-amendment.tsv": "5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "425b766ca421753d851cada9676a237d9be490208e1da15d100fdd393e95a154",
-    "scripts/v934/step4/step2-report-view-contract.json": "843b4eb62faf25dfac051396ffe08afe8da00af3212b54b9573b4dbc09394dbb",
-    "scripts/v934/step4/step2_report_view_tool.py": "786fd3643d0a374fffb1fbfb6af68df2d1d768b9d2273a714e260ef5e3e76997",
+    "scripts/v934/step4/coverage_tool.py": "5715615ebf06d606658b8c6d6b0da0c5c54482dabf9ab991aa9cac8a81b4a3fc",
+    "scripts/v934/step4/step2-report-view-contract.json": "85ef129f9612e2ec5a5766722fbd6725a9833876bc76208db5c3a228932145be",
+    "scripts/v934/step4/step2_report_view_tool.py": "6b1020f54a549488a0cd5aea5890f19020a9386f4f4f17d0dbe4fb4352f97840",
 }
-REDIS_SOURCE_ID = (
-    "v934-src|123:addons/foggy-dataset-model-cache/src/test/java/"
-    "com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java"
-)
+REDIS_SOURCE_ID = f"v934-src|{len(REDIS_SOURCE_PATH)}:{REDIS_SOURCE_PATH}"
 
 
 class OverlayError(RuntimeError):
@@ -410,7 +412,7 @@ def verify_pair_data(
         ):
             reject("E_SOURCE_AMENDMENT", "external source amendment append differs")
         redis = successor_amendments[-1]
-        redis_path = EXPECTED_AMENDMENT_PATHS[-2]
+        redis_path = REDIS_SOURCE_PATH
         if (
             not isinstance(redis, dict)
             or redis.get("source_id") != REDIS_SOURCE_ID
@@ -692,6 +694,18 @@ def negative(output: Path) -> None:
             EXPECTED_PAIR_RULES["external"]["allowed"], EXPECTED_PAIR_RULES["external"]["paths"],
         ),
     ))
+    external_path_mutation = copy.deepcopy(external_successor)
+    external_path_mutation["source_amendments"][-1]["source_path"] = (
+        "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/"
+        "PreAggregationDataValidationTest.java"
+    )
+    probes.append((
+        "wrong-source-amendment-path", "E_SOURCE_AMENDMENT",
+        lambda: verify_pair_data(
+            "external", external_parent, external_path_mutation,
+            EXPECTED_PAIR_RULES["external"]["allowed"], EXPECTED_PAIR_RULES["external"]["paths"],
+        ),
+    ))
     manifest_rows = parse_hash_manifest(DEFAULT_MANIFEST)
     probes.append((
         "successor-manifest-extra", "E_SUCCESSOR_MANIFEST",
@@ -737,11 +751,11 @@ def main() -> int:
             validate(args.contract.resolve(), args.manifest.resolve())
             print(
                 "V934_STEP4_SUCCESSOR_OVERLAY "
-                "parents=3 contracts=4 amendments=14 step4_bindings=8 required=45/446 addon=2/6 status=passed"
+                "parents=3 contracts=4 amendments=15 step4_bindings=8 required=45/446 addon=2/6 status=passed"
             )
         else:
             negative(args.output.absolute())
-            print("V934_STEP4_SUCCESSOR_NEGATIVE passed=7 total=7")
+            print("V934_STEP4_SUCCESSOR_NEGATIVE passed=8 total=8")
     except (OverlayError, OSError) as error:
         if isinstance(error, OverlayError):
             print(f"[{error.code}] {error}", file=sys.stderr)

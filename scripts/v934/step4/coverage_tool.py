@@ -72,6 +72,7 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java",
     "build-support/foggy-coverage-report/pom.xml",
     "foggy-dataset-model/pom.xml",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
     "pom.xml",
     "scripts/v934/authority_runner_lib.sh",
@@ -465,12 +466,12 @@ def validate_contract_json(contract: dict[str, Any]) -> None:
     )
     require(report_inventory == {
         "amendment_path": "scripts/v934/step4/coverage-report-amendment.tsv",
-        "amendment_sha256": "263e2ecbfeda61555f56687789a6d0ad2a2eef3dff22f5fa06617c59d2eae241",
+        "amendment_sha256": "5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504",
         "step2_parent_positive_reports": 724,
         "step2_parent_structural_reports": 59,
         "step2_parent_testcases": 5205,
         "step4_new_positive_reports": 4,
-        "step4_changed_positive_reports": 5,
+        "step4_changed_positive_reports": 6,
         "step4_step2_testcase_delta": 56,
         "step3_required_positive_reports": 45,
         "step3_required_testcases": 446,
@@ -710,9 +711,9 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
             rows = list(reader)
     except (OSError, UnicodeError) as exc:
         raise ContractError("coverage report amendment: cannot read UTF-8 TSV") from exc
-    require(len(rows) == 9, "coverage report amendment: expected exact 9 rows")
-    require(len({row["source_path"] for row in rows}) == 9, "coverage report amendment: duplicate source")
-    require(len({row["report_fqcn"] for row in rows}) == 9, "coverage report amendment: duplicate report FQCN")
+    require(len(rows) == 10, "coverage report amendment: expected exact 10 rows")
+    require(len({row["source_path"] for row in rows}) == 10, "coverage report amendment: duplicate source")
+    require(len({row["report_fqcn"] for row in rows}) == 10, "coverage report amendment: duplicate report FQCN")
     counts: Counter[str] = Counter()
     testcase_delta = 0
     for number, row in enumerate(rows, 1):
@@ -740,12 +741,17 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
         else:
             require(re.fullmatch(r"[0-9a-f]{64}", row["step2_source_sha256"]) is not None, f"coverage report amendment row {number}: invalid Step2 source hash")
             require(row["step2_source_sha256"] != row["step4_source_sha256"], f"coverage report amendment row {number}: unchanged source")
-            require(row["disposition"] == "step4-cardinality-amendment", f"coverage report amendment row {number}: invalid changed-report disposition")
+            if row["disposition"] == "step4-cardinality-amendment":
+                require(after_nodes > before_nodes, f"coverage report amendment row {number}: cardinality amendment must increase testcase count")
+            elif row["disposition"] == "step4-source-amendment":
+                require(after_nodes == before_nodes, f"coverage report amendment row {number}: source amendment must preserve testcase count")
+            else:
+                require(False, f"coverage report amendment row {number}: invalid changed-report disposition")
         workitem = safe_repo_path(repo_root, row["workitem"], f"coverage report amendment row {number} workitem")
         require(workitem.is_file() and not workitem.is_symlink(), f"coverage report amendment row {number}: workitem missing")
         counts[change_kind] += 1
         testcase_delta += after_nodes - before_nodes
-    require(counts == Counter({"new-positive-report": 4, "changed-positive-report": 5}), "coverage report amendment: expected 4 new and 5 changed reports")
+    require(counts == Counter({"new-positive-report": 4, "changed-positive-report": 6}), "coverage report amendment: expected 4 new and 6 changed reports")
     require(testcase_delta == inventory["step4_step2_testcase_delta"] == 56, "coverage report amendment: testcase delta must be 56")
     require(inventory["required_positive_reports"] == inventory["step2_parent_positive_reports"] + inventory["step4_new_positive_reports"] + inventory["step3_required_positive_reports"], "coverage report inventory: required positive arithmetic differs")
     require(inventory["required_testcases"] == inventory["step2_parent_testcases"] + testcase_delta + inventory["step3_required_testcases"], "coverage report inventory: required testcase arithmetic differs")

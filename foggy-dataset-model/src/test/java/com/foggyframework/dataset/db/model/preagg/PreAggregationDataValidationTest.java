@@ -84,7 +84,7 @@ class PreAggregationDataValidationTest {
         );
 
         // 验证结果
-        assertQueryResultsMatch(comparison, "日期+商品维度查询");
+        assertQueryResultsMatch(comparison, "日期+商品维度查询", "daily_product_sales");
     }
 
     @Test
@@ -103,7 +103,7 @@ class PreAggregationDataValidationTest {
                 null
         );
 
-        assertQueryResultsMatch(comparison, "商品分类汇总查询");
+        assertQueryResultsMatch(comparison, "商品分类汇总查询", "daily_product_sales");
     }
 
     @Test
@@ -123,7 +123,7 @@ class PreAggregationDataValidationTest {
                 null
         );
 
-        assertQueryResultsMatch(comparison, "客户+渠道维度查询");
+        assertQueryResultsMatch(comparison, "客户+渠道维度查询", "daily_customer_channel_sales");
     }
 
     @Test
@@ -144,6 +144,8 @@ class PreAggregationDataValidationTest {
 
         assertNotNull(originalTotal, "原始表总金额不应为空");
         assertNotNull(preAggTotal, "预聚合表总金额不应为空");
+        assertTrue(originalTotal > 0, "原始表 fixture 总金额必须大于 0");
+        assertTrue(preAggTotal > 0, "预聚合 fixture 总金额必须大于 0");
 
         // 比较（允许小数精度误差）
         BigDecimal originalBd = BigDecimal.valueOf(originalTotal).setScale(2, RoundingMode.HALF_UP);
@@ -171,6 +173,8 @@ class PreAggregationDataValidationTest {
 
         assertNotNull(originalTotal, "原始表总数量不应为空");
         assertNotNull(preAggTotal, "预聚合表总数量不应为空");
+        assertTrue(originalTotal > 0, "原始表 fixture 总数量必须大于 0");
+        assertTrue(preAggTotal > 0, "预聚合 fixture 总数量必须大于 0");
 
         assertEquals(originalTotal, preAggTotal,
                 String.format("总数量不一致！原始表: %d, 预聚合表: %d", originalTotal, preAggTotal));
@@ -194,6 +198,8 @@ class PreAggregationDataValidationTest {
                         "FROM preagg_daily_product_sales GROUP BY date_key ORDER BY date_key"
         );
 
+        assertFalse(originalDaily.isEmpty(), "原始表按日 fixture 不得为空");
+        assertFalse(preAggDaily.isEmpty(), "预聚合按日 fixture 不得为空");
         assertEquals(originalDaily.size(), preAggDaily.size(),
                 "按日汇总行数不一致");
 
@@ -225,30 +231,30 @@ class PreAggregationDataValidationTest {
     void testDetectCorruptedPreAggData() {
         // 先备份原始数据
         List<Map<String, Object>> backup = jdbcTemplate.queryForList(
-                "SELECT date_key, product_key, sales_amount_sum FROM preagg_daily_product_sales LIMIT 1"
+                "SELECT year_month, product_key, sales_amount_sum " +
+                        "FROM preagg_monthly_category_sales " +
+                        "ORDER BY year_month, product_key LIMIT 1"
         );
 
-        if (backup.isEmpty()) {
-            log.warn("预聚合表为空，跳过测试");
-            return;
-        }
+        assertEquals(1, backup.size(), "腐化探针要求 monthly 预聚合 fixture 至少有一行");
 
         Map<String, Object> firstRow = backup.get(0);
-        Integer dateKey = (Integer) firstRow.get("date_key");
-        Integer productKey = (Integer) firstRow.get("product_key");
+        String yearMonth = (String) firstRow.get("year_month");
+        Integer productKey = ((Number) firstRow.get("product_key")).intValue();
         Double originalAmount = ((Number) firstRow.get("sales_amount_sum")).doubleValue();
 
         try {
             // 故意修改预聚合表数据（增加 1000）
             Double corruptedAmount = originalAmount + 1000.0;
-            jdbcTemplate.update(
-                    "UPDATE preagg_daily_product_sales SET sales_amount_sum = ? " +
-                            "WHERE date_key = ? AND product_key = ?",
-                    corruptedAmount, dateKey, productKey
+            int updatedRows = jdbcTemplate.update(
+                    "UPDATE preagg_monthly_category_sales SET sales_amount_sum = ? " +
+                            "WHERE year_month = ? AND product_key = ?",
+                    corruptedAmount, yearMonth, productKey
             );
+            assertEquals(1, updatedRows, "腐化探针必须精确修改一行预聚合数据");
 
-            log.info("已修改预聚合数据: date_key={}, product_key={}, 原值={}, 新值={}",
-                    dateKey, productKey, originalAmount, corruptedAmount);
+            log.info("已修改预聚合数据: year_month={}, product_key={}, 原值={}, 新值={}",
+                    yearMonth, productKey, originalAmount, corruptedAmount);
 
             // 构建查询请求（需要包含维度列才能匹配预聚合）
             DbQueryRequestDef queryRequest = new DbQueryRequestDef();
@@ -270,6 +276,10 @@ class PreAggregationDataValidationTest {
                     .build());
 
             DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
+            assertTrue(contextWithPreAgg.getCacheConfig().isPreAggHit(),
+                    "preAggEnabled=true 时应该使用预聚合");
+            assertEquals("monthly_category_sales", contextWithPreAgg.getCacheConfig().getPreAggName(),
+                    "腐化探针必须命中被修改的预聚合表");
 
             // 使用 QueryFacade 执行查询（禁用预聚合）
             ModelResultContext contextNoPreAgg = new ModelResultContext(pagingRequest, null);
@@ -280,6 +290,8 @@ class PreAggregationDataValidationTest {
                     .build());
 
             DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+            assertFalse(contextNoPreAgg.getCacheConfig().isPreAggHit(),
+                    "preAggEnabled=false 时不应使用预聚合");
 
             // 计算两次查询的 salesAmount 总额
             List<?> itemsWithPreAgg = resultWithPreAgg.getPagingResult().getItems();
@@ -287,6 +299,7 @@ class PreAggregationDataValidationTest {
 
             BigDecimal totalWithPreAgg = calculateTotal(itemsWithPreAgg, "salesAmount");
             BigDecimal totalNoPreAgg = calculateTotal(itemsNoPreAgg, "salesAmount");
+            assertTrue(totalNoPreAgg.signum() > 0, "原始表 fixture 总额必须大于 0");
 
             log.info("QueryFacade 查询结果: 预聚合查询总额={}, 原始表查询总额={}",
                     totalWithPreAgg, totalNoPreAgg);
@@ -300,22 +313,17 @@ class PreAggregationDataValidationTest {
             assertEquals(new BigDecimal("1000.00"), diff,
                     "差异应该正好是 1000.00");
 
-            // 验证预聚合确实被使用了
-            assertTrue(contextWithPreAgg.getCacheConfig().isPreAggHit(),
-                    "preAggEnabled=true 时应该使用预聚合");
-            assertFalse(contextNoPreAgg.getCacheConfig().isPreAggHit(),
-                    "preAggEnabled=false 时不应使用预聚合");
-
             log.info("QueryFacade 错误检测验证通过: 预聚合查询={}, 原始查询={}, 差异={}",
                     totalWithPreAgg, totalNoPreAgg, diff);
 
         } finally {
             // 恢复原始数据
-            jdbcTemplate.update(
-                    "UPDATE preagg_daily_product_sales SET sales_amount_sum = ? " +
-                            "WHERE date_key = ? AND product_key = ?",
-                    originalAmount, dateKey, productKey
+            int restoredRows = jdbcTemplate.update(
+                    "UPDATE preagg_monthly_category_sales SET sales_amount_sum = ? " +
+                            "WHERE year_month = ? AND product_key = ?",
+                    originalAmount, yearMonth, productKey
             );
+            assertEquals(1, restoredRows, "腐化探针必须精确恢复一行预聚合数据");
             log.info("已恢复预聚合数据");
         }
     }
@@ -339,6 +347,8 @@ class PreAggregationDataValidationTest {
         assertEquals(expectedRows, preAggRows,
                 String.format("预聚合表行数不匹配: 预期 %d 行，实际 %d 行",
                         expectedRows, preAggRows));
+        assertTrue(expectedRows > 0, "原始表分组 fixture 行数必须大于 0");
+        assertTrue(preAggRows > 0, "预聚合 fixture 行数必须大于 0");
 
         log.info("预聚合行数验证通过: {} 行", preAggRows);
     }
@@ -374,6 +384,10 @@ class PreAggregationDataValidationTest {
 
         // 检查是否使用了预聚合
         ModelResultContext.QueryCacheConfig cacheConfigAfter = contextWithPreAgg.getCacheConfig();
+        assertTrue(cacheConfigAfter.isPreAggHit(),
+                "preAggEnabled=true 时应该使用预聚合");
+        assertEquals("monthly_category_sales", cacheConfigAfter.getPreAggName(),
+                "默认 hybrid 模式应命中可用的 monthly snapshot 预聚合");
         log.info("preAggEnabled=true 查询后: preAggHit={}, preAggName={}",
                 cacheConfigAfter.isPreAggHit(),
                 cacheConfigAfter.getPreAggName());
@@ -410,6 +424,7 @@ class PreAggregationDataValidationTest {
         // 验证 salesAmount 总额一致
         BigDecimal totalWithPreAgg = calculateTotal(itemsWithPreAgg, "salesAmount");
         BigDecimal totalNoPreAgg = calculateTotal(itemsNoPreAgg, "salesAmount");
+        assertTrue(totalNoPreAgg.signum() > 0, "原始表 fixture 总额必须大于 0");
 
         assertEquals(totalNoPreAgg, totalWithPreAgg,
                 String.format("预聚合查询与原始查询 salesAmount 总额应一致（预聚合=%s, 原始=%s）",
@@ -444,6 +459,7 @@ class PreAggregationDataValidationTest {
                 .l1Enabled(false)
                 .l2Enabled(false)
                 .preAggEnabled(true)
+                .hybridQueryEnabled(false)
                 .build());
 
         DbQueryResult resultPreAgg = queryFacade.queryModelResult(contextPreAgg);
@@ -473,10 +489,14 @@ class PreAggregationDataValidationTest {
      * 验证的核心是数值一致性（总和），而不是行数一致性。
      * </p>
      */
-    private void assertQueryResultsMatch(ComparisonResult comparison, String testName) {
+    private void assertQueryResultsMatch(ComparisonResult comparison, String testName,
+                                         String expectedPreAggName) {
         DbQueryResult preAggResult = comparison.preAggResult;
         DbQueryResult noPreAggResult = comparison.noPreAggResult;
 
+        assertTrue(comparison.preAggUsed, testName + ": 预聚合对比不得退化为 raw-vs-raw");
+        assertEquals(expectedPreAggName, comparison.preAggName,
+                testName + ": 命中的预聚合与 fixture 契约不一致");
         assertNotNull(preAggResult.getPagingResult(), testName + ": 预聚合结果不应为空");
         assertNotNull(noPreAggResult.getPagingResult(), testName + ": 原始结果不应为空");
 
@@ -494,45 +514,37 @@ class PreAggregationDataValidationTest {
         BigDecimal preAggTotal = calculateTotal(preAggItems, "salesAmount");
         BigDecimal noPreAggTotal = calculateTotal(noPreAggItems, "salesAmount");
 
-        if (preAggTotal != null && noPreAggTotal != null) {
-            assertEquals(noPreAggTotal, preAggTotal,
-                    testName + ": salesAmount 总额不一致（预聚合=" + preAggTotal + ", 原始=" + noPreAggTotal + "）");
-            log.info("{}: salesAmount 总额验证通过 = {}", testName, preAggTotal);
-        }
+        assertTrue(noPreAggTotal.signum() > 0, testName + ": 原始表 fixture salesAmount 必须大于 0");
+        assertEquals(noPreAggTotal, preAggTotal,
+                testName + ": salesAmount 总额不一致（预聚合=" + preAggTotal + ", 原始=" + noPreAggTotal + "）");
+        log.info("{}: salesAmount 总额验证通过 = {}", testName, preAggTotal);
 
         // 验证 quantity 总量一致
         BigDecimal preAggQty = calculateTotal(preAggItems, "quantity");
         BigDecimal noPreAggQty = calculateTotal(noPreAggItems, "quantity");
 
-        if (preAggQty != null && noPreAggQty != null) {
-            assertEquals(noPreAggQty, preAggQty,
-                    testName + ": quantity 总量不一致（预聚合=" + preAggQty + ", 原始=" + noPreAggQty + "）");
-            log.info("{}: quantity 总量验证通过 = {}", testName, preAggQty);
-        }
-
-        // 如果既没有 salesAmount 也没有 quantity，至少验证有数据返回
-        if (preAggTotal == null && preAggQty == null) {
-            assertFalse(preAggItems.isEmpty(), testName + ": 预聚合查询应返回数据");
-            assertFalse(noPreAggItems.isEmpty(), testName + ": 原始查询应返回数据");
-        }
+        assertTrue(noPreAggQty.signum() > 0, testName + ": 原始表 fixture quantity 必须大于 0");
+        assertEquals(noPreAggQty, preAggQty,
+                testName + ": quantity 总量不一致（预聚合=" + preAggQty + ", 原始=" + noPreAggQty + "）");
+        log.info("{}: quantity 总量验证通过 = {}", testName, preAggQty);
     }
 
     /**
      * 计算总额
      */
     private BigDecimal calculateTotal(List<?> items, String field) {
-        if (items == null || items.isEmpty()) {
-            return null;
-        }
+        assertNotNull(items, field + ": 查询结果列表不得为空引用");
+        assertFalse(items.isEmpty(), field + ": 查询结果列表不得为空");
 
         BigDecimal total = BigDecimal.ZERO;
-        for (Object item : items) {
-            if (item instanceof Map) {
-                Object value = ((Map<?, ?>) item).get(field);
-                if (value != null) {
-                    total = total.add(toBigDecimal(value));
-                }
-            }
+        for (int i = 0; i < items.size(); i++) {
+            Object item = items.get(i);
+            assertTrue(item instanceof Map, field + ": 第 " + i + " 行必须是 Map");
+            Map<?, ?> row = (Map<?, ?>) item;
+            assertTrue(row.containsKey(field), field + ": 第 " + i + " 行缺少目标字段");
+            Object value = row.get(field);
+            assertNotNull(value, field + ": 第 " + i + " 行目标字段不得为 null");
+            total = total.add(toBigDecimal(value));
         }
         return total.setScale(2, RoundingMode.HALF_UP);
     }
@@ -541,17 +553,14 @@ class PreAggregationDataValidationTest {
      * 转换为 BigDecimal
      */
     private BigDecimal toBigDecimal(Object value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
+        assertNotNull(value, "数值字段不得为 null");
         if (value instanceof BigDecimal) {
             return ((BigDecimal) value).setScale(2, RoundingMode.HALF_UP);
         }
-        if (value instanceof Number) {
-            return BigDecimal.valueOf(((Number) value).doubleValue())
-                    .setScale(2, RoundingMode.HALF_UP);
-        }
-        return BigDecimal.ZERO;
+        assertTrue(value instanceof Number,
+                "数值字段类型必须是 Number，实际为 " + value.getClass().getName());
+        return BigDecimal.valueOf(((Number) value).doubleValue())
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     /**

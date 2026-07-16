@@ -1,10 +1,10 @@
 {
   "amendment": {
-    "changed_positive_reports": 5,
+    "changed_positive_reports": 6,
     "new_positive_reports": 4,
     "path": "scripts/v934/step4/coverage-report-amendment.tsv",
-    "rows": 9,
-    "sha256": "263e2ecbfeda61555f56687789a6d0ad2a2eef3dff22f5fa06617c59d2eae241",
+    "rows": 10,
+    "sha256": "5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504",
     "testcase_delta": 56
   },
   "counts": {

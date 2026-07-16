@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / diagnostic-ready | Step 3 exit passed | exact 23 exec/48 sessions + 773/59/5707 静态门已收口；threshold diagnostic-pending；尚未 baseline/pass |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r1 fail-closed / r2 pending | Step 3 exit passed | exact 23 exec/48 sessions + 773/59/5707 静态门已收口；r1 Unit 3115/1/0/0；修复 focused 9/0、组合 57/0；threshold diagnostic-pending |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -740,7 +740,7 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   `forkCount=1/reuseForks=true/append=true`。POM-only reporter 使 reactor 精确成为冻结 24
   个 production modules + 1 个 build-only reporter，production POM 对 reporter 反向依赖=0。
 - exact overlay: `coverage-exec-ledger.tsv` 冻结 `23 exec / 48 sessions`；报告层另由
-  `coverage-report-amendment.tsv` 冻结 4 个新增、5 个变更报告。当前 required overlay=
+  `coverage-report-amendment.tsv` 冻结 4 个新增、6 个变更报告。当前 required overlay=
   `773 positive + 59 structural / 5,707 testcase`，Addon companion 仍单列 `2/6`，不把
   23 个 exec 冒充测试报告数。
 - runner instrumentation: Unit 1、Step 2 IT 6、DB 7、external 7、Addon 2 的真实 Maven
@@ -781,8 +781,9 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
   companion 独立为 `2/6`。
 - Testing: raw contract negatives=`8/8`，effective POM negatives=`4/4`，toolchain
-  receipt negatives=`5/5`，report inventory negatives=`27/27`。这些是静态/防篡改
-  readiness evidence，不是 all-lane coverage result。
+  receipt negatives=`5/5`，report inventory negatives=`27/27`，Step 2 derived view
+  negatives=`12/12`，successor overlay negatives=`8/8`（新增 Redis 显式路径错绑负例）。
+  这些是静态/防篡改 readiness evidence，不是 all-lane coverage result。
 - Implementation quality: formal pre-coverage-audit record=
   `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
   `ready-with-risks`；只放行提交/push 后的 clean-HEAD diagnostic，当前
@@ -799,9 +800,12 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - Toolchain identity: run-owned receipt 绑定 Step 1 raw 工具版本、compiler realm
   ASM `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1`以及 24 个
   production module effective compiler，并在执行链边界重放验证。
-- Publication: 本地 `scripts/v934/step4/SHA256SUMS` 已生成，集合/顺序/hash
-  exact 48 项校验通过，manifest SHA-256=
-  `c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。
+- Publication: `coverage-report-amendment.tsv` exact=
+  `10 rows = 4 new + 6 changed`，SHA-256=
+  `5a1a07e2c47835fa244b90a06334341e13660a305d9eb7c74c64ee2f36a06504`；
+  successor declared amendments=`15`。本地 `scripts/v934/step4/SHA256SUMS` 集合/顺序/
+  hash exact 49 项校验通过，manifest SHA-256=
+  `c735e8c1f7b74d72afe2d1d1872128d11a16acbd7373c750e59709624560106e`。
 - Supersession boundary: historical `scripts/verify-v934-step2-successor.sh` 保持冻结的
   24-production-reactor generation 语义，不因 Step 4 build-only reporter 放宽为
   25。当前路径是 immutable Step 2 parent + `step2_report_view_tool.py` derived
@@ -814,10 +818,37 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - Experience: `N/A`，本 Step 是构建/测试证据链，无 UI 或人工体验面。
 - Deviations: 无需扩展 9.3.5/9.4.0 范围；diagnostic-ready 不改变 Step 4
   Exit 与 Step 5 entry 契约。
-- Blockers: none for starting diagnostic after publication；对 Step 4 exit 而言，fresh
-  all-lane diagnostic、aggregate review 与 threshold freeze 仍是未完成的硬条件。
-- Next Gate: 提交并推送 diagnostic-ready baseline，验证 `HEAD == origin/main` 且
-  worktree clean，再执行 fresh all-lane diagnostic。Step 5 保持关闭。
+- Historical boundary: 本节记录的是 r1 启动前的 quality decision；r1 实际结果与当前
+  next gate 以下方 post-diagnostic check-in 为准。
+
+### Post-diagnostic Check-in — Step 4 r1 fail-closed / fix focused-green
+
+- recorded_at: 2026-07-16
+- run identity: clean/pushed HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
+  `step4-coverage-20260716-diagnostic-r1`，phase=`child-unit`。
+- result: Unit authority=`3115 tests / 1 failure / 0 errors / 0 skipped`；outer runner
+  fail closed，r1 未进入 reporter/model/aggregate/threshold，不能拼接为 coverage evidence。
+- reproduction: failing method、独立单方法与整类均复现；整类=`9/1`，排除跨类顺序和
+  Spring context 污染。日志证明测试腐化 `preagg_daily_product_sales`，生产 matcher 因
+  watermark=null 正确跳过 daily，实际 SQL 命中 `preagg_monthly_category_sales`；同时两项
+  comparison 以 `preAggHit=false` 退化为 raw-vs-raw，nullable/empty 也可伪绿。
+- fix: 只修改测试 fixture/assertion；monthly 腐化/恢复均要求 exact one row，先断言
+  `preAggHit=true` 与 `preAggName=monthly_category_sales`，三个 snapshot 路由分别固定为
+  `daily_product_sales`、`daily_product_sales`、`daily_customer_channel_sales`，并拒绝
+  null/empty/missing/non-numeric 数据。生产 Matcher、threshold/exclusion 不变。
+- verification: focused class=`9/F0E0S0`；DataValidation+EdgeCase+Matcher+
+  RequirementBuilder=`57/F0E0S0`；corruption monthly delta=`1000.00`；source SHA-256=
+  `affb6e415c1770eae7c9ab6f3505ac67acfe03eac1461bd2a48addf3ee790623`。focused module
+  `target` XML 仅作可覆盖回归，不是 immutable Step 4 evidence。workitem=
+  `docs/9.3.4/workitems/BUG-step4-preagg-validation-wrong-table.md`，测试缺陷已关闭。
+- contract refresh: report amendment 从 `9 rows / 4 new + 5 changed` 更新为
+  `10 rows / 4 new + 6 changed`，successor declared amendments 从 `14` 更新为 `15`；
+  required totals 仍为 `773/59/5707/F0E0S0`，exec/session 仍为 `23/48`。
+- Blockers: r2 的唯一前置是把修复与 successor refresh 提交、推送，并证明新的
+  `HEAD == origin/main`、worktree clean；Step 4 exit 仍缺完整 r2、aggregate review 和
+  confirmed thresholds。
+- Next Gate: 在新修复 clean/pushed HEAD 执行 r2。`coverage-thresholds.json` 仍为
+  `diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5 与 9.3.5 保持关闭。
 
 ## Execution Check-in Template
 
@@ -843,7 +874,7 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- 当前只有 diagnostic-ready 静态门，无 reviewed reactor aggregate baseline；
+- r1 已在 Unit fail closed，当前仍无 reviewed reactor aggregate baseline；
   0.80/0.70 只是 critical-class candidate floor，必须由 fresh all-lane observation
   与人工 review 确认。
 - remote required check、five-cell collector、branch protection、release artifact reuse
@@ -873,15 +904,17 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 diagnostic-ready / ready-with-risks | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`，open blocker/high/medium=0；Step 4：`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，`can_enter_coverage_audit=no`，仅放行 clean-HEAD all-lane diagnostic |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 historical ready-with-risks + r1 post-review pending r2 | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`，open blocker/high/medium=0；Step 4：`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md` 已追加 r1 post-review，`can_enter_coverage_audit=no`，仅放行修复后的 clean-HEAD r2 |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 diagnostic-ready recorded | roadmap 为 Steps 1–3 passed / Step 4 not passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
+| roadmap sync / downstream | Step 4 r1 fail-closed / r2 pending recorded | roadmap 为 Steps 1–3 passed / Step 4 not passed；9.3.5 仍 queued，仅在 version signoff 后标 ready |
 
 ## Next Action
 
-提交并推送 Step 4 diagnostic-ready baseline，验证 clean worktree 且
-`HEAD == origin/main`，再执行 fresh all-lane diagnostic，观察 aggregate/critical classes
-并评审 successor thresholds。当前 threshold=`diagnostic-pending`，没有 aggregate
-baseline/review 或 Step 4 exit evidence；Step 5 仍不得开始。
+提交并推送 `PreAggregationDataValidationTest` 修复与 successor refresh，验证新的 clean
+worktree 且 `HEAD == origin/main`，再执行
+`step4-coverage-20260716-diagnostic-r2`（或同义唯一新 run id），观察 aggregate/critical
+classes 并评审 successor thresholds。当前 threshold=`diagnostic-pending`，r1 只有
+Unit fail-closed 证据，没有 aggregate baseline/review 或 Step 4 exit evidence；Step 5
+仍不得开始。
