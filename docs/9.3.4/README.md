@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -164,13 +164,25 @@ updated_at: 2026-07-16
   `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` 三个 placeholder 仅放入
   `foggy-dataset` test resource，callback 不再传全局 Spring datasource/test 参数，其他
   profile 保持原配置。
-- 当前状态为 `in-progress / r2 historical Unit profile-boundary fail-closed / fresh r3 Unit /
-  remediation quality / commit-push / fresh r8 pending`。
+- fresh Unit fixture quality r3=`step4-unit-fixture-quality-20260716-r3` 已在 commit
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`、`3,982 files`、source before=after
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`
+  上通过：唯一 Surefire invocation=`681 positive + 55 structural = 736 raw reports /
+  4,941 testcase / F0E0S0`；fixture negatives=`36/36`、receipt schema/tamper=`4/4`，
+  closed receipt 内 `18/18` connections 全部为 `v934_unit`；真实 lifecycle=`5/5`，
+  run-owned container/volume/network cleanup=`0/0/0` 且 port free。evidence window 外已按
+  exact ID `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
+  恢复 demo MySQL 为 `running/healthy`。record=
+  [step4-unit-fixture-quality-r3-pass-20260717](evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md)。
+- 当前状态为 `in-progress / fresh Unit r3 + formal remediation quality passed /
+  commit-push/clean HEAD + fresh r8 pending`。
   `coverage-thresholds.json` 仍为
   `diagnostic-pending`；r1–r7、Unit fixture quality r1/r2 与 focused/static 结果都不是
-  Step 4 exit evidence。`can_enter_coverage_audit=no`；fresh r3 Unit、remediation quality、
-  commit/push 与 fresh r8 diagnostic 均 pending，Step 5、formal、coverage audit 与
-  acceptance 仍关闭。
+  Step 4 exit evidence，r3 只通过 Unit remediation subgate；formal remediation quality
+  已通过，B/H/M/L=`0/0/0/0`。
+  `can_enter_coverage_audit=no`；
+  commit/push/clean HEAD 与 fresh r8 diagnostic 均 pending，Step 5、formal、coverage audit
+  与 acceptance 仍关闭。
 
 ## 执行资料
 
@@ -265,7 +277,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / Unit quality r2 profile-boundary fail-closed | r2 excluded/non-reusable；profile-scoped datasource adapter 与 `36/36` negatives 已完成；fresh r3 Unit、remediation quality、commit/push、fresh r8 均 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / fresh Unit r3 + remediation quality passed | Unit remediation r3=`681+55/4,941/F0E0S0`、`36/36`、closed receipt、lifecycle `5/5`、cleanup `0/0/0`；quality B/H/M/L=`0/0/0/0`；commit-push/clean HEAD、fresh r8 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

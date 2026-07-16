@@ -4,7 +4,7 @@ doc_purpose: Define ownership and dependency boundaries for the 9.3.4 test and C
 version: 9.3.4
 status: ready
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # 9.3.4 Module Responsibility
@@ -96,6 +96,16 @@ updated_at: 2026-07-16
   `foggy-dataset-model` 以 `3,115 tests / 631 errors` fail closed；根因是
   `org.sqlite.JDBC` 与 `jdbc:mysql://127.0.0.1:13306/...` mismatch。r2
   excluded/non-reusable。
+- fresh Unit fixture quality r3=`step4-unit-fixture-quality-20260716-r3` 已在 commit
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`、source before=after=`3,982 files` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`
+  上通过：唯一 Surefire invocation=`681+55=736 raw reports / 4,941 / F0E0S0`；
+  negatives=`36/36`、receipt schema/tamper=`4/4`；closed receipt 的 `18/18`
+  connections 全部为 `v934_unit`；真实 lifecycle=`5/5`，run-owned cleanup=`0/0/0` 且
+  port free。evidence window 外 demo MySQL 已按 exact ID
+  `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
+  恢复为 `running/healthy`。record=
+  `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`。
 - 当前机器契约静态验证=`20/20`，Unit fixture negatives=`36/36`（原
   fixture/manifest probes=`20/20`、connection typed=`7/7`、atomic publisher=`3/3`、
   profile boundary=`6/6`），negative receipt 文件 schema/tamper 另为 `4/4`，真实
@@ -117,6 +127,7 @@ updated_at: 2026-07-16
   overlay contract/tool=
   `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
   `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`。
-- fresh r3 Unit、remediation quality、commit/push 与 fresh r8 diagnostic 均 pending；
-  Step 5、formal、coverage audit、acceptance 仍关闭。上述 readiness 不代表实现质量已经
-  通过，也不是 Step 4 exit evidence。
+- 当前状态=`fresh Unit r3 + formal remediation quality passed / commit-push/clean HEAD +
+  fresh r8 pending`，quality B/H/M/L=`0/0/0/0`；`can_enter_coverage_audit=no`，Step 5、
+  formal、coverage audit、acceptance 仍关闭。r3 只通过 Unit remediation subgate，不代表
+  Step 4 exit 已经通过。

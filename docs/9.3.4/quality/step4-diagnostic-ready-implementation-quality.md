@@ -511,3 +511,47 @@ authority stale 而 fail closed，证明修复没有偷改 predecessor contract/
   fresh r6，不表示 Step 4 passed；
 - threshold=`diagnostic-pending`；`can_enter_coverage_audit=no`；Step 5、9.3.5、coverage
   audit 与 acceptance 继续关闭。
+
+## Superseding Main Quality Gate — Unit fixture remediation r3（2026-07-17）
+
+本节只审 Unit MySQL replacement、profile isolation、closed connection receipt 与 fresh r3
+最终字节，不改写 r1–r7 或 Unit r1/r2 的 immutable failure。tested commit=
+`50161a0a869430e353f3933d9bb00dda59d9c4b1`；run=
+`step4-unit-fixture-quality-20260716-r3`。
+
+### Verification
+
+- source before=after=`3,982 files` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`；
+- 唯一 Surefire invocation=`681 positive + 55 structural = 736 raw / 4,941 testcase /
+  F0E0S0`；736 reports 与 12 fixture artifacts 独立逐哈希复算 bad=`0`；
+- fixture before=after，closed receipt scope=`unit-maven-invocation`，18/18 connections
+  全部为 restricted `v934_unit`；fixture negatives=`36/36`、receipt schema=`4/4`、
+  lifecycle=`5/5`；
+- run-owned cleanup=`0/0/0` 且 evidence-window 结束时 port free；demo exact container 仅在
+  window 外恢复为同一 ID `running/healthy`；
+- coverage contract validate=`23 exec / 48 sessions / 773 positive + 59 structural / 5,707`；
+  successor overlay PASS；top manifest=`60/60`、successor manifest=`14/14`；Shell/Python
+  syntax 与 `git diff --check` PASS；
+- datasource placeholder 只由 `foggy-dataset` test resource 消费；outer/callback 的双层
+  environment guard 是受契约与负向探针覆盖的 defense-in-depth，不是重复的隐式配置面；
+  callback 后的 provisioner `foggy` 控制连接明确位于 closed Maven observation window 外。
+
+### Findings and closure
+
+- implementation code、测试、fixture/connection/cleanup evidence：open
+  Blocker/High/Medium/Low=`0/0/0/0`；
+- 首轮正式复核唯一 Medium 是权威 progress、quality、BUG checklist 与 r3 evidence 尚未同步；
+  本次 check-in 已同步相关权威文档并链接 immutable r3 record，该 finding 已关闭；
+- `unit_mysql_fixture_tool.py` 虽集中承载该机器契约，但职责已拆分为 derive/callback/build/
+  verify/negative/cleanup/lifecycle 子命令与小函数；未发现为追求绿色而降低 threshold、扩大
+  exclusion、借用 ambient listener 或覆盖其他 profile 的路径。
+
+### Decision
+
+- decision=`pass / ready-for-commit-and-fresh-r8`；final B/H/M/L=`0/0/0/0`；
+- 仅放行提交/push 本轮 r3 evidence 与文档 closure、证明 clean
+  `HEAD == origin/main`，然后运行唯一 fresh r8 all-lane diagnostic；
+- threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
+- 本闸门不表示 r8、aggregate/critical review、threshold freeze、fresh formal、coverage
+  audit、Step 4 exit、Step 5、9.3.5 或 acceptance 已通过。

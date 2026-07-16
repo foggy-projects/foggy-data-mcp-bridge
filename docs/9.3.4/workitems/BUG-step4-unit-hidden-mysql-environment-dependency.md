@@ -90,6 +90,11 @@ MySQL URL，不能用“给所有模块补 MySQL driver/profile”修正，否�
   `foggy-dataset-model=3,115/F0E631S0`，首因=`org.sqlite.JDBC` 拒绝 `jdbc:mysql`；final
   manifest/summary absent。child=`unit-mysql57-90da4977dc197f81` cleanup=`0/0/0`、port
   free，r2 excluded/non-reusable；
+- fresh r3 GREEN：run=`step4-unit-fixture-quality-20260716-r3`，tested commit=
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`，source before=after=`3,982` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`；唯一 Maven
+  invocation=`681+55/4,941/F0E0S0`，closed receipt `18/18` 均为 `v934_unit`，fixture
+  negatives=`36/36`、receipt schema=`4/4`、lifecycle=`5/5`、cleanup=`0/0/0`；
 - focused GREEN：run-owned MySQL 5.7 下 Unit=
   `681+55 / 4,941 / F0E0S0`，schema before=after=
   `93a9a8d51c8e8188173ce905965293adbd163e2d1e21c12d2f1f8637bbe4da0d`；
@@ -118,9 +123,10 @@ MySQL URL，不能用“给所有模块补 MySQL driver/profile”修正，否�
   `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
   `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`。
 
-focused/static 结果只证明修复可进入 fresh Unit r3，不是 Step 4 exit evidence。
-当前 `fresh Unit r3=pending / formal remediation quality=pending / commit-push=pending /
-fresh r8=pending`；不得宣称 Step 4、coverage audit 或验收通过，Step 5 保持关闭。
+fresh r3 与 formal remediation quality 已证明 Unit replacement subgate 通过，但不是 Step 4
+exit evidence。当前 `fresh Unit r3=passed / formal remediation quality=passed /
+commit-push=pending / fresh r8=pending`；不得宣称 Step 4、coverage audit 或验收通过，
+Step 5 保持关闭。
 
 ## Verification Checklist
 
@@ -139,8 +145,8 @@ fresh r8=pending`；不得宣称 Step 4、coverage audit 或验收通过，Step 
       lifecycle `5/5` 纳入 fail-closed evidence。
 - [x] 按最终工作树刷新并复验 top exact manifest=`60/60`、SHA-256=
       `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`。
-- [ ] fresh Unit remediation r3 通过。
-- [ ] 正式实现质量闸门通过。
+- [x] fresh Unit remediation r3 通过。
+- [x] 正式实现质量闸门通过，B/H/M/L=`0/0/0/0`。
 - [ ] commit/push 后 fresh r8 all-lane 通过 `23 exec / 48 sessions`。
 - [ ] fresh formal 复验通过后关闭本 BUG。
 
@@ -148,6 +154,7 @@ fresh r8=pending`；不得宣称 Step 4、coverage audit 或验收通过，Step 
 
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`
+- `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`
 - `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
 - `scripts/verify-v934-unit.sh`
 - `scripts/v934/step4/unit_mysql_fixture_tool.py`

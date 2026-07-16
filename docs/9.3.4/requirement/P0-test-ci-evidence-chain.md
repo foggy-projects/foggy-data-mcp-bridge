@@ -6,7 +6,7 @@ priority: P0
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # P0 测试与 CI 证据链
@@ -159,8 +159,8 @@ updated_at: 2026-07-16
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / Unit quality r2 profile-boundary fail-closed / fresh r3 Unit / remediation quality /
-  commit-push / fresh r8 pending`
+  `in-progress / fresh Unit r3 + formal remediation quality passed / commit-push/clean HEAD +
+  fresh r8 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -295,8 +295,19 @@ updated_at: 2026-07-16
   `javaagent/agentlib/agentpath` 间接注入；adapter consumer inventory 必须使用 scrubbed
   Git environment、`HEAD` tree 与 no-replace object。当前 contract static=`20/20`、
   Unit fixture negatives=`36/36`、真实 lifecycle=`5/5`、report inventory=`30/30`。
-  这些结果只证明可执行 fresh r3 Unit；fresh r3、正式质量复核、commit/push 与 fresh r8
-  均 pending，不是 Step 4 exit evidence，也不表示质量闸门已经通过；
+  这些静态结果是 fresh Unit replacement 的前置证据，不是 Step 4 exit evidence；
+- fresh Unit fixture quality r3=`step4-unit-fixture-quality-20260716-r3` 已在 commit
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`、source before=after=`3,982 files` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`
+  上通过。唯一 Surefire invocation=`681 positive + 55 structural = 736 raw reports /
+  4,941 testcase / F0E0S0`；fixture negatives=`36/36`、receipt schema/tamper=`4/4`，
+  closed receipt 的 `18/18` connections 全部为 `v934_unit`；真实 lifecycle=`5/5`，
+  run-owned container/volume/network cleanup=`0/0/0` 且 port free。evidence window 外按
+  exact ID `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
+  恢复 demo MySQL 为 `running/healthy`。record=
+  `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`；
+- r3 通过 Unit remediation subgate，formal remediation quality B/H/M/L=`0/0/0/0`；
+  commit/push/clean HEAD 与 fresh r8 均 pending，不表示 Step 4 exit 已经通过；
 - 9.3.4 只有在 fresh Step 4 Unit replacement、fresh formal、实现质量闸门、测试证据覆盖
   审计与版本验收全部通过后，才允许带上述分类债务签收；任一失败即撤销临时例外并保持
   Step 5 关闭。该债务不得跨过 9.3.5 版本验收；

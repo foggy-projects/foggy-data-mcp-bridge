@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r7 Unit hermeticity fail-closed | Step 3 exit passed | r7 excluded；完整 Unit lane 已改用 run-owned MySQL 5.7，focused/static 与真实 lifecycle 已完成；正式质量闸门和 fresh r8 均 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / Unit remediation r3 passed | Step 3 exit passed | r3=`681+55/4,941/F0E0S0`，closed receipt `18/18`、negatives `36/36`、lifecycle `5/5`；remediation quality passed；commit-push/clean HEAD 与 fresh r8 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1186,6 +1186,31 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   clean HEAD（pending）→fresh r8 all-lane（pending）。静态 closure 不等于上述 gate 通过；
   `can_enter_coverage_audit=no`，Step 5 保持关闭。
 
+### Superseding Unit Remediation Check-in — fresh r3 passed / quality passed
+
+- recorded_at: 2026-07-17；
+- run=`step4-unit-fixture-quality-20260716-r3`，tested commit=
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`；source before=after=`3,982 files` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`；
+- 唯一 Surefire Maven invocation=`681 positive + 55 structural = 736 raw reports / 4,941
+  testcase / F0E0S0`；fixture before=after；
+- fixture negatives=`36/36`（`20+7+3+6`），negative receipt schema=`4/4`；closed
+  `unit-maven-invocation` window 内 `18/18` connections（ID `21..38`）均为
+  `v934_unit@172.29.0.1`；lifecycle=`5/5`；run-owned cleanup=`0/0/0` 且 evidence-window
+  结束时 port free；
+- evidence window 外已恢复原 demo MySQL exact container
+  `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`，同一 ID 为
+  `running/healthy`；
+- independent evidence review=`PASS`，B/H/M/L=`0/0/0/0`；formal remediation
+  implementation quality 在完成本次权威文档回写后=`pass`，B/H/M/L=`0/0/0/0`；
+- records：
+  `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`、
+  `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`；
+- next gate：commit/push 并证明 clean `HEAD == origin/main` → 在四个 frozen ports 无
+  listener 的 evidence window 执行 fresh r8 all-lane diagnostic。threshold 仍为
+  `diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、formal、coverage audit 与
+  acceptance 仍关闭。
+
 ## Current Risks / Stop Conditions
 
 - 33 个 frozen rename + 2 个 Mongo corrective rename 已由 r8e successor exact
@@ -1228,18 +1253,18 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 Unit fixture remediation formal quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r2 profile-isolation repair 已完成静态 closure，fresh Unit r3 与正式闸门尚未收口，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 Unit fixture remediation quality passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 r3=`681+55/4,941/F0E0S0`，正式闸门 B/H/M/L=`0/0/0/0`，仅放行 commit-push/clean HEAD→fresh r8，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 Unit remediation r2 profile-isolation fail-closed / fresh Unit r3 + quality + commit-push + r8 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 Unit remediation r3 + quality passed / commit-push + r8 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
 r7 已证明 Unit 旧绿色依赖 ambient MySQL/schema；Unit remediation r2 又证明全 reactor
-Spring datasource override 会破坏 SQLite profile 隔离。profile-scoped repair 的静态
-closure 已通过，但下一步必须先运行 fresh Unit r3，再执行正式 remediation quality；随后
-commit/push、确认 clean HEAD，停止四个 repo demo DB 容器，并以 fresh r8 从 source seal
+Spring datasource override 会破坏 SQLite profile 隔离。profile-scoped repair 已由 fresh
+Unit r3 与正式 remediation quality 证明闭合；下一步是 commit/push、确认 clean HEAD，停止
+四个 repo demo DB 容器，并以 fresh r8 从 source seal
 开始执行 all-lane diagnostic，观察全部 required lane、aggregate/critical classes 并评审
 exact observed thresholds。
 当前 threshold=`diagnostic-pending`，r1–r7 与 Unit remediation r2 都是 excluded failed

@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / Unit remediation r2 profile-isolation fail-closed / fresh Unit r3 + formal
-remediation quality + commit-push + fresh r8 pending`。
+`in-progress / Unit remediation r3 passed / formal remediation quality passed / commit-push +
+fresh r8 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -474,6 +474,22 @@ Unit remediation r2 profile-isolation result（2026-07-16，supersedes current e
 - current entry：fresh Unit remediation r3、正式 remediation quality、commit/push/clean HEAD
   与 fresh all-lane r8 均 pending。上述静态结果不是质量或 r8 通过；
   `can_enter_coverage_audit=no`，Step 5、acceptance 与 9.3.5 保持关闭。
+
+Unit remediation r3 result（2026-07-17，supersedes current entry）：
+
+- run=`step4-unit-fixture-quality-20260716-r3`，tested commit=
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`，source before=after=`3,982 files` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`；
+- 唯一 Surefire invocation=`681 positive + 55 structural = 736 raw / 4,941 testcase /
+  F0E0S0`；fixture negatives=`36/36`、receipt schema=`4/4`、closed receipt=`18/18`
+  restricted `v934_unit`、lifecycle=`5/5`、run-owned cleanup=`0/0/0`；
+- demo MySQL exact container 仅在 evidence window 外恢复为同一 ID `running/healthy`；
+- independent evidence review 与 remediation formal quality 均为 PASS，最终
+  B/H/M/L=`0/0/0/0`；record=
+  `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`；
+- current entry：commit/push 并证明 clean `HEAD == origin/main`，再运行 fresh all-lane r8。
+  threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、formal、coverage
+  audit、acceptance 与 9.3.5 仍关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

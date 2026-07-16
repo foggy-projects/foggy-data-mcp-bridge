@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # 9.3.4 Acceptance Evidence Plan
@@ -24,12 +24,12 @@ updated_at: 2026-07-16
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 Unit remediation r2 profile-isolation fail-closed + profile-scoped repair static closed / fresh Unit r3、formal remediation quality、commit-push、fresh r8 pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 fresh Unit r3 + formal remediation quality passed / commit-push/clean HEAD、fresh r8 pending / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r7 and Unit remediation r2 excluded / fresh Unit r3 + quality + commit-push + fresh r8 pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r7 and Unit remediation r2 excluded / fresh Unit r3 + quality passed / commit-push/clean HEAD + fresh r8 pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r7 与 Unit remediation r2 failed evidence 已记录但 exit evidence absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 Unit fixture remediation formal quality pending，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r7 与 Unit remediation r2 failed evidence、Unit remediation r3 pass evidence 已记录，但 Step 4 exit evidence absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 Unit fixture remediation quality passed，B/H/M/L=`0/0/0/0`，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -57,9 +57,9 @@ external `16/76`、exact union `45/446/F0E0S0`、gap/overlap/extra=`0/0/0`，DB 
 Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结果满足 Step 3 exit，
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
-Current Step 4 readiness（2026-07-16）：状态仅为
-`in-progress / Unit remediation r2 profile-isolation fail-closed / profile-scoped repair static
-closed / fresh Unit r3 + formal remediation quality + commit-push + fresh r8 pending`。
+Current Step 4 readiness（2026-07-17）：状态仅为
+`in-progress / fresh Unit r3 + formal remediation quality passed / commit-push/clean HEAD +
+fresh r8 pending`。
 静态执行结构仍精确为
 `23 exec / 48 sessions`，required
 report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
@@ -95,9 +95,9 @@ connection receipt 的 closed Unit Maven window 由 configure `init_connect` 开
 root batch 先 disable 再按 `connection_id` SELECT 结束；有序 observed user 必须证明该
 窗口内全部 non-super connection exclusively 使用 restricted `v934_unit`，callback 后的
 provisioner `foggy` 控制面在窗口外。fixture hardening 的 top
-manifest/amendment 最终静态身份已按上文复验；fresh Unit r3、正式质量闸门、commit/push 与
-fresh r8 仍 pending，
-不得以静态 identity 冒充通过结论。
+manifest/amendment 最终静态身份已按上文复验；fresh Unit r3 与正式 remediation quality
+均已通过，B/H/M/L=`0/0/0/0`；commit/push/clean HEAD 与 fresh r8 仍 pending，不得以 Unit subgate 冒充 Step 4
+通过结论。
 
 Unit remediation r2 不是 acceptance evidence：
 `step4-unit-fixture-quality-20260716-r2` 在 commit
@@ -108,6 +108,18 @@ Unit remediation r2 不是 acceptance evidence：
 `unit-mysql57-90da4977dc197f81` cleanup=`0/0/0`、port free，demo exact container 已恢复
 healthy。r2=`excluded/non-reusable`，record=
 `docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`。
+
+Superseding Unit remediation r3 同样不是 Step 4 acceptance evidence，但其 Unit subgate
+已经通过：run=`step4-unit-fixture-quality-20260716-r3`，tested commit=
+`50161a0a869430e353f3933d9bb00dda59d9c4b1`，source before=after=`3,982 files` /
+`1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`；唯一 Surefire
+invocation=`681 positive + 55 structural = 736 raw reports / 4,941 testcase / F0E0S0`。
+fixture negatives=`36/36`、receipt schema/tamper=`4/4`；closed receipt 的 `18/18`
+connections 全部为 `v934_unit`；lifecycle=`5/5`，逐项及最终 run-owned
+container/volume/network cleanup=`0/0/0` 且 port free。evidence window 外按 exact ID
+`0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166` 恢复 demo
+MySQL 为 `running/healthy`。record=
+`docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`。
 
 首次 clean all-lane attempt 已执行但不是 acceptance evidence：clean/pushed HEAD
 `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
@@ -176,15 +188,17 @@ pre-r4 最终快测、正式实现质量闸门与 identity/manifest 级联属于
 source-policy 实现、focused static 与新 identity/manifest 级联；这些仍不是运行时 coverage
 evidence。最终字节 review=`ready-with-risks`、B/H/M/L=`0/0/0/2`；两项 Low 均 accepted：
 `/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build authority，未来更强隔离改用
-readonly snapshot/独立 checkout。该结论保留为 r4 前历史 review；当前只放行
-run-owned Unit fixture remediation focused/static 与真实 lifecycle 已通过；正式 quality、commit/push/clean HEAD
-和 fresh r8 之前，Step 5 仍关闭。
+readonly snapshot/独立 checkout。该结论保留为 r4 前历史 review；当前 Unit fixture
+remediation r3 与正式 quality 已通过；commit/push/clean HEAD 和 fresh r8 之前，Step 5
+仍关闭。
 
 Step 4 implementation quality 已记录于
 `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
 `ready-with-risks` 的 r1/r2 结论仅作历史记录。Cdiag pre-r4 main gate 已以
 `ready-with-risks`、open Blocker/High/Medium=`0/0/0` 放行了历史 clean-HEAD r4；source-policy
 最终字节修正的正式复核为 `ready-with-risks`、B/H/M/L=`0/0/0/2`，两项 Low accepted。当前
+Unit remediation superseding gate=`pass / ready-for-commit-and-fresh-r8`，B/H/M/L=
+`0/0/0/0`。当前
 `can_enter_coverage_audit=no`；fresh r8、
 aggregate review、confirmed thresholds 与 fresh formal 完成前不得启动 coverage audit。
 

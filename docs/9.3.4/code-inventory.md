@@ -4,7 +4,7 @@ doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # 9.3.4 Code Inventory
@@ -182,7 +182,7 @@ code_inventory:
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: r1-r7 all remain excluded failed diagnostics; the full Unit lane fixture replacement has focused/static and 5/5 real lifecycle evidence, but formal remediation quality and fresh r8 remain pending; partial lanes are non-reusable
+    notes: r1-r7 all remain excluded failed diagnostics; the full Unit lane fixture replacement and formal remediation quality passed with exact reports, closed receipt, 5/5 real lifecycle, zero residue and B/H/M/L 0/0/0/0; commit-push/clean HEAD and fresh r8 remain pending; partial lanes are non-reusable
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -339,9 +339,8 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / Unit remediation r2 profile-isolation fail-closed / profile-scoped
-  repair static closed / fresh Unit r3 + formal remediation quality + commit-push + fresh r8
-  pending`，不是
+- state：`in-progress / fresh Unit r3 + formal remediation quality passed / commit-push/clean
+  HEAD + fresh r8 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
@@ -489,10 +488,21 @@ code_inventory:
   冲突。final manifest/summary absent；child=`unit-mysql57-90da4977dc197f81` cleanup=
   `0/0/0`、port free，r2 excluded/non-reusable。record=
   `docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`；
+- Unit remediation r3 inventory：run=`step4-unit-fixture-quality-20260716-r3`，commit=
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`，source before=after=`3,982` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`；唯一
+  Surefire invocation=`681+55=736 raw reports / 4,941 / F0E0S0`。fixture negatives=
+  `36/36`、receipt schema/tamper=`4/4`；closed receipt 内 `18/18` connections 全部为
+  `v934_unit`；真实 lifecycle=`5/5`，run-owned cleanup=`0/0/0` 且 port free。evidence
+  window 外 demo MySQL 已按 exact ID
+  `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
+  恢复为 `running/healthy`。record=
+  `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`；
 - evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r7 与 Unit remediation r2 均未
-  生成 all-lane aggregate baseline/review 或 Step 4 exit evidence。profile-scoped repair
-  只有静态 closure；fresh Unit r3、正式质量、commit/push/clean HEAD 和 fresh r8 仍 pending；
-  Step 5、coverage audit 与 acceptance 仍关闭。
+  生成 all-lane aggregate baseline/review 或 Step 4 exit evidence；r3 只通过 Unit
+  remediation subgate；正式质量 B/H/M/L=`0/0/0/0`。commit/push/clean HEAD 和 fresh r8
+  仍 pending；
+  `can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与 acceptance 仍关闭。
 
 ## Protected Boundaries
 

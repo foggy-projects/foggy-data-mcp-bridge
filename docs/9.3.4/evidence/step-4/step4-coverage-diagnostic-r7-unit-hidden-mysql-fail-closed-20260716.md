@@ -154,7 +154,8 @@ underscore/dotted/hyphen Spring/custom key 及 `@argfile`、`VMOptionsFile`、
   `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；
   threshold 仍为 `diagnostic-pending`，未修改 threshold 或 exclusion。
 
-以上 static 结果只允许发起 fresh Unit r3，不能替代正式质量或 all-lane r8。
+以上 static 结果当时只允许发起 fresh Unit r3。后续 r3 已通过，见
+`step4-unit-fixture-quality-r3-pass-20260717.md`；该结果仍不能替代 all-lane r8。
 
 ## Next gate
 
@@ -169,10 +170,11 @@ underscore/dotted/hyphen Spring/custom key 及 `@argfile`、`VMOptionsFile`、
       `5/5`、report inventory negatives=`30/30`；
 - [x] 按最终工作树刷新并复验 top exact manifest=`60/60`、SHA-256=
       `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`；
-- [ ] fresh Unit remediation r3 通过；
-- [ ] 正式实现质量闸门通过并 commit/push；
+- [x] fresh Unit remediation r3 通过；
+- [x] 正式实现质量闸门通过；
+- [ ] commit/push 并证明 clean `HEAD == origin/main`；
 - [ ] 从 clean/pushed HEAD 执行 fresh r8 all-lane diagnostic；
 - [ ] reviewed threshold freeze、fresh formal 与最终质量闸门完成。
 
-fresh Unit r3、正式实现质量、commit/push 与 fresh r8 当前均 pending。在 fresh r8、threshold freeze、formal 与最终质量完成前，
+fresh Unit r3 与正式实现质量已通过；commit/push 与 fresh r8 当前仍 pending。在 fresh r8、threshold freeze、formal 与最终质量完成前，
 `can_enter_coverage_audit=no`，Step 5 保持关闭。

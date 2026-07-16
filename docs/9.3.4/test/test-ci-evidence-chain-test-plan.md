@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / Unit quality r2 profile-boundary fail-closed / fresh r3 Unit / remediation quality / commit-push / fresh r8 pending`
+- step4_result: `in-progress / Unit remediation r3 passed / formal remediation quality passed / commit-push + fresh r8 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -481,6 +481,12 @@ Final acceptance 至少验证：
   `foggy-dataset-model` SQLite profile 而以 `3,115 tests / 631 errors` fail closed。
   根因=`org.sqlite.JDBC` + `jdbc:mysql://127.0.0.1:13306/...` mismatch；r2
   excluded/non-reusable；
+- Unit fixture quality r3=`step4-unit-fixture-quality-20260716-r3`：tested commit=
+  `50161a0a869430e353f3933d9bb00dda59d9c4b1`，source before=after=`3,982` /
+  `1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2`；唯一
+  Surefire invocation=`681 positive + 55 structural = 736 raw / 4,941 testcase / F0E0S0`；
+  fixture negatives=`36/36`、receipt schema=`4/4`、closed receipt `18/18` 均为
+  `v934_unit`、lifecycle=`5/5`、cleanup=`0/0/0`；r3=`passed-unit-remediation-subgate`；
 - Unit fixture remediation focused：run-owned pinned MySQL 5.7 下保持
   schema before/after、temporary residue=`0/0/0`、port free；当前 adapter 只在
   `foggy-dataset` test resource 消费三个 `V934_UNIT_MYSQL57_*` placeholder，其他 profile
@@ -498,8 +504,8 @@ Final acceptance 至少验证：
 - 当前 Unit replacement 静态/负向/lifecycle readiness 为 contract `20/20`、fixture
   negatives `36/36`（原 fixture/manifest probes `20/20`、connection typed `7/7`、atomic
   publisher `3/3`、profile boundary `6/6`）、negative receipt 文件 schema/tamper 另为
-  `4/4`、真实 lifecycle `5/5`、report inventory `30/30`；这些 focused/static 证据不是
-  fresh r3 Unit、fresh r8 diagnostic 或 subsequent formal，也不表示实现质量已经通过；
+  `4/4`、真实 lifecycle `5/5`、report inventory `30/30`；这些是在 r3 运行前的
+  focused/static readiness，本身不是 fresh r3、fresh r8 diagnostic 或 subsequent formal；
 - successor remediation regression：database-state/required-report/report-inventory 均经 Step 4
   adapters 选择 successor authority；original frozen state control 仍 fail closed。current identity：
   coverage contract diagnostic/formal=
@@ -524,15 +530,16 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`；
   `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
 - database-state successor remediation 的历史 quality 结论保持在对应 evidence 中；当前
-  Unit fixture remediation 的正式实现质量闸门仍 pending，不声明 B/H/M/L pass；
+  Unit fixture remediation 正式实现质量闸门已在 r3 与文档 closure 后通过，
+  B/H/M/L=`0/0/0/0`，仅放行 commit-push/clean HEAD→fresh r8；
 - r6 evidence/blocker：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`；
   `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
 - r7 evidence/BUG：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`；
   `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`；
-- next executable action: 先执行 fresh r3 Unit；通过后完成 Unit fixture remediation 正式
-  实现质量闸门与 commit/push，再在四个 frozen ports 无 listener 的 evidence window 执行
+- next executable action: r3 与正式 remediation quality 已通过；完成 commit/push 并证明
+  clean `HEAD == origin/main`，再在四个 frozen ports 无 listener 的 evidence window 执行
   fresh r8 all-lane diagnostic。
   threshold 仍为
   `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与

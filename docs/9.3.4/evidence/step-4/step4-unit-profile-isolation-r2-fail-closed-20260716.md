@@ -134,10 +134,11 @@ identity/cardinality 的结构边界。
 - [x] r2 failure、source seal、root cause、cleanup 与 demo restoration 已封存；
 - [x] profile-scoped adapter、ambient double rejection、restricted exclusive receipt 与静态
       negative 已实现并复验；
-- [ ] fresh Unit remediation r3 通过完整 `681+55 / 4,941 / F0E0S0`；
-- [ ] 正式 remediation implementation quality 通过；
+- [x] fresh Unit remediation r3 通过完整 `681+55 / 4,941 / F0E0S0`；见
+      `step4-unit-fixture-quality-r3-pass-20260717.md`；
+- [x] 正式 remediation implementation quality 通过，B/H/M/L=`0/0/0/0`；
 - [ ] commit/push 并证明 clean `HEAD == origin/main`；
 - [ ] fresh Step 4 all-lane r8、threshold freeze、formal 与最终质量通过。
 
-当前 `can_enter_coverage_audit=no`。fresh Unit r3、正式 remediation quality、commit/push、
-fresh r8 均 pending；Step 5 保持关闭。
+当前 `can_enter_coverage_audit=no`。fresh Unit r3 与正式 remediation quality 已通过；
+commit/push、fresh r8 仍 pending；Step 5 保持关闭。

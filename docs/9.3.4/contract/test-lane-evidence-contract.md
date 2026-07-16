@@ -4,7 +4,7 @@ doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and rel
 version: 9.3.4
 status: confirmed
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # Test Lane and Evidence Contract
@@ -701,17 +701,28 @@ Unit fixture quality r2=`step4-unit-fixture-quality-20260716-r2` 在 commit
 `org.sqlite.JDBC` 与 `jdbc:mysql://127.0.0.1:13306/...` mismatch。该运行
 excluded/non-reusable。
 
-当前 Step 4=`in-progress / r2 historical Unit profile-boundary fail-closed / fresh r3 Unit /
-remediation quality / commit-push / fresh r8 pending`。Unit authority 必须为唯一 Maven invocation
+Fresh Unit fixture quality r3=`step4-unit-fixture-quality-20260716-r3` 已在 commit
+`50161a0a869430e353f3933d9bb00dda59d9c4b1`、source before=after=`3,982 files` /
+`1db06cc18bb86c288ffa79e7094e3b9e509d866ddc23b6c93bcaaa0422b99eb2` 上通过。
+唯一 Surefire invocation=`681 positive + 55 structural = 736 raw reports / 4,941 testcase /
+F0E0S0`；fixture negatives=`36/36`、receipt schema/tamper=`4/4`，closed receipt 的
+`18/18` connections 全部为 `v934_unit`；真实 lifecycle=`5/5`，run-owned
+container/volume/network cleanup=`0/0/0` 且 port free。evidence window 外 demo MySQL 已按
+exact ID `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
+恢复为 `running/healthy`。record=
+`docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`。
+
+当前 Step 4=`in-progress / fresh Unit r3 + formal remediation quality passed /
+commit-push/clean HEAD + fresh r8 pending`。Unit authority 必须为唯一 Maven invocation
 创建 pinned、run-owned MySQL 5.7，并封存 schema before/after、resource identity 与 cleanup；
-不得借用 ambient listener。当前 contract static=`20/20`、Unit fixture negatives=
+不得借用 ambient listener；r3 已动态证明该边界。当前 contract static=`20/20`、Unit fixture negatives=
 `36/36`（原 fixture/manifest probes=`20/20`、connection typed=`7/7`、atomic
 publisher=`3/3`、profile boundary=`6/6`）、negative receipt 文件 schema/tamper 另为
-`4/4`、真实 lifecycle=`5/5`、report inventory=`30/30`；这些是 fresh r3 Unit 前的实现
-证据，不是 coverage exit 或质量通过结论。threshold 仍为 `diagnostic-pending`，
-`can_enter_coverage_audit=no`；r1–r7 与 Unit quality r1/r2 均不得拼接；fresh r3 Unit、
-quality、commit/push/clean HEAD 与 fresh r8 完成前，Step 5、formal、coverage audit、
-acceptance 和 9.3.5 都保持关闭。只有
+`4/4`、真实 lifecycle=`5/5`、report inventory=`30/30`；r3 是 Unit remediation subgate
+证据，不是 coverage exit 或 Step 4 passed 结论。threshold 仍为 `diagnostic-pending`，
+`can_enter_coverage_audit=no`；r1–r7 与 Unit quality r1/r2 均不得拼接；formal remediation
+quality 已通过；commit/push/clean HEAD 与 fresh r8 完成前，Step 5、formal、
+coverage audit、acceptance 和 9.3.5 都保持关闭。只有
 fresh formal、实现质量闸门、测试证据覆盖审计和 9.3.4 验收全部通过，9.3.4 才允许带
 `DEBT-unit-mysql57-fixture-classification-migration.md` 签收；该债务必须在 9.3.5
 版本验收前关闭。
