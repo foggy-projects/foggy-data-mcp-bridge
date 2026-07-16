@@ -4,9 +4,9 @@ quality_mode: pre-coverage-audit
 version: 9.3.4
 target: STEP4-DIAGNOSTIC-READY
 status: reviewed
-decision: ready-with-risks
+decision: pass
 reviewed_by: Codex root session + independent code review
-reviewed_at: 2026-07-16
+reviewed_at: 2026-07-17
 follow_up_required: yes
 ---
 
@@ -554,4 +554,51 @@ authority stale 而 fail closed，证明修复没有偷改 predecessor contract/
   `HEAD == origin/main`，然后运行唯一 fresh r8 all-lane diagnostic；
 - threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
 - 本闸门不表示 r8、aggregate/critical review、threshold freeze、fresh formal、coverage
+  audit、Step 4 exit、Step 5、9.3.5 或 acceptance 已通过。
+
+## Superseding Main Quality Gate — r8 lifecycle contract remediation（2026-07-17）
+
+本节只复核 r8 暴露的 Unit lifecycle static contract drift、对应 expected-negative 与
+authoritative failure/writeback；不把 r8 前置绿色、Unit r3 或任何历史 partial lane 拼接成
+Step 4 exit。
+
+### Failure boundary and implementation
+
+- r8=`step4-coverage-20260716-diagnostic-r8` 从 reported clean/pushed HEAD
+  `3a3dd21a9aa956f0bedfffcf648ebb1cac0b756a` 启动，在 run-owned Git/source identity 与所有
+  lane 前因 validator 仍要求旧 Unit direct finalizer token，于 `bootstrap-negative` fail
+  closed；r8 excluded/non-reusable；
+- 修复将 Unit/Integration 拆成 executable physical/logical contracts，排除 full/inline
+  comments、heredoc body 与跨行 quoted decoy；Unit fixture-aware wrapper、两 runner
+  flush→green、disarm→PASS 使用 exact executable slices；
+- trap allowlist 覆盖 EXIT/numeric-0、链式/转义/间接引用；关键 lifecycle function reference
+  只能以 canonical command 出现，拒绝尾分号重复 install/disarm、early return、logical-or
+  close bypass 与 function shadow；
+- 最终 fail-closed 边界以 whole-runner raw-byte SHA-256 seal 绑定 Unit/Integration exact
+  bytes；真实文件使用 `read_bytes()` 直接哈希，再 strict UTF-8 decode。false/subshell outer
+  context、heredoc source、eval shadow 与 CRLF universal-newline normalization 均无法旁路。
+
+### Verification and adversarial review
+
+- focused lifecycle suite 发布唯一 PASS：原 dynamic=`9 类 / 14 case` 全保留；Unit
+  shape/source-seal=`13/13 + 3/3`；Integration=`11/11 + 5/5`；
+- source-seal negatives 实际覆盖 Unit false/subshell/CRLF，以及 Integration trap
+  false/subshell、flush false、heredoc-source shadow 与 eval shadow；
+- lifecycle script SHA-256=
+  `8dcc679c2762ff8908b3bc26e8dfb0553a083eb75003dd80366fd82e78d8ed9b`；top manifest=
+  `60/60` / `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；successor=
+  `14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
+  coverage contract、successor overlay、Shell syntax 与 `git diff --check` 均通过；
+- 两路独立 review 曾依次发现 comment/dead-code decoy、numeric-0 trap、quoted heredoc、
+  continuation、function shadow、outer false/subshell、source/eval 与 CRLF byte gap；每项均有
+  可复现 mutation 与实现闭合，最终两路复核都为 B/H/M/L=`0/0/0/0`。
+
+### Decision
+
+- decision=`pass / ready-for-authoritative-writeback-and-fresh-r9`；final
+  B/H/M/L=`0/0/0/0`；
+- 只放行本轮 script/manifest、r8 immutable evidence、BUG 与权威文档的 commit/push，随后
+  必须证明 clean `HEAD == origin/main`，再使用新 run ID 启动 fresh all-lane r9；
+- threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
+- 本闸门不表示 r9、aggregate/critical review、threshold freeze、fresh formal、coverage
   audit、Step 4 exit、Step 5、9.3.5 或 acceptance 已通过。

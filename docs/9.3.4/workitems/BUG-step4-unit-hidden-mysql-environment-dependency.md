@@ -124,9 +124,10 @@ MySQL URL，不能用“给所有模块补 MySQL driver/profile”修正，否�
   `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`。
 
 fresh r3 与 formal remediation quality 已证明 Unit replacement subgate 通过，但不是 Step 4
-exit evidence。当前 `fresh Unit r3=passed / formal remediation quality=passed /
-commit-push=pending / fresh r8=pending`；不得宣称 Step 4、coverage audit 或验收通过，
-Step 5 保持关闭。
+exit evidence。fresh r8 已启动，但因独立 lifecycle static contract drift 在 lane 前
+bootstrap-negative fail closed；r8 不证明本 BUG 的 all-lane closure。该新契约缺陷已修复并
+通过 quality，当前为 `fresh Unit r3=passed / lifecycle remediation quality=passed /
+fresh r9=required`；不得宣称 Step 4、coverage audit 或验收通过，Step 5 保持关闭。
 
 ## Verification Checklist
 
@@ -147,7 +148,9 @@ Step 5 保持关闭。
       `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`。
 - [x] fresh Unit remediation r3 通过。
 - [x] 正式实现质量闸门通过，B/H/M/L=`0/0/0/0`。
-- [ ] commit/push 后 fresh r8 all-lane 通过 `23 exec / 48 sessions`。
+- [x] commit/push 后 fresh r8 已启动；因独立 lifecycle contract drift 在 lane 前 fail
+      closed/excluded，不能作为本 BUG 的 all-lane proof。
+- [ ] authoritative closure commit/push 后 fresh r9 all-lane 通过 `23 exec / 48 sessions`。
 - [ ] fresh formal 复验通过后关闭本 BUG。
 
 ## References
@@ -155,6 +158,7 @@ Step 5 保持关闭。
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md`
 - `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
 - `scripts/verify-v934-unit.sh`
 - `scripts/v934/step4/unit_mysql_fixture_tool.py`

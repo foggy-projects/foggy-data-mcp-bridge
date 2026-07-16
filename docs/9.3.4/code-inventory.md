@@ -157,7 +157,7 @@ code_inventory:
     path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_contract_negative_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade..., pre-r4 exact-54/SHA 589a7d..., post-r4 exact-54/SHA ebda814..., database-state-remediation exact-56/SHA be8c4c... and fixture-hardened exact-59/SHA 2a52db... are historical identities; the profile-isolation final static identity is exact-60/SHA 6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade..., pre-r4 exact-54/SHA 589a7d..., post-r4 exact-54/SHA ebda814..., database-state-remediation exact-56/SHA be8c4c..., fixture-hardened exact-59/SHA 2a52db... and profile-isolation exact-60/SHA 6056a930... are historical identities; the current lifecycle-remediated static identity is exact-60/SHA 0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81
   - module: v934-step4-unit-mysql57-fixture
     path: scripts/v934/step4/{unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py}; scripts/verify-v934-unit.sh
     role: replace the complete Step 4 Unit lane with one run-owned pinned MySQL 5.7 fixture while retaining the frozen Unit execution identities and cardinality
@@ -182,7 +182,7 @@ code_inventory:
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: r1-r7 all remain excluded failed diagnostics; the full Unit lane fixture replacement and formal remediation quality passed with exact reports, closed receipt, 5/5 real lifecycle, zero residue and B/H/M/L 0/0/0/0; commit-push/clean HEAD and fresh r8 remain pending; partial lanes are non-reusable
+    notes: r1-r8 all remain excluded failed diagnostics; r8 stopped at bootstrap-negative on stale Unit lifecycle shape before run identity or lanes; the fixture-aware lifecycle contract now passes dynamic 14, Unit shape/seal 13+3 and Integration 11+5 with two independent B/H/M/L 0/0/0/0 reviews; authoritative closure commit-push/clean HEAD and fresh r9 remain required; partial lanes are non-reusable
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -339,8 +339,8 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / fresh Unit r3 + formal remediation quality passed / commit-push/clean
-  HEAD + fresh r8 pending`，不是
+- state：`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed /
+  ready-for-commit-and-fresh-r9`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
@@ -498,10 +498,24 @@ code_inventory:
   `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
   恢复为 `running/healthy`。record=
   `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`；
-- evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r7 与 Unit remediation r2 均未
+- r8 inventory：run=`step4-coverage-20260716-diagnostic-r8`，reported launch HEAD=
+  `3a3dd21a9aa956f0bedfffcf648ebb1cac0b756a`；contract/overlay/authority/coverage negatives
+  通过后，stale Unit direct-trap static token 在 `bootstrap-negative` 拒绝 fixture-aware
+  wrapper。run-owned Git/source identity、lane、aggregate、threshold 与 summary absent，
+  cleanup=`0/0/0`，r8 excluded/non-reusable；record/BUG=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md` /
+  `docs/9.3.4/workitems/BUG-step4-unit-lifecycle-static-contract-drift.md`；
+- lifecycle remediation inventory：executable-line Unit/Integration contracts、critical
+  slices、canonical references 与 raw-byte runner seals 已关闭 comment/quoted heredoc、
+  EXIT/0、early return、shadow、false/subshell、source/eval 与 CRLF drift；dynamic=
+  `9 类 / 14 case`，Unit shape/seal=`13+3`，Integration=`11+5`；tool/top=
+  `8dcc679c2762ff8908b3bc26e8dfb0553a083eb75003dd80366fd82e78d8ed9b` /
+  `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；两路独立质量
+  B/H/M/L=`0/0/0/0`；
+- evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r8 与 Unit remediation r2 均未
   生成 all-lane aggregate baseline/review 或 Step 4 exit evidence；r3 只通过 Unit
-  remediation subgate；正式质量 B/H/M/L=`0/0/0/0`。commit/push/clean HEAD 和 fresh r8
-  仍 pending；
+  remediation subgate；focused lifecycle 只通过 bootstrap contract remediation。正式质量
+  B/H/M/L=`0/0/0/0`。本轮 closure commit/push/clean HEAD 和 fresh r9 仍 required；
   `can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与 acceptance 仍关闭。
 
 ## Protected Boundaries

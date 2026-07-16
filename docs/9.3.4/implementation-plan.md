@@ -4,7 +4,7 @@ doc_purpose: Define the strict Step 1-7 implementation and verification order fo
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # 9.3.4 Implementation Plan
@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / Unit remediation r3 passed / formal remediation quality passed / commit-push +
-fresh r8 pending`。
+`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed /
+ready-for-commit-and-fresh-r9`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -487,9 +487,23 @@ Unit remediation r3 result（2026-07-17，supersedes current entry）：
 - independent evidence review 与 remediation formal quality 均为 PASS，最终
   B/H/M/L=`0/0/0/0`；record=
   `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`；
-- current entry：commit/push 并证明 clean `HEAD == origin/main`，再运行 fresh all-lane r8。
-  threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、formal、coverage
-  audit、acceptance 与 9.3.5 仍关闭。
+- r8 superseding result：`step4-coverage-20260716-diagnostic-r8` 在 clean/pushed
+  `3a3dd21a9aa956f0bedfffcf648ebb1cac0b756a` 启动，contract/overlay/authority 与 coverage
+  negatives 先通过，但 lifecycle static validator 错把 fixture-aware Unit EXIT wrapper
+  当成缺少旧 direct finalizer token，于 `bootstrap-negative` fail closed。run-owned
+  Git/source identity、lane、aggregate、threshold 与 summary absent；r8=
+  `excluded/non-reusable`；immutable record/BUG 分别为
+  `evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md`、
+  `workitems/BUG-step4-unit-lifecycle-static-contract-drift.md`；
+- lifecycle remediation：Unit/Integration 分类型 executable contract、critical slice、
+  canonical reference 与 raw-byte whole-runner seal 已落地；dynamic=`9 类 / 14 case`，Unit
+  shape/source-seal=`13/13 + 3/3`，Integration=`11/11 + 5/5`，两路独立质量 B/H/M/L=
+  `0/0/0/0`；tool/top=`8dcc679c2762ff8908b3bc26e8dfb0553a083eb75003dd80366fd82e78d8ed9b` /
+  `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；
+- current entry：commit/push 本轮权威 closure 并证明 clean `HEAD == origin/main`，再以新
+  run ID 运行 fresh all-lane r9。threshold=`diagnostic-pending`，
+  `can_enter_coverage_audit=no`；Step 5、formal、coverage audit、acceptance 与 9.3.5
+  仍关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

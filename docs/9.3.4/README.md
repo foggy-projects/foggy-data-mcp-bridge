@@ -61,9 +61,9 @@ updated_at: 2026-07-17
   `63/63`，logger lifecycle=`9 类 / 14 case`。
 - toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
   `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1` 以及 24 个
-  production module 的 effective compiler。run-owned Unit fixture hardening 的当前静态
-  identity 已复验：top manifest=`60/60` /
-  `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`，successor=
+  production module 的 effective compiler。run-owned Unit fixture hardening 与 lifecycle
+  remediation 的当前静态 identity 已复验：top manifest=`60/60` /
+  `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`，successor=
   `14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`，
   amendment=`12 rows / 4 new + 8 changed` /
   `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`；fixture
@@ -174,15 +174,28 @@ updated_at: 2026-07-17
   exact ID `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
   恢复 demo MySQL 为 `running/healthy`。record=
   [step4-unit-fixture-quality-r3-pass-20260717](evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md)。
-- 当前状态为 `in-progress / fresh Unit r3 + formal remediation quality passed /
-  commit-push/clean HEAD + fresh r8 pending`。
+- fresh all-lane r8=`step4-coverage-20260716-diagnostic-r8` 已从 clean/pushed
+  `3a3dd21a9aa956f0bedfffcf648ebb1cac0b756a` 启动，但在建立 run-owned Git/source seal
+  前因 lifecycle static contract 仍要求旧 Unit direct EXIT token，于 `bootstrap-negative`
+  fail closed；所有 lane、aggregate、threshold 与 summary absent，r8=
+  `excluded/non-reusable`。fixture-aware Unit wrapper 正确，缺陷是测试契约漂移；record=
+  [step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717](evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md)，BUG=
+  [BUG-step4-unit-lifecycle-static-contract-drift](workitems/BUG-step4-unit-lifecycle-static-contract-drift.md)。
+- lifecycle remediation 已通过：动态 `9 类 / 14 case`，Unit shape/source-seal=
+  `13/13 + 3/3`，Integration=`11/11 + 5/5`；runner 使用 raw-byte SHA-256 seal，拒绝
+  comment/quoted heredoc、EXIT/0、early return、shadow、false/subshell、heredoc source/eval
+  与 CRLF drift。两路独立质量复核 B/H/M/L=`0/0/0/0`；tool=
+  `8dcc679c2762ff8908b3bc26e8dfb0553a083eb75003dd80366fd82e78d8ed9b`，top=
+  `60/60` / `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`。
+- 当前状态为 `in-progress / r8 excluded / lifecycle remediation quality passed /
+  ready-for-commit-and-fresh-r9`。
   `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r7、Unit fixture quality r1/r2 与 focused/static 结果都不是
+  `diagnostic-pending`；r1–r8、Unit fixture quality r1/r2 与 focused/static 结果都不是
   Step 4 exit evidence，r3 只通过 Unit remediation subgate；formal remediation quality
-  已通过，B/H/M/L=`0/0/0/0`。
+  与 lifecycle remediation quality 均已通过，B/H/M/L=`0/0/0/0`。
   `can_enter_coverage_audit=no`；
-  commit/push/clean HEAD 与 fresh r8 diagnostic 均 pending，Step 5、formal、coverage audit
-  与 acceptance 仍关闭。
+  本轮权威 closure 必须 commit/push 并证明 clean `HEAD == origin/main`，再以新 run ID 执行
+  fresh r9；Step 5、formal、coverage audit 与 acceptance 仍关闭。
 
 ## 执行资料
 
@@ -227,6 +240,10 @@ updated_at: 2026-07-17
   [workitems/BLOCKER-step4-r6-mysql57-port-occupation.md](workitems/BLOCKER-step4-r6-mysql57-port-occupation.md)
 - Step 4 diagnostic r7 Unit hidden MySQL failed evidence：
   [evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md)
+- Step 4 diagnostic r8 lifecycle contract drift failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md)
+- Step 4 Unit lifecycle static contract drift regression：
+  [workitems/BUG-step4-unit-lifecycle-static-contract-drift.md](workitems/BUG-step4-unit-lifecycle-static-contract-drift.md)
 - Step 4 Unit hidden MySQL authority regression：
   [workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md](workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md)
 - Step 4 Unit MySQL 5.7 fixture machine contract：
@@ -277,7 +294,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / fresh Unit r3 + remediation quality passed | Unit remediation r3=`681+55/4,941/F0E0S0`、`36/36`、closed receipt、lifecycle `5/5`、cleanup `0/0/0`；quality B/H/M/L=`0/0/0/0`；commit-push/clean HEAD、fresh r8 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r8 excluded / lifecycle remediation quality passed | r8 在 bootstrap-negative 因 stale Unit lifecycle contract fail closed，lane/aggregate absent；修复验证 dynamic 14、Unit `13+3`、Integration `11+5`，两路 quality B/H/M/L=`0/0/0/0`；ready-for-commit-and-fresh-r9；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

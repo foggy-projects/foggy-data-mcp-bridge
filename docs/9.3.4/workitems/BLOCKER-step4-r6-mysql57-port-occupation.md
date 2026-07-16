@@ -56,10 +56,11 @@ r6 partial 绿色结果升级为测试证据。
 1. 在不删除用户数据的前提下协调停止或迁移 repo demo MySQL container；
 2. r7 启动前用只读端口检查证明 `13306` 无 listener；该项已完成；
 3. 不复用 r6 的 Unit/Integration/Addon XML 或 exec，以全新 run id 从 source seal 开始；
-4. r7 随后因独立的 Unit hermeticity BUG fail closed；修复后 fresh r8 必须完成同一 run 的
+4. r7 随后因独立的 Unit hermeticity BUG fail closed；修复后 fresh r8 已启动，但又因独立
+   lifecycle static contract drift 在所有 lane 前 fail closed；修复后 fresh r9 必须完成同一 run 的
    `23 exec / 48 sessions`、全部 database/external lane、aggregate、
    critical gates、source-after 与 summary；
-5. r8 通过后继续 reviewed threshold freeze 与 fresh formal；在此之前本 blocker 与 r5
+5. r9 通过后继续 reviewed threshold freeze 与 fresh formal；在此之前本 blocker 与 r5
    successor BUG 均保持 `in-progress`。
 
 ## Pre-r7 operator maintenance
@@ -88,13 +89,16 @@ r6 已完整退出并完成 `0/0/0` cleanup 后，operator 在 r7 evidence windo
 - [x] 在 r7 证据窗口外停止四个 repo demo DB 容器，并证明四个冻结端口无 listener。
 - [x] fresh r7 在四个 frozen ports 无 listener 的环境启动；其后在 Unit 阶段暴露独立的
   hidden MySQL dependency BUG，故没有形成 all-lane authority。
-- [ ] Unit fixture remediation 后 fresh r8 all-lane diagnostic 通过。
+- [x] Unit fixture remediation 后 fresh r8 已在四端口 free 的环境启动；因独立 lifecycle
+      contract drift 在 lane 前 fail closed/excluded。
+- [ ] lifecycle contract remediation 后 fresh r9 all-lane diagnostic 通过。
 - [ ] reviewed threshold freeze、fresh formal 与最终质量复核完成后关闭 blocker。
 
 ## References
 
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md`
 - `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
 - `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`

@@ -112,7 +112,8 @@ r6 在 clean/pushed commit `eb10d9c10a73f379db9ce4fa3d05ff340b489fd4` 实际越�
 successor authority validate，随后才因 repo demo container 占用 frozen port `13306` 而以
 `E_DYNAMIC_PRECONDITION` 终止。这证明 r5 selector 缺陷未复现，但 r6 是环境阻塞的
 excluded run，不能据此关闭本 BUG。r7 又在更早的 Unit hidden MySQL dependency 处终止，
-仍未进入 database successor dynamic path；须 fresh r8 all-lane 与后续 formal 证明。
+仍未进入 database successor dynamic path；r8 又在所有 lane 前因独立 lifecycle static
+contract drift fail closed。须 fresh r9 all-lane 与后续 formal 证明。
 
 ## Fix Checklist
 
@@ -129,12 +130,14 @@ excluded run，不能据此关闭本 BUG。r7 又在更早的 Unit hidden MySQL 
   precondition。
 - [x] 排除 r6 环境端口阻塞后启动 fresh r7；r7 因独立 Unit hermeticity BUG 在 database
   child 前 fail closed，不能作为本 BUG 的动态证明。
-- [ ] fresh r8 all-lane 与后续 formal 证明同一 successor state binding 后关闭 BUG。
+- [x] fresh r8 已启动，但在所有 lane 前因独立 lifecycle contract drift fail closed/excluded。
+- [ ] fresh r9 all-lane 与后续 formal 证明同一 successor state binding 后关闭 BUG。
 
 ## References
 
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md`
 - `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
 - `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`

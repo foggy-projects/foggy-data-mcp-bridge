@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / fresh Unit r3 + formal remediation quality passed / commit-push/clean HEAD +
-  fresh r8 pending`
+  `in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed /
+  ready-for-commit-and-fresh-r9`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -194,7 +194,7 @@ updated_at: 2026-07-17
   successor declared amendments=`18`，SHA-256=
   `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；本地
   `SHA256SUMS`=`60/60`，SHA-256=
-  `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`；
+  `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；
   successor=`14/14`，SHA-256=
   `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；coverage
   contract diagnostic/formal SHA-256=
@@ -306,8 +306,14 @@ updated_at: 2026-07-17
   exact ID `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
   恢复 demo MySQL 为 `running/healthy`。record=
   `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`；
-- r3 通过 Unit remediation subgate，formal remediation quality B/H/M/L=`0/0/0/0`；
-  commit/push/clean HEAD 与 fresh r8 均 pending，不表示 Step 4 exit 已经通过；
+- r3 通过 Unit remediation subgate，formal remediation quality B/H/M/L=`0/0/0/0`；r8
+  在建立 run-owned identity 与 lane 前因 stale Unit direct-trap lifecycle shape 于
+  `bootstrap-negative` fail closed，所有 lane/aggregate/threshold/summary absent，r8=
+  excluded/non-reusable；
+- lifecycle contract remediation 已通过 dynamic `9 类 / 14 case`、Unit shape/seal=
+  `13+3`、Integration=`11+5`，并由 raw-byte runner seal关闭 false/subshell、source/eval 与
+  CRLF drift；两路独立 quality B/H/M/L=`0/0/0/0`。本轮 closure 必须 commit/push 并证明
+  clean `HEAD == origin/main` 后运行 fresh r9；这些结果仍不表示 Step 4 exit 已通过；
 - 9.3.4 只有在 fresh Step 4 Unit replacement、fresh formal、实现质量闸门、测试证据覆盖
   审计与版本验收全部通过后，才允许带上述分类债务签收；任一失败即撤销临时例外并保持
   Step 5 关闭。该债务不得跨过 9.3.5 版本验收；

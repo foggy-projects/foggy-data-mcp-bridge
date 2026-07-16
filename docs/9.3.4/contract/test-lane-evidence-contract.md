@@ -671,13 +671,13 @@ argv 必须保持不变。database runner、required runner 与 report_inventory
 各自精确绑定 successor adapter；adapter/selector/contract/manifest 任一漂移必须
 fail closed，original frozen state validate 保留为 stale-predecessor 负例对照。
 
-当前 successor + Unit fixture remediation 静态身份为：coverage contract diagnostic/formal=
+当前 successor + Unit fixture/lifecycle remediation 静态身份为：coverage contract diagnostic/formal=
 `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
 `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；
 successor manifest=`14/14` / SHA-256=
 `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
 top manifest=`60/60` / SHA-256=
-`6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`；
+`0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；
 overlay contract/tool=
 `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
 `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`；
@@ -712,16 +712,21 @@ exact ID `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
 恢复为 `running/healthy`。record=
 `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`。
 
-当前 Step 4=`in-progress / fresh Unit r3 + formal remediation quality passed /
-commit-push/clean HEAD + fresh r8 pending`。Unit authority 必须为唯一 Maven invocation
+当前 Step 4=`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality
+passed / ready-for-commit-and-fresh-r9`。Unit authority 必须为唯一 Maven invocation
 创建 pinned、run-owned MySQL 5.7，并封存 schema before/after、resource identity 与 cleanup；
 不得借用 ambient listener；r3 已动态证明该边界。当前 contract static=`20/20`、Unit fixture negatives=
 `36/36`（原 fixture/manifest probes=`20/20`、connection typed=`7/7`、atomic
 publisher=`3/3`、profile boundary=`6/6`）、negative receipt 文件 schema/tamper 另为
 `4/4`、真实 lifecycle=`5/5`、report inventory=`30/30`；r3 是 Unit remediation subgate
-证据，不是 coverage exit 或 Step 4 passed 结论。threshold 仍为 `diagnostic-pending`，
-`can_enter_coverage_audit=no`；r1–r7 与 Unit quality r1/r2 均不得拼接；formal remediation
-quality 已通过；commit/push/clean HEAD 与 fresh r8 完成前，Step 5、formal、
+证据，不是 coverage exit 或 Step 4 passed 结论。r8 在 bootstrap-negative 因 stale Unit
+direct-trap static shape 拒绝 fixture-aware wrapper，run identity/lane/aggregate/threshold/
+summary absent，r8 excluded/non-reusable。remediation 必须同时满足 executable contract、
+critical slices、canonical references 与 raw-byte Unit/Integration runner seals；当前 dynamic=
+`9 类 / 14 case`、Unit shape/seal=`13+3`、Integration=`11+5`，两路独立 quality=
+`0/0/0/0`。threshold 仍为 `diagnostic-pending`，`can_enter_coverage_audit=no`；r1–r8 与
+Unit quality r1/r2 均不得拼接；formal remediation quality 已通过；本轮 closure
+commit/push/clean HEAD 与 fresh r9 完成前，Step 5、formal、
 coverage audit、acceptance 和 9.3.5 都保持关闭。只有
 fresh formal、实现质量闸门、测试证据覆盖审计和 9.3.4 验收全部通过，9.3.4 才允许带
 `DEBT-unit-mysql57-fixture-classification-migration.md` 签收；该债务必须在 9.3.5

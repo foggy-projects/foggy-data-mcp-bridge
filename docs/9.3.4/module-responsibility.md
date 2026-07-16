@@ -111,7 +111,7 @@ updated_at: 2026-07-17
   profile boundary=`6/6`），negative receipt 文件 schema/tamper 另为 `4/4`，真实
   lifecycle=`5/5`，report inventory=`30/30`。
 - 当前 identity：top=`60/60` /
-  `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`；
+  `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；
   successor=`14/14` /
   `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
   coverage diagnostic/formal=
@@ -127,7 +127,10 @@ updated_at: 2026-07-17
   overlay contract/tool=
   `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
   `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`。
-- 当前状态=`fresh Unit r3 + formal remediation quality passed / commit-push/clean HEAD +
-  fresh r8 pending`，quality B/H/M/L=`0/0/0/0`；`can_enter_coverage_audit=no`，Step 5、
-  formal、coverage audit、acceptance 仍关闭。r3 只通过 Unit remediation subgate，不代表
-  Step 4 exit 已经通过。
+- 当前状态=`r8 bootstrap-negative excluded / lifecycle static contract remediation quality
+  passed / ready-for-commit-and-fresh-r9`。r8 在 run-owned identity 与 lane 前因过期 Unit
+  direct-trap shape fail closed；修复后 dynamic=`9 类 / 14 case`、Unit shape/seal=
+  `13+3`、Integration=`11+5`，两路 quality B/H/M/L=`0/0/0/0`。本轮 closure 必须
+  commit/push 并证明 clean `HEAD == origin/main` 后才可运行 fresh r9；
+  `can_enter_coverage_audit=no`，Step 5、formal、coverage audit、acceptance 仍关闭。r3 与
+  focused lifecycle 都不代表 Step 4 exit 已通过。

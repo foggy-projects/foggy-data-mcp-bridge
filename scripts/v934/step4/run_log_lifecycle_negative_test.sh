@@ -456,30 +456,866 @@ python3 - \
   "$ROOT_DIR/scripts/verify-v934-integration.sh" \
   "$ROOT_DIR/scripts/verify-v934-step4-coverage.sh" "$LIB" <<'PY'
 from pathlib import Path
+import hashlib
+import re
+import shlex
 import sys
 
-for text_path in sys.argv[1:3]:
-    path = Path(text_path)
-    text = path.read_text(encoding="utf-8")
+
+class ShapeError(RuntimeError):
+    pass
+
+
+UNIT_RUNNER_SHA256 = "45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66"
+INTEGRATION_RUNNER_SHA256 = "19d5a9e8d58a554f416e269a35666e439b5f611f44a50783482613316cb33639"
+
+
+def require_source_seal(path: Path, source_bytes: bytes, expected_sha256: str) -> None:
+    observed_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    if observed_sha256 != expected_sha256:
+        raise ShapeError(
+            f"{path}: runner source seal differs: expected={expected_sha256} "
+            f"observed={observed_sha256}"
+        )
+
+
+def scan_shell_physical(
+    line: str, initial_quote: str
+) -> tuple[str, str, bool]:
+    quote = initial_quote
+    index = 0
+    comment_index: int | None = None
+    continued = False
+    while index < len(line):
+        character = line[index]
+        if quote == "'":
+            if character == "'":
+                quote = ""
+            index += 1
+            continue
+        if quote == '"':
+            if character == "\\":
+                if index + 1 == len(line):
+                    continued = True
+                    break
+                index += 2
+            else:
+                if character == '"':
+                    quote = ""
+                index += 1
+            continue
+        if character == "\\":
+            if index + 1 == len(line):
+                continued = True
+                break
+            index += 2
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            index += 1
+            continue
+        if character == "#" and (
+            index == 0 or line[index - 1] in " \t;|&()"
+        ):
+            comment_index = index
+            break
+        index += 1
+
+    executable = line[:comment_index] if comment_index is not None else line
+    if comment_index is not None:
+        continued = False
+    return executable, quote, continued
+
+
+def heredoc_declarations(path: Path, line: str, line_number: int) -> list[tuple[str, bool]]:
+    declarations: list[tuple[str, bool]] = []
+    index = 0
+    quote = ""
+    while index < len(line):
+        character = line[index]
+        if quote == "'":
+            if character == "'":
+                quote = ""
+            index += 1
+            continue
+        if quote == '"':
+            if character == "\\":
+                index += 2
+            else:
+                if character == '"':
+                    quote = ""
+                index += 1
+            continue
+        if character == "\\":
+            index += 2
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            index += 1
+            continue
+        if line.startswith("<<<", index):
+            index += 3
+            continue
+        if not line.startswith("<<", index):
+            index += 1
+            continue
+
+        index += 2
+        strip_tabs = index < len(line) and line[index] == "-"
+        if strip_tabs:
+            index += 1
+        while index < len(line) and line[index].isspace():
+            index += 1
+        if index >= len(line):
+            raise ShapeError(f"{path}:{line_number}: missing heredoc delimiter")
+
+        delimiter = ""
+        if line[index] in {"'", '"'}:
+            delimiter_quote = line[index]
+            index += 1
+            while index < len(line) and line[index] != delimiter_quote:
+                if delimiter_quote == '"' and line[index] == "\\":
+                    index += 1
+                    if index >= len(line):
+                        break
+                delimiter += line[index]
+                index += 1
+            if index >= len(line) or line[index] != delimiter_quote:
+                raise ShapeError(f"{path}:{line_number}: unterminated heredoc delimiter")
+            index += 1
+        else:
+            while index < len(line) and line[index] not in " \t;|&()<>\r\n":
+                if line[index] == "\\":
+                    index += 1
+                    if index >= len(line):
+                        break
+                delimiter += line[index]
+                index += 1
+        if not delimiter:
+            raise ShapeError(f"{path}:{line_number}: empty heredoc delimiter")
+        declarations.append((delimiter, strip_tabs))
+    return declarations
+
+
+def executable_streams(path: Path, text: str) -> tuple[list[str], list[str]]:
+    """Return executable physical and logical shell lines, excluding heredoc bodies."""
+    physical: list[str] = []
+    logical: list[str] = []
+    logical_buffer = ""
+    heredocs: list[tuple[str, bool]] = []
+    quote = ""
+
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        if heredocs:
+            delimiter, strip_tabs = heredocs[0]
+            candidate = raw_line.lstrip("\t") if strip_tabs else raw_line
+            if candidate == delimiter:
+                heredocs.pop(0)
+            continue
+
+        initial_quote = quote
+        executable_line, quote, continued = scan_shell_physical(raw_line, quote)
+        stripped = executable_line.strip()
+        if stripped and not initial_quote:
+            physical.append(stripped)
+
+        right_stripped = executable_line.rstrip()
+        fragment = right_stripped[:-1] if continued else executable_line
+        logical_buffer += fragment
+        if continued:
+            continue
+        if quote:
+            logical_buffer += "\n"
+            continue
+
+        logical_line = logical_buffer.strip()
+        logical_buffer = ""
+        if logical_line and not logical_line.startswith("#"):
+            logical.append(logical_line)
+
+        heredocs.extend(heredoc_declarations(path, logical_line, line_number))
+
+    if heredocs:
+        raise ShapeError(f"{path}: unterminated heredoc; refusing open")
+    if quote:
+        raise ShapeError(f"{path}: unterminated shell quote; refusing open")
+    if logical_buffer:
+        raise ShapeError(f"{path}: unterminated line continuation; refusing open")
+    return physical, logical
+
+
+def require_exact_ordered(path: Path, lines: list[str], required: list[str]) -> None:
+    positions: list[int] = []
+    for command in required:
+        matches = [index for index, line in enumerate(lines) if line == command]
+        if len(matches) != 1:
+            raise ShapeError(
+                f"{path}: lifecycle command {command!r} count differs: {len(matches)}"
+            )
+        positions.append(matches[0])
+    if positions != sorted(positions) or len(set(positions)) != len(positions):
+        raise ShapeError(f"{path}: logger/cleanup order differs from the reviewed lifecycle")
+
+
+def require_exact_slice(
+    path: Path, lines: list[str], expected: list[str], label: str
+) -> None:
+    starts = [index for index, line in enumerate(lines) if line == expected[0]]
+    if len(starts) != 1:
+        raise ShapeError(f"{path}: {label} start count differs: {len(starts)}")
+    start = starts[0]
+    observed = lines[start : start + len(expected)]
+    if observed != expected:
+        raise ShapeError(
+            f"{path}: {label} executable slice differs: expected={expected!r} "
+            f"observed={observed!r}"
+        )
+
+
+def reject_unowned_logger(path: Path, text: str) -> None:
     if "exec > >(tee" in text:
-        raise SystemExit(f"{path}: unowned process-substitution logger remains")
-    required = [
-        'source "$RUN_LOG_LIB"',
-        "v934_install_run_status_traps",
-        'v934_run_log_exit_trap "$?" v934_record_run_status',
-        'v934_run_log_open "$RUN_ROOT"',
-        'v934_run_log_close || fail',
+        raise ShapeError(f"{path}: unowned process-substitution logger remains")
+
+
+def require_exact_traps(path: Path, logical_lines: list[str], expected: list[str]) -> None:
+    observed: list[str] = []
+    for line in logical_lines:
+        candidate = line.replace("''", "").replace('\"\"', "")
+        candidate = re.sub(r"\\([A-Za-z])", r"\1", candidate)
+        if re.search(r"(^|[^A-Za-z0-9_])trap([^A-Za-z0-9_]|$)", candidate) is None:
+            continue
+        try:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|()")
+            lexer.whitespace_split = True
+            lexer.commenters = "#"
+            tokens = list(lexer)
+        except ValueError as error:
+            raise ShapeError(f"{path}: cannot parse shell line {line!r}: {error}") from error
+        # Inspect every shell word, so `trap : 0`, `builtin trap`, `command trap`,
+        # escaped spellings, and chained overrides are all treated as trap commands.
+        if "trap" not in tokens:
+            raise ShapeError(f"{path}: indirect or unsupported trap reference {line!r}")
+        observed.append(line)
+    if observed != expected:
+        raise ShapeError(
+            f"{path}: trap commands differ: expected={expected!r} observed={observed!r}"
+        )
+
+
+def require_canonical_references(
+    path: Path, logical_lines: list[str], expected: dict[str, list[str]]
+) -> None:
+    for name, canonical_lines in expected.items():
+        pattern = re.compile(
+            rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])"
+        )
+        observed = []
+        for line in logical_lines:
+            reference_view = line.replace("'", "").replace('"', "")
+            reference_view = re.sub(r"\\([A-Za-z])", r"\1", reference_view)
+            if pattern.search(reference_view):
+                observed.append(line)
+        if observed != canonical_lines:
+            raise ShapeError(
+                f"{path}: {name} references differ: expected={canonical_lines!r} "
+                f"observed={observed!r}"
+            )
+
+
+def validate_integration(
+    path: Path,
+    text: str,
+    enforce_source_seal: bool = True,
+    source_bytes: bytes | None = None,
+) -> None:
+    if enforce_source_seal:
+        require_source_seal(
+            path,
+            text.encode("utf-8") if source_bytes is None else source_bytes,
+            INTEGRATION_RUNNER_SHA256,
+        )
+    reject_unowned_logger(path, text)
+    physical, logical = executable_streams(path, text)
+    require_exact_traps(
+        path,
+        logical,
+        ['trap \'v934_run_log_exit_trap "$?" v934_record_run_status\' EXIT'],
+    )
+    require_canonical_references(
+        path,
+        logical,
+        {
+            "v934_install_run_status_traps": ["v934_install_run_status_traps"],
+            "v934_disarm_run_status_traps": ["v934_disarm_run_status_traps"],
+            "v934_run_log_open": [
+                'v934_run_log_open "$RUN_ROOT" v934-integration || fail "cannot open the owned run logger"'
+            ],
+            "v934_run_log_close": [
+                'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"'
+            ],
+            "v934_write_run_status": ["v934_write_run_status 0"],
+            "v934_run_log_exit_trap": [
+                'trap \'v934_run_log_exit_trap "$?" v934_record_run_status\' EXIT'
+            ],
+        },
+    )
+    require_exact_ordered(
+        path,
+        physical,
+        [
+            'source "$RUN_LOG_LIB"',
+            "v934_install_run_status_traps",
+            'trap \'v934_run_log_exit_trap "$?" v934_record_run_status\' EXIT',
+            'v934_run_log_open "$RUN_ROOT" v934-integration || fail "cannot open the owned run logger"',
+            'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"',
+            'PHASE="completed"',
+            "v934_write_run_status 0",
+            '"$RUN_ROOT/final/report-manifest.json" "$RUN_ROOT/summary.env" "$RUN_ID" \\',
+            "v934_disarm_run_status_traps",
+            'echo "[v934-integration] PASS run=$RUN_ID evidence=$RUN_ROOT"',
+        ],
+    )
+    require_exact_slice(
+        path,
+        physical,
+        [
+            'PHASE="run-log-flush"',
+            'echo "[v934-integration] evidence prepared; flushing owned run logger"',
+            'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"',
+            'PHASE="completed"',
+            "v934_write_run_status 0",
+        ],
+        "Integration logger-flush/green",
+    )
+    if physical[-2:] != [
+        "v934_disarm_run_status_traps",
+        'echo "[v934-integration] PASS run=$RUN_ID evidence=$RUN_ROOT"',
+    ]:
+        raise ShapeError(f"{path}: Integration disarm/PASS suffix differs")
+
+
+def validate_unit(
+    path: Path,
+    text: str,
+    enforce_source_seal: bool = True,
+    source_bytes: bytes | None = None,
+) -> None:
+    if enforce_source_seal:
+        require_source_seal(
+            path,
+            text.encode("utf-8") if source_bytes is None else source_bytes,
+            UNIT_RUNNER_SHA256,
+        )
+    reject_unowned_logger(path, text)
+    physical, logical = executable_streams(path, text)
+    require_exact_traps(
+        path,
+        logical,
+        [
+            "trap '' INT TERM HUP",
+            "trap - EXIT",
+            'trap \'v934_unit_exit_trap "$?"\' EXIT',
+        ],
+    )
+    require_canonical_references(
+        path,
+        logical,
+        {
+            "v934_install_run_status_traps": ["v934_install_run_status_traps"],
+            "v934_disarm_run_status_traps": ["v934_disarm_run_status_traps"],
+            "v934_run_log_open": [
+                'v934_run_log_open "$RUN_ROOT" v934-unit || fail "cannot open the owned run logger"'
+            ],
+            "v934_run_log_close": [
+                'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"'
+            ],
+            "v934_write_run_status": ["v934_write_run_status 0"],
+            "v934_unit_exit_trap": [
+                "v934_unit_exit_trap() {",
+                'trap \'v934_unit_exit_trap "$?"\' EXIT',
+            ],
+            "v934_run_log_exit_trap": [
+                'v934_run_log_exit_trap "$exit_code" v934_record_run_status'
+            ],
+        },
+    )
+    # Unit owns an additional MySQL fixture lifecycle.  Its EXIT trap must
+    # clean both fixture scopes before delegating the preserved exit code to
+    # the shared run-log/status finalizer; accepting the Integration shortcut
+    # here would reintroduce the cleanup gap this wrapper was added to close.
+    require_exact_ordered(
+        path,
+        physical,
+        [
+            'source "$RUN_LOG_LIB"',
+            "v934_unit_exit_trap() {",
+            "trap '' INT TERM HUP",
+            "trap - EXIT",
+            'python3 "$UNIT_FIXTURE_TOOL" cleanup-lifecycle --repo-root "$ROOT_DIR" --run-id "$RUN_ID"',
+            'python3 "$UNIT_FIXTURE_TOOL" cleanup --repo-root "$ROOT_DIR" --run-id "$RUN_ID"',
+            'v934_run_log_exit_trap "$exit_code" v934_record_run_status',
+            "v934_install_run_status_traps",
+            'trap \'v934_unit_exit_trap "$?"\' EXIT',
+            'v934_run_log_open "$RUN_ROOT" v934-unit || fail "cannot open the owned run logger"',
+            'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"',
+            'PHASE="completed"',
+            "v934_write_run_status 0",
+            '"$RUN_ROOT/final/report-manifest.json" "$RUN_ROOT/summary.env" "$RUN_ID" \\',
+            "v934_disarm_run_status_traps",
+            'echo "[v934-unit] PASS run=$RUN_ID evidence=$RUN_ROOT"',
+        ],
+    )
+    require_exact_slice(
+        path,
+        physical,
+        [
+            "v934_unit_exit_trap() {",
+            'local exit_code="${1:-1}" cleanup_code=0',
+            '[[ "$exit_code" =~ ^[0-9]+$ ]] || exit_code=1',
+            "trap '' INT TERM HUP",
+            "trap - EXIT",
+            "set +e",
+            'if [[ "$LIFECYCLE_STARTED" -eq 1 ]]; then',
+            'python3 "$UNIT_FIXTURE_TOOL" cleanup-lifecycle --repo-root "$ROOT_DIR" --run-id "$RUN_ID"',
+            "cleanup_code=$?",
+            'if [[ "$cleanup_code" -ne 0 ]]; then',
+            'PHASE="unit-mysql57-lifecycle-fallback-cleanup-failed"',
+            '[[ "$exit_code" -ne 0 ]] || exit_code=1',
+            "fi",
+            "fi",
+            'if [[ -n "$FIXTURE_RUN_ID" ]]; then',
+            'python3 "$UNIT_FIXTURE_TOOL" cleanup --repo-root "$ROOT_DIR" --run-id "$RUN_ID"',
+            "cleanup_code=$?",
+            'if [[ "$cleanup_code" -ne 0 ]]; then',
+            'PHASE="unit-mysql57-fallback-cleanup-failed"',
+            '[[ "$exit_code" -ne 0 ]] || exit_code=1',
+            "fi",
+            "fi",
+            'v934_run_log_exit_trap "$exit_code" v934_record_run_status',
+            "}",
+        ],
+        "Unit fixture-aware EXIT wrapper",
+    )
+    require_exact_slice(
+        path,
+        physical,
+        [
+            'PHASE="run-log-flush"',
+            'echo "[v934-unit] evidence prepared; flushing owned run logger"',
+            'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"',
+            'PHASE="completed"',
+            "v934_write_run_status 0",
+        ],
+        "Unit logger-flush/green",
+    )
+    if physical[-2:] != [
+        "v934_disarm_run_status_traps",
+        'echo "[v934-unit] PASS run=$RUN_ID evidence=$RUN_ROOT"',
+    ]:
+        raise ShapeError(f"{path}: Unit disarm/PASS suffix differs")
+
+
+unit_path = Path(sys.argv[1])
+integration_path = Path(sys.argv[2])
+unit_bytes = unit_path.read_bytes()
+integration_bytes = integration_path.read_bytes()
+try:
+    unit_text = unit_bytes.decode("utf-8")
+    integration_text = integration_bytes.decode("utf-8")
+except UnicodeDecodeError as error:
+    raise SystemExit(f"lifecycle runner is not exact UTF-8: {error}") from error
+try:
+    validate_unit(unit_path, unit_text, source_bytes=unit_bytes)
+    validate_integration(
+        integration_path,
+        integration_text,
+        source_bytes=integration_bytes,
+    )
+except ShapeError as error:
+    raise SystemExit(str(error)) from error
+
+
+def expect_unit_rejected(label: str, mutated: str) -> None:
+    try:
+        validate_unit(Path(f"unit-mutation:{label}"), mutated, enforce_source_seal=False)
+    except ShapeError:
+        return
+    raise SystemExit(f"Unit lifecycle mutation unexpectedly passed: {label}")
+
+
+def expect_integration_rejected(label: str, mutated: str) -> None:
+    try:
+        validate_integration(
+            Path(f"integration-mutation:{label}"),
+            mutated,
+            enforce_source_seal=False,
+        )
+    except ShapeError:
+        return
+    raise SystemExit(f"Integration lifecycle mutation unexpectedly passed: {label}")
+
+
+def expect_unit_seal_rejected(label: str, mutated: str) -> None:
+    try:
+        validate_unit(Path(f"unit-seal-mutation:{label}"), mutated)
+    except ShapeError:
+        return
+    raise SystemExit(f"Unit source-seal mutation unexpectedly passed: {label}")
+
+
+def expect_integration_seal_rejected(label: str, mutated: str) -> None:
+    try:
+        validate_integration(Path(f"integration-seal-mutation:{label}"), mutated)
+    except ShapeError:
+        return
+    raise SystemExit(f"Integration source-seal mutation unexpectedly passed: {label}")
+
+
+def replace_exact(source: str, old: str, new: str, label: str) -> str:
+    if source.count(old) != 1:
+        raise SystemExit(
+            f"lifecycle mutation {label}: expected one exact anchor, found {source.count(old)}"
+        )
+    mutated = source.replace(old, new, 1)
+    if mutated == source:
+        raise SystemExit(f"lifecycle mutation {label}: source bytes did not change")
+    return mutated
+
+
+delegation = '  v934_run_log_exit_trap "$exit_code" v934_record_run_status'
+expect_unit_rejected(
+    "missing-shared-finalizer",
+    replace_exact(
+        unit_text,
+        delegation,
+        f"  # {delegation.strip()}",
+        "missing-shared-finalizer",
+    ),
+)
+unit_lifecycle_cleanup = (
+    '  python3 "$UNIT_FIXTURE_TOOL" cleanup-lifecycle '
+    '--repo-root "$ROOT_DIR" --run-id "$RUN_ID"'
+)
+expect_unit_rejected(
+    "commented-fixture-cleanup-decoy",
+    replace_exact(
+        unit_text,
+        unit_lifecycle_cleanup,
+        f"  # {unit_lifecycle_cleanup.strip()}",
+        "commented-fixture-cleanup-decoy",
+    ),
+)
+expect_unit_rejected(
+    "direct-trap-bypasses-fixture-cleanup",
+    replace_exact(
+        unit_text,
+        'trap \'v934_unit_exit_trap "$?"\' EXIT',
+        'trap \'v934_run_log_exit_trap "$?" v934_record_run_status\' EXIT',
+        "direct-trap-bypasses-fixture-cleanup",
+    ),
+)
+delegation_before_cleanup = replace_exact(
+    unit_text,
+    f"{delegation}\n",
+    "",
+    "delegation-before-fixture-cleanup:remove",
+)
+delegation_before_cleanup = replace_exact(
+    delegation_before_cleanup,
+    '  if [[ "$LIFECYCLE_STARTED" -eq 1 ]]; then',
+    f"{delegation}\n  if [[ \"$LIFECYCLE_STARTED\" -eq 1 ]]; then",
+    "delegation-before-fixture-cleanup:insert",
+)
+expect_unit_rejected(
+    "delegation-before-fixture-cleanup",
+    delegation_before_cleanup,
+)
+expect_unit_rejected(
+    "duplicate-shared-finalizer",
+    replace_exact(
+        unit_text,
+        delegation,
+        f"{delegation}\n{delegation}",
+        "duplicate-shared-finalizer",
+    ),
+)
+unit_wrapper_trap = 'trap \'v934_unit_exit_trap "$?"\' EXIT'
+expect_unit_rejected(
+    "later-exit-trap-overrides-wrapper",
+    replace_exact(
+        unit_text,
+        f"{unit_wrapper_trap}\n",
+        f"{unit_wrapper_trap}\ntrap : EXIT\n",
+        "later-exit-trap-overrides-wrapper",
+    ),
+)
+expect_unit_rejected(
+    "numeric-zero-trap-overrides-wrapper",
+    replace_exact(
+        unit_text,
+        f"{unit_wrapper_trap}\n",
+        f"{unit_wrapper_trap}\ntrap : 0\n",
+        "numeric-zero-trap-overrides-wrapper",
+    ),
+)
+expect_unit_rejected(
+    "comment-heredoc-cannot-hide-trap-override",
+    replace_exact(
+        unit_text,
+        f"{unit_wrapper_trap}\n",
+        f"{unit_wrapper_trap}\n# <<true\ntrap : 0\ntrue\n",
+        "comment-heredoc-cannot-hide-trap-override",
+    ),
+)
+expect_unit_rejected(
+    "second-install-overrides-wrapper",
+    replace_exact(
+        unit_text,
+        f"{unit_wrapper_trap}\n",
+        f"{unit_wrapper_trap}\nv934_install_run_status_traps\n",
+        "unit-second-install-overrides-wrapper",
+    ),
+)
+unit_early_disarm = replace_exact(
+    unit_text,
+    "v934_disarm_run_status_traps\n",
+    "",
+    "unit-early-disarm:remove",
+)
+unit_early_disarm = replace_exact(
+    unit_early_disarm,
+    f"{unit_wrapper_trap}\n",
+    f"{unit_wrapper_trap}\nv934_disarm_run_status_traps\n",
+    "unit-early-disarm:insert",
+)
+expect_unit_rejected("early-disarm-clears-wrapper", unit_early_disarm)
+expect_unit_rejected(
+    "semicolon-second-install-overrides-wrapper",
+    replace_exact(
+        unit_text,
+        f"{unit_wrapper_trap}\n",
+        f"{unit_wrapper_trap}\nv934_install_run_status_traps;\n",
+        "semicolon-second-install-overrides-wrapper",
+    ),
+)
+expect_unit_rejected(
+    "early-return-skips-fixture-cleanup",
+    replace_exact(
+        unit_text,
+        "  set +e\n",
+        '  set +e\n  return "$exit_code"\n',
+        "early-return-skips-fixture-cleanup",
+    ),
+)
+expect_unit_rejected(
+    "later-wrapper-definition-shadows-cleanup",
+    replace_exact(
+        unit_text,
+        f"{unit_wrapper_trap}\n",
+        f"{unit_wrapper_trap}\nfunction v934_unit_exit_trap {{ :; }}\n",
+        "later-wrapper-definition-shadows-cleanup",
+    ),
+)
+
+integration_trap = 'trap \'v934_run_log_exit_trap "$?" v934_record_run_status\' EXIT'
+expect_integration_rejected(
+    "missing-direct-finalizer",
+    replace_exact(
+        integration_text,
+        integration_trap,
+        f"# {integration_trap}",
+        "missing-direct-finalizer",
+    ),
+)
+integration_close = 'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"'
+integration_close_after_green = replace_exact(
+    integration_text,
+    f"{integration_close}\n",
+    f"# {integration_close}\n",
+    "close-after-green:remove",
+)
+integration_close_after_green = replace_exact(
+    integration_close_after_green,
+    "v934_write_run_status 0",
+    f"v934_write_run_status 0\n{integration_close}",
+    "close-after-green:insert",
+)
+expect_integration_rejected("close-after-green", integration_close_after_green)
+expect_integration_rejected(
+    "later-exit-trap-overrides-finalizer",
+    replace_exact(
+        integration_text,
+        f"{integration_trap}\n",
+        f"{integration_trap}\ntrap : EXIT\n",
+        "later-exit-trap-overrides-finalizer",
+    ),
+)
+expect_integration_rejected(
+    "numeric-zero-trap-overrides-finalizer",
+    replace_exact(
+        integration_text,
+        f"{integration_trap}\n",
+        f"{integration_trap}\ntrap : 0\n",
+        "numeric-zero-trap-overrides-finalizer",
+    ),
+)
+expect_integration_rejected(
+    "quoted-heredoc-cannot-hide-trap-override",
+    replace_exact(
+        integration_text,
+        f"{integration_trap}\n",
+        f"{integration_trap}\nprintf '%s\\n' '<<true'\ntrap : 0\ntrue\n",
+        "quoted-heredoc-cannot-hide-trap-override",
+    ),
+)
+expect_integration_rejected(
+    "second-install-overrides-finalizer",
+    replace_exact(
+        integration_text,
+        f"{integration_trap}\n",
+        f"{integration_trap}\nv934_install_run_status_traps\n",
+        "integration-second-install-overrides-finalizer",
+    ),
+)
+integration_early_disarm = replace_exact(
+    integration_text,
+    "v934_disarm_run_status_traps\n",
+    "",
+    "integration-early-disarm:remove",
+)
+integration_early_disarm = replace_exact(
+    integration_early_disarm,
+    f"{integration_trap}\n",
+    f"{integration_trap}\nv934_disarm_run_status_traps\n",
+    "integration-early-disarm:insert",
+)
+expect_integration_rejected("early-disarm-clears-finalizer", integration_early_disarm)
+expect_integration_rejected(
+    "semicolon-early-disarm-clears-finalizer",
+    replace_exact(
+        integration_text,
+        f"{integration_trap}\n",
+        f"{integration_trap}\nv934_disarm_run_status_traps;\n",
+        "semicolon-early-disarm-clears-finalizer",
+    ),
+)
+expect_integration_rejected(
+    "logical-or-skips-logger-close",
+    replace_exact(
+        integration_text,
+        integration_close,
+        f"true || \\\n{integration_close}",
+        "logical-or-skips-logger-close",
+    ),
+)
+expect_integration_rejected(
+    "later-close-definition-shadows-flush",
+    replace_exact(
+        integration_text,
+        'PHASE="run-log-flush"\n',
+        'v934_run_log_close() { :; }\nPHASE="run-log-flush"\n',
+        "later-close-definition-shadows-flush",
+    ),
+)
+expect_integration_rejected(
+    "multiline-quote-trap-decoy",
+    replace_exact(
+        integration_text,
+        integration_trap,
+        f'trap_decoy="\n{integration_trap}\n"',
+        "multiline-quote-trap-decoy",
+    ),
+)
+
+unit_wrapper_false_context = replace_exact(
+    unit_text,
+    "v934_unit_exit_trap() {\n",
+    "if false; then\nv934_unit_exit_trap() {\n",
+    "unit-wrapper-false-context:open",
+)
+unit_wrapper_false_context = replace_exact(
+    unit_wrapper_false_context,
+    "}\n\nv934_install_run_status_traps\n",
+    "}\nfi\n\nv934_install_run_status_traps\n",
+    "unit-wrapper-false-context:close",
+)
+expect_unit_seal_rejected("wrapper-false-context", unit_wrapper_false_context)
+
+unit_wrapper_subshell_context = replace_exact(
+    unit_text,
+    "v934_unit_exit_trap() {\n",
+    "(\nv934_unit_exit_trap() {\n",
+    "unit-wrapper-subshell-context:open",
+)
+unit_wrapper_subshell_context = replace_exact(
+    unit_wrapper_subshell_context,
+    "}\n\nv934_install_run_status_traps\n",
+    "}\n)\n\nv934_install_run_status_traps\n",
+    "unit-wrapper-subshell-context:close",
+)
+expect_unit_seal_rejected("wrapper-subshell-context", unit_wrapper_subshell_context)
+expect_unit_seal_rejected("crlf-byte-drift", unit_text.replace("\n", "\r\n"))
+
+expect_integration_seal_rejected(
+    "trap-false-context",
+    replace_exact(
+        integration_text,
+        integration_trap,
+        f"if false; then\n{integration_trap}\nfi",
+        "integration-trap-false-context",
+    ),
+)
+expect_integration_seal_rejected(
+    "trap-subshell-context",
+    replace_exact(
+        integration_text,
+        integration_trap,
+        f"(\n{integration_trap}\n)",
+        "integration-trap-subshell-context",
+    ),
+)
+integration_flush_slice = "\n".join(
+    [
+        'PHASE="run-log-flush"',
+        'echo "[v934-integration] evidence prepared; flushing owned run logger"',
+        integration_close,
+        "",
+        "# Green status and its hash-bound summary are published only after the logger",
+        "# has flushed and been reaped. This keeps the durable evidence order acyclic.",
         'PHASE="completed"',
         "v934_write_run_status 0",
     ]
-    positions = []
-    for token in required:
-        position = text.find(token)
-        if position < 0:
-            raise SystemExit(f"{path}: missing lifecycle token {token!r}")
-        positions.append(position)
-    if positions != sorted(positions) or len(set(positions)) != len(positions):
-        raise SystemExit(f"{path}: logger flush is not ordered before green evidence")
+)
+expect_integration_seal_rejected(
+    "flush-green-false-context",
+    replace_exact(
+        integration_text,
+        integration_flush_slice,
+        f"if false; then\n{integration_flush_slice}\nfi",
+        "integration-flush-green-false-context",
+    ),
+)
+expect_integration_seal_rejected(
+    "heredoc-source-shadows-close",
+    replace_exact(
+        integration_text,
+        'PHASE="run-log-flush"\n',
+        "source /dev/stdin <<'OVERRIDE'\n"
+        "v934_run_log_close() { :; }\n"
+        "OVERRIDE\n"
+        'PHASE="run-log-flush"\n',
+        "integration-heredoc-source-shadows-close",
+    ),
+)
+expect_integration_seal_rejected(
+    "eval-shadows-close",
+    replace_exact(
+        integration_text,
+        'PHASE="run-log-flush"\n',
+        'eval \'v934_run_log_close() { :; }\'\nPHASE="run-log-flush"\n',
+        "integration-eval-shadows-close",
+    ),
+)
 
 outer_path = Path(sys.argv[3])
 outer = outer_path.read_text(encoding="utf-8")
@@ -529,4 +1365,4 @@ if library.count("v934_run_log_abort_open || true") != 3:
     )
 PY
 
-printf '[v934-run-log-test] PASS slow=2 nonzero=2 timeout=1 pid-reuse=1 early-signal=3 capture-failure=1 exit=2 clean-group=1 persistent-residue=1\n'
+printf '[v934-run-log-test] PASS slow=2 nonzero=2 timeout=1 pid-reuse=1 early-signal=3 capture-failure=1 exit=2 clean-group=1 persistent-residue=1 unit-shape-negative=13 integration-shape-negative=11 unit-source-seal-negative=3 integration-source-seal-negative=5\n'

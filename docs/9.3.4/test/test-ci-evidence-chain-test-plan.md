@@ -9,7 +9,7 @@ step2_result: passed
 step3_result: passed
 step4_result: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # 9.3.4 Test and Evidence Plan
@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / Unit remediation r3 passed / formal remediation quality passed / commit-push + fresh r8 pending`
+- step4_result: `in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed / ready-for-commit-and-fresh-r9`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -439,8 +439,9 @@ Final acceptance 至少验证：
   publisher `3/3`、profile boundary `6/6`），negative receipt 文件 schema/tamper 另为
   `4/4`，真实 lifecycle=`5/5`，report inventory=`30/30`。
   threshold 仍为
-  `diagnostic-pending`；fresh r8 diagnostic 与 subsequent formal 尚未执行，没有 aggregate
-  baseline/review、当前实现质量通过或 Step 4 exit evidence。
+  `diagnostic-pending`；fresh r9 diagnostic 与 subsequent formal 尚未执行，没有 aggregate
+  baseline/review 或 Step 4 exit evidence；lifecycle remediation quality 通过不替代这些
+  runtime gate。
 - Step 4 r1：clean/pushed `bc100b0f` 的 `child-unit`=`3115/1/0/0` fail closed；修复
   focused=`9/0`、组合=`57/0`，但未产生 aggregate evidence。
 - Step 4 r2：clean/pushed `0101a44a` 的 Unit=`4941/F0E0S0`；Integration=
@@ -512,7 +513,7 @@ Final acceptance 至少验证：
   `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
   `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`，
   successor=`14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`，
-  top=`60/60` / `6056a930a1d0deec59767ffc0239485ae42b4067e343c0d68e3f899c3440e587`，
+  top=`60/60` / `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`，
   overlay contract/tool=
   `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
   `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`，
@@ -531,16 +532,24 @@ Final acceptance 至少验证：
   `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
 - database-state successor remediation 的历史 quality 结论保持在对应 evidence 中；当前
   Unit fixture remediation 正式实现质量闸门已在 r3 与文档 closure 后通过，
-  B/H/M/L=`0/0/0/0`，仅放行 commit-push/clean HEAD→fresh r8；
+  B/H/M/L=`0/0/0/0`；该历史闸门当时仅放行 commit-push/clean HEAD→fresh r8，r8 的
+  bootstrap-negative 结果由下方 superseding record 接管；
 - r6 evidence/blocker：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`；
   `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
 - r7 evidence/BUG：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`；
   `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`；
-- next executable action: r3 与正式 remediation quality 已通过；完成 commit/push 并证明
-  clean `HEAD == origin/main`，再在四个 frozen ports 无 listener 的 evidence window 执行
-  fresh r8 all-lane diagnostic。
+- r8 result：clean/pushed launch HEAD=`3a3dd21a9aa956f0bedfffcf648ebb1cac0b756a`；在
+  run-owned identity 与 lane 前因 stale Unit direct-trap lifecycle shape 于
+  `bootstrap-negative` fail closed，lane/aggregate/threshold/summary absent，r8 excluded。
+  remediation focused 唯一 PASS：dynamic=`9 类 / 14 case`、Unit shape/seal=`13+3`、
+  Integration=`11+5`；comment/quoted heredoc、EXIT/0、early return、shadow、
+  false/subshell、heredoc source/eval 与 CRLF raw-byte drift 均 expected-negative；两路
+  independent quality B/H/M/L=`0/0/0/0`；
+- next executable action: 完成本轮 authoritative closure commit/push 并证明 clean
+  `HEAD == origin/main`，再在四个 frozen ports 无 listener 的 evidence window 执行
+  fresh r9 all-lane diagnostic。
   threshold 仍为
   `diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与
   acceptance 仍关闭。只有 fresh formal、实现质量闸门与测试证据覆盖审计全部通过，9.3.4 才可按
