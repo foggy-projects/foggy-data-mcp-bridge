@@ -5,7 +5,7 @@ version: 9.3.4
 target: STEP4-DIAGNOSTIC-READY
 status: reviewed
 decision: pass
-reviewed_by: Codex root session + independent code review
+reviewed_by: Codex root session + three independent code reviews
 reviewed_at: 2026-07-17
 follow_up_required: yes
 ---
@@ -602,3 +602,68 @@ Step 4 exit。
 - threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
 - 本闸门不表示 r9、aggregate/critical review、threshold freeze、fresh formal、coverage
   audit、Step 4 exit、Step 5、9.3.5 或 acceptance 已通过。
+
+## Superseding Main Quality Gate — r9 exec identity / lifecycle semantic remediation（2026-07-17）
+
+本节取代 r8 quality 对当前 Step 4 tooling 的放行结论，但不改写 r8/r9 immutable failure。
+r9=`step4-coverage-20260717-diagnostic-r9` 从 clean/pushed commit
+`a0466ec04c51c436413e85836a7dee6153e18010` 完成所有 required lanes、report inventory 与
+`23 exec / 48 sessions`，随后因旧 verifier 把 all-loaded same-name classes 当成单一
+identity，于 `coverage-report` fail closed；exec manifest、aggregate、source-after、threshold
+与 summary absent，r9=`excluded/non-reusable`。
+
+### Reviewed implementation
+
+- coverage contract 将 production class-ID consistency scope 冻结为
+  `frozen-24-module-production-class-universe`；凡名称命中 fresh 24-module production
+  universe，observed ID 集必须精确等于 current CRC64 ID；runtime/test/dependency 不按名称
+  排除；
+- raw exec 与 aggregate 以 JaCoCo class ID 为主 identity；同 ID 的 name/probe count 必须
+  compatible，bitmap 必须为全部 input 的 exact OR；同名不同 ID 分别完整保留；
+- manifest、aggregate provenance 与 XML consumer 精确消费 scope、unique class-ID count 与
+  `exact-session-and-jacoco-class-id-probe-bitmap-union`；
+- lifecycle validator 增加 stable `ShapeError` code、raw source seal 与完整 executable
+  physical/logical stream seal；comment/dead-context/动态 `trap` 拼接 mutation 必须触达精确
+  semantic code，CRLF 仅触达 raw source seal。
+
+### Verification and adversarial review
+
+- contract validate PASS，mutation=`21/21`；exec scope/aggregate=`17/17`；successor overlay
+  positive PASS、negative=`12/12`；
+- JaCoCo 0.8.12 原生 merge + 新 verifier 对 r9 raw exec 只读重放：`23 exec / 48
+  sessions / 106,546 raw records / 16,693 names / 16,939 class IDs / 135 same-name
+  multi-ID / 355,678 covered probes`，frozen production conflict=`0`；
+- XML/provenance fast negative=`68/68`，含 valid identity 正例以及 manifest scope、
+  provenance scope、merge semantics、aggregate/manifest class-ID count 四个 stable-code
+  mutation；
+- lifecycle 完整 suite 唯一 PASS：原 dynamic=`9 类 / 14 case`；Unit/Integration shape=
+  `16/16 + 14/14`；semantic stream=`2/2 + 5/5`；raw source seal=`2/2`；outer/library=
+  `3/3 + 3/3`；
+- lifecycle script SHA-256=
+  `6e90d46834a95386967d5309c31b18f64b3872c41d7d260a2d07705655ab8672`；coverage
+  contract/tool/contract-negative/exec/XML/XML-negative SHA-256=
+  `58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0` /
+  `ef5b78f25ffebf48e45e363a15fb1c4bc53341488a8e703133f01bb7b2c40bef` /
+  `9df394efa046de4a494d31b00dd3900fe875f07a9e31aabccff29a231a1c1ecc` /
+  `6ab1e10c2eb56ab44431b713800cebfe3d490e332a2fc21135c24b0f94149120` /
+  `0600b66657824b3fc7cf3b15ca0474e0885977605c64c60366a4a13607eb18bf` /
+  `a29ef5bec71c2681866466640a9979655e9d3c0926e1ef3fa00c5272fb1f8434`；
+- top manifest=`60/60` /
+  `6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`；successor=
+  `14/14` / `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`；
+  diagnostic/formal contract projection=
+  `58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0` /
+  `cabedad99522bb1c76e8cd35eb25922a1117d445256f1e346b47687dbadbb66e`；
+- Shell syntax、Python in-memory compile、modified Markdown relative-link audit 与
+  `git diff --check` PASS；
+- 三路独立复核依次发现并关闭 downstream XML negative 缺口、current-state hash 冲突与
+  future-r9 文案冲突；最终 Blocker/High/Medium/Low=`0/0/0/0`。
+
+### Decision
+
+- decision=`pass / ready-for-remediation-commit-and-fresh-r10`；
+- 只放行本轮 code/contract/manifest/evidence/BUG/quality writeback 的 commit/push，随后必须
+  证明 clean `HEAD == origin/main` 并从空 run root 执行 fresh r10 diagnostic；
+- threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
+- 本闸门不表示 r10、threshold freeze、fresh formal、最终实现质量、coverage audit、Step 4
+  exit、Step 5、9.3.5 或 acceptance 已通过。

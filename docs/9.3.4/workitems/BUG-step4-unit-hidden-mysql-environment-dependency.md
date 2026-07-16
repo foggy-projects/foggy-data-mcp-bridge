@@ -125,9 +125,9 @@ MySQL URL，不能用“给所有模块补 MySQL driver/profile”修正，否�
 
 fresh r3 与 formal remediation quality 已证明 Unit replacement subgate 通过，但不是 Step 4
 exit evidence。fresh r8 已启动，但因独立 lifecycle static contract drift 在 lane 前
-bootstrap-negative fail closed；r8 不证明本 BUG 的 all-lane closure。该新契约缺陷已修复并
-通过 quality，当前为 `fresh Unit r3=passed / lifecycle remediation quality=passed /
-fresh r9=required`；不得宣称 Step 4、coverage audit 或验收通过，Step 5 保持关闭。
+bootstrap-negative fail closed；这是 r8 时点的历史边界。r9 随后已完成完整 Unit replacement、
+全部 required lanes 与 `23 exec / 48 sessions`，并在无关 exec identity scope 上 fail
+closed；当前仍须 fresh r10、threshold freeze 与 fresh formal，Step 5 保持关闭。
 
 ## Verification Checklist
 
@@ -150,7 +150,9 @@ fresh r9=required`；不得宣称 Step 4、coverage audit 或验收通过，Step
 - [x] 正式实现质量闸门通过，B/H/M/L=`0/0/0/0`。
 - [x] commit/push 后 fresh r8 已启动；因独立 lifecycle contract drift 在 lane 前 fail
       closed/excluded，不能作为本 BUG 的 all-lane proof。
-- [ ] authoritative closure commit/push 后 fresh r9 all-lane 通过 `23 exec / 48 sessions`。
+- [x] authoritative closure commit/push 后 fresh r9 已通过完整 Unit replacement、全部
+      required lanes 与 `23 exec / 48 sessions`；其后在无关 exec identity scope 上 fail
+      closed。
 - [ ] fresh formal 复验通过后关闭本 BUG。
 
 ## References

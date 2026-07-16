@@ -57,11 +57,11 @@ r6 partial 绿色结果升级为测试证据。
 2. r7 启动前用只读端口检查证明 `13306` 无 listener；该项已完成；
 3. 不复用 r6 的 Unit/Integration/Addon XML 或 exec，以全新 run id 从 source seal 开始；
 4. r7 随后因独立的 Unit hermeticity BUG fail closed；修复后 fresh r8 已启动，但又因独立
-   lifecycle static contract drift 在所有 lane 前 fail closed；修复后 fresh r9 必须完成同一 run 的
-   `23 exec / 48 sessions`、全部 database/external lane、aggregate、
-   critical gates、source-after 与 summary；
-5. r9 通过后继续 reviewed threshold freeze 与 fresh formal；在此之前本 blocker 与 r5
-   successor BUG 均保持 `in-progress`。
+   lifecycle static contract drift 在所有 lane 前 fail closed；r9 已完成同一 run 的
+   `23 exec / 48 sessions` 与全部 database/external lane，随后在 exec-manifest 前因无关
+   exec identity scope fail closed，aggregate/critical/source-after/summary absent；
+5. 当前必须由 fresh r10 完成 aggregate 与 reviewed threshold freeze，再执行 fresh formal；
+   在此之前本 blocker 与 r5 successor BUG 均保持 `in-progress`。
 
 ## Pre-r7 operator maintenance
 
@@ -91,7 +91,9 @@ r6 已完整退出并完成 `0/0/0` cleanup 后，operator 在 r7 evidence windo
   hidden MySQL dependency BUG，故没有形成 all-lane authority。
 - [x] Unit fixture remediation 后 fresh r8 已在四端口 free 的环境启动；因独立 lifecycle
       contract drift 在 lane 前 fail closed/excluded。
-- [ ] lifecycle contract remediation 后 fresh r9 all-lane diagnostic 通过。
+- [x] lifecycle contract remediation 后 fresh r9 已在四个 frozen ports free 的 evidence
+      window 完成全部 required lanes 与 `23/48` exec；其后在无关 exec identity scope 上
+      fail closed。
 - [ ] reviewed threshold freeze、fresh formal 与最终质量复核完成后关闭 blocker。
 
 ## References

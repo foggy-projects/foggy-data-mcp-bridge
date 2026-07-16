@@ -160,13 +160,15 @@ evidence。
       lifecycle expected-negative。
 - [x] 运行完整 lifecycle dynamic/static regression 并取得唯一 PASS。
 - [x] 完成两路独立实现质量复核，最终 B/H/M/L=`0/0/0/0`。
-- [ ] commit/push 并证明 clean `HEAD == origin/main`。
-- [ ] 使用新 run ID 完成 fresh all-lane diagnostic。
+- [x] remediation 已随 commit `a0466ec04c51c436413e85836a7dee6153e18010`
+      push，且 r9 启动时证明 clean `HEAD == origin/main`。
+- [x] fresh r9 已通过本 BUG 对应的 bootstrap lifecycle contract 并完成全部 required
+      lanes；其后在无关的 JaCoCo exec class identity scope 上 fail closed。
 - [ ] fresh formal、最终质量与 coverage evidence audit 通过后关闭本 BUG。
 
-当前 fix/test/正式质量已通过，commit/push 与 fresh r9 pending。Step 4 不得通过；
-Step 5、formal、coverage audit 与 acceptance
-保持关闭。
+本 BUG 的原始 stale-token drift 已被 r9 动态证明关闭；随后发现的更深层 semantic bypass
+由 `BUG-934-STEP4-LIFECYCLE-SEMANTIC-VALIDATOR-BYPASS` 单独治理。Step 4 仍不得通过；fresh
+r10、formal、coverage audit 与 acceptance 前 Step 5 保持关闭。
 
 ## References
 

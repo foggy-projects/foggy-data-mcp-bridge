@@ -47,7 +47,7 @@ updated_at: 2026-07-17
   remediation 已通过正式质量闸门，两层独立库存保持：coverage execution=
   `23 exec / 48 sessions`；
   required report overlay=`773 positive + 59 structural / 5,707 testcase`，Addon companion=
-  `2/6`；required 总计预期 `F0E0S0`。coverage contract mutations=`20/20`、
+  `2/6`；required 总计预期 `F0E0S0`。coverage contract mutations=`21/21`、
   source identity=`22/22`、effective POM=`4/4`、toolchain receipt=`5/5`、
   report inventory=`30/30`。Unit fixture negatives=`36/36`，其中原
   fixture/manifest schema/tamper=`20/20`、connection typed=`7/7`、atomic
@@ -58,11 +58,11 @@ updated_at: 2026-07-17
   connections 必须使用 run-owned `v934_unit`，callback 返回后的 provisioner `foggy`
   控制面连接在窗口外。Step 2 derived
   view/successor overlay=`12/12`/`12/12`，XML/provenance=
-  `63/63`，logger lifecycle=`9 类 / 14 case`。
-- toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
+  `68/68`，logger lifecycle=`9 类 / 14 case`。
+- r8 lifecycle closure 时点的 toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
   `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1` 以及 24 个
   production module 的 effective compiler。run-owned Unit fixture hardening 与 lifecycle
-  remediation 的当前静态 identity 已复验：top manifest=`60/60` /
+  remediation 的该历史静态 identity 为：top manifest=`60/60` /
   `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`，successor=
   `14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`，
   amendment=`12 rows / 4 new + 8 changed` /
@@ -187,15 +187,35 @@ updated_at: 2026-07-17
   与 CRLF drift。两路独立质量复核 B/H/M/L=`0/0/0/0`；tool=
   `8dcc679c2762ff8908b3bc26e8dfb0553a083eb75003dd80366fd82e78d8ed9b`，top=
   `60/60` / `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`。
-- 当前状态为 `in-progress / r8 excluded / lifecycle remediation quality passed /
-  ready-for-commit-and-fresh-r9`。
+- fresh all-lane r9=`step4-coverage-20260717-diagnostic-r9` 已从 clean/pushed commit
+  `a0466ec04c51c436413e85836a7dee6153e18010` 启动并完成 Unit、Integration、Step 3
+  required、report inventory=`773+59/5,707/F0E0S0` 与 `23 exec / 48 sessions`；随后
+  exec verifier 把所有测试/依赖/CGLIB 同名多 ID 当成 production drift，在
+  `coverage-report` 以 `E_CLASS_ID_MISMATCH` fail closed。`exec-manifest`、aggregate、
+  source-after、threshold 与 summary absent，r9=`excluded/non-reusable`。只读复算为
+  `16,939` 个 JaCoCo class-ID identities、135 个同名多 ID、frozen production 冲突=0；
+  record/BUG=
+  [r9 exec class scope failure](evidence/step-4/step4-coverage-diagnostic-r9-exec-class-scope-fail-closed-20260717.md) /
+  [BUG-step4-exec-class-id-scope-drift](workitems/BUG-step4-exec-class-id-scope-drift.md)。
+- r9 remediation 将 production class-ID consistency 冻结到 24-module production class
+  universe，raw/aggregate 保留所有 JaCoCo ID，aggregate 按 ID 做 exact bitmap union；focused
+  exec=`17/17`、contract mutations=`21/21`、XML identity/provenance=`68/68`、
+  overlay=`12/12`。同轮质量复核又确认 lifecycle
+  shape validator 的 comment/dead-context 与 dynamic `trap` 拼接绕过；已登记
+  [BUG-step4-lifecycle-semantic-validator-bypass](workitems/BUG-step4-lifecycle-semantic-validator-bypass.md)，
+  原 lifecycle quality 结论被重新打开。coded executable-stream 修复现已通过完整 regression：
+  Unit/Integration shape=`16/16 + 14/14`、semantic stream=`2/2 + 5/5`、raw seal=`2/2`、
+  outer/library=`3/3 + 3/3`；三路独立正式质量最终 B/H/M/L=`0/0/0/0`。
+- 当前状态为 `in-progress / r9 excluded / exec-scope remediation implemented /
+  lifecycle semantic remediation implemented / quality passed / commit pending`。
   `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r8、Unit fixture quality r1/r2 与 focused/static 结果都不是
+  `diagnostic-pending`；r1–r9、Unit fixture quality r1/r2 与 focused/static 结果都不是
   Step 4 exit evidence，r3 只通过 Unit remediation subgate；formal remediation quality
-  与 lifecycle remediation quality 均已通过，B/H/M/L=`0/0/0/0`。
+  与 r8 lifecycle remediation quality 的历史结论已由当前 superseding quality PASS 取代。
   `can_enter_coverage_audit=no`；
-  本轮权威 closure 必须 commit/push 并证明 clean `HEAD == origin/main`，再以新 run ID 执行
-  fresh r9；Step 5、formal、coverage audit 与 acceptance 仍关闭。
+  本轮权威 closure 必须完成 lifecycle semantic 正式质量、commit/push 并证明 clean
+  `HEAD == origin/main`，再以新 run ID 执行 fresh r10；Step 5、formal、coverage audit 与
+  acceptance 仍关闭。
 
 ## 执行资料
 
@@ -242,6 +262,12 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md)
 - Step 4 diagnostic r8 lifecycle contract drift failed evidence：
   [evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md)
+- Step 4 diagnostic r9 exec class scope failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r9-exec-class-scope-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r9-exec-class-scope-fail-closed-20260717.md)
+- Step 4 exec class-ID scope regression：
+  [workitems/BUG-step4-exec-class-id-scope-drift.md](workitems/BUG-step4-exec-class-id-scope-drift.md)
+- Step 4 lifecycle semantic validator bypass regression：
+  [workitems/BUG-step4-lifecycle-semantic-validator-bypass.md](workitems/BUG-step4-lifecycle-semantic-validator-bypass.md)
 - Step 4 Unit lifecycle static contract drift regression：
   [workitems/BUG-step4-unit-lifecycle-static-contract-drift.md](workitems/BUG-step4-unit-lifecycle-static-contract-drift.md)
 - Step 4 Unit hidden MySQL authority regression：
@@ -294,7 +320,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r8 excluded / lifecycle remediation quality passed | r8 在 bootstrap-negative 因 stale Unit lifecycle contract fail closed，lane/aggregate absent；修复验证 dynamic 14、Unit `13+3`、Integration `11+5`，两路 quality B/H/M/L=`0/0/0/0`；ready-for-commit-and-fresh-r9；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r9 excluded / remediation quality passed / commit pending | r9 required lanes 与 `23/48` exec 到达 coverage-report，因 all-loaded-class name scope 漂移 fail closed；production-scope/JaCoCo-ID union 已实现并通过 `17/17 + 21/21 + 68/68 + 12/12` focused；lifecycle coded regression 与三路独立质量已通过，B/H/M/L=`0/0/0/0`；fresh r10 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

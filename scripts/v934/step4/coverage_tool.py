@@ -474,7 +474,15 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
 
     jacoco = require_exact_keys(
         contract["jacoco"],
-        ("version", "unit_property", "integration_property", "append", "reactor_parallelism", "shared_exec_fork_count"),
+        (
+            "version",
+            "unit_property",
+            "integration_property",
+            "append",
+            "reactor_parallelism",
+            "shared_exec_fork_count",
+            "class_id_consistency_scope",
+        ),
         "coverage contract.jacoco",
     )
     require(jacoco["version"] == "0.8.12", "coverage contract.jacoco.version: expected 0.8.12")
@@ -484,6 +492,11 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
     require(type(jacoco["append"]) is bool and jacoco["append"] is True, "coverage contract.jacoco.append: expected boolean true")
     require(jacoco["reactor_parallelism"] == "forbidden", "coverage contract.jacoco.reactor_parallelism: expected forbidden")
     require(type(jacoco["shared_exec_fork_count"]) is int and jacoco["shared_exec_fork_count"] == 1, "coverage contract.jacoco.shared_exec_fork_count: expected integer 1")
+    require(
+        jacoco["class_id_consistency_scope"]
+        == "frozen-24-module-production-class-universe",
+        "coverage contract.jacoco.class_id_consistency_scope: expected frozen-24-module-production-class-universe",
+    )
 
     toolchain = require_exact_keys(
         contract["toolchain_receipt"],

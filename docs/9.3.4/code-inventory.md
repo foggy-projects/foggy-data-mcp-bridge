@@ -157,7 +157,7 @@ code_inventory:
     path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_contract_negative_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade..., pre-r4 exact-54/SHA 589a7d..., post-r4 exact-54/SHA ebda814..., database-state-remediation exact-56/SHA be8c4c..., fixture-hardened exact-59/SHA 2a52db... and profile-isolation exact-60/SHA 6056a930... are historical identities; the current lifecycle-remediated static identity is exact-60/SHA 0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade..., pre-r4 exact-54/SHA 589a7d..., post-r4 exact-54/SHA ebda814..., database-state-remediation exact-56/SHA be8c4c..., fixture-hardened exact-59/SHA 2a52db..., profile-isolation exact-60/SHA 6056a930..., and r8 lifecycle exact-60/SHA 0c4e6c... are historical identities; current r9-remediation identity is exact-60/SHA 6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376
   - module: v934-step4-unit-mysql57-fixture
     path: scripts/v934/step4/{unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py}; scripts/verify-v934-unit.sh
     role: replace the complete Step 4 Unit lane with one run-owned pinned MySQL 5.7 fixture while retaining the frozen Unit execution identities and cardinality
@@ -182,7 +182,7 @@ code_inventory:
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: r1-r8 all remain excluded failed diagnostics; r8 stopped at bootstrap-negative on stale Unit lifecycle shape before run identity or lanes; the fixture-aware lifecycle contract now passes dynamic 14, Unit shape/seal 13+3 and Integration 11+5 with two independent B/H/M/L 0/0/0/0 reviews; authoritative closure commit-push/clean HEAD and fresh r9 remain required; partial lanes are non-reusable
+    notes: r1-r9 remain excluded failed diagnostics; r9 reached all required lanes and 23/48 exec then failed before exec-manifest because all-loaded class names were treated as one identity; production-scope/JaCoCo-ID remediation is implemented, lifecycle semantic validation is reopened, and fresh r10 remains required; partial lanes are non-reusable
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -339,18 +339,19 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed /
-  ready-for-commit-and-fresh-r9`，不是
+- state：`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
+  lifecycle semantic remediation implemented / quality passed / commit pending /
+  fresh r10 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
-- fail-closed static evidence：contract/source identity=`20/20 + 22/22`、effective POM=
+- fail-closed static evidence：contract/source identity=`21/21 + 22/22`、effective POM=
   `4/4`、toolchain receipt=`5/5`、report inventory=`30/30`；Unit negative receipt=
   `36/36`，其中原 fixture/manifest schema/tamper=`20/20`、connection receipt typed=
   `7/7`、atomic publisher=`3/3`、profile isolation=`6/6`，另有 negative receipt schema
   tamper=`4/4`；真实 fixture
-  lifecycle=`5/5`；Step 2 derived view=`12/12`、successor overlay=`12/12`、XML=`63/63`、
+  lifecycle=`5/5`；Step 2 derived view=`12/12`、successor overlay=`12/12`、XML=`68/68`、
   logger=`9 类 / 14 case`；
 - build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
   `@{argLine}` late evaluation，修复 legacy coverage 无 exec 却 BUILD SUCCESS；三态
@@ -512,11 +513,37 @@ code_inventory:
   `8dcc679c2762ff8908b3bc26e8dfb0553a083eb75003dd80366fd82e78d8ed9b` /
   `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；两路独立质量
   B/H/M/L=`0/0/0/0`；
-- evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r8 与 Unit remediation r2 均未
+- r8 时点 evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r8 与 Unit remediation r2 均未
   生成 all-lane aggregate baseline/review 或 Step 4 exit evidence；r3 只通过 Unit
   remediation subgate；focused lifecycle 只通过 bootstrap contract remediation。正式质量
-  B/H/M/L=`0/0/0/0`。本轮 closure commit/push/clean HEAD 和 fresh r9 仍 required；
+  B/H/M/L=`0/0/0/0`。该时点 closure commit/push/clean HEAD 和 fresh r9 仍 required；
   `can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与 acceptance 仍关闭。
+
+### Superseding r9 remediation inventory
+
+- r9 immutable record/BUG：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r9-exec-class-scope-fail-closed-20260717.md`、
+  `docs/9.3.4/workitems/BUG-step4-exec-class-id-scope-drift.md`；r9 required inventory=
+  `773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48`，但 exec-manifest/aggregate/
+  source-after/summary absent，excluded/non-reusable；
+- modified exec identity path：
+  `scripts/v934/step4/{coverage-contract.json,coverage_tool.py,coverage_contract_negative_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,SHA256SUMS}`；
+  production scope=`frozen-24-module-production-class-universe`，aggregate identity=
+  JaCoCo class ID exact union；
+- successor bindings：
+  `scripts/v934/step4/successor/{overlay-contract.json,overlay_tool.py,SHA256SUMS}` 同步
+  diagnostic/formal dual hashes 与 coverage tool identity；
+- focused evidence：r9 raw exec read-only=`16,939 IDs / 135 same-name multi-ID / 0
+  production conflict`；exec=`17/17`、contract=`21/21`、XML=`68/68`、overlay=`12/12`；
+- newly reopened lifecycle path：
+  `scripts/v934/step4/run_log_lifecycle_negative_test.sh`；workitem=
+  `docs/9.3.4/workitems/BUG-step4-lifecycle-semantic-validator-bypass.md`。原 r8 lifecycle
+  quality 的 B/H/M/L=0 结论被本次可复现 bypass supersede；coded executable-stream
+  regression 已通过，Unit/Integration shape=`16/16 + 14/14`、semantic stream=
+  `2/2 + 5/5`、raw seal=`2/2`、outer/library=`3/3 + 3/3`；三路独立正式复核最终
+  B/H/M/L=`0/0/0/0`；
+- 当前 evidence boundary：r1–r9 均不能作为 threshold/formal/Step 4 exit；fresh r10 pending，
+  `can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与 acceptance 关闭。
 
 ## Protected Boundaries
 

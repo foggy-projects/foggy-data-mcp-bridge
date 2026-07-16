@@ -463,20 +463,47 @@ import sys
 
 
 class ShapeError(RuntimeError):
-    pass
+    """A fail-closed lifecycle shape rejection with a stable machine code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        if re.fullmatch(r"E_[A-Z0-9_]+", code) is None:
+            raise ValueError(f"invalid ShapeError code: {code!r}")
+        self.code = code
+        super().__init__(f"{code}: {message}")
 
 
 UNIT_RUNNER_SHA256 = "45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66"
 INTEGRATION_RUNNER_SHA256 = "19d5a9e8d58a554f416e269a35666e439b5f611f44a50783482613316cb33639"
+OUTER_RUNNER_SHA256 = "02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa"
+LIBRARY_SHA256 = "48921fd25916e698197b5a4d555b6c2f5a0d86de4069dbf50262339efd6088b2"
+
+# These seals cover the complete executable physical/logical streams after
+# comments and heredoc bodies have been removed.  They complement the raw-byte
+# seals: semantic probes deliberately disable the raw seal and must still be
+# rejected when reviewed commands are moved into a false/subshell/dead context.
+UNIT_EXECUTABLE_STREAM_SHA256 = "d7f7ab99e8098c89b9a61c5f30ce49227a6b9b10791a185f2d0ca46c31d1e3dd"
+INTEGRATION_EXECUTABLE_STREAM_SHA256 = "1d2c0f3a81a70831b0cf01a64d1e6ff48db4d9f393ae93ef81fdb8f89e1a6bc5"
+OUTER_EXECUTABLE_STREAM_SHA256 = "4a6e1f94414dfd950e87d5d7b0a249db7c9e59ee807cbbb669328007213cf48f"
+LIBRARY_EXECUTABLE_STREAM_SHA256 = "c18f95f1daf8b6ce1f1db1dd5b43f9026ed41232e9d7d26b2236586ed0786a6e"
 
 
 def require_source_seal(path: Path, source_bytes: bytes, expected_sha256: str) -> None:
     observed_sha256 = hashlib.sha256(source_bytes).hexdigest()
     if observed_sha256 != expected_sha256:
         raise ShapeError(
+            "E_SOURCE_SEAL",
             f"{path}: runner source seal differs: expected={expected_sha256} "
             f"observed={observed_sha256}"
         )
+
+
+def decode_exact_utf8(path: Path, source_bytes: bytes) -> str:
+    try:
+        return source_bytes.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ShapeError(
+            "E_SOURCE_ENCODING", f"{path}: lifecycle source is not exact UTF-8: {error}"
+        ) from error
 
 
 def scan_shell_physical(
@@ -567,7 +594,10 @@ def heredoc_declarations(path: Path, line: str, line_number: int) -> list[tuple[
         while index < len(line) and line[index].isspace():
             index += 1
         if index >= len(line):
-            raise ShapeError(f"{path}:{line_number}: missing heredoc delimiter")
+            raise ShapeError(
+                "E_SHELL_HEREDOC",
+                f"{path}:{line_number}: missing heredoc delimiter",
+            )
 
         delimiter = ""
         if line[index] in {"'", '"'}:
@@ -581,7 +611,10 @@ def heredoc_declarations(path: Path, line: str, line_number: int) -> list[tuple[
                 delimiter += line[index]
                 index += 1
             if index >= len(line) or line[index] != delimiter_quote:
-                raise ShapeError(f"{path}:{line_number}: unterminated heredoc delimiter")
+                raise ShapeError(
+                    "E_SHELL_HEREDOC",
+                    f"{path}:{line_number}: unterminated heredoc delimiter",
+                )
             index += 1
         else:
             while index < len(line) and line[index] not in " \t;|&()<>\r\n":
@@ -592,7 +625,10 @@ def heredoc_declarations(path: Path, line: str, line_number: int) -> list[tuple[
                 delimiter += line[index]
                 index += 1
         if not delimiter:
-            raise ShapeError(f"{path}:{line_number}: empty heredoc delimiter")
+            raise ShapeError(
+                "E_SHELL_HEREDOC",
+                f"{path}:{line_number}: empty heredoc delimiter",
+            )
         declarations.append((delimiter, strip_tabs))
     return declarations
 
@@ -636,12 +672,37 @@ def executable_streams(path: Path, text: str) -> tuple[list[str], list[str]]:
         heredocs.extend(heredoc_declarations(path, logical_line, line_number))
 
     if heredocs:
-        raise ShapeError(f"{path}: unterminated heredoc; refusing open")
+        raise ShapeError(
+            "E_SHELL_HEREDOC", f"{path}: unterminated heredoc; refusing open"
+        )
     if quote:
-        raise ShapeError(f"{path}: unterminated shell quote; refusing open")
+        raise ShapeError(
+            "E_SHELL_QUOTE", f"{path}: unterminated shell quote; refusing open"
+        )
     if logical_buffer:
-        raise ShapeError(f"{path}: unterminated line continuation; refusing open")
+        raise ShapeError(
+            "E_SHELL_CONTINUATION",
+            f"{path}: unterminated line continuation; refusing open",
+        )
     return physical, logical
+
+
+def require_executable_stream_seal(
+    path: Path,
+    physical: list[str],
+    logical: list[str],
+    expected_sha256: str,
+) -> None:
+    payload = "\0".join(
+        ["v934-lifecycle-executable-stream-v1", "physical", *physical, "logical", *logical]
+    ).encode("utf-8")
+    observed_sha256 = hashlib.sha256(payload).hexdigest()
+    if observed_sha256 != expected_sha256:
+        raise ShapeError(
+            "E_EXECUTABLE_STREAM_SEAL",
+            f"{path}: executable stream seal differs: expected={expected_sha256} "
+            f"observed={observed_sha256}",
+        )
 
 
 def require_exact_ordered(path: Path, lines: list[str], required: list[str]) -> None:
@@ -650,11 +711,15 @@ def require_exact_ordered(path: Path, lines: list[str], required: list[str]) -> 
         matches = [index for index, line in enumerate(lines) if line == command]
         if len(matches) != 1:
             raise ShapeError(
+                "E_LIFECYCLE_COMMAND_COUNT",
                 f"{path}: lifecycle command {command!r} count differs: {len(matches)}"
             )
         positions.append(matches[0])
     if positions != sorted(positions) or len(set(positions)) != len(positions):
-        raise ShapeError(f"{path}: logger/cleanup order differs from the reviewed lifecycle")
+        raise ShapeError(
+            "E_LIFECYCLE_ORDER",
+            f"{path}: logger/cleanup order differs from the reviewed lifecycle",
+        )
 
 
 def require_exact_slice(
@@ -662,11 +727,15 @@ def require_exact_slice(
 ) -> None:
     starts = [index for index, line in enumerate(lines) if line == expected[0]]
     if len(starts) != 1:
-        raise ShapeError(f"{path}: {label} start count differs: {len(starts)}")
+        raise ShapeError(
+            "E_EXECUTABLE_SLICE",
+            f"{path}: {label} start count differs: {len(starts)}",
+        )
     start = starts[0]
     observed = lines[start : start + len(expected)]
     if observed != expected:
         raise ShapeError(
+            "E_EXECUTABLE_SLICE",
             f"{path}: {label} executable slice differs: expected={expected!r} "
             f"observed={observed!r}"
         )
@@ -674,14 +743,24 @@ def require_exact_slice(
 
 def reject_unowned_logger(path: Path, text: str) -> None:
     if "exec > >(tee" in text:
-        raise ShapeError(f"{path}: unowned process-substitution logger remains")
+        raise ShapeError(
+            "E_UNOWNED_LOGGER",
+            f"{path}: unowned process-substitution logger remains",
+        )
+
+
+def sensitive_command_view(line: str) -> str:
+    """Expose empty-expansion command concatenations before lexical checks."""
+    candidate = re.sub(r"\$(?:''|\"\")", "", line)
+    candidate = re.sub(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-\}", "", candidate)
+    candidate = candidate.replace("''", "").replace('\"\"', "")
+    return re.sub(r"\\([A-Za-z])", r"\1", candidate)
 
 
 def require_exact_traps(path: Path, logical_lines: list[str], expected: list[str]) -> None:
     observed: list[str] = []
     for line in logical_lines:
-        candidate = line.replace("''", "").replace('\"\"', "")
-        candidate = re.sub(r"\\([A-Za-z])", r"\1", candidate)
+        candidate = sensitive_command_view(line)
         if re.search(r"(^|[^A-Za-z0-9_])trap([^A-Za-z0-9_]|$)", candidate) is None:
             continue
         try:
@@ -690,14 +769,21 @@ def require_exact_traps(path: Path, logical_lines: list[str], expected: list[str
             lexer.commenters = "#"
             tokens = list(lexer)
         except ValueError as error:
-            raise ShapeError(f"{path}: cannot parse shell line {line!r}: {error}") from error
+            raise ShapeError(
+                "E_TRAP_PARSE",
+                f"{path}: cannot parse shell line {line!r}: {error}",
+            ) from error
         # Inspect every shell word, so `trap : 0`, `builtin trap`, `command trap`,
         # escaped spellings, and chained overrides are all treated as trap commands.
         if "trap" not in tokens:
-            raise ShapeError(f"{path}: indirect or unsupported trap reference {line!r}")
+            raise ShapeError(
+                "E_TRAP_DYNAMIC_REFERENCE",
+                f"{path}: indirect or unsupported trap reference {line!r}",
+            )
         observed.append(line)
     if observed != expected:
         raise ShapeError(
+            "E_TRAP_SET",
             f"{path}: trap commands differ: expected={expected!r} observed={observed!r}"
         )
 
@@ -717,6 +803,7 @@ def require_canonical_references(
                 observed.append(line)
         if observed != canonical_lines:
             raise ShapeError(
+                "E_CANONICAL_REFERENCE",
                 f"{path}: {name} references differ: expected={canonical_lines!r} "
                 f"observed={observed!r}"
             )
@@ -791,7 +878,12 @@ def validate_integration(
         "v934_disarm_run_status_traps",
         'echo "[v934-integration] PASS run=$RUN_ID evidence=$RUN_ROOT"',
     ]:
-        raise ShapeError(f"{path}: Integration disarm/PASS suffix differs")
+        raise ShapeError(
+            "E_GREEN_SUFFIX", f"{path}: Integration disarm/PASS suffix differs"
+        )
+    require_executable_stream_seal(
+        path, physical, logical, INTEGRATION_EXECUTABLE_STREAM_SHA256
+    )
 
 
 def validate_unit(
@@ -912,7 +1004,10 @@ def validate_unit(
         "v934_disarm_run_status_traps",
         'echo "[v934-unit] PASS run=$RUN_ID evidence=$RUN_ROOT"',
     ]:
-        raise ShapeError(f"{path}: Unit disarm/PASS suffix differs")
+        raise ShapeError("E_GREEN_SUFFIX", f"{path}: Unit disarm/PASS suffix differs")
+    require_executable_stream_seal(
+        path, physical, logical, UNIT_EXECUTABLE_STREAM_SHA256
+    )
 
 
 unit_path = Path(sys.argv[1])
@@ -920,11 +1015,8 @@ integration_path = Path(sys.argv[2])
 unit_bytes = unit_path.read_bytes()
 integration_bytes = integration_path.read_bytes()
 try:
-    unit_text = unit_bytes.decode("utf-8")
-    integration_text = integration_bytes.decode("utf-8")
-except UnicodeDecodeError as error:
-    raise SystemExit(f"lifecycle runner is not exact UTF-8: {error}") from error
-try:
+    unit_text = decode_exact_utf8(unit_path, unit_bytes)
+    integration_text = decode_exact_utf8(integration_path, integration_bytes)
     validate_unit(unit_path, unit_text, source_bytes=unit_bytes)
     validate_integration(
         integration_path,
@@ -935,38 +1027,62 @@ except ShapeError as error:
     raise SystemExit(str(error)) from error
 
 
-def expect_unit_rejected(label: str, mutated: str) -> None:
+def expect_unit_rejected(label: str, mutated: str, expected_code: str) -> None:
     try:
         validate_unit(Path(f"unit-mutation:{label}"), mutated, enforce_source_seal=False)
-    except ShapeError:
+    except ShapeError as error:
+        if error.code != expected_code:
+            raise SystemExit(
+                f"Unit lifecycle mutation {label}: expected code={expected_code} "
+                f"observed={error.code}: {error}"
+            ) from error
         return
     raise SystemExit(f"Unit lifecycle mutation unexpectedly passed: {label}")
 
 
-def expect_integration_rejected(label: str, mutated: str) -> None:
+def expect_integration_rejected(label: str, mutated: str, expected_code: str) -> None:
     try:
         validate_integration(
             Path(f"integration-mutation:{label}"),
             mutated,
             enforce_source_seal=False,
         )
-    except ShapeError:
+    except ShapeError as error:
+        if error.code != expected_code:
+            raise SystemExit(
+                f"Integration lifecycle mutation {label}: expected code={expected_code} "
+                f"observed={error.code}: {error}"
+            ) from error
         return
     raise SystemExit(f"Integration lifecycle mutation unexpectedly passed: {label}")
 
 
-def expect_unit_seal_rejected(label: str, mutated: str) -> None:
+def expect_unit_seal_rejected(
+    label: str, mutated: str, expected_code: str = "E_SOURCE_SEAL"
+) -> None:
     try:
         validate_unit(Path(f"unit-seal-mutation:{label}"), mutated)
-    except ShapeError:
+    except ShapeError as error:
+        if error.code != expected_code:
+            raise SystemExit(
+                f"Unit raw-seal mutation {label}: expected code={expected_code} "
+                f"observed={error.code}: {error}"
+            ) from error
         return
     raise SystemExit(f"Unit source-seal mutation unexpectedly passed: {label}")
 
 
-def expect_integration_seal_rejected(label: str, mutated: str) -> None:
+def expect_integration_seal_rejected(
+    label: str, mutated: str, expected_code: str = "E_SOURCE_SEAL"
+) -> None:
     try:
         validate_integration(Path(f"integration-seal-mutation:{label}"), mutated)
-    except ShapeError:
+    except ShapeError as error:
+        if error.code != expected_code:
+            raise SystemExit(
+                f"Integration raw-seal mutation {label}: expected code={expected_code} "
+                f"observed={error.code}: {error}"
+            ) from error
         return
     raise SystemExit(f"Integration source-seal mutation unexpectedly passed: {label}")
 
@@ -991,6 +1107,7 @@ expect_unit_rejected(
         f"  # {delegation.strip()}",
         "missing-shared-finalizer",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 unit_lifecycle_cleanup = (
     '  python3 "$UNIT_FIXTURE_TOOL" cleanup-lifecycle '
@@ -1004,6 +1121,7 @@ expect_unit_rejected(
         f"  # {unit_lifecycle_cleanup.strip()}",
         "commented-fixture-cleanup-decoy",
     ),
+    "E_LIFECYCLE_COMMAND_COUNT",
 )
 expect_unit_rejected(
     "direct-trap-bypasses-fixture-cleanup",
@@ -1013,6 +1131,7 @@ expect_unit_rejected(
         'trap \'v934_run_log_exit_trap "$?" v934_record_run_status\' EXIT',
         "direct-trap-bypasses-fixture-cleanup",
     ),
+    "E_TRAP_SET",
 )
 delegation_before_cleanup = replace_exact(
     unit_text,
@@ -1029,6 +1148,7 @@ delegation_before_cleanup = replace_exact(
 expect_unit_rejected(
     "delegation-before-fixture-cleanup",
     delegation_before_cleanup,
+    "E_LIFECYCLE_ORDER",
 )
 expect_unit_rejected(
     "duplicate-shared-finalizer",
@@ -1038,6 +1158,7 @@ expect_unit_rejected(
         f"{delegation}\n{delegation}",
         "duplicate-shared-finalizer",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 unit_wrapper_trap = 'trap \'v934_unit_exit_trap "$?"\' EXIT'
 expect_unit_rejected(
@@ -1048,6 +1169,7 @@ expect_unit_rejected(
         f"{unit_wrapper_trap}\ntrap : EXIT\n",
         "later-exit-trap-overrides-wrapper",
     ),
+    "E_TRAP_SET",
 )
 expect_unit_rejected(
     "numeric-zero-trap-overrides-wrapper",
@@ -1057,7 +1179,23 @@ expect_unit_rejected(
         f"{unit_wrapper_trap}\ntrap : 0\n",
         "numeric-zero-trap-overrides-wrapper",
     ),
+    "E_TRAP_SET",
 )
+for dynamic_label, dynamic_trap in (
+    ("ansi-empty-trap-concatenation", "t$''rap : EXIT"),
+    ("locale-empty-trap-concatenation", 't$""rap : EXIT'),
+    ("parameter-empty-trap-concatenation", "t${EMPTY:-}rap : EXIT"),
+):
+    expect_unit_rejected(
+        dynamic_label,
+        replace_exact(
+            unit_text,
+            f"{unit_wrapper_trap}\n",
+            f"{unit_wrapper_trap}\n{dynamic_trap}\n",
+            f"unit-{dynamic_label}",
+        ),
+        "E_TRAP_DYNAMIC_REFERENCE",
+    )
 expect_unit_rejected(
     "comment-heredoc-cannot-hide-trap-override",
     replace_exact(
@@ -1066,6 +1204,7 @@ expect_unit_rejected(
         f"{unit_wrapper_trap}\n# <<true\ntrap : 0\ntrue\n",
         "comment-heredoc-cannot-hide-trap-override",
     ),
+    "E_TRAP_SET",
 )
 expect_unit_rejected(
     "second-install-overrides-wrapper",
@@ -1075,6 +1214,7 @@ expect_unit_rejected(
         f"{unit_wrapper_trap}\nv934_install_run_status_traps\n",
         "unit-second-install-overrides-wrapper",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 unit_early_disarm = replace_exact(
     unit_text,
@@ -1088,7 +1228,9 @@ unit_early_disarm = replace_exact(
     f"{unit_wrapper_trap}\nv934_disarm_run_status_traps\n",
     "unit-early-disarm:insert",
 )
-expect_unit_rejected("early-disarm-clears-wrapper", unit_early_disarm)
+expect_unit_rejected(
+    "early-disarm-clears-wrapper", unit_early_disarm, "E_LIFECYCLE_ORDER"
+)
 expect_unit_rejected(
     "semicolon-second-install-overrides-wrapper",
     replace_exact(
@@ -1097,6 +1239,7 @@ expect_unit_rejected(
         f"{unit_wrapper_trap}\nv934_install_run_status_traps;\n",
         "semicolon-second-install-overrides-wrapper",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 expect_unit_rejected(
     "early-return-skips-fixture-cleanup",
@@ -1106,6 +1249,7 @@ expect_unit_rejected(
         '  set +e\n  return "$exit_code"\n',
         "early-return-skips-fixture-cleanup",
     ),
+    "E_EXECUTABLE_SLICE",
 )
 expect_unit_rejected(
     "later-wrapper-definition-shadows-cleanup",
@@ -1115,6 +1259,7 @@ expect_unit_rejected(
         f"{unit_wrapper_trap}\nfunction v934_unit_exit_trap {{ :; }}\n",
         "later-wrapper-definition-shadows-cleanup",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 
 integration_trap = 'trap \'v934_run_log_exit_trap "$?" v934_record_run_status\' EXIT'
@@ -1126,6 +1271,7 @@ expect_integration_rejected(
         f"# {integration_trap}",
         "missing-direct-finalizer",
     ),
+    "E_TRAP_SET",
 )
 integration_close = 'v934_run_log_close || fail "owned run logger did not flush and exit cleanly"'
 integration_close_after_green = replace_exact(
@@ -1140,7 +1286,9 @@ integration_close_after_green = replace_exact(
     f"v934_write_run_status 0\n{integration_close}",
     "close-after-green:insert",
 )
-expect_integration_rejected("close-after-green", integration_close_after_green)
+expect_integration_rejected(
+    "close-after-green", integration_close_after_green, "E_LIFECYCLE_ORDER"
+)
 expect_integration_rejected(
     "later-exit-trap-overrides-finalizer",
     replace_exact(
@@ -1149,6 +1297,7 @@ expect_integration_rejected(
         f"{integration_trap}\ntrap : EXIT\n",
         "later-exit-trap-overrides-finalizer",
     ),
+    "E_TRAP_SET",
 )
 expect_integration_rejected(
     "numeric-zero-trap-overrides-finalizer",
@@ -1158,7 +1307,23 @@ expect_integration_rejected(
         f"{integration_trap}\ntrap : 0\n",
         "numeric-zero-trap-overrides-finalizer",
     ),
+    "E_TRAP_SET",
 )
+for dynamic_label, dynamic_trap in (
+    ("ansi-empty-trap-concatenation", "t$''rap : EXIT"),
+    ("locale-empty-trap-concatenation", 't$""rap : EXIT'),
+    ("parameter-empty-trap-concatenation", "t${EMPTY:-}rap : EXIT"),
+):
+    expect_integration_rejected(
+        dynamic_label,
+        replace_exact(
+            integration_text,
+            f"{integration_trap}\n",
+            f"{integration_trap}\n{dynamic_trap}\n",
+            f"integration-{dynamic_label}",
+        ),
+        "E_TRAP_DYNAMIC_REFERENCE",
+    )
 expect_integration_rejected(
     "quoted-heredoc-cannot-hide-trap-override",
     replace_exact(
@@ -1167,6 +1332,7 @@ expect_integration_rejected(
         f"{integration_trap}\nprintf '%s\\n' '<<true'\ntrap : 0\ntrue\n",
         "quoted-heredoc-cannot-hide-trap-override",
     ),
+    "E_TRAP_SET",
 )
 expect_integration_rejected(
     "second-install-overrides-finalizer",
@@ -1176,6 +1342,7 @@ expect_integration_rejected(
         f"{integration_trap}\nv934_install_run_status_traps\n",
         "integration-second-install-overrides-finalizer",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 integration_early_disarm = replace_exact(
     integration_text,
@@ -1189,7 +1356,9 @@ integration_early_disarm = replace_exact(
     f"{integration_trap}\nv934_disarm_run_status_traps\n",
     "integration-early-disarm:insert",
 )
-expect_integration_rejected("early-disarm-clears-finalizer", integration_early_disarm)
+expect_integration_rejected(
+    "early-disarm-clears-finalizer", integration_early_disarm, "E_LIFECYCLE_ORDER"
+)
 expect_integration_rejected(
     "semicolon-early-disarm-clears-finalizer",
     replace_exact(
@@ -1198,6 +1367,7 @@ expect_integration_rejected(
         f"{integration_trap}\nv934_disarm_run_status_traps;\n",
         "semicolon-early-disarm-clears-finalizer",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 expect_integration_rejected(
     "logical-or-skips-logger-close",
@@ -1207,6 +1377,7 @@ expect_integration_rejected(
         f"true || \\\n{integration_close}",
         "logical-or-skips-logger-close",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 expect_integration_rejected(
     "later-close-definition-shadows-flush",
@@ -1216,6 +1387,7 @@ expect_integration_rejected(
         'v934_run_log_close() { :; }\nPHASE="run-log-flush"\n',
         "later-close-definition-shadows-flush",
     ),
+    "E_CANONICAL_REFERENCE",
 )
 expect_integration_rejected(
     "multiline-quote-trap-decoy",
@@ -1225,6 +1397,7 @@ expect_integration_rejected(
         f'trap_decoy="\n{integration_trap}\n"',
         "multiline-quote-trap-decoy",
     ),
+    "E_TRAP_DYNAMIC_REFERENCE",
 )
 
 unit_wrapper_false_context = replace_exact(
@@ -1239,7 +1412,11 @@ unit_wrapper_false_context = replace_exact(
     "}\nfi\n\nv934_install_run_status_traps\n",
     "unit-wrapper-false-context:close",
 )
-expect_unit_seal_rejected("wrapper-false-context", unit_wrapper_false_context)
+expect_unit_rejected(
+    "wrapper-false-context",
+    unit_wrapper_false_context,
+    "E_EXECUTABLE_STREAM_SEAL",
+)
 
 unit_wrapper_subshell_context = replace_exact(
     unit_text,
@@ -1253,10 +1430,16 @@ unit_wrapper_subshell_context = replace_exact(
     "}\n)\n\nv934_install_run_status_traps\n",
     "unit-wrapper-subshell-context:close",
 )
-expect_unit_seal_rejected("wrapper-subshell-context", unit_wrapper_subshell_context)
-expect_unit_seal_rejected("crlf-byte-drift", unit_text.replace("\n", "\r\n"))
+expect_unit_rejected(
+    "wrapper-subshell-context",
+    unit_wrapper_subshell_context,
+    "E_EXECUTABLE_STREAM_SEAL",
+)
+expect_unit_seal_rejected(
+    "crlf-byte-drift", unit_text.replace("\n", "\r\n"), "E_SOURCE_SEAL"
+)
 
-expect_integration_seal_rejected(
+expect_integration_rejected(
     "trap-false-context",
     replace_exact(
         integration_text,
@@ -1264,8 +1447,9 @@ expect_integration_seal_rejected(
         f"if false; then\n{integration_trap}\nfi",
         "integration-trap-false-context",
     ),
+    "E_EXECUTABLE_STREAM_SEAL",
 )
-expect_integration_seal_rejected(
+expect_integration_rejected(
     "trap-subshell-context",
     replace_exact(
         integration_text,
@@ -1273,6 +1457,7 @@ expect_integration_seal_rejected(
         f"(\n{integration_trap}\n)",
         "integration-trap-subshell-context",
     ),
+    "E_EXECUTABLE_STREAM_SEAL",
 )
 integration_flush_slice = "\n".join(
     [
@@ -1286,7 +1471,7 @@ integration_flush_slice = "\n".join(
         "v934_write_run_status 0",
     ]
 )
-expect_integration_seal_rejected(
+expect_integration_rejected(
     "flush-green-false-context",
     replace_exact(
         integration_text,
@@ -1294,8 +1479,9 @@ expect_integration_seal_rejected(
         f"if false; then\n{integration_flush_slice}\nfi",
         "integration-flush-green-false-context",
     ),
+    "E_EXECUTABLE_STREAM_SEAL",
 )
-expect_integration_seal_rejected(
+expect_integration_rejected(
     "heredoc-source-shadows-close",
     replace_exact(
         integration_text,
@@ -1306,8 +1492,9 @@ expect_integration_seal_rejected(
         'PHASE="run-log-flush"\n',
         "integration-heredoc-source-shadows-close",
     ),
+    "E_EXECUTABLE_STREAM_SEAL",
 )
-expect_integration_seal_rejected(
+expect_integration_rejected(
     "eval-shadows-close",
     replace_exact(
         integration_text,
@@ -1315,54 +1502,251 @@ expect_integration_seal_rejected(
         'eval \'v934_run_log_close() { :; }\'\nPHASE="run-log-flush"\n',
         "integration-eval-shadows-close",
     ),
+    "E_CANONICAL_REFERENCE",
+)
+expect_integration_seal_rejected(
+    "crlf-byte-drift",
+    integration_text.replace("\n", "\r\n"),
+    "E_SOURCE_SEAL",
 )
 
-outer_path = Path(sys.argv[3])
-outer = outer_path.read_text(encoding="utf-8")
-outer_required = [
-    'v934_run_log_begin_signal_critical || fail',
-    'v934_run_log_close_fd_number "$V934_AUTHORITY_LOCK_FD"',
-    'exec 0< "$RUN_LOG_FIFO"',
-    'RUN_LOG_TEE_PID=$!',
-    'v934_run_log_capture_logger_identity "$BASHPID"',
-    'v934_run_log_release_unsealed_fifo_logger',
-    'CHILD_SIGNAL_CRITICAL=true',
-    'ACTIVE_CHILD_PID=$!',
-    'capture_active_child_identity',
-    'ACTIVE_CHILD_GROUP_ESTABLISHED=true',
-    'CHILD_SIGNAL_CRITICAL=false',
-    'confirm_active_child_group_absent',
-]
-for token in outer_required:
-    if token not in outer:
-        raise SystemExit(f"{outer_path}: missing critical lifecycle token {token!r}")
-if outer.index('v934_run_log_close_fd_number "$V934_AUTHORITY_LOCK_FD"') > outer.index('exec 0< "$RUN_LOG_FIFO"'):
-    raise SystemExit(f"{outer_path}: authority FD is closed after the FIFO open")
-if 'kill -TERM "$RUN_LOG_TEE_PID"' in outer or 'kill -KILL "$RUN_LOG_TEE_PID"' in outer:
-    raise SystemExit(f"{outer_path}: naked logger PID signal remains")
-child_spawn = outer.index('python3 "$COVERAGE_TOOL" launch-child')
-group_established = outer.index('ACTIVE_CHILD_GROUP_ESTABLISHED=true', child_spawn)
-if not (
-    outer.rfind('CHILD_SIGNAL_CRITICAL=true', 0, child_spawn) >= 0
-    and outer.index('ACTIVE_CHILD_PID=$!', child_spawn) < outer.index('capture_active_child_identity', child_spawn)
-    and group_established < outer.index('CHILD_SIGNAL_CRITICAL=false', group_established)
-):
-    raise SystemExit(f"{outer_path}: child spawn/ready critical-section order differs")
-
-library_path = Path(sys.argv[4])
-library = library_path.read_text(encoding="utf-8")
-logger_spawn = library.index("  (\n    trap - INT TERM HUP PIPE")
-close_index = library.index('v934_run_log_close_fd_number "$authority_fd"', logger_spawn)
-fifo_index = library.index('exec 0< "$V934_RUN_LOG_FIFO"', logger_spawn)
-if close_index > fifo_index:
-    raise SystemExit(f"{library_path}: authority FD is closed after the FIFO open")
-for forbidden in ('kill -TERM "$logger_pid"', 'kill -KILL "$logger_pid"'):
-    if forbidden in library:
-        raise SystemExit(f"{library_path}: naked logger PID signal remains")
-if library.count("v934_run_log_abort_open || true") != 3:
-    raise SystemExit(
-        f"{library_path}: abort-open failure can escape before signal-trap restoration"
+def validate_outer(
+    path: Path,
+    text: str,
+    enforce_source_seal: bool = True,
+    source_bytes: bytes | None = None,
+) -> None:
+    if enforce_source_seal:
+        require_source_seal(
+            path,
+            text.encode("utf-8") if source_bytes is None else source_bytes,
+            OUTER_RUNNER_SHA256,
+        )
+    physical, logical = executable_streams(path, text)
+    require_exact_slice(
+        path,
+        physical,
+        [
+            'v934_run_log_begin_signal_critical || fail "cannot enter the run-logger spawn critical section"',
+            "(",
+            "trap - INT TERM HUP PIPE",
+            'v934_run_log_close_fd_number "$V934_AUTHORITY_LOCK_FD" || exit 93',
+            'exec 0< "$RUN_LOG_FIFO"',
+            "exec 1>&3 2>&4",
+            "exec 3>&- 4>&-",
+            'exec tee -a -- "/proc/self/fd/$RUN_LOG_FILE_FD"',
+            ") &",
+            "RUN_LOG_TEE_PID=$!",
+            'V934_RUN_LOG_LOGGER_PID="$RUN_LOG_TEE_PID"',
+            'if ! v934_run_log_capture_logger_identity "$BASHPID"; then',
+        ],
+        "outer authority-close/FIFO/logger-identity sequence",
     )
+    require_exact_ordered(
+        path,
+        physical,
+        [
+            "CHILD_SIGNAL_CRITICAL=true",
+            'python3 "$COVERAGE_TOOL" launch-child \\',
+            "ACTIVE_CHILD_PID=$!",
+            "if capture_active_child_identity; then",
+            "ACTIVE_CHILD_GROUP_ESTABLISHED=true",
+            "if confirm_active_child_group_absent; then",
+        ],
+    )
+    require_exact_slice(
+        path,
+        physical,
+        [
+            'ACTIVE_CHILD_READY_SHA256="$ready_sha256"',
+            'ACTIVE_CHILD_READY_DEV="$ready_dev"',
+            'ACTIVE_CHILD_READY_INO="$ready_ino"',
+            'ACTIVE_CHILD_SID="$ready_sid"',
+            'ACTIVE_CHILD_BOOT_ID="$ready_boot_id"',
+            "ACTIVE_CHILD_GROUP_ESTABLISHED=true",
+            "CHILD_SIGNAL_CRITICAL=false",
+            "drain_pending_signal",
+        ],
+        "outer child identity-seal/signal-release sequence",
+    )
+    for forbidden in (
+        'kill -TERM "$RUN_LOG_TEE_PID"',
+        'kill -KILL "$RUN_LOG_TEE_PID"',
+    ):
+        if any(forbidden in line for line in logical):
+            raise ShapeError(
+                "E_NAKED_LOGGER_SIGNAL",
+                f"{path}: executable naked logger PID signal remains: {forbidden!r}",
+            )
+    require_executable_stream_seal(
+        path, physical, logical, OUTER_EXECUTABLE_STREAM_SHA256
+    )
+
+
+def validate_library(
+    path: Path,
+    text: str,
+    enforce_source_seal: bool = True,
+    source_bytes: bytes | None = None,
+) -> None:
+    if enforce_source_seal:
+        require_source_seal(
+            path,
+            text.encode("utf-8") if source_bytes is None else source_bytes,
+            LIBRARY_SHA256,
+        )
+    physical, logical = executable_streams(path, text)
+    require_exact_ordered(
+        path,
+        physical,
+        [
+            "v934_run_log_begin_signal_critical || {",
+            "trap - INT TERM HUP PIPE",
+            'v934_run_log_close_fd_number "$authority_fd" || exit 93',
+            'exec 0< "$V934_RUN_LOG_FIFO"',
+            "V934_RUN_LOG_LOGGER_PID=$!",
+            'if ! v934_run_log_capture_logger_identity "$parent_pid"; then',
+        ],
+    )
+    abort_open_count = physical.count("v934_run_log_abort_open || true")
+    if abort_open_count != 3:
+        raise ShapeError(
+            "E_ABORT_OPEN_COUNT",
+            f"{path}: executable abort-open count differs: expected=3 "
+            f"observed={abort_open_count}",
+        )
+    for forbidden in ('kill -TERM "$logger_pid"', 'kill -KILL "$logger_pid"'):
+        if any(forbidden in line for line in logical):
+            raise ShapeError(
+                "E_NAKED_LOGGER_SIGNAL",
+                f"{path}: executable naked logger PID signal remains: {forbidden!r}",
+            )
+    require_executable_stream_seal(
+        path, physical, logical, LIBRARY_EXECUTABLE_STREAM_SHA256
+    )
+
+
+def expect_outer_rejected(label: str, mutated: str, expected_code: str) -> None:
+    try:
+        validate_outer(
+            Path(f"outer-mutation:{label}"), mutated, enforce_source_seal=False
+        )
+    except ShapeError as error:
+        if error.code != expected_code:
+            raise SystemExit(
+                f"Outer lifecycle mutation {label}: expected code={expected_code} "
+                f"observed={error.code}: {error}"
+            ) from error
+        return
+    raise SystemExit(f"Outer lifecycle mutation unexpectedly passed: {label}")
+
+
+def expect_library_rejected(label: str, mutated: str, expected_code: str) -> None:
+    try:
+        validate_library(
+            Path(f"library-mutation:{label}"), mutated, enforce_source_seal=False
+        )
+    except ShapeError as error:
+        if error.code != expected_code:
+            raise SystemExit(
+                f"Library lifecycle mutation {label}: expected code={expected_code} "
+                f"observed={error.code}: {error}"
+            ) from error
+        return
+    raise SystemExit(f"Library lifecycle mutation unexpectedly passed: {label}")
+
+
+outer_path = Path(sys.argv[3])
+outer_bytes = outer_path.read_bytes()
+outer = decode_exact_utf8(outer_path, outer_bytes)
+library_path = Path(sys.argv[4])
+library_bytes = library_path.read_bytes()
+library = decode_exact_utf8(library_path, library_bytes)
+try:
+    validate_outer(outer_path, outer, source_bytes=outer_bytes)
+    validate_library(library_path, library, source_bytes=library_bytes)
+except ShapeError as error:
+    raise SystemExit(str(error)) from error
+
+outer_authority_close = (
+    '  v934_run_log_close_fd_number "$V934_AUTHORITY_LOCK_FD" || exit 93'
+)
+expect_outer_rejected(
+    "commented-authority-close",
+    replace_exact(
+        outer,
+        outer_authority_close,
+        f"  # {outer_authority_close.strip()}",
+        "outer-commented-authority-close",
+    ),
+    "E_EXECUTABLE_SLICE",
+)
+expect_outer_rejected(
+    "false-authority-close",
+    replace_exact(
+        outer,
+        outer_authority_close,
+        f"  if false; then\n{outer_authority_close}\n  fi",
+        "outer-false-authority-close",
+    ),
+    "E_EXECUTABLE_SLICE",
+)
+expect_outer_rejected(
+    "dead-authority-close",
+    replace_exact(
+        outer,
+        outer_authority_close,
+        f"  false && {outer_authority_close.strip()}",
+        "outer-dead-authority-close",
+    ),
+    "E_EXECUTABLE_SLICE",
+)
+
+library_abort_open = "    v934_run_log_abort_open || true"
+library_abort_anchor = (
+    '  if ! v934_run_log_capture_logger_identity "$parent_pid"; then\n'
+    "    # abort_open intentionally reports failure; keep control here even when a\n"
+    "    # caller invokes open() outside an `if`/`||` errexit-suppression context so\n"
+    "    # the deferred-signal traps are always restored before returning.\n"
+    f"{library_abort_open}"
+)
+expect_library_rejected(
+    "commented-abort-open",
+    replace_exact(
+        library,
+        library_abort_anchor,
+        library_abort_anchor.replace(
+            library_abort_open, f"    # {library_abort_open.strip()}"
+        ),
+        "library-commented-abort-open",
+    ),
+    "E_ABORT_OPEN_COUNT",
+)
+expect_library_rejected(
+    "false-abort-open",
+    replace_exact(
+        library,
+        library_abort_anchor,
+        library_abort_anchor.replace(
+            library_abort_open,
+            f"    if false; then\n{library_abort_open}\n    fi",
+        ),
+        "library-false-abort-open",
+    ),
+    "E_EXECUTABLE_STREAM_SEAL",
+)
+expect_library_rejected(
+    "dead-abort-open",
+    replace_exact(
+        library,
+        library_abort_anchor,
+        library_abort_anchor.replace(
+            library_abort_open, f"    false && {library_abort_open.strip()}"
+        ),
+        "library-dead-abort-open",
+    ),
+    "E_ABORT_OPEN_COUNT",
+)
 PY
 
-printf '[v934-run-log-test] PASS slow=2 nonzero=2 timeout=1 pid-reuse=1 early-signal=3 capture-failure=1 exit=2 clean-group=1 persistent-residue=1 unit-shape-negative=13 integration-shape-negative=11 unit-source-seal-negative=3 integration-source-seal-negative=5\n'
+printf '[v934-run-log-test] PASS slow=2 nonzero=2 timeout=1 pid-reuse=1 early-signal=3 capture-failure=1 exit=2 clean-group=1 persistent-residue=1 unit-shape-negative=16 integration-shape-negative=14 unit-semantic-seal-negative=2 integration-semantic-seal-negative=5 source-seal-negative=2 outer-shape-negative=3 library-shape-negative=3\n'

@@ -712,8 +712,8 @@ exact ID `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
 恢复为 `running/healthy`。record=
 `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`。
 
-当前 Step 4=`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality
-passed / ready-for-commit-and-fresh-r9`。Unit authority 必须为唯一 Maven invocation
+r8 时点 Step 4=`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality
+passed / ready-for-commit-and-fresh-r9`；该历史状态已由下方 r9 contract supersede。Unit authority 必须为唯一 Maven invocation
 创建 pinned、run-owned MySQL 5.7，并封存 schema before/after、resource identity 与 cleanup；
 不得借用 ambient listener；r3 已动态证明该边界。当前 contract static=`20/20`、Unit fixture negatives=
 `36/36`（原 fixture/manifest probes=`20/20`、connection typed=`7/7`、atomic
@@ -724,10 +724,38 @@ direct-trap static shape 拒绝 fixture-aware wrapper，run identity/lane/aggreg
 summary absent，r8 excluded/non-reusable。remediation 必须同时满足 executable contract、
 critical slices、canonical references 与 raw-byte Unit/Integration runner seals；当前 dynamic=
 `9 类 / 14 case`、Unit shape/seal=`13+3`、Integration=`11+5`，两路独立 quality=
-`0/0/0/0`。threshold 仍为 `diagnostic-pending`，`can_enter_coverage_audit=no`；r1–r8 与
+`0/0/0/0`。该 r8 时点 threshold 仍为 `diagnostic-pending`，`can_enter_coverage_audit=no`；r1–r8 与
 Unit quality r1/r2 均不得拼接；formal remediation quality 已通过；本轮 closure
-commit/push/clean HEAD 与 fresh r9 完成前，Step 5、formal、
+当时 commit/push/clean HEAD 与 fresh r9 完成前，Step 5、formal、
 coverage audit、acceptance 和 9.3.5 都保持关闭。只有
 fresh formal、实现质量闸门、测试证据覆盖审计和 9.3.4 验收全部通过，9.3.4 才允许带
 `DEBT-unit-mysql57-fixture-classification-migration.md` 签收；该债务必须在 9.3.5
 版本验收前关闭。
+
+## Superseding r9 exec identity contract（2026-07-17）
+
+r9 已证明原 `class-name -> one ID` 规则不符合 JaCoCo execution-data identity：23 份 raw
+exec 含 `16,693` 个唯一名称、`16,939` 个 class-ID identity、135 个同名多 ID，但 fresh
+sealed `2,098` 个 production class 中冲突为 0。r9 在 exec-manifest 发布前 fail closed，
+aggregate/source-after/threshold/summary absent，必须 excluded/non-reusable。
+
+自本节起的 current contract：
+
+1. `coverage-contract.json/jacoco.class_id_consistency_scope` 必须精确为
+   `frozen-24-module-production-class-universe`；任何缺失、扩张或替换都 fail closed；
+2. 每个 raw exec 仍必须命中至少一个 fresh production class；凡 binary name 命中 frozen
+   universe，其 observed ID 集必须精确等于 current production CRC64 ID；
+3. 非 production 的 test/runtime/dependency class 不按名称排除；aggregate 以 JaCoCo class
+   ID 为主 key，同 ID 的 name/probe-count 必须 compatible，bitmap 必须为所有 inputs 的
+   exact OR；同名不同 ID 分别保留；
+4. exec manifest 的 `unique_execution_classes` 表示唯一 class ID 数；aggregate provenance
+   必须同时封存 production consistency scope 与
+   `exact-session-and-jacoco-class-id-probe-bitmap-union`；XML verifier 精确消费新 schema；
+5. r9 focused regression=`17/17`，contract mutations=`21/21`，overlay=`12/12`，但这些
+   不是 diagnostic/formal exit evidence；
+6. lifecycle semantic validator bypass 已重新打开 implementation quality；coded mutation
+   已证明 comment/dead-context/dynamic-trap 不能满足 executable contract，fresh r10 前仍须
+   完成两路独立正式质量。
+
+当前 threshold=`diagnostic-pending`、`can_enter_coverage_audit=no`；fresh r10、threshold
+freeze、formal、最终质量、coverage audit、acceptance 必须继续按序，Step 5 不得提前。

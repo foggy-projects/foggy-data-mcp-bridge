@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed / ready-for-commit-and-fresh-r9`
+- step4_result: `in-progress / r9 coverage-report excluded / remediations implemented / quality passed / commit pending / fresh r10 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -438,7 +438,7 @@ Final acceptance 至少验证：
   `36/36`（原 fixture/manifest probes `20/20`、connection typed `7/7`、atomic
   publisher `3/3`、profile boundary `6/6`），negative receipt 文件 schema/tamper 另为
   `4/4`，真实 lifecycle=`5/5`，report inventory=`30/30`。
-  threshold 仍为
+  该 r8 时点 threshold 仍为
   `diagnostic-pending`；fresh r9 diagnostic 与 subsequent formal 尚未执行，没有 aggregate
   baseline/review 或 Step 4 exit evidence；lifecycle remediation quality 通过不替代这些
   runtime gate。
@@ -502,22 +502,23 @@ Final acceptance 至少验证：
   batch 必须先 disable、再按 `connection_id` SELECT。receipt 保存有序 observed user，closed
   window 内全部 non-super connection 必须为 `v934_unit`；callback 后 provisioner `foggy`
   控制面连接在窗口外；
-- 当前 Unit replacement 静态/负向/lifecycle readiness 为 contract `20/20`、fixture
+- 当前 Unit replacement 静态/负向/lifecycle readiness 为 Unit contract `20/20`、fixture
   negatives `36/36`（原 fixture/manifest probes `20/20`、connection typed `7/7`、atomic
   publisher `3/3`、profile boundary `6/6`）、negative receipt 文件 schema/tamper 另为
   `4/4`、真实 lifecycle `5/5`、report inventory `30/30`；这些是在 r3 运行前的
   focused/static readiness，本身不是 fresh r3、fresh r8 diagnostic 或 subsequent formal；
 - successor remediation regression：database-state/required-report/report-inventory 均经 Step 4
-  adapters 选择 successor authority；original frozen state control 仍 fail closed。current identity：
+  adapters 选择 successor authority；original frozen state control 仍 fail closed。current
+  r9-remediation identity：
   coverage contract diagnostic/formal=
-  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
-  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`，
-  successor=`14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`，
-  top=`60/60` / `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`，
+  `58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0` /
+  `cabedad99522bb1c76e8cd35eb25922a1117d445256f1e346b47687dbadbb66e`，
+  successor=`14/14` / `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`，
+  top=`60/60` / `6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`，
   overlay contract/tool=
-  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
-  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`，
-  coverage tool=`27afd37350fa7f1646fba4be59791ec6bdec94fe57e0cdfecc2a08e0f43f2f18`，
+  `001963c511b036d54c08abab2fcf0a0ab204b920614b35e10da809ed3f42c4d8` /
+  `780e9a3d61626b8a37f85a185942de7c1862a119cd10b553962a98d5e2acd301`，
+  coverage tool=`ef5b78f25ffebf48e45e363a15fb1c4bc53341488a8e703133f01bb7b2c40bef`，
   amendments=`18` / `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`，
   fixture contract/tool/Unit runner/datasource adapter=
   `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
@@ -547,7 +548,7 @@ Final acceptance 至少验证：
   Integration=`11+5`；comment/quoted heredoc、EXIT/0、early return、shadow、
   false/subshell、heredoc source/eval 与 CRLF raw-byte drift 均 expected-negative；两路
   independent quality B/H/M/L=`0/0/0/0`；
-- next executable action: 完成本轮 authoritative closure commit/push 并证明 clean
+- r8 时点 next executable action: 完成本轮 authoritative closure commit/push 并证明 clean
   `HEAD == origin/main`，再在四个 frozen ports 无 listener 的 evidence window 执行
   fresh r9 all-lane diagnostic。
   threshold 仍为
@@ -556,3 +557,27 @@ Final acceptance 至少验证：
   例外携带已登记债务签收；
   `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` 必须在
   9.3.5 验收前关闭。
+
+## Superseding r9 / r10 test delta（2026-07-17）
+
+- r9 result：required=`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48` 已到达；
+  `E_CLASS_ID_MISMATCH` 发生在 exec-manifest 前，aggregate/source-after/summary absent；
+  r9 excluded/non-reusable；
+- exec scope positive：non-production 同名多 ID 通过；production correct ID 通过；名称看似
+  generated 但属于 production universe 时仍严格校验；
+- exec scope negative：production correct+forged、only-forged 均
+  `E_CLASS_ID_MISMATCH`；contract scope drift 必须被 exact validator 拒绝；
+- aggregate positive：同名不同 class ID 分别保留，同 ID bitmap exact OR；
+- aggregate negative：missing ID=`E_AGGREGATE_CLASS_SET`、同 ID name/probe shape drift=
+  `E_AGGREGATE_CLASS_SHAPE`、bitmap union drift=`E_AGGREGATE_PROBE_UNION`、manifest unique
+  class-ID count drift=`E_AGGREGATE_CLASS_SET`；focused 总计=
+  `17/17`；contract mutation=`21/21`；
+- downstream XML identity contract：valid scope/count 正例，以及 manifest scope、aggregate
+  scope、merge semantics、aggregate/manifest class-ID count 四个 stable-code drift 均触达；
+  generic XML fast negative=`68/68`；
+- lifecycle remediation negative 必须使用 stable expected code，semantic probes 禁用 raw seal
+  并真正触达 comment/dead-context/dynamic-command guard；CRLF 单独只验证 source seal；
+- fresh r10 必须从新的 clean/pushed commit 和空 run root 启动，禁止复用 r9 partials；只有
+  r10 diagnostic 完整成功后才可执行 threshold freeze，随后必须 fresh formal。
+
+当前 `can_enter_coverage_audit=no`；focused/static 绿色不得当作 r10、formal 或 Step 4 exit。

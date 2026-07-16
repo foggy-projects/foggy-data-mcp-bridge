@@ -106,17 +106,18 @@ updated_at: 2026-07-17
   `0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166`
   恢复为 `running/healthy`。record=
   `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`。
-- 当前机器契约静态验证=`20/20`，Unit fixture negatives=`36/36`（原
+- 当前 Unit fixture 机器契约静态验证=`20/20`，coverage contract mutations=`21/21`，
+  Unit fixture negatives=`36/36`（原
   fixture/manifest probes=`20/20`、connection typed=`7/7`、atomic publisher=`3/3`、
   profile boundary=`6/6`），negative receipt 文件 schema/tamper 另为 `4/4`，真实
   lifecycle=`5/5`，report inventory=`30/30`。
 - 当前 identity：top=`60/60` /
-  `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；
+  `6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`；
   successor=`14/14` /
-  `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；
+  `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`；
   coverage diagnostic/formal=
-  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
-  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；
+  `58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0` /
+  `cabedad99522bb1c76e8cd35eb25922a1117d445256f1e346b47687dbadbb66e`；
   fixture contract/tool/Unit runner/datasource adapter=
   `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
   `cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
@@ -125,12 +126,29 @@ updated_at: 2026-07-17
   declared amendments=`18` /
   `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；
   overlay contract/tool=
-  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
-  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31`。
-- 当前状态=`r8 bootstrap-negative excluded / lifecycle static contract remediation quality
+  `001963c511b036d54c08abab2fcf0a0ab204b920614b35e10da809ed3f42c4d8` /
+  `780e9a3d61626b8a37f85a185942de7c1862a119cd10b553962a98d5e2acd301`。
+- r8 时点状态=`r8 bootstrap-negative excluded / lifecycle static contract remediation quality
   passed / ready-for-commit-and-fresh-r9`。r8 在 run-owned identity 与 lane 前因过期 Unit
   direct-trap shape fail closed；修复后 dynamic=`9 类 / 14 case`、Unit shape/seal=
   `13+3`、Integration=`11+5`，两路 quality B/H/M/L=`0/0/0/0`。本轮 closure 必须
-  commit/push 并证明 clean `HEAD == origin/main` 后才可运行 fresh r9；
+  commit/push 并证明 clean `HEAD == origin/main` 后才可运行 fresh r9；该状态已由下方 r9
+  ownership boundary supersede；
   `can_enter_coverage_audit=no`，Step 5、formal、coverage audit、acceptance 仍关闭。r3 与
   focused lifecycle 都不代表 Step 4 exit 已通过。
+
+## Superseding r9 ownership boundary（2026-07-17）
+
+- `coverage_exec_tool.py` 负责 raw exec/session/class-ID inventory、fresh production class
+  universe strict match 与 JaCoCo ID aggregate union；不得通过 POM/agent package exclusion
+  隐藏 runtime/test/dependency execution data；
+- `coverage_tool.py` 与 `coverage-contract.json` 负责冻结 production consistency scope；
+  `coverage_xml_tool.py` 负责 downstream manifest/provenance/merge-semantics exact consumption；
+- successor overlay 只维护 Step 4 runtime binding，不改变 Step 3 frozen authority；
+- lifecycle static/dynamic test 只负责证明 logger/finalizer/signal/fixture cleanup contract，
+  不得把 raw substring 或任意 `ShapeError` 当作 semantic negative；
+- r9 failure 是 coverage tooling identity model defect，不是 production Java 或 9.3.5/9.4.0
+  module boundary；修复不得扩到产品 API；
+- 当前 Step 4=`in-progress / r9 excluded / remediation quality passed / commit pending`；
+  两个 blocker BUG 的 coded regression 与三路正式质量均通过，fresh r10 前仍须
+  commit/push 并证明 clean `HEAD == origin/main`。Step 5 与后续 gate 不得提前。

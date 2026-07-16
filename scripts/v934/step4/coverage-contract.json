@@ -46,7 +46,8 @@
     "integration_property": "jacoco.it.argLine",
     "append": true,
     "reactor_parallelism": "forbidden",
-    "shared_exec_fork_count": 1
+    "shared_exec_fork_count": 1,
+    "class_id_consistency_scope": "frozen-24-module-production-class-universe"
   },
   "toolchain_receipt": {
     "validator": "scripts/v934/step4/toolchain_receipt_tool.py",

@@ -24,12 +24,12 @@ updated_at: 2026-07-17
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r8 bootstrap-negative excluded、lifecycle remediation quality passed、ready-for-commit-and-fresh-r9 / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r9 coverage-report excluded、remediations implemented、quality passed / commit pending / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r1–r8 and Unit remediation r2 excluded / Unit r3 + lifecycle remediation quality passed / fresh r9 pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r1–r9 and Unit remediation r2 excluded / r9 remediations + fresh r10 pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r8 与 Unit remediation r2 failed evidence、Unit remediation r3 pass evidence 已记录，但 Step 4 exit evidence absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 Unit fixture + r8 lifecycle remediation quality passed，B/H/M/L=`0/0/0/0`，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r9 与 Unit remediation r2 failed evidence、Unit remediation r3 pass evidence 已记录，但 Step 4 exit evidence absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 remediation quality passed / commit pending，B/H/M/L=`0/0/0/0`，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -58,23 +58,23 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-17）：状态仅为
-`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed /
-ready-for-commit-and-fresh-r9`。
+`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
+lifecycle semantic remediation implemented / quality passed / commit pending / fresh r10 pending`。
 静态执行结构仍精确为
 `23 exec / 48 sessions`，required
 report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
-companion 仍单列 `2/6`。contract/source identity=`20/20 + 22/22`，effective POM/
+companion 仍单列 `2/6`。contract/source identity=`21/21 + 22/22`，effective POM/
 toolchain/report inventory=`4/4 + 5/5 + 30/30`。Unit negative receipt=`36/36`：原
 fixture/manifest schema/tamper=`20/20`、connection receipt typed=`7/7`、atomic
 publisher=`3/3`、profile isolation=`6/6`；negative receipt schema tamper 另为 `4/4`，
 真实 fixture lifecycle=
-`5/5`。Step 2 derived view/successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=
+`5/5`。Step 2 derived view/successor overlay=`12/12 + 12/12`，XML=`68/68`，logger=
 `9 类 / 14 case`；toolchain receipt 绑定 Step 1 raw 工具版本、ASM `9.6/9.7/9.7.1`
 三层 realm 和 24 个 production module effective compiler。tracked FIFO preflight
 fail-fast 与 before/after raw stat identity 并发重写拒绝均已纳入 `22/22`。
-fixture/lifecycle-hardened static identity 已复验为 top=`60/60` /
-`0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`、successor=
-`14/14` / `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`、
+当前 r9-remediation static identity 已复验为 top=`60/60` /
+`6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`、successor=
+`14/14` / `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`、
 amendment=`12 rows / 4 new + 8 changed` /
 `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`。
 source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
@@ -98,7 +98,8 @@ provisioner `foggy` 控制面在窗口外。fixture hardening 的 top
 manifest/amendment 最终静态身份已按上文复验；fresh Unit r3 与正式 remediation quality
 均已通过，B/H/M/L=`0/0/0/0`。fresh r8 已在 lifecycle bootstrap contract drift 上 fail
 closed/excluded；对应修复的 Unit shape/seal=`13+3`、Integration=`11+5` 且两路质量=
-`0/0/0/0`。authoritative closure commit/push/clean HEAD 与 fresh r9 仍 required；不得以 Unit
+`0/0/0/0`。这是 r8 前的历史边界；当时 authoritative closure commit/push/clean HEAD 与
+fresh r9 仍 required；不得以 Unit
 或 focused lifecycle subgate 冒充 Step 4 通过结论。
 
 Unit remediation r2 不是 acceptance evidence：
@@ -197,17 +198,19 @@ absent，r8 excluded/non-reusable。对应 immutable evidence/BUG 为
 `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md`、
 `docs/9.3.4/workitems/BUG-step4-unit-lifecycle-static-contract-drift.md`。修复后 dynamic=
 `9 类 / 14 case`、Unit shape/seal=`13+3`、Integration=`11+5`，两路独立 quality=
-`0/0/0/0`。本轮 closure commit/push/clean HEAD 和 fresh r9 之前，Step 5 仍关闭。
+`0/0/0/0`。这是 r8 remediation 的历史边界；当时 closure commit/push/clean HEAD 和
+fresh r9 之前，Step 5 仍关闭。
 
 Step 4 implementation quality 已记录于
 `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
 `ready-with-risks` 的 r1/r2 结论仅作历史记录。Cdiag pre-r4 main gate 已以
 `ready-with-risks`、open Blocker/High/Medium=`0/0/0` 放行了历史 clean-HEAD r4；source-policy
 最终字节修正的正式复核为 `ready-with-risks`、B/H/M/L=`0/0/0/2`，两项 Low accepted。当前
-Unit remediation superseding gate=`pass`；lifecycle contract superseding gate=
-`pass / ready-for-commit-and-fresh-r9`，B/H/M/L=`0/0/0/0`。当前
-`can_enter_coverage_audit=no`；fresh r9、
-aggregate review、confirmed thresholds 与 fresh formal 完成前不得启动 coverage audit。
+Unit remediation superseding gate=`pass`；r8 lifecycle contract gate 的历史结论曾为
+`pass / ready-for-commit-and-fresh-r9`。r9 随后在 coverage-report fail closed，且新的
+lifecycle semantic bypass 审计重新打开 Step 4 quality；当前
+`can_enter_coverage_audit=no`。fresh r10、aggregate review、confirmed thresholds 与 fresh
+formal 完成前不得启动 coverage audit。
 
 ## Mandatory Acceptance Evidence
 
@@ -295,6 +298,19 @@ Step 3 execution check-in
 
 该 feature 链只打开 Step 4，不替代上方 Step 7 的 version-scope quality、coverage 与
 version acceptance；Step 7 仍需在最终 clean authority 后重新执行版本后置门。
+
+## Current Step 4 acceptance boundary（r9 superseding）
+
+- r9=`excluded/non-reusable`：required lanes 与 `23/48` exec 已完成，但 exec-manifest、
+  aggregate、source-after、threshold observation、summary 均 absent；
+- 两个 blocker workitem 仍未通过 fresh authority closure：
+  `BUG-step4-exec-class-id-scope-drift.md` 与
+  `BUG-step4-lifecycle-semantic-validator-bypass.md`；
+- focused exec/contract/overlay 结果只允许进入 implementation quality，不允许进入
+  coverage audit 或 acceptance；
+- `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。必须先取得 fresh r10 diagnostic，
+  direct-child exact threshold freeze、fresh formal 与最终 implementation quality PASS，才可
+  按 Gate Order 调用 test coverage audit；audit PASS 后才可执行 version acceptance。
 
 ## Final Signoff Contract
 

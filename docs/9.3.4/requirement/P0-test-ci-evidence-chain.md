@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed /
-  ready-for-commit-and-fresh-r9`
+  `in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
+  lifecycle semantic remediation implemented / quality passed / commit pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -177,9 +177,9 @@ updated_at: 2026-07-17
   动态探针证明 durable fail closed；
 - Step 4 已完成 diagnostic-ready 静态收口：exact `23 exec / 48 sessions`，
   required report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，
-  Addon companion 单列 `2/6`；contract/source identity=`20/20 + 22/22`，
+  Addon companion 单列 `2/6`；contract/source identity=`21/21 + 22/22`，
   effective POM/toolchain/report inventory=`4/4 + 5/5 + 30/30`；Step 2 derived view/
-  successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`；Unit fixture
+  successor overlay=`12/12 + 12/12`，XML=`68/68`，logger=`9 类 / 14 case`；Unit fixture
   negatives=`36/36`（原 fixture/manifest probes=`20/20`、connection typed=`7/7`、
   atomic publisher=`3/3`、profile boundary=`6/6`），negative receipt 文件
   schema/tamper 另为 `4/4`，真实 lifecycle=`5/5`；restricted credential receipt 的 closed
@@ -194,19 +194,19 @@ updated_at: 2026-07-17
   successor declared amendments=`18`，SHA-256=
   `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；本地
   `SHA256SUMS`=`60/60`，SHA-256=
-  `0c4e6c18f4af0a2c35418604ce80d20828ceb4c275375b7d12461b4683553a81`；
+  `6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`；
   successor=`14/14`，SHA-256=
-  `acb580e92a72eb407f31f5d6f9a8139a3509f3a0bfbf58537922465f4086a112`；coverage
+  `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`；coverage
   contract diagnostic/formal SHA-256=
-  `c062219a6335ae41330c6d5924d6fce60941c5d168b361081fbb41df77428477` /
-  `341991d6b5a15d19cdb9e0de70a8cc6ace29480227596c413c07e6bf7fdbc73d`；coverage tool /
+  `58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0` /
+  `cabedad99522bb1c76e8cd35eb25922a1117d445256f1e346b47687dbadbb66e`；coverage tool /
   contract-negative / XML tool SHA-256=
-  `27afd37350fa7f1646fba4be59791ec6bdec94fe57e0cdfecc2a08e0f43f2f18` /
-  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
-  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
+  `ef5b78f25ffebf48e45e363a15fb1c4bc53341488a8e703133f01bb7b2c40bef` /
+  `9df394efa046de4a494d31b00dd3900fe875f07a9e31aabccff29a231a1c1ecc` /
+  `0600b66657824b3fc7cf3b15ca0474e0885977605c64c60366a4a13607eb18bf`；overlay contract /
   overlay tool / outer SHA-256=
-  `84d09bfc333bb40d8ef830979734933717555845cebe9943f70ff7087a9a482d` /
-  `1fea2816504519b7e7f1dc6839744ee943a9a4bf3feb783375e21e935da63d31` /
+  `001963c511b036d54c08abab2fcf0a0ab204b920614b35e10da809ed3f42c4d8` /
+  `780e9a3d61626b8a37f85a185942de7c1862a119cd10b553962a98d5e2acd301` /
   `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；
   successor database/required contracts SHA-256=
   `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
@@ -310,9 +310,9 @@ updated_at: 2026-07-17
   在建立 run-owned identity 与 lane 前因 stale Unit direct-trap lifecycle shape 于
   `bootstrap-negative` fail closed，所有 lane/aggregate/threshold/summary absent，r8=
   excluded/non-reusable；
-- lifecycle contract remediation 已通过 dynamic `9 类 / 14 case`、Unit shape/seal=
+- r8 时点 lifecycle contract remediation 已通过 dynamic `9 类 / 14 case`、Unit shape/seal=
   `13+3`、Integration=`11+5`，并由 raw-byte runner seal关闭 false/subshell、source/eval 与
-  CRLF drift；两路独立 quality B/H/M/L=`0/0/0/0`。本轮 closure 必须 commit/push 并证明
+  CRLF drift；两路独立 quality B/H/M/L=`0/0/0/0`。该时点 closure 必须 commit/push 并证明
   clean `HEAD == origin/main` 后运行 fresh r9；这些结果仍不表示 Step 4 exit 已通过；
 - 9.3.4 只有在 fresh Step 4 Unit replacement、fresh formal、实现质量闸门、测试证据覆盖
   审计与版本验收全部通过后，才允许带上述分类债务签收；任一失败即撤销临时例外并保持
@@ -322,3 +322,27 @@ updated_at: 2026-07-17
   `can_enter_coverage_audit=no`，Step 5/formal/coverage audit/acceptance
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
   据此签收 9.3.4 或把 9.3.5 标为 ready。
+
+## Superseding r9 requirement boundary（2026-07-17）
+
+- r9=`step4-coverage-20260717-diagnostic-r9` 在 clean/pushed commit
+  `a0466ec04c51c436413e85836a7dee6153e18010` 上完成 required lanes、inventory=
+  `773+59/5,707/F0E0S0` 与 `23 exec / 48 sessions`，随后在 `coverage-report` 因 verifier
+  对 all-loaded classes 做同名单 ID 校验而 fail closed；`exec-manifest`、aggregate、
+  source-after、threshold、summary absent，r9 excluded/non-reusable；
+- requirement clarification：production class-ID consistency 的权威域只能是 fresh sealed
+  24-module production class universe；runtime/test/dependency execution data 不得按名称丢弃，
+  必须以 JaCoCo class ID 完整进入 aggregate exact union；任何名称命中 production universe
+  的 forged/旧 ID 仍必须 fail closed；
+- machine contract 新增
+  `jacoco.class_id_consistency_scope=frozen-24-module-production-class-universe`；focused
+  exec scope/aggregate=`17/17`、contract mutation=`21/21`、XML identity/provenance=
+  `68/68`、overlay=`12/12`；
+- quality review 另确认 lifecycle validator 的 raw comment/dead-context 与 dynamic `trap`
+  拼接可伪绿；其 coded executable-stream regression 已通过，Unit/Integration shape=
+  `16/16 + 14/14`、semantic stream=`2/2 + 5/5`、raw seal=`2/2`、outer/library=
+  `3/3 + 3/3`，三路独立正式质量最终 B/H/M/L=`0/0/0/0`；
+- 当前 Step 4=`in-progress`，threshold=`diagnostic-pending`，
+  `can_enter_coverage_audit=no`。只有 remediation commit/push/clean HEAD 与 fresh r10
+  diagnostic 全部通过，才允许进入 exact threshold
+  review/freeze；Step 5、formal、coverage audit、acceptance 与 9.3.5 保持关闭。

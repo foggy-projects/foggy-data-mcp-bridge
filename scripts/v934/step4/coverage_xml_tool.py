@@ -48,6 +48,10 @@ EXPECTED_STEP1_FREEZE_SHA256 = (
 EXPECTED_LEDGER_SHA256 = (
     "10ddf85daa0426d530bec3ccd9bb1a10446aa426d920c6c5c433163455552711"
 )
+EXPECTED_CLASS_ID_CONSISTENCY_SCOPE = "frozen-24-module-production-class-universe"
+EXPECTED_AGGREGATE_MERGE_SEMANTICS = (
+    "exact-session-and-jacoco-class-id-probe-bitmap-union"
+)
 EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256 = (
     "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96"
 )
@@ -1307,6 +1311,58 @@ def validate_toolchain_receipt(
     return path, sha256_file(path, "E_TOOLCHAIN_RECEIPT")
 
 
+def validate_jacoco_execution_identity_contract(
+    manifest: dict[str, Any],
+    provenance: dict[str, Any] | None = None,
+) -> int:
+    """Validate the class-ID scope shared by exec and aggregate evidence readers."""
+    require(
+        manifest.get("class_id_consistency_scope")
+        == EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,
+        "E_MANIFEST_CLASS_ID_SCOPE",
+        "exec manifest class-ID consistency scope differs",
+    )
+    unique_execution_classes = json_integer(
+        manifest.get("unique_execution_classes"),
+        "E_MANIFEST",
+        "unique execution classes",
+        positive=True,
+    )
+    if provenance is None:
+        return unique_execution_classes
+
+    aggregate = provenance.get("aggregate_exec")
+    require(
+        isinstance(aggregate, dict),
+        "E_AGGREGATE_CLASS_ID_COUNT",
+        "aggregate exec class-ID count is missing",
+    )
+    aggregate_class_count = json_integer(
+        aggregate.get("execution_class_count"),
+        "E_AGGREGATE_CLASS_ID_COUNT",
+        "aggregate class-ID count",
+        positive=True,
+    )
+    require(
+        aggregate_class_count == unique_execution_classes,
+        "E_AGGREGATE_CLASS_ID_COUNT",
+        "aggregate class-ID count differs from the exec manifest",
+    )
+    require(
+        provenance.get("class_id_consistency_scope")
+        == manifest["class_id_consistency_scope"]
+        == EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,
+        "E_AGGREGATE_CLASS_ID_SCOPE",
+        "aggregate class-ID consistency scope differs",
+    )
+    require(
+        provenance.get("merge_semantics") == EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "E_AGGREGATE_MERGE_SEMANTICS",
+        "aggregate merge semantics are not exact JaCoCo class-ID probe union",
+    )
+    return unique_execution_classes
+
+
 def validate_manifest(
     repo_root: Path,
     manifest_path: Path,
@@ -1335,6 +1391,7 @@ def validate_manifest(
             "jacoco",
             "exec_count",
             "session_count",
+            "class_id_consistency_scope",
             "unique_execution_classes",
             "workspace_class_count",
             "module_class_counts",
@@ -1444,7 +1501,7 @@ def validate_manifest(
     )
     require(manifest["exec_count"] == 23 and type(manifest["exec_count"]) is int, "E_MANIFEST", "exec count must be 23")
     require(manifest["session_count"] == 48 and type(manifest["session_count"]) is int, "E_MANIFEST", "session count must be 48")
-    json_integer(manifest["unique_execution_classes"], "E_MANIFEST", "unique execution classes", positive=True)
+    validate_jacoco_execution_identity_contract(manifest)
     workspace_class_count = json_integer(manifest["workspace_class_count"], "E_MANIFEST", "workspace class count", positive=True)
     json_sha256(manifest["workspace_class_tree_sha256"], "E_MANIFEST", "workspace class tree SHA")
 
@@ -1594,6 +1651,7 @@ def validate_aggregate_provenance(
             "input_exec_count",
             "input_exec_files",
             "aggregate_exec",
+            "class_id_consistency_scope",
             "merge_semantics",
             "status",
         ),
@@ -1706,16 +1764,11 @@ def validate_aggregate_provenance(
     require(
         aggregate["session_count"] == 48
         and type(aggregate["session_count"]) is int
-        and json_integer(aggregate["execution_class_count"], "E_AGGREGATE_PROVENANCE", "aggregate class count", positive=True) > 0
         and json_integer(aggregate["covered_probe_count"], "E_AGGREGATE_PROVENANCE", "aggregate covered probes", positive=True) > 0,
         "E_AGGREGATE_PROVENANCE",
         "aggregate exec verified totals differ",
     )
-    require(
-        provenance["merge_semantics"] == "exact-session-and-probe-bitmap-union",
-        "E_AGGREGATE_PROVENANCE",
-        "aggregate merge semantics are not exact probe union",
-    )
+    validate_jacoco_execution_identity_contract(manifest=exec_manifest, provenance=provenance)
     return provenance
 
 

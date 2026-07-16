@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r8 excluded / lifecycle remediation quality passed | Step 3 exit passed | r8 bootstrap-negative before lanes；remediation dynamic14、Unit `13+3`、Integration `11+5`，两路 quality `0/0/0/0`；ready-for-commit-and-fresh-r9；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r9 excluded / remediation quality passed / commit pending | Step 3 exit passed | r9 required lanes + `23/48` exec 后在 coverage-report fail closed；exec-scope=`17/17`、contract=`21/21`、XML=`68/68`、lifecycle coded regression 与三路质量均通过；fresh r10 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1257,7 +1257,7 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1–r8 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
+- r1–r9 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
   不完整 Unit 产物不可复用，
   当前仍无 reviewed
   reactor aggregate baseline；
@@ -1290,22 +1290,63 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 Unit fixture + lifecycle contract remediation quality passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 lifecycle focused=`dynamic14 + Unit13/3 + Integration11/5`，两路正式闸门 B/H/M/L=`0/0/0/0`，仅放行 commit-push/clean HEAD→fresh r9，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 remediation quality passed / commit pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r9 exec-scope 与 lifecycle semantic remediation 三路独立复核最终 B/H/M/L=`0/0/0/0`，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r8 excluded / lifecycle remediation quality passed / fresh r9 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r9 excluded / remediations implemented / quality + fresh r10 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-r8 已证明 lifecycle static contract 没有同步 fixture-aware Unit EXIT wrapper，并在 lane 前
-正确 fail closed。该契约漂移现已由 executable contracts、critical slices、canonical
-references、raw-byte runner seals、`13/3 + 11/5` expected-negative 和两路
-B/H/M/L=`0/0/0/0` 质量复核闭合。下一步是 commit/push 本轮 closure、确认 clean HEAD，停止
-四个 repo demo DB 容器，并以 fresh r9 从 source seal 开始执行 all-lane diagnostic，观察
-全部 required lane、aggregate/critical classes 并评审 exact observed thresholds。
-当前 threshold=`diagnostic-pending`，r1–r8 与 Unit remediation r2 都是 excluded failed
+r9 已在全部 required lane 与 23/48 exec 后证明 all-loaded class-name identity 规则错误，
+并在 exec-manifest 前正确 fail closed。production-scope/JaCoCo-ID union 已实现；新的质量审计
+又复现 lifecycle semantic validator comment/dead-context/dynamic-trap bypass，其 coded
+executable-stream regression 也已通过。下一步是完成两路 formal quality、commit/push/clean
+HEAD，停止四个 repo demo DB 容器，并以
+fresh r10 从 source seal 开始执行 all-lane diagnostic。只有 r10 完整成功后才评审 exact
+observed thresholds。
+当前 threshold=`diagnostic-pending`，r1–r9 与 Unit remediation r2 都是 excluded failed
 evidence，历史 partial/incomplete 产物不可复用，尚无 aggregate baseline/review 或 Step 4
 exit evidence；
 `can_enter_coverage_audit=no`，
 Step 5 仍不得开始，coverage audit/acceptance 不得启动。
+
+### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
+
+- recorded_at: 2026-07-17；
+- immutable run：`step4-coverage-20260717-diagnostic-r9`，tested commit=
+  `a0466ec04c51c436413e85836a7dee6153e18010`；outer=`failed / coverage-report / exit 1`；
+  source-before=
+  `3e07c3de0a7c804d2aa4c36b64bfb0c8c2f2d5910f54c335376bbe206c8b49b4`；
+- completed boundary：Unit=`681+55/4,941/F0E0S0`、Integration=`47+4/320/F0E0S0`、
+  database=`29/370`、external=`16/76`、Step 3 required=`45/446`、Addon=`2/6`、Step 4
+  inventory=`773+59/5,707/F0E0S0`、exec inputs=`23/48`；
+- failure：旧 exec verifier 以 binary name 折叠 all-loaded classes 并要求同名单 ID；r9
+  read-only analysis=`16,693 unique names / 16,939 JaCoCo IDs / 135 same-name multi-ID /
+  2,098 frozen production classes / 0 production conflict`；
+- absence：`exec-manifest.json`、source-after、aggregate/provenance/XML、observation、threshold
+  candidate、summary 均 absent；cleanup=`0/0/0`；r9 excluded/non-reusable；四个 exact demo
+  DB container 已在 evidence window 外恢复 healthy；
+- immutable hashes：run-status/cleanup/run-log/report-inventory/child-lifecycle/toolchain=
+  `7c50cafd8f28716db7ad996b31204934eaa6ae04804eb455bc442bb7e72070de` /
+  `5524f0c68afb6ff1d13358f8fa3d2d19f7c1270454f2dfed1d2fe72cfe334ff1` /
+  `765fb22f81ef2e4c2aca7eaad899e365f6cbb098d5a0d87e61b5df05d90a928c` /
+  `13dd63dcd49fc0eec445ca6b558c13b841da9ecb97a7a9ad089a8c994b8074d0` /
+  `43a4046ef35bcb0c5b6bf02ed6db47a99dfc23103358652ae66269e3fce2b064` /
+  `82ba200a5ffa1a14bacb38aa75c0cb99c0d740b150db2824f23d4becbdd8acb8`；
+- exec remediation：contract scope 冻结到 24-module production universe；raw/aggregate
+  保留全部 class ID，aggregate 以 ID 做 exact shape/bitmap union；focused exec=`17/17`、
+  contract=`21/21`、XML identity/provenance=`68/68`、overlay=`12/12`；
+- implementation quality remediation：独立审计确认 outer/library raw comment/dead-context 与
+  Unit/Integration dynamic `t$''rap` 等可绕过 semantic validator；现有 8 个 source-seal
+  negative 未触达声称 guard。已登记
+  `BUG-step4-lifecycle-semantic-validator-bypass.md`；stable-code/executable-stream 修复现已
+  通过 Unit/Integration shape=`16/16 + 14/14`、semantic stream=`2/2 + 5/5`、raw
+  seal=`2/2`、outer/library=`3/3 + 3/3`；三路独立复核最终 B/H/M/L=`0/0/0/0`；
+- records：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r9-exec-class-scope-fail-closed-20260717.md`、
+  `docs/9.3.4/workitems/BUG-step4-exec-class-id-scope-drift.md`、
+  `docs/9.3.4/workitems/BUG-step4-lifecycle-semantic-validator-bypass.md`；
+- next gate：commit/push/clean HEAD → fresh r10 diagnostic。r10 成功前不得 threshold freeze；
+  threshold=`diagnostic-pending`、`can_enter_coverage_audit=no`，Step 5/formal/audit/
+  acceptance 均关闭。

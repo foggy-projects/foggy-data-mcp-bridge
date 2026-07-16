@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r8 bootstrap-negative excluded / lifecycle remediation quality passed /
-ready-for-commit-and-fresh-r9`。
+`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
+lifecycle semantic remediation implemented / quality passed / commit pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -592,3 +592,25 @@ evidence、required CI 全绿；无 blocker/high；9.3.4 version signoff完成�
 - 修复需要 9.3.5 public API 或 9.4.0 production module boundary。
 
 遇到 stop condition：先回写 progress/workitem；不越过当前 Step，不伪造绿色。
+
+## Step 4 r9 remediation addendum（2026-07-17）
+
+r9 在完成全部 required lane 后于 exec inventory fail closed。进入 fresh r10 前增加以下
+顺序约束：
+
+1. 封存 r9 immutable failure/absence/cleanup；不得复用 r9 raw exec、lane candidate 或
+   report inventory 形成新 run；
+2. 修复 class-ID scope：fresh production universe strict match，raw execution data 全保留，
+   aggregate 按 JaCoCo ID exact union；同步 contract、manifest、provenance、XML consumer、
+   successor dual workflow hash 与 negative probes；
+3. 闭合 lifecycle semantic validator bypass：semantic guard 与 raw byte seal 分开取证，
+   negative 必须断言稳定 code，outer/library comment/dead context 与 dynamic `trap` 拼接必须
+   fail closed；
+4. implementation self-check → 两路独立 formal quality；B/H/M 必须为 0；
+5. commit/push 后确认 clean `HEAD == origin/main`，停止四个 exact demo DB 容器并确认 frozen
+   ports free，使用全新 run ID 执行 r10；退出后恢复 exact containers；
+6. 仅当 r10 完整发布 source-after、exec manifest、aggregate/provenance/XML、observation、
+   summary 且 cleanup=0/0/0，才 review exact-observed thresholds；freeze commit 必须是 r10
+   tested commit 的 direct single parent child，变更范围遵守 frozen allowlist；
+7. freeze 后执行 fresh formal；再做最终 implementation quality、test coverage audit 与
+   acceptance。任一步失败继续 fail closed，不开始 Step 5。

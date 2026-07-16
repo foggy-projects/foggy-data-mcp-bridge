@@ -274,6 +274,67 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     tool.real_directory(repo_root, "E_REPO_ROOT")
     cases: dict[str, dict[str, str]] = {}
 
+    identity_manifest = {
+        "class_id_consistency_scope": tool.EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,
+        "unique_execution_classes": 2,
+    }
+    identity_provenance = {
+        "class_id_consistency_scope": tool.EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,
+        "merge_semantics": tool.EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "aggregate_exec": {"execution_class_count": 2},
+    }
+    observed_identity_count = tool.validate_jacoco_execution_identity_contract(
+        identity_manifest,
+        identity_provenance,
+    )
+    if observed_identity_count != 2:
+        raise RuntimeError(
+            f"JaCoCo identity baseline count differs: {observed_identity_count}"
+        )
+    record_positive(cases, "jacoco-class-id-identity-positive", "exact-class-id-scope")
+
+    manifest_scope_drift = copy.deepcopy(identity_manifest)
+    manifest_scope_drift["class_id_consistency_scope"] = "all-loaded-classes-by-name"
+    expect_failure(
+        cases,
+        "jacoco-manifest-class-id-scope-drift",
+        "E_MANIFEST_CLASS_ID_SCOPE",
+        lambda: tool.validate_jacoco_execution_identity_contract(manifest_scope_drift),
+    )
+    provenance_scope_drift = copy.deepcopy(identity_provenance)
+    provenance_scope_drift["class_id_consistency_scope"] = "all-loaded-classes-by-name"
+    expect_failure(
+        cases,
+        "jacoco-aggregate-class-id-scope-drift",
+        "E_AGGREGATE_CLASS_ID_SCOPE",
+        lambda: tool.validate_jacoco_execution_identity_contract(
+            identity_manifest,
+            provenance_scope_drift,
+        ),
+    )
+    merge_semantics_drift = copy.deepcopy(identity_provenance)
+    merge_semantics_drift["merge_semantics"] = "exact-session-and-probe-bitmap-union"
+    expect_failure(
+        cases,
+        "jacoco-aggregate-merge-semantics-drift",
+        "E_AGGREGATE_MERGE_SEMANTICS",
+        lambda: tool.validate_jacoco_execution_identity_contract(
+            identity_manifest,
+            merge_semantics_drift,
+        ),
+    )
+    aggregate_count_drift = copy.deepcopy(identity_provenance)
+    aggregate_count_drift["aggregate_exec"]["execution_class_count"] = 1
+    expect_failure(
+        cases,
+        "jacoco-aggregate-class-id-count-drift",
+        "E_AGGREGATE_CLASS_ID_COUNT",
+        lambda: tool.validate_jacoco_execution_identity_contract(
+            identity_manifest,
+            aggregate_count_drift,
+        ),
+    )
+
     huge_actual = tool.exact_counter(
         9_007_199_254_740_992,
         9_007_199_254_740_993,

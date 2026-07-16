@@ -323,6 +323,12 @@ def mutate_contract_formal_while_pending(path: Path) -> None:
     write_json(path, value)
 
 
+def mutate_contract_class_id_scope(path: Path) -> None:
+    value = read_json(path)
+    value["jacoco"]["class_id_consistency_scope"] = "all-loaded-classes-by-name"
+    write_json(path, value)
+
+
 def mutate_threshold_premature_confirmed(path: Path) -> None:
     value = read_json(path)
     value["status"] = "confirmed"
@@ -483,6 +489,13 @@ PROBES = (
         "publish formal contract while threshold remains diagnostic-pending",
         "coverage workflow state: contract/publication/threshold status tuple is forbidden",
         mutate_contract_formal_while_pending,
+    ),
+    Probe(
+        "production-class-id-scope-drift",
+        "contract",
+        "broaden class-ID consistency from the frozen production universe to all loaded classes",
+        "coverage contract.jacoco.class_id_consistency_scope: expected frozen-24-module-production-class-universe",
+        mutate_contract_class_id_scope,
     ),
     Probe(
         "premature-confirmed-threshold",
