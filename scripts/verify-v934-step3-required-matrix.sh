@@ -4,9 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SCRIPT_PATH="$ROOT_DIR/scripts/verify-v934-step3-required-matrix.sh"
 STEP3_DIR="$ROOT_DIR/scripts/v934/step3"
-CONTRACT="$STEP3_DIR/step3-required-contract.json"
+STEP4_DIR="$ROOT_DIR/scripts/v934/step4"
+CONTRACT="$STEP4_DIR/successor/step3-required-contract.json"
 REPORT_TOOL="$STEP3_DIR/step3_required_report_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
+STEP4_AUTHORITY_LIB="$STEP4_DIR/authority_parent_lib.sh"
+STEP4_TOOL="$STEP4_DIR/coverage_tool.py"
+OVERLAY_TOOL="$STEP4_DIR/successor/overlay_tool.py"
 RUNS_ROOT="$ROOT_DIR/target/v934-step3-required-matrix/runs"
 
 RUNNER_NAME="orchestrator"
@@ -206,21 +210,44 @@ run_child() {
 [[ "$#" -le 1 ]] || fail "usage: $SCRIPT_PATH [RUN_ID]"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ && "$RUN_ID" != . && "$RUN_ID" != .. ]] || \
   fail "unsafe run id: $RUN_ID"
-[[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == standalone ]] || \
-  fail "top-level required authority cannot run as an inherited child"
 for command_name in cmp cut date docker flock git jq mkfifo mv python3 readlink rg sed sha256sum sleep tee tr wc; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
-for required_file in "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB"; do
+for required_file in \
+  "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" \
+  "$STEP4_AUTHORITY_LIB" "$STEP4_TOOL" "$OVERLAY_TOOL"; do
   [[ -f "$required_file" && ! -L "$required_file" ]] || fail "required file missing/symlink: $required_file"
 done
 
 # shellcheck source=scripts/v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
-v934_acquire_or_validate_authority_lock "$ROOT_DIR" "v934-step3-required" || exit 1
+# shellcheck source=scripts/v934/step4/authority_parent_lib.sh
+source "$STEP4_AUTHORITY_LIB"
+STEP4_PARENT_SOURCE=""
+if [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == inherited ]]; then
+  STEP4_PARENT_SOURCE="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
+    python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+  v934_step4_validate_inherited_authority \
+    "$ROOT_DIR" "v934-step3-required" "$STEP4_PARENT_SOURCE" || exit 1
+elif [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == standalone ]]; then
+  v934_acquire_or_validate_authority_lock "$ROOT_DIR" "v934-step3-required" || exit 1
+else
+  fail "unsupported authority mode: ${V934_AUTHORITY_LOCK_MODE:-}"
+fi
 
 [[ ! -e "$RUN_ROOT" && ! -L "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
 mkdir -p "$RUN_ROOT/negative"
+if [[ -n "$STEP4_PARENT_SOURCE" ]]; then
+  atomic_env "$RUN_ROOT/step4-parent-context.env" \
+    "authority_kind=$V934_PARENT_AUTHORITY_KIND" \
+    "run_id=$V934_PARENT_RUN_ID" \
+    "git_head=$V934_PARENT_GIT_HEAD" \
+    "contract_sha256=$V934_PARENT_CONTRACT_SHA256" \
+    "source_sha256=$V934_PARENT_SOURCE_SHA256" \
+    "outer_marker_sha256=$V934_PARENT_OUTER_MARKER_SHA256" \
+    "outer_marker_path=$V934_PARENT_OUTER_MARKER_PATH" \
+    "status=validated"
+fi
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 GIT_HEAD="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 CONTRACT_SHA256="$(sha256_file "$CONTRACT")"
@@ -241,6 +268,7 @@ exec > "$RUN_LOG_FIFO" 2>&1
 rm -f -- "$RUN_LOG_FIFO"
 
 PHASE="contract-validate"
+python3 "$OVERLAY_TOOL" validate
 python3 "$REPORT_TOOL" --repo-root "$ROOT_DIR" --contract "$CONTRACT" validate
 
 PHASE="source-before"

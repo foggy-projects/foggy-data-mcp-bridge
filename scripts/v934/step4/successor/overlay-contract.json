@@ -1,0 +1,186 @@
+{
+  "activation_requirements": [
+    "Step 4 required runner must select the successor required contract.",
+    "Database runner must select the successor database contract, source amendment, and database wrapper.",
+    "External runner must select the successor external contract and external wrapper.",
+    "Addon runner must select the successor Addon contract."
+  ],
+  "declared_amendments": {
+    "path": "scripts/v934/step4/successor/declared-amendments.tsv",
+    "paths": [
+      "pom.xml",
+      "foggy-dataset-model/pom.xml",
+      "scripts/verify-v934-unit.sh",
+      "scripts/verify-v934-integration.sh",
+      "scripts/verify-v934-step3-required-matrix.sh",
+      "scripts/verify-v934-database-matrix.sh",
+      "scripts/verify-v934-external-matrix.sh",
+      "scripts/verify-v934-external-redis.sh",
+      "scripts/verify-v934-external-mongo.sh",
+      "scripts/verify-v934-external-mysql.sh",
+      "scripts/verify-v934-external-vector.sh",
+      "scripts/verify-v934-preagg-addon-lifecycle.sh",
+      "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java"
+    ],
+    "sha256": "1c4ff5063103d6e4047dc68f07d7617b69b5762eedf95687673d596072a31661"
+  },
+  "frozen_semantics": {
+    "addon": {
+      "errors": 0,
+      "failures": 0,
+      "negative_probes": 4,
+      "reports": 2,
+      "skipped": 0,
+      "testcase_nodes": 6,
+      "variants": 2
+    },
+    "database": {
+      "errors": 0,
+      "failures": 0,
+      "negative_probes": 14,
+      "reports": 29,
+      "skipped": 0,
+      "testcase_nodes": 370,
+      "variants": 7
+    },
+    "external": {
+      "errors": 0,
+      "failures": 0,
+      "negative_probes": 12,
+      "reports": 16,
+      "skipped": 0,
+      "testcase_nodes": 76,
+      "variants": 7
+    },
+    "required": {
+      "errors": 0,
+      "failures": 0,
+      "negative_probes": 17,
+      "reports": 45,
+      "skipped": 0,
+      "testcase_nodes": 446,
+      "variants": 14
+    }
+  },
+  "kind": "v934-step4-step3-successor-overlay-contract",
+  "parent_artifacts": {
+    "scripts/v934/authority_runner_lib.sh": "65f50005f0e71489fa263f1bbcf841bb646d89bb35dd6baac44f1c7480ed5434",
+    "scripts/v934/contract-freeze.json": "ff418e04f6a938a853ce7bbd0700223627f42520705530e819a53e5591e82876",
+    "scripts/v934/coverage-thresholds.json": "45058f63b71558e4660f60e0cfda9a8a490fa8f96b532c6656c3d726eaad44fb",
+    "scripts/v934/step3/SHA256SUMS": "38248a6788d2c16b315f955fb0cd8fac00d4847eb20629a33e837e1411864aed",
+    "scripts/v934/step3/database-matrix-contract.json": "70385c7351e7fd44bef9ec5ed24f6d64ed5aa4253e3e8ae38c2e07713aaf112e",
+    "scripts/v934/step3/database-matrix-protected-trees.tsv": "12dd3968ee40ce78d28dde49cdba99f5a14c47b6dc519f421c9b384461d97036",
+    "scripts/v934/step3/database-matrix-source-amendment.tsv": "38d92c2250252b0cd4eae296ec6bf4d36081f0968bf6c0a2f3faf039ce32ef0c",
+    "scripts/v934/step3/database_matrix_report_tool.py": "99ec9177fb8ff7aba52b6bedd90c5880b8a324ea85c367f19dd8b140bf716dac",
+    "scripts/v934/step3/database_state_contract.json": "0fce8b5b8be15596672530f1d70a51e664a2f4a8e3f4059e7ab4cc496f5a28f1",
+    "scripts/v934/step3/database_state_negative_tool.py": "7c6157bf453b7f707a18f59d1011fd60e135298b610e3e99dcba283569a4a548",
+    "scripts/v934/step3/database_state_probe_callback.sh": "3f8b28da2d83f9dadb439e49f56140ced8da47133e4347af81debd6323118402",
+    "scripts/v934/step3/external-matrix-contract.json": "bd6caec69adb3a9ca5a615c8bda4d4919e53dcdfd230b04c2eb6d1824e9526c7",
+    "scripts/v934/step3/external-redis-state-contract.json": "70fdc5756552db2ba0964df94165b2610d957ffb342160b8ca5f03a430b68f31",
+    "scripts/v934/step3/external_lane_launcher.py": "8c8bdd25e462c6f70d9b5731dd1e7eb1c8fab7a23edf3591514986e140a498c4",
+    "scripts/v934/step3/external_matrix_report_tool.py": "d15e3ad9d5f1e6001bab7a5d000ed0e25af241067dec2c9e3e5f159a6cef0531",
+    "scripts/v934/step3/external_redis_signal_probe.py": "cf042bc137aab190c829f9537b1b90d32b9ceb2adedf53eab5d1171994006850",
+    "scripts/v934/step3/external_redis_state_tool.py": "be3d319c1179fed85626935d4118057acd0ec86827060a666d62e61583c6941c",
+    "scripts/v934/step3/external_shared_context.sh": "0674e905c019bd84af02c557f16f48e6b32cb3e9abebe5a8d8f9585f8b434875",
+    "scripts/v934/step3/manage-database-foundation-fixtures.sh": "d5e342f87fba665efbea733581d592982c48b23695126ad4591c70489eb6ee22",
+    "scripts/v934/step3/preagg-addon-lifecycle-contract.json": "27d8abe4944c3df8694ed37a89388d44058a9fed71080855ab524ebde9ad54e3",
+    "scripts/v934/step3/preagg_addon_lifecycle_report_tool.py": "3995c3bccdb0d69e5727c184990e4a1d1f9aac531ff981c067ab038cb4690cf1",
+    "scripts/v934/step3/provision-database-cell.sh": "74d00d79628b0df9d438f1623d53e2617cc73c01c74a91a2c21cccdf2ea884e6",
+    "scripts/v934/step3/sqlite_cell_tool.py": "6897440a62f1f72354b86691968a0a889d0972e3832ec1768785d9947953bc7f",
+    "scripts/v934/step3/step3-required-contract.json": "f2bd52df7ed2829051ad263f97d560d3f8babe048d25864edb725eb671ba4d1b",
+    "scripts/v934/step3/step3_required_report_tool.py": "7856a5a14aaac2e6b182666097ab035446f98bdbeda6f4eadffbdb7503f17e58",
+    "scripts/v934/step3/verify-v933-real-query-compat.sh": "f6837824a1f868dfe5398e663725de51d1909cd6ae6c0c1564f60cd550fd4409",
+    "scripts/v934/successor/step2/contract-freeze.json": "44b11ed756bf41e3b271ac57b59c2c882a0b31a56963f42ae154fdb5d37b2fb6",
+    "scripts/v934/successor/step2/parent-link.json": "304168996f8596bf226a0b1bb6fec62c496d40508d9c24cb70537e15671b2b57",
+    "scripts/v934/successor/step2/runner-contract.json": "a5a7364fe75af2668c2c85989295b1448834dc526604175f7614f93d30e0376a"
+  },
+  "parent_commit": "e1a2a275ae5f39ca0be641ef18ca5622fa4c7076",
+  "parent_manifests": {
+    "step1": {
+      "entry_base": "scripts/v934",
+      "path": "scripts/v934/SHA256SUMS",
+      "sha256": "e601c6c70ff02e9e50b86fd2b14b14aba9cfede096b42c93ff6e5968a918640f"
+    },
+    "step2": {
+      "entry_base": "scripts/v934/successor/step2",
+      "path": "scripts/v934/successor/step2/SHA256SUMS",
+      "sha256": "4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919"
+    },
+    "step3": {
+      "entry_base": ".",
+      "path": "scripts/v934/step3/SHA256SUMS",
+      "sha256": "38248a6788d2c16b315f955fb0cd8fac00d4847eb20629a33e837e1411864aed"
+    }
+  },
+  "protected_git_scope": {
+    "database_tree_manifest": "scripts/v934/step3/database-matrix-protected-trees.tsv",
+    "deferred_inventory": "scripts/v934/successor/step2/deferred-step3.tsv",
+    "explicit_paths": [
+      "pom.xml",
+      "foggy-dataset-model/pom.xml",
+      "scripts/verify-v934-unit.sh",
+      "scripts/verify-v934-integration.sh"
+    ],
+    "source_inventory": "scripts/v934/successor/step2/source-inventory.tsv"
+  },
+  "schema_version": 1,
+  "step4_runtime_bindings": {
+    "scripts/v934/step4/authority_parent_lib.sh": "35024328ec6f181f4454a36b702f76c20dfd049af8a38a84b5f3117ac94254fa",
+    "scripts/v934/step4/authority_parent_negative_test.sh": "2329d6211d51f673b29aae407e4e0a1f99af2f5bac0425d56cade3d1e1c148ca",
+    "scripts/v934/step4/coverage-contract.json": "9695bf12d89b375f68fb252cb6db431654ab4e5d1a2f909e335c72bf5aaf0cc9",
+    "scripts/v934/step4/coverage-report-amendment.tsv": "263e2ecbfeda61555f56687789a6d0ad2a2eef3dff22f5fa06617c59d2eae241",
+    "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
+    "scripts/v934/step4/coverage_tool.py": "425b766ca421753d851cada9676a237d9be490208e1da15d100fdd393e95a154",
+    "scripts/v934/step4/step2-report-view-contract.json": "843b4eb62faf25dfac051396ffe08afe8da00af3212b54b9573b4dbc09394dbb",
+    "scripts/v934/step4/step2_report_view_tool.py": "786fd3643d0a374fffb1fbfb6af68df2d1d768b9d2273a714e260ef5e3e76997"
+  },
+  "successors": {
+    "addon": {
+      "allowed_binding_changes": [
+        "runner"
+      ],
+      "parent": "scripts/v934/step3/preagg-addon-lifecycle-contract.json",
+      "successor": "scripts/v934/step4/successor/preagg-addon-lifecycle-contract.json"
+    },
+    "database": {
+      "allowed_binding_changes": [
+        "authority_hash_manifest",
+        "protected_tree_manifest",
+        "source_amendment"
+      ],
+      "parent": "scripts/v934/step3/database-matrix-contract.json",
+      "successor": "scripts/v934/step4/successor/database-matrix-contract.json"
+    },
+    "external": {
+      "allowed_binding_changes": [
+        "external_report_tool",
+        "external_matrix_runner",
+        "external_mongo_runner",
+        "external_mysql_runner",
+        "external_redis_runner",
+        "external_vector_runner"
+      ],
+      "allowed_source_amendment_append": [
+        "v934-src|123:addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java"
+      ],
+      "parent": "scripts/v934/step3/external-matrix-contract.json",
+      "successor": "scripts/v934/step4/successor/external-matrix-contract.json"
+    },
+    "required": {
+      "allowed_binding_changes": [
+        "addon_contract",
+        "addon_runner",
+        "database_contract",
+        "database_report_tool",
+        "database_runner",
+        "external_contract",
+        "external_report_tool",
+        "external_runner",
+        "required_runner"
+      ],
+      "parent": "scripts/v934/step3/step3-required-contract.json",
+      "successor": "scripts/v934/step4/successor/step3-required-contract.json"
+    }
+  }
+}

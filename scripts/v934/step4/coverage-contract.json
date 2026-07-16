@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "kind": "v934-step4-coverage-contract",
+  "status": "diagnostic-ready",
+  "tooling_manifest": {
+    "path": "scripts/v934/step4/SHA256SUMS",
+    "path_semantics": "repository-relative-posix",
+    "required_entries": 48,
+    "publication_status": "diagnostic-ready"
+  },
+  "parent_links": {
+    "step1_coverage_policy": {
+      "path": "scripts/v934/coverage-thresholds.json",
+      "sha256": "45058f63b71558e4660f60e0cfda9a8a490fa8f96b532c6656c3d726eaad44fb"
+    },
+    "step1_hash_manifest": {
+      "path": "scripts/v934/SHA256SUMS",
+      "sha256": "e601c6c70ff02e9e50b86fd2b14b14aba9cfede096b42c93ff6e5968a918640f"
+    },
+    "step2_successor_hash_manifest": {
+      "path": "scripts/v934/successor/step2/SHA256SUMS",
+      "sha256": "4259a452bf4282f85ebb8bfe092127ec3ebec95652e7c009792081f86b84b919"
+    },
+    "step2_successor_freeze": {
+      "path": "scripts/v934/successor/step2/contract-freeze.json",
+      "sha256": "44b11ed756bf41e3b271ac57b59c2c882a0b31a56963f42ae154fdb5d37b2fb6"
+    },
+    "step3_required_contract": {
+      "path": "scripts/v934/step3/step3-required-contract.json",
+      "sha256": "f2bd52df7ed2829051ad263f97d560d3f8babe048d25864edb725eb671ba4d1b"
+    },
+    "step3_required_final_manifest": {
+      "run_id": "step3-required-20260716-final-r4",
+      "tested_commit": "ce3d70c391c7b8bd8046fe66dde0ad568d66601e",
+      "sha256": "9040bff263101ed7ad33dbc4681bbf37f48e39b00957d2bf8224fb506afa5282"
+    },
+    "step3_required_candidate_manifest": {
+      "run_id": "step3-required-20260716-final-r4",
+      "tested_commit": "ce3d70c391c7b8bd8046fe66dde0ad568d66601e",
+      "sha256": "6b1e5f3502dd2e666e5546ecf3c6469e9b5060bdafa8e7d4e1068fd41688cfa4"
+    }
+  },
+  "jacoco": {
+    "version": "0.8.12",
+    "unit_property": "jacoco.ut.argLine",
+    "integration_property": "jacoco.it.argLine",
+    "append": true,
+    "reactor_parallelism": "forbidden",
+    "shared_exec_fork_count": 1
+  },
+  "toolchain_receipt": {
+    "validator": "scripts/v934/step4/toolchain_receipt_tool.py",
+    "run_path": "toolchain-receipt.json",
+    "replay_stages": [
+      "pre-compile-seal",
+      "post-children",
+      "post-reporter",
+      "post-model"
+    ],
+    "compiler_asm": "9.6",
+    "jacoco_reporter_asm": "9.7",
+    "test_classpath_asm_guard": "9.7.1"
+  },
+  "execution_ledger": {
+    "path": "scripts/v934/step4/coverage-exec-ledger.tsv",
+    "sha256": "10ddf85daa0426d530bec3ccd9bb1a10446aa426d920c6c5c433163455552711",
+    "exec_files": 23,
+    "expected_sessions": 48,
+    "optional_llm": "reviewed-optional-excluded"
+  },
+  "report_inventory": {
+    "amendment_path": "scripts/v934/step4/coverage-report-amendment.tsv",
+    "amendment_sha256": "263e2ecbfeda61555f56687789a6d0ad2a2eef3dff22f5fa06617c59d2eae241",
+    "step2_parent_positive_reports": 724,
+    "step2_parent_structural_reports": 59,
+    "step2_parent_testcases": 5205,
+    "step4_new_positive_reports": 4,
+    "step4_changed_positive_reports": 5,
+    "step4_step2_testcase_delta": 56,
+    "step3_required_positive_reports": 45,
+    "step3_required_testcases": 446,
+    "required_positive_reports": 773,
+    "required_structural_reports": 59,
+    "required_testcases": 5707,
+    "addon_companion_reports": 2,
+    "addon_companion_testcases": 6
+  },
+  "run_layout": {
+    "root_pattern": "target/v934-step4-coverage/runs/<run-id>",
+    "toolchain_receipt": "toolchain-receipt.json",
+    "class_universe": "class-universe.json",
+    "exec_directory": "exec",
+    "exec_manifest": "exec-manifest.json",
+    "aggregate_exec": "report/jacoco-aggregate.exec",
+    "aggregate_xml": "report/jacoco-aggregate/jacoco.xml",
+    "aggregate_html": "report/jacoco-aggregate/index.html",
+    "aggregate_provenance": "report/aggregate-provenance.json",
+    "report_provenance": "report/report-provenance.json",
+    "coverage_observation": "coverage-observation.json"
+  },
+  "reporter": {
+    "module": "build-support/foggy-coverage-report",
+    "packaging": "pom",
+    "production_classes": 0,
+    "production_dependencies_on_reporter": 0,
+    "standard_jacoco_check_allowed": false,
+    "versioned_xml_verifier_required": true,
+    "effective_model_receipt_required": true
+  },
+  "threshold_successor": {
+    "path": "scripts/v934/step4/coverage-thresholds.json",
+    "required_status_for_diagnostic": "diagnostic-pending",
+    "required_status_for_exit": "confirmed"
+  }
+}

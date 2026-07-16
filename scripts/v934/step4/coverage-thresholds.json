@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "v934-step4-coverage-threshold-successor",
+  "status": "diagnostic-pending",
+  "parent_policy": {
+    "path": "scripts/v934/coverage-thresholds.json",
+    "sha256": "45058f63b71558e4660f60e0cfda9a8a490fa8f96b532c6656c3d726eaad44fb",
+    "immutable": true
+  },
+  "jacoco": {
+    "version": "0.8.12",
+    "aggregate_reporter": "build-only",
+    "aggregate_check": "versioned-xml-verifier"
+  },
+  "model_inherited_gate": {
+    "module": "foggy-dataset-model",
+    "exec_policy": "merged-unit-and-all-required-it",
+    "bundle": {
+      "line": 0.77,
+      "branch": 0.62
+    },
+    "classes": [
+      {
+        "fqcn": "com.foggyframework.dataset.db.model.impl.SemanticScaleSqlSupport",
+        "line": 1.0,
+        "branch": 1.0
+      }
+    ]
+  },
+  "critical_candidate_floor": {
+    "line": 0.8,
+    "branch": 0.7
+  },
+  "aggregate_observed": null,
+  "aggregate_reviewed_thresholds": null,
+  "critical_reviewed_thresholds": null,
+  "review": {
+    "reviewer": null,
+    "reviewed_at": null,
+    "diagnostic_run_id": null,
+    "decision": "pending-all-lane-diagnostic"
+  }
+}

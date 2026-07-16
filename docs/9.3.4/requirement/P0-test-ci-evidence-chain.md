@@ -145,7 +145,8 @@ updated_at: 2026-07-16
 
 ## Current Progress
 
-- version status：`in-progress`；Steps 1–3=`passed`；Step 4=`ready / not-started`；
+- version status：`in-progress`；Steps 1–3=`passed`；Step 4=`in-progress / diagnostic-ready`
+  （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
   F/E/S=`0/0/0`；
@@ -158,5 +159,16 @@ updated_at: 2026-07-16
   完成；feature decision=`accepted`，但 version acceptance 仍为 `not-started`；
 - r8d authority 因 signal fail-open 作废；r8e 已以 INT/TERM/HUP=`130/143/129`
   动态探针证明 durable fail closed；
-- Step 4 JaCoCo、Step 5 portable authority、Step 6 CI/release 与 Step 7 version
-  acceptance 仍未完成，不能据此签收 9.3.4 或把 9.3.5 标为 ready。
+- Step 4 已完成 diagnostic-ready 静态收口：exact `23 exec / 48 sessions`，
+  required report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，
+  Addon companion 单列 `2/6`；raw contract/effective POM/toolchain/report inventory
+  负例分别为 `8/8`、`4/4`、`5/5`、`27/27`；
+- toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
+  `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；本地 Step 4
+  `SHA256SUMS` 已生成并通过 exact 48 项校验，manifest SHA-256=
+  `c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`；
+- Step 4 JaCoCo 仍未通过：threshold=`diagnostic-pending`，尚无 clean
+  committed/pushed HEAD 上的 all-lane aggregate baseline/review 或 Step 4 exit evidence。
+  下一动作是提交、推送并验证 clean HEAD 后执行 fresh diagnostic。Step 5
+  portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
+  据此签收 9.3.4 或把 9.3.5 标为 ready。

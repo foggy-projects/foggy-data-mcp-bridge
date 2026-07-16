@@ -38,7 +38,26 @@ updated_at: 2026-07-16
   `step3-required-20260716-final-r4` 通过：database `29/370` + required external
   `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
-  已按序完成，Step 4=`ready / not-started`。
+  已按序完成；Step 4 已进入 `in-progress / diagnostic-ready`，尚无 coverage
+  pass 或 aggregate baseline/review。
+- Step 4 diagnostic-ready baseline 已冻结两层独立库存：coverage execution=
+  `23 exec / 48 sessions`；
+  required report overlay=`773 positive + 59 structural / 5,707 testcase`，Addon companion=
+  `2/6`；required 总计预期 `F0E0S0`。raw contract、effective POM、toolchain
+  receipt 与 report inventory 负例分别精确通过 `8/8`、`4/4`、`5/5`、
+  `27/27`。
+- toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
+  `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1` 以及 24 个
+  production module 的 effective compiler。本地 Step 4 `SHA256SUMS` 已生成并
+  通过 exact 48 项校验，manifest SHA-256=
+  `c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。
+- 静态复核还发现并修复 root coverage `argLine` 早解析 fail-open：legacy
+  profile 现在实际生成/读取 exec，低于既有门时正确失败；生产代码不变，
+  canonical `@{argLine}` 已由 versioned contract guard 与 `8/8` negatives 自动保护。详见
+  [BUG-step4-legacy-coverage-argline-fail-open](workitems/BUG-step4-legacy-coverage-argline-fail-open.md)。
+- `coverage-thresholds.json` 仍为 `diagnostic-pending`；尚未从 clean
+  committed/pushed HEAD 执行 fresh all-lane diagnostic，因此没有 Step 4 exit
+  evidence，Step 5 仍关闭。
 
 ## 执行资料
 
@@ -51,6 +70,8 @@ updated_at: 2026-07-16
 - progress: [progress/test-ci-evidence-chain-progress.md](progress/test-ci-evidence-chain-progress.md)
 - test plan: [test/test-ci-evidence-chain-test-plan.md](test/test-ci-evidence-chain-test-plan.md)
 - acceptance evidence plan: [acceptance-evidence-plan.md](acceptance-evidence-plan.md)
+- Step 4 diagnostic-ready quality gate:
+  [quality/step4-diagnostic-ready-implementation-quality.md](quality/step4-diagnostic-ready-implementation-quality.md)
 - Step 1 confirmed evidence:
   [evidence/step-1/inventory-contract-freeze-20260714.md](evidence/step-1/inventory-contract-freeze-20260714.md)
 - Step 2 structural amendment evidence：
@@ -95,7 +116,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | ready / not-started | 全 required lane 重新带 agent 执行；XML verifier + module checks fail closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / diagnostic-ready | 静态契约 exact 23/48 + 773/59/5707；阈值 diagnostic-pending；下一动作是 clean committed/pushed HEAD 的 fresh all-lane diagnostic |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

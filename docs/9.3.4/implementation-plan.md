@@ -145,8 +145,9 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `0/0/0`；DB state=`18/18`、Redis state=`4/4`。PreAgg Addon required companion=
 `2/6/F0E0S0`，按契约不计入 45/446；optional LLM=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
-`evidence/step-3/step3-required-matrix-exit-20260716.md`。Step 4 entry=
-`ready / not-started`；尚未生成 JaCoCo exec，也未开始 Step 4 实现。
+`evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
+entry 结论；当前 Step 4 已由下方 superseding record 提升为
+`in-progress / diagnostic-ready`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -156,8 +157,11 @@ Work：
 
 1. root central JaCoCo 和独立 UT/IT argLine；每 lane 唯一 exec 文件且保留 root
    UTF-8/JVM args。
-2. 用正式 agent 重新执行 all unit、hermetic/SQLite broad IT 和 Step 3 全部 external
-   lanes；Step 2/3 无 agent 的 correctness reports 不得充当 coverage evidence。
+2. 先冻结 parent-linked Step 4 coverage successor/schema，再用正式 agent 重新执行
+   all unit、6 个 hermetic/SQLite IT variants、five-DB 的 7 个 variants、7 个 required
+   external variants 与 Addon companion 的 2 个 variants，共 23 个唯一 exec；optional
+   LLM 继续 reviewed/excluded。Step 2/3 无 agent 的 correctness reports 不得充当
+   coverage evidence。
 3. create build-only aggregate reporter，只产 aggregate XML/HTML 和 per-module
    locator；另建 versioned verifier 解析 XML，fail-close expected module/package/
    class/counter/threshold。
@@ -170,10 +174,33 @@ Work：
 7. expected-negative：missing/empty exec/XML、missing expected class/package、wrong
    class/source SHA、zero counter、低门、阈值被私改、exclusion drift 必须失败。
 
+Step 4 authority layout 固定为
+`target/v934-step4-coverage/runs/<run-id>/`；run-owned exec 位于 `exec/`，manifest=
+`exec-manifest.json`，aggregate XML/HTML 位于 `report/`，candidate/final threshold 只能写
+`scripts/v934/step4/coverage-thresholds.json`。Step 1 已冻结的
+`scripts/v934/coverage-thresholds.json` 只作为 parent policy，不得原地改写。
+
 Exit：reviewed frozen baseline、critical gates 和 exec manifest 全部 pass；
 aggregate XML verifier + model merged-exec check实际生效；aggregate/per-module reports
 可定位；canonical lane runners 此后默认一次执行即产唯一 exec，coverage verifier
 不重跑 suite；negative probes 生效。Progress 回写 Step 4。
+
+Recorded progress（2026-07-16，superseding bootstrap wording）：
+
+- state=`in-progress / diagnostic-ready`，不是 `passed`；
+- static scope exact=`23 exec / 48 sessions`，required report overlay=
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 单列
+  `2/6`；
+- fail-closed readiness probes：raw contract=`8/8`、effective POM=`4/4`、toolchain
+  receipt=`5/5`、report inventory=`27/27`；
+- toolchain receipt 已约束 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
+  `9.6/9.7/9.7.1` 和 24 个 production module effective compiler；
+- local Step 4 `SHA256SUMS` 已生成并通过 exact 48 项校验，manifest
+  SHA-256=`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`；
+- threshold 仍为 `diagnostic-pending`，尚无 all-lane aggregate baseline/review 或
+  Step 4 exit evidence。下一动作是从 clean committed/pushed HEAD 执行 fresh
+  all-lane diagnostic；在该 diagnostic、人工 review 和 confirmed thresholds 完成前，
+  Step 5 entry 继续关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

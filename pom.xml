@@ -65,6 +65,9 @@
         <module>addons/foggy-dataset-model-preagg</module>
         <module>addons/foggy-odoo-bridge-java</module>
 
+        <!-- Build-only coverage reporter; never packaged into production artifacts. -->
+        <module>build-support/foggy-coverage-report</module>
+
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->
     </modules>
@@ -82,6 +85,14 @@
         <failsafe.failIfNoSpecifiedTests>true</failsafe.failIfNoSpecifiedTests>
         <maven-surefire-plugin.version>3.5.3</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>3.5.3</maven-failsafe-plugin.version>
+        <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+        <!-- Empty by default. The v934-coverage profile fills these late-bound
+             properties without replacing the repository JVM/UTF-8 argLine. -->
+        <jacoco.ut.argLine></jacoco.ut.argLine>
+        <jacoco.it.argLine></jacoco.it.argLine>
+        <jacoco.ut.destFile>${project.build.directory}/jacoco-ut.exec</jacoco.ut.destFile>
+        <jacoco.it.destFile>${project.build.directory}/jacoco-it.exec</jacoco.it.destFile>
+        <v934.coverage.sessionId>${project.artifactId}</v934.coverage.sessionId>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -354,6 +365,9 @@
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
                     <skipTests>${skipUnitTests}</skipTests>
+                    <argLine>@{argLine} @{jacoco.ut.argLine}</argLine>
+                    <forkCount>1</forkCount>
+                    <reuseForks>true</reuseForks>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*Tests.java</include>
@@ -383,6 +397,9 @@
                 <version>${maven-failsafe-plugin.version}</version>
                 <configuration>
                     <skipITs>${skipITs}</skipITs>
+                    <argLine>@{argLine} @{jacoco.it.argLine}</argLine>
+                    <forkCount>1</forkCount>
+                    <reuseForks>true</reuseForks>
                     <includes>
                         <include>**/IT*.java</include>
                         <include>**/*IT.java</include>
@@ -413,6 +430,46 @@
 
     <!-- 发布到 Maven Central 的配置 -->
     <profiles>
+        <profile>
+            <id>v934-coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco-maven-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>v934-prepare-unit-agent</id>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                                <configuration>
+                                    <propertyName>jacoco.ut.argLine</propertyName>
+                                    <destFile>${jacoco.ut.destFile}</destFile>
+                                    <append>true</append>
+                                    <sessionId>${v934.coverage.sessionId}-${project.artifactId}</sessionId>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>v934-prepare-integration-agent</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>prepare-agent-integration</goal>
+                                </goals>
+                                <configuration>
+                                    <propertyName>jacoco.it.argLine</propertyName>
+                                    <destFile>${jacoco.it.destFile}</destFile>
+                                    <append>true</append>
+                                    <sessionId>${v934.coverage.sessionId}-${project.artifactId}</sessionId>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>release</id>
             <build>
@@ -489,6 +546,9 @@
                         <configuration>
                             <publishingServerId>central</publishingServerId>
                             <autoPublish>true</autoPublish>
+                            <!-- Build-support only: never add the coverage reporter
+                                 component to a Central release bundle. -->
+                            <excludeArtifacts>foggy-coverage-report</excludeArtifacts>
                         </configuration>
                     </plugin>
                 </plugins>

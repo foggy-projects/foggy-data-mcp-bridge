@@ -192,6 +192,7 @@ class PreAggregationEdgeCaseTest {
                 .l1Enabled(false)
                 .l2Enabled(false)
                 .preAggEnabled(true)
+                .hybridQueryEnabled(false)
                 .build());
 
         DbQueryResult result = queryFacade.queryModelResult(context);
@@ -239,6 +240,7 @@ class PreAggregationEdgeCaseTest {
                 .l1Enabled(false)
                 .l2Enabled(false)
                 .preAggEnabled(true)
+                .hybridQueryEnabled(false)
                 .build());
 
         DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
@@ -304,6 +306,7 @@ class PreAggregationEdgeCaseTest {
                 .l1Enabled(false)
                 .l2Enabled(false)
                 .preAggEnabled(true)
+                .hybridQueryEnabled(false)
                 .build());
 
         DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);

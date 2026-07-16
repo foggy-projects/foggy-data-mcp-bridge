@@ -24,12 +24,12 @@ updated_at: 2026-07-16
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Steps 4–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 diagnostic-ready / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 ready-not-started |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 diagnostic-ready |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；open B/H/M=0 |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 exit evidence absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 ready-with-risks，仅放行 clean-HEAD diagnostic，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；critical/major gap=0 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -56,6 +56,25 @@ external `16/76`、exact union `45/446/F0E0S0`、gap/overlap/extra=`0/0/0`，DB 
 `18/18`、Redis state=`4/4`、Addon companion=`2/6`、optional LLM reviewed exclusion。
 Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结果满足 Step 3 exit，
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
+
+Current Step 4 readiness（2026-07-16）：状态仅为 `in-progress /
+diagnostic-ready`。静态执行结构精确为 `23 exec / 48 sessions`，required
+report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
+companion 仍单列 `2/6`。raw contract/effective POM/toolchain/report inventory 负例
+分别为 `8/8`、`4/4`、`5/5`、`27/27`；toolchain receipt 绑定 Step 1
+raw 工具版本、ASM `9.6/9.7/9.7.1` 三层 realm 和 24 个 production module
+effective compiler。本地 Step 4 `SHA256SUMS` 已生成并通过 exact 48 项
+校验，manifest SHA-256=
+`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。该记录不是 acceptance evidence：
+threshold 仍为 `diagnostic-pending`，尚无 aggregate baseline/review 或 Step 4 exit
+evidence。下一动作是从 clean committed/pushed HEAD 执行 fresh all-lane
+diagnostic；Step 5 仍关闭。
+
+Step 4 implementation quality 已记录于
+`docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
+`ready-with-risks`。该决定只放行提交/推送后的 clean-HEAD diagnostic，明确
+`can_enter_coverage_audit=no`；待 all-lane observation 与 threshold review 完成后必须
+重新判断。
 
 ## Mandatory Acceptance Evidence
 

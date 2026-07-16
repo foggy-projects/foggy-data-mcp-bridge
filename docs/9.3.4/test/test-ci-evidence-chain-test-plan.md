@@ -7,6 +7,7 @@ result: in-progress
 step1_result: passed
 step2_result: passed
 step3_result: passed
+step4_result: in-progress
 created_at: 2026-07-14
 updated_at: 2026-07-16
 ---
@@ -134,8 +135,9 @@ exec，Step 4 必须重新带 agent 执行全部 required lanes。
 
 Positive：
 
-- 接好 agent 后重新执行 all unit、hermetic/SQLite integration 和 Step 3 全 external
-  lanes；每 lane 写独立 exec，manifest 绑定
+- 接好 agent 后重新执行 all unit、6 个 hermetic/SQLite variants、five-DB 7 variants、
+  7 个 required external variants 与 Addon companion 2 variants；共 23 个独立 exec，
+  optional LLM 继续 reviewed/excluded。manifest 绑定
   JaCoCo version、commit、source/classes hash、lane/session。
 - build-only aggregator 只产生 aggregate XML/HTML；versioned verifier 精确校验
   expected module/package/class、counter totals 和 reviewed thresholds。
@@ -148,6 +150,28 @@ Positive：
 Expected-negative：missing/empty/truncated exec/XML、missing expected class/package、
 错误 commit/class/source hash、zero counter、低于门槛、阈值被私降、exclusion
 漂移、同名 exec 并发覆盖、空 reporter `jacoco:check`、只有 unit 或只有 IT exec 均失败。
+
+Diagnostic-ready result（2026-07-16，不是 Step 4 pass）：静态执行结构为
+`23 exec / 48 sessions`，required report overlay 为
+`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
+`2/6`。raw contract/effective POM/toolchain/report inventory expected-negative 已分别得到
+`8/8`、`4/4`、`5/5`、`27/27`。toolchain receipt 还必须在执行边界持续
+复验 Step 1 raw 工具版本、ASM `9.6/9.7/9.7.1` 三层 realm 和 24 个
+production module effective compiler。本地 `scripts/v934/step4/SHA256SUMS` 已生成
+并通过 exact 48 项校验，manifest SHA-256=
+`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。
+
+Build regression：
+
+- `docs/9.3.4/workitems/BUG-step4-legacy-coverage-argline-fail-open.md` 已关闭：
+  `coverage_tool.py` + manifest + `validate-contract` + `8/8` negatives 精确保护
+  canonical late-evaluation 形式；三态 focused 动态证据为 legacy coverage 产
+  exec/低门 `rc=1`、普通 profile `rc=0/no exec`、v934 profile=
+  `rc=0/non-empty exec/exact session`；
+- historical `scripts/verify-v934-step2-successor.sh` 在当前 25-module root 因冻结
+  24-production-reactor generation 而 fail closed 是预期 supersession boundary。正式
+  Step 4 路径必须使用 immutable Step 2 parent + `step2_report_view_tool.py`
+  derived view + overlay，不得为重跑 historical authority 将其放宽到 25。
 
 ## Step 5 — Authority Rehearsal / Immutable Candidate
 
@@ -223,6 +247,8 @@ Final acceptance 至少验证：
 - result: `in-progress`
 - step1_result: `passed`
 - step2_result: `passed`
+- step3_result: `passed`
+- step4_result: `in-progress / diagnostic-ready`（不是 `passed`）
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -252,5 +278,9 @@ Final acceptance 至少验证：
   `docs/9.3.4/evidence/step-3/step3-external-vector-runner-candidate-20260715.md`；
   `docs/9.3.4/evidence/step-3/step3-shared-external-matrix-candidate-20260716.md`；
   `docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。
-- next executable action: Step 4=`ready / not-started`；接入 JaCoCo agent 后在新 authority
-  中重跑 unit、hermetic/SQLite、五库与全部 required external lanes。
+- Step 4 static readiness：exact `23 exec / 48 sessions`、
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`；四类
+  negatives=`8/8 + 4/4 + 5/5 + 27/27`。threshold 仍为
+  `diagnostic-pending`，没有 aggregate baseline/review 或 Step 4 exit evidence。
+- next executable action: 提交并推送 diagnostic-ready baseline，确认 clean worktree 且
+  `HEAD == origin/main`，再执行 fresh all-lane diagnostic。Step 5 仍关闭。

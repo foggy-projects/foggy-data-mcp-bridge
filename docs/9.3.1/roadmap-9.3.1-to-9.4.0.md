@@ -30,7 +30,7 @@ updated_at: 2026-07-16
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 ready-not-started | [执行文档包](../9.3.4/README.md)；formal r4 exact `45/446/F0E0S0`，DB state `18/18`、Redis state `4/4`、Addon companion `2/6`；Step 3 feature accepted |
+| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 diagnostic-ready | [执行文档包](../9.3.4/README.md)；Step 3 feature accepted；Step 4 已收口静态结构与防伪绿工具链，但尚未在 clean committed/pushed HEAD 执行 all-lane diagnostic，不是 coverage passed |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,7 +85,7 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–3 passed / Step 4 ready-not-started`；入口为
+当前状态：`in-progress / Steps 1–3 passed / Step 4 diagnostic-ready`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。confirmed run
 `step1-candidate-r8-20260714` 已冻结 532 sources、820 discovery rows、829 execution
 keys、519 predecessor nodes/edges，28/28 expected-negative probes 通过；两路独立
@@ -96,8 +96,16 @@ INT/TERM/HUP durable fail-closed probe=`130/143/129`；r8d 已作废。Step 3 fo
 `step3-required-20260716-final-r4` 在同一 committed HEAD 上完成 database `29/370` 与
 required external `16/76` 的 exact union `45/446/F0E0S0`，gap/overlap/extra=
 `0/0/0`；DB state=`18/18`、Redis state=`4/4`，Addon companion=`2/6` 且不计入
-union。Step 3 quality→coverage→feature acceptance 已完成；Step 4 尚未开工，9.3.5
-仍为 queued。
+union。Step 3 quality→coverage→feature acceptance 已完成。Step 4 已达
+`in-progress / diagnostic-ready`：静态覆盖执行库存精确为 `23 exec / 48
+sessions`，required report overlay 为 `773 positive + 59 structural / 5,707
+testcase / F0E0S0`，Addon 仍单列 `2/6`；raw contract/effective POM/toolchain/
+report inventory 负例分别为 `8/8`、`4/4`、`5/5`、`27/27`。
+Step 4 `SHA256SUMS` 已生成并通过 exact 48 项校验，manifest SHA-256=
+`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。阈值仍为
+`diagnostic-pending`，尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。
+下一动作是提交并推送该 diagnostic-ready baseline，再从 clean committed/pushed
+HEAD 执行 fresh all-lane diagnostic；Step 5 和 9.3.5 仍关闭。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

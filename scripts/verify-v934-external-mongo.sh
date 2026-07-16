@@ -4,10 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_PATH="$ROOT_DIR/scripts/verify-v934-external-mongo.sh"
 STEP3_DIR="$ROOT_DIR/scripts/v934/step3"
-CONTRACT="$STEP3_DIR/external-matrix-contract.json"
-REPORT_TOOL="$STEP3_DIR/external_matrix_report_tool.py"
+STEP4_SUCCESSOR_DIR="$ROOT_DIR/scripts/v934/step4/successor"
+CONTRACT="$STEP4_SUCCESSOR_DIR/external-matrix-contract.json"
+REPORT_TOOL="$STEP4_SUCCESSOR_DIR/external_matrix_report_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
 SHARED_CONTEXT_LIB="$STEP3_DIR/external_shared_context.sh"
+COVERAGE_RUNNER_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 DEFERRED_INVENTORY="$ROOT_DIR/scripts/v934/successor/step2/deferred-step3.tsv"
 MODEL_REPORTS="$ROOT_DIR/addons/foggy-dataset-model-mongo/target/failsafe-reports"
 VIEWER_REPORTS="$ROOT_DIR/addons/foggy-data-viewer/target/failsafe-reports"
@@ -301,7 +303,8 @@ fi
 for command_name in cmp cut date docker flock git grep jq mkfifo mv mvn python3 readlink rg sed seq sha256sum sleep tee; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
-for required_file in "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" "$SHARED_CONTEXT_LIB" "$DEFERRED_INVENTORY"; do
+for required_file in "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" \
+  "$SHARED_CONTEXT_LIB" "$COVERAGE_RUNNER_LIB" "$DEFERRED_INVENTORY"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
@@ -315,6 +318,8 @@ done
 source "$AUTHORITY_LIB"
 # shellcheck source=scripts/v934/step3/external_shared_context.sh
 source "$SHARED_CONTEXT_LIB"
+# shellcheck source=scripts/v934/step4/coverage_runner_lib.sh
+source "$COVERAGE_RUNNER_LIB"
 
 if [[ "$SHARED_CHILD_MODE" == true ]]; then
   v934_external_prepare_shared_child "$ROOT_DIR" "$RUN_ID" "$LANE" || exit 1
@@ -522,6 +527,7 @@ rm -rf -- "$MODEL_REPORTS" "$VIEWER_REPORTS"
 mkdir -p "$VARIANT_ROOT"
 write_variant_marker "$MARKER"
 echo "[v934-external-mongo] running variant=mongo6"
+v934_coverage_configure it mongo6
 (cd "$ROOT_DIR" && \
   FOGGY_DATA_VIEWER_MONGO_IT=true \
   FOGGY_DATA_VIEWER_MONGO_URI="mongodb://127.0.0.1:$MONGO_PORT/$VIEWER_DATABASE?directConnection=true" \
@@ -551,7 +557,9 @@ echo "[v934-external-mongo] running variant=mongo6"
     -Dfailsafe.failIfNoSpecifiedTests=false \
     -Dv934.external.run-id="$RUN_ID" \
     -Dv934.external.variant=mongo6 \
+    "${V934_COVERAGE_MAVEN_ARGS[@]}" \
     verify)
+v934_coverage_verify_exec
 python3 "$REPORT_TOOL" seal-bytecode \
   --lane "$LANE" --output "$VARIANT_ROOT/bytecode.tsv"
 python3 "$REPORT_TOOL" collect \

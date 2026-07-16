@@ -249,6 +249,103 @@
                 </plugins>
             </build>
         </profile>
+        <!--
+            9.3.4 Step 4 authority gate. The execution data is produced and
+            merged by the top-level coverage workflow; this profile only
+            validates that external data and never installs a JaCoCo agent.
+        -->
+        <profile>
+            <id>v934-coverage-model-check</id>
+            <properties>
+                <v934.coverage.model.dataFile>${project.build.directory}/v934-step4-coverage/__MISSING_EXTERNAL_MERGED_UNIT_ALL_REQUIRED_IT__.exec</v934.coverage.model.dataFile>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <executions>
+                            <execution>
+                                <id>v934-coverage-model-require-external-data</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireProperty>
+                                            <property>v934.coverage.model.dataFile</property>
+                                            <regex>^/(?!.*__MISSING_EXTERNAL_MERGED_UNIT_ALL_REQUIRED_IT__).+$</regex>
+                                            <regexMessage>Supply -Dv934.coverage.model.dataFile=&lt;absolute merged Unit+all-required-IT exec file&gt;.</regexMessage>
+                                        </requireProperty>
+                                        <requireFilesExist>
+                                            <files>
+                                                <file>${v934.coverage.model.dataFile}</file>
+                                            </files>
+                                            <message>The merged Unit+all-required-IT JaCoCo exec file is required.</message>
+                                        </requireFilesExist>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.12</version>
+                        <executions>
+                            <execution>
+                                <id>v934-coverage-model-check</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                                <configuration>
+                                    <dataFile>${v934.coverage.model.dataFile}</dataFile>
+                                    <haltOnFailure>true</haltOnFailure>
+                                    <rules>
+                                        <rule>
+                                            <element>BUNDLE</element>
+                                            <limits>
+                                                <limit>
+                                                    <counter>LINE</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>0.77</minimum>
+                                                </limit>
+                                                <limit>
+                                                    <counter>BRANCH</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>0.62</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                        <rule>
+                                            <element>CLASS</element>
+                                            <includes>
+                                                <include>com.foggyframework.dataset.db.model.impl.SemanticScaleSqlSupport</include>
+                                            </includes>
+                                            <limits>
+                                                <limit>
+                                                    <counter>LINE</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>1.00</minimum>
+                                                </limit>
+                                                <limit>
+                                                    <counter>BRANCH</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>1.00</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
 </project>

@@ -1,0 +1,235 @@
+{
+  "bindings": {
+    "addon_pom": {
+      "path": "addons/foggy-dataset-model-preagg/pom.xml",
+      "sha256": "911cf813e3bf8cbe6aaa1ff17db8e8750cb647346f478b26681128426aee6ae8"
+    },
+    "authority_runner_lib": {
+      "path": "scripts/v934/authority_runner_lib.sh",
+      "sha256": "65f50005f0e71489fa263f1bbcf841bb646d89bb35dd6baac44f1c7480ed5434"
+    },
+    "core_interceptor": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationInterceptor.java",
+      "sha256": "ab80d8fdb7240690ec9cfbe7c8ccf5ac424aa8f272bb91dc1326c4fb0194d647"
+    },
+    "core_match_result": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationMatchResult.java",
+      "sha256": "242bdb7c5c4a4b704e659ee8010c482031119dbe1fc2f18784257d2fe9166201"
+    },
+    "core_matcher": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationMatcher.java",
+      "sha256": "dc7f651ec2a9172541aaf60b290e52ee9c7befeb8465f9bc92ef806cacd81799"
+    },
+    "core_matcher_test": {
+      "path": "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationMatcherTest.java",
+      "sha256": "bfe4c8b5bd8af0e16d07dba4fdddc2ff2db06343c1b16bdb1690c9c1f481fa7a"
+    },
+    "core_model_result_context": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/ModelResultContext.java",
+      "sha256": "2575c1f1163045dda3dd4bdbf8d45bcc10bb969e97c8337a181744e3a7b050e3"
+    },
+    "core_preaggregation_def": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/preagg/PreAggregationDef.java",
+      "sha256": "8d2aa2cc8aa0bb4a1c564d8d2d71c7c7a332cfe71b4b0bac00723083f91f927d"
+    },
+    "core_preaggregation_impl": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/preagg/PreAggregationImpl.java",
+      "sha256": "07e4d2132b1fe77ff385fa1f73efaf1292236afae46f673aa1432090da6a71a9"
+    },
+    "core_preaggregation_it": {
+      "path": "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationIT.java",
+      "sha256": "15247c796a7faac44952be3bd331c167a51b62e7f1a3388d9fe78be4160d158e"
+    },
+    "core_preaggregation_spi": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/preagg/PreAggregation.java",
+      "sha256": "41abc8c62f896903c69b1165a1d90cb3d25e6d1d23808abab8d31cc91cb7bfb0"
+    },
+    "core_query_requirement_builder": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggQueryRequirementBuilder.java",
+      "sha256": "e00206c21c21d59eb06c89ab1e1c133ec6a270ab02632afe70622b480abf593b"
+    },
+    "core_query_rewriter": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggQueryRewriter.java",
+      "sha256": "e7ce1c2f21958603767ebc12e24a3569fa4692bc76c2a0031fd5d7a407ed1d26"
+    },
+    "core_rewrite_result": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggRewriteResult.java",
+      "sha256": "bb1f2ed077e495dc078a99c95e6ea2ce5c9738c68a54df47d6881ca0a49a7baa"
+    },
+    "core_rewrite_step": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/query_execution/PreAggRewriteStep.java",
+      "sha256": "bbc7d34ee0b080706a7628489f39553a44a881a730538b2a3a8af899d7b52f79"
+    },
+    "core_watermark_resolver": {
+      "path": "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/preagg/internal/PreAggWatermarkResolver.java",
+      "sha256": "b3227df10b0aee09b65505c028bb2b5f8c2e25ce10e8a8db99521d681bb99a7a"
+    },
+    "full_refresh_strategy": {
+      "path": "addons/foggy-dataset-model-preagg/src/main/java/com/foggyframework/dataset/db/model/preagg/refresh/FullRefreshStrategy.java",
+      "sha256": "4e9efb3a5128ef1033512557dfcc7df09ecdd8dbeafea6c8dea3b273431867ac"
+    },
+    "incremental_refresh_strategy": {
+      "path": "addons/foggy-dataset-model-preagg/src/main/java/com/foggyframework/dataset/db/model/preagg/refresh/IncrementalRefreshStrategy.java",
+      "sha256": "f7459c0bf942bc8ed2b96164093f788e2d27ddf675fcf9c6a8cd23bb4d729459"
+    },
+    "incremental_refresh_strategy_test": {
+      "path": "addons/foggy-dataset-model-preagg/src/test/java/com/foggyframework/dataset/db/model/preagg/refresh/IncrementalRefreshStrategyTest.java",
+      "sha256": "f43581e87a1d60828af84c133d2e3e37488fb1a459b1084e277b565f7256ea74"
+    },
+    "lifecycle_it": {
+      "path": "addons/foggy-dataset-model-preagg/src/test/java/com/foggyframework/dataset/db/model/preagg/lifecycle/PreAggAddonLifecycleIT.java",
+      "sha256": "9396adc10811ca65d33446b7cff997f1f93cc6b1ade07dce9e11705668646ba7"
+    },
+    "mysql_base_schema_fixture": {
+      "path": "foggy-dataset-demo/docker/mysql/init/01-schema.sql",
+      "sha256": "0d39cedb766eb459d55f1a6d597cbc5e5beba70e10af3a40c56ff40e49173483"
+    },
+    "mysql_base_testdata_fixture": {
+      "path": "foggy-dataset-demo/docker/mysql/init/03-test-data.sql",
+      "sha256": "012fb25fe80cba2d1af37f2cf9ef836dc54e4939bf98d2d401a54980defa0f8c"
+    },
+    "mysql_schema_fixture": {
+      "path": "foggy-dataset-demo/docker/mysql/init/10-preagg-schema.sql",
+      "sha256": "4faf2b32600252340d2fac9512d4e9c140b291281769f9365f8a7fb67e3e64c1"
+    },
+    "mysql_testdata_fixture": {
+      "path": "foggy-dataset-demo/docker/mysql/init/11-preagg-testdata.sql",
+      "sha256": "f47d18cbff7773614d861bd020ed9b966764232c1bcf68f7d8224fdea94680e5"
+    },
+    "physical_column_contract": {
+      "path": "addons/foggy-dataset-model-preagg/src/main/java/com/foggyframework/dataset/db/model/preagg/ddl/PreAggPhysicalColumnContract.java",
+      "sha256": "839ecd6162ae307542021e64d0d02256b1ffdd7816cec95aae5f3ab9fa12a04b"
+    },
+    "postgres_base_schema_fixture": {
+      "path": "foggy-dataset-demo/docker/postgres/init/01-schema.sql",
+      "sha256": "3c635a7c8433d0689af85e2a3f3bbf067d7093066e336f7a17d50322a78704a4"
+    },
+    "postgres_base_testdata_fixture": {
+      "path": "foggy-dataset-demo/docker/postgres/init/03-test-data.sql",
+      "sha256": "6c6fb70f65cfe02ff360003053bb5fdee140df398a4a5e2f96b5ab0f05e281c7"
+    },
+    "refresh_result": {
+      "path": "addons/foggy-dataset-model-preagg/src/main/java/com/foggyframework/dataset/db/model/preagg/refresh/PreAggRefreshResult.java",
+      "sha256": "9906174b2b78db91cfc776fe542166495b191594ab18ec616405e77e04602838"
+    },
+    "refresh_service": {
+      "path": "addons/foggy-dataset-model-preagg/src/main/java/com/foggyframework/dataset/db/model/preagg/refresh/PreAggRefreshService.java",
+      "sha256": "7a503dea65e7df528f6fcff3e8e3de936c1c1c78f914ac065fa793200b9ffe96"
+    },
+    "refresh_service_test": {
+      "path": "addons/foggy-dataset-model-preagg/src/test/java/com/foggyframework/dataset/db/model/preagg/refresh/PreAggRefreshServiceTest.java",
+      "sha256": "e2517c06dba24b6e3e9164314763a23f0d460436cea4538cf1a32b98e6255c76"
+    },
+    "report_tool": {
+      "path": "scripts/v934/step3/preagg_addon_lifecycle_report_tool.py",
+      "sha256": "3995c3bccdb0d69e5727c184990e4a1d1f9aac531ff981c067ab038cb4690cf1"
+    },
+    "return_tm": {
+      "path": "foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/model/FactReturnPreAggModel.tm",
+      "sha256": "806ee7b6dfaf0c15a6b747327c8d1cf9b582f2d3710fc11207fbf86036a97d48"
+    },
+    "runner": {
+      "path": "scripts/verify-v934-preagg-addon-lifecycle.sh",
+      "sha256": "5ac2bd692ab0faf4e514a188f4074b81538bbe3014da779f7e4351ac8fa3befb"
+    },
+    "sales_tm": {
+      "path": "foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/model/FactSalesPreAggModel.tm",
+      "sha256": "cfa3621fbe4d300be8a82c18f7f47bab5208ebf90ded4816b0af9000c8b313f4"
+    },
+    "scheduler": {
+      "path": "addons/foggy-dataset-model-preagg/src/main/java/com/foggyframework/dataset/db/model/preagg/scheduler/PreAggScheduler.java",
+      "sha256": "040d9aa26ebaeae8acb3cd391d89610f4ce8d580a0a6353be2d8e0137b7f9c56"
+    },
+    "scheduler_test": {
+      "path": "addons/foggy-dataset-model-preagg/src/test/java/com/foggyframework/dataset/db/model/preagg/scheduler/PreAggSchedulerTest.java",
+      "sha256": "8dfa147ebc1d24c517bde4f8c81c6ef341c2e2449d49b43fa6fa9701523cf0b4"
+    },
+    "sql_builder": {
+      "path": "addons/foggy-dataset-model-preagg/src/main/java/com/foggyframework/dataset/db/model/preagg/ddl/PreAggSqlBuilder.java",
+      "sha256": "a41ab132cb549ccc74f574a5c95fb0ac115df3b4373bbdbc76f6aebe78185632"
+    },
+    "sql_builder_test": {
+      "path": "addons/foggy-dataset-model-preagg/src/test/java/com/foggyframework/dataset/db/model/preagg/ddl/PreAggSqlBuilderTest.java",
+      "sha256": "7ba4db0c83be71e7c114a852f2794a76a9f8b2fc23258f85463cc0d52565ec41"
+    },
+    "sqlite_schema_fixture": {
+      "path": "foggy-dataset-model/src/test/resources/sqlite/04-preagg-schema.sql",
+      "sha256": "33c734ebd85d0ac50698879a30c5243f471a4bad34f7f2a764a6571e0bfc88f2"
+    },
+    "sqlite_testdata_fixture": {
+      "path": "foggy-dataset-model/src/test/resources/sqlite/05-preagg-data.sql",
+      "sha256": "dc81b669fbb4425e263323bab40d395fa443f8c6212adaf76fdd46d2d0ac60a0"
+    },
+    "sqlserver_base_schema_fixture": {
+      "path": "foggy-dataset-demo/docker/sqlserver/init/01-schema.sql",
+      "sha256": "f089e11479ebadf41551258c1364e1198edb40640619eb2763459faf379c2c5b"
+    },
+    "sqlserver_base_testdata_fixture": {
+      "path": "foggy-dataset-demo/docker/sqlserver/init/03-test-data.sql",
+      "sha256": "56cb1b11f98767f33604090bd7ffcb8fb30d3dc8e6effe832d2bf1b563b68fa3"
+    }
+  },
+  "external_database": {
+    "container_port": "3306/tcp",
+    "data_mount_destination": "/var/lib/mysql",
+    "db_kind": "mysql57",
+    "expected_version": "5.7.44",
+    "image_id": "sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb",
+    "image_ref": "mysql@sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb",
+    "resource_label": "com.foggy.v934.preagg-run"
+  },
+  "kind": "v934-step3-preagg-addon-lifecycle-contract",
+  "lane": "preagg-addon-lifecycle",
+  "module": "addons/foggy-dataset-model-preagg",
+  "negative_probes": [
+    {
+      "expected_error": "E_MISSING_REPORT",
+      "probe": "missing-report"
+    },
+    {
+      "expected_error": "E_REPORT_OUTCOME",
+      "probe": "failure-outcome"
+    },
+    {
+      "expected_error": "E_STALE_REPORT",
+      "probe": "stale-report"
+    },
+    {
+      "expected_error": "E_REPORT_IDENTITY",
+      "probe": "wrong-variant-report"
+    }
+  ],
+  "required": true,
+  "runner": "failsafe",
+  "schema_version": 1,
+  "testcase_names": [
+    "missingExplicitMappingFailsClosed",
+    "numericWatermarkFailsClosedWithoutMutation",
+    "realLifecycleHasNativeQueryParity"
+  ],
+  "totals": {
+    "errors": 0,
+    "failures": 0,
+    "reports": 2,
+    "skipped": 0,
+    "testcase_nodes": 6,
+    "variants": 2
+  },
+  "variants": [
+    {
+      "db_kind": "sqlite",
+      "expected_reports": 1,
+      "expected_testcase_nodes": 3,
+      "report_fqcn": "com.foggyframework.dataset.db.model.preagg.lifecycle.PreAggAddonLifecycleIT",
+      "variant_key": "sqlite"
+    },
+    {
+      "db_kind": "mysql57",
+      "expected_reports": 1,
+      "expected_testcase_nodes": 3,
+      "report_fqcn": "com.foggyframework.dataset.db.model.preagg.lifecycle.PreAggAddonLifecycleIT",
+      "variant_key": "mysql57"
+    }
+  ],
+  "version": "9.3.4"
+}

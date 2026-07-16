@@ -432,6 +432,7 @@ public class RedisCrossJvmCacheIT {
         Path outputFile = Files.createTempFile("v933-redis-cross-jvm-", ".log");
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        addOptionalCoverageAgent(command, probeArguments[0]);
         command.add("-Djava.net.preferIPv4Stack=true");
         command.add("-cp");
         command.add(classPath);
@@ -461,6 +462,30 @@ public class RedisCrossJvmCacheIT {
         } finally {
             Files.deleteIfExists(outputFile);
         }
+    }
+
+    private static void addOptionalCoverageAgent(List<String> command, String mode) {
+        String agentJar = System.getenv("V934_JACOCO_CHILD_AGENT_JAR");
+        String execFile = System.getenv("V934_JACOCO_CHILD_EXEC_FILE");
+        String sessionPrefix = System.getenv("V934_JACOCO_CHILD_SESSION_PREFIX");
+        boolean configured = agentJar != null || execFile != null || sessionPrefix != null;
+        if (!configured) {
+            return;
+        }
+        if (agentJar == null || execFile == null || sessionPrefix == null) {
+            throw new IllegalStateException("partial v934 child coverage configuration");
+        }
+        Path agentPath = Path.of(agentJar);
+        Path execPath = Path.of(execFile);
+        if (!agentPath.isAbsolute() || !Files.isRegularFile(agentPath)
+                || !execPath.isAbsolute()
+                || !sessionPrefix.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+            throw new IllegalStateException("invalid v934 child coverage configuration");
+        }
+        command.add("-javaagent:" + agentPath
+                + "=destfile=" + execPath
+                + ",append=true,sessionid=" + sessionPrefix + "-child-" + mode
+                + ",output=file,dumponexit=true");
     }
 
     private static Map<String, String> parseProbeOutput(String output) {

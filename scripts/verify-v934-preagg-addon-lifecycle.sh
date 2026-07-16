@@ -4,9 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 RUNNER_NAME="verify-v934-preagg-addon-lifecycle.sh"
 LANE="preagg-addon-lifecycle"
-CONTRACT="$ROOT_DIR/scripts/v934/step3/preagg-addon-lifecycle-contract.json"
+CONTRACT="$ROOT_DIR/scripts/v934/step4/successor/preagg-addon-lifecycle-contract.json"
 REPORT_TOOL="$ROOT_DIR/scripts/v934/step3/preagg_addon_lifecycle_report_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
+STEP1_TOOL="$ROOT_DIR/scripts/v934/inventory_tool.py"
+STEP1_FREEZE="$ROOT_DIR/scripts/v934/contract-freeze.json"
+COVERAGE_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 SELECTOR="com.foggyframework.dataset.db.model.preagg.lifecycle.PreAggAddonLifecycleIT"
 REPORT_NAME="TEST-${SELECTOR}.xml"
 MYSQL_IMAGE="mysql@sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb"
@@ -147,12 +150,50 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
-if [[ ! -f "$AUTHORITY_LIB" || -L "$AUTHORITY_LIB" ]]; then
-  echo "[v934-preagg-addon] ERROR E_AUTHORITY_LOCK: authority library is missing" >&2
-  exit 1
-fi
+for required_file in "$AUTHORITY_LIB" "$STEP1_TOOL" "$STEP1_FREEZE" "$COVERAGE_LIB"; do
+  if [[ ! -f "$required_file" || -L "$required_file" ]]; then
+    echo "[v934-preagg-addon] ERROR E_REQUIRED_FILE: required file is missing or not regular: $required_file" >&2
+    exit 1
+  fi
+done
 # shellcheck source=v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
+# shellcheck source=v934/step4/coverage_runner_lib.sh
+source "$COVERAGE_LIB"
+
+mapfile -t REACTOR_MODULES < <(python3 - "$STEP1_TOOL" "$ROOT_DIR" "$STEP1_FREEZE" <<'PY'
+import json
+import runpy
+import sys
+from pathlib import Path
+
+namespace = runpy.run_path(sys.argv[1])
+active = namespace["active_reactor_modules"](Path(sys.argv[2]))
+freeze = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+reactor = freeze.get("reactor", {})
+production = reactor.get("modules", [])
+reporter = "build-support/foggy-coverage-report"
+if (
+    reactor.get("module_count") != 24
+    or len(production) != 24
+    or len(set(production)) != 24
+    or reporter in production
+):
+    raise SystemExit("Step 1 frozen production reactor is not an exact 24-module set")
+expected = sorted([*production, reporter])
+if active != expected:
+    missing = sorted(set(expected) - set(active))
+    unexpected = sorted(set(active) - set(expected))
+    raise SystemExit(
+        f"active reactor differs from frozen24+reporter: missing={missing} unexpected={unexpected}"
+    )
+print("\n".join(sorted(production)))
+PY
+)
+if [[ "${#REACTOR_MODULES[@]}" -ne 24 ]]; then
+  echo "[v934-preagg-addon] ERROR E_REACTOR: active reactor must equal the frozen 24 production modules plus the coverage reporter" >&2
+  exit 1
+fi
 
 if [[ "$AUTHORITY_MODE" == "inherited" ]]; then
   EXPECTED_PARENT_MARKER="$ROOT_DIR/target/v934-step3-required-matrix/runs/$RUN_ID/run-context.json"
@@ -260,6 +301,7 @@ target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding
 PY
   marker_sha="$(sha256sum "$marker" | awk '{print $1}')"
   PHASE="maven-$variant"
+  v934_coverage_configure it "preagg-addon-$variant"
   if [[ "$variant" == "sqlite" ]]; then
     env V934_PREAGG_DATABASE=sqlite \
       V934_PREAGG_SQLITE_PATH="$RUN_ROOT/work/sqlite/preagg.sqlite" \
@@ -269,7 +311,8 @@ PY
         -Dv934.preagg.runId="$RUN_ID" -Dv934.preagg.variant="$variant" \
         -Dv934.preagg.variantMarkerSha256="$marker_sha" \
         -Dv934.preagg.failsafe.reportsDirectory="$reports" \
-        -Dv934.preagg.failsafe.summaryFile="$reports/failsafe-summary.xml" verify \
+        -Dv934.preagg.failsafe.summaryFile="$reports/failsafe-summary.xml" \
+        "${V934_COVERAGE_MAVEN_ARGS[@]}" verify \
         >"$RUN_ROOT/work/$variant/maven.log" 2>&1
   else
     env V934_PREAGG_DATABASE=mysql57 \
@@ -281,9 +324,11 @@ PY
         -Dv934.preagg.runId="$RUN_ID" -Dv934.preagg.variant="$variant" \
         -Dv934.preagg.variantMarkerSha256="$marker_sha" \
         -Dv934.preagg.failsafe.reportsDirectory="$reports" \
-        -Dv934.preagg.failsafe.summaryFile="$reports/failsafe-summary.xml" verify \
+        -Dv934.preagg.failsafe.summaryFile="$reports/failsafe-summary.xml" \
+        "${V934_COVERAGE_MAVEN_ARGS[@]}" verify \
         >"$RUN_ROOT/work/$variant/maven.log" 2>&1
   fi
+  v934_coverage_verify_exec
   python3 "$REPORT_TOOL" --root "$ROOT_DIR" --contract "$CONTRACT" collect \
     --variant "$variant" --reports-dir "$reports" --marker "$marker" \
     --run-context "$RUN_ROOT/run-context.json" --output-dir "$RUN_ROOT/variants/$variant"

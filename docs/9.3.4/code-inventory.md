@@ -22,7 +22,7 @@ code_inventory:
     path: pom.xml
     role: reactor plugin defaults and unit runner
     expected_change: update
-    notes: central Surefire/Failsafe/JaCoCo; preserve UTF-8 argLine; remove accidental multi-db runner ownership
+    notes: central Surefire/Failsafe/JaCoCo; preserve UTF-8 argLine; late-evaluate shared argLine so legacy prepare-agent cannot fail open (BUG-step4-legacy-coverage-argline-fail-open); remove accidental multi-db runner ownership
   - module: all-owning-modules
     path: "**/pom.xml"
     role: module-specific test dependencies/configuration
@@ -138,6 +138,21 @@ code_inventory:
     role: build-only JaCoCo aggregate reporter
     expected_change: create
     notes: XML/HTML only; no production classes; no empty-project jacoco:check; not packaged in Launcher
+  - module: v934-step4-contract
+    path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
+    role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
+    expected_change: create
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; local Step 4 SHA256SUMS is generated and exact-48 verified (SHA-256 c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417)
+  - module: v934-step4-diagnostic-runner
+    path: scripts/verify-v934-step4-coverage.sh
+    role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
+    expected_change: create
+    notes: diagnostic-ready is not passed; first authoritative execution must start from clean committed/pushed HEAD
+  - module: model-coverage-gate
+    path: foggy-dataset-model/pom.xml
+    role: inherited model coverage gate over externally merged Unit + all-required-IT exec
+    expected_change: update
+    notes: Step4 profile runs check only, requires an absolute existing exec, preserves bundle 0.77/0.62 and SemanticScaleSqlSupport 1.00/1.00; legacy coverage profile remains intact
   - module: v934-runners
     path: scripts/verify-v934-test-inventory.sh
     role: source/runner/lane inventory and expected-negative authority
@@ -283,8 +298,32 @@ code_inventory:
   `45/446/F0E0S0`，DB state `18/18`，Redis state `4/4`，Addon companion `2/6`；
 - explicit boundary：Addon `2/6` 不计入 45/446；optional LLM reviewed/excluded；
   runtime watermark 非持久化；Mongo production JDBC dialect 解耦未宣称完成；
-- Step 4–7 的 coverage reporter/exec、single release runner、workflow、runtime-only image
-  与 version authority paths 仍保持 planned/not-started，不得从 Step 3 result 推断已实现。
+- Step 4 coverage 仅进入 diagnostic-ready；Step 5–7 的 single release runner、workflow、
+  runtime-only image 与 version authority paths 仍保持 planned/not-started，不得从
+  Step 3 result 或 Step 4 静态库存推断已通过。
+
+## Step 4 Diagnostic-ready Inventory Result
+
+- state：`in-progress / diagnostic-ready`，不是 `passed`；
+- frozen structure：`23 exec / 48 sessions`；required report overlay=
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
+  `2/6`；
+- fail-closed static evidence：raw contract=`8/8`、effective POM=`4/4`、toolchain
+  receipt=`5/5`、report inventory=`27/27`；
+- build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
+  `@{argLine}` late evaluation，修复 legacy coverage 无 exec 却 BUILD SUCCESS；三态
+  focused 验证已完成，`coverage_tool.py` + manifest + `validate-contract` +
+  `8/8` negatives 已自动保护 canonical 形式，见
+  `docs/9.3.4/workitems/BUG-step4-legacy-coverage-argline-fail-open.md`；
+- toolchain identity：receipt 绑定 Step 1 raw 工具版本、compiler realm ASM `9.6`、
+  JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1`，并核对 24 个 production
+  module effective compiler；
+- publication boundary：Step 4 `SHA256SUMS` 已生成并通过 exact 48 项校验，
+  manifest SHA-256=
+  `c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`；
+- evidence boundary：threshold 仍为 `diagnostic-pending`，尚无 all-lane aggregate
+  baseline/review 和 Step 4 exit evidence。下一动作为提交并推送本基线，再在
+  clean committed/pushed HEAD 上执行 fresh all-lane diagnostic；Step 5 仍关闭。
 
 ## Protected Boundaries
 

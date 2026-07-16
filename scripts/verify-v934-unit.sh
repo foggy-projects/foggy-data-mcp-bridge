@@ -5,11 +5,16 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_ID="${1:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 RUN_ROOT="$ROOT_DIR/target/v934-step2-unit/runs/$RUN_ID"
 RUNNER_NAME="surefire"
-SUCCESSOR_DIR="$ROOT_DIR/scripts/v934/successor/step2"
+STEP4_RUN_ROOT="$ROOT_DIR/target/v934-step4-coverage/runs/$RUN_ID"
+SUCCESSOR_DIR="$STEP4_RUN_ROOT/step2-report-view"
 STEP1_TOOL="$ROOT_DIR/scripts/v934/inventory_tool.py"
-SUCCESSOR_TOOL="$ROOT_DIR/scripts/v934/step2_successor_tool.py"
 REPORT_TOOL="$ROOT_DIR/scripts/v934/step2_report_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
+STEP4_AUTHORITY_LIB="$ROOT_DIR/scripts/v934/step4/authority_parent_lib.sh"
+STEP1_FREEZE="$ROOT_DIR/scripts/v934/contract-freeze.json"
+COVERAGE_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
+STEP4_TOOL="$ROOT_DIR/scripts/v934/step4/coverage_tool.py"
+REPORT_VIEW_TOOL="$ROOT_DIR/scripts/v934/step4/step2_report_view_tool.py"
 OUTER_MARKER="$RUN_ROOT/run-context.json"
 
 fail() {
@@ -22,7 +27,9 @@ fail() {
 for command_name in bash flock git mvn python3 tee; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
-for required_file in "$STEP1_TOOL" "$SUCCESSOR_TOOL" "$REPORT_TOOL" "$AUTHORITY_LIB"; do
+for required_file in \
+  "$STEP1_TOOL" "$STEP1_FREEZE" "$REPORT_TOOL" "$AUTHORITY_LIB" \
+  "$STEP4_AUTHORITY_LIB" "$COVERAGE_LIB" "$STEP4_TOOL" "$REPORT_VIEW_TOOL"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
@@ -38,7 +45,21 @@ fi
 
 # shellcheck source=scripts/v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
-v934_acquire_authority_lock "$ROOT_DIR" "v934-unit" || exit 1
+# shellcheck source=scripts/v934/step4/authority_parent_lib.sh
+source "$STEP4_AUTHORITY_LIB"
+# shellcheck source=scripts/v934/step4/coverage_runner_lib.sh
+source "$COVERAGE_LIB"
+CURRENT_STEP4_SOURCE=""
+if [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == inherited ]]; then
+  CURRENT_STEP4_SOURCE="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
+    python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+  v934_step4_validate_inherited_authority \
+    "$ROOT_DIR" "v934-unit" "$CURRENT_STEP4_SOURCE" || exit 1
+elif [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == standalone ]]; then
+  v934_acquire_authority_lock "$ROOT_DIR" "v934-unit" || exit 1
+else
+  fail "unsupported authority mode: ${V934_AUTHORITY_LOCK_MODE:-}"
+fi
 
 [[ ! -e "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
 GIT_HEAD="$(git -C "$ROOT_DIR" rev-parse HEAD)"
@@ -55,17 +76,51 @@ exec > >(tee -a "$RUN_ROOT/run.log") 2>&1
 v934_install_run_status_traps
 
 PHASE="source-baseline"
-SOURCE_BEFORE="$(python3 "$SUCCESSOR_TOOL" source-hash --root "$ROOT_DIR")"
-mapfile -t REACTOR_MODULES < <(python3 - "$STEP1_TOOL" "$ROOT_DIR" <<'PY'
+if [[ -n "$CURRENT_STEP4_SOURCE" ]]; then
+  SOURCE_BEFORE="$CURRENT_STEP4_SOURCE"
+else
+  SOURCE_BEFORE="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
+    python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+fi
+[[ "$SOURCE_BEFORE" =~ ^[0-9a-f]{64}$ ]] || fail "Step 4 source seal is invalid"
+if [[ -e "$STEP4_RUN_ROOT" ]]; then
+  [[ -d "$STEP4_RUN_ROOT" && ! -L "$STEP4_RUN_ROOT" ]] || \
+    fail "Step 4 run root is not a real directory: $STEP4_RUN_ROOT"
+else
+  mkdir -p "$STEP4_RUN_ROOT"
+fi
+mapfile -t REACTOR_MODULES < <(python3 - "$STEP1_TOOL" "$ROOT_DIR" "$STEP1_FREEZE" <<'PY'
+import json
 import runpy
 import sys
 from pathlib import Path
 
 namespace = runpy.run_path(sys.argv[1])
-print("\n".join(namespace["active_reactor_modules"](Path(sys.argv[2]))))
+active = namespace["active_reactor_modules"](Path(sys.argv[2]))
+freeze = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+reactor = freeze.get("reactor", {})
+production = reactor.get("modules", [])
+reporter = "build-support/foggy-coverage-report"
+if (
+    reactor.get("module_count") != 24
+    or len(production) != 24
+    or len(set(production)) != 24
+    or reporter in production
+):
+    raise SystemExit("Step 1 frozen production reactor is not an exact 24-module set")
+expected = sorted([*production, reporter])
+if active != expected:
+    missing = sorted(set(expected) - set(active))
+    unexpected = sorted(set(active) - set(expected))
+    raise SystemExit(
+        f"active reactor differs from frozen24+reporter: missing={missing} unexpected={unexpected}"
+    )
+print("\n".join(sorted(production)))
 PY
 )
-[[ "${#REACTOR_MODULES[@]}" -eq 24 ]] || fail "active reactor must contain 24 modules"
+[[ "${#REACTOR_MODULES[@]}" -eq 24 ]] || \
+  fail "active reactor must equal the frozen 24 production modules plus the coverage reporter"
+REACTOR_MODULE_CSV="$(IFS=,; printf '%s' "${REACTOR_MODULES[*]}")"
 PHASE="test-bytecode-cleanup"
 for module in "${REACTOR_MODULES[@]}"; do
   [[ -d "$ROOT_DIR/$module" ]] || fail "reactor module is missing: $module"
@@ -81,11 +136,16 @@ echo "[v934-unit] bootstrap clean reactor test bytecode"
 PHASE="test-compile"
 (cd "$ROOT_DIR" && mvn -q \
   -P\!multi-db,\!model-lifecycle,\!query-cache-real-query \
+  -pl "$REACTOR_MODULE_CSV" -am \
   -DskipUnitTests=true \
   -DskipITs=true \
   test-compile)
 PHASE="successor-validate"
-python3 "$SUCCESSOR_TOOL" validate --root "$ROOT_DIR" --directory "$SUCCESSOR_DIR"
+if [[ -e "$SUCCESSOR_DIR" || -L "$SUCCESSOR_DIR" ]]; then
+  python3 "$REPORT_VIEW_TOOL" validate --repo-root "$ROOT_DIR" --run-id "$RUN_ID"
+else
+  python3 "$REPORT_VIEW_TOOL" generate --repo-root "$ROOT_DIR" --run-id "$RUN_ID"
+fi
 python3 - "$SUCCESSOR_DIR/contract-freeze.json" <<'PY'
 import json
 import sys
@@ -173,14 +233,18 @@ temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encod
 os.replace(temporary, output)
 PY
 
-echo "[v934-unit] running all-reactor Surefire unit authority"
+echo "[v934-unit] running frozen production-reactor Surefire unit authority"
 PHASE="maven-unit"
+v934_coverage_configure ut unit
 (cd "$ROOT_DIR" && mvn -q \
   -P\!multi-db,\!model-lifecycle,\!query-cache-real-query \
+  -pl "$REACTOR_MODULE_CSV" -am \
   -DskipUnitTests=false \
   -DskipITs=true \
   -Dsurefire.failIfNoTests=false \
+  "${V934_COVERAGE_MAVEN_ARGS[@]}" \
   test)
+v934_coverage_verify_exec
 
 PHASE="report-verify"
 python3 "$REPORT_TOOL" verify \
@@ -199,7 +263,8 @@ python3 "$REPORT_TOOL" negative \
   --output-dir "$RUN_ROOT/negative"
 
 PHASE="source-after"
-SOURCE_AFTER="$(python3 "$SUCCESSOR_TOOL" source-hash --root "$ROOT_DIR")"
+SOURCE_AFTER="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
 [[ "$SOURCE_BEFORE" == "$SOURCE_AFTER" ]] || \
   fail "protected source changed during unit execution"
 PHASE="finalize"

@@ -4,10 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_PATH="$ROOT_DIR/scripts/verify-v934-external-mysql.sh"
 STEP3_DIR="$ROOT_DIR/scripts/v934/step3"
-CONTRACT="$STEP3_DIR/external-matrix-contract.json"
-REPORT_TOOL="$STEP3_DIR/external_matrix_report_tool.py"
+STEP4_SUCCESSOR_DIR="$ROOT_DIR/scripts/v934/step4/successor"
+CONTRACT="$STEP4_SUCCESSOR_DIR/external-matrix-contract.json"
+REPORT_TOOL="$STEP4_SUCCESSOR_DIR/external_matrix_report_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
 SHARED_CONTEXT_LIB="$STEP3_DIR/external_shared_context.sh"
+COVERAGE_RUNNER_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 DEFERRED_INVENTORY="$ROOT_DIR/scripts/v934/successor/step2/deferred-step3.tsv"
 REPORTS="$ROOT_DIR/foggy-dataset-mcp/target/failsafe-reports"
 DIRECT_REPORT="$ROOT_DIR/foggy-dataset-mcp/target/ai-test-report-summary.json"
@@ -594,6 +596,7 @@ run_variant() {
   mkdir -p "$variant_root"
   write_variant_marker "$marker" "$variant" "$selector"
   echo "[v934-external-mysql] running variant=$variant"
+  v934_coverage_configure it "$variant"
   (cd "$ROOT_DIR" && \
     SPRING_DATASOURCE_URL="jdbc:mysql://127.0.0.1:$MYSQL_PORT/$MYSQL_DATABASE?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai" \
     SPRING_DATASOURCE_USERNAME="$MYSQL_USER" \
@@ -627,7 +630,9 @@ run_variant() {
       -Dfailsafe.failIfNoSpecifiedTests=false \
       -Dv934.external.run-id="$RUN_ID" \
       -Dv934.external.variant="$variant" \
+      "${V934_COVERAGE_MAVEN_ARGS[@]}" \
       verify)
+  v934_coverage_verify_exec
   python3 "$REPORT_TOOL" seal-bytecode \
     --lane "$LANE" --output "$variant_root/bytecode.tsv"
   python3 "$REPORT_TOOL" collect \
@@ -659,8 +664,8 @@ fi
 for command_name in awk cmp cp cut date docker find flock git grep jq mkfifo mv mvn python3 readlink rg sed seq sha256sum sleep sort stat tee wc; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
-for required_file in "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" "$SHARED_CONTEXT_LIB" \
-  "$DEFERRED_INVENTORY" "$DIRECT_CASES"; do
+for required_file in "$SCRIPT_PATH" "$CONTRACT" "$REPORT_TOOL" "$AUTHORITY_LIB" \
+  "$SHARED_CONTEXT_LIB" "$COVERAGE_RUNNER_LIB" "$DEFERRED_INVENTORY" "$DIRECT_CASES"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
@@ -674,6 +679,8 @@ done
 source "$AUTHORITY_LIB"
 # shellcheck source=scripts/v934/step3/external_shared_context.sh
 source "$SHARED_CONTEXT_LIB"
+# shellcheck source=scripts/v934/step4/coverage_runner_lib.sh
+source "$COVERAGE_RUNNER_LIB"
 
 if [[ "$SHARED_CHILD_MODE" == true ]]; then
   v934_external_prepare_shared_child "$ROOT_DIR" "$RUN_ID" "$LANE" || exit 1

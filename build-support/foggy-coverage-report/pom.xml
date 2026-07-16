@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>foggy-data-mcp-bridge</artifactId>
+        <version>9.1.0.beta</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>foggy-coverage-report</artifactId>
+    <packaging>pom</packaging>
+    <name>Foggy Build-only Coverage Report</name>
+    <description>Build-only JaCoCo XML/HTML aggregation; never a production dependency.</description>
+
+    <properties>
+        <v934.coverage.dataFileInclude>target/jacoco-aggregate.exec</v934.coverage.dataFileInclude>
+        <v934.coverage.reportDirectory>${project.build.directory}/site/jacoco-aggregate</v934.coverage.reportDirectory>
+    </properties>
+
+    <!-- Direct compile-scope reactor dependencies supply production classes and
+         sources to report-aggregate. This POM module has no production classes. -->
+    <dependencies>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-chart-storage-cloud</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-data-viewer</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-client</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-graphql</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-model-cache</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-model-mongo</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-model-preagg</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-model-vector</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-mongo</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-vector</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-fsscript-client</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-odoo-bridge-java</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-bean-copy</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-core</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-demo</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-mcp</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-memory-grid-bridge</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-memory-grid-duckdb</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-model</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-fsscript</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-mcp-launcher</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-mcp-spi</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-runtime-api</artifactId><version>${project.version}</version></dependency>
+    </dependencies>
+
+    <profiles>
+        <profile>
+            <id>v934-coverage-report</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco-maven-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>v934-merge-exec</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>merge</goal>
+                                </goals>
+                                <configuration>
+                                    <fileSets>
+                                        <fileSet>
+                                            <directory>${project.build.directory}/coverage-input</directory>
+                                            <includes>
+                                                <include>*.exec</include>
+                                            </includes>
+                                        </fileSet>
+                                    </fileSets>
+                                    <destFile>${project.build.directory}/jacoco-aggregate.exec</destFile>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>v934-report-aggregate</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>report-aggregate</goal>
+                                </goals>
+                                <configuration>
+                                    <includeCurrentProject>false</includeCurrentProject>
+                                    <dataFileIncludes>
+                                        <dataFileInclude>${v934.coverage.dataFileInclude}</dataFileInclude>
+                                    </dataFileIncludes>
+                                    <outputDirectory>${v934.coverage.reportDirectory}</outputDirectory>
+                                    <title>Foggy 9.3.4 Aggregate Coverage</title>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

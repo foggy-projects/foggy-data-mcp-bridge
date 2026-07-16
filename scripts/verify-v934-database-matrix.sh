@@ -4,15 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_PATH="$ROOT_DIR/scripts/verify-v934-database-matrix.sh"
 STEP3_DIR="$ROOT_DIR/scripts/v934/step3"
-CONTRACT="$STEP3_DIR/database-matrix-contract.json"
-SOURCE_AMENDMENT="$STEP3_DIR/database-matrix-source-amendment.tsv"
-REPORT_TOOL="$STEP3_DIR/database_matrix_report_tool.py"
+STEP4_SUCCESSOR_DIR="$ROOT_DIR/scripts/v934/step4/successor"
+CONTRACT="$STEP4_SUCCESSOR_DIR/database-matrix-contract.json"
+SOURCE_AMENDMENT="$STEP4_SUCCESSOR_DIR/database-matrix-source-amendment.tsv"
+REPORT_TOOL="$STEP4_SUCCESSOR_DIR/database_matrix_report_tool.py"
 STATE_NEGATIVE_CONTRACT="$STEP3_DIR/database_state_contract.json"
 STATE_NEGATIVE_TOOL="$STEP3_DIR/database_state_negative_tool.py"
 PROVISIONER="$STEP3_DIR/provision-database-cell.sh"
 SQLITE_TOOL="$STEP3_DIR/sqlite_cell_tool.py"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
 STEP1_TOOL="$ROOT_DIR/scripts/v934/inventory_tool.py"
+STEP1_FREEZE="$ROOT_DIR/scripts/v934/contract-freeze.json"
+COVERAGE_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 SQLITE_JAR="$HOME/.m2/repository/org/xerial/sqlite-jdbc/3.42.0.0/sqlite-jdbc-3.42.0.0.jar"
 RUNNER_NAME="failsafe"
 LANE="database-contract-matrix"
@@ -40,6 +43,10 @@ fail() {
   echo "[v934-database-matrix] ERROR: $*" >&2
   exit 1
 }
+
+[[ -f "$COVERAGE_LIB" ]] || fail "required file missing: $COVERAGE_LIB"
+# shellcheck source=scripts/v934/step4/coverage_runner_lib.sh
+source "$COVERAGE_LIB"
 
 sha256_file() {
   sha256sum "$1" | cut -d' ' -f1
@@ -136,6 +143,7 @@ run_variant() {
   write_variant_marker "$variant" "$database" "$marker"
 
   echo "[v934-database-matrix] running variant=$variant database=$database profile=$profile"
+  v934_coverage_configure it "$variant"
   (cd "$ROOT_DIR" && mvn -q \
     -P'!multi-db,!model-lifecycle,!query-cache-real-query' \
     -pl foggy-dataset-model -am \
@@ -147,7 +155,9 @@ run_variant() {
     -Dfailsafe.failIfNoTests=false \
     -Dfailsafe.failIfNoSpecifiedTests=false \
     "$@" \
+    "${V934_COVERAGE_MAVEN_ARGS[@]}" \
     verify)
+  v934_coverage_verify_exec
 
   python3 "$REPORT_TOOL" collect \
     --variant "$variant" \
@@ -222,7 +232,7 @@ done
 for required_file in \
   "$SCRIPT_PATH" "$CONTRACT" "$SOURCE_AMENDMENT" "$REPORT_TOOL" \
   "$STATE_NEGATIVE_CONTRACT" "$STATE_NEGATIVE_TOOL" "$PROVISIONER" \
-  "$SQLITE_TOOL" "$AUTHORITY_LIB" "$STEP1_TOOL"; do
+  "$SQLITE_TOOL" "$AUTHORITY_LIB" "$STEP1_TOOL" "$STEP1_FREEZE" "$COVERAGE_LIB"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
@@ -389,26 +399,56 @@ for database in mysql57 mysql8 postgres15 sqlserver2022; do
 done
 
 PHASE="test-bytecode-cleanup"
-mapfile -t REACTOR_MODULES < <(python3 - "$STEP1_TOOL" "$ROOT_DIR" <<'PY'
+mapfile -t REACTOR_MODULES < <(python3 - "$STEP1_TOOL" "$ROOT_DIR" "$STEP1_FREEZE" <<'PY'
+import json
 import runpy
 import sys
 from pathlib import Path
 
 namespace = runpy.run_path(sys.argv[1])
-print("\n".join(namespace["active_reactor_modules"](Path(sys.argv[2]))))
+active = namespace["active_reactor_modules"](Path(sys.argv[2]))
+freeze = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+reactor = freeze.get("reactor", {})
+production = reactor.get("modules", [])
+reporter = "build-support/foggy-coverage-report"
+if (
+    reactor.get("module_count") != 24
+    or len(production) != 24
+    or len(set(production)) != 24
+    or reporter in production
+):
+    raise SystemExit("Step 1 frozen production reactor is not an exact 24-module set")
+expected = sorted([*production, reporter])
+if active != expected:
+    missing = sorted(set(expected) - set(active))
+    unexpected = sorted(set(active) - set(expected))
+    raise SystemExit(
+        f"active reactor differs from frozen24+reporter: missing={missing} unexpected={unexpected}"
+    )
+print("\n".join(sorted(production)))
 PY
 )
-[[ "${#REACTOR_MODULES[@]}" -eq 24 ]] || fail "active reactor must contain 24 modules"
+[[ "${#REACTOR_MODULES[@]}" -eq 24 ]] || \
+  fail "active reactor must equal the frozen 24 production modules plus the coverage reporter"
 for module in "${REACTOR_MODULES[@]}"; do
   [[ -d "$ROOT_DIR/$module" ]] || fail "reactor module is missing: $module"
-  rm -rf \
-    "$ROOT_DIR/$module/target/classes" \
-    "$ROOT_DIR/$module/target/failsafe-reports" \
-    "$ROOT_DIR/$module/target/generated-sources" \
-    "$ROOT_DIR/$module/target/test-classes" \
-    "$ROOT_DIR/$module/target/generated-test-sources" \
-    "$ROOT_DIR/$module/target/maven-status/maven-compiler-plugin/compile" \
-    "$ROOT_DIR/$module/target/maven-status/maven-compiler-plugin/testCompile"
+  if v934_coverage_enabled; then
+    # The Step 4 outer authority has already performed and sealed one fresh
+    # full-reactor main/test compile.  Preserve those exact bytes: deleting
+    # main trees would shrink the coverage denominator, while deleting all test
+    # trees and recompiling only the model dependency closure would invalidate
+    # the shared Step 2 derived-view class receipt.
+    rm -rf "$ROOT_DIR/$module/target/failsafe-reports"
+  else
+    rm -rf \
+      "$ROOT_DIR/$module/target/classes" \
+      "$ROOT_DIR/$module/target/failsafe-reports" \
+      "$ROOT_DIR/$module/target/generated-sources" \
+      "$ROOT_DIR/$module/target/test-classes" \
+      "$ROOT_DIR/$module/target/generated-test-sources" \
+      "$ROOT_DIR/$module/target/maven-status/maven-compiler-plugin/compile" \
+      "$ROOT_DIR/$module/target/maven-status/maven-compiler-plugin/testCompile"
+  fi
 done
 
 PHASE="test-compile"

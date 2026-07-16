@@ -199,8 +199,13 @@ fixture mutation 或 report missing 都失败。
 ## 5. Coverage Contract
 
 - JaCoCo version centrally pinned (`0.8.12` candidate, Step 1 review freeze)。
+- Step 1 policy `scripts/v934/coverage-thresholds.json` 与其 `SHA256SUMS` 保持不可变；
+  Step 4 在 `scripts/v934/step4/coverage-thresholds.json` 建 parent-linked successor，
+  绑定 parent policy/hash manifest、current commit/source/classes、lane ledger 与 reviewer。
 - Step 3 correctness run 不承诺 exec；Step 4 接好 agent 后必须重新执行 unit、
-  hermetic IT 和全部 Step 3 external lanes，只有 Step 4 run 的 exec 可进 coverage。
+  6 个 hermetic/SQLite IT variants、five-DB 7 variants、7 个 required external variants
+  和 Addon companion 2 variants；optional LLM 保持 reviewed/excluded。只有 Step 4 run
+  的 23 个唯一 exec 可进 coverage。
 - Step 4 exit 后，canonical unit/integration/DB runner 默认在各自唯一执行中产 run-owned
   exec；Step 5–7 coverage stage 只收集/校验这些 exec，不得再次执行同一 suite。
 - UT 写独立 `jacoco-ut.exec`；每个 integration/DB lane 写唯一
@@ -213,13 +218,38 @@ fixture mutation 或 report missing 都失败。
   class presence、counter totals、reviewed aggregate thresholds 和 critical-class
   thresholds；missing/duplicate/zero/unexpected XML/counter 都非零退出。
 - 保留 model 既有 LINE `0.77` / BRANCH `0.62` 门，并改为对其 UT+IT merged exec
-  执行 owning-module `jacoco:check`；全 reactor 首次只生成 diagnostic candidate
-  baseline，人工 review 后冻结。
+  执行 owning-module `jacoco:check`；同时保留 inherited
+  `SemanticScaleSqlSupport` LINE/BRANCH=`1.00/1.00` 单类门，不得因 profile 重构静默
+  删除。全 reactor 首次只生成 diagnostic candidate baseline，人工 review 后冻结。
 - critical class candidate floor 为 LINE `0.80` / BRANCH `0.70`；最终值取
   `max(reviewed observed value, candidate floor)`，不足先补测试，任何例外需显式
   workitem/approval，runner 不自动下调。
 - missing/empty exec、class/source SHA mismatch、threshold regression、未授权
   exclusion/threshold change全部失败。
+
+Step 4 run root 固定为 `target/v934-step4-coverage/runs/<run-id>/`；exec 文件位于
+`exec/`，名称集合由 successor ledger exact 冻结（UT=`jacoco-ut.exec`，其余为
+`jacoco-it-<variant>.exec`），`exec-manifest.json` 记录 file SHA/size/session/tool、
+commit/source/classes/lane identity。aggregate XML/HTML 只能写入同一 run 的 `report/`；
+docs evidence 固定写入
+`docs/9.3.4/evidence/step-4/step4-coverage-exit-<date>.md`。同名覆盖、跨 run 拼接或
+从 Step 2/3 target 借用 exec 都失败。
+
+Step 4 在 compile、lane 子运行、report 与最终 summary 边界必须复验
+run-owned toolchain receipt。receipt 绑定 Step 1 raw 工具版本、实际 Maven/JDK
+链路、compiler realm ASM `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM
+`9.7.1` 和 24 个 production module effective compiler；任一字段缺失、非 canonical
+JSON、跨 run 替换、版本/realm/hash 漂移均必须 fail closed。本地出版的
+`scripts/v934/step4/SHA256SUMS` 已生成并通过 exact 48 项校验，
+manifest SHA-256=
+`c8ae4f1015760ee831935c6c34fa0b83c9e8954065b909bbb80ab2b4a67d2417`。
+
+Historical `scripts/verify-v934-step2-successor.sh` 继续冻结 Step 2 的 24 个
+production reactor generation 语义。Step 4 加入第 25 个 build-only reporter 后，
+不得直接重跑该 historical runner 来改写 Step 2 authority；当前正式链路是
+immutable Step 2 parent + `step2_report_view_tool.py` derived view + Step 4 overlay。
+该 historical runner 在当前 25-module root 上 fail closed 是预期 supersession
+boundary，不是应放宽为 25 的待修契约。
 
 初始 critical set：CatalogSnapshotStore、ModelBuildSingleFlight、
 CatalogRefreshCoordinator、DatasourceCatalogConvergence、NamespaceScope、
@@ -342,9 +372,15 @@ source、实际编译出的全部 helper class（含 inner class）tree SHA，�
 版本；summary 在 candidate→confirmed 后必须原子刷新 freeze/manifest digest、reviewer、
 reviewed_at、decision 和 evidence status，candidate digest 不得冒充 confirmed evidence。
 
-`coverage-thresholds.json` 在 Step 1 只冻结 tool version、critical FQCN、既有 model
-门和 candidate floor；aggregate observed baseline/最终 reviewed threshold 只能在
-Step 4 由实际全 lane exec 更新。
+`scripts/v934/coverage-thresholds.json` 在 Step 1 只冻结 tool version、critical FQCN、
+既有 model 门和 candidate floor；该文件不可更新。aggregate observed baseline/最终
+reviewed threshold 只能在 Step 4 由实际全 lane exec 产出，并写入 parent-linked
+`scripts/v934/step4/coverage-thresholds.json`。
+
+同一 exec 只允许默认串行 Maven reactor/fork 写入：禁止 `-T`、`forkCount>1` 或并行
+fork 共享 destFile。agent sessionId 必须包含 run/lane/variant/module；显式 child JVM
+也必须有独立 session。`RedisCrossJvmCacheIT` 的 writer/reader 子 JVM 必须显式附加
+同版本 agent，顺序 append 到 `redis7` exec，不能只覆盖 owning Surefire/Failsafe JVM。
 
 状态词固定为：contract `proposed -> confirmed`；Step
 `ready -> in-progress -> passed|blocked`；test plan 在 Step 1 只记录
@@ -389,3 +425,17 @@ Parent final/candidate SHA=
 本 record 只确认 Step 3 correctness。它没有 JaCoCo exec；Step 4 必须用带 agent 的
 canonical runners 重新执行 unit、hermetic/SQLite、五库与全部 required external lanes。
 证据：`docs/9.3.4/evidence/step-3/step3-required-matrix-exit-20260716.md`。
+
+## Step 4 Diagnostic-ready Record
+
+Superseding status（2026-07-16）：Step 4=`in-progress / diagnostic-ready`，不是
+`passed`。静态契约已收口为 exact `23 exec / 48 sessions`；required report
+overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion=
+`2/6` 仍与 required 总计分离。raw contract/effective POM/toolchain/report inventory
+负例分别精确为 `8/8`、`4/4`、`5/5`、`27/27`。
+
+该状态只表示允许在本基线完成提交、推送并验证 clean HEAD 后启动
+fresh all-lane diagnostic。`coverage-thresholds.json` 仍为
+`diagnostic-pending`；尚无 aggregate baseline/review、confirmed threshold 或
+`docs/9.3.4/evidence/step-4/step4-coverage-exit-<date>.md`。因此 Step 4 exit 未满足，
+Step 5 必须保持关闭。
