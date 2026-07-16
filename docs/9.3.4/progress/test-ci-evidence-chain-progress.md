@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r10 sensitive-scan excluded / remediation quality passed / commit pending | Step 3 exit passed | r10 完成 required=`773+59/5,707`、`23/48` exec、aggregate/observation 后在 sensitive-scan fail closed；producer-label fix + exact `7+3` probe 与两路质量已通过；fresh r11 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r11 source-seal excluded / binding remediation quality passed / commit pending | Step 3 exit passed | r11 在 bootstrap-negative 以 `E_SOURCE_SEAL` fail closed，零 lane、excluded/non-reusable；early four-way binding=`1+6`、raw CRLF/executable no-op negatives 与两路 quality 已通过；commit/push→fresh r12 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1257,7 +1257,7 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1–r10 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
+- r1–r11 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
   不完整 Unit 产物不可复用，
   当前仍无 reviewed
   reactor aggregate baseline；
@@ -1290,22 +1290,30 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r10 remediation quality passed / commit pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r10 首轮 Medium cardinality 伪绿已关闭，两路 post-fix B/H/M/L=`0/0/0/0`，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r11 binding remediation quality passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r11 两路 post-fix implementation review 与 docs/status review B/H/M/L=`0/0/0/0`，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r10 excluded / remediation implemented / quality + commit + fresh r11 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r11 excluded / binding remediation quality passed / commit + fresh r12 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-r10 已完整运行 required lanes、`23/48` exec、aggregate 与 observation，但 demo identity
-日志复用 credential-shaped label，最终 sensitive scan 正确 fail closed。五条规则保持不变；
-producer wording 与 bootstrap `7 dangerous + 3 safe` 内存 probe 已完成，launcher smoke、
-contract/manifest/overlay focused validation 通过；首轮 Medium exact-count 伪绿已关闭，两路
-post-fix quality=`0/0/0/0`。下一步是 commit/push/clean HEAD，停止四个 repo demo DB 容器，
-并以 fresh r11 从 source seal 开始执行
-all-lane diagnostic。只有 r11 完整成功后才评审 exact observed thresholds。
-当前 threshold=`diagnostic-pending`，r1–r10 与 Unit remediation r2 都是 excluded failed
+r11 在建立 run-owned source seal 与任何测试 lane 前，因 outer actual raw `57f5da9a...` 与
+lifecycle frozen raw `02a920d9...` 漂移，于 `bootstrap-negative` 以 `E_SOURCE_SEAL` fail
+closed。r11 零 lane、excluded/non-reusable。remediation 已建立 Unit/Integration/outer/library
+early four-way binding，canonical positive=`1`，outer+manifest refresh/nested stale、
+outer-only drift、valid-64 nested-only wrong、missing、duplicate、invalid-format negatives=
+`6`；raw CRLF/executable no-op 双层 negatives 与 focused lifecycle、manifest=`60/60`、
+successor=`14/14`、contract=`21/21`、overlay=`12/12` 均通过。当前 identity 为 outer raw=
+`90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`、semantic=
+`065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`、lifecycle=
+`61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`、manifest=
+`a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`。安全复核发现的
+preflight TOCTOU Medium 已由 descriptor-bound strict read 关闭；两路 post-fix implementation
+review 与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`。下一步是 commit/push/clean HEAD，
+再以 fresh r12 从头
+执行 all-lane diagnostic。只有 r12 完整成功后才评审 exact observed thresholds。
+当前 threshold=`diagnostic-pending`，r1–r11 与 Unit remediation r2 都是 excluded failed
 evidence，历史 partial/incomplete 产物不可复用，尚无 reviewed/frozen baseline 或 Step 4
 exit evidence；
 `can_enter_coverage_audit=no`，
@@ -1378,3 +1386,41 @@ Step 5 仍不得开始，coverage audit/acceptance 不得启动。
 - next gate：commit/push/clean HEAD → fresh r11 diagnostic。
   r11 成功前不得 threshold freeze；threshold=`diagnostic-pending`、
   `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 均关闭。
+
+### Superseding Post-diagnostic Check-in — r11 outer source-seal fail-closed / r12 remediation
+
+- recorded_at: 2026-07-17；
+- immutable run：`step4-coverage-20260717-diagnostic-r11`，reported clean/pushed launch
+  HEAD=`141592ca9f4219d87a018774ee607b09a8e5a8a1`；outer=
+  `failed / bootstrap-negative / exit 1`，stable code=`E_SOURCE_SEAL`；
+- completed boundary：full coverage contract、successor overlay、sensitive bootstrap probe、
+  authority 与 coverage contract negatives 在 failure 前通过；lifecycle suite 未发布最终
+  PASS。run-owned Git/source seal 未建立，Unit/Integration/database/external/Addon 与全部
+  test lanes=`0`；exec、aggregate、observation、sensitive receipt、summary absent；
+- mismatch：historical outer actual raw=
+  `57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649`，nested frozen raw=
+  `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；r11=
+  `excluded/non-reusable`，前置绿色不得拼接；
+- cleanup/restoration：run-owned container/volume/network=`0/0/0`；四个 exact demo DB
+  containers 已在 evidence window 外恢复原 ID，running/healthy=`4/4`、listener=`4/4`；
+- remediation：在 run-root/source-seal/lane 前做 Unit、Integration、outer、library early
+  four-way binding；成功=`1`，六类 stable `E_SOURCE_SEAL_BINDING` negatives 为
+  outer+manifest refresh/nested stale、outer-only drift、valid-64 nested-only wrong、missing、
+  duplicate、invalid-format constant；保留 raw CRLF 与 executable no-op 双层 source seal；
+- current identities：outer raw/semantic=
+  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec` /
+  `065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`；lifecycle tool/top
+  manifest=
+  `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc` /
+  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；
+- security review：preflight path-check/read TOCTOU Medium 已用 descriptor-bound strict read
+  （`O_NOFOLLOW`、`fstat`、fd read、post-`lstat` stable identity）关闭；stable error 不变，
+  两路 post-fix implementation review 与独立 docs/status review B/H/M/L=`0/0/0/0`；
+- focused validation：lifecycle suite=`PASS`、manifest=`60/60`、successor=`14/14`、coverage
+  contract=`21/21`、overlay=`12/12`；这些不是 r12 或 Step 4 exit evidence；
+- records：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r11-outer-source-seal-fail-closed-20260717.md`、
+  `docs/9.3.4/workitems/BUG-step4-outer-runner-source-seal-binding-drift.md`；
+- next gate：commit/push/clean `HEAD == origin/main` → fresh
+  `step4-coverage-20260717-diagnostic-r12`。r12 成功前 threshold freeze、formal coverage run、
+  Step 5、coverage audit 与 acceptance 均关闭；`can_enter_coverage_audit=no`。

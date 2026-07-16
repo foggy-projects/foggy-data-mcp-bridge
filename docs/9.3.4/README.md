@@ -219,16 +219,38 @@ updated_at: 2026-07-17
   result wording；outer bootstrap-negative 以同一数组执行内存 `7 dangerous + 3 safe` probe，
   `rg rc>1` 双路径 fail closed，fixture 不落 run root。launcher request smoke、manifest、
   coverage contract 与 successor overlay focused validation 已通过。
-- 当前状态为 `in-progress / r10 sensitive-scan excluded / producer-label remediation
-  quality passed / commit + fresh r11 pending`。
+- fresh all-lane r11=`step4-coverage-20260717-diagnostic-r11` 已从 clean/pushed commit
+  `141592ca9f4219d87a018774ee607b09a8e5a8a1` 启动；full coverage contract、successor
+  overlay、sensitive bootstrap probe、authority 与 coverage contract negatives 通过后，
+  lifecycle suite 在 `bootstrap-negative` 以 stable `E_SOURCE_SEAL` 拒绝 outer actual raw
+  `57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649` 与内嵌旧值
+  `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa` 的漂移。
+  r11 在 run-owned Git/source seal 前退出，零测试 lane、exec、aggregate、observation 与
+  summary，结论=`failed / excluded / non-reusable`。
+- r11 remediation 现以独立 frozen constants 建立 Unit、Integration、outer、lifecycle library
+  的 early four-way raw binding；canonical positive=`1`、partial-update negatives=`6` 均使用
+  stable `E_SOURCE_SEAL_BINDING`。六类 negative 为 outer+manifest 刷新但 nested stale、
+  outer-only drift、valid-64 nested-only wrong、missing、duplicate 与 invalid-format constant。
+  outer 另由 raw CRLF negative 与 executable no-op
+  semantic negative 双层保护。focused lifecycle suite=`PASS`，top manifest=`60/60`、
+  successor manifest=`14/14`、coverage contract=`21/21`、overlay=`12/12`；当前 outer raw=
+  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`、executable stream=
+  `065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`、lifecycle tool=
+  `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`、top manifest=
+  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`。安全复核发现的
+  preflight TOCTOU Medium 已由 descriptor-bound strict read 关闭；两路 post-fix implementation
+  review 与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`。
+- 当前状态为 `in-progress / r11 outer source-seal excluded / binding remediation complete /
+  formal quality passed / commit/push + fresh r12 pending`。
   `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r10、Unit fixture quality r1/r2 与 focused/static 结果都不是
+  `diagnostic-pending`；r1–r11、Unit fixture quality r1/r2 与 focused/static 结果都不是
   Step 4 exit evidence，r3 只通过 Unit remediation subgate；r9 remediation quality 是历史
-  通过结论；当前 r10 diff 的首轮 Medium exact-count 伪绿已关闭，两路 post-fix formal
-  quality 最终 B/H/M/L=`0/0/0/0`。
+  通过结论，r10 producer-label remediation quality 也是历史通过结论；当前 r11 binding
+  remediation formal quality 已通过。
   `can_enter_coverage_audit=no`；
-  本轮权威 closure 必须 commit/push 并证明 clean `HEAD == origin/main`，再以新 run ID
-  执行 fresh r11；Step 5、formal、coverage audit 与
+  本轮权威 closure 必须 commit/push 并证明 clean
+  `HEAD == origin/main`，最后以新 run ID 执行 fresh r12；Step 5、threshold freeze、formal
+  coverage run、coverage audit 与
   acceptance 仍关闭。
 
 ## 执行资料
@@ -282,6 +304,10 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-diagnostic-r10-sensitive-scan-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r10-sensitive-scan-fail-closed-20260717.md)
 - Step 4 sensitive-scan producer-label regression：
   [workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md](workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md)
+- Step 4 diagnostic r11 outer source-seal failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r11-outer-source-seal-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r11-outer-source-seal-fail-closed-20260717.md)
+- Step 4 outer source-seal binding regression：
+  [workitems/BUG-step4-outer-runner-source-seal-binding-drift.md](workitems/BUG-step4-outer-runner-source-seal-binding-drift.md)
 - Step 4 exec class-ID scope regression：
   [workitems/BUG-step4-exec-class-id-scope-drift.md](workitems/BUG-step4-exec-class-id-scope-drift.md)
 - Step 4 lifecycle semantic validator bypass regression：
@@ -338,7 +364,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r10 sensitive-scan excluded / remediation quality passed / commit pending | r10 已完成 required、`23/48` exec、aggregate/observation，因 demo producer credential-label collision 在 sensitive-scan fail closed；patterns 不变，exact `7+3` probe 与两路质量通过；fresh r11 pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r11 source-seal excluded / binding remediation quality passed / commit pending | r11 在 bootstrap-negative 以 `E_SOURCE_SEAL` fail closed，零 lane、excluded/non-reusable；early four-way binding=`1 positive + 6 negatives`，raw CRLF/executable no-op 双层 negative 与两路 quality 已通过；commit/push→fresh r12 pending；`can_enter_coverage_audit=no`；Step 5/threshold/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

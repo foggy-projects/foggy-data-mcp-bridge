@@ -157,7 +157,7 @@ code_inventory:
     path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_contract_negative_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; prior exact identities remain historical; current r10 producer-label remediation identity is exact-60/SHA b2f02f142ee78fc5abff5a307a8403861e3e213f09d68e037f7b7eb2df2054c5
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; prior exact identities remain historical; current r11 binding-remediation identity is exact-60/SHA a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4
   - module: v934-step4-unit-mysql57-fixture
     path: scripts/v934/step4/{unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py}; scripts/verify-v934-unit.sh
     role: replace the complete Step 4 Unit lane with one run-owned pinned MySQL 5.7 fixture while retaining the frozen Unit execution identities and cardinality
@@ -182,7 +182,7 @@ code_inventory:
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: r1-r10 remain excluded failed diagnostics; r10 reached all required lanes, 23/48 exec, aggregate and observation then failed at sensitive-scan because a demo producer reused a credential-shaped label; patterns remain unchanged, producer/probe remediation is implemented, and fresh r11 remains required; partial evidence is non-reusable
+    notes: r1-r11 remain excluded failed diagnostics; r11 stopped at bootstrap-negative with E_SOURCE_SEAL before source seal and every lane; early four-way binding and raw/semantic negatives are implemented, formal quality passed, and commit/push remains required before fresh r12; partial evidence is non-reusable
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -341,7 +341,8 @@ code_inventory:
 
 - state：`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
   lifecycle semantic remediation implemented / r10 sensitive-scan excluded /
-  producer-label remediation quality passed / commit + fresh r11 pending`，不是
+  producer-label remediation quality passed / r11 source-seal excluded / binding remediation
+  quality passed / commit/push + fresh r12 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
@@ -564,10 +565,44 @@ code_inventory:
   manifest/overlay bindings不变；
 - focused evidence：launcher request smoke=`1/F0E0S0`，bash syntax、contract=`21/21`、
   overlay=`12/12`、manifest exact 与 diff check 通过；
-- 当前 evidence boundary：r1–r10 均不能作为 threshold/formal/Step 4 exit；两路 post-fix
-  formal quality B/H/M/L=`0/0/0/0`，commit/push/clean HEAD 与 fresh r11 pending；
+- r10 closure 时点 evidence boundary：r1–r10 均不能作为 threshold/formal/Step 4 exit；两路
+  post-fix formal quality B/H/M/L=`0/0/0/0`，commit/push/clean HEAD 与 fresh r11 pending；
   `can_enter_coverage_audit=no`，Step 5、formal、
   coverage audit 与 acceptance 关闭。
+
+### Superseding r11 remediation inventory
+
+- r11 immutable record/BUG：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r11-outer-source-seal-fail-closed-20260717.md`、
+  `docs/9.3.4/workitems/BUG-step4-outer-runner-source-seal-binding-drift.md`；launch HEAD=
+  `141592ca9f4219d87a018774ee607b09a8e5a8a1`，`bootstrap-negative / E_SOURCE_SEAL /
+  exit 1`，历史 outer actual/frozen raw=
+  `57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649` /
+  `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；零 lane，
+  excluded/non-reusable；
+- modified outer：`scripts/verify-v934-step4-coverage.sh`；在 run-root/source-seal/lane 前调用
+  early binding preflight，当前 raw SHA-256=
+  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`，executable-stream
+  SHA-256=`065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`；
+- modified lifecycle authority：`scripts/v934/step4/run_log_lifecycle_negative_test.sh`；独立
+  `UNIT_RUNNER_SHA256`、`INTEGRATION_RUNNER_SHA256`、`OUTER_RUNNER_SHA256`、
+  `LIBRARY_SHA256` 与 canonical raw bytes/top manifest rows 做 four-way exact binding，失败码=
+  `E_SOURCE_SEAL_BINDING`；tool SHA-256=
+  `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`；
+- preflight strict reader：全部四类 input 以 `O_NOFOLLOW` descriptor open、`fstat`、fd read、
+  post-`lstat` stable identity 关闭 path-check/read TOCTOU；安全复核的 Medium 已修，最终
+  post-fix implementation review 与 docs/status review B/H/M/L=`0/0/0/0`；
+- binding regressions：canonical positive=`1`；outer+manifest refresh/nested stale、outer-only
+  drift、valid-64 nested-only wrong、missing、duplicate、invalid-format constant negatives=
+  `6`；outer raw CRLF 与 executable no-op 两个 negatives 分别触达
+  raw/semantic seal；focused lifecycle suite=`PASS`；
+- identity/evidence：top manifest=`60/60` / SHA-256=
+  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；successor=
+  `14/14`，coverage contract=`21/21`，overlay=`12/12`；
+- 当前 evidence boundary：r1–r11 均不能作为 threshold/formal/Step 4 exit；r11 remediation
+  quality passed，但 commit/push/clean HEAD 与 fresh r12 pending；
+  `can_enter_coverage_audit=no`，Step 5、threshold freeze、formal coverage run、coverage audit
+  与 acceptance 关闭。
 
 ## Protected Boundaries
 

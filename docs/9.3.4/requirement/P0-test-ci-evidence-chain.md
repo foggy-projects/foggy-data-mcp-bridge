@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r10 sensitive-scan excluded / producer-label remediation implemented /
-  formal remediation quality passed / commit+r11 pending`
+  `in-progress / r11 outer source-seal excluded / binding remediation quality passed /
+  commit/push + fresh r12 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -193,8 +193,8 @@ updated_at: 2026-07-17
   `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`，
   successor declared amendments=`18`，SHA-256=
   `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；本地
-  `SHA256SUMS`=`60/60`，SHA-256=
-  `b2f02f142ee78fc5abff5a307a8403861e3e213f09d68e037f7b7eb2df2054c5`；
+  `SHA256SUMS`=`60/60`，当前 SHA-256=
+  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；
   successor=`14/14`，SHA-256=
   `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`；coverage
   contract diagnostic/formal SHA-256=
@@ -204,10 +204,13 @@ updated_at: 2026-07-17
   `ef5b78f25ffebf48e45e363a15fb1c4bc53341488a8e703133f01bb7b2c40bef` /
   `9df394efa046de4a494d31b00dd3900fe875f07a9e31aabccff29a231a1c1ecc` /
   `0600b66657824b3fc7cf3b15ca0474e0885977605c64c60366a4a13607eb18bf`；overlay contract /
-  overlay tool / outer SHA-256=
+  overlay tool / 当前 outer raw SHA-256=
   `001963c511b036d54c08abab2fcf0a0ab204b920614b35e10da809ed3f42c4d8` /
   `780e9a3d61626b8a37f85a185942de7c1862a119cd10b553962a98d5e2acd301` /
-  `57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649`；
+  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`；
+  当前 outer executable-stream / lifecycle regression tool SHA-256=
+  `065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae` /
+  `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`；
   successor database/required contracts SHA-256=
   `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
   `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
@@ -318,7 +321,8 @@ updated_at: 2026-07-17
   审计与版本验收全部通过后，才允许带上述分类债务签收；任一失败即撤销临时例外并保持
   Step 5 关闭。该债务不得跨过 9.3.5 版本验收；
 - Step 4 threshold 仍为
-  `diagnostic-pending`；r10 observation 是 failed run 的不可复用 partial evidence，尚无
+  `diagnostic-pending`；r10 observation 是 failed run 的不可复用 partial evidence，r11 又在
+  bootstrap-negative 且零 lane fail closed，尚无
   reviewed/frozen baseline 或 Step 4 exit evidence。
   `can_enter_coverage_audit=no`，Step 5/formal/coverage audit/acceptance
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能
@@ -366,3 +370,38 @@ updated_at: 2026-07-17
   commit/push/clean HEAD 与 fresh r11 仍 required。threshold=`diagnostic-pending`、
   `can_enter_coverage_audit=no`；Step 5、formal、
   coverage audit、acceptance 与 9.3.5 保持关闭。
+
+## Superseding r11 requirement boundary（2026-07-17）
+
+- r11=`step4-coverage-20260717-diagnostic-r11` 从 clean/pushed commit
+  `141592ca9f4219d87a018774ee607b09a8e5a8a1` 启动，在 run-owned Git/source seal 与任何
+  test lane 建立前，于 `bootstrap-negative` 以 stable `E_SOURCE_SEAL` fail closed；历史
+  outer actual raw=`57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649`，
+  lifecycle frozen raw=
+  `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；
+- r11=`failed / excluded / non-reusable`，Unit、Integration、database、external、Addon 与
+  其他测试 lane=`0`；exec、aggregate、observation、sensitive receipt 与 summary 均 absent。
+  bootstrap 前置绿色不得与后续 run 拼接，也不得冻结 threshold；
+- binding requirement 现明确为 Unit runner、Integration runner、outer runner、lifecycle
+  library 四个独立 frozen constant 各自与 canonical raw bytes 及 top manifest entry 形成
+  early exact binding；canonical positive=`1`，negative=`6`：outer+manifest refresh/nested
+  stale、outer-only drift、valid-64 nested-only wrong、missing、duplicate、invalid-format
+  constant，失败稳定码=`E_SOURCE_SEAL_BINDING`。不得从 manifest 动态派生 nested
+  constant 形成 self-certifying seal；
+- outer 同时要求 raw CRLF mutation 触发 raw source-seal negative，executable no-op mutation
+  触发 semantic executable-stream negative；当前 raw/semantic=
+  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec` /
+  `065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`，lifecycle tool=
+  `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`，top manifest=
+  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；
+- safety review 发现 preflight path-check/read 之间存在 TOCTOU Medium；现已对全部输入使用
+  descriptor-bound strict read（`O_NOFOLLOW`、open 后 `fstat`、fd read、post-`lstat`
+  stable identity）关闭，错误仍为 `E_SOURCE_SEAL_BINDING`；两路 post-fix implementation
+  review 与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`；
+- focused lifecycle suite=`PASS`，manifest=`60/60`、successor=`14/14`、contract
+  mutations=`21/21`、overlay negatives=`12/12`。这些只证明 remediation，不是 r12、formal
+  或 Step 4 exit；
+- 当前 Step 4=`in-progress / remediation quality passed / commit pending`。只有
+  commit/push、clean `HEAD == origin/main` 与 fresh r12
+  diagnostic 全部通过，才允许进入 exact threshold review/freeze；Step 5、formal coverage
+  run、coverage audit、acceptance 与 9.3.5 保持关闭。

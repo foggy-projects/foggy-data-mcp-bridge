@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r10 sensitive-scan excluded / producer-label remediation quality passed / commit+fresh r11 pending`
+- step4_result: `in-progress / r11 outer source-seal excluded / binding remediation quality passed / commit+fresh r12 pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -604,3 +604,38 @@ Final acceptance 至少验证：
   diagnostic 完整成功后才可 threshold freeze，随后必须 fresh formal。
 
 当前 `can_enter_coverage_audit=no`；focused/static 绿色不得当作 r11、formal 或 Step 4 exit。
+
+## Superseding r11 / r12 test delta（2026-07-17）
+
+- r11 result：clean/pushed launch HEAD=
+  `141592ca9f4219d87a018774ee607b09a8e5a8a1`；在 run-owned Git/source seal 前于
+  `bootstrap-negative` 以 stable `E_SOURCE_SEAL` fail closed；historical outer actual/frozen
+  raw=
+  `57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649` /
+  `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；零 test lane，
+  r11 excluded/non-reusable；
+- early binding positive：Unit runner、Integration runner、outer runner、lifecycle library 四个
+  独立 frozen constants 均必须与 canonical raw bytes 与 top manifest exact row 一致；唯一
+  canonical positive 发布 `V934_RUNNER_SEAL_BINDINGS status=passed count=4`；
+- early binding negatives=`6`，均必须 stable `E_SOURCE_SEAL_BINDING`：
+  outer+manifest refresh/nested stale、outer-runner-only drift、valid-64 nested constant-only
+  wrong、constant missing、constant duplicate、invalid-format/63-char constant；
+- outer layered negatives：CRLF-only raw mutation 必须触达 raw `E_SOURCE_SEAL`；可执行 no-op
+  semantic mutation 必须触达 executable-stream seal，禁止 raw/semantic 任一层被关闭；
+- current identities：outer raw=
+  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`、semantic=
+  `065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`、lifecycle test=
+  `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`、top manifest=
+  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；
+- strict-read regression：全部 input 禁止 symlink following，并在 fd read 前后验证 stable file
+  identity；安全复核的 TOCTOU Medium 已关闭，stable `E_SOURCE_SEAL_BINDING` 不变；两路
+  post-fix implementation review 与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`；
+- focused result：full lifecycle suite=`PASS`，top manifest=`60/60`、successor manifest=
+  `14/14`、coverage contract mutations=`21/21`、overlay negatives=`12/12`；这些只验证 fix，
+  不得当作 r12、formal 或 Step 4 exit；
+- fresh r12 必须在已通过 formal implementation quality 后，由 remediation commit/push、clean
+  `HEAD == origin/main` 后，从空 run root 与新 evidence window 启动；禁止复用 r11 前置绿色。
+  只有 r12 完整成功后才可 threshold freeze，随后必须 fresh formal coverage run。
+
+当前 `can_enter_coverage_audit=no`；threshold=`diagnostic-pending`。Step 5、formal coverage run、
+coverage audit 与 acceptance 保持关闭。

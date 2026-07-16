@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SCRIPT_PATH="$ROOT_DIR/scripts/verify-v934-step4-coverage.sh"
 STEP4_DIR="$ROOT_DIR/scripts/v934/step4"
+STEP4_MANIFEST="$STEP4_DIR/SHA256SUMS"
 AUTHORITY_LIB="$ROOT_DIR/scripts/v934/authority_runner_lib.sh"
 STEP4_AUTHORITY_LIB="$STEP4_DIR/authority_parent_lib.sh"
 COVERAGE_TOOL="$STEP4_DIR/coverage_tool.py"
@@ -2065,10 +2066,14 @@ for required_file in \
   "$RUN_LOG_LIFECYCLE_NEGATIVE" "$RUN_LOG_LIB" \
   "$TOOLCHAIN_RECEIPT_TOOL" \
   "$COVERAGE_CONTRACT" \
-  "$COVERAGE_THRESHOLDS" "$SUCCESSOR_OVERLAY_TOOL" "$AUTHORITY_NEGATIVE" \
+  "$COVERAGE_THRESHOLDS" "$STEP4_MANIFEST" \
+  "$SUCCESSOR_OVERLAY_TOOL" "$AUTHORITY_NEGATIVE" \
   "$STEP1_FREEZE" "$JACOCO_AGENT_JAR"; do
   require_real_file "$required_file"
 done
+"$RUN_LOG_LIFECYCLE_NEGATIVE" --verify-runner-seal-bindings \
+  "$ROOT_DIR" "$SCRIPT_PATH" "$STEP4_MANIFEST" || \
+  fail "runner raw seal binding preflight failed"
 [[ "$(sha256_file "$JACOCO_AGENT_JAR")" == "$JACOCO_AGENT_SHA256" ]] || \
   fail "JaCoCo 0.8.12 runtime agent hash differs"
 [[ "$(git -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null -C "$ROOT_DIR" rev-parse --show-toplevel)" == "$ROOT_DIR" ]] || \

@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r10 sensitive-scan excluded / producer-label remediation quality passed /
-commit + fresh r11 pending`。
+`in-progress / r11 outer source-seal excluded / binding remediation quality passed /
+commit/push + fresh r12 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -633,3 +633,38 @@ r10 已完成全部 lane、aggregate 与 coverage observation，但在最终 sen
    containers、确认 frozen ports free，以全新 run ID 执行 r11，退出后恢复 exact IDs；
 6. 只有 r11 完整发布 sensitive scan、summary、cleanup 与 exact observation 后才允许 threshold
    review/freeze；后续 direct-child freeze、fresh formal 与 post-gates 顺序不变。
+
+## Step 4 r11 remediation addendum（2026-07-17）
+
+r11 在任何测试 lane 启动前，于 `bootstrap-negative` 以 stable `E_SOURCE_SEAL` 拒绝 outer
+actual raw=`57f5da9a23c4973beef54a6bfd303c3dfd38fccb03a7bc2cadadbfaa3206f649`
+与 lifecycle frozen raw=
+`02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa` 的漂移。
+r11=`failed / excluded / non-reusable`，零 lane，所有 bootstrap 前置绿色不得拼接。进入 fresh
+r12 前增加以下顺序约束：
+
+1. 封存 r11 run-status、cleanup、partial lifecycle log 与 absence boundary；r11 不得贡献
+   exec、XML、coverage observation、threshold 或 Step 4 exit claim；
+2. 在 outer 分配 run root、建立 source seal 或启动 lane 前，执行 Unit、Integration、outer、
+   lifecycle library 的 early four-way binding；每个独立 frozen constant 必须与 canonical
+   raw bytes、top manifest exact row 同值，失败统一为 stable `E_SOURCE_SEAL_BINDING`；
+3. focused regression 必须包含 canonical positive=`1` 与六类 negative：outer+manifest
+   refresh/nested stale、outer-only drift、valid-64 nested-only wrong、missing、duplicate、
+   invalid-format constant；同时保留 outer raw CRLF mutation 与 executable no-op
+   semantic mutation，分别触达 raw seal 和 executable-stream seal；
+4. 当前 identity 固定为 outer raw=
+   `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`、semantic=
+   `065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`、lifecycle tool=
+   `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`、top manifest=
+   `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；future edit 必须
+   同步四方 binding，否则 preflight fail closed；
+5. safety review 提出的 preflight TOCTOU Medium 必须由全部输入的 descriptor-bound strict
+   read（`O_NOFOLLOW`、`fstat`、fd read、post-`lstat` identity）关闭；错误仍保持
+   `E_SOURCE_SEAL_BINDING`。focused lifecycle=`PASS`、top manifest=`60/60`、successor=
+   `14/14`、coverage contract=`21/21`、overlay=`12/12`；两路 post-fix implementation review
+   与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`，已放行 commit/push；
+6. commit/push 后证明 clean `HEAD == origin/main`，在四个 frozen ports free 的 evidence
+   window 用唯一新 run ID `step4-coverage-20260717-diagnostic-r12` 从头执行 all-lane
+   diagnostic，退出后恢复 exact demo container IDs；
+7. 只有 r12 完整成功才允许 threshold review；direct-single-parent freeze、fresh formal、最终
+   quality、coverage audit 与 acceptance 仍严格后置。任一失败继续 fail closed，不开始 Step 5。

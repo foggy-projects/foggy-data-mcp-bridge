@@ -35,6 +35,140 @@ fail() {
   exit 1
 }
 
+if [[ "${1:-}" == --verify-runner-seal-bindings ]]; then
+  [[ "$#" -eq 4 || "$#" -eq 5 ]] || exit 96
+  python3 - "$2" "$3" "$4" "${5:-$SELF}" <<'PY'
+from pathlib import Path
+import hashlib
+import os
+import re
+import stat
+import sys
+
+
+def reject(message: str) -> None:
+    print(f"E_SOURCE_SEAL_BINDING: {message}", file=sys.stderr)
+    raise SystemExit(2)
+
+
+def identity(metadata: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def strict_read(label: str, path: Path) -> bytes:
+    try:
+        before = path.lstat()
+    except OSError as error:
+        reject(f"{label} cannot be inspected: {error.__class__.__name__}")
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+        reject(f"{label} must be a real regular file")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        reject(f"{label} cannot be opened safely: {error.__class__.__name__}")
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or identity(opened) != identity(before):
+            reject(f"{label} identity changed before descriptor binding")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after_descriptor = os.fstat(descriptor)
+    except OSError as error:
+        reject(f"{label} cannot be read exactly: {error.__class__.__name__}")
+    finally:
+        os.close(descriptor)
+    try:
+        after_path = path.lstat()
+    except OSError as error:
+        reject(f"{label} vanished after descriptor read: {error.__class__.__name__}")
+    if (
+        identity(opened) != identity(after_descriptor)
+        or identity(opened) != identity(after_path)
+    ):
+        reject(f"{label} identity changed during descriptor read")
+    return b"".join(chunks)
+
+
+repo_root = Path(sys.argv[1])
+outer_path = Path(sys.argv[2])
+manifest_path = Path(sys.argv[3])
+lifecycle_path = Path(sys.argv[4])
+try:
+    manifest_text = strict_read("Step 4 manifest", manifest_path).decode("utf-8")
+    lifecycle_text = strict_read("lifecycle validator", lifecycle_path).decode("utf-8")
+except UnicodeError as error:
+    reject(f"binding input is not exact UTF-8: {error.__class__.__name__}")
+
+manifest_pattern = re.compile(r"([0-9a-f]{64})  (\S.*)")
+manifest_rows: list[tuple[str, str]] = []
+for number, line in enumerate(manifest_text.splitlines(), 1):
+    match = manifest_pattern.fullmatch(line)
+    if match is None:
+        reject(f"Step 4 manifest row {number} is not canonical")
+    manifest_rows.append((match.group(1), match.group(2)))
+bindings = (
+    (
+        "UNIT_RUNNER_SHA256",
+        "unit runner",
+        repo_root / "scripts/verify-v934-unit.sh",
+        "scripts/verify-v934-unit.sh",
+    ),
+    (
+        "INTEGRATION_RUNNER_SHA256",
+        "integration runner",
+        repo_root / "scripts/verify-v934-integration.sh",
+        "scripts/verify-v934-integration.sh",
+    ),
+    (
+        "OUTER_RUNNER_SHA256",
+        "outer runner",
+        outer_path,
+        "scripts/verify-v934-step4-coverage.sh",
+    ),
+    (
+        "LIBRARY_SHA256",
+        "lifecycle library",
+        repo_root / "scripts/v934/step4/run_log_lifecycle_lib.sh",
+        "scripts/v934/step4/run_log_lifecycle_lib.sh",
+    ),
+)
+for constant, label, path, manifest_name in bindings:
+    manifest_matches = [
+        digest for digest, row_path in manifest_rows if row_path == manifest_name
+    ]
+    if len(manifest_matches) != 1:
+        reject(f"{label} manifest row count differs: {len(manifest_matches)}")
+    nested_matches = re.findall(
+        rf'^{re.escape(constant)} = "([0-9a-f]{{64}})"$',
+        lifecycle_text,
+        flags=re.MULTILINE,
+    )
+    if len(nested_matches) != 1:
+        reject(f"nested {constant} count differs: {len(nested_matches)}")
+    actual_digest = hashlib.sha256(strict_read(label, path)).hexdigest()
+    if manifest_matches[0] != actual_digest or nested_matches[0] != actual_digest:
+        reject(
+            f"{label} raw identity differs: actual={actual_digest} "
+            f"manifest={manifest_matches[0]} nested={nested_matches[0]}"
+        )
+print(f"V934_RUNNER_SEAL_BINDINGS status=passed count={len(bindings)}")
+PY
+  exit $?
+fi
+
 if [[ "${1:-}" == --exit-case ]]; then
   [[ "$#" -eq 7 ]] || exit 96
   run_root="$2"
@@ -194,6 +328,119 @@ cleanup() {
   rm -rf -- "$TMP_ROOT"
 }
 trap cleanup EXIT
+
+OUTER_RUNNER="$ROOT_DIR/scripts/verify-v934-step4-coverage.sh"
+STEP4_MANIFEST="$ROOT_DIR/scripts/v934/step4/SHA256SUMS"
+"$SELF" --verify-runner-seal-bindings \
+  "$ROOT_DIR" "$OUTER_RUNNER" "$STEP4_MANIFEST" || \
+  fail "runner raw seal positive binding failed"
+
+BINDING_FIXTURE_ROOT="$TMP_ROOT/outer-seal-binding"
+mkdir -- "$BINDING_FIXTURE_ROOT"
+python3 - \
+  "$OUTER_RUNNER" "$STEP4_MANIFEST" "$SELF" \
+  "$BINDING_FIXTURE_ROOT/outer.sh" "$BINDING_FIXTURE_ROOT/SHA256SUMS" \
+  "$BINDING_FIXTURE_ROOT/lifecycle-missing.py" \
+  "$BINDING_FIXTURE_ROOT/lifecycle-duplicate.py" \
+  "$BINDING_FIXTURE_ROOT/lifecycle-invalid.py" \
+  "$BINDING_FIXTURE_ROOT/lifecycle-wrong.py" <<'PY'
+from pathlib import Path
+import hashlib
+import re
+import sys
+
+source_runner = Path(sys.argv[1]).read_bytes()
+source_manifest = Path(sys.argv[2]).read_text(encoding="utf-8", errors="strict")
+source_lifecycle = Path(sys.argv[3]).read_text(encoding="utf-8", errors="strict")
+mutated_runner = source_runner + b"\n"
+mutated_digest = hashlib.sha256(mutated_runner).hexdigest()
+runner_path = Path(sys.argv[4])
+manifest_path = Path(sys.argv[5])
+runner_path.write_bytes(mutated_runner)
+pattern = re.compile(
+    r"^[0-9a-f]{64}  scripts/verify-v934-step4-coverage\.sh$",
+    flags=re.MULTILINE,
+)
+matches = pattern.findall(source_manifest)
+if len(matches) != 1:
+    raise SystemExit("outer binding fixture source manifest row count differs")
+manifest_path.write_text(
+    pattern.sub(
+        f"{mutated_digest}  scripts/verify-v934-step4-coverage.sh",
+        source_manifest,
+        count=1,
+    ),
+    encoding="utf-8",
+)
+constant_line = re.compile(
+    r'^UNIT_RUNNER_SHA256 = "[0-9a-f]{64}"$', flags=re.MULTILINE
+)
+constant_matches = constant_line.findall(source_lifecycle)
+if len(constant_matches) != 1:
+    raise SystemExit("source lifecycle Unit raw seal count differs")
+Path(sys.argv[6]).write_text(
+    constant_line.sub("", source_lifecycle, count=1), encoding="utf-8"
+)
+Path(sys.argv[7]).write_text(
+    constant_line.sub(
+        constant_matches[0] + "\n" + constant_matches[0],
+        source_lifecycle,
+        count=1,
+    ),
+    encoding="utf-8",
+)
+Path(sys.argv[8]).write_text(
+    constant_line.sub(
+        'UNIT_RUNNER_SHA256 = "' + ("0" * 63) + '"',
+        source_lifecycle,
+        count=1,
+    ),
+    encoding="utf-8",
+)
+Path(sys.argv[9]).write_text(
+    constant_line.sub(
+        'UNIT_RUNNER_SHA256 = "' + ("0" * 64) + '"',
+        source_lifecycle,
+        count=1,
+    ),
+    encoding="utf-8",
+)
+PY
+
+expect_binding_rejected() {
+  local label="$1" outer="$2" manifest="$3" lifecycle="$4" expected="$5"
+  local output code
+  set +e
+  output="$(
+    "$SELF" --verify-runner-seal-bindings \
+      "$ROOT_DIR" "$outer" "$manifest" "$lifecycle" 2>&1
+  )"
+  code=$?
+  set -e
+  [[ "$code" -eq 2 && "$output" == E_SOURCE_SEAL_BINDING:* && "$output" == *"$expected"* ]] || \
+    fail "runner seal binding mutation did not fail as expected: $label"
+}
+
+expect_binding_rejected \
+  outer-runner-only-drift \
+  "$BINDING_FIXTURE_ROOT/outer.sh" "$STEP4_MANIFEST" "$SELF" \
+  "outer runner raw identity differs"
+expect_binding_rejected \
+  outer-runner-manifest-drift \
+  "$BINDING_FIXTURE_ROOT/outer.sh" "$BINDING_FIXTURE_ROOT/SHA256SUMS" "$SELF" \
+  "outer runner raw identity differs"
+for mutation in missing duplicate invalid; do
+  expect_binding_rejected \
+    "nested-unit-$mutation" \
+    "$OUTER_RUNNER" "$STEP4_MANIFEST" \
+    "$BINDING_FIXTURE_ROOT/lifecycle-$mutation.py" \
+    "nested UNIT_RUNNER_SHA256 count differs"
+done
+expect_binding_rejected \
+  nested-unit-wrong \
+  "$OUTER_RUNNER" "$STEP4_MANIFEST" \
+  "$BINDING_FIXTURE_ROOT/lifecycle-wrong.py" \
+  "unit runner raw identity differs"
 
 process_starttime() {
   python3 - "$1" <<'PY'
@@ -474,7 +721,7 @@ class ShapeError(RuntimeError):
 
 UNIT_RUNNER_SHA256 = "45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66"
 INTEGRATION_RUNNER_SHA256 = "19d5a9e8d58a554f416e269a35666e439b5f611f44a50783482613316cb33639"
-OUTER_RUNNER_SHA256 = "02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa"
+OUTER_RUNNER_SHA256 = "90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec"
 LIBRARY_SHA256 = "48921fd25916e698197b5a4d555b6c2f5a0d86de4069dbf50262339efd6088b2"
 
 # These seals cover the complete executable physical/logical streams after
@@ -483,7 +730,7 @@ LIBRARY_SHA256 = "48921fd25916e698197b5a4d555b6c2f5a0d86de4069dbf50262339efd6088
 # rejected when reviewed commands are moved into a false/subshell/dead context.
 UNIT_EXECUTABLE_STREAM_SHA256 = "d7f7ab99e8098c89b9a61c5f30ce49227a6b9b10791a185f2d0ca46c31d1e3dd"
 INTEGRATION_EXECUTABLE_STREAM_SHA256 = "1d2c0f3a81a70831b0cf01a64d1e6ff48db4d9f393ae93ef81fdb8f89e1a6bc5"
-OUTER_EXECUTABLE_STREAM_SHA256 = "4a6e1f94414dfd950e87d5d7b0a249db7c9e59ee807cbbb669328007213cf48f"
+OUTER_EXECUTABLE_STREAM_SHA256 = "065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae"
 LIBRARY_EXECUTABLE_STREAM_SHA256 = "c18f95f1daf8b6ce1f1db1dd5b43f9026ed41232e9d7d26b2236586ed0786a6e"
 
 
@@ -1641,6 +1888,25 @@ def expect_outer_rejected(label: str, mutated: str, expected_code: str) -> None:
     raise SystemExit(f"Outer lifecycle mutation unexpectedly passed: {label}")
 
 
+def expect_outer_seal_rejected(
+    label: str, mutated: str, expected_code: str
+) -> None:
+    try:
+        validate_outer(
+            Path(f"outer-seal-mutation:{label}"),
+            mutated,
+            source_bytes=mutated.encode("utf-8"),
+        )
+    except ShapeError as error:
+        if error.code != expected_code:
+            raise SystemExit(
+                f"Outer lifecycle seal mutation {label}: "
+                f"expected code={expected_code} observed={error.code}: {error}"
+            ) from error
+        return
+    raise SystemExit(f"Outer lifecycle seal mutation unexpectedly passed: {label}")
+
+
 def expect_library_rejected(label: str, mutated: str, expected_code: str) -> None:
     try:
         validate_library(
@@ -1667,6 +1933,20 @@ try:
     validate_library(library_path, library, source_bytes=library_bytes)
 except ShapeError as error:
     raise SystemExit(str(error)) from error
+
+expect_outer_seal_rejected(
+    "crlf-byte-drift", outer.replace("\n", "\r\n"), "E_SOURCE_SEAL"
+)
+expect_outer_rejected(
+    "executable-noop",
+    replace_exact(
+        outer,
+        "MODE=diagnostic",
+        ":\nMODE=diagnostic",
+        "outer-executable-noop",
+    ),
+    "E_EXECUTABLE_STREAM_SEAL",
+)
 
 outer_authority_close = (
     '  v934_run_log_close_fd_number "$V934_AUTHORITY_LOCK_FD" || exit 93'
@@ -1749,4 +2029,4 @@ expect_library_rejected(
 )
 PY
 
-printf '[v934-run-log-test] PASS slow=2 nonzero=2 timeout=1 pid-reuse=1 early-signal=3 capture-failure=1 exit=2 clean-group=1 persistent-residue=1 unit-shape-negative=16 integration-shape-negative=14 unit-semantic-seal-negative=2 integration-semantic-seal-negative=5 source-seal-negative=2 outer-shape-negative=3 library-shape-negative=3\n'
+printf '[v934-run-log-test] PASS runner-seal-binding=1+6 slow=2 nonzero=2 timeout=1 pid-reuse=1 early-signal=3 capture-failure=1 exit=2 clean-group=1 persistent-residue=1 unit-shape-negative=16 integration-shape-negative=14 unit-semantic-seal-negative=2 integration-semantic-seal-negative=5 source-seal-negative=3 outer-shape-negative=4 library-shape-negative=3\n'

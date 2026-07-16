@@ -714,3 +714,53 @@ r10 的 lane、exec、aggregate 或 observation 拼接成 Step 4 exit。r10 test
 - threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
 - 本闸门不表示 r11、threshold freeze、fresh formal、最终实现质量、coverage audit、Step 4
   exit、Step 5、9.3.5 或 acceptance 已通过。
+
+## Superseding Main Quality Gate — r11 outer source-seal binding remediation（2026-07-17）
+
+本节只复核 r11 的 outer source-seal binding failure 与后续 remediation，不把 r11 的
+bootstrap 前置绿色拼接成测试或 Step 4 exit。r11 从 clean/pushed launch HEAD=
+`141592ca9f4219d87a018774ee607b09a8e5a8a1` 启动，在 run-owned Git/source seal 和任何
+test lane 前以 `E_SOURCE_SEAL` fail closed；run=`failed / excluded / non-reusable`。
+
+### Reviewed implementation
+
+- outer 在 Docker daemon probe、run root、logger 与 lane 前调用 special preflight；Unit、
+  Integration、outer、lifecycle library 四个独立 frozen constants 均须与 canonical raw bytes
+  和 top manifest exact row 同值，失败统一为 `E_SOURCE_SEAL_BINDING`；
+- nested constants 保持 hardcoded 独立封印，不从 manifest 动态派生；manifest 与 runner
+  同步刷新不能形成 self-certifying pass；
+- 所有 binding input 由 descriptor-bound strict reader 读取：pre-`lstat`、
+  `O_RDONLY|O_CLOEXEC|O_NOFOLLOW`、open 后 `fstat`、fd 全量读取及 post-`fstat`/`lstat`
+  stable identity；
+- outer raw-byte seal 与 comment/heredoc-aware executable-stream seal 同时保留；CRLF raw
+  mutation 与 executable no-op mutation 分别断言 `E_SOURCE_SEAL` 和
+  `E_EXECUTABLE_STREAM_SEAL`。
+
+### Verification and findings closure
+
+- final identities：outer raw=
+  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`，outer executable
+  stream=`065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`，lifecycle
+  tool=`61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`，top manifest=
+  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；
+- early binding positive=`1 / count=4`；六类 negatives 为 outer-only、outer+manifest refresh /
+  nested stale、valid-64 nested-only wrong、missing、duplicate、invalid-format，均由独立复造
+  证明 `rc=2 + E_SOURCE_SEAL_BINDING`；
+- full lifecycle=`PASS runner-seal-binding=1+6`；top manifest=`60/60`；coverage contract full
+  validation=`23 exec / 48 sessions / diagnostic-pending`，mutations=`21/21`；successor
+  manifest=`14/14`；overlay validation/negatives=`12/12`；Shell syntax、71 个 modified
+  Markdown relative links 与 `git diff --check` PASS；
+- 首轮安全审查发现 1 个 Medium：path check 与按路径重开之间存在 TOCTOU。上述
+  descriptor-bound strict reader 已关闭该 finding；post-fix security review 与第二路 final
+  regression review 均为 Blocker/High/Medium/Low=`0/0/0/0`；独立 docs/status review 也为
+  `0/0/0/0`，并复算 r11 五个 artifact SHA、absence boundary、cleanup 与四容器恢复。
+
+### Decision
+
+- decision=`pass / ready-for-remediation-commit-and-fresh-r12`；
+- 只放行当前 outer/lifecycle/manifest/r11 evidence/BUG/quality/writeback 的 commit/push；随后
+  必须证明 clean `HEAD == origin/main`，停止四个 exact demo DB containers 并从空 run root
+  执行 fresh r12 diagnostic；
+- threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
+- 本闸门不表示 r12、threshold freeze、fresh formal、最终实现质量、coverage audit、Step 4
+  exit、Step 5、9.3.5 或 acceptance 已通过。
