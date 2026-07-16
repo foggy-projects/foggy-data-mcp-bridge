@@ -405,3 +405,21 @@ updated_at: 2026-07-17
   commit/push、clean `HEAD == origin/main` 与 fresh r12
   diagnostic 全部通过，才允许进入 exact threshold review/freeze；Step 5、formal coverage
   run、coverage audit、acceptance 与 9.3.5 保持关闭。
+
+## Superseding r12 requirement boundary（2026-07-17）
+
+- r12=`step4-coverage-20260717-diagnostic-r12` 在 clean/pushed commit
+  `05351ecab0d7fc43d12dfa307ffecf81feb41539` 上完整发布 all-lane diagnostic、aggregate、
+  sensitive 与 cleanup；该 run 合法揭示 critical below-floor=`9` 和 structural N/A=`1`，
+  因而不是 Step 4 exit 或可直接冻结的 reviewed baseline；
+- threshold requirement 明确为 exact producer/consumer lifecycle：consumer 必须消费真实六字段
+  critical row 与八字段 metric，不得接受未知/缺失字段；默认 positive denominator，唯一 N/A
+  由 exact FQCN/module/metric machine tuple授权；
+- JSON numeric identity 必须类型严格：boolean 不得冒充 integer/number，float zero 不得冒充
+  integer zero；observation recompute、candidate、frozen equivalence、formal receipt 都使用同一
+  strict identity；frozen receipt 必须证明 retained raw exec replay；
+- coverage remediation 只能补测试，不得改变 production、critical set、0.80/0.70 floor、
+  exclusion 或 report/testcase cardinality；九类 focused=`136/F0E0S0` 只作 fresh r13 前置；
+- 当前 Step 4=`in-progress`，threshold=`diagnostic-pending`，precommit quality 已通过；
+  commit/push 与 fresh r13 仍 required。只有 r13 below-floor=`0`、N/A=`1`、candidate verified 后，才允许
+  direct-child Cfreeze；Step 5、formal、coverage audit、acceptance 与 9.3.5 保持关闭。

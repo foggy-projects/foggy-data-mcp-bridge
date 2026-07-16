@@ -115,6 +115,7 @@ class RedisQueryCacheProviderTest {
     void testL2Cache_Write() {
         ModelResultContext context = createContext("TestModel");
         PagingResultImpl testResult = createTestResult();
+        properties.setMaxResultSize(0);
 
         cacheProvider.writeL2Cache(
                 "TestModel",
@@ -125,6 +126,16 @@ class RedisQueryCacheProviderTest {
         );
 
         verify(valueOperations).set(anyString(), eq(testResult), any(Duration.class));
+
+        doThrow(new RuntimeException("Redis write failed"))
+                .when(valueOperations).set(anyString(), eq(testResult), any(Duration.class));
+        assertDoesNotThrow(() -> cacheProvider.writeL2Cache(
+                "TestModel",
+                "SELECT write-failure",
+                Collections.emptyList(),
+                testResult,
+                context
+        ), "Redis 写异常必须降级而不是中断查询");
     }
 
     @Test
@@ -160,6 +171,10 @@ class RedisQueryCacheProviderTest {
                 testResult,
                 context
         );
+
+        properties.setEnabled(true);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT null-result", Collections.emptyList(), null, context);
 
         verify(valueOperations, never()).set(anyString(), any(), any(Duration.class));
     }
@@ -202,6 +217,18 @@ class RedisQueryCacheProviderTest {
                 context
         );
 
+        properties.setCacheEmptyResult(false);
+        PagingResultImpl nullItems = new PagingResultImpl();
+        nullItems.setItems(null);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT null-items", Collections.emptyList(), nullItems, context);
+        cacheProvider.writeL2Cache(
+                "TestModel",
+                "SELECT empty-items",
+                Collections.emptyList(),
+                PagingResultImpl.of(Collections.emptyList(), 0, 10, null, 0),
+                context);
+
         verify(valueOperations, never()).set(anyString(), any(), any(Duration.class));
     }
 
@@ -240,6 +267,18 @@ class RedisQueryCacheProviderTest {
         );
 
         verify(valueOperations).set(anyString(), eq(testResult), eq(Duration.ofHours(1)));
+
+        properties.getRedis().setTtlJitter(true);
+        properties.getRedis().setTtlJitterMax(0);
+        cacheProvider.writeL2Cache(
+                "SpecialModel",
+                "SELECT jittered",
+                Collections.emptyList(),
+                testResult,
+                context
+        );
+        verify(valueOperations, times(2))
+                .set(anyString(), eq(testResult), eq(Duration.ofHours(1)));
     }
 
     @Test
@@ -377,6 +416,16 @@ class RedisQueryCacheProviderTest {
         cacheProvider.evict("Model1");
 
         verify(redisTemplate).delete(keys);
+
+        Set<String> l2Only = Collections.singleton("qc:l2:Model2:only");
+        when(redisTemplate.keys("qc:l1:Model2:*")).thenReturn(null);
+        when(redisTemplate.keys("qc:l2:Model2:*")).thenReturn(l2Only);
+        cacheProvider.evict("Model2");
+        verify(redisTemplate).delete(l2Only);
+
+        when(redisTemplate.keys("qc:l1:BrokenModel:*")).thenThrow(new RuntimeException("scan failed"));
+        assertDoesNotThrow(() -> cacheProvider.evict("BrokenModel"),
+                "清理单模型失败不得向调用方传播 Redis 异常");
     }
 
     @Test
@@ -393,6 +442,13 @@ class RedisQueryCacheProviderTest {
         cacheProvider.evictAll();
 
         verify(redisTemplate).delete(allKeys);
+
+        when(redisTemplate.keys("qc:*")).thenReturn(null);
+        assertDoesNotThrow(cacheProvider::evictAll);
+
+        when(redisTemplate.keys("qc:*")).thenThrow(new RuntimeException("scan failed"));
+        assertDoesNotThrow(cacheProvider::evictAll,
+                "全量清理失败不得向调用方传播 Redis 异常");
     }
 
     @Test
@@ -499,6 +555,21 @@ class RedisQueryCacheProviderTest {
 
         assertSame(expected, cached);
         verify(valueOperations).get(key.getValue());
+
+        when(valueOperations.get(key.getValue())).thenReturn("unexpected-payload");
+        assertNull(cacheProvider.checkL1Cache(context, authorization),
+                "非 PagingResultImpl 值必须按未命中处理");
+
+        when(valueOperations.get(key.getValue())).thenThrow(new RuntimeException("Redis read failed"));
+        assertNull(cacheProvider.checkL1Cache(context, authorization),
+                "L1 读取异常必须按未命中降级");
+        verify(valueOperations, times(3)).get(key.getValue());
+
+        doThrow(new RuntimeException("Redis write failed"))
+                .when(valueOperations).set(anyString(), eq(expected), any(Duration.class));
+        assertDoesNotThrow(() -> cacheProvider.writeL1Cache(
+                context, "Bearer another-token", expected),
+                "L1 写异常不得中断查询");
     }
 
     @Test
@@ -512,6 +583,29 @@ class RedisQueryCacheProviderTest {
         PagingResultImpl cached = cacheProvider.checkL1Cache(context, "Bearer token");
 
         assertNull(cached);
+
+        assertNull(cacheProvider.checkL1Cache(null, "Bearer token"));
+        cacheProvider.writeL1Cache(null, "Bearer token", createTestResult());
+
+        ModelResultContext excluded = createContext("ExcludedModel");
+        properties.getExcludeModels().add("ExcludedModel");
+        cacheProvider.writeL1Cache(excluded, "Bearer token", createTestResult());
+        assertNull(cacheProvider.checkL1Cache(excluded, "Bearer token"));
+
+        ModelResultContext valid = createContext("TestModel");
+        cacheProvider.writeL1Cache(valid, "Bearer token", null);
+        properties.setCacheEmptyResult(false);
+        PagingResultImpl nullItems = new PagingResultImpl();
+        nullItems.setItems(null);
+        cacheProvider.writeL1Cache(valid, "Bearer token", nullItems);
+        cacheProvider.writeL1Cache(
+                valid,
+                "Bearer token",
+                PagingResultImpl.of(Collections.emptyList(), 0, 10, null, 0));
+        properties.setCacheEmptyResult(true);
+        properties.setMaxResultSize(1);
+        cacheProvider.writeL1Cache(valid, "Bearer token", createTestResult());
+
         verify(valueOperations, never()).set(anyString(), any(), any(Duration.class));
         verify(valueOperations, never()).get(anyString());
     }

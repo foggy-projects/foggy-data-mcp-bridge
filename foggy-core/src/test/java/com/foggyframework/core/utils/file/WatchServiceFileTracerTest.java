@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -314,6 +316,51 @@ class WatchServiceFileTracerTest {
         // 等待，确认不会触发
         Thread.sleep(2000);
         assertFalse(changed.get(), "移除监听后不应该收到事件");
+
+        assertEquals(0, tracer.unwatchFilesUnderRoot(null),
+                "null root must not remove unrelated listeners");
+
+        Path root = Files.createDirectories(tempDir.resolve("batch-root"));
+        Path fileOnlyDir = Files.createDirectories(root.resolve("file-only"));
+        Path directoryOwnedDir = Files.createDirectories(root.resolve("directory-owned"));
+        Path outsideDir = Files.createDirectories(tempDir.resolve("outside-root"));
+        Path fileOnly = Files.writeString(fileOnlyDir.resolve("model.qm"), "model");
+        Path directoryOwned = Files.writeString(
+                directoryOwnedDir.resolve("catalog.tm"), "catalog");
+        Path outside = Files.writeString(outsideDir.resolve("outside.qm"), "outside");
+        FileChangeListener batchListener = mock(FileChangeListener.class);
+        fileListeners().put(normalize(fileOnly), batchListener);
+        fileListeners().put(normalize(directoryOwned), batchListener);
+        fileListeners().put(normalize(outside), batchListener);
+
+        WatchKey fileOnlyKey = installFakeWatchKey(fileOnlyDir, file -> {
+        });
+        directoryListeners().remove(normalize(fileOnlyDir));
+        WatchKey directoryOwnedKey = installFakeWatchKey(directoryOwnedDir, file -> {
+        });
+        WatchKey outsideKey = installFakeWatchKey(outsideDir, file -> {
+        });
+        directoryListeners().remove(normalize(outsideDir));
+
+        int removed = tracer.unwatchFilesUnderRoot(root.toFile());
+
+        assertEquals(2, removed);
+        assertFalse(fileListeners().containsKey(normalize(fileOnly)));
+        assertFalse(fileListeners().containsKey(normalize(directoryOwned)));
+        assertTrue(fileListeners().containsKey(normalize(outside)),
+                "a sibling root must retain its file listener");
+        assertFalse(watchedDirs().containsKey(normalize(fileOnlyDir)),
+                "a file-only directory must release its WatchKey");
+        assertTrue(watchedDirs().containsKey(normalize(directoryOwnedDir)),
+                "an explicit directory listener still owns its WatchKey");
+        assertTrue(watchedDirs().containsKey(normalize(outsideDir)),
+                "a sibling root must retain its WatchKey");
+        verify(fileOnlyKey).cancel();
+        verify(directoryOwnedKey, never()).cancel();
+        verify(outsideKey, never()).cancel();
+
+        tracer.unwatchDirectory(directoryOwnedDir.toFile());
+        tracer.unwatchFile(outside.toFile());
     }
 
     private DirectoryChangeListener authorityListener(
@@ -367,6 +414,11 @@ class WatchServiceFileTracerTest {
     @SuppressWarnings("unchecked")
     private Map<WatchKey, Path> keyToDirMap() {
         return (Map<WatchKey, Path>) readField("keyToDirMap");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Path, FileChangeListener> fileListeners() {
+        return (Map<Path, FileChangeListener>) readField("fileListeners");
     }
 
     private Object readField(String name) {

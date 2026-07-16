@@ -44,6 +44,7 @@ FROZEN_DIAGNOSTIC_RESULT_KEYS = (
     "ancestor_verified",
     "confirmed_threshold_sha256",
     "frozen_blobs",
+    "replay_receipt",
     "evidence",
     "aggregate_observed",
     "aggregate_reviewed_thresholds",
@@ -101,6 +102,16 @@ WORKFLOW_STATES = {
         "threshold_status": "confirmed",
     },
 }
+# This exception set is machine-frozen. A zero counter cannot nominate itself
+# as N/A; both the critical identity and metric must appear here.
+CRITICAL_NOT_APPLICABLE_METRICS = (
+    {
+        "fqcn": "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+        "module": "foggy-dataset-model",
+        "metric": "branch",
+        "applicability": "not-applicable-zero-total-only",
+    },
+)
 REVIEWED_THRESHOLD_POLICY = {
     "counter_keys": ["covered", "total", "fraction"],
     "fraction_format": "<covered>/<total>",
@@ -109,6 +120,10 @@ REVIEWED_THRESHOLD_POLICY = {
     "critical_minimum": "exact-observed",
     "critical_line_floor_fraction": "4/5",
     "critical_branch_floor_fraction": "7/10",
+    "critical_metric_applicability": {
+        "default": "required-positive-total",
+        "exceptions": list(CRITICAL_NOT_APPLICABLE_METRICS),
+    },
 }
 INDEX_FLAGS_IDENTITY_POLICY = "ordinary-H-only-no-fsmonitor-valid"
 HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
@@ -695,12 +710,54 @@ def validate_fraction_counter(value: Any, label: str) -> dict[str, Any]:
     return counter
 
 
+def validate_not_applicable_fraction_counter(value: Any, label: str) -> dict[str, Any]:
+    counter = require_exact_keys(value, ("covered", "total", "fraction"), label)
+    require(
+        type(counter["covered"]) is int
+        and counter["covered"] == 0
+        and type(counter["total"]) is int
+        and counter["total"] == 0
+        and counter["fraction"] is None,
+        f"{label}: expected canonical not-applicable counter",
+    )
+    return counter
+
+
+def critical_metric_allows_not_applicable(
+    fqcn: str,
+    module: str,
+    metric: str,
+) -> bool:
+    return any(
+        row["fqcn"] == fqcn
+        and row["module"] == module
+        and row["metric"] == metric
+        for row in CRITICAL_NOT_APPLICABLE_METRICS
+    )
+
+
 def same_fraction_counter(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return (
         left["covered"] == right["covered"]
         and left["total"] == right["total"]
         and left["fraction"] == right["fraction"]
     )
+
+
+def strict_json_equal(left: Any, right: Any) -> bool:
+    """Compare decoded JSON values without Python's bool/int numeric aliases."""
+    if type(left) is not type(right):
+        return False
+    if type(left) is dict:
+        return set(left) == set(right) and all(
+            strict_json_equal(left[key], right[key]) for key in left
+        )
+    if type(left) is list:
+        return len(left) == len(right) and all(
+            strict_json_equal(left_value, right_value)
+            for left_value, right_value in zip(left, right)
+        )
+    return left == right
 
 
 def ratio_at_least(counter: dict[str, Any], numerator: int, denominator: int) -> bool:
@@ -850,9 +907,41 @@ def validate_thresholds(repo_root: Path, thresholds: dict[str, Any]) -> str:
         require(type(row["module"]) is str and re.fullmatch(r"[A-Za-z0-9._/-]+", row["module"]) is not None, f"{label}.module: invalid value")
         identities.append({"fqcn": row["fqcn"], "module": row["module"]})
         for metric, numerator, denominator in (("line", 4, 5), ("branch", 7, 10)):
-            metric_value = require_exact_keys(row[metric], ("observed", "minimum"), f"{label}.{metric}")
-            observed = validate_fraction_counter(metric_value["observed"], f"{label}.{metric}.observed")
-            minimum = validate_fraction_counter(metric_value["minimum"], f"{label}.{metric}.minimum")
+            metric_value = require_exact_keys(
+                row[metric],
+                ("applicability", "observed", "minimum"),
+                f"{label}.{metric}",
+            )
+            applicability = metric_value["applicability"]
+            require(
+                applicability
+                in {
+                    "required-positive-total",
+                    "not-applicable-zero-total-only",
+                },
+                f"{label}.{metric}.applicability: unexpected value",
+            )
+            if applicability == "not-applicable-zero-total-only":
+                require(
+                    critical_metric_allows_not_applicable(
+                        row["fqcn"], row["module"], metric
+                    ),
+                    f"{label}.{metric}: not-applicable is not approved by the frozen policy",
+                )
+                observed = validate_not_applicable_fraction_counter(
+                    metric_value["observed"], f"{label}.{metric}.observed"
+                )
+                require(
+                    metric_value["minimum"] is None,
+                    f"{label}.{metric}.minimum: expected null for not-applicable metric",
+                )
+                continue
+            observed = validate_fraction_counter(
+                metric_value["observed"], f"{label}.{metric}.observed"
+            )
+            minimum = validate_fraction_counter(
+                metric_value["minimum"], f"{label}.{metric}.minimum"
+            )
             require(
                 same_fraction_counter(minimum, observed),
                 f"{label}.{metric}: minimum must exactly equal observed counter",
@@ -3104,18 +3193,73 @@ def validate_frozen_diagnostic_receipt(
     )
     aggregate = thresholds["aggregate_observed"]
     evidence = aggregate["evidence"]
+    replay = require_exact_keys(
+        receipt["replay_receipt"],
+        (
+            "run_context_sha256",
+            "source_sha256",
+            "not_before_ns",
+            "git_head",
+            "raw_exec_replay",
+            "scope",
+            "status",
+        ),
+        "frozen diagnostic validator receipt.replay_receipt",
+    )
+    raw_exec_replay = require_exact_keys(
+        replay["raw_exec_replay"],
+        (
+            "mode",
+            "identity_policy",
+            "freshness_policy",
+            "exec_count",
+            "byte_tree_sha256",
+            "status",
+        ),
+        "frozen diagnostic validator receipt.replay_receipt.raw_exec_replay",
+    )
+    require(
+        type(replay["run_context_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["run_context_sha256"]) is not None
+        and type(replay["source_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["source_sha256"]) is not None
+        and type(replay["not_before_ns"]) is int
+        and replay["not_before_ns"] > 0
+        and type(replay["git_head"]) is str
+        and re.fullmatch(r"[0-9a-f]{40}", replay["git_head"]) is not None
+        and replay["scope"] == "exact-retained-diagnostic-run-bytes"
+        and replay["status"] == "verified"
+        and raw_exec_replay["mode"] == "exact-retained-raw-exec-byte-replay"
+        and raw_exec_replay["identity_policy"]
+        == "canonical-dirfd-nofollow-stable-inode"
+        and raw_exec_replay["freshness_policy"]
+        == "exact-manifest-mtime-at-or-after-not-before"
+        and type(raw_exec_replay["exec_count"]) is int
+        and raw_exec_replay["exec_count"] == 23
+        and type(raw_exec_replay["byte_tree_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", raw_exec_replay["byte_tree_sha256"])
+        is not None
+        and raw_exec_replay["status"] == "verified",
+        "frozen diagnostic validator: replay receipt differs",
+    )
     require(
         receipt["run_id"] == evidence["run_id"]
         and receipt["diagnostic_git_head"] == evidence["git_head"]
         and receipt["current_git_head"] == git_commit(repo_root, "frozen diagnostic validator")
         and receipt["confirmed_threshold_sha256"]
         == sha256_file(thresholds_path, "confirmed coverage thresholds")
-        and receipt["evidence"] == evidence
-        and receipt["aggregate_observed"] == aggregate
-        and receipt["aggregate_reviewed_thresholds"]
-        == thresholds["aggregate_reviewed_thresholds"]
-        and receipt["critical_reviewed_thresholds"]
-        == thresholds["critical_reviewed_thresholds"],
+        and replay["git_head"] == evidence["git_head"]
+        and replay["source_sha256"] == evidence["source_sha256"]
+        and strict_json_equal(receipt["evidence"], evidence)
+        and strict_json_equal(receipt["aggregate_observed"], aggregate)
+        and strict_json_equal(
+            receipt["aggregate_reviewed_thresholds"],
+            thresholds["aggregate_reviewed_thresholds"],
+        )
+        and strict_json_equal(
+            receipt["critical_reviewed_thresholds"],
+            thresholds["critical_reviewed_thresholds"],
+        ),
         "frozen diagnostic validator: receipt differs from confirmed threshold input",
     )
     frozen_blobs = require_exact_keys(

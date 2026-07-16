@@ -764,3 +764,46 @@ test lane 前以 `E_SOURCE_SEAL` fail closed；run=`failed / excluded / non-reus
 - threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
 - 本闸门不表示 r12、threshold freeze、fresh formal、最终实现质量、coverage audit、Step 4
   exit、Step 5、9.3.5 或 acceptance 已通过。
+
+## Superseding Main Quality Gate — r12 threshold/coverage Cdiag remediation（2026-07-17）
+
+本节复核 r12 有效 diagnostic 发现的 9 个 critical coverage gap、threshold enriched/N/A
+lifecycle 缺口及其提交前 exact-type hardening。它只决定 Cdiag 是否可提交，不把 focused
+结果解释成 fresh r13、Cfreeze、formal 或 Step 4 exit。
+
+### Reviewed implementation
+
+- 八份既有测试 source 在不增加 `@Test`、report 或 testcase node 的前提下覆盖九个 gap
+  classes；未修改 production、critical set、0.80/0.70 floor 或 exclusion；
+- freeze/formal consumer exact 消费六字段 critical row 与八字段 metric；默认 positive
+  denominator，唯一 N/A 是 exact `NamespaceScope / foggy-dataset-model / branch` tuple；
+- candidate、stored observation、frozen equivalence、gate/candidate/final 使用 recursive exact
+  JSON identity；frozen receipt 绑定 retained raw-exec replay；
+- child lifecycle root/nested identity、aggregate/report provenance file size、threshold schema、
+  ratio/floor/gap 均拒绝 bool/int/float aliases；三处 size consumer 由 AST exact-call binding
+  防止脱钩；
+- protected dataset lifecycle tests 通过 declared-amendment 与 protected-tree successor
+  重新封印；其他五份测试不属于 Step 3 protected scope。
+
+### Verification and findings closure
+
+- focused tests=`136/F0E0S0`，八个既有 test classes 的 testcase cardinality 不变；
+- XML negatives=`118/118`；contract mutations=`27/27`；threshold/frozen replay=
+  `12/12`；overlay negatives=`12/12`；
+- top manifest=`60/60`，successor manifest=`14/14`；canonical contract 与 overlay PASS；
+  Python compile、JSON parse、modified Markdown relative links 与 `git diff --check` PASS；
+- 首轮交叉复核发现 enriched/N/A bool/float aliases、frozen replay closure 与 formal artifact
+  equality；第二轮全文件复核发现 child lifecycle 宽松 equality、三处 provenance size alias、
+  threshold schema 与 aggregate ratio defense-in-depth gap。全部修复并回补负例；
+- post-fix full canonical/frozen/formal closure review 与正式 implementation quality 最终
+  Blocker/High/Medium/Low=`0/0/0/0`。
+
+### Decision
+
+- decision=`pass / ready-for-Cdiag-commit-and-fresh-r13`；
+- 只放行当前 test/tool/contract/successor/docs/workitem/quality writeback 的 commit/push；随后
+  必须证明 clean `HEAD == origin/main`，停止四个 exact demo DB containers、确认端口释放，
+  从空 run root 执行 `step4-coverage-20260717-diagnostic-r13` 并恢复 exact IDs；
+- threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；
+- 本闸门不表示 r13、Cfreeze、fresh formal、最终 quality、coverage audit、acceptance、
+  Step 4 exit、Step 5 或 9.3.5 已通过。

@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBind
 import com.foggyframework.dataset.db.model.spi.ProcessLocalDefaultDataSourceResolver;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.RuntimeDatasourceRecord;
+import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.RuntimeResolvedBinding;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,6 +23,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,6 +35,8 @@ import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RuntimeNamedDataSourceResolverBindingTest {
 
@@ -113,6 +117,36 @@ class RuntimeNamedDataSourceResolverBindingTest {
         assertThatThrownBy(() -> firstBinding.dataSource().getConnection())
                 .isInstanceOf(SQLException.class)
                 .hasMessageContaining("DATASOURCE_BINDING_REVOKED");
+
+        RuntimeDatasourceRegistryService incompleteRegistry =
+                mock(RuntimeDatasourceRegistryService.class);
+        DataSource incompleteDataSource = mock(DataSource.class);
+        RuntimeNamedDataSourceResolver incompleteResolver = new RuntimeNamedDataSourceResolver(
+                incompleteRegistry, new StaticListableBeanFactory());
+        List<RuntimeResolvedBinding> incompleteBindings = List.of(
+                new RuntimeResolvedBinding(
+                        "missing-binding-key", incompleteDataSource, " ",
+                        "runtime-registry:missing-binding-key", "generation-1", true),
+                new RuntimeResolvedBinding(
+                        "missing-backend-id", incompleteDataSource,
+                        "runtime:named:missing-backend-id", " ", "generation-2", true),
+                new RuntimeResolvedBinding(
+                        "missing-generation", incompleteDataSource,
+                        "runtime:named:missing-generation",
+                        "runtime-registry:missing-generation", " ", true)
+        );
+        for (RuntimeResolvedBinding incomplete : incompleteBindings) {
+            when(incompleteRegistry.resolveRuntimeBinding(incomplete.name()))
+                    .thenReturn(Optional.of(incomplete));
+
+            ResolvedDatasourceBinding untracked =
+                    incompleteResolver.resolveBinding(incomplete.name());
+
+            assertThat(untracked).isNotNull();
+            assertThat(untracked.dataSource()).isSameAs(incompleteDataSource);
+            assertThat(untracked.identity()).isNull();
+            assertThat(untracked.cacheable()).isFalse();
+        }
     }
 
     @Test

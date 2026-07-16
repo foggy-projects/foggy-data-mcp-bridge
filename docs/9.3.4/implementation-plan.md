@@ -668,3 +668,28 @@ r12 前增加以下顺序约束：
    diagnostic，退出后恢复 exact demo container IDs；
 7. 只有 r12 完整成功才允许 threshold review；direct-single-parent freeze、fresh formal、最终
    quality、coverage audit 与 acceptance 仍严格后置。任一失败继续 fail closed，不开始 Step 5。
+
+## Step 4 r12 threshold/coverage remediation addendum（2026-07-17）
+
+r12 已完整成功发布 diagnostic evidence，但它观察到 9/12 critical classes 低于 floor；首次
+freeze 又证明真实 enriched observation 与旧 consumer schema 不兼容，并且
+`NamespaceScope.branch` 的结构性零分母无法表达。r12 是有效 diagnostic，不是可冻结的
+baseline。后续顺序更新为：
+
+1. 封存 r12 exact observation、summary、sensitive scan、cleanup 和四个 external container
+   restoration；r12 不直接生成 Cfreeze；
+2. threshold consumer 必须 exact 消费真实 critical row 六字段与八字段 metric，默认要求
+   positive denominator；唯一 N/A tuple 为 `NamespaceScope / foggy-dataset-model / branch`；
+3. 所有 decoded JSON 比较必须区分 bool/int/float，拒绝 `false == 0`、`0.0 == 0` 与
+   `gap:false == 0.0` aliases；frozen diagnostic receipt 必须包含并验证 raw-exec replay schema，
+   full formal validator 对 replay call 保持 exact one-call binding；
+4. 九个 gap class 只通过既有测试补边界，不改 production、critical set、floor 或 exclusion，
+   且 report/testcase cardinality 保持不变；focused 九类测试=`136/F0E0S0`；
+5. focused gates 必须至少为 XML=`118/118`、contract mutations=`27/27`、threshold/frozen
+   replay policy=`12/12`、overlay=`12/12`、top=`60/60`、successor=`14/14`；
+6. fresh implementation quality B/H/M=0 后，将 remediation 作为 Cdiag commit/push，证明 clean
+   `HEAD == origin/main`；停止并记录四个 exact demo DB containers，确认 frozen ports free，
+   使用唯一新 run ID `step4-coverage-20260717-diagnostic-r13` 从头执行；退出后恢复 exact IDs；
+7. 只有 r13 完整成功、`below_floor_class_count=0`、structural N/A count=`1` 且 candidate
+   public verification 通过，才创建 Cdiag 的 direct-single-parent Cfreeze；Cfreeze 后 fresh
+   formal、最终 quality、coverage audit、acceptance 顺序不变。Step 5 在 Step 4 exit 前关闭。

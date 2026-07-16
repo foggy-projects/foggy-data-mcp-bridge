@@ -639,3 +639,27 @@ Final acceptance 至少验证：
 
 当前 `can_enter_coverage_audit=no`；threshold=`diagnostic-pending`。Step 5、formal coverage run、
 coverage audit 与 acceptance 保持关闭。
+
+## Superseding r12 / r13 test delta（2026-07-17）
+
+- r12 positive diagnostic：`773 positive + 59 structural / 5,707 testcase / F0E0S0`、
+  Addon=`2/6`、exec=`23/48/16,935`、aggregate/sensitive/cleanup 完整；但 critical
+  below-floor=`9`，所以只作为 diagnostic observation；
+- coverage tests：CatalogSnapshotStore=`18`、ModelBuildSingleFlight=`17`、
+  CatalogRefreshCoordinator=`13`、WatchServiceFileTracer=`11`、QueryFingerprintBuilder=`17`、
+  Caffeine=`30`、Redis=`25`、Runtime resolver=`5`，合计 `136/F0E0S0`；所有 suite 节点数
+  与 r12 contract 相同；
+- enriched/N/A positives：真实 critical row 六字段、metric 八字段、唯一
+  `NamespaceScope.branch=0/0/null + minimum=null`、formal N/A path、frozen receipt replay；
+- expected negatives：row extra/wrong FQCN/module/artifact/metric/outcome；metric arithmetic/
+  floor/outcome/gap；N/A wrong FQCN/module/metric、nonzero、minimum、bool/float zero；
+  `gap:false`/non-finite；applicability 双向 drift；denominator rescale；frozen receipt bool alias/
+  replay schema；formal replay call absent/duplicate；
+- focused result：XML=`118/118`、contract mutations=`27/27`、threshold/frozen replay=
+  `12/12`、overlay=`12/12`、manifest=`60/60 + 14/14`；
+- precommit implementation quality 与 full JSON closure review 最终
+  B/H/M/L=`0/0/0/0`；focused evidence 仍不替代 fresh authority；
+- fresh r13 必须重新执行全部 23 exec/48 sessions 并得到 below-floor=`0`、N/A=`1`；focused
+  union 不替代 authority。r13 candidate 通过后才允许 direct-child Cfreeze 与 fresh formal。
+
+当前 `can_enter_coverage_audit=no`；Step 5、formal、coverage audit、acceptance 保持关闭。

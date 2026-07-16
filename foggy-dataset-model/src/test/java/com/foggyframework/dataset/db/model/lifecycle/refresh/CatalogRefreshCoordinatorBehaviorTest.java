@@ -10,7 +10,9 @@ import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStor
 import com.foggyframework.dataset.db.model.lifecycle.catalog.ModelProvenance;
 import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
 import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.db.model.lifecycle.port.CommittedSourceRevisionGuard;
 import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
 import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
 import com.foggyframework.dataset.db.model.lifecycle.port.StaleDatasourceBindingException;
@@ -19,6 +21,7 @@ import com.foggyframework.dataset.db.model.spi.NamespaceScope;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -180,6 +183,8 @@ class CatalogRefreshCoordinatorBehaviorTest {
         assertSame(before, store.readCurrent(NAMESPACE).orElseThrow());
         assertEquals(CatalogAdmissionState.ACTIVE_OLD_PRESERVED,
                 store.admissionState(NAMESPACE));
+        assertConfiguredDiscoveryAndPlanBoundariesFailClosed();
+        assertUnstableConfiguredDiscoveryFailsAfterBoundedCaptureAttempts();
     }
 
     @Test
@@ -436,6 +441,150 @@ class CatalogRefreshCoordinatorBehaviorTest {
             assertEquals("outer-namespace", NamespaceContext.getNamespace());
         }
         assertNull(NamespaceContext.getNamespace());
+        assertColdNestedFatalAndCheckedFailuresRemainFailClosed();
+    }
+
+    private static void assertConfiguredDiscoveryAndPlanBoundariesFailClosed() {
+        CatalogSnapshotStore store = new CatalogSnapshotStore();
+        CatalogRefreshCoordinator coordinator = new CatalogRefreshCoordinator(store);
+        CatalogRefreshRequest namespaceRequest = CatalogRefreshRequest.namespace(
+                "boundary-namespace", CatalogRefreshTrigger.EXPLICIT_RECOVERY);
+
+        IllegalStateException missingDiscovery = assertThrows(
+                IllegalStateException.class,
+                () -> coordinator.refresh(namespaceRequest, ignored -> {
+                }));
+        assertEquals("CATALOG_REFRESH_DISCOVERY_CALLBACK_REQUIRED",
+                missingDiscovery.getMessage());
+
+        CatalogRefreshPlan wrongScope = CatalogRefreshPlan.models(
+                Set.of(CatalogModelKey.query(QUERY_X)), Set.of(QUERY_X));
+        assertThrows(IllegalArgumentException.class,
+                () -> coordinator.refresh(namespaceRequest, wrongScope, ignored -> {
+                }));
+
+        CatalogRefreshRequest modelRequest = CatalogRefreshRequest.models(
+                "boundary-namespace",
+                Set.of(CatalogModelKey.query(QUERY_X)),
+                CatalogRefreshTrigger.EXPLICIT_RECOVERY);
+        CatalogRefreshPlan wrongTargets = CatalogRefreshPlan.models(
+                Set.of(CatalogModelKey.query(QUERY_Y)), Set.of(QUERY_X, QUERY_Y));
+        assertThrows(IllegalArgumentException.class,
+                () -> coordinator.refresh(modelRequest, wrongTargets, ignored -> {
+                }));
+    }
+
+    private static void assertColdNestedFatalAndCheckedFailuresRemainFailClosed() {
+        CatalogRefreshRequest request = CatalogRefreshRequest.namespace(
+                "failure-boundary", CatalogRefreshTrigger.EXPLICIT_RECOVERY);
+        CatalogRefreshPlan emptyPlan = CatalogRefreshPlan.namespace(Set.of());
+
+        CatalogSnapshotStore coldStore = new CatalogSnapshotStore();
+        CatalogRefreshResult coldResult = new CatalogRefreshCoordinator(coldStore).refresh(
+                request, emptyPlan, ignored -> {
+                });
+        CatalogSnapshot coldSnapshot = coldStore.current(request.namespace()).orElseThrow();
+        assertEquals(coldSnapshot.identity(), coldResult.afterIdentity());
+        assertTrue(coldSnapshot.provenance().isEmpty());
+
+        CatalogSnapshotStore nestedStore = new CatalogSnapshotStore();
+        try (CatalogSnapshotStore.CandidateScope ignored =
+                     nestedStore.openCandidate(request.namespace())) {
+            CatalogRefreshException nestedFailure = assertThrows(
+                    CatalogRefreshException.class,
+                    () -> new CatalogRefreshCoordinator(nestedStore).refresh(
+                            request, emptyPlan, context -> {
+                            }));
+            assertTrue(nestedFailure.getCause() instanceof IllegalStateException);
+            assertEquals("CATALOG_REFRESH_NESTED_OWNER_REQUIRED",
+                    nestedFailure.getCause().getMessage());
+        }
+
+        CatalogSnapshotStore seededStore = new CatalogSnapshotStore();
+        CatalogSnapshot active = seed(
+                seededStore, request.namespace(), Set.of(QUERY_X));
+        CatalogRefreshPlan seededPlan = CatalogRefreshPlan.namespace(Set.of(QUERY_X));
+        CatalogRefreshCoordinator seededCoordinator =
+                new CatalogRefreshCoordinator(seededStore);
+        AssertionError fatal = new AssertionError("controlled fatal refresh failure");
+        assertSame(fatal, assertThrows(AssertionError.class,
+                () -> seededCoordinator.refresh(
+                        request, seededPlan, ignored -> {
+                            throw fatal;
+                        })));
+        assertSame(active, seededStore.readCurrent(request.namespace()).orElseThrow());
+        assertEquals(CatalogAdmissionState.ACTIVE_OLD_PRESERVED,
+                seededStore.admissionState(request.namespace()));
+
+        IOException checked = new IOException("controlled checked refresh failure");
+        CatalogRefreshException checkedFailure = assertThrows(
+                CatalogRefreshException.class,
+                () -> seededCoordinator.refresh(
+                        request, seededPlan, ignored -> {
+                            throw checked;
+                        }));
+        assertEquals("CATALOG_REFRESH_FAILED", checkedFailure.code());
+        assertSame(checked, checkedFailure.getCause().getCause());
+        assertSame(active, seededStore.readCurrent(request.namespace()).orElseThrow());
+
+        CatalogRefreshException normalized = new CatalogRefreshException(
+                "CONTROLLED_REFRESH_FAILURE",
+                request,
+                active.identity(),
+                CatalogAdmissionState.ACTIVE_OLD_PRESERVED,
+                List.of(),
+                new IllegalStateException("controlled normalized failure"));
+        assertSame(normalized, assertThrows(CatalogRefreshException.class,
+                () -> seededCoordinator.refresh(
+                        request, seededPlan, ignored -> {
+                            throw normalized;
+                        })));
+
+        CatalogSnapshotStore guardedStore = new CatalogSnapshotStore();
+        DatasourceBindingIdentity tracked = new DatasourceBindingIdentity(
+                "test:guard-required",
+                "test:sqlite",
+                new DatasourceBindingGeneration("generation-one"));
+        CatalogRefreshException guardFailure = assertThrows(
+                CatalogRefreshException.class,
+                () -> new CatalogRefreshCoordinator(guardedStore).refresh(
+                        CatalogRefreshRequest.namespace(
+                                "guard-required",
+                                CatalogRefreshTrigger.EXPLICIT_RECOVERY),
+                        CatalogRefreshPlan.namespace(Set.of(QUERY_Y)),
+                        context -> stageTrackedQuery(
+                                context.candidate(), QUERY_Y, tracked)));
+        assertEquals("CATALOG_REFRESH_FAILED", guardFailure.code());
+        assertEquals("DATASOURCE_BINDING_PUBLICATION_GUARD_UNAVAILABLE",
+                guardFailure.getCause().getMessage());
+        assertTrue(guardedStore.current("guard-required").isEmpty());
+    }
+
+    private static void assertUnstableConfiguredDiscoveryFailsAfterBoundedCaptureAttempts() {
+        CatalogSnapshotStore store = new CatalogSnapshotStore(
+                new StepwiseSourceRevisionGuard());
+        TableModelLoaderManagerImpl tableLoader =
+                mock(TableModelLoaderManagerImpl.class);
+        QueryModelLoaderImpl queryLoader = mock(QueryModelLoaderImpl.class);
+        AtomicInteger discoveries = new AtomicInteger();
+        when(queryLoader.discoverQueryModelNames("unstable-discovery"))
+                .thenAnswer(ignored -> {
+                    discoveries.incrementAndGet();
+                    return Set.of();
+                });
+        CatalogRefreshCoordinator coordinator = new CatalogRefreshCoordinator(
+                store, tableLoader, queryLoader);
+        CatalogRefreshRequest request = CatalogRefreshRequest.namespace(
+                "unstable-discovery", CatalogRefreshTrigger.FILE);
+
+        CatalogRefreshException failure = assertThrows(
+                CatalogRefreshException.class,
+                () -> coordinator.refresh(request, ignored -> {
+                }));
+
+        assertEquals("SOURCE_REVISION_STALE", failure.code());
+        assertEquals(3, discoveries.get());
+        assertTrue(store.current(request.namespace()).isEmpty());
     }
 
     private static void awaitRelease(
@@ -615,6 +764,27 @@ class CatalogRefreshCoordinatorBehaviorTest {
                         "unexpected publication binding set");
             }
             throw new StaleDatasourceBindingException(tracked.bindingKey());
+        }
+    }
+
+    private static final class StepwiseSourceRevisionGuard
+            implements CommittedSourceRevisionGuard {
+
+        private final AtomicInteger reads = new AtomicInteger();
+
+        @Override
+        public SourceRevision currentSourceRevision(String namespace) {
+            int capture = reads.getAndIncrement() / 2 + 1;
+            return new SourceRevision("stepwise-source-" + capture);
+        }
+
+        @Override
+        public <T> T publishIfCurrent(
+                String namespace,
+                SourceRevision expected,
+                Supplier<T> publication
+        ) {
+            return publication.get();
         }
     }
 

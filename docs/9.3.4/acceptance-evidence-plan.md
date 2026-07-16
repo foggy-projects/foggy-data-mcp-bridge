@@ -24,12 +24,12 @@ updated_at: 2026-07-17
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r9 coverage-report excluded、remediations implemented、quality passed / commit pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r12 diagnostic observed、threshold+coverage remediation implemented、precommit quality passed / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r1–r9 and Unit remediation r2 excluded / r9 remediations + fresh r10 pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r12 observed with 9 gaps / remediation + fresh r13 pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r1–r9 与 Unit remediation r2 failed evidence、Unit remediation r3 pass evidence 已记录，但 Step 4 exit evidence absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 remediation quality passed / commit pending，B/H/M/L=`0/0/0/0`，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r12 valid diagnostic evidence recorded，但 below-floor 与 formal exit evidence absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 r12 remediation precommit quality passed B/H/M/L=`0/0/0/0`，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -311,6 +311,21 @@ version acceptance；Step 7 仍需在最终 clean authority 后重新执行版�
 - `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。必须先取得 fresh r10 diagnostic，
   direct-child exact threshold freeze、fresh formal 与最终 implementation quality PASS，才可
   按 Gate Order 调用 test coverage audit；audit PASS 后才可执行 version acceptance。
+
+## Superseding Current Step 4 acceptance boundary（r12）
+
+- r12=`step4-coverage-20260717-diagnostic-r12` 是 clean/pushed commit
+  `05351ecab0d7fc43d12dfa307ffecf81feb41539` 上完整、可复验的 diagnostic；all-lane、
+  aggregate、sensitive scan 与 cleanup 通过，但 9/12 critical classes 低于冻结 floor，
+  唯一 `NamespaceScope.branch` 为 machine-authorized structural N/A；
+- r12 observation 是合法缺口证据，不是 reviewed threshold、formal gate 或 Step 4 exit。
+  旧 freeze consumer 暴露的 enriched-row、N/A applicability 与 retained raw-exec replay
+  闭包缺口已修复，九类测试 focused=`136/F0E0S0`，静态/负向门为 XML=`118/118`、
+  contract=`27/27`、frozen replay=`12/12`、overlay=`12/12`；
+- 当前仍为 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。本轮正式
+  implementation quality 已通过；仍必须依次完成 Cdiag commit/push/clean HEAD、fresh r13、direct-single-parent
+  Cfreeze、fresh formal 与最终 implementation quality；只有上述链路通过后才按 Gate Order
+  启动 test coverage audit，audit PASS 后才允许 acceptance。
 
 ## Final Signoff Contract
 

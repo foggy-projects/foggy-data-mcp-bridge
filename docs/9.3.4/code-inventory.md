@@ -604,6 +604,37 @@ code_inventory:
   `can_enter_coverage_audit=no`，Step 5、threshold freeze、formal coverage run、coverage audit
   与 acceptance 关闭。
 
+### Superseding r12 threshold/coverage remediation inventory
+
+- immutable diagnostic：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r12-pass-with-threshold-gaps-20260717.md`；
+  run=`step4-coverage-20260717-diagnostic-r12`，tested commit=
+  `05351ecab0d7fc43d12dfa307ffecf81feb41539`，required=`773+59/5,707/F0E0S0`、
+  Addon=`2/6`、exec=`23/48/16,935`、aggregate line=`54,478/76,830`、branch=
+  `25,980/44,870`、sensitive passed、cleanup=`0/0/0`；
+- workitem：
+  `docs/9.3.4/workitems/BUG-step4-threshold-freeze-observation-applicability-gap.md`；
+  r12 below-floor=`9`，structural N/A=`1`，candidate absent，r12 不可直接 freeze；
+- threshold tooling：`scripts/v934/step4/{coverage-contract.json,coverage_tool.py,
+  coverage_contract_negative_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,SHA256SUMS}`；
+  exact enriched row/metric、唯一 N/A policy、strict JSON identity、frozen replay receipt schema
+  与 formal replay one-call binding 均纳入 machine contract；
+- test amendments：cache 三类、core WatchService、dataset lifecycle 三类、runtime resolver
+  共八份既有 test source，覆盖九个 critical production classes；不增加 report/testcase node，
+  focused=`136/F0E0S0`；dataset protected-tree 三项通过 successor exact amendment 声明；
+- successor inventory：`scripts/v934/step4/successor/{declared-amendments.tsv,
+  database-matrix-protected-trees.tsv,database-matrix-contract.json,
+  step3-required-contract.json,overlay-contract.json,overlay_tool.py,SHA256SUMS}`；declared
+  amendments=`21`，database matrix expected report/source amendment cardinality不变；
+- focused gates：XML=`118/118`、contract mutations=`27/27`、threshold/frozen replay=
+  `12/12`、overlay=`12/12`、top manifest=`60/60`、successor=`14/14`；
+- precommit exact-type audit：`BUG-step4-evidence-json-numeric-type-alias-bypass.md` 记录
+  child-lifecycle recursive identity、三处 provenance size、threshold schema 与 aggregate
+  ratio 的 bool/int/float alias；9 项新增 negatives 已纳入 XML=`118/118`；
+- 当前 boundary：remediation precommit quality 已通过，B/H/M/L=`0/0/0/0`；
+  commit/push 与 fresh r13 pending。r13 前 threshold=`diagnostic-pending`、
+  `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 关闭。
+
 ## Protected Boundaries
 
 - `docs/9.3.3/evidence/**` and existing `target/v933-*` are historical authority；

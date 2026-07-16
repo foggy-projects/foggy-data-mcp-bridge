@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
+from fractions import Fraction
 import hashlib
 import json
 import os
@@ -134,13 +136,43 @@ def observation_counter(covered: int, total: int) -> dict[str, Any]:
     }
 
 
+def critical_observation_counter(
+    covered: int,
+    total: int,
+    floor: float,
+) -> dict[str, Any]:
+    counter = observation_counter(covered, total)
+    if total == 0:
+        outcome = "not-applicable"
+        gap = None
+    elif covered / total >= floor:
+        outcome = "at-or-above-floor"
+        gap = 0.0
+    else:
+        outcome = "below-floor"
+        gap = round(floor - covered / total, 12)
+    return {
+        **counter,
+        "floor": floor,
+        "outcome": outcome,
+        "gap": gap,
+    }
+
+
 def synthetic_freeze_validation(
     *,
     line: tuple[int, int] = (4, 5),
     branch: tuple[int, int] = (7, 10),
+    fqcn: str = "example.Critical",
+    module: str = "example-module",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    fqcn = "example.Critical"
-    module = "example-module"
+    line_counter = critical_observation_counter(*line, 0.8)
+    branch_counter = critical_observation_counter(*branch, 0.7)
+    candidate_floor_outcome = (
+        "below-floor"
+        if "below-floor" in (line_counter["outcome"], branch_counter["outcome"])
+        else "at-or-above-floor"
+    )
     evidence = {
         "run_id": "negative-diagnostic",
         "git_head": "1" * 40,
@@ -166,8 +198,10 @@ def synthetic_freeze_validation(
                 {
                     "fqcn": fqcn,
                     "module": module,
-                    "line": observation_counter(*line),
-                    "branch": observation_counter(*branch),
+                    "artifact_id": module.rsplit("/", 1)[-1],
+                    "line": line_counter,
+                    "branch": branch_counter,
+                    "candidate_floor_outcome": candidate_floor_outcome,
                 }
             ],
         },
@@ -349,6 +383,77 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "observed_code": "strict-less-than-one",
         "status": "passed",
     }
+    if not tool.exact_json_identity(
+        {"integer": 0, "ratio": 0.0}, {"integer": 0, "ratio": 0.0}
+    ):
+        raise RuntimeError("strict JSON identity rejected identical typed values")
+    record_positive(cases, "exact-json-identity-positive")
+    expect_failure(
+        cases,
+        "exact-json-identity-numeric-alias",
+        "E_JSON_IDENTITY",
+        lambda: tool.require(
+            tool.exact_json_identity({"zero": False}, {"zero": 0}),
+            "E_JSON_IDENTITY",
+            "boolean must not alias an integer",
+        ),
+    )
+    tool_source = ast.parse(
+        (SCRIPT_DIR / "coverage_xml_tool.py").read_text(encoding="utf-8"),
+        filename="coverage_xml_tool.py",
+    )
+    functions = {
+        node.name: node
+        for node in tool_source.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    expected_size_calls = {
+        "validate_aggregate_provenance": 2,
+        "validate_report_provenance": 1,
+    }
+    observed_size_calls = {
+        name: sum(
+            1
+            for node in ast.walk(functions[name])
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "exact_file_size"
+        )
+        for name in expected_size_calls
+    }
+    if observed_size_calls != expected_size_calls:
+        raise RuntimeError(
+            "provenance size validators are not bound to all canonical fields: "
+            f"{observed_size_calls}"
+        )
+    record_positive(cases, "provenance-size-validator-call-binding")
+    for case_name, alias in (
+        ("provenance-size-float-alias", 1.0),
+        ("provenance-size-boolean-alias", True),
+    ):
+        expect_failure(
+            cases,
+            case_name,
+            "E_PROVENANCE_SIZE",
+            lambda alias=alias: tool.exact_file_size(
+                alias,
+                1,
+                "E_PROVENANCE_SIZE",
+                "typed provenance size",
+            ),
+        )
+    aggregate_ratio_integer = observation_counter(5, 5)
+    aggregate_ratio_integer["ratio"] = 1
+    expect_failure(
+        cases,
+        "aggregate-observation-ratio-integer-alias",
+        "E_OBSERVATION_COUNTER",
+        lambda: tool.observation_exact_counter(
+            aggregate_ratio_integer,
+            "E_OBSERVATION_COUNTER",
+            "typed aggregate line",
+        ),
+    )
     malformed_fraction = copy.deepcopy(huge_actual)
     malformed_fraction["fraction"] = "1/1"
     expect_failure(
@@ -382,6 +487,26 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "formal aggregate line",
         ),
     )
+    expect_failure(
+        cases,
+        "formal-applicability-drift",
+        "E_FORMAL_APPLICABILITY_DRIFT",
+        lambda: tool.require_formal_applicability(
+            "required-positive-total",
+            "not-applicable-zero-total-only",
+            "formal critical branch",
+        ),
+    )
+    expect_failure(
+        cases,
+        "formal-applicability-drift-reverse",
+        "E_FORMAL_APPLICABILITY_DRIFT",
+        lambda: tool.require_formal_applicability(
+            "not-applicable-zero-total-only",
+            "required-positive-total",
+            "formal critical branch",
+        ),
+    )
 
     valid_validation, step1 = synthetic_freeze_validation()
     candidate = tool.threshold_candidate_data(valid_validation, step1)
@@ -392,6 +517,134 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "observed_code": "4/5",
         "status": "passed",
     }
+    for case_name, field, replacement in (
+        ("freeze-critical-wrong-fqcn", "fqcn", "example.OtherCritical"),
+        ("freeze-critical-wrong-module", "module", "other-module"),
+        ("freeze-critical-wrong-artifact", "artifact_id", "other-artifact"),
+        (
+            "freeze-critical-wrong-candidate-outcome",
+            "candidate_floor_outcome",
+            "below-floor",
+        ),
+    ):
+        mutated_validation = copy.deepcopy(valid_validation)
+        mutated_validation["observation"]["critical_classes"][0][field] = replacement
+        expect_failure(
+            cases,
+            case_name,
+            "E_FREEZE_CRITICAL",
+            lambda mutated_validation=mutated_validation: tool.threshold_candidate_data(
+                mutated_validation, step1
+            ),
+        )
+    extra_row_field = copy.deepcopy(valid_validation)
+    extra_row_field["observation"]["critical_classes"][0]["unexpected"] = True
+    expect_failure(
+        cases,
+        "freeze-critical-extra-row-field",
+        "E_FREEZE_CRITICAL",
+        lambda: tool.threshold_candidate_data(extra_row_field, step1),
+    )
+    wrong_metric_key = copy.deepcopy(valid_validation)
+    wrong_metric_row = wrong_metric_key["observation"]["critical_classes"][0]
+    wrong_metric_row["method"] = wrong_metric_row.pop("line")
+    expect_failure(
+        cases,
+        "freeze-critical-wrong-metric-key",
+        "E_FREEZE_CRITICAL",
+        lambda: tool.threshold_candidate_data(wrong_metric_key, step1),
+    )
+    gap_boolean = copy.deepcopy(valid_validation)
+    gap_boolean["observation"]["critical_classes"][0]["line"]["gap"] = False
+    expect_failure(
+        cases,
+        "freeze-enriched-gap-boolean",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(gap_boolean, step1),
+    )
+    gap_non_finite = copy.deepcopy(valid_validation)
+    gap_non_finite["observation"]["critical_classes"][0]["line"]["gap"] = float("inf")
+    expect_failure(
+        cases,
+        "freeze-enriched-gap-non-finite",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(gap_non_finite, step1),
+    )
+    gap_mismatch = copy.deepcopy(valid_validation)
+    gap_mismatch["observation"]["critical_classes"][0]["line"]["gap"] = 0.1
+    expect_failure(
+        cases,
+        "freeze-enriched-gap-mismatch",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(gap_mismatch, step1),
+    )
+    ratio_integer_validation, ratio_integer_step1 = synthetic_freeze_validation(
+        line=(5, 5)
+    )
+    ratio_integer_validation["observation"]["critical_classes"][0]["line"][
+        "ratio"
+    ] = 1
+    expect_failure(
+        cases,
+        "freeze-enriched-ratio-integer-alias",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(
+            ratio_integer_validation, ratio_integer_step1
+        ),
+    )
+    gap_integer = copy.deepcopy(valid_validation)
+    gap_integer["observation"]["critical_classes"][0]["line"]["gap"] = 0
+    expect_failure(
+        cases,
+        "freeze-enriched-gap-integer-alias",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(gap_integer, step1),
+    )
+    floor_integer_alias = critical_observation_counter(5, 5, 1.0)
+    floor_integer_alias["floor"] = 1
+    expect_failure(
+        cases,
+        "freeze-enriched-floor-integer-alias",
+        "E_FREEZE_COUNTER",
+        lambda: tool.observation_critical_counter(
+            floor_integer_alias,
+            "example.Critical",
+            "example-module",
+            "line",
+            Fraction(1, 1),
+            "E_FREEZE_COUNTER",
+            "E_FREEZE_ZERO_COUNTER",
+            "integer-alias critical line",
+        ),
+    )
+    enriched_extra = copy.deepcopy(valid_validation)
+    enriched_extra["observation"]["critical_classes"][0]["line"][
+        "applicability"
+    ] = "required-positive-total"
+    expect_failure(
+        cases,
+        "freeze-enriched-extra-field",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(enriched_extra, step1),
+    )
+    enriched_floor = copy.deepcopy(valid_validation)
+    enriched_floor["observation"]["critical_classes"][0]["line"]["floor"] = 0.7
+    expect_failure(
+        cases,
+        "freeze-enriched-floor-mutation",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(enriched_floor, step1),
+    )
+    enriched_outcome = copy.deepcopy(valid_validation)
+    enriched_outcome["observation"]["critical_classes"][0]["line"][
+        "outcome"
+    ] = "below-floor"
+    expect_failure(
+        cases,
+        "freeze-enriched-outcome-mutation",
+        "E_FREEZE_COUNTER",
+        lambda: tool.threshold_candidate_data(enriched_outcome, step1),
+    )
     low_validation, low_step1 = synthetic_freeze_validation(branch=(6, 10))
     expect_failure(
         cases,
@@ -405,6 +658,229 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "freeze-zero-counter",
         "E_FREEZE_ZERO_COUNTER",
         lambda: tool.threshold_candidate_data(zero_validation, zero_step1),
+    )
+    namespace_validation, namespace_step1 = synthetic_freeze_validation(
+        branch=(0, 0),
+        fqcn="com.foggyframework.dataset.db.model.spi.NamespaceScope",
+        module="foggy-dataset-model",
+    )
+    namespace_candidate = tool.threshold_candidate_data(
+        namespace_validation,
+        namespace_step1,
+    )
+    namespace_branch = namespace_candidate["critical_reviewed_thresholds"][0][
+        "branch"
+    ]
+    if namespace_branch != {
+        "applicability": "not-applicable-zero-total-only",
+        "observed": {"covered": 0, "total": 0, "fraction": None},
+        "minimum": None,
+    }:
+        raise RuntimeError("freeze candidate did not retain structural branch N/A")
+    tool.validate_reviewed_critical_metric(
+        namespace_branch,
+        "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+        "foggy-dataset-model",
+        "branch",
+        7,
+        10,
+        "E_THRESHOLD",
+        "confirmed namespace branch",
+    )
+    record_positive(cases, "freeze-structural-branch-not-applicable")
+    namespace_observation = namespace_validation["observation"]["critical_classes"][
+        0
+    ]["branch"]
+    namespace_formal = tool.formal_critical_metric_result(
+        namespace_observation,
+        namespace_branch,
+        "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+        "foggy-dataset-model",
+        "branch",
+        7,
+        10,
+        Fraction(7, 10),
+        "formal namespace branch",
+    )
+    if namespace_formal["applicability"] != "not-applicable-zero-total-only":
+        raise RuntimeError("formal helper did not retain structural branch N/A")
+    record_positive(cases, "formal-structural-branch-not-applicable")
+
+    for case_name, field, replacement in (
+        ("freeze-not-applicable-covered-boolean", "covered", False),
+        ("freeze-not-applicable-covered-float-zero", "covered", 0.0),
+        ("freeze-not-applicable-total-boolean", "total", False),
+        ("freeze-not-applicable-total-float-zero", "total", 0.0),
+    ):
+        mutated_reviewed = copy.deepcopy(namespace_branch)
+        mutated_reviewed["observed"][field] = replacement
+        expect_failure(
+            cases,
+            case_name,
+            "E_THRESHOLD",
+            lambda mutated_reviewed=mutated_reviewed: tool.validate_reviewed_critical_metric(
+                mutated_reviewed,
+                "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+                "foggy-dataset-model",
+                "branch",
+                7,
+                10,
+                "E_THRESHOLD",
+                "typed namespace branch",
+            ),
+        )
+    for case_name, field, replacement in (
+        ("freeze-observation-not-applicable-covered-boolean", "covered", False),
+        ("freeze-observation-not-applicable-covered-float-zero", "covered", 0.0),
+        ("freeze-observation-not-applicable-total-boolean", "total", False),
+        ("freeze-observation-not-applicable-total-float-zero", "total", 0.0),
+    ):
+        mutated_observation = copy.deepcopy(namespace_validation)
+        mutated_observation["observation"]["critical_classes"][0]["branch"][
+            field
+        ] = replacement
+        expect_failure(
+            cases,
+            case_name,
+            "E_FREEZE_COUNTER",
+            lambda mutated_observation=mutated_observation: tool.threshold_candidate_data(
+                mutated_observation, namespace_step1
+            ),
+        )
+
+    for case_name, fqcn, module, metric in (
+        (
+            "freeze-not-applicable-wrong-fqcn",
+            "com.foggyframework.dataset.db.model.spi.OtherScope",
+            "foggy-dataset-model",
+            "branch",
+        ),
+        (
+            "freeze-not-applicable-wrong-module",
+            "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+            "other-module",
+            "branch",
+        ),
+        (
+            "freeze-not-applicable-wrong-metric",
+            "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+            "foggy-dataset-model",
+            "line",
+        ),
+    ):
+        expect_failure(
+            cases,
+            case_name,
+            "E_THRESHOLD",
+            lambda fqcn=fqcn, module=module, metric=metric: tool.validate_reviewed_critical_metric(
+                namespace_branch,
+                fqcn,
+                module,
+                metric,
+                7,
+                10,
+                "E_THRESHOLD",
+                "misidentified namespace branch",
+            ),
+        )
+
+    required_branch_counter = tool.exact_counter(
+        7, 10, "E_NEGATIVE_FIXTURE", "required namespace branch"
+    )
+    required_branch = {
+        "applicability": "required-positive-total",
+        "observed": required_branch_counter,
+        "minimum": required_branch_counter,
+    }
+    expect_failure(
+        cases,
+        "formal-full-helper-required-to-not-applicable-drift",
+        "E_FORMAL_APPLICABILITY_DRIFT",
+        lambda: tool.formal_critical_metric_result(
+            critical_observation_counter(7, 10, 0.7),
+            namespace_branch,
+            "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+            "foggy-dataset-model",
+            "branch",
+            7,
+            10,
+            Fraction(7, 10),
+            "formal namespace branch",
+        ),
+    )
+    expect_failure(
+        cases,
+        "formal-full-helper-not-applicable-to-required-drift",
+        "E_FORMAL_APPLICABILITY_DRIFT",
+        lambda: tool.formal_critical_metric_result(
+            namespace_observation,
+            required_branch,
+            "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+            "foggy-dataset-model",
+            "branch",
+            7,
+            10,
+            Fraction(7, 10),
+            "formal namespace branch",
+        ),
+    )
+    unapproved_not_applicable = copy.deepcopy(namespace_branch)
+    expect_failure(
+        cases,
+        "freeze-unapproved-not-applicable",
+        "E_THRESHOLD",
+        lambda: tool.validate_reviewed_critical_metric(
+            unapproved_not_applicable,
+            "example.Critical",
+            "example-module",
+            "branch",
+            7,
+            10,
+            "E_THRESHOLD",
+            "unapproved branch",
+        ),
+    )
+    nonzero_not_applicable = copy.deepcopy(namespace_branch)
+    nonzero_not_applicable["observed"] = {
+        "covered": 1,
+        "total": 1,
+        "fraction": "1/1",
+    }
+    expect_failure(
+        cases,
+        "freeze-not-applicable-nonzero",
+        "E_THRESHOLD",
+        lambda: tool.validate_reviewed_critical_metric(
+            nonzero_not_applicable,
+            "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+            "foggy-dataset-model",
+            "branch",
+            7,
+            10,
+            "E_THRESHOLD",
+            "nonzero namespace branch",
+        ),
+    )
+    minimum_not_applicable = copy.deepcopy(namespace_branch)
+    minimum_not_applicable["minimum"] = {
+        "covered": 0,
+        "total": 0,
+        "fraction": None,
+    }
+    expect_failure(
+        cases,
+        "freeze-not-applicable-minimum",
+        "E_THRESHOLD",
+        lambda: tool.validate_reviewed_critical_metric(
+            minimum_not_applicable,
+            "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+            "foggy-dataset-model",
+            "branch",
+            7,
+            10,
+            "E_THRESHOLD",
+            "namespace branch minimum",
+        ),
     )
 
     confirmed_projection = {
@@ -459,6 +935,21 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "E_FROZEN_RECOMPUTE",
         lambda: tool.validate_frozen_candidate_equivalence(
             confirmed_projection, frozen_critical_tamper
+        ),
+    )
+    frozen_critical_type_alias = copy.deepcopy(candidate)
+    frozen_critical_type_alias["critical_reviewed_thresholds"][0]["line"][
+        "observed"
+    ]["covered"] = 4.0
+    frozen_critical_type_alias["critical_reviewed_thresholds"][0]["line"][
+        "minimum"
+    ]["covered"] = 4.0
+    expect_failure(
+        cases,
+        "frozen-critical-numeric-type-alias",
+        "E_FROZEN_RECOMPUTE",
+        lambda: tool.validate_frozen_candidate_equivalence(
+            confirmed_projection, frozen_critical_type_alias
         ),
     )
 
@@ -704,6 +1195,29 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     target = repo_root / "target"
     target.mkdir(exist_ok=True)
+
+    threshold_alias_root = Path(
+        tempfile.mkdtemp(prefix="v934-threshold-schema-negative-", dir=target)
+    )
+    try:
+        threshold_alias_path = threshold_alias_root / "coverage-thresholds.json"
+        threshold_alias = tool.load_json(
+            repo_root / "scripts/v934/step4/coverage-thresholds.json",
+            "E_NEGATIVE_FIXTURE",
+        )
+        threshold_alias["schema_version"] = True
+        write_json(threshold_alias_path, threshold_alias)
+        expect_failure(
+            cases,
+            "threshold-schema-version-boolean-alias",
+            "E_THRESHOLD",
+            lambda: tool.load_thresholds(
+                repo_root,
+                _step4_path_override=threshold_alias_path,
+            ),
+        )
+    finally:
+        shutil.rmtree(threshold_alias_root)
 
     runs_root = target / "v934-step4-coverage/runs"
     runs_root.mkdir(parents=True, exist_ok=True)
@@ -1061,6 +1575,44 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 manifest_tamper_root, lifecycle_run_id
             ),
         )
+        for case_name, path, replacement in (
+            (
+                "child-lifecycle-schema-boolean-alias",
+                ("schema_version",),
+                True,
+            ),
+            (
+                "child-lifecycle-count-float-alias",
+                ("child_count",),
+                float(fixture["manifest"]["child_count"]),
+            ),
+            (
+                "child-lifecycle-nested-boolean-alias",
+                ("children", 0, "leader_reaped"),
+                True,
+            ),
+            (
+                "child-lifecycle-nested-float-alias",
+                ("children", 0, "leader_pid"),
+                float(fixture["manifest"]["children"][0]["leader_pid"]),
+            ),
+        ):
+            alias_root = lifecycle_base / case_name
+            shutil.copytree(lifecycle_positive, alias_root)
+            alias_manifest = copy.deepcopy(fixture["manifest"])
+            alias_target: Any = alias_manifest
+            for segment in path[:-1]:
+                alias_target = alias_target[segment]
+            alias_target[path[-1]] = replacement
+            write_json(alias_root / "child-lifecycle.json", alias_manifest)
+            expect_failure(
+                cases,
+                case_name,
+                "E_CHILD_LIFECYCLE",
+                lambda alias_root=alias_root: tool.validate_child_lifecycle(
+                    alias_root, lifecycle_run_id
+                ),
+            )
     finally:
         shutil.rmtree(lifecycle_base)
 
@@ -1081,7 +1633,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "threshold": tool.artifact_record(
                 repo_root, threshold_path, "E_NEGATIVE_FIXTURE"
             ),
-            "formal_evidence": {"observation_sha256": "d" * 64},
+            "formal_evidence": {
+                "schema_version": 1,
+                "observation_sha256": "d" * 64,
+            },
             "bindings": {"aggregate_xml": {"sha256": "e" * 64}},
         }
 
@@ -1104,6 +1659,39 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         write_json(final_path, final_value)
         tool.validate_acceptance_final(repo_root, final_path)
         record_positive(cases, "canonical-gate-candidate-final-positive")
+
+        gate_numeric_alias = copy.deepcopy(fake_gate)
+        gate_numeric_alias["schema_version"] = True
+        write_json(gate_path, gate_numeric_alias)
+        expect_failure(
+            cases,
+            "coverage-gate-numeric-type-alias",
+            "E_COVERAGE_GATE",
+            lambda: tool.validate_coverage_gate(repo_root, gate_path),
+        )
+        write_json(gate_path, fake_gate)
+
+        candidate_numeric_alias = copy.deepcopy(candidate_value)
+        candidate_numeric_alias["evidence"]["schema_version"] = True
+        write_json(candidate_path, candidate_numeric_alias)
+        expect_failure(
+            cases,
+            "candidate-nested-numeric-type-alias",
+            "E_ACCEPTANCE_CANDIDATE",
+            lambda: tool.validate_acceptance_candidate(repo_root, candidate_path),
+        )
+        write_json(candidate_path, candidate_value)
+
+        final_numeric_alias = copy.deepcopy(final_value)
+        final_numeric_alias["evidence"]["schema_version"] = True
+        write_json(final_path, final_numeric_alias)
+        expect_failure(
+            cases,
+            "final-nested-numeric-type-alias",
+            "E_ACCEPTANCE_FINAL",
+            lambda: tool.validate_acceptance_final(repo_root, final_path),
+        )
+        write_json(final_path, final_value)
 
         original_load_thresholds_for_final = tool.load_thresholds
         tool.load_thresholds = lambda *_args, **_kwargs: (

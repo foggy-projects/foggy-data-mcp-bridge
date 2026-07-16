@@ -1424,3 +1424,29 @@ Step 5 仍不得开始，coverage audit/acceptance 不得启动。
 - next gate：commit/push/clean `HEAD == origin/main` → fresh
   `step4-coverage-20260717-diagnostic-r12`。r12 成功前 threshold freeze、formal coverage run、
   Step 5、coverage audit 与 acceptance 均关闭；`can_enter_coverage_audit=no`。
+
+### Superseding Post-diagnostic Check-in — r12 observed / r13 remediation
+
+- recorded_at: 2026-07-17；
+- immutable run：`step4-coverage-20260717-diagnostic-r12`，tested commit=
+  `05351ecab0d7fc43d12dfa307ffecf81feb41539`，outer=`diagnostic-observed / completed / exit 0`；
+- authority result：required=`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=
+  `23/48/16,935`、aggregate line=`54,478/76,830`、branch=`25,980/44,870`、sensitive=
+  passed、cleanup=`0/0/0`；source-before=after；四个 exact demo DB containers 已恢复
+  running/healthy=`4/4`；
+- gap：critical=`12`，below floor=`9`，structural N/A=`1`；旧 freeze consumer 对真实 enriched
+  metric shape 返回 schema 错误，candidate absent，threshold 仍为 `diagnostic-pending`；
+- remediation：八份既有 test source 覆盖九个 critical class，report/testcase cardinality不变；
+  focused=`136/F0E0S0`；唯一 N/A machine tuple、真实 row/metric exact schema、strict JSON
+  identity、frozen raw-exec replay receipt 与 formal replay call binding 已实现；
+- precommit review：首轮发现 bool/int、float/int 与 `gap:false` aliases 和 frozen replay
+  contract 缺口，均已回补；当前 focused XML=`118/118`、contract=`27/27`、threshold/frozen
+  replay policy=`12/12`、overlay=`12/12`、top=`60/60`、successor=`14/14`；
+- quality cross-review 另登记
+  `BUG-934-STEP4-EVIDENCE-JSON-NUMERIC-TYPE-ALIAS-BYPASS`：child lifecycle、provenance
+  size、threshold schema 与 aggregate ratio 已改为 exact typed consumption，新增 9 项负例后
+  XML=`118/118`；post-fix full-closure 与正式 quality re-review 均为 B/H/M/L=`0/0/0/0`；
+- next gate：commit/push Cdiag → clean
+  `HEAD == origin/main` → 停止 exact DB containers/确认 ports free → fresh
+  `step4-coverage-20260717-diagnostic-r13` → restore exact IDs。r13 通过前不得 Cfreeze；
+  `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 关闭。

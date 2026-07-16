@@ -189,6 +189,12 @@ class CaffeineQueryCacheProviderTest {
         );
 
         assertNull(cached, "禁用时不应该有缓存");
+
+        properties.setEnabled(true);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT null-result", Collections.emptyList(), null, context);
+        assertEquals(0L, cacheProvider.getStats().get("l2EstimatedSize"),
+                "null result 不能进入缓存");
     }
 
     @Test
@@ -281,6 +287,21 @@ class CaffeineQueryCacheProviderTest {
         );
 
         assertNull(cached, "空结果集配置为不缓存时不应该被缓存");
+
+        PagingResultImpl nullItems = new PagingResultImpl();
+        nullItems.setItems(null);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT null-items", Collections.emptyList(), nullItems, context);
+        assertNull(cacheProvider.checkL2Cache(
+                "TestModel", "SELECT null-items", Collections.emptyList(), context));
+
+        properties.setCacheEmptyResult(true);
+        properties.setMaxResultSize(0);
+        cacheProvider.writeL2Cache(
+                "TestModel", "SELECT cache-null-items", Collections.emptyList(), nullItems, context);
+        assertSame(nullItems, cacheProvider.checkL2Cache(
+                "TestModel", "SELECT cache-null-items", Collections.emptyList(), context),
+                "允许空结果且关闭大小限制时，null items 结果仍可稳定缓存");
     }
 
     @Test
@@ -569,6 +590,15 @@ class CaffeineQueryCacheProviderTest {
         assertTrue((Boolean) stats.get("enabled"));
         assertNotNull(stats.get("l2Hits"));
         assertNotNull(stats.get("l2Misses"));
+
+        QueryCacheProperties noStatsProperties = new QueryCacheProperties();
+        noStatsProperties.getCaffeine().setRecordStats(false);
+        CaffeineQueryCacheProvider noStatsProvider = new CaffeineQueryCacheProvider(
+                new QueryFingerprintBuilder(), noStatsProperties);
+        Map<String, Object> noStats = noStatsProvider.getStats();
+        assertFalse(noStats.containsKey("l1Hits"),
+                "关闭 recordStats 时不得暴露伪造的命中统计");
+        noStatsProvider.evictAll();
     }
 
     @Test
@@ -591,6 +621,12 @@ class CaffeineQueryCacheProviderTest {
         PagingResultImpl result = cacheProvider.checkL1Cache(context, null);
 
         assertNull(result, "没有 authorization 应该返回 null");
+        assertNull(cacheProvider.checkL1Cache(null, "Bearer token"),
+                "缺少上下文时必须 fail closed");
+
+        properties.getExcludeModels().add("ExcludedModel");
+        assertNull(cacheProvider.checkL1Cache(createContext("ExcludedModel"), "Bearer token"),
+                "排除模型不得读取 L1");
     }
 
     @Test
@@ -662,6 +698,22 @@ class CaffeineQueryCacheProviderTest {
         cacheProvider.writeL1Cache(context, "Bearer test-token", createTestResult());
 
         assertNull(cacheProvider.checkL1Cache(context, "Bearer test-token"));
+
+        ModelResultContext valid = createContext("TestModel");
+        cacheProvider.writeL1Cache(valid, "Bearer test-token", null);
+
+        properties.setCacheEmptyResult(false);
+        PagingResultImpl nullItems = new PagingResultImpl();
+        nullItems.setItems(null);
+        cacheProvider.writeL1Cache(valid, "Bearer test-token", nullItems);
+        cacheProvider.writeL1Cache(
+                valid,
+                "Bearer test-token",
+                PagingResultImpl.of(Collections.emptyList(), 0, 10, null, 0));
+
+        properties.setCacheEmptyResult(true);
+        properties.setMaxResultSize(1);
+        cacheProvider.writeL1Cache(valid, "Bearer test-token", createTestResult());
         assertEquals(0L, cacheProvider.getStats().get("l1EstimatedSize"));
     }
 

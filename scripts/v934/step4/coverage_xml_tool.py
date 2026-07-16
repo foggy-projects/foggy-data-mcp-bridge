@@ -175,6 +175,19 @@ THRESHOLD_EVIDENCE_KEYS = (
     "aggregate_xml_sha256",
     "workspace_class_tree_sha256",
 )
+# Structural N/A is an explicit policy exception, never inferred from a zero
+# counter. NamespaceScope is a one-method delegating scope and its bytecode has
+# no branch instructions; every other critical line/branch metric must retain a
+# positive denominator.
+CRITICAL_NOT_APPLICABLE_METRICS = frozenset(
+    {
+        (
+            "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+            "foggy-dataset-model",
+            "branch",
+        )
+    }
+)
 DIAGNOSTIC_SUMMARY_FIELDS = (
     "run_id",
     "mode",
@@ -348,6 +361,23 @@ def exact_keys(value: Any, expected: Iterable[str], code: str, label: str) -> di
     return value
 
 
+def exact_json_identity(actual: Any, expected: Any) -> bool:
+    """Compare JSON values without Python's bool/int or int/float aliases."""
+
+    if type(actual) is not type(expected):
+        return False
+    if type(actual) is dict:
+        return set(actual) == set(expected) and all(
+            exact_json_identity(actual[key], expected[key]) for key in actual
+        )
+    if type(actual) is list:
+        return len(actual) == len(expected) and all(
+            exact_json_identity(actual_item, expected_item)
+            for actual_item, expected_item in zip(actual, expected)
+        )
+    return actual == expected
+
+
 def unsigned(value: Any, code: str, label: str, *, positive: bool = False) -> int:
     require(
         isinstance(value, str) and UNSIGNED_PATTERN.fullmatch(value) is not None,
@@ -363,6 +393,13 @@ def json_integer(value: Any, code: str, label: str, *, positive: bool = False) -
     require(type(value) is int and value >= 0, code, f"{label} must be a non-negative integer")
     require(not positive or value > 0, code, f"{label} must be positive")
     return value
+
+
+def exact_file_size(value: Any, expected: Any, code: str, label: str) -> int:
+    actual_size = json_integer(value, code, label, positive=True)
+    expected_size = json_integer(expected, code, f"{label} expected", positive=True)
+    require(actual_size == expected_size, code, f"{label} differs")
+    return actual_size
 
 
 def json_sha256(value: Any, code: str, label: str) -> str:
@@ -1077,37 +1114,15 @@ def validate_confirmed_thresholds(
             ("line", 4, 5),
             ("branch", 7, 10),
         ):
-            metric_value = exact_keys(
+            validate_reviewed_critical_metric(
                 row[metric],
-                ("observed", "minimum"),
+                expected["fqcn"],
+                expected["module"],
+                metric,
+                numerator,
+                denominator,
                 "E_THRESHOLD",
                 f"confirmed critical row {number} {metric}",
-            )
-            observed = validate_exact_counter(
-                metric_value["observed"],
-                "E_THRESHOLD",
-                f"confirmed critical row {number} {metric} observed",
-            )
-            minimum = validate_exact_counter(
-                metric_value["minimum"],
-                "E_THRESHOLD",
-                f"confirmed critical row {number} {metric} minimum",
-            )
-            require(
-                observed == minimum,
-                "E_THRESHOLD_LOWERED",
-                f"critical reviewed threshold was lowered at row {number} {metric}",
-            )
-            require(
-                counter_at_least_ratio(
-                    observed,
-                    numerator,
-                    denominator,
-                    "E_THRESHOLD",
-                    f"confirmed critical row {number} {metric}",
-                ),
-                "E_THRESHOLD_FLOOR",
-                f"critical {metric} is below its immutable candidate floor at row {number}",
             )
 
     review = exact_keys(
@@ -1184,7 +1199,12 @@ def load_thresholds(
     step1 = load_json(step1_path, "E_THRESHOLD")
     step4 = load_json(step4_path, "E_THRESHOLD")
     exact_keys(step4, THRESHOLD_ROOT_KEYS, "E_THRESHOLD", "Step 4 thresholds")
-    require(step1.get("schema_version") == 1, "E_THRESHOLD", "Step 1 coverage schema differs")
+    require(
+        type(step1.get("schema_version")) is int
+        and step1.get("schema_version") == 1,
+        "E_THRESHOLD",
+        "Step 1 coverage schema differs",
+    )
     require(
         step1.get("status") == "step1-policy-frozen-observed-baseline-deferred-to-step4",
         "E_THRESHOLD",
@@ -1199,7 +1219,12 @@ def load_thresholds(
         "E_THRESHOLD",
         "Step 4 threshold successor does not preserve the immutable Step 1 parent",
     )
-    require(step4.get("schema_version") == 1, "E_THRESHOLD", "Step 4 coverage schema differs")
+    require(
+        type(step4.get("schema_version")) is int
+        and step4.get("schema_version") == 1,
+        "E_THRESHOLD",
+        "Step 4 coverage schema differs",
+    )
     require(step4.get("kind") == "v934-step4-coverage-threshold-successor", "E_THRESHOLD", "Step 4 threshold kind differs")
     require(step4.get("status") in ("diagnostic-pending", "confirmed"), "E_THRESHOLD", "unsupported Step 4 threshold status")
     step1_floor = step1.get("candidate_floor")
@@ -1732,10 +1757,15 @@ def validate_aggregate_provenance(
     expected_rows = exec_manifest["exec_files"]
     for number, (actual, expected) in enumerate(zip(input_rows, expected_rows), 1):
         exact_keys(actual, ("exec_file", "sha256", "size"), "E_AGGREGATE_PROVENANCE", f"aggregate input row {number}")
+        exact_file_size(
+            actual["size"],
+            expected["size"],
+            "E_AGGREGATE_PROVENANCE",
+            f"aggregate input row {number} size",
+        )
         require(
             actual["exec_file"] == expected["exec_file"]
-            and actual["sha256"] == expected["sha256"]
-            and actual["size"] == expected["size"],
+            and actual["sha256"] == expected["sha256"],
             "E_AGGREGATE_PROVENANCE",
             f"aggregate input row differs from exec manifest: {expected['exec_file']}",
         )
@@ -1753,11 +1783,17 @@ def validate_aggregate_provenance(
         "aggregate exec provenance",
     )
     expected_relative = display_path(repo_root, aggregate_exec_path)
+    aggregate_stat = regular_file(aggregate_exec_path, "E_AGGREGATE_EXEC")
+    exact_file_size(
+        aggregate["size"],
+        aggregate_stat.st_size,
+        "E_AGGREGATE_PROVENANCE",
+        "aggregate exec size",
+    )
     require(
         aggregate["path"] == expected_relative
         and json_sha256(aggregate["sha256"], "E_AGGREGATE_PROVENANCE", "aggregate exec SHA")
-        == sha256_file(aggregate_exec_path, "E_AGGREGATE_EXEC")
-        and aggregate["size"] == regular_file(aggregate_exec_path, "E_AGGREGATE_EXEC").st_size,
+        == sha256_file(aggregate_exec_path, "E_AGGREGATE_EXEC"),
         "E_AGGREGATE_PROVENANCE",
         "aggregate exec path/hash/size differs from verified provenance",
     )
@@ -1981,6 +2017,13 @@ def validate_report_provenance(
         "E_REPORT_PROVENANCE",
         "effective reporter POM receipt",
     )
+    effective_pom_stat = regular_file(effective_pom_path, "E_REPORT_PROVENANCE")
+    exact_file_size(
+        effective_receipt["raw_effective_pom_size"],
+        effective_pom_stat.st_size,
+        "E_REPORT_PROVENANCE",
+        "raw effective POM size",
+    )
     require(
         effective_receipt["schema_version"] == 1
         and type(effective_receipt["schema_version"]) is int
@@ -1996,8 +2039,6 @@ def validate_report_provenance(
         )
         and effective_receipt["raw_effective_pom_sha256"]
         == sha256_file(effective_pom_path, "E_REPORT_PROVENANCE")
-        and effective_receipt["raw_effective_pom_size"]
-        == regular_file(effective_pom_path, "E_REPORT_PROVENANCE").st_size
         and report["normalized_effective_pom_sha256"]
         == effective_receipt["normalized_effective_pom_sha256"],
         "E_REPORT_PROVENANCE",
@@ -3550,7 +3591,7 @@ def validate_child_lifecycle(run_root: Path, run_id: str) -> dict[str, Any]:
     }
     manifest = load_json(run_root / "child-lifecycle.json", code)
     require(
-        manifest == expected_manifest,
+        exact_json_identity(manifest, expected_manifest),
         code,
         "child lifecycle manifest differs from typed ready/completion recomputation",
     )
@@ -4268,7 +4309,7 @@ def validate_run_data(
         _expected_git_head=expected_git_head,
     )
     require(
-        stored_observation == recomputed_observation,
+        exact_json_identity(stored_observation, recomputed_observation),
         "E_OBSERVATION_DRIFT",
         "stored coverage observation differs from exact recomputation",
     )
@@ -4473,12 +4514,221 @@ def observation_exact_counter(value: Any, code: str, label: str) -> dict[str, An
     exact = exact_counter(covered, total, code, label)
     require(counter["fraction"] == exact["fraction"], code, f"{label} fraction differs")
     require(
-        type(counter["ratio"]) in (int, float)
-        and math.isfinite(float(counter["ratio"])),
+        type(counter["ratio"]) is float
+        and math.isfinite(counter["ratio"])
+        and counter["ratio"] == round(covered / total, 12),
         code,
         f"{label} display ratio differs",
     )
     return exact
+
+
+def exact_not_applicable_counter(value: Any, code: str, label: str) -> dict[str, Any]:
+    counter = exact_keys(value, ("covered", "total", "fraction"), code, label)
+    covered = json_integer(counter["covered"], code, f"{label}.covered")
+    total = json_integer(counter["total"], code, f"{label}.total")
+    require(
+        covered == 0 and total == 0 and counter["fraction"] is None,
+        code,
+        f"{label} must be the canonical not-applicable counter",
+    )
+    return {"covered": 0, "total": 0, "fraction": None}
+
+
+def validate_critical_observation_row(
+    value: Any,
+    expected: dict[str, Any],
+    code: str,
+    label: str,
+) -> dict[str, Any]:
+    row = exact_keys(
+        value,
+        (
+            "fqcn",
+            "module",
+            "artifact_id",
+            "line",
+            "branch",
+            "candidate_floor_outcome",
+        ),
+        code,
+        label,
+    )
+    expected_module = expected["module"]
+    expected_artifact_id = PurePosixPath(expected_module).name
+    require(
+        row["fqcn"] == expected["fqcn"]
+        and row["module"] == expected_module
+        and row["artifact_id"] == expected_artifact_id,
+        code,
+        f"{label} identity differs",
+    )
+    require(
+        row["candidate_floor_outcome"]
+        in ("at-or-above-floor", "below-floor"),
+        code,
+        f"{label} candidate floor outcome differs",
+    )
+    return row
+
+
+def require_critical_candidate_floor_outcome(
+    row: dict[str, Any],
+    metric_outcomes: Sequence[str],
+    code: str,
+    label: str,
+) -> None:
+    expected = (
+        "below-floor"
+        if "below-floor" in metric_outcomes
+        else "at-or-above-floor"
+    )
+    require(
+        row["candidate_floor_outcome"] == expected,
+        code,
+        f"{label} candidate floor outcome does not match its metrics",
+    )
+
+
+def observation_critical_counter(
+    value: Any,
+    fqcn: str,
+    module: str,
+    metric: str,
+    floor: Fraction,
+    code: str,
+    zero_code: str,
+    label: str,
+) -> tuple[dict[str, Any], str]:
+    counter = exact_keys(
+        value,
+        (
+            "missed",
+            "covered",
+            "total",
+            "ratio",
+            "fraction",
+            "floor",
+            "outcome",
+            "gap",
+        ),
+        code,
+        label,
+    )
+    missed = json_integer(counter["missed"], code, f"{label}.missed")
+    covered = json_integer(counter["covered"], code, f"{label}.covered")
+    total = json_integer(counter["total"], code, f"{label}.total")
+    require(missed + covered == total, code, f"{label} total arithmetic differs")
+    require(
+        type(counter["floor"]) is float
+        and math.isfinite(counter["floor"])
+        and decimal_ratio(counter["floor"], code, f"{label}.floor") == floor,
+        code,
+        f"{label} candidate floor differs",
+    )
+    if total == 0:
+        require(
+            (fqcn, module, metric) in CRITICAL_NOT_APPLICABLE_METRICS,
+            zero_code,
+            f"{label} zero counter is not an approved structural metric",
+        )
+        require(
+            missed == 0
+            and covered == 0
+            and counter["ratio"] is None
+            and counter["fraction"] is None
+            and counter["outcome"] == "not-applicable"
+            and counter["gap"] is None,
+            code,
+            f"{label} not-applicable observation differs",
+        )
+        return (
+            {"covered": 0, "total": 0, "fraction": None},
+            "not-applicable-zero-total-only",
+        )
+
+    exact = exact_counter(covered, total, code, label)
+    require(counter["fraction"] == exact["fraction"], code, f"{label} fraction differs")
+    require(
+        type(counter["ratio"]) is float
+        and math.isfinite(counter["ratio"])
+        and counter["ratio"] == round(covered / total, 12),
+        code,
+        f"{label} display ratio differs",
+    )
+    actual = Fraction(covered, total)
+    expected_outcome = "at-or-above-floor" if actual >= floor else "below-floor"
+    expected_gap = 0.0 if actual >= floor else round(float(floor - actual), 12)
+    require(
+        type(counter["gap"]) is float and math.isfinite(counter["gap"]),
+        code,
+        f"{label}.gap must be a finite JSON float",
+    )
+    gap = counter["gap"]
+    require(
+        counter["outcome"] == expected_outcome and gap == expected_gap,
+        code,
+        f"{label} floor outcome differs",
+    )
+    return exact, "required-positive-total"
+
+
+def validate_reviewed_critical_metric(
+    value: Any,
+    fqcn: str,
+    module: str,
+    metric: str,
+    numerator: int,
+    denominator: int,
+    code: str,
+    label: str,
+) -> tuple[dict[str, Any], str]:
+    metric_value = exact_keys(
+        value,
+        ("applicability", "observed", "minimum"),
+        code,
+        label,
+    )
+    applicability = metric_value["applicability"]
+    require(
+        applicability
+        in ("required-positive-total", "not-applicable-zero-total-only"),
+        code,
+        f"{label} applicability differs",
+    )
+    if applicability == "not-applicable-zero-total-only":
+        require(
+            (fqcn, module, metric) in CRITICAL_NOT_APPLICABLE_METRICS,
+            code,
+            f"{label} is not an approved structural metric",
+        )
+        observed = exact_not_applicable_counter(
+            metric_value["observed"], code, f"{label} observed"
+        )
+        require(
+            metric_value["minimum"] is None,
+            code,
+            f"{label} not-applicable minimum must be null",
+        )
+        return observed, applicability
+
+    observed = validate_exact_counter(
+        metric_value["observed"], code, f"{label} observed"
+    )
+    minimum = validate_exact_counter(
+        metric_value["minimum"], code, f"{label} minimum"
+    )
+    require(
+        observed == minimum,
+        "E_THRESHOLD_LOWERED" if code == "E_THRESHOLD" else code,
+        f"{label} minimum differs",
+    )
+    require(
+        counter_at_least_ratio(observed, numerator, denominator, code, label),
+        "E_THRESHOLD_FLOOR" if code == "E_THRESHOLD" else code,
+        f"{label} is below its immutable candidate floor",
+    )
+    return observed, applicability
 
 
 def threshold_candidate_data(
@@ -4525,39 +4775,58 @@ def threshold_candidate_data(
     for number, (observed_row, expected_row) in enumerate(
         zip(observed_rows, step1["critical_classes"]), 1
     ):
-        require(
-            isinstance(observed_row, dict)
-            and observed_row.get("fqcn") == expected_row["fqcn"]
-            and observed_row.get("module") == expected_row["module"],
+        observed_row = validate_critical_observation_row(
+            observed_row,
+            expected_row,
             "E_FREEZE_CRITICAL",
-            f"diagnostic critical identity/order differs at row {number}",
+            f"diagnostic critical row {number}",
         )
         metrics: dict[str, Any] = {}
-        for metric, numerator, denominator in (
-            ("line", 4, 5),
-            ("branch", 7, 10),
+        metric_outcomes: list[str] = []
+        below_floor_metrics: list[str] = []
+        for metric, numerator, denominator, floor in (
+            ("line", 4, 5, Fraction(4, 5)),
+            ("branch", 7, 10, Fraction(7, 10)),
         ):
-            try:
-                metric_value = observed_row[metric]
-            except KeyError:
-                reject("E_FREEZE_CRITICAL", f"missing critical {metric} at row {number}")
-            exact = observation_exact_counter(
+            metric_value = observed_row[metric]
+            exact, applicability = observation_critical_counter(
                 metric_value,
+                expected_row["fqcn"],
+                expected_row["module"],
+                metric,
+                floor,
+                "E_FREEZE_COUNTER",
                 "E_FREEZE_ZERO_COUNTER",
                 f"critical row {number} {metric}",
             )
-            require(
-                counter_at_least_ratio(
+            if applicability == "required-positive-total":
+                if not counter_at_least_ratio(
                     exact,
                     numerator,
                     denominator,
                     "E_FREEZE_COUNTER",
                     f"critical row {number} {metric}",
+                ):
+                    below_floor_metrics.append(metric)
+            metric_outcomes.append(metric_value["outcome"])
+            metrics[metric] = {
+                "applicability": applicability,
+                "observed": exact,
+                "minimum": (
+                    exact if applicability == "required-positive-total" else None
                 ),
+            }
+        require_critical_candidate_floor_outcome(
+            observed_row,
+            metric_outcomes,
+            "E_FREEZE_CRITICAL",
+            f"diagnostic critical row {number}",
+        )
+        if below_floor_metrics:
+            reject(
                 "E_FREEZE_FLOOR",
-                f"critical {metric} is below candidate floor at row {number}",
+                f"critical {below_floor_metrics[0]} is below candidate floor at row {number}",
             )
-            metrics[metric] = {"observed": exact, "minimum": exact}
         critical_thresholds.append(
             {
                 "fqcn": expected_row["fqcn"],
@@ -4641,7 +4910,11 @@ def verify_threshold_candidate_data(repo_root: Path, candidate_path: Path) -> di
     else:
         frozen = validate_frozen_diagnostic_data(repo_root)
         expected = threshold_candidate_from_frozen_result(frozen)
-    require(candidate == expected, "E_THRESHOLD_CANDIDATE", "threshold candidate differs from recomputation")
+    require(
+        exact_json_identity(candidate, expected),
+        "E_THRESHOLD_CANDIDATE",
+        "threshold candidate differs from recomputation",
+    )
     return candidate
 
 
@@ -4918,24 +5191,30 @@ def validate_frozen_candidate_equivalence(
     confirmed_aggregate = confirmed["aggregate_observed"]
     candidate_aggregate = candidate["aggregate_observed"]
     require(
-        confirmed_aggregate["evidence"] == candidate_aggregate["evidence"],
+        exact_json_identity(
+            confirmed_aggregate["evidence"], candidate_aggregate["evidence"]
+        ),
         "E_FROZEN_EVIDENCE",
         "confirmed diagnostic evidence differs from full run recomputation",
     )
     require(
-        confirmed_aggregate == candidate_aggregate,
+        exact_json_identity(confirmed_aggregate, candidate_aggregate),
         "E_FROZEN_RECOMPUTE",
         "confirmed aggregate observation differs from full run recomputation",
     )
     require(
-        confirmed["aggregate_reviewed_thresholds"]
-        == candidate["aggregate_reviewed_thresholds"],
+        exact_json_identity(
+            confirmed["aggregate_reviewed_thresholds"],
+            candidate["aggregate_reviewed_thresholds"],
+        ),
         "E_FROZEN_RECOMPUTE",
         "confirmed aggregate reviewed thresholds differ from recomputation",
     )
     require(
-        confirmed["critical_reviewed_thresholds"]
-        == candidate["critical_reviewed_thresholds"],
+        exact_json_identity(
+            confirmed["critical_reviewed_thresholds"],
+            candidate["critical_reviewed_thresholds"],
+        ),
         "E_FROZEN_RECOMPUTE",
         "confirmed critical reviewed thresholds differ from recomputation",
     )
@@ -5103,6 +5382,18 @@ def require_formal_class_tree(formal_sha256: Any, diagnostic_sha256: Any) -> Non
     )
 
 
+def require_formal_applicability(
+    actual: str,
+    reviewed: str,
+    label: str,
+) -> None:
+    require(
+        actual == reviewed,
+        "E_FORMAL_APPLICABILITY_DRIFT",
+        f"{label} applicability differs",
+    )
+
+
 def formal_metric_result(
     actual_value: Any,
     diagnostic_value: Any,
@@ -5131,6 +5422,65 @@ def formal_metric_result(
         f"{label} is below the reviewed threshold",
     )
     return {"observed": actual, "minimum": minimum, "outcome": "passed"}
+
+
+def formal_critical_metric_result(
+    actual_value: Any,
+    reviewed_value: Any,
+    fqcn: str,
+    module: str,
+    metric: str,
+    numerator: int,
+    denominator: int,
+    floor: Fraction,
+    label: str,
+) -> dict[str, Any]:
+    observed, actual_applicability = observation_critical_counter(
+        actual_value,
+        fqcn,
+        module,
+        metric,
+        floor,
+        "E_FORMAL_COUNTER",
+        "E_FORMAL_COUNTER",
+        label,
+    )
+    reviewed_counter, reviewed_applicability = validate_reviewed_critical_metric(
+        reviewed_value,
+        fqcn,
+        module,
+        metric,
+        numerator,
+        denominator,
+        "E_FORMAL_THRESHOLD",
+        f"{label} reviewed",
+    )
+    require_formal_applicability(
+        actual_applicability,
+        reviewed_applicability,
+        label,
+    )
+    if actual_applicability == "not-applicable-zero-total-only":
+        require(
+            observed == reviewed_counter,
+            "E_FORMAL_DENOMINATOR",
+            f"{label} structural counter differs",
+        )
+        return {
+            "applicability": "not-applicable-zero-total-only",
+            "observed": observed,
+            "minimum": None,
+            "outcome": "passed",
+        }
+    return {
+        "applicability": "required-positive-total",
+        **formal_metric_result(
+            observed,
+            reviewed_counter,
+            reviewed_counter,
+            label,
+        ),
+    }
 
 
 def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
@@ -5185,33 +5535,48 @@ def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
     for number, (expected, observed_row, reviewed_row) in enumerate(
         zip(step1["critical_classes"], observed_rows, reviewed_rows), 1
     ):
-        require(
-            observed_row.get("fqcn") == expected["fqcn"]
-            and observed_row.get("module") == expected["module"]
-            and reviewed_row.get("fqcn") == expected["fqcn"]
-            and reviewed_row.get("module") == expected["module"],
+        observed_row = validate_critical_observation_row(
+            observed_row,
+            expected,
             "E_FORMAL_CRITICAL",
-            f"formal critical identity/order differs at row {number}",
+            f"formal critical row {number}",
+        )
+        reviewed_row = exact_keys(
+            reviewed_row,
+            ("fqcn", "module", "line", "branch"),
+            "E_FORMAL_CRITICAL",
+            f"reviewed critical row {number}",
+        )
+        require(
+            reviewed_row["fqcn"] == expected["fqcn"]
+            and reviewed_row["module"] == expected["module"],
+            "E_FORMAL_CRITICAL",
+            f"reviewed critical row {number} identity differs",
         )
         metrics: dict[str, Any] = {}
-        for metric in ("line", "branch"):
-            observed = observation_exact_counter(
+        metric_outcomes: list[str] = []
+        for metric, numerator, denominator, floor in (
+            ("line", 4, 5, Fraction(4, 5)),
+            ("branch", 7, 10, Fraction(7, 10)),
+        ):
+            metrics[metric] = formal_critical_metric_result(
                 observed_row[metric],
-                "E_FORMAL_COUNTER",
-                f"formal critical row {number} {metric}",
-            )
-            reviewed_metric = exact_keys(
                 reviewed_row[metric],
-                ("observed", "minimum"),
-                "E_FORMAL_THRESHOLD",
-                f"reviewed critical row {number} {metric}",
-            )
-            metrics[metric] = formal_metric_result(
-                observed,
-                reviewed_metric["observed"],
-                reviewed_metric["minimum"],
+                expected["fqcn"],
+                expected["module"],
+                metric,
+                numerator,
+                denominator,
+                floor,
                 f"formal critical row {number} {metric}",
             )
+            metric_outcomes.append(observed_row[metric]["outcome"])
+        require_critical_candidate_floor_outcome(
+            observed_row,
+            metric_outcomes,
+            "E_FORMAL_CRITICAL",
+            f"formal critical row {number}",
+        )
         critical_results.append(
             {
                 "fqcn": expected["fqcn"],
@@ -5278,7 +5643,11 @@ def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
     )
     require(gate_path.absolute() == canonical_gate, "E_COVERAGE_GATE_PATH", "coverage gate path differs")
     expected = formal_check_data(repo_root, gate["run_id"])
-    require(gate == expected, "E_COVERAGE_GATE", "coverage gate differs from exact recomputation")
+    require(
+        exact_json_identity(gate, expected),
+        "E_COVERAGE_GATE",
+        "coverage gate differs from exact recomputation",
+    )
     return gate
 
 
@@ -5355,7 +5724,7 @@ def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict
     )
     expected = acceptance_candidate_data(repo_root, candidate["run_id"], gate_path)
     require(
-        candidate == expected,
+        exact_json_identity(candidate, expected),
         "E_ACCEPTANCE_CANDIDATE",
         "formal acceptance candidate differs from recomputation",
     )
@@ -5426,7 +5795,11 @@ def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, An
         expected_path=expected_candidate_path,
     )
     expected = acceptance_final_data(repo_root, candidate_path)
-    require(final == expected, "E_ACCEPTANCE_FINAL", "formal final differs from recomputation")
+    require(
+        exact_json_identity(final, expected),
+        "E_ACCEPTANCE_FINAL",
+        "formal final differs from recomputation",
+    )
     return final
 
 

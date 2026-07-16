@@ -35,8 +35,39 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 class ModelBuildSingleFlightTest {
 
+    private void assertInFlightDiagnosticsDistinguishNullAbsentActiveAndRemovedKeys() {
+        ModelBuildSingleFlight singleFlight = new ModelBuildSingleFlight(null);
+        ModelBuildKey key = trackedKey("DiagnosticModel");
+        assertFalse(singleFlight.isInFlight(null));
+        assertFalse(singleFlight.isInFlight(key));
+
+        CountDownLatch winnerEntered = new CountDownLatch(1);
+        CountDownLatch releaseWinner = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<String> winner = executor.submit(() -> singleFlight.execute(key, () -> {
+            winnerEntered.countDown();
+            await(releaseWinner, "diagnostic winner release");
+            return "built";
+        }));
+
+        try {
+            await(winnerEntered, "diagnostic winner entered");
+            assertTrue(singleFlight.isInFlight(key));
+
+            releaseWinner.countDown();
+            assertEquals("built", get(winner, "diagnostic winner result"));
+            assertFalse(singleFlight.isInFlight(key));
+        } finally {
+            releaseWinner.countDown();
+            winner.cancel(true);
+            shutdownAndAssertTerminated(executor, "diagnostic single-flight executor");
+        }
+    }
+
     @Test
     void oneHundredSameKeyCallersMustShareOneCallerInlineWinner() {
+        assertInFlightDiagnosticsDistinguishNullAbsentActiveAndRemovedKeys();
+
         int callerCount = 100;
         RecordingObserver observer = new RecordingObserver(callerCount - 1);
         ModelBuildSingleFlight singleFlight = new ModelBuildSingleFlight(observer);

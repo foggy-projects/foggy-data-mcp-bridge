@@ -25,6 +25,87 @@ import static org.mockito.Mockito.when;
 
 class CatalogSnapshotStoreTest {
 
+    private void assertInvalidBootEpochAndAdmissionDiagnosticsFailClosed() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new CatalogSnapshotStore((String) null));
+        assertThrows(IllegalArgumentException.class,
+                () -> new CatalogSnapshotStore("  "));
+
+        CatalogSnapshotStore store = new CatalogSnapshotStore("diagnostic-boot");
+        assertTrue(store.admissionDiagnostic("absent").isEmpty());
+
+        store.markStaleAdmissionBlocked("null-diagnostic", null);
+        store.markStaleAdmissionBlocked("blank-diagnostic", "  ");
+        store.markStaleAdmissionBlocked("custom-diagnostic", "controlled source drift");
+
+        assertEquals("catalog source scope is unknown",
+                store.admissionDiagnostic("null-diagnostic").orElseThrow());
+        assertEquals("catalog source scope is unknown",
+                store.admissionDiagnostic("blank-diagnostic").orElseThrow());
+        assertEquals("controlled source drift",
+                store.admissionDiagnostic("custom-diagnostic").orElseThrow());
+    }
+
+    private void assertConditionalStaleMarkerOnlyMutatesTheExactCapturedView() {
+        CatalogSnapshotStore store = new CatalogSnapshotStore("conditional-stale");
+        CatalogBuildView captured = store.capture("tenant-a");
+
+        assertTrue(store.markStaleAdmissionBlockedIfCurrent(captured, null));
+        assertEquals(CatalogAdmissionState.STALE_ADMISSION_BLOCKED,
+                store.admissionState("tenant-a"));
+        assertEquals("catalog source scope is unknown",
+                store.admissionDiagnostic("tenant-a").orElseThrow());
+
+        CatalogBuildView blocked = store.capture("tenant-a");
+        assertTrue(store.markStaleAdmissionBlockedIfCurrent(
+                blocked, "must not replace the first diagnostic"));
+        assertEquals("catalog source scope is unknown",
+                store.admissionDiagnostic("tenant-a").orElseThrow());
+        assertFalse(store.markStaleAdmissionBlockedIfCurrent(
+                captured, "stale attempt must not win"));
+
+        CatalogBuildView blank = store.capture("tenant-b");
+        assertTrue(store.markStaleAdmissionBlockedIfCurrent(blank, "  "));
+        assertEquals("catalog source scope is unknown",
+                store.admissionDiagnostic("tenant-b").orElseThrow());
+
+        CatalogBuildView custom = store.capture("tenant-c");
+        assertTrue(store.markStaleAdmissionBlockedIfCurrent(
+                custom, "controlled registry mismatch"));
+        assertEquals("controlled registry mismatch",
+                store.admissionDiagnostic("tenant-c").orElseThrow());
+    }
+
+    private void assertActiveOldMarkerRequiresAnExistingCatalogAndPreservesNewerBlocks() {
+        CatalogSnapshotStore store = new CatalogSnapshotStore("active-old-marker");
+        IllegalStateException absent = assertThrows(
+                IllegalStateException.class,
+                () -> store.markActiveOldPreserved("absent", null));
+        assertTrue(absent.getMessage().startsWith("CATALOG_ACTIVE_OLD_ABSENT:"));
+
+        CatalogSnapshot active = seed(store, "tenant-a", "ActiveQueryModel");
+        store.markActiveOldPreserved("tenant-a", null);
+        assertSame(active, store.readCurrent("tenant-a").orElseThrow());
+        assertEquals("known-scope catalog refresh failed; active catalog preserved",
+                store.admissionDiagnostic("tenant-a").orElseThrow());
+
+        store.markActiveOldPreserved("tenant-a", "controlled refresh failure");
+        assertEquals("controlled refresh failure",
+                store.admissionDiagnostic("tenant-a").orElseThrow());
+
+        seed(store, "tenant-b", "BlankDiagnosticQueryModel");
+        store.markActiveOldPreserved("tenant-b", "  ");
+        assertEquals("known-scope catalog refresh failed; active catalog preserved",
+                store.admissionDiagnostic("tenant-b").orElseThrow());
+
+        store.markStaleAdmissionBlocked("tenant-a", "newer fail-closed decision");
+        store.markActiveOldPreserved("tenant-a", "late refresh failure");
+        assertEquals(CatalogAdmissionState.STALE_ADMISSION_BLOCKED,
+                store.admissionState("tenant-a"));
+        assertEquals("newer fail-closed decision",
+                store.admissionDiagnostic("tenant-a").orElseThrow());
+    }
+
     @Test
     void plainReadAndNoOpMustNotAdvanceGenerationWhileMaterializationAdvancesExactlyOnce() {
         CatalogSnapshotStore store = new CatalogSnapshotStore("controlled-boot");
@@ -60,6 +141,7 @@ class CatalogSnapshotStoreTest {
         }
         assertNotEquals(first.identity().generation(), second.identity().generation());
         assertEquals(2, second.queryModels().size());
+        assertInvalidBootEpochAndAdmissionDiagnosticsFailClosed();
     }
 
     @Test
@@ -109,6 +191,7 @@ class CatalogSnapshotStoreTest {
         assertSame(before, after);
         assertEquals("catalog:pure-failure-boot:1",
                 after.identity().generation().value());
+        assertActiveOldMarkerRequiresAnExistingCatalogAndPreservesNewerBlocks();
     }
 
     @Test
@@ -349,6 +432,7 @@ class CatalogSnapshotStoreTest {
         CatalogBuildView current = store.capture("tenant-a");
         assertTrue(current.cold());
         assertNotEquals(stale.sourceRevision(), current.sourceRevision());
+        assertConditionalStaleMarkerOnlyMutatesTheExactCapturedView();
     }
 
     @Test
@@ -492,6 +576,22 @@ class CatalogSnapshotStoreTest {
                 IllegalStateException.class,
                 () -> candidate.discoverQueryModels(Set.of(lateModelName)));
         assertEquals("catalog candidate is sealed after publication", failure.getMessage());
+    }
+
+    private CatalogSnapshot seed(
+            CatalogSnapshotStore store,
+            String namespace,
+            String modelName
+    ) {
+        try (CatalogSnapshotStore.CandidateScope scope = store.openCandidate(namespace)) {
+            CatalogCandidate candidate = scope.candidate();
+            candidate.discoverQueryModels(Set.of(modelName));
+            candidate.putQueryModel(
+                    modelName,
+                    queryModel(modelName, candidate.aliasFor(modelName)),
+                    provenance(candidate, modelName, ModelProvenance.ModelKind.QUERY));
+            return scope.commit();
+        }
     }
 
     private Map<String, String> aliases(CatalogSnapshotStore store, List<String> arrivalOrder) {

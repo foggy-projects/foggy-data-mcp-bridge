@@ -11,6 +11,8 @@ formal fixture uses forged all-``1`` evidence. Canonical files are never edited.
 from __future__ import annotations
 
 import argparse
+import ast
+import copy
 import hashlib
 import importlib.util
 import json
@@ -361,6 +363,21 @@ def mutate_contract_expand_formal_allowlist(path: Path) -> None:
     write_json(path, value)
 
 
+def mutate_contract_expand_not_applicable(path: Path) -> None:
+    value = read_json(path)
+    value["threshold_successor"]["reviewed_threshold_policy"][
+        "critical_metric_applicability"
+    ]["exceptions"].append(
+        {
+            "fqcn": "example.NotCritical",
+            "module": "example-module",
+            "metric": "branch",
+            "applicability": "not-applicable-zero-total-only",
+        }
+    )
+    write_json(path, value)
+
+
 def mutate_formal_aggregate_lowering(path: Path) -> None:
     value = read_json(path)
     value["aggregate_reviewed_thresholds"]["line"] = {
@@ -406,6 +423,76 @@ def mutate_formal_duplicate_critical(path: Path) -> None:
     value = read_json(path)
     value["critical_reviewed_thresholds"][1]["fqcn"] = value["critical_reviewed_thresholds"][0]["fqcn"]
     value["critical_reviewed_thresholds"][1]["module"] = value["critical_reviewed_thresholds"][0]["module"]
+    write_json(path, value)
+
+
+def mutate_formal_unapproved_not_applicable(path: Path) -> None:
+    value = read_json(path)
+    value["critical_reviewed_thresholds"][0]["line"] = {
+        "applicability": "not-applicable-zero-total-only",
+        "observed": {"covered": 0, "total": 0, "fraction": None},
+        "minimum": None,
+    }
+    write_json(path, value)
+
+
+def mutate_formal_not_applicable_nonzero(path: Path) -> None:
+    value = read_json(path)
+    row = next(
+        candidate
+        for candidate in value["critical_reviewed_thresholds"]
+        if candidate["fqcn"]
+        == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+    )
+    row["branch"]["observed"] = fraction(1, 1)
+    write_json(path, value)
+
+
+def mutate_formal_not_applicable_minimum(path: Path) -> None:
+    value = read_json(path)
+    row = next(
+        candidate
+        for candidate in value["critical_reviewed_thresholds"]
+        if candidate["fqcn"]
+        == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+    )
+    row["branch"]["minimum"] = {
+        "covered": 0,
+        "total": 0,
+        "fraction": None,
+    }
+    write_json(path, value)
+
+
+def mutate_formal_not_applicable_bool_zero(path: Path) -> None:
+    value = read_json(path)
+    row = next(
+        candidate
+        for candidate in value["critical_reviewed_thresholds"]
+        if candidate["fqcn"]
+        == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+    )
+    row["branch"]["observed"] = {
+        "covered": False,
+        "total": False,
+        "fraction": None,
+    }
+    write_json(path, value)
+
+
+def mutate_formal_not_applicable_float_zero(path: Path) -> None:
+    value = read_json(path)
+    row = next(
+        candidate
+        for candidate in value["critical_reviewed_thresholds"]
+        if candidate["fqcn"]
+        == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+    )
+    row["branch"]["observed"] = {
+        "covered": 0.0,
+        "total": 0.0,
+        "fraction": None,
+    }
     write_json(path, value)
 
 
@@ -533,6 +620,13 @@ PROBES = (
         mutate_contract_expand_formal_allowlist,
     ),
     Probe(
+        "not-applicable-policy-expansion",
+        "contract",
+        "expand the exact structural not-applicable exception set",
+        "coverage contract.threshold_successor: frozen values changed",
+        mutate_contract_expand_not_applicable,
+    ),
+    Probe(
         "formal-aggregate-lowering",
         "thresholds",
         "lower aggregate reviewed line minimum below observed",
@@ -570,6 +664,46 @@ PROBES = (
         "duplicate a critical class identity",
         "identity/order differs from Step 1 policy",
         mutate_formal_duplicate_critical,
+        "formal",
+    ),
+    Probe(
+        "formal-unapproved-not-applicable",
+        "thresholds",
+        "mark an undeclared critical line metric as structurally not applicable",
+        "not-applicable is not approved by the frozen policy",
+        mutate_formal_unapproved_not_applicable,
+        "formal",
+    ),
+    Probe(
+        "formal-not-applicable-nonzero",
+        "thresholds",
+        "give the approved structural N/A metric a nonzero counter",
+        "expected canonical not-applicable counter",
+        mutate_formal_not_applicable_nonzero,
+        "formal",
+    ),
+    Probe(
+        "formal-not-applicable-minimum",
+        "thresholds",
+        "give the approved structural N/A metric a non-null minimum",
+        "expected null for not-applicable metric",
+        mutate_formal_not_applicable_minimum,
+        "formal",
+    ),
+    Probe(
+        "formal-not-applicable-bool-zero",
+        "thresholds",
+        "replace the approved structural N/A integer zeros with boolean aliases",
+        "expected canonical not-applicable counter",
+        mutate_formal_not_applicable_bool_zero,
+        "formal",
+    ),
+    Probe(
+        "formal-not-applicable-float-zero",
+        "thresholds",
+        "replace the approved structural N/A integer zeros with float aliases",
+        "expected canonical not-applicable counter",
+        mutate_formal_not_applicable_float_zero,
         "formal",
     ),
     Probe(
@@ -705,15 +839,39 @@ def make_formal_fixture(root: Path, copies: dict[str, Path]) -> None:
         "line": fraction(9, 10),
         "branch": fraction(8, 10),
     }
-    thresholds["critical_reviewed_thresholds"] = [
-        {
-            "fqcn": row["fqcn"],
-            "module": row["module"],
-            "line": {"observed": fraction(9, 10), "minimum": fraction(9, 10)},
-            "branch": {"observed": fraction(8, 10), "minimum": fraction(8, 10)},
-        }
-        for row in critical_rows
-    ]
+    critical_thresholds: list[dict[str, Any]] = []
+    for row in critical_rows:
+        line_counter = fraction(9, 10)
+        branch_not_applicable = (
+            row["fqcn"]
+            == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+        )
+        branch_counter = (
+            {"covered": 0, "total": 0, "fraction": None}
+            if branch_not_applicable
+            else fraction(8, 10)
+        )
+        critical_thresholds.append(
+            {
+                "fqcn": row["fqcn"],
+                "module": row["module"],
+                "line": {
+                    "applicability": "required-positive-total",
+                    "observed": line_counter,
+                    "minimum": line_counter,
+                },
+                "branch": {
+                    "applicability": (
+                        "not-applicable-zero-total-only"
+                        if branch_not_applicable
+                        else "required-positive-total"
+                    ),
+                    "observed": branch_counter,
+                    "minimum": None if branch_not_applicable else branch_counter,
+                },
+            }
+        )
+    thresholds["critical_reviewed_thresholds"] = critical_thresholds
     thresholds["review"] = {
         "reviewer": "negative-tool-fixture",
         "reviewed_at": "2026-07-16T00:00:00Z",
@@ -1390,6 +1548,285 @@ def expect_validator_contract_error(
     raise NegativeError(f"validator accepted forbidden identity: {expected_error}")
 
 
+def frozen_receipt_payload(
+    thresholds_path: Path,
+    thresholds: dict[str, Any],
+) -> dict[str, Any]:
+    aggregate = thresholds["aggregate_observed"]
+    evidence = aggregate["evidence"]
+    return {
+        "schema_version": 1,
+        "kind": "v934-step4-frozen-diagnostic-validation",
+        "status": "passed",
+        "run_id": evidence["run_id"],
+        "diagnostic_git_head": evidence["git_head"],
+        "current_git_head": evidence["git_head"],
+        "ancestor_verified": True,
+        "confirmed_threshold_sha256": sha256_file(thresholds_path),
+        "frozen_blobs": {
+            "threshold": {
+                "git_path": "scripts/v934/step4/coverage-thresholds.json",
+                "sha256": evidence["threshold_predecessor_sha256"],
+                "status": "diagnostic-pending",
+            },
+            "contract": {
+                "git_path": "scripts/v934/step4/coverage-contract.json",
+                "sha256": evidence["coverage_contract_sha256"],
+                "status": "diagnostic-ready",
+            },
+        },
+        "replay_receipt": {
+            "run_context_sha256": "2" * 64,
+            "source_sha256": evidence["source_sha256"],
+            "not_before_ns": 1,
+            "git_head": evidence["git_head"],
+            "raw_exec_replay": {
+                "mode": "exact-retained-raw-exec-byte-replay",
+                "identity_policy": "canonical-dirfd-nofollow-stable-inode",
+                "freshness_policy": "exact-manifest-mtime-at-or-after-not-before",
+                "exec_count": 23,
+                "byte_tree_sha256": "3" * 64,
+                "status": "verified",
+            },
+            "scope": "exact-retained-diagnostic-run-bytes",
+            "status": "verified",
+        },
+        "evidence": copy.deepcopy(evidence),
+        "aggregate_observed": copy.deepcopy(aggregate),
+        "aggregate_reviewed_thresholds": copy.deepcopy(
+            thresholds["aggregate_reviewed_thresholds"]
+        ),
+        "critical_reviewed_thresholds": copy.deepcopy(
+            thresholds["critical_reviewed_thresholds"]
+        ),
+    }
+
+
+def invoke_frozen_receipt_validator(
+    module: Any,
+    root: Path,
+    thresholds_path: Path,
+    thresholds: dict[str, Any],
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    encoded = (
+        json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    ).encode("utf-8")
+    original_run = subprocess.run
+
+    def controlled_run(arguments: Any, *args: Any, **kwargs: Any) -> Any:
+        if (
+            isinstance(arguments, list)
+            and len(arguments) >= 3
+            and arguments[1]
+            == str(root / "scripts/v934/step4/coverage_xml_tool.py")
+            and arguments[2] == "validate-frozen-diagnostic"
+        ):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=encoded,
+                stderr=b"",
+            )
+        return original_run(arguments, *args, **kwargs)
+
+    subprocess.run = controlled_run
+    try:
+        return module.validate_frozen_diagnostic_receipt(
+            root,
+            thresholds_path,
+            thresholds,
+        )
+    finally:
+        subprocess.run = original_run
+
+
+def threshold_and_frozen_replay_probes(
+    root: Path,
+    temporary_root: Path,
+) -> dict[str, Any]:
+    module = load_validator_module(root, "v934_coverage_threshold_replay_probe")
+    source = (root / VALIDATOR_PATH).read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=VALIDATOR_PATH.as_posix())
+    validate_all = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "validate_all"
+    )
+    replay_calls = [
+        node
+        for node in ast.walk(validate_all)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "validate_frozen_diagnostic_receipt"
+    ]
+    require(
+        len(replay_calls) == 1,
+        "full formal validator must invoke frozen diagnostic replay exactly once",
+    )
+
+    cases: list[dict[str, Any]] = [
+        {
+            "case": "formal-validator-replay-call-bound",
+            "observed_call_count": 1,
+            "status": "passed",
+        }
+    ]
+    approved = (
+        "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+        "foggy-dataset-model",
+        "branch",
+    )
+    require(module.critical_metric_allows_not_applicable(*approved), "approved N/A tuple was rejected")
+    for case_name, candidate in (
+        ("not-applicable-wrong-fqcn", ("example.NamespaceScope", approved[1], approved[2])),
+        ("not-applicable-wrong-module", (approved[0], "example-module", approved[2])),
+        ("not-applicable-wrong-metric", (approved[0], approved[1], "line")),
+    ):
+        require(
+            not module.critical_metric_allows_not_applicable(*candidate),
+            f"{case_name}: partial N/A identity was accepted",
+        )
+        cases.append({"case": case_name, "status": "passed"})
+
+    for case_name, counter in (
+        (
+            "not-applicable-bool-zero-policy",
+            {"covered": False, "total": False, "fraction": None},
+        ),
+        (
+            "not-applicable-float-zero-policy",
+            {"covered": 0.0, "total": 0.0, "fraction": None},
+        ),
+    ):
+        error = expect_validator_contract_error(
+            module,
+            lambda value=counter: module.validate_not_applicable_fraction_counter(
+                value, case_name
+            ),
+            "expected canonical not-applicable counter",
+        )
+        cases.append(
+            {
+                "case": case_name,
+                "observed_error": error,
+                "observed_exception": "ContractError",
+                "status": "passed",
+            }
+        )
+
+    fixture_directory = temporary_root / "frozen-replay-policy"
+    fixture_directory.mkdir(mode=0o700)
+    copies = copy_inputs(root, fixture_directory)
+    make_formal_fixture(root, copies)
+    thresholds_path = copies["thresholds"]
+    thresholds = read_json(thresholds_path)
+    receipt = frozen_receipt_payload(thresholds_path, thresholds)
+    positive = invoke_frozen_receipt_validator(
+        module, root, thresholds_path, thresholds, receipt
+    )
+    require(positive.get("status") == "passed", "canonical frozen receipt was rejected")
+    cases.append({"case": "frozen-replay-receipt-positive", "status": "passed"})
+
+    def expect_receipt_failure(
+        case_name: str,
+        threshold_value: dict[str, Any],
+        receipt_value: dict[str, Any],
+    ) -> None:
+        path = fixture_directory / f"{case_name}.json"
+        write_json(path, threshold_value)
+        receipt_value["confirmed_threshold_sha256"] = sha256_file(path)
+        error = expect_validator_contract_error(
+            module,
+            lambda: invoke_frozen_receipt_validator(
+                module, root, path, threshold_value, receipt_value
+            ),
+            "frozen diagnostic validator:",
+        )
+        cases.append(
+            {
+                "case": case_name,
+                "observed_error": error,
+                "observed_exception": "ContractError",
+                "status": "passed",
+            }
+        )
+
+    rescaled = copy.deepcopy(receipt)
+    rescaled["aggregate_observed"]["line"] = fraction(90, 100)
+    rescaled["aggregate_reviewed_thresholds"]["line"] = fraction(90, 100)
+    expect_receipt_failure(
+        "frozen-replay-denominator-rescale",
+        copy.deepcopy(thresholds),
+        rescaled,
+    )
+
+    actual_required = copy.deepcopy(receipt)
+    actual_required_row = next(
+        row
+        for row in actual_required["critical_reviewed_thresholds"]
+        if row["fqcn"]
+        == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+    )
+    actual_required_row["branch"] = {
+        "applicability": "required-positive-total",
+        "observed": fraction(8, 10),
+        "minimum": fraction(8, 10),
+    }
+    expect_receipt_failure(
+        "frozen-replay-actual-required-reviewed-na",
+        copy.deepcopy(thresholds),
+        actual_required,
+    )
+
+    reviewed_required = copy.deepcopy(thresholds)
+    reviewed_required_row = next(
+        row
+        for row in reviewed_required["critical_reviewed_thresholds"]
+        if row["fqcn"]
+        == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+    )
+    reviewed_required_row["branch"] = {
+        "applicability": "required-positive-total",
+        "observed": fraction(8, 10),
+        "minimum": fraction(8, 10),
+    }
+    expect_receipt_failure(
+        "frozen-replay-actual-na-reviewed-required",
+        reviewed_required,
+        copy.deepcopy(receipt),
+    )
+
+    bool_alias = copy.deepcopy(receipt)
+    bool_alias_row = next(
+        row
+        for row in bool_alias["critical_reviewed_thresholds"]
+        if row["fqcn"]
+        == "com.foggyframework.dataset.db.model.spi.NamespaceScope"
+    )
+    bool_alias_row["branch"]["observed"] = {
+        "covered": False,
+        "total": False,
+        "fraction": None,
+    }
+    expect_receipt_failure(
+        "frozen-replay-bool-zero-alias",
+        copy.deepcopy(thresholds),
+        bool_alias,
+    )
+
+    bad_replay_shape = copy.deepcopy(receipt)
+    bad_replay_shape["replay_receipt"]["raw_exec_replay"]["exec_count"] = True
+    expect_receipt_failure(
+        "frozen-replay-bool-exec-count",
+        copy.deepcopy(thresholds),
+        bad_replay_shape,
+    )
+    return {"case_count": len(cases), "cases": cases, "status": "passed"}
+
+
 def source_hash_private_group_probes(root: Path) -> list[dict[str, Any]]:
     module = load_validator_module(root, "v934_coverage_tool_private_group_probe")
     euid = 41001
@@ -1781,6 +2218,9 @@ def build_result(root: Path) -> dict[str, Any]:
             for baseline in ("diagnostic", "formal")
         }
         cases = [run_probe(root, temporary_root, probe) for probe in PROBES]
+        threshold_and_frozen_replay = threshold_and_frozen_replay_probes(
+            root, temporary_root
+        )
         source_hash_identity = source_hash_git_identity_probes(root, temporary_root)
         git_environment_policy = validator_git_environment_policy(root)
     require(
@@ -1801,6 +2241,7 @@ def build_result(root: Path) -> dict[str, Any]:
         "probes": cases,
         "git_environment_policy": git_environment_policy,
         "source_hash_git_identity": source_hash_identity,
+        "threshold_and_frozen_replay": threshold_and_frozen_replay,
         "status": "passed",
         "tool": {"path": TOOL_PATH.as_posix(), "sha256": tool_hash},
         "validator": {"path": VALIDATOR_PATH.as_posix(), "sha256": validator_hash},

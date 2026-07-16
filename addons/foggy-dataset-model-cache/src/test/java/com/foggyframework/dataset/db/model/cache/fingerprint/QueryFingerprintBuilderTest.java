@@ -6,9 +6,11 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import org.junit.jupiter.api.*;
 
 import java.util.ArrayList;
@@ -17,6 +19,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -50,6 +53,16 @@ class QueryFingerprintBuilderTest {
         assertEquals("TestModel", fingerprint.getModelName());
         assertEquals(3, fingerprint.getColumns().size());
         assertTrue(fingerprint.isCacheable(), "基本查询应该可缓存");
+
+        context.setCalculatedColumns(Collections.singletonList(
+                new CalculatedDbColumn("grossAmount", "Gross amount", SqlFragment.ofLiteral("price * quantity"))));
+
+        QueryFingerprint calculated = builder.build(context);
+
+        assertEquals(4, calculated.getColumns().size());
+        assertEquals(1, calculated.getCalculatedFieldCount());
+        assertTrue(calculated.getColumns().stream().anyMatch(column -> column.startsWith("grossAmount:")),
+                "计算字段名称和表达式哈希必须进入列身份");
     }
 
     @Test
@@ -357,6 +370,33 @@ class QueryFingerprintBuilderTest {
         QueryFingerprint systemFiltered = builder.build(base);
         assertNotEquals(unrestricted.toCacheKey(), systemFiltered.toCacheKey(),
                 "systemSlice 变化必须改变指纹");
+
+        base.setDeniedColumns(Collections.singletonList(null));
+        base.setSystemSlice(null);
+        QueryFingerprint nullDeniedEntry = builder.build(base);
+        assertTrue(nullDeniedEntry.isCacheable(), "显式 null denied entry 必须有稳定身份");
+        assertNotEquals(unrestricted.toCacheKey(), nullDeniedEntry.toCacheKey());
+
+        base.setDeniedColumns(null);
+        base.setSystemSlice(Collections.singletonList(null));
+        QueryFingerprint nullSystemSlice = builder.build(base);
+        assertTrue(nullSystemSlice.isCacheable(), "显式 null system slice 必须有稳定身份");
+        assertNotEquals(unrestricted.toCacheKey(), nullSystemSlice.toCacheKey());
+
+        SliceRequestDef policyGroup = SliceRequestDef.or(Arrays.asList(
+                condition("tenant_id", "tenant-a"),
+                condition("department_id", "department-a")));
+        base.setSystemSlice(Collections.singletonList(policyGroup));
+        QueryFingerprint groupedSystemSlice = builder.build(base);
+        assertTrue(groupedSystemSlice.isCacheable());
+        assertNotEquals(unrestricted.toCacheKey(), groupedSystemSlice.toCacheKey(),
+                "权限条件树结构必须进入安全指纹");
+
+        base.setSystemSlice(Collections.singletonList(
+                new SliceRequestDef("tenant_id", "=", new Object())));
+        QueryFingerprint unsupportedPolicy = builder.build(base);
+        assertTrue(unsupportedPolicy.isHasIncompleteSecurityPolicy());
+        assertFalse(unsupportedPolicy.isCacheable(), "无法稳定编码的权限值必须 fail closed");
     }
 
     @Test
@@ -373,6 +413,7 @@ class QueryFingerprintBuilderTest {
         assertFalse(fingerprint.isCacheable());
         assertTrue(fingerprint.isHasIncompleteSecurityPolicy());
         assertNull(fingerprint.toCacheKey());
+        assertTrue(SecurityPolicyFingerprint.from(null).isEmpty());
     }
 
     @Test
@@ -389,6 +430,35 @@ class QueryFingerprintBuilderTest {
         assertFalse(fingerprint.isCacheable());
         assertTrue(fingerprint.isHasIncompleteSecurityPolicy());
         assertNull(fingerprint.toCacheKey());
+
+        List<ModelResultContext.SecurityContext> explicitIdentities = Arrays.asList(
+                ModelResultContext.SecurityContext.builder().userId("user-only").build(),
+                ModelResultContext.SecurityContext.builder().tenantId("tenant-only").build(),
+                ModelResultContext.SecurityContext.builder().deptId("department-only").build(),
+                ModelResultContext.SecurityContext.builder().roles(Arrays.asList(" ", "auditor")).build(),
+                ModelResultContext.SecurityContext.builder().attributes(Map.of("scope", "finance")).build());
+        for (ModelResultContext.SecurityContext identity : explicitIdentities) {
+            ModelResultContext explicit = createContext(queryRequest);
+            explicit.setSecurityContext(identity);
+            QueryFingerprint explicitFingerprint = builder.build(explicit);
+            assertFalse(explicitFingerprint.isHasIncompleteSecurityPolicy(),
+                    "任一显式身份维度都应形成完整安全指纹");
+            assertTrue(explicitFingerprint.isCacheable());
+        }
+
+        ModelResultContext blankRoles = createContext(queryRequest);
+        blankRoles.setSecurityContext(ModelResultContext.SecurityContext.builder()
+                .roles(Arrays.asList(null, " ", ""))
+                .build());
+        assertTrue(builder.build(blankRoles).isHasIncompleteSecurityPolicy(),
+                "全为空白的角色列表不是显式身份");
+
+        ModelResultContext emptyAttributes = createContext(queryRequest);
+        emptyAttributes.setSecurityContext(ModelResultContext.SecurityContext.builder()
+                .attributes(Collections.emptyMap())
+                .build());
+        assertTrue(builder.build(emptyAttributes).isHasIncompleteSecurityPolicy(),
+                "空 attributes 不是显式身份");
     }
 
     @Test
@@ -437,6 +507,22 @@ class QueryFingerprintBuilderTest {
         assertTrue(fingerprint.isHasRawSql());
         assertFalse(fingerprint.isCacheable());
         assertNull(fingerprint.toCacheKey());
+
+        JdbcQuery structuredQuery = new JdbcQuery();
+        structuredQuery.andQueryTypeValueCond("status", "dimension", "ACTIVE");
+        JdbcQuery.JdbcGroupCond group = structuredQuery.getWhere().newGroupCond("and");
+        group.and("amount > ?", 100);
+        structuredQuery.getWhere().addCond(group);
+        structuredQuery.getHaving().andList("COUNT(*) IN (?, ?)", Arrays.<Object>asList(1, 2));
+        context.setQuery(structuredQuery);
+
+        QueryFingerprint structured = builder.build(context);
+
+        assertFalse(structured.isHasRawSql(), "结构化 JDBC 条件不应被误判为 raw SQL");
+        assertFalse(structured.isHasUnsupportedValue());
+        assertEquals(2, structured.getConditionSignatures().size(),
+                "WHERE 与 HAVING 必须分别进入条件签名");
+        assertTrue(structured.isCacheable());
     }
 
     @Test

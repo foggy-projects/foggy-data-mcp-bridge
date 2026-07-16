@@ -240,16 +240,30 @@ updated_at: 2026-07-17
   `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`。安全复核发现的
   preflight TOCTOU Medium 已由 descriptor-bound strict read 关闭；两路 post-fix implementation
   review 与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`。
-- 当前状态为 `in-progress / r11 outer source-seal excluded / binding remediation complete /
-  formal quality passed / commit/push + fresh r12 pending`。
+- fresh r12=`step4-coverage-20260717-diagnostic-r12` 已在 clean/pushed commit
+  `05351ecab0d7fc43d12dfa307ffecf81feb41539` 完整通过 all-lane：required=
+  `773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48/16,935`，aggregate line=
+  `54,478/76,830`、branch=`25,980/44,870`，sensitive scan 与 cleanup=`0/0/0` 均通过。
+  该有效 diagnostic 同时发现 9/12 critical classes 低于 floor 与唯一
+  `NamespaceScope.branch` structural N/A；旧 freeze consumer 无法消费真实 enriched shape，
+  r12 因而只作 immutable diagnostic，不得直接创建 Cfreeze。
+- remediation 不改生产逻辑、floor、critical set 或 exclusion：八份既有测试在不增加 report/
+  testcase 节点下覆盖九个 gap class；focused=`136/F0E0S0`。threshold lifecycle 现 exact
+  消费真实六字段 row/enriched counter，N/A 只接受唯一 machine tuple，并以 strict JSON
+  identity 拒绝 bool/int、int/float 与 `gap:false` aliases；XML=`118/118`、contract=
+  `27/27`、frozen replay policy=`12/12`、overlay=`12/12`。
+- 当前状态为 `in-progress / r12 diagnostic observed / 9 critical coverage gaps remediated /
+  threshold lifecycle hardened / precommit quality passed / Cdiag commit + fresh r13 pending`。
   `coverage-thresholds.json` 仍为
   `diagnostic-pending`；r1–r11、Unit fixture quality r1/r2 与 focused/static 结果都不是
   Step 4 exit evidence，r3 只通过 Unit remediation subgate；r9 remediation quality 是历史
   通过结论，r10 producer-label remediation quality 也是历史通过结论；当前 r11 binding
   remediation formal quality 已通过。
   `can_enter_coverage_audit=no`；
-  本轮权威 closure 必须 commit/push 并证明 clean
-  `HEAD == origin/main`，最后以新 run ID 执行 fresh r12；Step 5、threshold freeze、formal
+  r12 已完整发布 all-lane observation，但 9 类低于 floor 且 freeze lifecycle 暴露 schema/N/A
+  缺口，因此不能复用为 threshold authority。当前 closure 必须 commit/push Cdiag 并证明
+  clean `HEAD == origin/main`，再以新 run ID 执行 fresh r13；Step 5、
+  threshold freeze、formal
   coverage run、coverage audit 与
   acceptance 仍关闭。
 
@@ -308,6 +322,12 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-diagnostic-r11-outer-source-seal-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r11-outer-source-seal-fail-closed-20260717.md)
 - Step 4 outer source-seal binding regression：
   [workitems/BUG-step4-outer-runner-source-seal-binding-drift.md](workitems/BUG-step4-outer-runner-source-seal-binding-drift.md)
+- Step 4 diagnostic r12 successful observation with threshold gaps：
+  [evidence/step-4/step4-coverage-diagnostic-r12-pass-with-threshold-gaps-20260717.md](evidence/step-4/step4-coverage-diagnostic-r12-pass-with-threshold-gaps-20260717.md)
+- Step 4 threshold freeze observation/applicability regression：
+  [workitems/BUG-step4-threshold-freeze-observation-applicability-gap.md](workitems/BUG-step4-threshold-freeze-observation-applicability-gap.md)
+- Step 4 canonical evidence JSON numeric type-alias regression：
+  [workitems/BUG-step4-evidence-json-numeric-type-alias-bypass.md](workitems/BUG-step4-evidence-json-numeric-type-alias-bypass.md)
 - Step 4 exec class-ID scope regression：
   [workitems/BUG-step4-exec-class-id-scope-drift.md](workitems/BUG-step4-exec-class-id-scope-drift.md)
 - Step 4 lifecycle semantic validator bypass regression：
@@ -364,7 +384,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r11 source-seal excluded / binding remediation quality passed / commit pending | r11 在 bootstrap-negative 以 `E_SOURCE_SEAL` fail closed，零 lane、excluded/non-reusable；early four-way binding=`1 positive + 6 negatives`，raw CRLF/executable no-op 双层 negative 与两路 quality 已通过；commit/push→fresh r12 pending；`can_enter_coverage_audit=no`；Step 5/threshold/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r12 diagnostic observed / threshold+coverage remediation implemented / precommit quality passed | r12 全 lane、aggregate、sensitive scan、cleanup 通过，但 9/12 critical 低于 floor，且 freeze 暴露 enriched-schema/N/A 缺口；现 focused 九类=`136/F0E0S0`、XML=`118/118`、contract=`27/27`、frozen replay=`12/12`、overlay=`12/12`，quality B/H/M/L=`0/0/0/0`；commit/push→fresh r13 pending；`can_enter_coverage_audit=no`；Step 5/threshold/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

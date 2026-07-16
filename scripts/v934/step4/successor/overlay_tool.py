@@ -95,6 +95,9 @@ EXPECTED_AMENDMENT_PATHS = (
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStoreTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java",
 )
 EXPECTED_SUCCESSOR_FILES = (
     "database-authority-SHA256SUMS",
@@ -210,17 +213,17 @@ EXPECTED_STEP4_RUNTIME_BINDINGS = {
         "diagnostic": {
             "contract_status": "diagnostic-ready",
             "publication_status": "diagnostic-ready",
-            "sha256": "58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0",
+            "sha256": "15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0",
         },
         "formal": {
             "contract_status": "formal-ready",
             "publication_status": "formal-ready",
-            "sha256": "cabedad99522bb1c76e8cd35eb25922a1117d445256f1e346b47687dbadbb66e",
+            "sha256": "6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160",
         },
     },
     "scripts/v934/step4/coverage-report-amendment.tsv": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "ef5b78f25ffebf48e45e363a15fb1c4bc53341488a8e703133f01bb7b2c40bef",
+    "scripts/v934/step4/coverage_tool.py": "965ec00d76fe4a91e903ba140c3a5ca4b5aa69854bffcdcdf5c1d544aeccbb13",
     "scripts/v934/step4/step2-report-view-contract.json": "545853cecfb3129a49a3fa3b2d8c0c3aef31f737c032097a3e6e68846accc7c9",
     "scripts/v934/step4/step2_report_view_tool.py": "1258f65c8ed1a8969766031a8356a10014a41936190de741ed6210a58716863c",
     "scripts/v934/step4/unit-mysql57-fixture-contract.json": "7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a",
