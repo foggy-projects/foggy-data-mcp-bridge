@@ -24,10 +24,9 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
-      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
-      "foggy-dataset/src/test/java/com/foggyframework/dataset/table/curd/BugFixInsertUpdateMapTest.java"
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java"
     ],
-    "sha256": "6c7c796c61b90acdda92b796ffda33f7010f2778f46229e80b9f133176a1161b"
+    "sha256": "58d99c7f57f3474a975733f5b4ba92ed78ed3de258f7c622b6afadfcd6739f27"
   },
   "frozen_semantics": {
     "addon": {

@@ -94,7 +94,6 @@ EXPECTED_AMENDMENT_PATHS = (
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
-    "foggy-dataset/src/test/java/com/foggyframework/dataset/table/curd/BugFixInsertUpdateMapTest.java",
 )
 EXPECTED_SUCCESSOR_FILES = (
     "database-authority-SHA256SUMS",
@@ -1058,7 +1057,7 @@ def main() -> int:
             validate(args.contract.resolve(), args.manifest.resolve())
             print(
                 "V934_STEP4_SUCCESSOR_OVERLAY "
-                "parents=3 contracts=4 amendments=18 step4_bindings=9 required=45/446 addon=2/6 status=passed"
+                "parents=3 contracts=4 amendments=17 step4_bindings=9 required=45/446 addon=2/6 status=passed"
             )
         else:
             count = negative(args.output.absolute())
