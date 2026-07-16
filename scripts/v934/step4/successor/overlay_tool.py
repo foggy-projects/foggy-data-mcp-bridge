@@ -94,6 +94,7 @@ EXPECTED_AMENDMENT_PATHS = (
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
+    "foggy-dataset/src/test/java/com/foggyframework/dataset/table/curd/BugFixInsertUpdateMapTest.java",
 )
 EXPECTED_SUCCESSOR_FILES = (
     "database-authority-SHA256SUMS",
@@ -208,19 +209,20 @@ EXPECTED_STEP4_RUNTIME_BINDINGS = {
         "diagnostic": {
             "contract_status": "diagnostic-ready",
             "publication_status": "diagnostic-ready",
-            "sha256": "16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af",
+            "sha256": "553050b9268ec76b87dd35ea4d68f56b5aaac67022cfd51a6f0cdf6897a01bac",
         },
         "formal": {
             "contract_status": "formal-ready",
             "publication_status": "formal-ready",
-            "sha256": "d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463",
+            "sha256": "d78825e5eed99ef17b362368dab7197282aac8058870f206bf6187b684131345",
         },
     },
-    "scripts/v934/step4/coverage-report-amendment.tsv": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
+    "scripts/v934/step4/coverage-report-amendment.tsv": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a",
-    "scripts/v934/step4/step2-report-view-contract.json": "c016ec18fa0a637e5c5470385c3f26cce152c461eb1dc1b64b52f28f5e8b8a67",
-    "scripts/v934/step4/step2_report_view_tool.py": "b828869dec191a6ded51e7b28654f8878c65455007ca002e247347a0cb5e217a",
+    "scripts/v934/step4/coverage_tool.py": "4fb2b803acc80d4c808e94c153bba541b0bebd2543224cfddfa52783dbb3d1f1",
+    "scripts/v934/step4/step2-report-view-contract.json": "545853cecfb3129a49a3fa3b2d8c0c3aef31f737c032097a3e6e68846accc7c9",
+    "scripts/v934/step4/step2_report_view_tool.py": "1258f65c8ed1a8969766031a8356a10014a41936190de741ed6210a58716863c",
+    "scripts/v934/step4/unit-mysql57-fixture-contract.json": "78275ebca15e34c09183c870f69a0130f650b4699902569378d95cc7732ba5a3",
 }
 REDIS_SOURCE_ID = f"v934-src|{len(REDIS_SOURCE_PATH)}:{REDIS_SOURCE_PATH}"
 
@@ -1056,7 +1058,7 @@ def main() -> int:
             validate(args.contract.resolve(), args.manifest.resolve())
             print(
                 "V934_STEP4_SUCCESSOR_OVERLAY "
-                "parents=3 contracts=4 amendments=17 step4_bindings=8 required=45/446 addon=2/6 status=passed"
+                "parents=3 contracts=4 amendments=18 step4_bindings=9 required=45/446 addon=2/6 status=passed"
             )
         else:
             count = negative(args.output.absolute())

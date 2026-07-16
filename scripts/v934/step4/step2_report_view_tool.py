@@ -284,10 +284,10 @@ def load_contract(root: Path) -> tuple[dict[str, Any], Path]:
     require(
         amendment == {
             "path": "scripts/v934/step4/coverage-report-amendment.tsv",
-            "sha256": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
-            "rows": 11,
+            "sha256": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
+            "rows": 12,
             "new_positive_reports": 4,
-            "changed_positive_reports": 7,
+            "changed_positive_reports": 8,
             "testcase_delta": 56,
         },
         "E_CONTRACT",
@@ -425,10 +425,10 @@ def load_amendment(
         "reviewed amendment hash differs",
     )
     rows = read_tsv(path, AMENDMENT_HEADER, "E_AMENDMENT")
-    require(len(rows) == 11, "E_AMENDMENT", "amendment must contain exactly eleven rows")
+    require(len(rows) == 12, "E_AMENDMENT", "amendment must contain exactly twelve rows")
     require(
-        len({row["source_path"] for row in rows}) == 11
-        and len({row["report_fqcn"] for row in rows}) == 11,
+        len({row["source_path"] for row in rows}) == 12
+        and len({row["report_fqcn"] for row in rows}) == 12,
         "E_AMENDMENT",
         "amendment paths/report identities must be unique",
     )
@@ -436,7 +436,7 @@ def load_amendment(
         "new-positive-report", "changed-positive-report"
     }}
     require(
-        kinds == {"new-positive-report": 4, "changed-positive-report": 7}
+        kinds == {"new-positive-report": 4, "changed-positive-report": 8}
         and all(row["change_kind"] in kinds for row in rows),
         "E_AMENDMENT",
         "amendment change kinds differ",
@@ -1020,7 +1020,7 @@ def validate_parent_command(args: argparse.Namespace) -> None:
     parent_dir = root / contract["parent"]["directory"]
     parent, _tool = validate_parent_directory(root, parent_dir, contract, enforce_location=True)
     load_amendment(root, root / contract["amendment"]["path"], contract)
-    print(f"{PREFIX} parent PASS positive={len(parent.rows)} structural={len(parent.structural_rows)} amendment=11")
+    print(f"{PREFIX} parent PASS positive={len(parent.rows)} structural={len(parent.structural_rows)} amendment=12")
 
 
 def generate_command(args: argparse.Namespace) -> None:

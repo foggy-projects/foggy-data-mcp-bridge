@@ -41,6 +41,8 @@ ADDON_REPORT_TOOL = Path("scripts/v934/step3/preagg_addon_lifecycle_report_tool.
 ADDON_CONTRACT = Path("scripts/v934/step4/successor/preagg-addon-lifecycle-contract.json")
 COVERAGE_TOOL = Path("scripts/v934/step4/coverage_tool.py")
 COVERAGE_CONTRACT = Path("scripts/v934/step4/coverage-contract.json")
+UNIT_FIXTURE_CONTRACT = Path("scripts/v934/step4/unit-mysql57-fixture-contract.json")
+UNIT_FIXTURE_TOOL = Path("scripts/v934/step4/unit_mysql_fixture_tool.py")
 DEFERRED_INVENTORY = Path("scripts/v934/successor/step2/deferred-step3.tsv")
 SELF_TOOL = Path("scripts/v934/step4/report_inventory_tool.py")
 TOOL_BINDING_PATHS = (
@@ -53,6 +55,8 @@ TOOL_BINDING_PATHS = (
     STEP3_CONTRACT,
     ADDON_REPORT_TOOL,
     ADDON_CONTRACT,
+    UNIT_FIXTURE_CONTRACT,
+    UNIT_FIXTURE_TOOL,
     DEFERRED_INVENTORY,
 )
 
@@ -784,6 +788,16 @@ def validate_step2_status(
         "run_status_sha256": sha256_file(authority.run_status),
         "status": "passed",
     }
+    if authority.name == "unit":
+        fixture_manifest = authority.root / "mysql57-fixture-manifest.json"
+        fixture_negative = authority.root / "mysql57-fixture-negative.json"
+        fixture_lifecycle_negative = authority.root / "mysql57-fixture-lifecycle-negative.json"
+        regular_file(fixture_manifest, "E_UNIT_FIXTURE", str(fixture_manifest))
+        regular_file(fixture_negative, "E_UNIT_FIXTURE", str(fixture_negative))
+        regular_file(fixture_lifecycle_negative, "E_UNIT_FIXTURE", str(fixture_lifecycle_negative))
+        summary_expected["mysql57_fixture_manifest_sha256"] = sha256_file(fixture_manifest)
+        summary_expected["mysql57_fixture_negative_sha256"] = sha256_file(fixture_negative)
+        summary_expected["mysql57_fixture_lifecycle_negative_sha256"] = sha256_file(fixture_lifecycle_negative)
     require(read_env(authority.summary) == summary_expected, "E_STATUS", f"{authority.name} summary differs")
     require(
         totals == {
@@ -1236,7 +1250,7 @@ def validate_union_semantics(payload: dict[str, Any]) -> None:
         "unit": (
             f"target/v934-step2-unit/runs/{run_id}",
             "canonical-run+head+source+not-before",
-            {"root", "parent_binding", "outer_marker", "final_manifest", "summary", "run_status", "negative_probes"},
+            {"root", "parent_binding", "outer_marker", "final_manifest", "summary", "run_status", "negative_probes", "mysql57_fixture_manifest", "mysql57_fixture_negative", "mysql57_fixture_lifecycle_negative"},
         ),
         "integration": (
             f"target/v934-step2-integration/runs/{run_id}",
@@ -1263,6 +1277,10 @@ def validate_union_semantics(payload: dict[str, Any]) -> None:
             validate_evidence_record(record["summary"], f"{child_root}/summary.env", "E_EVIDENCE", f"{child} summary")
             validate_evidence_record(record["run_status"], f"{child_root}/run-status.env", "E_EVIDENCE", f"{child} run status")
             validate_evidence_record(record["negative_probes"], f"{child_root}/negative/negative-probes.tsv", "E_EVIDENCE", f"{child} negative probes")
+            if child == "unit":
+                validate_evidence_record(record["mysql57_fixture_manifest"], f"{child_root}/mysql57-fixture-manifest.json", "E_UNIT_FIXTURE", "Unit MySQL fixture manifest")
+                validate_evidence_record(record["mysql57_fixture_negative"], f"{child_root}/mysql57-fixture-negative.json", "E_UNIT_FIXTURE", "Unit MySQL fixture negatives")
+                validate_evidence_record(record["mysql57_fixture_lifecycle_negative"], f"{child_root}/mysql57-fixture-lifecycle-negative.json", "E_UNIT_FIXTURE", "Unit MySQL fixture lifecycle negatives")
         else:
             addon_candidate_path = f"target/v934-step3-preagg-addon/runs/{run_id}/candidate-manifest.json"
             validate_evidence_record(record["parent_context"], f"{child_root}/step4-parent-context.env", "E_EVIDENCE", "Step 3 parent context")
@@ -1336,6 +1354,27 @@ def build_inventory(root: Path, run_id: str) -> dict[str, Any]:
     except Exception as exc:
         reject(getattr(exc, "code", "E_STEP2_CONTRACT"), "Step 2 report tool rejected the derived view")
     unit = validate_step2_authority(root, parent, "unit", module, contract)
+    unit_fixture_manifest = unit.root / "mysql57-fixture-manifest.json"
+    unit_fixture_negative = unit.root / "mysql57-fixture-negative.json"
+    unit_fixture_lifecycle_negative = unit.root / "mysql57-fixture-lifecycle-negative.json"
+    run_checked(
+        [sys.executable, str(root / UNIT_FIXTURE_TOOL), "verify", "--repo-root", str(root), "--run-id", run_id, "--manifest", str(unit_fixture_manifest)],
+        root,
+        "E_UNIT_FIXTURE",
+        "Unit MySQL fixture validator",
+    )
+    run_checked(
+        [sys.executable, str(root / UNIT_FIXTURE_TOOL), "verify-negative", "--path", str(unit_fixture_negative)],
+        root,
+        "E_UNIT_FIXTURE",
+        "Unit MySQL fixture negative validator",
+    )
+    run_checked(
+        [sys.executable, str(root / UNIT_FIXTURE_TOOL), "verify-lifecycle-negative", "--path", str(unit_fixture_lifecycle_negative)],
+        root,
+        "E_UNIT_FIXTURE",
+        "Unit MySQL fixture lifecycle negative validator",
+    )
     integration = validate_step2_authority(root, parent, "integration", module, contract)
     step3 = validate_step3_authority(root, parent)
 
@@ -1389,6 +1428,9 @@ def build_inventory(root: Path, run_id: str) -> dict[str, Any]:
                 "summary": evidence_record(root, unit.summary),
                 "run_status": evidence_record(root, unit.run_status),
                 "negative_probes": evidence_record(root, unit.negative),
+                "mysql57_fixture_manifest": evidence_record(root, unit_fixture_manifest),
+                "mysql57_fixture_negative": evidence_record(root, unit_fixture_negative),
+                "mysql57_fixture_lifecycle_negative": evidence_record(root, unit_fixture_lifecycle_negative),
             },
             "integration": {
                 "root": repo_relative(root, integration.root),
@@ -1562,6 +1604,9 @@ def synthetic_payload() -> dict[str, Any]:
                 "summary": artifact(f"{unit_root}/summary.env"),
                 "run_status": artifact(f"{unit_root}/run-status.env"),
                 "negative_probes": artifact(f"{unit_root}/negative/negative-probes.tsv"),
+                "mysql57_fixture_manifest": artifact(f"{unit_root}/mysql57-fixture-manifest.json"),
+                "mysql57_fixture_negative": artifact(f"{unit_root}/mysql57-fixture-negative.json"),
+                "mysql57_fixture_lifecycle_negative": artifact(f"{unit_root}/mysql57-fixture-lifecycle-negative.json"),
             },
             "integration": {
                 "root": integration_root,
@@ -1648,6 +1693,9 @@ def command_negative(args: argparse.Namespace) -> None:
     expect_error("spliced-outer-marker-hash", "E_PARENT_BINDING", lambda: mutate_probe(lambda p: p["authority"]["outer_marker"].__setitem__("sha256", "c" * 64)), rows)
     expect_error("invalid-child-evidence-hash", "E_EVIDENCE", lambda: mutate_probe(lambda p: p["evidence"]["unit"]["outer_marker"].__setitem__("sha256", "not-a-sha")), rows)
     expect_error("spliced-child-evidence-path", "E_EVIDENCE", lambda: mutate_probe(lambda p: p["evidence"]["unit"]["outer_marker"].__setitem__("path", "target/other-run/run-context.json")), rows)
+    expect_error("spliced-unit-fixture-path", "E_UNIT_FIXTURE", lambda: mutate_probe(lambda p: p["evidence"]["unit"]["mysql57_fixture_manifest"].__setitem__("path", "target/other-run/mysql57-fixture-manifest.json")), rows)
+    expect_error("invalid-unit-fixture-negative-hash", "E_UNIT_FIXTURE", lambda: mutate_probe(lambda p: p["evidence"]["unit"]["mysql57_fixture_negative"].__setitem__("sha256", "not-a-sha")), rows)
+    expect_error("spliced-unit-fixture-lifecycle-path", "E_UNIT_FIXTURE", lambda: mutate_probe(lambda p: p["evidence"]["unit"]["mysql57_fixture_lifecycle_negative"].__setitem__("path", "target/other-run/mysql57-fixture-lifecycle-negative.json")), rows)
     expect_error("spliced-addon-candidate-hash", "E_EVIDENCE", lambda: mutate_probe(lambda p: p["addon_companion"]["candidate_manifest"].__setitem__("sha256", "c" * 64)), rows)
     expect_error("missing-step2-key", "E_TOTAL", lambda: mutate_probe(lambda p: p["required_union"]["step2"]["execution_keys"].pop()), rows)
     expect_error("duplicate-step2-key", "E_IDENTITY_DUPLICATE", lambda: mutate_probe(lambda p: p["required_union"]["step2"]["execution_keys"].__setitem__(-1, p["required_union"]["step2"]["execution_keys"][0])), rows)

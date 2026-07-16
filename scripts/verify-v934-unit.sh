@@ -16,6 +16,8 @@ COVERAGE_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 RUN_LOG_LIB="$ROOT_DIR/scripts/v934/step4/run_log_lifecycle_lib.sh"
 STEP4_TOOL="$ROOT_DIR/scripts/v934/step4/coverage_tool.py"
 REPORT_VIEW_TOOL="$ROOT_DIR/scripts/v934/step4/step2_report_view_tool.py"
+UNIT_FIXTURE_TOOL="$ROOT_DIR/scripts/v934/step4/unit_mysql_fixture_tool.py"
+DATABASE_PROVISIONER="$ROOT_DIR/scripts/v934/step3/provision-database-cell.sh"
 OUTER_MARKER="$RUN_ROOT/run-context.json"
 
 fail() {
@@ -25,7 +27,7 @@ fail() {
 
 [[ "$#" -le 1 ]] || fail "usage: scripts/verify-v934-unit.sh [RUN_ID]"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]] || fail "invalid run id: $RUN_ID"
-for command_name in bash flock git mvn python3 tee; do
+for command_name in bash docker env flock git mvn python3 sha256sum ss tee; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
 for required_file in \
@@ -33,16 +35,31 @@ for required_file in \
   "$STEP4_AUTHORITY_LIB" "$COVERAGE_LIB" "$RUN_LOG_LIB" "$STEP4_TOOL" "$REPORT_VIEW_TOOL"; do
   [[ -f "$required_file" ]] || fail "required file missing: $required_file"
 done
+for required_file in "$UNIT_FIXTURE_TOOL" "$DATABASE_PROVISIONER"; do
+  [[ -f "$required_file" && ! -L "$required_file" ]] || \
+    fail "required Unit MySQL fixture file missing or symlinked: $required_file"
+done
 for variable_name in MAVEN_ARGS MAVEN_CONFIG MAVEN_OPTS; do
   variable_value="${!variable_name:-}"
-  if [[ "$variable_value" =~ (skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*) ]]; then
+  if [[ "$variable_value" =~ (skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*|spring[._]) ]]; then
     fail "$variable_name contains a forbidden lane override"
   fi
 done
-if [[ -f "$ROOT_DIR/.mvn/maven.config" ]] && \
-   grep -Eq '(skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*)' "$ROOT_DIR/.mvn/maven.config"; then
-  fail ".mvn/maven.config contains a forbidden lane override"
-fi
+while IFS='=' read -r environment_key _; do
+  [[ "$environment_key" != SPRING_* ]] || fail "ambient Spring environment is forbidden: $environment_key"
+done < <(env)
+for variable_name in JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS; do
+  [[ ! "${!variable_name:-}" =~ [Ss][Pp][Rr][Ii][Nn][Gg][._] ]] || \
+    fail "$variable_name contains a Spring datasource/config override"
+done
+for config_file in "$ROOT_DIR/.mvn/maven.config" "$ROOT_DIR/.mvn/jvm.config"; do
+  if [[ -e "$config_file" || -L "$config_file" ]]; then
+    [[ -f "$config_file" && ! -L "$config_file" ]] || fail "Maven config is not a real file: $config_file"
+    if grep -Eq '(skipTests|skipITs|skipUnitTests|multi-db|model-lifecycle|query-cache-real-query|failIfNo[A-Za-z0-9._-]*|[Ss][Pp][Rr][Ii][Nn][Gg][._])' "$config_file"; then
+      fail "Maven config contains a forbidden lane or Spring override: $config_file"
+    fi
+  fi
+done
 
 # shellcheck source=scripts/v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
@@ -75,8 +92,36 @@ SOURCE_AFTER=""
 OUTER_MARKER_SHA256=""
 SUCCESSOR_MANIFEST_SHA256=""
 FINAL_REPORT_MANIFEST_SHA256=""
+FIXTURE_RUN_ID=""
+LIFECYCLE_STARTED=0
+
+v934_unit_exit_trap() {
+  local exit_code="${1:-1}" cleanup_code=0
+  [[ "$exit_code" =~ ^[0-9]+$ ]] || exit_code=1
+  trap '' INT TERM HUP
+  trap - EXIT
+  set +e
+  if [[ "$LIFECYCLE_STARTED" -eq 1 ]]; then
+    python3 "$UNIT_FIXTURE_TOOL" cleanup-lifecycle --repo-root "$ROOT_DIR" --run-id "$RUN_ID"
+    cleanup_code=$?
+    if [[ "$cleanup_code" -ne 0 ]]; then
+      PHASE="unit-mysql57-lifecycle-fallback-cleanup-failed"
+      [[ "$exit_code" -ne 0 ]] || exit_code=1
+    fi
+  fi
+  if [[ -n "$FIXTURE_RUN_ID" ]]; then
+    python3 "$UNIT_FIXTURE_TOOL" cleanup --repo-root "$ROOT_DIR" --run-id "$RUN_ID"
+    cleanup_code=$?
+    if [[ "$cleanup_code" -ne 0 ]]; then
+      PHASE="unit-mysql57-fallback-cleanup-failed"
+      [[ "$exit_code" -ne 0 ]] || exit_code=1
+    fi
+  fi
+  v934_run_log_exit_trap "$exit_code" v934_record_run_status
+}
+
 v934_install_run_status_traps
-trap 'v934_run_log_exit_trap "$?" v934_record_run_status' EXIT
+trap 'v934_unit_exit_trap "$?"' EXIT
 v934_run_log_open "$RUN_ROOT" v934-unit || fail "cannot open the owned run logger"
 
 PHASE="source-baseline"
@@ -125,6 +170,20 @@ PY
 [[ "${#REACTOR_MODULES[@]}" -eq 24 ]] || \
   fail "active reactor must equal the frozen 24 production modules plus the coverage reporter"
 REACTOR_MODULE_CSV="$(IFS=,; printf '%s' "${REACTOR_MODULES[*]}")"
+FIXTURE_RUN_ID="$(python3 "$UNIT_FIXTURE_TOOL" derive --run-id "$RUN_ID" | \
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["fixture_run_id"])')"
+[[ "$FIXTURE_RUN_ID" =~ ^unit-mysql57-[0-9a-f]{16}$ ]] || \
+  fail "derived Unit MySQL fixture run id differs"
+FIXTURE_RUN_ROOT="$ROOT_DIR/target/v934-step3-database-matrix/runs/$FIXTURE_RUN_ID"
+FIXTURE_CELL_ROOT="$FIXTURE_RUN_ROOT/cells/mysql57"
+UNIT_FIXTURE_MANIFEST="$RUN_ROOT/mysql57-fixture-manifest.json"
+UNIT_FIXTURE_NEGATIVE="$RUN_ROOT/mysql57-fixture-negative.json"
+UNIT_FIXTURE_LIFECYCLE_NEGATIVE="$RUN_ROOT/mysql57-fixture-lifecycle-negative.json"
+[[ ! -e "$FIXTURE_RUN_ROOT" && ! -L "$FIXTURE_RUN_ROOT" ]] || \
+  fail "Unit MySQL fixture run root already exists: $FIXTURE_RUN_ROOT"
+mkdir -p "$FIXTURE_RUN_ROOT/cells"
+[[ -d "$FIXTURE_RUN_ROOT/cells" && ! -L "$FIXTURE_RUN_ROOT/cells" ]] || \
+  fail "Unit MySQL fixture cell parent is unsafe"
 PHASE="test-bytecode-cleanup"
 for module in "${REACTOR_MODULES[@]}"; do
   [[ -d "$ROOT_DIR/$module" ]] || fail "reactor module is missing: $module"
@@ -238,16 +297,35 @@ os.replace(temporary, output)
 PY
 
 echo "[v934-unit] running frozen production-reactor Surefire unit authority"
-PHASE="maven-unit"
+PHASE="unit-mysql57-lifecycle-negative"
+LIFECYCLE_STARTED=1
+python3 "$UNIT_FIXTURE_TOOL" lifecycle-negative \
+  --repo-root "$ROOT_DIR" \
+  --run-id "$RUN_ID" \
+  --output "$UNIT_FIXTURE_LIFECYCLE_NEGATIVE"
+python3 "$UNIT_FIXTURE_TOOL" verify-lifecycle-negative \
+  --path "$UNIT_FIXTURE_LIFECYCLE_NEGATIVE"
+PHASE="unit-mysql57-provision"
 v934_coverage_configure ut unit
-(cd "$ROOT_DIR" && mvn -q \
-  -P\!multi-db,\!model-lifecycle,\!query-cache-real-query \
-  -pl "$REACTOR_MODULE_CSV" -am \
-  -DskipUnitTests=false \
-  -DskipITs=true \
-  -Dsurefire.failIfNoTests=false \
-  "${V934_COVERAGE_MAVEN_ARGS[@]}" \
-  test)
+"$DATABASE_PROVISIONER" run mysql57 "$FIXTURE_RUN_ID" "$FIXTURE_CELL_ROOT" -- \
+  python3 "$UNIT_FIXTURE_TOOL" callback \
+    --repo-root "$ROOT_DIR" \
+    --run-id "$RUN_ID" \
+    --fixture-run-id "$FIXTURE_RUN_ID" \
+    --reactor-modules "$REACTOR_MODULE_CSV" \
+    --coverage-exec "${V934_COVERAGE_EXEC_FILE:-disabled}" \
+    --session-id "${V934_COVERAGE_SESSION_ID_BASE:-disabled}"
+PHASE="unit-mysql57-evidence"
+python3 "$UNIT_FIXTURE_TOOL" build \
+  --repo-root "$ROOT_DIR" \
+  --run-id "$RUN_ID" \
+  --output "$UNIT_FIXTURE_MANIFEST"
+python3 "$UNIT_FIXTURE_TOOL" negative --output "$UNIT_FIXTURE_NEGATIVE"
+python3 "$UNIT_FIXTURE_TOOL" verify \
+  --repo-root "$ROOT_DIR" \
+  --run-id "$RUN_ID" \
+  --manifest "$UNIT_FIXTURE_MANIFEST"
+python3 "$UNIT_FIXTURE_TOOL" verify-negative --path "$UNIT_FIXTURE_NEGATIVE"
 v934_coverage_verify_exec
 
 PHASE="report-verify"
@@ -306,7 +384,10 @@ PY
 python3 - \
   "$RUN_ROOT/final/report-manifest.json" "$RUN_ROOT/summary.env" "$RUN_ID" \
   "$SOURCE_BEFORE" "$SOURCE_AFTER" "$GIT_HEAD" "$OUTER_MARKER_SHA256" \
-  "$SUCCESSOR_MANIFEST_SHA256" "$FINAL_REPORT_MANIFEST_SHA256" "$RUN_STATUS_SHA256" <<'PY'
+  "$SUCCESSOR_MANIFEST_SHA256" "$FINAL_REPORT_MANIFEST_SHA256" "$RUN_STATUS_SHA256" \
+  "$(sha256sum "$UNIT_FIXTURE_MANIFEST" | cut -d' ' -f1)" \
+  "$(sha256sum "$UNIT_FIXTURE_NEGATIVE" | cut -d' ' -f1)" \
+  "$(sha256sum "$UNIT_FIXTURE_LIFECYCLE_NEGATIVE" | cut -d' ' -f1)" <<'PY'
 import json
 import os
 from pathlib import Path
@@ -333,6 +414,9 @@ values = {
     "successor_manifest_sha256": sys.argv[8],
     "final_report_manifest_sha256": sys.argv[9],
     "run_status_sha256": sys.argv[10],
+    "mysql57_fixture_manifest_sha256": sys.argv[11],
+    "mysql57_fixture_negative_sha256": sys.argv[12],
+    "mysql57_fixture_lifecycle_negative_sha256": sys.argv[13],
     "status": "passed",
 }
 output = Path(sys.argv[2])

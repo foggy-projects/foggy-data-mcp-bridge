@@ -151,6 +151,7 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
+    "foggy-dataset/src/test/java/com/foggyframework/dataset/table/curd/BugFixInsertUpdateMapTest.java",
     "pom.xml",
     "scripts/v934/authority_runner_lib.sh",
     "scripts/v934/step4/JaCoCoExecInspector.java",
@@ -189,6 +190,8 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "scripts/v934/step4/successor/step3-required-contract.json",
     "scripts/v934/step4/successor/step3_required_report_tool.py",
     "scripts/v934/step4/toolchain_receipt_tool.py",
+    "scripts/v934/step4/unit-mysql57-fixture-contract.json",
+    "scripts/v934/step4/unit_mysql_fixture_tool.py",
     "scripts/verify-v934-database-matrix.sh",
     "scripts/verify-v934-external-matrix.sh",
     "scripts/verify-v934-external-mongo.sh",
@@ -549,12 +552,12 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
     )
     require(report_inventory == {
         "amendment_path": "scripts/v934/step4/coverage-report-amendment.tsv",
-        "amendment_sha256": "937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2",
+        "amendment_sha256": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
         "step2_parent_positive_reports": 724,
         "step2_parent_structural_reports": 59,
         "step2_parent_testcases": 5205,
         "step4_new_positive_reports": 4,
-        "step4_changed_positive_reports": 7,
+        "step4_changed_positive_reports": 8,
         "step4_step2_testcase_delta": 56,
         "step3_required_positive_reports": 45,
         "step3_required_testcases": 446,
@@ -990,9 +993,9 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
             rows = list(reader)
     except (OSError, UnicodeError) as exc:
         raise ContractError("coverage report amendment: cannot read UTF-8 TSV") from exc
-    require(len(rows) == 11, "coverage report amendment: expected exact 11 rows")
-    require(len({row["source_path"] for row in rows}) == 11, "coverage report amendment: duplicate source")
-    require(len({row["report_fqcn"] for row in rows}) == 11, "coverage report amendment: duplicate report FQCN")
+    require(len(rows) == 12, "coverage report amendment: expected exact 12 rows")
+    require(len({row["source_path"] for row in rows}) == 12, "coverage report amendment: duplicate source")
+    require(len({row["report_fqcn"] for row in rows}) == 12, "coverage report amendment: duplicate report FQCN")
     counts: Counter[str] = Counter()
     testcase_delta = 0
     for number, row in enumerate(rows, 1):
@@ -1030,7 +1033,7 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
         require(workitem.is_file() and not workitem.is_symlink(), f"coverage report amendment row {number}: workitem missing")
         counts[change_kind] += 1
         testcase_delta += after_nodes - before_nodes
-    require(counts == Counter({"new-positive-report": 4, "changed-positive-report": 7}), "coverage report amendment: expected 4 new and 7 changed reports")
+    require(counts == Counter({"new-positive-report": 4, "changed-positive-report": 8}), "coverage report amendment: expected 4 new and 8 changed reports")
     require(testcase_delta == inventory["step4_step2_testcase_delta"] == 56, "coverage report amendment: testcase delta must be 56")
     require(inventory["required_positive_reports"] == inventory["step2_parent_positive_reports"] + inventory["step4_new_positive_reports"] + inventory["step3_required_positive_reports"], "coverage report inventory: required positive arithmetic differs")
     require(inventory["required_testcases"] == inventory["step2_parent_testcases"] + testcase_delta + inventory["step3_required_testcases"], "coverage report inventory: required testcase arithmetic differs")

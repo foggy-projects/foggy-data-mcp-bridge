@@ -14,6 +14,7 @@ COVERAGE_EXEC_TOOL="$STEP4_DIR/coverage_exec_tool.py"
 COVERAGE_XML_TOOL="$STEP4_DIR/coverage_xml_tool.py"
 COVERAGE_XML_NEGATIVE_TOOL="$STEP4_DIR/coverage_xml_negative_tool.py"
 COVERAGE_CONTRACT_NEGATIVE_TOOL="$STEP4_DIR/coverage_contract_negative_tool.py"
+UNIT_FIXTURE_TOOL="$STEP4_DIR/unit_mysql_fixture_tool.py"
 RUN_LOG_LIFECYCLE_NEGATIVE="$STEP4_DIR/run_log_lifecycle_negative_test.sh"
 RUN_LOG_LIB="$STEP4_DIR/run_log_lifecycle_lib.sh"
 TOOLCHAIN_RECEIPT_TOOL="$STEP4_DIR/toolchain_receipt_tool.py"
@@ -1659,11 +1660,16 @@ count_labeled_resources() {
 }
 
 cleanup_all_resources() {
-  local code=0 database scope_hash project label count
+  local code=0 database scope_hash project label count unit_child_scope unit_child_id unit_project_scope unit_project
   local containers=0 volumes=0 networks=0
   docker info >/dev/null 2>&1 || return 1
   remove_labeled_resources "com.foggy.v934.external-run=$RUN_ID" || code=1
   remove_labeled_resources "com.foggy.v934.preagg-run=$RUN_ID" || code=1
+  unit_child_scope="$(printf '%s\n' "$RUN_ID|unit-mysql57" | sha256sum | cut -c1-16)"
+  unit_child_id="unit-mysql57-$unit_child_scope"
+  unit_project_scope="$(printf '%s\n' "$unit_child_id|mysql57" | sha256sum | cut -c1-12)"
+  unit_project="v934db-mysql57-$unit_project_scope"
+  python3 "$UNIT_FIXTURE_TOOL" cleanup --repo-root "$ROOT_DIR" --run-id "$RUN_ID" || code=1
   for database in mysql57 mysql8 postgres15 sqlserver2022; do
     scope_hash="$(printf '%s\n' "$RUN_ID|$database" | sha256sum | cut -c1-12)"
     project="v934db-${database}-${scope_hash}"
@@ -1671,7 +1677,8 @@ cleanup_all_resources() {
   done
   for label in \
     "com.foggy.v934.external-run=$RUN_ID" \
-    "com.foggy.v934.preagg-run=$RUN_ID"; do
+    "com.foggy.v934.preagg-run=$RUN_ID" \
+    "com.docker.compose.project=$unit_project"; do
     count="$(count_labeled_resources "$label" container)" || { code=1; count=999; }
     containers=$((containers + count))
     count="$(count_labeled_resources "$label" volume)" || { code=1; count=999; }
@@ -1989,7 +1996,7 @@ RUN_ID="${RUN_ID:-step4-coverage-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$RUN_ID" != . && "$RUN_ID" != .. && "${#RUN_ID}" -le 128 ]] || \
   fail "unsafe run id: $RUN_ID"
 
-for command_name in cmp cut date docker find flock git grep mkfifo mvn ps python3 rg sed sha256sum sleep tee tr wc; do
+for command_name in cmp cut date docker env find flock git grep mkfifo mvn ps python3 rg sed sha256sum sleep ss tee tr wc; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
 for required_file in \
@@ -1997,6 +2004,7 @@ for required_file in \
   "$REPORT_VIEW_TOOL" "$REPORT_INVENTORY_TOOL" "$COVERAGE_REPORT_RUNNER" \
   "$COVERAGE_EXEC_TOOL" "$COVERAGE_XML_TOOL" "$COVERAGE_XML_NEGATIVE_TOOL" \
   "$COVERAGE_CONTRACT_NEGATIVE_TOOL" \
+  "$UNIT_FIXTURE_TOOL" \
   "$RUN_LOG_LIFECYCLE_NEGATIVE" "$RUN_LOG_LIB" \
   "$TOOLCHAIN_RECEIPT_TOOL" \
   "$COVERAGE_CONTRACT" \
@@ -2035,12 +2043,22 @@ for variable_name in MAVEN_ARGS MAVEN_CONFIG; do
 done
 if [[ "${MAVEN_OPTS:-}" =~ (^|[[:space:],])(-T|--threads)([[:space:]=,0-9C]|$) ]] ||
    [[ "${MAVEN_OPTS:-}" =~ (^|[[:space:],])!?coverage([[:space:],]|$) ]] ||
-   [[ "${MAVEN_OPTS:-}" =~ (v934-coverage|jacoco\.|v934\.coverage\.|(^|[[:space:]])-D(argLine|test|it\.test|failIfNoTests|surefire\.|failsafe\.)) ]]; then
+   [[ "${MAVEN_OPTS:-}" =~ (v934-coverage|jacoco\.|v934\.coverage\.|[Ss][Pp][Rr][Ii][Nn][Gg][._]|(^|[[:space:]])-D(argLine|test|it\.test|failIfNoTests|surefire\.|failsafe\.)) ]]; then
   fail "MAVEN_OPTS contains a forbidden coverage, selector, or parallel override"
 fi
+while IFS='=' read -r environment_key _; do
+  [[ "$environment_key" != SPRING_* ]] || fail "ambient Spring environment is forbidden: $environment_key"
+done < <(env)
 for variable_name in JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS; do
-  [[ ! "${!variable_name:-}" =~ (-javaagent|jacoco) ]] || \
-    fail "$variable_name contains an external Java agent override"
+  [[ ! "${!variable_name:-}" =~ (-javaagent|jacoco|[Ss][Pp][Rr][Ii][Nn][Gg][._]) ]] || \
+    fail "$variable_name contains an external Java agent or Spring override"
+done
+for config_file in "$ROOT_DIR/.mvn/maven.config" "$ROOT_DIR/.mvn/jvm.config"; do
+  if [[ -e "$config_file" || -L "$config_file" ]]; then
+    [[ -f "$config_file" && ! -L "$config_file" ]] || fail "Maven config is not a real file: $config_file"
+    ! grep -Eq '[Ss][Pp][Rr][Ii][Nn][Gg][._]' "$config_file" || \
+      fail "Maven config contains a Spring override: $config_file"
+  fi
 done
 
 if CONTRACT_VALIDATION_JSON="$(python3 "$COVERAGE_TOOL" validate-contract \
@@ -2568,7 +2586,17 @@ require_real_file "$RUN_ROOT/class-universe.json"
 # These are the only direct child authorities. The Step 3 required child owns
 # and serially launches database, external-service, and Addon companion lanes.
 run_child unit
+PHASE=unit-mysql57-post-unit-boundary
+python3 "$UNIT_FIXTURE_TOOL" verify \
+  --repo-root "$ROOT_DIR" \
+  --run-id "$RUN_ID" \
+  --manifest "$ROOT_DIR/target/v934-step2-unit/runs/$RUN_ID/mysql57-fixture-manifest.json"
 run_child integration
+PHASE=unit-mysql57-pre-step3-boundary
+python3 "$UNIT_FIXTURE_TOOL" verify \
+  --repo-root "$ROOT_DIR" \
+  --run-id "$RUN_ID" \
+  --manifest "$ROOT_DIR/target/v934-step2-unit/runs/$RUN_ID/mysql57-fixture-manifest.json"
 run_child step3-required
 
 PHASE=child-lifecycle-verify
