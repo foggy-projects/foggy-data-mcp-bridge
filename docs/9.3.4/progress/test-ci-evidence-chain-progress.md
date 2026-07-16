@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r6 historical environment fail-closed | Step 3 exit passed | r6 excluded、partial lanes non-reusable；`foggy-demo-mysql` 占用 frozen port `13306`；fresh r7 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r7 Unit hermeticity fail-closed | Step 3 exit passed | r7 excluded；完整 Unit lane 已改用 run-owned MySQL 5.7，focused/static 与真实 lifecycle 已完成；正式质量闸门和 fresh r8 均 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1093,6 +1093,48 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   listener；执行全新 `step4-coverage-20260716-diagnostic-r7`。threshold=`diagnostic-pending`，
   `can_enter_coverage_audit=no`，Step 5 保持关闭。
 
+### Superseding Post-diagnostic Check-in — Step 4 r7 Unit hermeticity fail-closed
+
+- recorded_at: 2026-07-16
+- status decision: `in-progress / r7 historical Unit hermeticity fail-closed / formal
+  remediation quality pending / fresh r8 pending`，不是 Step 4 `passed`；
+- immutable r7: clean/pushed tested commit=
+  `528a0a541d90ef77d577e1816b392d33168cb558`，run=
+  `step4-coverage-20260716-diagnostic-r7`，source-before=`3,976 files` / SHA-256=
+  `b3fc04ee0d16a7a81f5e9697b10b5edeaafec0f59cd5dbec1e65625381c3fe43`；
+- fail-closed boundary: 四个 frozen ports 已无 listener；Unit `foggy-dataset` 出现
+  6 suites / 11 errors，直接根因是测试隐式连接 ambient `127.0.0.1:13306`。outer=
+  `failed / child-unit / exit 1`；只有不完整 `1/23` Unit exec，后续 lane、aggregate、
+  threshold、source-after 与 summary absent；r7 与其产物 excluded/non-reusable；
+- remediation: Unit 派生唯一 run-owned MySQL 5.7 child/project，固定 image/database/port 与
+  `M_ETL_TEST` schema；原唯一 Maven invocation 作为 frozen provisioner callback；before/after
+  schema seal、provisioner fixture、restricted test credential/connection receipt、cleanup/port
+  seal 纳入 Unit summary 与 report inventory；
+- classification boundary: remediation 替换完整 Unit lane并保持 `681+55/4,941`；
+  `6 reports / 11 testcase nodes` 只是已知隐藏依赖清单，不是其他 Unit 测试无 DB 访问的
+  声明。Step 2 identity/cardinality 继续保留结构含义，其 Unit 正确性绿色不复用。机器契约=
+  `scripts/v934/step4/unit-mysql57-fixture-contract.json`，迁移债务=
+  `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`；
+- focused validation: `681 positive + 55 structural / 4,941 / F0E0S0`，schema before=after=
+  `93a9a8d51c8e8188173ce905965293adbd163e2d1e21c12d2f1f8637bbe4da0d`，temporary
+  residue=`0/0/0`、port free；occupied-port negative 在 preflight fail closed，外部 demo
+  container exact identity/health 不变；
+- static closure: overlay=`12/12`、Unit negative receipt=`27/27`（原 fixture/manifest
+  schema/tamper=`20/20`、connection receipt typed=`4/4`、atomic publisher=`3/3`），negative
+  receipt schema tamper=`4/4`；真实 lifecycle=`5/5`，report inventory negatives=`30/30`；
+  frozen coverage contract 仍为 `23 exec / 48 sessions`、required=`773+59/5,707`；fixture
+  hardening 后 top manifest=`59/59` /
+  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`、successor=
+  `14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`、
+  coverage amendment=`12 rows / 4 new + 8 changed` /
+  `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`，静态复验通过；
+- records:
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`；
+  `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`；
+- next gate: 正式实现质量闸门（pending）→commit/push→clean source seal→fresh r8 all-lane
+  diagnostic（pending）。
+  threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`，Step 5 保持关闭。
+
 ## Current Risks / Stop Conditions
 
 - 33 个 frozen rename + 2 个 Mongo corrective rename 已由 r8e successor exact
@@ -1102,7 +1144,8 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   migration 已冻结，Step 5/7 只能运行 v934 successor regression。
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1–r6 均已 fail closed/excluded，r5/r6 partial lanes 不可复用，当前仍无 reviewed
+- r1–r7 均已 fail closed/excluded，r5/r6 partial lanes 与 r7 不完整 Unit 产物不可复用，
+  当前仍无 reviewed
   reactor aggregate baseline；
   0.80/0.70 只是 critical-class candidate floor，必须由 fresh all-lane observation
   与人工 review 确认。
@@ -1133,19 +1176,19 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 successor remediation passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4 B/H/M/L=`0/0/0/0`；r6 环境失败未进入 final gate，fresh r7 pending，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 Unit fixture remediation formal quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r7 hidden dependency remediation 已完成 focused/static 与真实 lifecycle，正式闸门尚未收口，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r6 environment fail-closed / r7 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r7 Unit hermeticity fail-closed / r8 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-database-state successor remediation 的 full static/quality 已通过，r6 也未复现该 selector
-缺陷；repo demo DB 容器已在 r7 evidence window 外停止，四个 frozen ports 均无 listener；
-下一步以全新 `step4-coverage-20260716-diagnostic-r7` 从 source seal 开始执行 all-lane diagnostic，
-观察全部 required lane、aggregate/critical classes 并评审 exact observed thresholds。
-当前 threshold=`diagnostic-pending`，r1–r6 都是 excluded failed diagnostic，r5/r6 partial
-lanes 不可复用，尚无 aggregate baseline/review 或 Step 4 exit evidence；
+r7 已证明 Unit 旧绿色依赖 ambient MySQL/schema；run-owned pinned MySQL 5.7 fixture 已完成
+focused/static 与真实 lifecycle 验证。下一步完成仍 pending 的正式实现质量闸门，commit/push 后停止四个 repo demo DB
+容器，并以 fresh r8 从 source seal 开始执行 all-lane diagnostic，观察全部 required lane、
+aggregate/critical classes 并评审 exact observed thresholds。
+当前 threshold=`diagnostic-pending`，r1–r7 都是 excluded failed diagnostic，历史 partial/
+incomplete 产物不可复用，尚无 aggregate baseline/review 或 Step 4 exit evidence；
 `can_enter_coverage_audit=no`，
 Step 5 仍不得开始，coverage audit/acceptance 不得启动。

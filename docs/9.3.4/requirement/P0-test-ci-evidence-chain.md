@@ -67,6 +67,19 @@ updated_at: 2026-07-16
 - Step 2 只把 unit 与无外部依赖 IT 实跑作为 exit；DB/Redis 等 required suite
   必须有唯一 owner/preflight/earliest-step=`3`，并在 Step 3 全部实际执行。Step 3
   不预产 coverage exec；所有 required lanes 在 Step 4 接好 agent 后重新执行。
+- 上述 DB/external → Step 3 归属仍是默认通则。r7 暴露的 Unit 隐式 MySQL 依赖只允许
+  一个 `9.3.4-only` 例外：Step 4 以 pinned、run-owned MySQL 5.7 替换执行完整 frozen
+  Unit lane，而不是把该例外推广到新的 execution key、其他 runner 或后续版本。机器权威为
+  `scripts/v934/step4/unit-mysql57-fixture-contract.json`；其中列出的 6 个已知
+  execution key / 11 个 testcase node 是 r7 已确认清单，不代表已穷尽证明其余 Unit
+  suite 绝无数据库访问。fixture authority 因此作用于完整 `681 positive + 55 structural /
+  4,941 testcase` 的唯一 Maven invocation。
+- Step 2 confirmed inventory 的 execution identity 与 cardinality 仅按历史结构保留；r7 后
+  Step 2 Unit 绿色不得再作为 correctness evidence。9.3.4 的 Unit correctness 必须由同一
+  fresh Step 4 全 lane replacement run 重新证明，失败、partial 或跨 run 结果不能补写
+  Step 2。分类迁移债务记录于
+  `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`，并必须在
+  9.3.5 版本验收前关闭。
 - helper reactor module 可无指定测试，但 owning module 必须产生 fresh、exact
   FQCN/count XML；workflow authority 不直接暴露
   `surefire.failIfNoSpecifiedTests=false`。
@@ -146,11 +159,12 @@ updated_at: 2026-07-16
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r6 historical environment fail-closed / fresh r7 pending`
+  `in-progress / r7 historical Unit hermeticity fail-closed / remediation quality review / fresh r8 pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
-  F/E/S=`0/0/0`；
+  F/E/S=`0/0/0`；其 identity/cardinality 作为 Step 2 历史结构保留，Unit lane correctness
+  已由 r7 判定必须交给 fresh Step 4 replacement evidence，不再复用旧绿色；
 - Step 3 formal parent=`step3-required-20260716-final-r4`，tested commit=
   `ce3d70c391c7b8bd8046fe66dde0ad568d66601e`；five-DB=`29/370/F0E0S0`，
   required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
@@ -163,32 +177,40 @@ updated_at: 2026-07-16
 - Step 4 已完成 diagnostic-ready 静态收口：exact `23 exec / 48 sessions`，
   required report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，
   Addon companion 单列 `2/6`；contract/source identity=`20/20 + 22/22`，
-  effective POM/toolchain/report inventory=`4/4 + 5/5 + 27/27`；Step 2 derived view/
-  successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`；
+  effective POM/toolchain/report inventory=`4/4 + 5/5 + 30/30`；Step 2 derived view/
+  successor overlay=`12/12 + 12/12`，XML=`63/63`，logger=`9 类 / 14 case`；Unit fixture
+  negative receipt=`27/27`（原 fixture/manifest probes=`20/20`、connection receipt typed=
+  `4/4`、atomic publisher=`3/3`），negative receipt 文件 schema/tamper 另为 `4/4`，
+  真实 lifecycle=`5/5`；
 - toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
   `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；Step 4 report
-  amendment=`11 rows = 4 new + 7 changed`，SHA-256=
-  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`，
+  amendment=`12 rows = 4 new + 8 changed`，SHA-256=
+  `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`，
   successor declared amendments=`17`，SHA-256=
-  `187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`；本地
-  `SHA256SUMS`=`56/56`，SHA-256=
-  `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
+  `183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`；本地
+  `SHA256SUMS`=`59/59`，SHA-256=
+  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`；
   successor=`14/14`，SHA-256=
-  `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；coverage
+  `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`；coverage
   contract diagnostic/formal SHA-256=
-  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
-  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；coverage tool /
+  `553050b9268ec76b87dd35ea4d68f56b5aaac67022cfd51a6f0cdf6897a01bac` /
+  `d78825e5eed99ef17b362368dab7197282aac8058870f206bf6187b684131345`；coverage tool /
   contract-negative / XML tool SHA-256=
-  `bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a` /
+  `4fb2b803acc80d4c808e94c153bba541b0bebd2543224cfddfa52783dbb3d1f1` /
   `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
   `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
   overlay tool / outer SHA-256=
-  `cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
-  `4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a` /
-  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`；
+  `baf4992390fbd31690840dd9bcb50a5a0ad02be0c227f770158a2d328b7209b0` /
+  `6976b33dc49c2af4e4b98106268f9b2e09fbb24feea4f5398fd1d3a6602f1f4e` /
+  `02a920d91d1b8792cad47d65ce860352a8e9ecf39106f4489a714df01888dbaa`；
   successor database/required contracts SHA-256=
   `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
   `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
+- Unit fixture contract/tool/runner/report-inventory tool SHA-256=
+  `78275ebca15e34c09183c870f69a0130f650b4699902569378d95cc7732ba5a3` /
+  `e39b69f5eceec026e257f948a84575d6161ed367897b35e9f0538417acf44a46` /
+  `c853b4a79a646f87ca64ece9abfc7a7a593573dcf36a394414018f48c853af7b` /
+  `7366fb0d5f56ede1bfb8697bf71c935ad6fd6600db2ddeec56aba6b87a38b5b4`；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -246,8 +268,21 @@ updated_at: 2026-07-16
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`；
   environment blocker=
   `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
-- repo demo DB 容器已在 r7 evidence window 外停止，四个 frozen ports 均无 listener；
-  下一动作是执行 fresh r7。Step 4 threshold 仍为
+- r7 在 repo demo DB 容器已停止、四个 frozen ports 均无 listener 的 clean/pushed HEAD
+  `528a0a541d90ef77d577e1816b392d33168cb558` 上启动；source-before=`3,976 files` /
+  SHA-256=`b3fc04ee0d16a7a81f5e9697b10b5edeaafec0f59cd5dbec1e65625381c3fe43`。
+  Unit 因 6 suites / 11 errors 在 `child-unit` fail closed，证明既有绿色隐式依赖 ambient
+  `127.0.0.1:13306` MySQL/schema；r7 与不完整 Unit exec 均 excluded/non-reusable；
+- 修复必须由 Unit authority 同步创建 pinned、run-owned MySQL 5.7、固定最小 schema，保持
+  唯一 Maven invocation、`681+55/4,941` 与全局 `23 exec / 48 sessions`，并在 Unit、outer、
+  Step 3 边界证明 cleanup=`0/0/0`、`13306=free`。focused 已为
+  `681+55/4,941/F0E0S0`；当前 contract static=`20/20`、Unit fixture negative=
+  `27/27`、真实 lifecycle=`5/5`、report inventory=`30/30`。这些结果只证明修复可进入
+  正式质量复核与 fresh r8，不是 Step 4 exit evidence，也不表示质量闸门已经通过；
+- 9.3.4 只有在 fresh Step 4 Unit replacement、fresh formal、实现质量闸门、测试证据覆盖
+  审计与版本验收全部通过后，才允许带上述分类债务签收；任一失败即撤销临时例外并保持
+  Step 5 关闭。该债务不得跨过 9.3.5 版本验收；
+- Step 4 threshold 仍为
   `diagnostic-pending`，尚无 all-lane aggregate baseline/review 或 Step 4 exit evidence。
   `can_enter_coverage_audit=no`，Step 5
   portable authority、Step 6 CI/release 与 Step 7 version acceptance 仍未完成，不能

@@ -54,11 +54,12 @@ r6 partial 绿色结果升级为测试证据。
 ## Resolution Plan
 
 1. 在不删除用户数据的前提下协调停止或迁移 repo demo MySQL container；
-2. r7 启动前用只读端口检查证明 `13306` 无 listener；
+2. r7 启动前用只读端口检查证明 `13306` 无 listener；该项已完成；
 3. 不复用 r6 的 Unit/Integration/Addon XML 或 exec，以全新 run id 从 source seal 开始；
-4. r7 必须完成同一 run 的 `23 exec / 48 sessions`、全部 database/external lane、aggregate、
+4. r7 随后因独立的 Unit hermeticity BUG fail closed；修复后 fresh r8 必须完成同一 run 的
+   `23 exec / 48 sessions`、全部 database/external lane、aggregate、
    critical gates、source-after 与 summary；
-5. r7 通过后继续 reviewed threshold freeze 与 fresh formal；在此之前本 blocker 与 r5
+5. r8 通过后继续 reviewed threshold freeze 与 fresh formal；在此之前本 blocker 与 r5
    successor BUG 均保持 `in-progress`。
 
 ## Pre-r7 operator maintenance
@@ -85,7 +86,9 @@ r6 已完整退出并完成 `0/0/0` cleanup 后，operator 在 r7 evidence windo
 - [x] 确认 r6 未启动或改变动态 listener，run-owned residue=`0/0/0`。
 - [x] 将 r6 partial lanes 标为 non-reusable，禁止拼接。
 - [x] 在 r7 证据窗口外停止四个 repo demo DB 容器，并证明四个冻结端口无 listener。
-- [ ] fresh r7 all-lane diagnostic 通过。
+- [x] fresh r7 在四个 frozen ports 无 listener 的环境启动；其后在 Unit 阶段暴露独立的
+  hidden MySQL dependency BUG，故没有形成 all-lane authority。
+- [ ] Unit fixture remediation 后 fresh r8 all-lane diagnostic 通过。
 - [ ] reviewed threshold freeze、fresh formal 与最终质量复核完成后关闭 blocker。
 
 ## References
@@ -93,5 +96,7 @@ r6 已完整退出并完成 `0/0/0` cleanup 后，operator 在 r7 evidence windo
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`
 - `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`
 - `target/v934-step4-coverage/runs/step4-coverage-20260716-diagnostic-r6/run-status.env`
 - `target/v934-step3-database-matrix/runs/step4-coverage-20260716-diagnostic-r6/run.log`

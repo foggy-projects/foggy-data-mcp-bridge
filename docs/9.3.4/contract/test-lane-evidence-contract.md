@@ -163,6 +163,42 @@ rename_group | current_source_id | current_source_path | current_top_level_fqcn 
   subset 做 exact compare。两者 execution-key 并集必须等于该 generation 全部 required
   positive execution inventory 且交集为空。
 
+### 2.1 9.3.4-only Unit 全 lane replacement 例外
+
+DB/Redis/other external required suite → Step 3 是默认归属，不因本节改变。r7 在停止
+ambient MySQL 后发现 Step 2 Unit 历史分类与真实依赖不一致，因此只为 9.3.4 Step 4
+建立一次临时 replacement exception。它不改写 Step 2 confirmed inventory，也不允许把
+新的 DB suite 留在 Step 2。
+
+机器权威为 `scripts/v934/step4/unit-mysql57-fixture-contract.json`。该契约绑定 Step 2
+execution/discovery inventory、分类债务 workitem、完整 frozen Unit lane 与以下 r7 已知清单：
+
+```text
+v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest | 2
+v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest | 4
+v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest | 1
+v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest | 2
+v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest | 1
+v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest | 1
+```
+
+这 6 个 execution key / 11 个 testcase node 是已确认的隐藏依赖清单，不是对其余
+Unit suite “绝无数据库访问”的穷尽证明。run-owned credential 与 fixture 对完整 Unit Maven
+invocation 可见，因此 exception 的实际 authority scope 是整个 frozen Unit lane：
+`681 positive + 55 structural / 4,941 testcase`、一个 Maven invocation、一个
+`jacoco-ut.exec`，全局仍为 `23 exec / 48 sessions`。发现新的隐藏 consumer 时必须先更新
+机器契约和债务清单，并重新通过 fresh Step 4 formal、质量闸门和测试证据覆盖审计；不能把
+新 consumer 静默解释为已获授权。
+
+Step 2 parent 的 execution identity/cardinality 只保留结构与 migration provenance；其
+Unit 绿色在 r7 后不得作为 correctness evidence 复用。9.3.4 Unit correctness 由 fresh
+Step 4 全 lane replacement evidence 完整替代，不能用 focused、partial、failed 或跨 run
+证据补齐。临时例外与关闭标准由
+`docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` 持有：9.3.4
+只有在 fresh replacement、fresh formal、实现质量闸门、测试证据覆盖审计和版本验收全部
+通过后才允许带债务签收；债务必须在 9.3.5 版本验收前通过迁移真实 DB consumer 或恢复
+可证明的 `none/hermetic/step=2` 分类而关闭。
+
 ## 3. Skip Contract
 
 Skip manifest record：
@@ -206,6 +242,10 @@ fixture mutation 或 report missing 都失败。
   6 个 hermetic/SQLite IT variants、five-DB 7 variants、7 个 required external variants
   和 Addon companion 2 variants；optional LLM 保持 reviewed/excluded。只有 Step 4 run
   的 23 个唯一 exec 可进 coverage。
+- 9.3.4 Step 4 的 Unit exec 必须按 `unit-mysql57-fixture-contract.json` 执行完整 Unit
+  lane replacement：pinned/run-owned MySQL 5.7、测试 JVM connection receipt、fixture
+  before/after、真实 lifecycle 与 fallback cleanup 均为同一 run 的 required evidence；
+  ambient listener、旧 Step 2 Unit XML 或只重跑 6 个已知 suite 均不能替代该 authority。
 - Step 4 exit 后，canonical unit/integration/DB runner 默认在各自唯一执行中产 run-owned
   exec；Step 5–7 coverage stage 只收集/校验这些 exec，不得再次执行同一 suite。
 - UT 写独立 `jacoco-ut.exec`；每个 integration/DB lane 写唯一
@@ -277,10 +317,10 @@ Step 4 diagnostic/formal 发布是双态 fail-closed state machine：
   shallow repository、replace refs 或 grafts 均必须 fail closed。
 
 Step 4 report successor 保持执行库存与报告库存分离：
-`coverage-report-amendment.tsv` exact=`11 rows = 4 new + 7 changed`，SHA-256=
-`937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；
+`coverage-report-amendment.tsv` exact=`12 rows = 4 new + 8 changed`，SHA-256=
+`998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`；
 successor declared amendments=`17`，SHA-256=
-`1e4f15c9e403d454fe07404e45b1226eae94f70faa154433a8db39531a305b47`。L2 fixture
+`183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`。L2 fixture
 作为 Integration report source amendment；Pivot fixture 作为 database source successor
 amendment。两者均不改变 report identity/testcase，
 因此 required overlay 仍为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，
@@ -615,25 +655,33 @@ argv 必须保持不变。database runner、required runner 与 report_inventory
 各自精确绑定 successor adapter；adapter/selector/contract/manifest 任一漂移必须
 fail closed，original frozen state validate 保留为 stale-predecessor 负例对照。
 
-当前 successor remediation 静态身份为：coverage contract diagnostic/formal=
-`16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
-`d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；
+当前 successor + Unit fixture remediation 静态身份为：coverage contract diagnostic/formal=
+`553050b9268ec76b87dd35ea4d68f56b5aaac67022cfd51a6f0cdf6897a01bac` /
+`d78825e5eed99ef17b362368dab7197282aac8058870f206bf6187b684131345`；
 successor manifest=`14/14` / SHA-256=
-`9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；
-top manifest=`56/56` / SHA-256=
-`be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
+`bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`；
+top manifest=`59/59` / SHA-256=
+`2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`；
 overlay contract/tool=
-`cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
-`4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a`；
-coverage tool=`bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a`；
+`baf4992390fbd31690840dd9bcb50a5a0ad02be0c227f770158a2d328b7209b0` /
+`6976b33dc49c2af4e4b98106268f9b2e09fbb24feea4f5398fd1d3a6602f1f4e`；
+coverage tool=`4fb2b803acc80d4c808e94c153bba541b0bebd2543224cfddfa52783dbb3d1f1`；
 declared amendments=`17` / SHA-256=
-`187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`；
+`183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`；
 database/required contracts=
 `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
 `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`。
 
-当前 Step 4=`in-progress / r5 historical fail-closed / database-state successor
-remediation quality passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`。threshold 仍为
-`diagnostic-pending`，`can_enter_coverage_audit=no`；r1–r5 均不得拼接，完成
-commit/push/clean HEAD 与 fresh r6 之前，Step 5、formal、coverage
-audit、acceptance 和 9.3.5 都保持关闭。
+当前 Step 4=`in-progress / r7 historical Unit hermeticity fail-closed / run-owned fixture
+remediation quality review / fresh r8 pending`。Unit authority 必须为唯一 Maven invocation
+创建 pinned、run-owned MySQL 5.7，并封存 schema before/after、resource identity 与 cleanup；
+不得借用 ambient listener。当前 contract static=`20/20`、Unit fixture negative=
+`27/27`（原 fixture/manifest probes=`20/20`、connection receipt typed=`4/4`、atomic
+publisher=`3/3`）、negative receipt 文件 schema/tamper 另为 `4/4`、真实 lifecycle=`5/5`、
+report inventory=`30/30`；这些是 fresh r8
+前的实现证据，不是 coverage exit 或质量通过结论。threshold 仍为 `diagnostic-pending`，
+`can_enter_coverage_audit=no`；r1–r7 均不得拼接，完成 quality、commit/push/clean HEAD 与
+fresh r8 之前，Step 5、formal、coverage audit、acceptance 和 9.3.5 都保持关闭。只有
+fresh formal、实现质量闸门、测试证据覆盖审计和 9.3.4 验收全部通过，9.3.4 才允许带
+`DEBT-unit-mysql57-fixture-classification-migration.md` 签收；该债务必须在 9.3.5
+版本验收前关闭。

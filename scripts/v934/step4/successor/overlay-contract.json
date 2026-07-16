@@ -26,7 +26,7 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java"
     ],
-    "sha256": "58d99c7f57f3474a975733f5b4ba92ed78ed3de258f7c622b6afadfcd6739f27"
+    "sha256": "183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291"
   },
   "frozen_semantics": {
     "addon": {

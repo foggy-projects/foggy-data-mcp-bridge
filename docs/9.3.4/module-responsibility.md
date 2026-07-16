@@ -4,7 +4,7 @@ doc_purpose: Define ownership and dependency boundaries for the 9.3.4 test and C
 version: 9.3.4
 status: ready
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-07-16
 ---
 
 # 9.3.4 Module Responsibility
@@ -34,6 +34,8 @@ updated_at: 2026-07-14
 | `foggy-dataset-model` | broad SQLite integration and five-DB semantic parity/capability contracts | dataset/demo fixtures | preflight, QueryFacade/native, dialect assertions | rerun all unit tests per DB | 2/3/4 |
 | Runtime/MCP/fsscript/cache/addons | module integration ownership and 9.3.1–9.3.3 successor regressions | model/fsscript/runtime ports | correctly named IT, hermetic/external lane ownership, exact reports, Step 4 exec provenance | new lifecycle/API design | 2/3/4/5 |
 | `foggy-dataset-demo/docker` | deterministic five-DB images/init/sentinel fixture | Docker Compose | pinned image identity, automated init, before/after | production deployment redesign | 3 |
+| Step 4 Unit MySQL replacement authority | enforce the 9.3.4-only full Unit lane replacement and machine-readable fixture contract | frozen Step 2 execution/discovery inventory, Step 3 provisioner, Docker, `scripts/v934/step4/unit-mysql57-fixture-contract.json` | `681 positive + 55 structural / 4,941 testcase` in one Maven invocation, pinned/run-owned MySQL 5.7, typed connection/schema/publisher/lifecycle/cleanup evidence | permanent DB-in-Unit classification or unreviewed execution-key expansion | 4 |
+| `foggy-dataset` classification-debt owner | find, migrate and reclassify every real DB consumer represented by or discovered beyond the r7 known set | fixture contract + `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` | known 6 execution keys / 11 testcase nodes, discovery expansion, debt closure evidence | treating 6/11 as exhaustive proof or carrying the debt through 9.3.5 acceptance | 4 / 9.3.5 acceptance |
 | build-only coverage reporter | merge/report reactor UT/IT exec | root/modules | aggregate XML/HTML only | empty-project `jacoco:check`, production classes, Launcher packaging | 4 |
 | coverage verifier | fail-closed aggregate XML/package/class counter checks and model merged-exec gate | reporter + reviewed thresholds | aggregate/critical/module threshold authority | runtime-discovered threshold acceptance | 4 |
 | `.github/workflows` | reusable jobs, exact five-cell collector, stable required aggregator, artifact upload/download verification | authority scripts | PR/main/release wiring, cardinality and result-state checks | branch protection claim without evidence | 6 |
@@ -48,6 +50,13 @@ updated_at: 2026-07-14
 - tests may depend on existing production APIs/fixtures；9.3.4 不为测试便利新增 model
   → Runtime/MCP/Addons 反向依赖。
 - DB sentinel fixture 属于 test infrastructure，不进入 production model contract。
+- DB/外部依赖测试移交 Step 3 仍是默认通则。r7 只为 9.3.4 触发一个临时例外：由
+  `scripts/v934/step4/unit-mysql57-fixture-contract.json` 机器权威约束完整 Unit lane 的
+  Step 4 replacement。contract 中 6 keys / 11 nodes 是已知清单，不是穷尽证明。
+- 该例外下 Step 2 identity/cardinality 仅保留结构证明；旧 Unit green 不再承担
+  correctness，必须由 fresh Step 4 replacement 完整取代。只有 fresh formal、实现质量
+  闸门和测试证据覆盖审计均通过，9.3.4 才可携带已登记债务签收；对应 DEBT workitem
+  必须在 9.3.5 验收前关闭。
 - workflow 只调用 versioned authority scripts；不在 YAML 复制一套 count/skip/hash
   规则。
 - release consumer 只下载 authority producer 的 artifacts，不重新构建源码；Docker
@@ -60,4 +69,17 @@ updated_at: 2026-07-14
 - 不对无 production classes 的 aggregate reporter 执行空 `jacoco:check` 冒充门禁。
 - 不让 release Dockerfile 运行 Maven 或 `-DskipTests` 重建发布物。
 - 不通过 module profile 重新引入 active-by-default multi-db Surefire executions。
+- 不把 9.3.4-only Unit replacement 扩成永久例外，不复用 ambient MySQL，不以只重跑
+  已知 6 keys / 11 nodes 代替完整 lane，也不把 Step 2 旧绿色宣称为 correctness。
+- 不在未完成全部真实 DB consumer 的迁移/重分类及 fresh evidence 前关闭
+  `DEBT-unit-mysql57-fixture-classification-migration`。
 - 不在本版本创建 9.4.0 production `model-api/core/jdbc/starter/web` 模块。
+
+## Current exception evidence boundary
+
+- 当前机器契约静态验证=`20/20`，Unit fixture negative receipt=`27/27`（原
+  fixture/manifest probes=`20/20`、connection schema typed=`4/4`、atomic publisher=
+  `3/3`），negative receipt 文件 schema/tamper 另为 `4/4`，真实 lifecycle=`5/5`，
+  report inventory=`30/30`。
+- fresh r8 diagnostic 与 subsequent formal 均仍 pending；上述 readiness 不代表当前 Unit
+  fixture remediation 的实现质量已经通过，也不是 Step 4 exit evidence。

@@ -25,6 +25,25 @@ fail() {
   exit 1
 }
 
+unit_source_hash() {
+  local payload
+  if ! payload="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR")"; then
+    printf '%s\n' "$payload" >&2
+    return 1
+  fi
+  printf '%s\n' "$payload" | python3 -c '
+import json
+import re
+import sys
+
+value = json.load(sys.stdin)
+digest = value.get("sha256")
+if value.get("status") != "passed" or not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+    raise SystemExit("Step 4 source-hash receipt is not passed/typed")
+print(digest)
+'
+}
+
 [[ "$#" -le 1 ]] || fail "usage: scripts/verify-v934-unit.sh [RUN_ID]"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]] || fail "invalid run id: $RUN_ID"
 for command_name in bash docker env flock git mvn python3 sha256sum ss tee; do
@@ -71,8 +90,7 @@ source "$COVERAGE_LIB"
 source "$RUN_LOG_LIB"
 CURRENT_STEP4_SOURCE=""
 if [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == inherited ]]; then
-  CURRENT_STEP4_SOURCE="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
-    python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+  CURRENT_STEP4_SOURCE="$(unit_source_hash)" || fail "Step 4 source hash rejected the current repository state"
   v934_step4_validate_inherited_authority \
     "$ROOT_DIR" "v934-unit" "$CURRENT_STEP4_SOURCE" || exit 1
 elif [[ "${V934_AUTHORITY_LOCK_MODE:-standalone}" == standalone ]]; then
@@ -128,8 +146,7 @@ PHASE="source-baseline"
 if [[ -n "$CURRENT_STEP4_SOURCE" ]]; then
   SOURCE_BEFORE="$CURRENT_STEP4_SOURCE"
 else
-  SOURCE_BEFORE="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
-    python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+  SOURCE_BEFORE="$(unit_source_hash)" || fail "Step 4 source hash rejected the current repository state"
 fi
 [[ "$SOURCE_BEFORE" =~ ^[0-9a-f]{64}$ ]] || fail "Step 4 source seal is invalid"
 if [[ -e "$STEP4_RUN_ROOT" ]]; then
@@ -345,8 +362,7 @@ python3 "$REPORT_TOOL" negative \
   --output-dir "$RUN_ROOT/negative"
 
 PHASE="source-after"
-SOURCE_AFTER="$(python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" | \
-  python3 -c 'import json,sys; print(json.load(sys.stdin)["sha256"])')"
+SOURCE_AFTER="$(unit_source_hash)" || fail "Step 4 source hash rejected the post-Unit repository state"
 [[ "$SOURCE_BEFORE" == "$SOURCE_AFTER" ]] || \
   fail "protected source changed during unit execution"
 PHASE="finalize"

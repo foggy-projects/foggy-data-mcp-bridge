@@ -111,7 +111,7 @@ created_at=2026-07-13T10:39:54.562004007Z
 r5 的产品缺陷发生在 successor adapter 选择前，错误为 `E_AUTHORITY_MANIFEST`。r6 已通过
 同一 successor database contract 的 authority validate，随后才命中
 `E_DYNAMIC_PRECONDITION`，证明 r5 selector remediation 已进入预期动态检查路径。该事实
-不等于 Step 4 产品/coverage 通过；原 successor BUG 仍待 fresh r7 all-lane 与后续 formal
+不等于 Step 4 产品/coverage 通过；原 successor BUG 仍待 fresh r8 all-lane 与后续 formal
 证明后关闭。
 
 本轮不修改 production、test runner、contract、threshold 或 exclusion。r6 完整退出后、r7
@@ -124,8 +124,10 @@ r5 的产品缺陷发生在 successor adapter 选择前，错误为 `E_AUTHORITY
 - [x] `E_DYNAMIC_PRECONDITION` 的既有 listener 已定位到 repo demo container；
 - [x] 确认这是环境前置条件阻塞，未复现 r5 产品回归；
 - [x] 在 r7 证据窗口外停止四个 repo demo DB 容器，并证明四个冻结端口均无 listener；
-- [ ] 使用全新 `step4-coverage-20260716-diagnostic-r7` 完成 fresh all-lane diagnostic；
+- [x] 使用全新 `step4-coverage-20260716-diagnostic-r7` 从 clean source seal 启动；r7 在更早的
+  Unit hidden MySQL dependency 处 fail closed，未形成 all-lane authority；
+- [ ] Unit fixture remediation 后使用 fresh r8 完成 all-lane diagnostic；
 - [ ] 完成 reviewed threshold freeze、fresh formal 与最终实现质量复核后关闭相关 workitem。
 
-在 r7 完整成功、reviewed exact threshold freeze、fresh formal 与最终质量闸门完成前，
+在 r8 完整成功、reviewed exact threshold freeze、fresh formal 与最终质量闸门完成前，
 `can_enter_coverage_audit=no`，测试证据覆盖审计不得启动，Step 5 保持关闭。

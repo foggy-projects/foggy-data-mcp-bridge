@@ -147,7 +147,7 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r6 historical environment fail-closed / fresh r7 pending`。
+`in-progress / r7 historical Unit hermeticity fail-closed / formal remediation quality pending / fresh r8 pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -390,9 +390,44 @@ Diagnostic r6 environment result（2026-07-16，supersedes current entry）：
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`、
   `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`；
 - current entry：repo demo DB 容器已在 r7 evidence window 外以保留原 ID 的方式停止，四个
-  frozen ports 已证明无 listener；下一步以全新 `step4-coverage-20260716-diagnostic-r7`
-  从 source seal 开始。threshold=
-  `diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、acceptance 与 9.3.5 保持关闭。
+  frozen ports 已证明无 listener；随后以全新 `step4-coverage-20260716-diagnostic-r7`
+  从 source seal 开始。r6 仍为历史 excluded evidence。
+
+Diagnostic r7 Unit hermeticity result（2026-07-16，supersedes current entry）：
+
+- clean/pushed tested HEAD=`528a0a541d90ef77d577e1816b392d33168cb558`，run=
+  `step4-coverage-20260716-diagnostic-r7`；source-before=`3,976 files` / SHA-256=
+  `b3fc04ee0d16a7a81f5e9697b10b5edeaafec0f59cd5dbec1e65625381c3fe43`；
+- 四个 frozen ports 均无 listener 后，Unit 在 `foggy-dataset` 暴露 6 suites / 11 errors；
+  共同根因是隐式连接 ambient `127.0.0.1:13306`，`FDialectTest` 的 2 个 NPE 为连接失败
+  次生错误。outer=`failed / child-unit / exit 1`；Integration、Addon、database、external、
+  aggregate、threshold、source-after 与 summary absent；r7=excluded/non-reusable；
+- remediation：Unit runner 以前台同步 callback 复用 frozen MySQL 5.7 provisioner，派生唯一
+  child/project，固定 image/database/port/minimal schema，Maven 前后封存 schema，完成后删除
+  container/volume/network；Unit/outer/Step 3 三层复验 residue 与 port；
+- replacement semantics：fresh Step 4 以 run-owned MySQL 5.7 替换完整 Unit lane，仍只有一个
+  Unit Maven invocation、`681+55/4,941`、全局 `23 exec / 48 sessions`。已知隐藏依赖清单是
+  `6 reports / 11 testcase nodes`，不是其他 Unit 测试无 DB 访问的证明；Step 2
+  identity/cardinality 继续保留结构含义，但其 Unit 正确性绿色不复用。机器例外契约=
+  `scripts/v934/step4/unit-mysql57-fixture-contract.json`，迁移债务=
+  `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`；
+- focused/static evidence：actual=`681+55/4,941/F0E0S0`，schema before=after，cleanup=
+  `0/0/0`、port free；existing-port negative fail closed 且不改变 demo container。Unit
+  negative receipt=`27/27`（原 fixture/manifest schema/tamper=`20/20`、connection receipt
+  typed=`4/4`、atomic publisher=`3/3`），negative receipt schema tamper=`4/4`；真实
+  lifecycle=`5/5`，report inventory negatives=`30/30`，successor overlay=`12/12`；
+- publication closure：fixture hardening 后 top manifest=`59/59` /
+  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`，successor=
+  `14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`，
+  coverage amendment=`12 rows / 4 new + 8 changed` /
+  `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`；静态复验已通过，
+  threshold 仍为 `diagnostic-pending`；
+- records=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`、
+  `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`；
+- current entry：正式实现质量闸门和 fresh r8 均 pending；质量通过后再 commit/push，证明
+  clean `HEAD == origin/main`，并以 fresh r8 重跑全部 lane。`can_enter_coverage_audit=no`；
+  Step 5、acceptance 与 9.3.5 保持关闭。
 
 ## Step 5 — 单一 Authority Runner Rehearsal 与 Immutable Candidate
 

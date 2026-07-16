@@ -157,7 +157,12 @@ code_inventory:
     path: scripts/v934/step4/{coverage-contract.json,coverage-thresholds.json,coverage-exec-ledger.tsv,coverage-report-amendment.tsv,coverage_runner_lib.sh,coverage_tool.py,coverage_contract_negative_tool.py,coverage_exec_tool.py,coverage_xml_tool.py,coverage_xml_negative_tool.py,toolchain_receipt_tool.py,step2_report_view_tool.py,JaCoCoExecInspector.java,SHA256SUMS}
     role: parent-linked Step 4 policy successor, exact 23-exec ledger, toolchain receipt, runner instrumentation and fail-closed report/provenance verification
     expected_change: create
-    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade..., pre-r4 exact-54/SHA 589a7d... and post-r4 exact-54/SHA ebda814... remain historical identities; current database-state successor remediation is exact-56/SHA be8c4c...
+    notes: Step 1 coverage policy/SHA256SUMS stay immutable; exec/report inventories stay distinct; observed/final thresholds exist only in this successor; exact-51/SHA 348ade..., pre-r4 exact-54/SHA 589a7d..., post-r4 exact-54/SHA ebda814... and database-state-remediation exact-56/SHA be8c4c... are historical identities; the fixture-hardened final static identity is exact-59/SHA 2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7
+  - module: v934-step4-unit-mysql57-fixture
+    path: scripts/v934/step4/{unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py}; scripts/verify-v934-unit.sh
+    role: replace the complete Step 4 Unit lane with one run-owned pinned MySQL 5.7 fixture while retaining the frozen Unit execution identities and cardinality
+    expected_change: create
+    notes: known hidden dependency inventory is 6 reports / 11 testcase nodes, not proof that other Unit tests are DB-free; Step 2 identity/cardinality remains structural only and its Unit correctness green is not reused; temporary classification exception is tracked by docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md
   - module: v934-step4-run-log-lifecycle
     path: scripts/v934/step4/{run_log_lifecycle_lib.sh,run_log_lifecycle_negative_test.sh}
     role: owned FIFO logger close/reap protocol and process-group residue regression authority
@@ -177,7 +182,7 @@ code_inventory:
     path: scripts/verify-v934-step4-coverage.sh
     role: single outer orchestration for fresh all-lane diagnostic, toolchain receipt replay, report publication and final evidence binding
     expected_change: create
-    notes: r1-r5 all remain excluded failed diagnostics; r5 completed source seal plus Unit/Integration/Addon, then failed at database-state successor authority selection; partial lanes are non-reusable; successor remediation quality passed B/H/M/L=0/0/0/0 and commit-push plus fresh r6 remain pending
+    notes: r1-r7 all remain excluded failed diagnostics; the full Unit lane fixture replacement has focused/static and 5/5 real lifecycle evidence, but formal remediation quality and fresh r8 remain pending; partial lanes are non-reusable
   - module: model-coverage-gate
     path: foggy-dataset-model/pom.xml
     role: inherited model coverage gate over externally merged Unit + all-required-IT exec
@@ -334,15 +339,18 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / r5 historical fail-closed / database-state successor remediation
-  quality passed B/H/M/L=0/0/0/0 / commit-push + fresh r6 pending`，不是
+- state：`in-progress / r7 historical Unit hermeticity fail-closed / run-owned fixture
+  formal remediation quality pending / fresh r8 pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
 - fail-closed static evidence：contract/source identity=`20/20 + 22/22`、effective POM=
-  `4/4`、toolchain receipt=`5/5`、report inventory=`27/27`、Step 2 derived view=
-  `12/12`、successor overlay=`12/12`、XML=`63/63`、logger=`9 类 / 14 case`；
+  `4/4`、toolchain receipt=`5/5`、report inventory=`30/30`；Unit negative receipt=
+  `27/27`，其中原 fixture/manifest schema/tamper=`20/20`、connection receipt typed=
+  `4/4`、atomic publisher=`3/3`，另有 negative receipt schema tamper=`4/4`；真实 fixture
+  lifecycle=`5/5`；Step 2 derived view=`12/12`、successor overlay=`12/12`、XML=`63/63`、
+  logger=`9 类 / 14 case`；
 - build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
   `@{argLine}` late evaluation，修复 legacy coverage 无 exec 却 BUILD SUCCESS；三态
   focused 验证已完成，`coverage_tool.py` + manifest + `validate-contract` +
@@ -352,29 +360,29 @@ code_inventory:
   JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1`，并核对 24 个 production
   module effective compiler；
 - report successor：`coverage-report-amendment.tsv`=
-  `11 rows / 4 new + 7 changed`，SHA-256=
-  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；declared
+  `12 rows / 4 new + 8 changed`，SHA-256=
+  `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`；declared
   amendments=`17`，SHA-256=
-  `187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`；required total
+  `183b282a425516fc42fcaedc5acb1f6ff1621330d971768c113d6d7643192291`；required total
   保持 `773/59/5707`；
-- publication boundary：Step 4 `SHA256SUMS`=`56/56`，manifest SHA-256=
-  `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
-  successor manifest=`14/14`，SHA-256=
-  `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；coverage contract
-  diagnostic/formal SHA-256=
-  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
-  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；coverage tool /
-  contract-negative / XML tool SHA-256=
-  `bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a` /
-  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
-  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
-  overlay tool / outer SHA-256=
-  `cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
-  `4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a` /
-  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`；
-  successor database/required contracts SHA-256=
-  `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
-  `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
+- Unit hermetic fixture：`unit_mysql_fixture_tool.py` 按
+  `scripts/v934/step4/unit-mysql57-fixture-contract.json` 管理 pinned/run-owned MySQL 5.7、
+  restricted test credential/connection receipt、`M_ETL_TEST` schema before/after seal、
+  resource cleanup、typed/static negatives 与 5 个真实 lifecycle probes；Unit summary 和
+  report inventory 绑定 fixture manifest、negative receipt 与 lifecycle receipt，report
+  inventory=`30/30`；
+- classification boundary：该 fixture 替换完整 Unit lane并保持唯一 Maven invocation 与
+  `681+55/4,941`；`6 reports / 11 testcase nodes` 只是已知隐藏依赖清单。Step 2
+  identity/cardinality 只保留结构含义，其 Unit 正确性绿色不复用；迁移关闭条件见
+  `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`；
+- publication boundary：fixture hardening 最终静态 identity 为 top manifest=`59/59` /
+  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`、successor=
+  `14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`；
+  fixture contract/tool/Unit runner/report inventory tool SHA-256=
+  `78275ebca15e34c09183c870f69a0130f650b4699902569378d95cc7732ba5a3` /
+  `e39b69f5eceec026e257f948a84575d6161ed367897b35e9f0538417acf44a46` /
+  `c853b4a79a646f87ca64ece9abfc7a7a593573dcf36a394414018f48c853af7b` /
+  `7366fb0d5f56ede1bfb8697bf71c935ad6fd6600db2ddeec56aba6b87a38b5b4`；
 - diagnostic r1：clean/pushed HEAD=`bc100b0f63bd3ff62d1105611dae41741790aedd`，run=
   `step4-coverage-20260716-diagnostic-r1`，child-unit=`3115/1/0/0`，正确 fail closed；
   wrong-table corruption 与 raw-vs-raw/nullable-empty 缺陷见
@@ -443,10 +451,18 @@ code_inventory:
   runner 与 report_inventory selector 均绑定适配器；frozen Step 3 字节不变。record=
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`，BUG=
   `docs/9.3.4/workitems/BUG-step4-database-state-successor-authority-manifest.md`；
-- evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r5 均未生成 all-lane
-  aggregate baseline/review 或 Step 4 exit evidence。source-policy remediation static、
-  successor runtime-binding static、identity/manifest 级联与正式质量闸门已通过，
-  B/H/M/L=`0/0/0/0`；尚待 commit/push/clean HEAD 和 fresh r6；
+- diagnostic r6/r7 inventory：r6 因 repo demo MySQL 占用 frozen port fail closed；端口释放后
+  r7 在 Unit 暴露 6 suites / 11 errors，证明旧绿色隐式依赖 ambient MySQL/schema。两轮均
+  excluded/non-reusable；r7 evidence/BUG=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md` /
+  `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`；
+- r7 remediation inventory：完整 Unit lane 由 run-owned MySQL 5.7 替换；machine contract=
+  `scripts/v934/step4/unit-mysql57-fixture-contract.json`，classification debt=
+  `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`；focused/static
+  negatives、connection receipt 与真实 lifecycle 已有证据，但尚未形成 fresh all-lane r8；
+- evidence boundary：threshold 仍为 `diagnostic-pending`，r1–r7 均未生成 all-lane
+  aggregate baseline/review 或 Step 4 exit evidence。run-owned Unit fixture focused/static
+  与真实 lifecycle 已通过，正式质量闸门尚待收口；随后 commit/push/clean HEAD 和 fresh r8；
   Step 5、coverage audit 与 acceptance 仍关闭。
 
 ## Protected Boundaries

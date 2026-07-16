@@ -38,8 +38,9 @@ updated_at: 2026-07-16
   `step3-required-20260716-final-r4` 通过：database `29/370` + required external
   `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
-  已按序完成；Step 4 仍为 `in-progress`，diagnostic r6 因环境前置条件 fail closed，尚无
-  coverage pass 或 aggregate baseline/review。
+  已按序完成；Step 4 仍为 `in-progress`。diagnostic r7 在无 ambient DB listener 的环境中
+  暴露 Unit 对 `127.0.0.1:13306` 的隐式依赖并 fail closed，尚无 coverage pass 或
+  aggregate baseline/review。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -48,33 +49,24 @@ updated_at: 2026-07-16
   required report overlay=`773 positive + 59 structural / 5,707 testcase`，Addon companion=
   `2/6`；required 总计预期 `F0E0S0`。coverage contract mutations=`20/20`、
   source identity=`22/22`、effective POM=`4/4`、toolchain receipt=`5/5`、
-  report inventory=`27/27`；Step 2 derived view/successor overlay=`12/12`/`12/12`，
-  XML/provenance=`63/63`，logger lifecycle=`9 类 / 14 case`。
+  report inventory=`30/30`。Unit negative receipt=`27/27`，其中原
+  fixture/manifest schema/tamper=`20/20`、connection receipt typed=`4/4`、atomic
+  publisher=`3/3`；negative receipt schema tamper 另为 `4/4`，真实 fixture lifecycle=
+  `5/5`。Step 2 derived view/successor overlay=`12/12`/`12/12`，XML/provenance=
+  `63/63`，logger lifecycle=`9 类 / 14 case`。
 - toolchain receipt 绑定 Step 1 raw 工具版本，并实测约束 compiler realm ASM
   `9.6`、JaCoCo realm ASM `9.7`、test classpath ASM `9.7.1` 以及 24 个
-  production module 的 effective compiler。report amendment 现为 exact
-  `11 rows = 4 new + 7 changed`，SHA-256=
-  `937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；successor
-  declared amendments=`17`，SHA-256=
-  `187aac883460b259cd002f6c12bb72d8d9824d1e4dd8f12a12959f6866bfccfe`。本地 Step 4
-  `SHA256SUMS` 已通过 exact `56/56`，manifest SHA-256=
-  `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
-  successor manifest=`14/14`，SHA-256=
-  `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；coverage
-  contract diagnostic/formal SHA-256=
-  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
-  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`；coverage tool /
-  contract-negative / XML tool SHA-256=
-  `bf317dd09bb2f909773dba602ab00037acf112b835a166bfd64ef9709045179a` /
-  `732d799619461a4b49c8e9bfbb0a3487b107c36110b9e55cd91a405352d0ddb0` /
-  `b837314ac4166eeeab94124b53e4f776dcdf8095a3b3915e14e45b81d910d439`；overlay contract /
-  overlay tool / outer SHA-256=
-  `cd691d3d91540dd6ddba0045648493d16feaf9ebf3175da3b9ad15b0e399aadd` /
-  `4df218807847beb789dcf1ef748e13bf21f39da071e4bcf7337fe97b78f8c84a` /
-  `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。
-  successor database/required contracts SHA-256=
-  `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
-  `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`。
+  production module 的 effective compiler。run-owned Unit fixture hardening 的最终静态
+  identity 已复验：top manifest=`59/59` /
+  `2a52dbf591238a9c163c0774014e1407dadd4d5037a62a4ce2d0c3af931d6aa7`，successor=
+  `14/14` / `bd8d1f1ef97db15b1fb08548c52c6be3fa60d82e848d5741b6a36f1f828924db`，
+  amendment=`12 rows / 4 new + 8 changed` /
+  `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`；fixture
+  contract/tool/Unit runner/report inventory tool=
+  `78275ebca15e34c09183c870f69a0130f650b4699902569378d95cc7732ba5a3` /
+  `e39b69f5eceec026e257f948a84575d6161ed367897b35e9f0538417acf44a46` /
+  `c853b4a79a646f87ca64ece9abfc7a7a593573dcf36a394414018f48c853af7b` /
+  `7366fb0d5f56ede1bfb8697bf71c935ad6fd6600db2ddeec56aba6b87a38b5b4`。
   新增回归证明 tracked FIFO 会在 worktree-aware Git 读取前 fail-fast，且 before/after raw
   stat identity 比较会拒绝内容可被 Git clean 等价化、但运行中发生的并发重写。
   source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
@@ -133,9 +125,22 @@ updated_at: 2026-07-16
   container `foggy-demo-mysql` 占用的 frozen port `13306`。database cells、external、
   aggregate、threshold、source-after 与 summary 均 absent；r6=
   `excluded-from-step4-exit`，partial lanes 不可复用。这是环境阻塞，不是产品回归。
-- 当前状态为 `in-progress / r6 historical environment fail-closed / fresh r7 pending`。
+- r7 tested commit=`528a0a541d90ef77d577e1816b392d33168cb558`，source-before=
+  `3,976 files` / SHA-256=
+  `b3fc04ee0d16a7a81f5e9697b10b5edeaafec0f59cd5dbec1e65625381c3fe43`；在四个 frozen
+  ports 均无 listener 时，Unit 暴露 6 suites / 11 errors，证明此前绿色隐式依赖 ambient
+  MySQL/schema。outer=`child-unit / exit 1`，后续 lane、aggregate、threshold、source-after
+  与 summary 全 absent；r7=`excluded-from-step4-exit`。remediation 以 run-owned pinned
+  MySQL 5.7 替换完整 Unit lane，保持唯一 Maven invocation 与
+  `681+55 / 4,941 / F0E0S0`；已知隐藏依赖清单仅为 `6 reports / 11 testcase nodes`，不是
+  其余 Unit 测试无数据库访问的证明。Step 2 identity/cardinality 继续保留结构意义，其 Unit
+  正确性绿色不复用；机器例外契约见
+  `scripts/v934/step4/unit-mysql57-fixture-contract.json`，迁移债务见
+  [DEBT-unit-mysql57-fixture-classification-migration](workitems/DEBT-unit-mysql57-fixture-classification-migration.md)。
+- 当前状态为 `in-progress / r7 historical Unit hermeticity fail-closed / formal remediation
+  quality pending / fresh r8 pending`。
   `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r6 与 focused/static 结果都不是 Step 4 exit evidence。
+  `diagnostic-pending`；r1–r7 与 focused/static 结果都不是 Step 4 exit evidence。
   `can_enter_coverage_audit=no`，Step 5 仍关闭。
 
 ## 执行资料
@@ -179,6 +184,14 @@ updated_at: 2026-07-16
   [evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md)
 - Step 4 r6 MySQL 5.7 port environment blocker：
   [workitems/BLOCKER-step4-r6-mysql57-port-occupation.md](workitems/BLOCKER-step4-r6-mysql57-port-occupation.md)
+- Step 4 diagnostic r7 Unit hidden MySQL failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md](evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md)
+- Step 4 Unit hidden MySQL authority regression：
+  [workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md](workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md)
+- Step 4 Unit MySQL 5.7 fixture machine contract：
+  [`scripts/v934/step4/unit-mysql57-fixture-contract.json`](../../scripts/v934/step4/unit-mysql57-fixture-contract.json)
+- Step 4 Unit fixture classification migration debt：
+  [workitems/DEBT-unit-mysql57-fixture-classification-migration.md](workitems/DEBT-unit-mysql57-fixture-classification-migration.md)
 - Step 1 confirmed evidence:
   [evidence/step-1/inventory-contract-freeze-20260714.md](evidence/step-1/inventory-contract-freeze-20260714.md)
 - Step 2 structural amendment evidence：
@@ -223,7 +236,7 @@ updated_at: 2026-07-16
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r6 historical environment fail-closed | r6 excluded、partial lanes 不可复用；`foggy-demo-mysql` 占用 frozen port `13306`；fresh r7 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r7 Unit hermeticity fail-closed | r7 excluded；完整 Unit lane 已改用 run-owned MySQL 5.7，focused/static 与真实 lifecycle 已完成；正式质量闸门和 fresh r8 均 pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

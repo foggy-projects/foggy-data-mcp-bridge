@@ -99,11 +99,11 @@ report wrapper 选择 successor contract，而 state companion 退回 predecesso
 - original frozen state control：exit `1`，精确错误仍为 model POM stale authority；
 - overlay positive + negative=`12/12`；successor manifest=`14/14`，SHA-256=
   `9fa9ddb23aa36c48961e54393f1fe747bf5d0433645cb1a0529e607db4f211cb`；
-- top manifest=`56/56`，SHA-256=
-  `be8c4c9c1698674917f1115388d3e7b6a6078d698daf52cb4fa55916166460f9`；
+- top manifest=`57/57`，SHA-256=
+  `831af049e51060031bebf838f54d4a24cfcac47d45bda7ee18b73af6658f8513`；
 - diagnostic/formal coverage contract SHA-256=
-  `16677d3ae64a7d24aa5796e7c1bbb8ca5af347d6843878471a7e48bdc52c82af` /
-  `d8e7efa775d021d42485f1ffa6cb51a98a3f3f6662b1793e6b06f69852d12463`。
+  `5999d68d15e4e2873be26666c8ea4f415eeadb6e0696df290d6617f53457b684` /
+  `c1bb3dcc2e1eea224bfcf36439065fb521fa2603e32146c3978fe3a6a903ba28`。
 
 这些结果只证明 successor runtime binding 修复，不改变 r5 的 failed decision，也不是
 all-lane coverage evidence。
@@ -111,7 +111,8 @@ all-lane coverage evidence。
 r6 在 clean/pushed commit `eb10d9c10a73f379db9ce4fa3d05ff340b489fd4` 实际越过上述
 successor authority validate，随后才因 repo demo container 占用 frozen port `13306` 而以
 `E_DYNAMIC_PRECONDITION` 终止。这证明 r5 selector 缺陷未复现，但 r6 是环境阻塞的
-excluded run，不能据此关闭本 BUG；仍须 fresh r7 all-lane 与后续 formal 证明。
+excluded run，不能据此关闭本 BUG。r7 又在更早的 Unit hidden MySQL dependency 处终止，
+仍未进入 database successor dynamic path；须 fresh r8 all-lane 与后续 formal 证明。
 
 ## Fix Checklist
 
@@ -126,14 +127,17 @@ excluded run，不能据此关闭本 BUG；仍须 fresh r7 all-lane 与后续 fo
 - [x] 完整 static matrix 与正式实现质量闸门通过，B/H/M/L=`0/0/0/0`。
 - [x] commit/push 后从 clean HEAD 启动 fresh r6，并实际进入 successor dynamic state
   precondition。
-- [ ] 排除 r6 环境端口阻塞后执行 fresh r7 all-lane。
-- [ ] r7 all-lane 与后续 formal 证明同一 successor state binding 后关闭 BUG。
+- [x] 排除 r6 环境端口阻塞后启动 fresh r7；r7 因独立 Unit hermeticity BUG 在 database
+  child 前 fail closed，不能作为本 BUG 的动态证明。
+- [ ] fresh r8 all-lane 与后续 formal 证明同一 successor state binding 后关闭 BUG。
 
 ## References
 
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r5-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r6-environment-fail-closed-20260716.md`
 - `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`
 - `scripts/v934/step4/successor/database_state_negative_tool.py`
 - `scripts/v934/step4/successor/step3_required_report_tool.py`
 - `scripts/verify-v934-database-matrix.sh`
