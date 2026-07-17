@@ -296,3 +296,16 @@ updated_at: 2026-07-17
   fresh r19，且只有 r19 aggregate 不低于 r16 reviewed high water 才可把 candidate/review owner 接入；
 - 当前 machine=`diagnostic-ready/diagnostic-pending`，Step 4=`in-progress`。Cfreeze、formal、final quality、
   coverage audit、acceptance、Step 5 与 9.3.5 owner 均无开工授权。
+
+## Superseding diagnostic-r19 / Cfreeze ownership boundary（2026-07-17）
+
+- diagnostic owner 已封存 Cdiag `613b11a0…` 的 r19：`773+59/5707/F0E0S0`、Addon=`2/6`、
+  `23/48/16931`、aggregate=`54624/76830 line, 26111/44870 branch`、critical=`12/23/below0`；
+- review owner 已由两路 independent task 确认 candidate `6588e30b…f545b8` 的 exact projection、
+  class/session/report/lifecycle/outer binding；confirmation owner 只负责 canonical exact 投影；
+- Cfreeze owner 只能修改 threshold、contract、SHA256SUMS 三个 machine 文件与
+  `docs/9.3.4/**`，并负责 direct-parent、formalization-delta、push 与 clean identity；
+- formal owner 只有在 Cfreeze clean pushed 后才能启动一次 fresh formal；post-formal owner 仍须按
+  final implementation quality -> coverage audit -> acceptance 接手；
+- 当前 machine=`confirmed/formal-ready`，Step 4=`in-progress`。formal/audit/acceptance、Step 5 与
+  9.3.5 owner 尚无开工授权。

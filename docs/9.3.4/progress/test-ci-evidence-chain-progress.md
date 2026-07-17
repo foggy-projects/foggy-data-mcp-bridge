@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / diagnostic-r18 PASS / high-water guard blocks candidate / pre-Cdiag quality PASS | Step 3 exit passed | Cdiag `5be1edaa…` 的 r18 已 public `VALID`：required=`773+59/5707/F0E0S0`、`23/48/16940`、aggregate=`54622/76830 line + 26107/44870 branch`；但比 r16 高水位少 `2 line / 4 branch`，candidate absent、禁止降阈。Pivot oracle 3/3 bitmap、整类 `23/F0E0S0`，successor/top=`14/14 + 60/60`；quality=`PASS/0/0/0/0`。machine=`diagnostic-ready/diagnostic-pending`；仅授权 replacement Cdiag + fresh r19；Cfreeze/formal/final quality/audit/signoff pending，`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / diagnostic-r19 PASS / candidate reviewed / Cfreeze worktree formal-ready | Step 3 exit passed | Cdiag `613b11a0…` 的 r19 已 public `VALID`：required=`773+59/5707/F0E0S0`、`23/48/16931`、aggregate=`54624/76830 line + 26111/44870 branch`；达到 r16 high-water，critical=`12/23/below0`、唯一 N/A=`NamespaceScope.branch`。candidate `6588e30b…` 两路 review PASS，machine=`confirmed/formal-ready`，pre-Cfreeze quality=`PASS/0/0/0/0`；direct-child Cfreeze commit/push/topology/clean 与 fresh formal pending，`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1295,24 +1295,23 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r18 Pivot pre-Cdiag PASS / post-formal final quality pending | Step 4 record=`docs/9.3.4/quality/step4-diagnostic-r18-pivot-null-axis-implementation-quality.md`，B/H/M/L=`0/0/0/0`；只授权 replacement Cdiag + fresh r19；`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r19 pre-Cfreeze PASS / post-formal final quality pending | Step 4 record=`docs/9.3.4/quality/step4-r19-cfreeze-implementation-quality.md`，B/H/M/L=`0/0/0/0`；只授权 direct-child Cfreeze + one fresh formal；`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 diagnostic-r18 PASS / candidate blocked by high-water | roadmap 为 Steps 1–3 passed / Step 4 in-progress；r18 valid 但 candidate absent，Pivot remediation verified；replacement Cdiag/r19/review/Cfreeze/formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 diagnostic-r19 PASS / candidate reviewed / Cfreeze pending | roadmap 为 Steps 1–3 passed / Step 4 in-progress；machine=`confirmed/formal-ready`；Cfreeze/fresh formal/final gates、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-clean/pushed Cdiag `5be1edaa16c5883cde2f66396ac26a1ae113430b` 的 fresh r18 已完整/public-valid，
-但 aggregate 相对 r16 reviewed high-water 少 `2 line / 4 branch`，故 candidate absent 且禁止降阈。
-deterministic Pivot NULL-axis semantic oracle 已完成三次 fresh JVM/JaCoCo bitmap `3/3 identical`、
-整类 `23/F0E0S0` 与 successor/top/database/required/overlay/coverage validators。
+clean/pushed Cdiag `613b11a0ae6732f865f918551cd9116079771b5e` 的 fresh r19 已完整/public-valid，
+aggregate exact 达到 r16 high-water；immutable candidate `6588e30b…f545b8` 已经 public verify 与两路
+independent review PASS。canonical machine working tree=`confirmed/formal-ready`，pre-Cfreeze
+implementation quality=`PASS / 0/0/0/0`。
 
-pre-Cdiag formal implementation quality 已 `PASS / 0/0/0/0`。Next action：形成一个 replacement
-Cdiag commit/push/clean，并从该 commit 启动唯一 fresh r19 diagnostic。r19 必须完整
-PASS 且不低于 r16 high-water，才可生成 candidate/review。当前 machine=
-`diagnostic-ready/diagnostic-pending`，`can_enter_coverage_audit=no`、
-`can_enter_acceptance=no`；candidate/Cfreeze/formal、Step 4、Step 5、audit、acceptance closed。
+Next action：把当前 allowlisted delta 作为 Cdiag 的唯一 direct-single-parent Cfreeze commit，运行
+formalization-delta validator，push 并证明 clean `HEAD == origin/main`，随后启动唯一 fresh formal。
+当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；formal/final quality/audit/
+acceptance、Step 4 exit、Step 5 与 9.3.5 closed。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1687,4 +1686,24 @@ PASS 且不低于 r16 high-water，才可生成 candidate/review。当前 machin
   `diagnostic-ready/diagnostic-pending`；next=replacement Cdiag commit/push/clean -> fresh r19
   diagnostic。当前不得创建 candidate/Cfreeze 或执行 formal、
   final quality、coverage audit、acceptance；Step 4=`in-progress`，Step 5/9.3.5 closed，
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。
+
+### Superseding Check-in — diagnostic-r19 PASS / candidate reviewed / Cfreeze worktree formal-ready
+
+- recorded_at: 2026-07-17；tested Cdiag=
+  `613b11a0ae6732f865f918551cd9116079771b5e`，已 commit/push/clean；run=
+  `step4-coverage-20260717-diagnostic-r19`，status=`diagnostic-observed / completed / exit 0`；
+- lane/result：Unit=`681+55/4941/F0E0S0`、Integration=`47+4/320/F0E0S0`、required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、database/external=`29/370 + 16/76 = 45/446`；
+- execution/provenance：`23 exec / 48 sessions / 16,931 class identities`，production universe=
+  `24/2,098`，class tree=`a72007a8…99be`；source before=after=`a4ccff29…38f65`，outer restore=
+  `0/0`，cleanup=`0/0/0`，model/sensitive gates PASS；
+- coverage：line=`54,624/76,830`、branch=`26,111/44,870`，与 r16 reviewed high-water exact；
+  critical=`12`、positive metrics=`23`、below-floor=`0`、唯一 N/A=`NamespaceScope.branch`；
+- candidate=`6588e30bd6e51aa27bcab06cf633cc51cefa2d5a27824eee5c003bcbe9f545b8`，public verify
+  与 `/root/r19_threshold_metric_review`、`/root/r19_threshold_binding_review` 两路独立审查 PASS；
+- canonical working tree：threshold=`confirmed`、contract/publication=`formal-ready`，frozen
+  diagnostic replay PASS；pre-Cfreeze implementation quality=`PASS / 0/0/0/0`；
+- next=direct-child Cfreeze commit -> formalization-delta -> push/clean -> one fresh formal。
+  Step 4 仍 `in-progress`；final quality、coverage audit、acceptance、Step 5/9.3.5 closed，
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。

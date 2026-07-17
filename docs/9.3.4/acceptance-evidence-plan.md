@@ -22,18 +22,18 @@ updated_at: 2026-07-17
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed；r18 complete/public-valid，但低于 r16 high-water，candidate 未授权；machine=`diagnostic-ready/diagnostic-pending`；pre-Cdiag quality PASS |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed；r19 complete/public-valid 且达到 r16 high-water；candidate 两路 review PASS；machine=`confirmed/formal-ready`；Cfreeze/fresh formal pending |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / r18 full Unit=`681+55/4941/F0E0S0`；Pivot null-axis oracle 3/3 bitmap + 23-node class PASS；Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / r19 full Unit=`681+55/4941/F0E0S0`；`23/48/16931`、`24/2098` exact；Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / r18 diagnostic PASS 但 high-water guard 拒绝 candidate；deterministic oracle verified；replacement Cdiag/r19 pending |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；r18=`773+59/5707/F0E0S0` 且 public VALID，但 aggregate `-2 line/-4 branch`；r19 absent；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；r18 governed-gap evidence present、candidate absent；replacement Cdiag/r19/review/Cfreeze/formal 与 Step 4 exit absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r18 deterministic-oracle pre-Cdiag quality=`PASS / 0/0/0/0`，只授权 replacement Cdiag+r19；post-formal final quality pending；can_enter_coverage_audit=no |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / r19 diagnostic PASS / candidate reviewed / Cfreeze worktree formal-ready；fresh formal pending |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；r19=`773+59/5707/F0E0S0`、aggregate exact r16 high-water；Step 4/version in-progress |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；r19 pass/candidate/review present；Cfreeze commit/fresh formal 与 Step 4 exit absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r19 pre-Cfreeze quality=`PASS / 0/0/0/0`，只授权 direct-child Cfreeze + fresh formal；post-formal final quality pending；can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | r18 governed high-water gap 与 Pivot deterministic remediation state synced；final version sync after version signoff |
+| roadmap/status sync | `README.md` + authoritative roadmap | README 已同步 r19 reviewed-Cfreeze-pending；authoritative roadmap 保持历史 current，待 fresh formal/Step 4 exit 后同步；Step 5/9.3.5 downstream remains closed |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -513,3 +513,15 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   r16 高水位才可进入 candidate/review；
 - 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。Cfreeze、fresh formal、final quality、
   `foggy-test-coverage-audit`、`foggy-acceptance-signoff`、Step 5 与 9.3.5 全部保持关闭。
+
+## Superseding diagnostic-r19 pre-Cfreeze acceptance boundary（2026-07-17）
+
+- r19 diagnostic material 已齐：Cdiag=`613b11a0…`、required=`773+59/5707/F0E0S0`、Addon=
+  `2/6`、`23/48/16931`、class universe=`24/2098`、source exact、cleanup=`0/0/0`、
+  model/sensitive PASS；aggregate=`54624/76830 line, 26111/44870 branch`；
+- immutable candidate `6588e30b…f545b8` 经 public verification 与两路 independent review PASS；
+  canonical machine working tree=`confirmed/formal-ready`，pre-Cfreeze quality=`PASS/0/0/0/0`；
+- acceptance_status 继续为 `not-started`。当前 material 只授权 direct-child Cfreeze 和 fresh formal，
+  不得提前创建 Step 4 exit、final quality、coverage audit 或 acceptance 结论；
+- `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。必须等待 fresh formal PASS，再按
+  final implementation quality -> coverage audit -> feature acceptance 顺序开放；Step 5/9.3.5 closed。

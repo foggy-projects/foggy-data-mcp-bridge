@@ -997,3 +997,28 @@ replacement Cdiag pending`。candidate、Cfreeze、formal、
 final quality、coverage audit、acceptance、Step 5 与 9.3.5 全部关闭；
 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。governed record=
 `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`。
+
+## Step 4 diagnostic-r19 reviewed-Cfreeze addendum（2026-07-17）
+
+1. [completed] 创建并 push replacement Cdiag `613b11a0ae6732f865f918551cd9116079771b5e`，证明
+   `HEAD == origin/main`、worktree clean；
+2. [completed] fresh r19 all-lane/public validation PASS：required=`773+59/5707/F0E0S0`、
+   Addon=`2/6`、exec/session/class identity=`23/48/16931`、class universe=`24/2098`、
+   cleanup=`0/0/0`；
+3. [completed] aggregate exact 达到 r16 high-water：line=`54624/76830`、branch=
+   `26111/44870`；critical `12`、positive metrics `23`、below-floor `0`、唯一 N/A=
+   `NamespaceScope.branch`；
+4. [completed] 生成 immutable candidate `6588e30b…f545b8`，public verification 与两路
+   independent exact-projection/evidence-binding review PASS；
+5. [completed] canonical threshold/contract/SHA256SUMS working-tree delta exact 投影为
+   `confirmed/formal-ready`，pre-Cfreeze implementation quality=`PASS / 0/0/0/0`；
+6. [in-progress] 将当前 allowlisted delta 作为 Cdiag 的唯一 direct-child Cfreeze commit，验证
+   formalization delta，push 并证明 clean `HEAD == origin/main`；
+7. [pending] 从 Cfreeze 启动唯一 fresh formal，完整重放 `23/48` 与全部 required lane，必须达到
+   confirmed exact threshold；
+8. [pending] formal PASS 后严格执行 final implementation quality -> coverage audit ->
+   acceptance/signoff；全部 PASS 后才把 Step 4 标为 passed 并开启 Step 5。
+
+当前 Step 4=`in-progress / r19 diagnostic PASS / candidate reviewed / Cfreeze worktree formal-ready`；
+fresh formal 与后置门均 pending，`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，
+Step 5/9.3.5 closed。

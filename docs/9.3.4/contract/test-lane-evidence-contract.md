@@ -940,3 +940,19 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    governed evidence=
    `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`；
    BUG=`docs/9.3.4/workitems/BUG-step4-pivot-null-axis-coverage-oracle.md`。
+
+## Superseding diagnostic-r19 reviewed threshold / formal-ready contract（2026-07-17）
+
+1. r19 必须且已经从 clean/pushed Cdiag `613b11a0…` 完整产生 `773+59/5707/F0E0S0`、
+   Addon=`2/6`、`23 exec / 48 unique sessions`；source-before/source-after byte-identical；
+2. aggregate exact reviewed threshold 固定为 line=`54,624/76,830`、branch=`26,111/44,870`；
+   critical identity/order 固定为 Step 1 的 12 类，23 个适用 minimum 必须 exact 等于 observed；
+   唯一允许的 N/A 是 `NamespaceScope / foggy-dataset-model / branch = 0/0/null`；
+3. candidate `6588e30b…f545b8` 必须永久保持 immutable `review-required`；canonical confirmed
+   threshold 只能 exact 投影 candidate，并绑定 review evidence SHA；
+4. machine transition 为 threshold=`confirmed`、contract/publication=`formal-ready`；允许的 non-doc
+   delta 只含 threshold、contract、Step 4 SHA256SUMS 三件套；
+5. Cfreeze 必须是 Cdiag 的 direct-single-parent child，通过 formalization-delta、push 与 clean
+   identity 后才允许 fresh formal；formal 必须 fresh 重跑所有 lane，不得复用 diagnostic bytes；
+6. 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。formal/final quality/audit/
+   acceptance/Step 5/9.3.5 均 pending；machine formal-ready 不等于 Step 4 exit。

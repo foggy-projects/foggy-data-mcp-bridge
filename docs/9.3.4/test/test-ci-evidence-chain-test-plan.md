@@ -904,3 +904,19 @@ coverage audit 与 acceptance 保持关闭。
   quality/coverage audit/acceptance/Step 5 全关闭。evidence=
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`；
   BUG=`docs/9.3.4/workitems/BUG-step4-pivot-null-axis-coverage-oracle.md`。
+
+## diagnostic-r19 reviewed-threshold test boundary（2026-07-17）
+
+- fresh r19 在 clean/pushed Cdiag `613b11a0ae6732f865f918551cd9116079771b5e` 上完成
+  `773+59/5707/F0E0S0`、Addon=`2/6`、`23 exec / 48 sessions / 16,931 class identities`；
+  public diagnostic validation、source seal、model/sensitive/cleanup 与 outer restore 全部 PASS；
+- aggregate oracle exact 为 line=`54,624/76,830`、branch=`26,111/44,870`，达到 r16 high-water；
+  12 个 critical class 的 23 个适用指标全部达到整数 `4/5 line`、`7/10 branch`，below-floor=`0`；
+  唯一 structural N/A=`NamespaceScope.branch`；
+- candidate SHA-256=`6588e30b…f545b8` 保持 `review-required`，public verify 与两路独立复算 PASS；
+  canonical working tree 已 exact formalize 为 `confirmed/formal-ready`；
+- fresh formal 的 positive oracle 仍要求从 Cfreeze 完整重跑所有 `23/48` 和全部 required lane，
+  aggregate 不得低于 confirmed exact threshold，source/provenance/negative/cleanup 任一失败即
+  fail closed；不得复用 r19 exec/XML 代替 formal；
+- 本文件 `result` 与 `step4_result` 继续为 `in-progress`。formal、final quality、coverage audit、
+  acceptance 尚未 PASS，Step 5 closed。

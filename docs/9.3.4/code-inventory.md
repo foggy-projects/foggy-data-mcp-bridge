@@ -881,3 +881,17 @@ code_inventory:
   Cdiag/r19，不支撑 candidate/Cfreeze/formal/audit/acceptance；pre-Cdiag quality=
   `PASS / 0/0/0/0`，record=
   `docs/9.3.4/quality/step4-diagnostic-r18-pivot-null-axis-implementation-quality.md`；Step 5 closed。
+
+### Superseding diagnostic-r19 / Cfreeze inventory
+
+- sealed r19 inventory：Cdiag=`613b11a0ae6732f865f918551cd9116079771b5e`，run=
+  `step4-coverage-20260717-diagnostic-r19`，required=`773+59/5707/F0E0S0`、Addon=`2/6`、
+  exec/session/class identity=`23/48/16931`、class universe=`24/2098`；aggregate=
+  `54624/76830 line, 26111/44870 branch`；
+- evidence inventory：pass record、immutable candidate `6588e30b…f545b8`、two-review threshold
+  record 与 pre-Cfreeze quality；candidate 保持 `review-required`；
+- Cfreeze machine delta 精确只有 `scripts/v934/step4/coverage-thresholds.json`、
+  `coverage-contract.json`、`SHA256SUMS`；其余变更仅 `docs/9.3.4/**`。没有 production、test、
+  POM、runner、successor manifest、floor、critical set 或 exclusion 变化；
+- working tree machine=`confirmed/formal-ready`；direct-child Cfreeze commit/push/topology/clean 与
+  fresh formal pending。Step 4/5、final quality、coverage audit、acceptance 仍关闭。

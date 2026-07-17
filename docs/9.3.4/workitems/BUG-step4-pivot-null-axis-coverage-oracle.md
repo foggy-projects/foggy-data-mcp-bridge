@@ -104,9 +104,10 @@ authority。
   manifest PASS，且无 production/threshold/exclusion 变更。
 - [x] pre-Cdiag formal implementation quality=`PASS / 0/0/0/0`；只授权形成
   commit/push/clean Cdiag identity 与 fresh r19。
-- [ ] replacement fresh diagnostic 全 lane PASS，aggregate 不低于 r16
+- [x] replacement Cdiag `613b11a0…` commit/push/clean；fresh r19 diagnostic 全 lane PASS，aggregate 不低于 r16
   `54624/76830 line, 26111/44870 branch`。
-- [ ] replacement threshold candidate/public verification/independent review PASS。
+- [x] replacement threshold candidate/public verification/两路 independent review PASS；candidate=
+  `6588e30b…f545b8`。
 - [ ] direct-child Cfreeze commit/push，fresh formal PASS。
 - [ ] final implementation quality、coverage audit 与 acceptance PASS。
 
@@ -120,8 +121,9 @@ authority。
 | Exact class/source localization | r16/r18 aggregate JaCoCo XML pair | complete |
 | NULL column baseline semantics | `BaselineRatioCalculator.java:76-82,209` | deterministic automated assertions + focused proof |
 | NULL row tree semantics | `ResultShaper.java:91` | deterministic automated assertions + focused proof |
-| All-lane stability | none after remediation | replacement fresh diagnostic |
-| Release authority | none | candidate/review/Cfreeze/fresh formal |
+| All-lane stability | r19 `773+59/5707/F0E0S0`、`23/48`、aggregate exact r16 high-water | complete |
+| Threshold review | r19 immutable candidate + two independent reviews | complete |
+| Release authority | r19 candidate/review complete；canonical worktree formal-ready | Cfreeze + fresh formal |
 
 ## Closure Scope
 
@@ -142,3 +144,5 @@ public validation PASS 冒充 threshold-freeze authorization。
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-pass-20260717.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r19-pass-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r19-threshold-review-20260717.md`

@@ -636,3 +636,23 @@ updated_at: 2026-07-17
   independent review；否则继续 fail closed，不得 freeze。当前 candidate/Cfreeze/formal/final
   quality/coverage audit/acceptance/Step 5 全关闭，`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`。
+
+## Superseding diagnostic-r19 reviewed-Cfreeze requirement boundary（2026-07-17）
+
+- replacement Cdiag=`613b11a0ae6732f865f918551cd9116079771b5e` 已 commit/push/clean；fresh
+  `step4-coverage-20260717-diagnostic-r19` 完成 `diagnostic-observed / completed / exit 0` 并经
+  public validator 复算。required=`773+59/5707/F0E0S0`、Addon=`2/6`、Unit=
+  `681+55/4941/F0E0S0`、Integration=`47+4/320/F0E0S0`、Step 3 required=`45/446`；
+- exact execution identity=`23 exec / 48 sessions / 16,931 classes`，production universe=
+  `24 modules / 2,098 classes`，source before=after=`a4ccff29…38f65`，cleanup=`0/0/0`，
+  model/sensitive gates PASS；
+- aggregate line=`54,624/76,830`、branch=`26,111/44,870`，与 r16 reviewed high-water exact
+  相等且相对 r18 恢复 `+2/+4`；critical=`12`、positive metrics=`23`、below-floor=`0`，唯一
+  N/A=`NamespaceScope / foggy-dataset-model / branch`；
+- immutable candidate SHA-256=`6588e30b…f545b8` 已 public verify，并由两路 independent review
+  exact 复算通过；canonical machine exact 投影为 threshold=`confirmed`、contract/publication=
+  `formal-ready`；
+- 当前只满足建立 Cfreeze 的前置条件。Cfreeze 必须是 `613b11a0…` 的唯一 direct-single-parent
+  child，并在 commit/push/topology/clean proof 后运行一次 fresh formal。fresh formal、final
+  implementation quality、coverage audit、acceptance 尚未发生；Step 4=`in-progress`，
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5/9.3.5 closed。
