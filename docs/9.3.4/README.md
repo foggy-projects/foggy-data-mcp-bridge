@@ -279,9 +279,20 @@ updated_at: 2026-07-17
 - 确定性回归已放入既有 FileStore testcase：不存在 ID 查询强制穷尽已有 regular files；
   focused 5/5 fresh fork 稳定命中缺失 probe 106，Data Viewer module=`104/F0E0S0`，无生产
   变更、无新 testcase。machine state 已恢复 `diagnostic-ready/diagnostic-pending`。
-- 当前新 Cdiag、fresh diagnostic、review/Cfreeze/formal 均 pending；
-  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5、coverage audit、acceptance 与
-  9.3.5 仍关闭。
+- formal-r2 确定性修复的新 Cdiag=`9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已
+  commit/push/clean；fresh diagnostic r15=`step4-coverage-20260717-diagnostic-r15` 在完整
+  Unit replacement 的 `Bean2MapUtilsTest#testCachingMechanism` 单次纳秒倍率断言处 fail
+  closed。该方法执行前静态 cache 已被同类测试预热，first/second/third 实际均为 cache hit；
+  `26,839/304,859/8,517ns` 是调度噪声，不是产品回归。r15 只产生 partial
+  `26 reports / 124/F1E0S0`、`2/48 sessions`，最终 sensitive scan 与所有 success-only
+  artifact 均 absent，禁止拼接。
+- 两个既有 Bean2Map testcase 已改为 deterministic correctness：三个同类、不同 source 实例复制精确
+  断言，并移除邻接 1000-copy 的墙钟阈值；无生产/API/POM/runner/floor 变更、无 testcase
+  增删。focused 10/10 fresh JVM、class=`23/F0E0S0`、module=`27/F0E0S0`；machine 仍为
+  `diagnostic-ready/diagnostic-pending`。正式 pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`；
+  当前待新 Cdiag、fresh diagnostic、
+  review/Cfreeze/formal；`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5、
+  coverage audit、acceptance 与 9.3.5 仍关闭。
 
 ## 执行资料
 
@@ -354,6 +365,12 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-formal-r2-list-preset-branch-order-fail-closed-20260717.md](evidence/step-4/step4-coverage-formal-r2-list-preset-branch-order-fail-closed-20260717.md)
 - Step 4 formal-r2 recovery implementation quality：
   [quality/step4-formal-r2-recovery-implementation-quality.md](quality/step4-formal-r2-recovery-implementation-quality.md)
+- Step 4 diagnostic r15 Bean2Map timing-oracle regression：
+  [workitems/BUG-step4-bean2map-cache-timing-oracle.md](workitems/BUG-step4-bean2map-cache-timing-oracle.md)
+- Step 4 diagnostic r15 fail-closed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r15-bean2map-timing-oracle-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r15-bean2map-timing-oracle-fail-closed-20260717.md)
+- Step 4 diagnostic r15 recovery implementation quality：
+  [quality/step4-r15-recovery-implementation-quality.md](quality/step4-r15-recovery-implementation-quality.md)
 - Step 4 r14 Cfreeze implementation quality：
   [quality/step4-r14-cfreeze-implementation-quality.md](quality/step4-r14-cfreeze-implementation-quality.md)
 - Step 4 diagnostic r14 successful observation：
@@ -420,7 +437,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending | Cfreeze `1901a101…` 已 push；formal-r2 全 lane 后 aggregate branch `-1`，唯一为 `FileSystemListPresetStore` 无序遍历覆盖波动；focused 5/5、module 104/F0E0S0；machine=`diagnostic-ready/diagnostic-pending`；新 Cdiag→diagnostic→review/Cfreeze→formal 与 final quality pending；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified / new Cdiag pending | previous Cdiag `9270d2d4…` 已 push；r15 在预热 cache 的单次纳秒倍率 oracle fail closed，仅 partial `124/F1E0S0`、`2/48 sessions`；修复保持测试节点数，focused 10/10、class 23、module 27 均 F0E0S0；pre-Cdiag quality PASS `0/0/0/0`；machine=`diagnostic-ready/diagnostic-pending`；新 Cdiag→diagnostic→review/Cfreeze→formal 与 final quality pending；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

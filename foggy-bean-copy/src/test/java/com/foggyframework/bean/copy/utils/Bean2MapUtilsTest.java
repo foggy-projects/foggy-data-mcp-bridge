@@ -365,73 +365,49 @@ class Bean2MapUtilsTest {
         assertEquals(false, map.get("booleanValue"));
     }
 
-    // ==================== 性能测试 ====================
+    // ==================== 重复与批量复制测试 ====================
 
     @Test
-    @DisplayName("测试缓存机制 - 重复调用应该使用缓存")
+    @DisplayName("测试重复复制 - 缓存不得保存实例值")
     void testCachingMechanism() {
+        SourceBean source2 = new SourceBean();
+        source2.setName("Jane Doe");
+        source2.setAge(31);
+
+        SourceBean source3 = new SourceBean();
+        source3.setName("Alex Doe");
+        source3.setAge(32);
+
         TargetBean target1 = new TargetBean();
         TargetBean target2 = new TargetBean();
         TargetBean target3 = new TargetBean();
 
-        long startTime = System.nanoTime();
-
-        // 第一次调用 - 会初始化缓存
         Bean2MapUtils.copyPropertiesSafe(sourceBean, target1);
-        long firstCallTime = System.nanoTime() - startTime;
+        Bean2MapUtils.copyPropertiesSafe(source2, target2);
+        Bean2MapUtils.copyPropertiesSafe(source3, target3);
 
-        startTime = System.nanoTime();
-
-        // 第二次调用 - 应该使用缓存，更快
-        Bean2MapUtils.copyPropertiesSafe(sourceBean, target2);
-        long secondCallTime = System.nanoTime() - startTime;
-
-        startTime = System.nanoTime();
-
-        // 第三次调用 - 也应该使用缓存
-        Bean2MapUtils.copyPropertiesSafe(sourceBean, target3);
-        long thirdCallTime = System.nanoTime() - startTime;
-
-        // 验证结果正确
-        assertEquals(sourceBean.getName(), target1.getName());
-        assertEquals(sourceBean.getName(), target2.getName());
-        assertEquals(sourceBean.getName(), target3.getName());
-
-        // 打印性能信息（仅供参考）
-        System.out.println("First call: " + firstCallTime + " ns");
-        System.out.println("Second call: " + secondCallTime + " ns");
-        System.out.println("Third call: " + thirdCallTime + " ns");
-
-        // 后续调用应该不会慢于第一次调用太多
-        // 注意：这是一个宽松的检查，因为性能测试在单元测试中不太可靠
-        assertTrue(secondCallTime <= firstCallTime * 3,
-            "后续调用性能应该受益于缓存");
+        assertEquals("John Doe", target1.getName());
+        assertEquals(30, target1.getAge());
+        assertEquals("Jane Doe", target2.getName());
+        assertEquals(31, target2.getAge());
+        assertEquals("Alex Doe", target3.getName());
+        assertEquals(32, target3.getAge());
     }
 
     @Test
-    @DisplayName("测试大量对象复制的性能")
+    @DisplayName("测试大量对象批量复制")
     void testPerformanceWithManyObjects() {
         int iterations = 1000;
         TargetBean[] targets = new TargetBean[iterations];
-
-        long startTime = System.currentTimeMillis();
 
         for (int i = 0; i < iterations; i++) {
             targets[i] = new TargetBean();
             Bean2MapUtils.copyPropertiesSafe(sourceBean, targets[i]);
         }
 
-        long duration = System.currentTimeMillis() - startTime;
-
         // 验证第一个和最后一个对象
         assertEquals(sourceBean.getName(), targets[0].getName());
         assertEquals(sourceBean.getName(), targets[iterations - 1].getName());
-
-        System.out.println(iterations + " 次复制耗时: " + duration + " ms");
-
-        // 性能应该在合理范围内（1000次应该在1秒内完成）
-        assertTrue(duration < 1000,
-            "1000次对象复制应该在1秒内完成，实际耗时: " + duration + "ms");
     }
 
     @Test

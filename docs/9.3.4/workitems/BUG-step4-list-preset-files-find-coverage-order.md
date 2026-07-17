@@ -88,8 +88,9 @@ all-lane diagnostic/formal authority 证明。
 - [x] Data Viewer 模块=`104/F0E0S0`，目标类恢复 r14 exact `74/113` bitmap。
 - [x] machine tuple 恢复 diagnostic state；manifest=`60/60`、contract/overlay validator PASS。
 - [x] 正式 pre-Cdiag implementation quality PASS，B/H/M/L=`0/0/0/0`。
-- [ ] 完成一次 Cdiag commit/push 与 clean identity。
-- [ ] fresh diagnostic、candidate review、direct-child Cfreeze 与 fresh formal 全部通过。
+- [x] 完成 Cdiag `9270d2d4e58684226aeb15eff55b027e6aa4a7eb` commit/push 与 clean identity。
+- [ ] fresh r15 因独立 Bean2Map timing oracle fail closed；replacement diagnostic、candidate
+  review、direct-child Cfreeze 与 fresh formal 仍待全部通过。
 - [ ] 最终 implementation quality、coverage audit 与 acceptance 通过。
 
 ## References

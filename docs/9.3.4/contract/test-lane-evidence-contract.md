@@ -777,3 +777,21 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    review -> direct-child Cfreeze -> fresh formal；
 6. 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。fresh formal PASS 后仍须最终
    implementation quality，再按 coverage audit -> acceptance 顺序执行；Step 5 不得提前。
+
+## Superseding diagnostic-r15 deterministic correctness contract（2026-07-17）
+
+1. required correctness lane 不得用单次 `System.nanoTime/currentTimeMillis`、样本倍率或固定毫秒
+   上限判定缓存/批量操作正确；JVM/JIT/GC/OS/JaCoCo 调度差异不得成为 Surefire 红绿 oracle；
+2. `Bean2MapUtilsTest#testCachingMechanism` 必须以 observable behavior 验证重复复制：使用
+   三个同类、不同 source 实例，已完成的 target 必须保留各自调用时的精确值，证明 cache metadata 不保存
+   instance data；不得通过反射锁定 private cache identity；
+3. `testPerformanceWithManyObjects` 必须继续执行既有 1000-copy batch 并校验首末结果，但不得
+   在 correctness lane 声明 `<1000ms` 等环境相关 SLA；性能治理如需新增，应使用独立多 fork
+   benchmark/telemetry authority；
+4. remediation 必须保持 test/report cardinality，不改 production/public API/POM/runner/floor/
+   critical/exclusion。focused 10/10、class=`23/F0E0S0`、module=`27/F0E0S0` 是最小回归门；
+5. r15 partial `26 reports / 124/F1E0S0`、`2/48 sessions` 不得复用；最终 sensitive scan、
+   source-after、inventory、aggregate、observation、candidate、summary/gate absent 必须如实记录；
+6. 测试字节变化后 machine 保持 `diagnostic-ready/diagnostic-pending`，必须从 new Cdiag 完整重走
+   fresh diagnostic -> candidate/review -> direct-child Cfreeze -> fresh formal；fresh formal PASS 后
+   仍按 final quality -> coverage audit -> acceptance。Step 5 不得提前。

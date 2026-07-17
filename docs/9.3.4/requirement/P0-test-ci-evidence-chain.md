@@ -159,7 +159,7 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / formal-r2 fail-closed / deterministic repair verified /
+  `in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
   new Cdiag pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
@@ -175,50 +175,23 @@ updated_at: 2026-07-17
   完成；feature decision=`accepted`，但 version acceptance 仍为 `not-started`；
 - r8d authority 因 signal fail-open 作废；r8e 已以 INT/TERM/HUP=`130/143/129`
   动态探针证明 durable fail closed；
-- Step 4 已完成 diagnostic-ready 静态收口：exact `23 exec / 48 sessions`，
-  required report overlay=`773 positive + 59 structural / 5,707 testcase / F0E0S0`，
-  Addon companion 单列 `2/6`；contract/source identity=`21/21 + 22/22`，
-  effective POM/toolchain/report inventory=`4/4 + 5/5 + 30/30`；Step 2 derived view/
-  successor overlay=`12/12 + 12/12`，XML=`68/68`，logger=`9 类 / 14 case`；Unit fixture
-  negatives=`36/36`（原 fixture/manifest probes=`20/20`、connection typed=`7/7`、
-  atomic publisher=`3/3`、profile boundary=`6/6`），negative receipt 文件
-  schema/tamper 另为 `4/4`，真实 lifecycle=`5/5`；restricted credential receipt 的 closed
-  Unit Maven window 必须由 root `configure init_connect -> Maven -> 同一 root batch 先
-  disable 再按 connection_id SELECT` 闭合，保存有序 observed user，并证明窗口内全部
-  non-super MySQL connections exclusively 使用 run-owned credential；callback 返回后的
-  provisioner `foggy` 控制面连接在窗口外；
-- toolchain receipt 绑定 Step 1 raw 工具版本、compiler/JaCoCo/test ASM=
-  `9.6/9.7/9.7.1` 与 24 个 production module effective compiler；Step 4 report
-  amendment=`12 rows = 4 new + 8 changed`，SHA-256=
-  `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`，
-  successor declared amendments=`18`，SHA-256=
-  `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；本地
-  `SHA256SUMS`=`60/60`，当前 diagnostic-state SHA-256=
-  `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60`；
-  successor=`14/14`，SHA-256=
-  `3d4ed31f1ca8e3f1086ceade81be9ce94d90ee82beae1117dc708f71064a6e0f`；coverage
-  contract diagnostic/formal SHA-256=
-  `58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0` /
-  `cabedad99522bb1c76e8cd35eb25922a1117d445256f1e346b47687dbadbb66e`；coverage tool /
-  contract-negative / XML tool SHA-256=
-  `ef5b78f25ffebf48e45e363a15fb1c4bc53341488a8e703133f01bb7b2c40bef` /
-  `9df394efa046de4a494d31b00dd3900fe875f07a9e31aabccff29a231a1c1ecc` /
-  `0600b66657824b3fc7cf3b15ca0474e0885977605c64c60366a4a13607eb18bf`；overlay contract /
-  overlay tool / 当前 outer raw SHA-256=
-  `001963c511b036d54c08abab2fcf0a0ab204b920614b35e10da809ed3f42c4d8` /
-  `780e9a3d61626b8a37f85a185942de7c1862a119cd10b553962a98d5e2acd301` /
-  `90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`；
-  当前 outer executable-stream / lifecycle regression tool SHA-256=
-  `065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae` /
-  `61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`；
-  successor database/required contracts SHA-256=
-  `553dabf2b4c266b531fb4ce36f4a498dce223b6449106274a3a2b103ccb775ea` /
-  `893ac03231cb4f6fd8ae427c01aa3f9f04267c96e3945814b9b70a3445a58af5`；
-- Unit fixture contract/tool/runner/datasource-adapter SHA-256=
-  `7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a` /
-  `cc19390ce6c0cfb307b7632dbe4e25540b1e4d49d11ec1512739f6724646d345` /
-  `45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66` /
-  `9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256`；
+- Step 4 当前冻结结构仍为 exact `23 exec / 48 sessions`、required overlay=
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon companion=`2/6`；
+  r15 启动前及失败前已通过 contract mutations=`27/27`、source/Git identity=`22/22`、
+  threshold/frozen replay=`12/12`、XML negatives=`118/118`、successor overlay negatives=
+  `12/12`、toolchain seal/negative=`5/5`、Step 2 report view=`728+59/5261`、class universe=
+  `24 modules / 2,098 classes`、Unit fixture lifecycle negatives=`5/5`；
+- 早期 diagnostic-ready snapshot 的 contract/XML=`21/21`、`68/68` 与旧 tool hashes 只保留为
+  historical bootstrap evidence，不是当前 machine identity。当前 machine exact 为 threshold=
+  `diagnostic-pending` SHA-256=`0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`、
+  contract=`diagnostic-ready` SHA-256=
+  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`、top manifest=
+  `60/60` SHA-256=`cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60`、
+  successor=`14/14` SHA-256=
+  `3d4ed31f1ca8e3f1086ceade81be9ce94d90ee82beae1117dc708f71064a6e0f`；
+- run-owned Unit fixture 的 restricted credential、schema/tamper、atomic publisher、profile
+  isolation 与 lifecycle requirements 保持生效；r15 只通过启动前 lifecycle negatives，未完成
+  Unit replacement，因此不得把历史 `36/36`/report inventory 结果拼入 r15；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -502,11 +475,29 @@ updated_at: 2026-07-17
   filename-false outcome；不得通过重跑或下调 threshold 掩盖；
 - regression 不改 production、floor、critical set、exclusion 或 testcase cardinality；5/5
   fresh fork 均命中 probe 106、bitmap unique=`1`，Data Viewer=`104/F0E0S0`；
-- current machine state=`diagnostic-ready/diagnostic-pending`：threshold SHA-256=
+- historical recovery machine state=`diagnostic-ready/diagnostic-pending`：threshold SHA-256=
   `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`，contract SHA-256=
   `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，manifest SHA-256=
   `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60`；
-- only allowed sequence：formal-r2 recovery quality -> one new Cdiag commit/push/clean -> fresh
-  diagnostic -> candidate/review -> direct-child Cfreeze -> fresh formal -> final quality -> coverage
-  audit -> acceptance。当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与
-  9.3.5 保持关闭。
+- 该 historical sequence 已完成 Cdiag `9270d2d4…` 并进入 r15；r15 fail-closed 后由下节
+  supersede。`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与 9.3.5 保持关闭。
+
+## Superseding diagnostic-r15 fail-closed requirement boundary（2026-07-17）
+
+- formal-r2 deterministic recovery Cdiag=
+  `9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已 commit/push/clean；fresh r15 在 Unit
+  `Bean2MapUtilsTest#testCachingMechanism` 单次纳秒倍率断言 fail closed；
+- r15 partial authority exact 为 26 XML reports=`124/F1E0S0`、`jacoco-ut.exec`=
+  `2/48 sessions`；source-after、final sensitive scan、inventory、aggregate、observation、candidate、
+  summary/gate absent。该轮必须 immutable 且不得与后续 run 拼接；
+- correctness requirement：Surefire/Failsafe required lane 不得用 single-sample wall-clock ratio
+  或固定毫秒上限充当缓存/批量复制正确性 oracle；性能 SLA 必须与 correctness authority 分离；
+- deterministic regression 必须保持已有 testcase cardinality，通过三个同类、不同 source 实例并
+  精确校验各 target 证明 cache metadata 不保留实例数据；1000-copy 可以保留批量 correctness，
+  不得保留环境相关墙钟门；
+- remediation 不得修改 production/public API/POM/runner/floor/critical/exclusion；已完成 focused
+  `10/10` fresh JVM、class=`23/F0E0S0`、module=`27/F0E0S0`；formal pre-Cdiag quality 已
+  PASS，B/H/M/L=`0/0/0/0`；
+- only allowed sequence：one new Cdiag commit/push/clean -> fresh diagnostic
+  -> candidate/review -> direct-child Cfreeze -> fresh formal -> final implementation quality ->
+  coverage audit -> acceptance。当前 Step 4=`in-progress`，Step 5 与 9.3.5 关闭。

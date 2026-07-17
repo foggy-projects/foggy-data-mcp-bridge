@@ -339,19 +339,17 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / formal-r2 fail-closed / deterministic repair verified /
+- state：`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
   new Cdiag pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
-- fail-closed static evidence：contract/source identity=`21/21 + 22/22`、effective POM=
-  `4/4`、toolchain receipt=`5/5`、report inventory=`30/30`；Unit negative receipt=
-  `36/36`，其中原 fixture/manifest schema/tamper=`20/20`、connection receipt typed=
-  `7/7`、atomic publisher=`3/3`、profile isolation=`6/6`，另有 negative receipt schema
-  tamper=`4/4`；真实 fixture
-  lifecycle=`5/5`；Step 2 derived view=`12/12`、successor overlay=`12/12`、XML=`68/68`、
-  logger=`9 类 / 14 case`；
+- current r15 preflight evidence：contract mutations=`27/27`、source/Git identity=`22/22`、
+  threshold/frozen replay=`12/12`、XML negatives=`118/118`、successor overlay negatives=`12/12`、
+  toolchain seal/negative=`5/5`、Step 2 view=`728+59/5261`、class universe=
+  `24 modules / 2,098 classes`、Unit fixture lifecycle negatives=`5/5`；历史 bootstrap 的
+  contract/XML=`21/21`、`68/68` 与 report inventory/fixture receipts 不得拼入 r15 partial run；
 - build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
   `@{argLine}` late evaluation，修复 legacy coverage 无 exec 却 BUILD SUCCESS；三态
   focused 验证已完成，`coverage_tool.py` + manifest + `validate-contract` +
@@ -714,12 +712,36 @@ code_inventory:
   `ListPresetServiceTest.FileStoreTests#shouldIsolatePresetByUserAndBusinessKey` 增加 nonexistent-ID
   empty assertion；无 production、runner、floor、critical-set、exclusion 或 testcase-cardinality
   变化；focused 5/5 probe106 hit、bitmap unique=`1`，Data Viewer=`104/F0E0S0`；
-- current machine inventory：threshold=`diagnostic-pending` SHA-256=
+- historical recovery machine inventory：threshold=`diagnostic-pending` SHA-256=
   `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`，contract=
   `diagnostic-ready` SHA-256=`15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，
   manifest=`60/60`；
-- current boundary：pre-Cdiag quality -> one Cdiag commit/push -> fresh diagnostic -> review ->
-  direct-child Cfreeze -> fresh formal。`can_enter_coverage_audit=no`、Step 5/acceptance closed。
+- historical boundary completed through Cdiag `9270d2d4…` and r15；the r15 inventory below
+  supersedes its pending sequence。
+
+### r15 Unit timing-oracle failure / deterministic recovery inventory
+
+- prior recovery Cdiag=`9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已 commit/push/clean；immutable
+  diagnostic=`step4-coverage-20260717-diagnostic-r15` 在 `child-unit` exit 1；record=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r15-bean2map-timing-oracle-fail-closed-20260717.md`；
+- partial inventory：26 XML reports=`124/F1E0S0`，仅 `jacoco-ut.exec`=`2/48 sessions`；
+  source-after、final sensitive scan、report/exec inventories、aggregate、observation、candidate、
+  summary/gate absent，不得跨 run 复用；
+- test inventory delta：
+  `foggy-bean-copy/src/test/java/com/foggyframework/bean/copy/utils/Bean2MapUtilsTest.java`
+  只修改既有 `testCachingMechanism` 与 `testPerformanceWithManyObjects`；删除单次
+  `nanoTime/currentTimeMillis` 及阈值，保留重复/1000-copy correctness，无 `@Test` 增删；
+- behavioral oracle：三个同类、不同 source 实例依次复制 `John Doe/30`、`Jane Doe/31`、
+  `Alex Doe/32` 并逐 target 精确断言，证明 cache metadata 不保存实例值；不通过反射耦合
+  private cache identity，不新增 production test seam；
+- verification inventory：10 个 fresh JVM focused=`1/F0E0S0`，完整 class=`23/F0E0S0`，
+  完整 module=`27/F0E0S0`；无 production、public API、POM、runner、floor、critical set、
+  exclusion 或 machine file 变化；
+- formal pre-Cdiag implementation quality：PASS，B/H/M/L=`0/0/0/0`，record=
+  `docs/9.3.4/quality/step4-r15-recovery-implementation-quality.md`；
+- current boundary：machine=`diagnostic-ready/diagnostic-pending`；new Cdiag
+  commit/push/clean -> fresh diagnostic -> review/Cfreeze -> fresh formal。`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`，Step 5 closed。
 
 ## Protected Boundaries
 

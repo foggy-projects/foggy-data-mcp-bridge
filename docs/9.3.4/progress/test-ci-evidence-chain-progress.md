@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r2 fail-closed / new Cdiag pending | Step 3 exit passed | Cfreeze `1901a101…` committed/pushed；formal-r2 all-lane 后 aggregate branch `-1`，唯一为 ListPreset 无序遍历覆盖波动；deterministic focused 5/5、module 104/F0E0S0；machine=`diagnostic-ready/diagnostic-pending`；new Cdiag→diagnostic→review/Cfreeze→formal、final quality pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r15 Unit fail-closed / new Cdiag pending | Step 3 exit passed | prior Cdiag `9270d2d4…` committed/pushed；r15 在预热 cache 的单次计时 oracle fail closed，仅 partial `124/F1E0S0`、`2/48 sessions`；deterministic focused 10/10、class 23、module 27 均 F0E0S0；pre-Cdiag quality PASS `0/0/0/0`；machine=`diagnostic-ready/diagnostic-pending`；new Cdiag→diagnostic→review/Cfreeze→formal、final quality pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1288,24 +1288,24 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 formal-r2 recovery pre-Cdiag passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-formal-r2-recovery-implementation-quality.md`，B/H/M/L=`0/0/0/0`，只放行新 Cdiag/fresh diagnostic；post-formal final quality 尚待执行，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r15 recovery pre-Cdiag passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-r15-recovery-implementation-quality.md`，B/H/M/L=`0/0/0/0`，只放行 new Cdiag/fresh diagnostic；`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 formal-r2 fail-closed / deterministic repair verified | roadmap 为 Steps 1–3 passed / Step 4 in-progress；new Cdiag/diagnostic/Cfreeze/formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r15 Unit fail-closed / deterministic timing-oracle remediation verified | roadmap 为 Steps 1–3 passed / Step 4 in-progress；pre-Cdiag quality passed；new Cdiag/diagnostic/Cfreeze/formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-direct-child Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` 已 commit/push/clean；
-fresh formal-r2=`step4-coverage-20260717-formal-r2` 完成全部 lane 后因 aggregate branch 比 r14
-threshold 少 `1` fail closed。唯一 class/source/probe delta 为 `FileSystemListPresetStore`
-filename-false outcome；formal-r2 保持 immutable。
+formal-r2 recovery Cdiag=`9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已 commit/push/clean；
+fresh r15=`step4-coverage-20260717-diagnostic-r15` 在 Unit Bean2Map 单次纳秒倍率 oracle fail
+closed，只产生 partial `26 reports / 124/F1E0S0` 与 `2/48 sessions`。r15 immutable，最终
+sensitive scan 和 success-only artifacts absent。
 
-既有 testcase 已加入 nonexistent-ID empty assertion，5/5 fresh forks 稳定命中 probe 106，
-Data Viewer module=`104/F0E0S0`；machine tuple 已恢复 diagnostic state；formal pre-Cdiag
-quality PASS，B/H/M/L=`0/0/0/0`。Next action is exactly one Cdiag commit/push and clean identity；随后停止 exact demo DB
-containers 并运行唯一 fresh diagnostic。Current `can_enter_coverage_audit=no`、
-`can_enter_acceptance=no`；Step 5 closed。
+确定性修复保持两个 testcase 与节点数：三个同类、不同 source 实例复制逐 target 精确断言，邻接
+1000-copy 仅保留批量 correctness。focused 10/10 fresh JVM、class=`23/F0E0S0`、module=
+`27/F0E0S0`。formal pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`。Next action is exactly one new
+Cdiag commit/push/clean identity；随后停止 exact demo DB containers 并运行唯一 fresh
+diagnostic。Current `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 closed。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1534,3 +1534,23 @@ containers 并运行唯一 fresh diagnostic。Current `can_enter_coverage_audit=
 - decision：formal-r2 immutable；formal-r2 recovery quality -> one new Cdiag commit/push/clean ->
   fresh diagnostic -> review/Cfreeze/formal。`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`；Step 5、audit、acceptance、9.3.5 closed。
+
+### Superseding Check-in — diagnostic-r15 Unit timing-oracle fail-closed / new Cdiag pending
+
+- recorded_at: 2026-07-17；prior recovery Cdiag=
+  `9270d2d4e58684226aeb15eff55b027e6aa4a7eb`，parent=`1901a101…`，已 commit/push/clean；
+- immutable failed run：`step4-coverage-20260717-diagnostic-r15`，status=
+  `failed / child-unit / exit 1`；source-before sealed、source-after absent、cleanup=`0/0/0`；
+- partial boundary：26 XML reports=`124/F1E0S0`，`jacoco-ut.exec` 仅 `2/48 sessions`；final
+  sensitive scan、report/exec inventories、aggregate、observation、candidate、summary/gate absent；
+- exact failure：`Bean2MapUtilsTest#testCachingMechanism` first/second/third=
+  `26,839/304,859/8,517ns`，second 超过 first*3；同类 static cache 已在方法前预热，三个采样
+  均为 cache hit，故为环境敏感 test oracle，不是 product regression；
+- remediation：三个同类、不同 source 实例使用不同 name/age 并逐 target 精确断言；1000-copy test 保留循环和首末
+  correctness，删除墙钟阈值；无 production/API/POM/runner/floor/testcase-cardinality 变化；
+- verification：10 个 fresh JVM focused=`10/10`，class=`23/F0E0S0`，module=`27/F0E0S0`；
+- quality：formal pre-Cdiag PASS，B/H/M/L=`0/0/0/0`；三路独立复验均 PASS；
+- machine：contract=`diagnostic-ready`、threshold=`diagnostic-pending`、manifest=`60/60`；
+- decision：r15 immutable；one new Cdiag commit/push/clean -> fresh
+  diagnostic -> review/Cfreeze/formal。`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；
+  Step 5、audit、acceptance、9.3.5 closed。

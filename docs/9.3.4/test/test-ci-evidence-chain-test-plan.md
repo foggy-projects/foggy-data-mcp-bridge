@@ -401,7 +401,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending`
+- step4_result: `in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
+  new Cdiag pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -752,3 +753,25 @@ coverage audit 与 acceptance 保持关闭。
   results are not Step 4 exit evidence；must run new Cdiag -> fresh diagnostic -> review -> Cfreeze ->
   fresh formal。Current `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、audit、
   acceptance closed。
+
+## diagnostic-r15 Bean2Map timing-oracle regression boundary（2026-07-17）
+
+- run=`step4-coverage-20260717-diagnostic-r15`，tested clean/pushed Cdiag=
+  `9270d2d4e58684226aeb15eff55b027e6aa4a7eb`；outer=`failed/child-unit/exit 1`；
+- exact failed testcase=`Bean2MapUtilsTest#testCachingMechanism`：first/second/third=
+  `26,839/304,859/8,517ns`，asserted second <= first*3；suite=`23/F1E0S0`，module failure point=
+  `27/F1E0S0`；
+- partial run result=26 reports/`124/F1E0S0`、`jacoco-ut.exec=2/48 sessions`；final sensitive
+  scan、source-after、inventory、aggregate、observation、candidate、summary/gate absent；
+- root-cause oracle：same SourceBean/TargetBean static cache 在该 method 前已预热，三个单次样本
+  都是 cache hit；测试不得从 wall-clock ratio 推断 cache correctness；
+- replacement test oracle：三个同类、不同 source 实例依次设置 `John Doe/30`、`Jane Doe/31`、
+  `Alex Doe/32`，三个 target 分别精确保留各次值；1000-copy test 继续执行循环并校验首末值，
+  不再使用固定 1000ms 门；
+- deterministic validation：10 个独立 Maven/JVM/JaCoCo forks=`10/10/F0E0S0`，完整 class=
+  `23/F0E0S0`，完整 module=`27/F0E0S0`；testcase cardinality 不变，无生产/POM/runner/floor
+  变化；
+- r15 immutable 且 focused/module 结果不能替代 fresh Unit replacement。formal pre-Cdiag
+  quality 已 PASS，B/H/M/L=`0/0/0/0`；新 Cdiag、fresh diagnostic、candidate/review、Cfreeze、
+  fresh formal 与 final quality pending；
+  `can_enter_coverage_audit=no`，Step 5 closed。

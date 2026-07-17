@@ -24,12 +24,12 @@ updated_at: 2026-07-17
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 Cfreeze `1901a101…` committed、formal-r2 immutable failure recorded、deterministic repair verified、machine diagnostic pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r15 immutable Unit failure recorded、deterministic timing-oracle remediation verified、machine diagnostic pending / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 formal-r2 fail-closed、deterministic repair verified、new Cdiag pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r15 Unit fail-closed、deterministic timing-oracle remediation verified、new Cdiag pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 formal-r1/formal-r2 immutable failures、r14 diagnostic/candidate/review/Cfreeze present；new diagnostic/formal/Step 4 exit absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 formal-r2 recovery pre-Cdiag PASS，B/H/M/L=`0/0/0/0`，只放行 Cdiag/fresh diagnostic；post-formal final quality pending，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 formal-r1/formal-r2/r15 immutable failures、r14 diagnostic/candidate/review/Cfreeze present；new diagnostic/formal/Step 4 exit absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 r15 recovery pre-Cdiag PASS，B/H/M/L=`0/0/0/0`；只放行 new Cdiag/fresh diagnostic；post-formal final quality pending，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -58,17 +58,19 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-17）：
-`in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending`。
-r14 reviewed threshold 的 direct-child Cfreeze `1901a101…` 已 commit/push/clean；formal-r2
-完成 exact `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、
-exec=`23/48`，但 aggregate branch=`26105/44870` 比 threshold 少 `1`，因此没有发布成功
-summary/gate。唯一变化是非 critical `FileSystemListPresetStore` 的 filename-false branch；
-critical below-floor=`0`、N/A=`1`。
+`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
+new Cdiag pending`。formal-r2 deterministic recovery Cdiag
+`9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已 commit/push/clean；fresh r15 在 Unit 的
+`Bean2MapUtilsTest#testCachingMechanism` 单次纳秒倍率断言 fail closed。r15 仅产生 partial
+`26 reports / 124/F1E0S0` 和 `2/48 sessions`；source-after、final sensitive scan、inventory、
+aggregate、observation、candidate、summary/gate 均 absent。
 
-既有 testcase 的不存在 ID 查询已在 5/5 fresh fork 稳定命中缺失 probe，module=
-`104/F0E0S0`；machine 已恢复 `diagnostic-ready/diagnostic-pending`。该状态仍不是 acceptance
-evidence：新 Cdiag、fresh diagnostic、review/Cfreeze/formal 与 final implementation quality 均
-pending；只有这些通过后才允许 coverage audit。
+修复用三个同类、不同 source 实例的精确复制结果替代 cache-hit 墙钟比较，并删除邻接 1000-copy
+的 1000ms 门；无生产/API/POM/runner/floor 变更、无 testcase 增删。focused 10/10 fresh JVM、
+class=`23/F0E0S0`、module=`27/F0E0S0`；machine 保持
+`diagnostic-ready/diagnostic-pending`。正式 pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`；
+该状态仍不是 acceptance evidence：新 Cdiag、fresh diagnostic、review/Cfreeze/formal 与 final implementation quality 均 pending；
+只有这些通过后才允许 coverage audit。
 
 Unit remediation r2 不是 acceptance evidence：
 `step4-unit-fixture-quality-20260716-r2` 在 commit
@@ -386,6 +388,22 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   在 UUID 文件上的未定义遍历顺序；不是漏跑、exec/report 缺失或生产回归；
 - deterministic regression 不改生产、不增 testcase；focused 5/5 命中缺失 probe 106，
   Data Viewer=`104/F0E0S0`；machine state 已恢复 `diagnostic-ready/diagnostic-pending`；
-- 当前只允许完成 pre-Cdiag quality、提交/push 新 Cdiag 并从头执行 fresh diagnostic。
-  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、coverage audit、acceptance 与
-  9.3.5 保持关闭。
+- 该 historical boundary 已完成 Cdiag `9270d2d4…` 并进入 r15；r15 fail-closed 后由下节
+  supersede。`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、coverage audit、
+  acceptance 与 9.3.5 保持关闭。
+
+## Superseding r15 acceptance boundary（2026-07-17）
+
+- formal-r2 recovery Cdiag=`9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已 commit/push/clean；
+  r15=`step4-coverage-20260717-diagnostic-r15` 在 Unit child 以 exit 1 fail closed；
+- failure authority 仅为 immutable `run.log`/`run-status.env`；partial XML=`26 reports /
+  124/F1E0S0`、partial exec=`2/48 sessions`，最终 sensitive scan 与 success-only artifacts
+  未产生，禁止与任何后续 run 拼接；
+- root cause 是已预热 static cache 上的单次 `nanoTime` 倍率 oracle，不是产品缓存回归；
+  deterministic remediation 保持原 testcase cardinality，以同类不同 source 实例复制验证 cache metadata
+  不保存实例数据，同时移除相邻批量测试的墙钟阈值；
+- focused=`10/10` fresh JVM、class=`23/F0E0S0`、module=`27/F0E0S0`；formal pre-Cdiag
+  quality=`PASS / 0/0/0/0`，但不替代完整 Unit replacement、diagnostic、formal 或 Step 4 exit；
+- 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；只允许按
+  new Cdiag commit/push/clean -> fresh diagnostic -> review/Cfreeze -> fresh formal -> final quality
+  推进，Step 5 与 9.3.5 保持关闭。

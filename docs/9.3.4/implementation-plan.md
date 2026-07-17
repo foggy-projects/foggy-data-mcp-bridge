@@ -147,7 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending`。
+`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
+new Cdiag pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -770,7 +771,8 @@ formal-r1 在 Cfreeze `86d505e` 上通过全部执行与证据 lane，随后因
    then test coverage audit，then acceptance signoff。Step 5 stays closed until all Step 4 exit gates pass。
 
 At the r14/Cfreeze snapshot Step 4=`in-progress`，`can_enter_coverage_audit=no`，
-`can_enter_acceptance=no`；the formal-r2 recovery addendum below is current。
+`can_enter_acceptance=no`；the formal-r2 recovery addendum below is a historical snapshot，
+superseded by diagnostic-r15 recovery。
 
 ## Step 4 formal-r2 failure recovery addendum（2026-07-17）
 
@@ -794,12 +796,37 @@ artifact 缺失或生产行为回归。
    Data Viewer module=`104/F0E0S0`，目标类恢复 r14 exact `74/113` bitmap；
 5. [completed] canonical machine trio 恢复为 `diagnostic-ready/diagnostic-pending`，manifest=
    `60/60`，contract 与 successor overlay validator PASS；
-6. [in-progress] 正式 pre-Cdiag implementation quality 已 PASS；一次 commit/push 为新 Cdiag，
-   并证明 clean `HEAD == origin/main`；
-7. [pending] 停止 exact demo DB containers，仅在 evidence window 运行唯一 fresh diagnostic，
-   退出后恢复 exact IDs；通过后重新 candidate/review/direct-child Cfreeze/fresh formal；
+6. [completed] 正式 pre-Cdiag implementation quality PASS；Cdiag `9270d2d4…` commit/push/clean；
+7. [failed-closed] exact demo DB evidence window 中运行 fresh r15，Unit timing oracle 失败；
+   编排会话退出后在 evidence window 外恢复 exact IDs；
 8. [pending] fresh formal PASS 后依次执行最终 implementation quality、coverage audit 与
    acceptance。任一步失败继续 fail closed。
 
-当前 Step 4=`in-progress`，machine=`diagnostic-ready/diagnostic-pending`，
-`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。
+该 historical recovery 已由下方 r15 addendum supersede；Step 5 与 9.3.5 始终保持关闭。
+
+## Step 4 diagnostic-r15 failure recovery addendum（2026-07-17）
+
+formal-r2 recovery Cdiag `9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已
+commit/push/clean；fresh r15 在完整 Unit replacement 的 Bean2Map 单次计时断言处正确
+fail closed。该轮仅有 partial `26 reports / 124/F1E0S0` 和 `2/48 sessions`，不得作为
+diagnostic candidate 或与后续结果拼接。
+
+1. [completed] 封存 r15 run/status/source-before/partial-exec/cleanup 与 success-only artifact
+   absence；明确最终 sensitive scan 未到达，前置 pattern probe 不等于最终扫描；
+2. [completed] 建立 `BUG-934-STEP4-BEAN2MAP-CACHE-TIMING-ORACLE`；确认 static cache 在该方法前
+   已被相同 class 预热，原 first/second/third 均为 cache hit，单次纳秒倍率不能证明缓存正确性；
+3. [completed] 保持两个既有 testcase 与 1000-copy 行为，用三个同类、不同 source 实例的精确复制结果
+   替代计时门；不改 production/API/POM/runner/floor，不增加或删除 testcase；
+4. [completed] 执行 focused 10 个 fresh Maven/JVM/JaCoCo forks、完整 class 和完整 module：
+   `10/10`、`23/F0E0S0`、`27/F0E0S0`；
+5. [completed] 同步 requirement/contract/inventory/responsibility/test/progress/evidence；正式
+   pre-Cdiag implementation quality PASS，B/H/M/L=`0/0/0/0`；
+6. [pending] 只创建一个新的 Cdiag commit/push/clean identity；在 exact demo DB 停止窗口中运行
+   唯一 fresh diagnostic，退出后按 exact container ID 恢复；
+7. [pending] diagnostic PASS 后生成并独立审查 candidate，再形成 direct-child Cfreeze 和 fresh
+   formal；失败则封存并重复 fail-closed recovery，不盲重跑；
+8. [pending] fresh formal PASS 后执行 final implementation quality；仅其 PASS 后进入 coverage
+   audit，再在 audit PASS 后执行 acceptance。Step 5 在 Step 4 exit 前关闭。
+
+当前 machine=`diagnostic-ready/diagnostic-pending`，`can_enter_coverage_audit=no`、
+`can_enter_acceptance=no`；formal pre-Cdiag quality PASS 只放行 new Cdiag/fresh diagnostic。

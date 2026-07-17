@@ -165,6 +165,21 @@ updated_at: 2026-07-17
   new Cdiag -> fresh diagnostic -> candidate/review -> Cfreeze -> fresh formal；
 - test/report ownership 保持 frozen cardinality：无新 `@Test`；focused 5/5 probe 106 hit，
   Data Viewer module=`104/F0E0S0`；all-lane authority 仍必须由 Step 4 runner 重新产生；
-- 当前 Step 4=`in-progress / formal-r2 immutable fail-closed / deterministic repair verified /
+- 当前 Step 4=`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
   new Cdiag pending`，machine=`diagnostic-ready/diagnostic-pending`；
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与后续 gate 不得提前。
+
+## Superseding diagnostic-r15 ownership boundary（2026-07-17）
+
+- `foggy-bean-copy` test owner 只负责修改
+  `Bean2MapUtilsTest#testCachingMechanism` 与 `testPerformanceWithManyObjects` 的 test oracle：
+  删除环境敏感单次计时门，保留重复/批量复制 correctness；
+- `Bean2MapUtils` production cache、public API、POM、coverage runner/floor/critical/exclusion 均
+  不属于本次修复范围；不新增反射耦合、test seam 或 benchmark 到 Surefire correctness lane；
+- Step 4 evidence owner 负责封存 r15 partial `124/F1E0S0`、`2/48 sessions`、最终 sensitive scan
+  与 success-only artifact absence，并禁止跨 run 拼接；
+- test/report owner 保持 frozen cardinality：无 `@Test` 增删；focused 10/10、class 23、module 27
+  均 F0E0S0 只证明 remediation，不替代 all-lane authority；
+- Step 4 coverage owner 已完成 r15 recovery quality `PASS / 0/0/0/0`；当前按 new Cdiag ->
+  fresh diagnostic -> candidate/review -> Cfreeze -> fresh formal -> final quality 推进；machine=
+  `diagnostic-ready/diagnostic-pending`，Step 5、coverage audit、acceptance 与 9.3.5 不得提前。
