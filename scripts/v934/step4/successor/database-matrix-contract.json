@@ -2,7 +2,7 @@
   "bindings": {
     "authority_hash_manifest": {
       "path": "scripts/v934/step4/successor/database-authority-SHA256SUMS",
-      "sha256": "a8e68d52faab4228d95d9e4782b14df681ef5807905d7ca54577bfd0e5a475a7"
+      "sha256": "2edb840a9926b6777f16e66e4fb6141f2a06a15cdedf693ebd2ee1a079a23577"
     },
     "database_contract": {
       "path": "scripts/v934/database-contract.tsv",

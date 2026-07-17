@@ -84,13 +84,16 @@ coverage regression 与线程调度波动，也无法让 formal authority 可复
 - [x] focused 5/5 fresh Maven/JVM fork PASS；`QueryModelSupport` class id=
   `d242dafe9de31249`、`34/629 probes`、packed bitmap unique=`1`；Runtime API module=
   `128/F0E0S0`，successor protected overlay 前后 PASS。
-- [x] machine 恢复 `diagnostic-ready/diagnostic-pending`；contract/threshold/manifest SHA-256=
-  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0` /
-  `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96` /
-  `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60`。
+- [x] machine 恢复 `diagnostic-ready/diagnostic-pending`；formal-r3 recovery 时点的 exact
+  hashes 只作为历史 pre-Cdiag snapshot，不再冒充 current identity。
 - [x] pre-Cdiag formal implementation quality PASS，B/H/M/L=`0/0/0/0`；记录：
   `docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`。
-- [ ] 形成新的 Cdiag commit/push/clean identity。
+- [x] Cdiag `316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，并被 fresh r17
+  消耗；r17 因无关的 Unit MySQL final-server handoff infrastructure race 在 Maven/coverage 前
+  fail closed，不能证明本 BUG 的 all-lane remediation。
+- [x] handoff remediation pre-Cdiag formal quality=`PASS / 0/0/0/0`；记录：
+  `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`。
+- [ ] 形成 replacement Cdiag commit/push/clean identity。
 - [ ] fresh diagnostic 全 lane PASS，aggregate exact 不低于 `54624/76830 line, 26111/44870 branch`。
 - [ ] threshold candidate/review PASS，direct-child Cfreeze commit/push。
 - [ ] fresh formal PASS，随后完成最终 implementation quality、coverage audit 与 acceptance。
@@ -99,7 +102,8 @@ coverage regression 与线程调度波动，也无法让 formal authority 可复
 
 本 BUG 当前保持 `in-progress`。只有 deterministic regression、fresh diagnostic、review 和 fresh formal
 authority 全部通过后才能关闭；任何 focused 或单次绿色都不构成关闭条件。formal-r3 永久保留为 immutable
-failed evidence，不复用、不修补。
+failed evidence，不复用、不修补；r17 同样永久 excluded，且不能把无关基础设施先失败解释为
+QueryModel all-lane PASS 或 FAIL。
 
 ## References
 
@@ -110,4 +114,7 @@ failed evidence，不复用、不修补。
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-pass-20260717.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-formal-r3-query-model-join-graph-double-check-race-fail-closed-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r17-unit-mysql57-final-mysqld-handoff-fail-closed-20260717.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-mysql57-final-mysqld-handoff-readiness-race.md`
+- `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`
 - `docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`

@@ -330,12 +330,30 @@ updated_at: 2026-07-17
   `RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。formal-r3 recovery pre-Cdiag
   implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，machine/contract/overlay/
   negative suites 通过；fresh all-lane diagnostic 尚未完成。
-- machine 已恢复 threshold=`diagnostic-pending` / contract=`diagnostic-ready`；SHA-256
-  分别为 `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96` /
-  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，manifest=
-  `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60` / `60/60`。
-  新 Cdiag、diagnostic、review、Cfreeze、formal、final quality、coverage audit 与
-  acceptance 均 pending；Step 4 仍 `in-progress`，Step 5 保持关闭。
+- formal-r3 recovery 当时已把 machine 恢复为 threshold=`diagnostic-pending` / contract=
+  `diagnostic-ready`；该时点的旧 manifest 仅是历史 pre-Cdiag 快照，不再作为 current identity。
+- superseding Cdiag=`316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，并被 fresh
+  diagnostic r17=`step4-coverage-20260717-diagnostic-r17` 消耗。r17 在 outer
+  `child-unit / exit 1`、Unit `unit-mysql57-lifecycle-negative / exit 1` immutable fail closed；
+  callback 尚未 ready，canonical lifecycle receipt、fixture/Unit XML、exec、source-after、
+  aggregate、observation、summary、candidate/final 等 success-only artifact 均 absent。r17 永久
+  `excluded/non-reusable`，不得 freeze，也不能证明 QueryModel DCL remediation 已通过 all-lane。
+- r17 根因由 runtime RED 直接证明：stock ping 在 PID1 仍为 `docker-entrypoi` 时已 premature
+  healthy。Step 4 authority Compose 现对 MySQL57/8 同时要求 PID1=`mysqld` 与原 ping；两库
+  runtime GREEN 均证明首次 healthy 即 final mysqld。修复后旧字节三轮 lifecycle=`15/15`，
+  后续加固字节 lifecycle=`5/5`、receipt `159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`
+  保留为 penultimate focused evidence；最新加固字节 r2=
+  `step4-unit-lifecycle-handoff-current-20260717-r2` 已 `5/5` PASS，receipt SHA-256=
+  `e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`。所有成功 probe 的
+  `provisioner.log` absent，run-owned residue=`0/0/0`，demo exact restore=
+  `runner_rc=0/restore_rc=0` 且 healthy/listening。静态 overlay=`12/12`、Unit negatives=`36/36`、coverage negatives=
+  `27 + source/Git 22 + replay 12` PASS。
+- 当前 machine 仍为 `diagnostic-ready/diagnostic-pending`。完整 Unit 只能由新的 clean/pushed
+  replacement Cdiag 上 fresh diagnostic 证明，当前不得声称 full Unit PASS。pre-Cdiag formal
+  implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，record=
+  `quality/step4-diagnostic-r17-recovery-implementation-quality.md`；只授权 replacement Cdiag
+  commit/push/clean 与 fresh diagnostic，不授权 candidate/review/Cfreeze/formal、final quality、
+  coverage audit 或 acceptance。Step 4 仍 `in-progress`，Step 5 保持关闭。
 
 ## 执行资料
 
@@ -428,6 +446,12 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-formal-r3-query-model-join-graph-double-check-race-fail-closed-20260717.md](evidence/step-4/step4-coverage-formal-r3-query-model-join-graph-double-check-race-fail-closed-20260717.md)
 - Step 4 formal-r3 recovery pre-Cdiag implementation quality：
   [quality/step4-formal-r3-recovery-implementation-quality.md](quality/step4-formal-r3-recovery-implementation-quality.md)
+- Step 4 diagnostic r17 final-mysqld handoff failed evidence：
+  [evidence/step-4/step4-coverage-diagnostic-r17-unit-mysql57-final-mysqld-handoff-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r17-unit-mysql57-final-mysqld-handoff-fail-closed-20260717.md)
+- Step 4 Unit final-mysqld handoff readiness regression：
+  [workitems/BUG-step4-unit-mysql57-final-mysqld-handoff-readiness-race.md](workitems/BUG-step4-unit-mysql57-final-mysqld-handoff-readiness-race.md)
+- Step 4 diagnostic r17 recovery pre-Cdiag implementation quality：
+  [quality/step4-diagnostic-r17-recovery-implementation-quality.md](quality/step4-diagnostic-r17-recovery-implementation-quality.md)
 - Step 4 r14 Cfreeze implementation quality：
   [quality/step4-r14-cfreeze-implementation-quality.md](quality/step4-r14-cfreeze-implementation-quality.md)
 - Step 4 diagnostic r14 successful observation：
@@ -494,7 +518,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS | Cfreeze `a63c82c5…` 已 push；formal-r3 全 lane 后以 branch `26110/44870 < 26111/44870` fail closed，line exact；唯一差异为 `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL 调度 outcome。受控回归 targeted/overlay + 5/5 fresh fork PASS，`foggy-runtime-api=128/F0E0S0`、目标 class=`5/F0E0S0`；pre-Cdiag quality PASS `0/0/0/0`，machine/contract/overlay/negative suites 通过，machine=`diagnostic-ready/diagnostic-pending` / manifest `60/60`；new Cdiag commit/push/clean、fresh diagnostic/review/Cfreeze/formal 及 final quality/audit/signoff pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / diagnostic-r17 fail-closed / pre-Cdiag quality PASS | Cdiag `316a71f7…` 已被 r17 消耗；r17 在 outer `child-unit/1`、Unit `unit-mysql57-lifecycle-negative/1` immutable fail closed，success-only artifacts absent，永久 excluded/non-reusable。authority MySQL57/8 final-PID1 修复两库 GREEN；旧字节 lifecycle `15/15`，current-byte r2 `5/5`（receipt `e3bad41a…`），成功日志 absent、exact restore `0/0` 且 healthy/listening；overlay `12/12`、Unit `36/36`、coverage `27+22+12` PASS。pre-Cdiag formal quality PASS `0/0/0/0`，machine=`diagnostic-ready/diagnostic-pending`；只授权 replacement Cdiag commit/push/clean + fresh diagnostic；不得声称 full Unit/Step 4 PASS，`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

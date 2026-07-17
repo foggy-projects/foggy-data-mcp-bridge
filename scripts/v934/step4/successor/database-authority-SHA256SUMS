@@ -1,6 +1,6 @@
 ee05cfa9c6031e67e756332e82c5765ff293589cc610f135b2f3f124e0940407  foggy-bean-copy/pom.xml
 2cf98d333cc446d0949c83c8546093cda04f654bc92bdc39a27fe39b0393e536  foggy-core/pom.xml
-2330126a3e80b436b606c8961be59594eaf032a87ea0c7a3e227466ac72f746f  foggy-dataset-demo/docker/docker-compose-v934-authority.yml
+4c33389b31ab2190b8dac5b91ba80760f9efcad6f886618e040ffb733923492d  foggy-dataset-demo/docker/docker-compose-v934-authority.yml
 c54e1a3f5b758aaf53062ebef6b03b4d16e5900c4119e55426aaddc44bc6ea3c  foggy-dataset-demo/docker/docker-compose-v934.yml
 919a573c15515203e77bb0bb079a4f861567c6b1c3cce02066f3f2e633d1e2d5  foggy-dataset-demo/docker/docker-compose.yml
 51f5322a3674069b2c0eef39d621be4e382f8c6759258c974a66427b03b4c193  foggy-dataset-demo/docker/mysql/conf/my.cnf

@@ -854,3 +854,49 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 6. fresh formal PASS 后仍必须按 final implementation quality -> coverage audit -> acceptance
    顺序执行。当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 4
    `in-progress`，Step 5 closed。
+
+## Superseding diagnostic-r17 final-mysqld handoff readiness contract（2026-07-17）
+
+1. replacement Cdiag=`316a71f753827f8f34063b0eb0669271f696c5ee` 上的 fresh diagnostic
+   `step4-coverage-20260717-diagnostic-r17` 是 immutable failed authority：它在
+   `child-unit` 的第三个 MySQL 5.7 lifecycle probe 中、callback ready 前以
+   `E_LIFECYCLE` fail closed。该轮未产生 Unit XML/exec、source-after、aggregate、
+   observation、candidate 或 final summary，必须 excluded/non-reusable；cleanup-only JSON
+   不得解释成 fixture/lifecycle PASS，也不得与后续 run 拼接；
+2. RED runtime observation 已证明 stock `mysqladmin ping` 会在 MySQL entrypoint 的临时
+   initialization server 阶段提前报告 healthy。自本节起，Step 4 successor authority Compose
+   中 MySQL 5.7 与 MySQL 8 的 readiness 必须同时满足 PID 1 `/proc/1/comm` 精确为
+   `mysqld` 和各自原有 `mysqladmin ping`；两条件必须在同一 healthcheck 成功。该 amendment
+   只约束 run-owned Step 4 authority，不修改 frozen Step 3 provisioner；
+3. PID 1 handoff guard 只是 provisioner callback 的前置条件。其后既有 business identity、
+   schema/sentinel 与四个 `preagg_watermark` 校验必须原样执行，禁止以延长 sleep、只看端口、
+   降低 identity/watermark 条件或借用 ambient DB 替代；
+4. lifecycle provisioner 的 combined stdout/stderr 只允许写入 probe run root 内 no-clobber、
+   mode `0600` 的 failure-only diagnostics。受控 failure 必须保留原 typed `FixtureError` code
+   （例如 lifecycle=`E_LIFECYCLE`、cleanup=`E_CLEANUP`）并携带 diagnostics path；成功日志只能
+   在进程已达到 expected terminal state、
+   finalizer/cleanup 全部完成后删除。failure log 不自动成为发布证据，正式引用或归档前必须
+   通过 sensitive scan；
+5. runtime GREEN 已分别证明 MySQL 5.7/MySQL 8 首次 healthy 时 PID 1=`mysqld`。修复旧字节
+   lifecycle 共 `15/15` PASS；penultimate current-byte `5/5` receipt SHA-256=
+   `159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`。最终 current-byte
+   run=`step4-unit-lifecycle-handoff-current-20260717-r2` 在 fixture tool SHA-256=
+   `9be62daaf7a3d2d873c7647078c0bf798ab25c491a163e90960d4143965be5be` 上完成 `5/5`，
+   receipt SHA-256=`e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`；
+   successful probe 的 `provisioner.log` 全部 absent，demo restore=`runner_rc=0 /
+   restore_rc=0` 且四库 healthy/listening；
+6. successor overlay negatives=`12/12`、Unit fixture negatives=`36/36`、coverage contract
+   negatives=`27`、source/Git negatives=`22`、replay negatives=`12`。这些 focused/static
+   结果只证明 remediation contract，不替代 clean-source 全量 Unit 或 diagnostic authority；
+7. dirty worktree 上尝试的 full Unit 在 source seal 预检即被 untracked files fail closed，未执行
+   Maven，因此不得记录为 Unit PASS 或 product failure。pre-Cdiag formal implementation
+   quality 已 `PASS / B/H/M/L=0/0/0/0`，记录=
+   `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；该 PASS 只授权
+   创建并 push 唯一 replacement clean Cdiag，再由 fresh diagnostic 从 lifecycle、full Unit
+   到 aggregate 完整证明；
+8. 本修复不得修改 production/public API、test/report cardinality、coverage floor、critical set、
+   threshold 或 exclusion。canonical machine 保持 `diagnostic-ready/diagnostic-pending`；
+   当前只授权 one replacement Cdiag commit/push/clean + fresh diagnostic；candidate/review、
+   direct-child Cfreeze 与 fresh formal 均 pending。fresh formal PASS 后仍必须按 final
+   implementation quality -> coverage audit -> acceptance/signoff 顺序执行；当前 full Unit
+   authority、Step 4、Step 5、audit、acceptance 与 9.3.5 均关闭。

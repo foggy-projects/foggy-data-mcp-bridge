@@ -339,9 +339,8 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS /
-  new Cdiag pending`，不是
-  `passed`；
+- state：`in-progress / diagnostic-r17 Unit lifecycle fail-closed / final-mysqld handoff
+  remediation focused PASS / pre-Cdiag formal quality PASS / replacement Cdiag pending`，不是 `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
@@ -802,10 +801,47 @@ code_inventory:
   pre-Cdiag quality=`PASS / 0/0/0/0`，machine/contract/overlay/negative suites 通过；
   record=`docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`。all-lane
   diagnostic 仍 pending，不得作为 Step 4 exit evidence；
-- reset machine inventory：contract=`diagnostic-ready` / SHA-256=
-  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，threshold=
-  `diagnostic-pending` / SHA-256=
-  `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`，manifest
-  SHA-256=`cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60` / `60/60`；
-- new Cdiag、diagnostic、review、Cfreeze、formal 与后置 quality/audit/signoff 全 pending；
-  Step 4 `in-progress`，Step 5 closed。
+- reset machine inventory：contract=`diagnostic-ready`、threshold=`diagnostic-pending`；该轮
+  manifest identity 只属于 formal-r3 recovery 的历史 pre-Cdiag snapshot，不是 current identity；
+- 该 historical boundary 随后建立 Cdiag `316a71f753827f8f34063b0eb0669271f696c5ee`，并被
+  diagnostic-r17 消耗；current boundary 见下一节。Step 4 `in-progress`，Step 5 closed。
+
+### Superseding diagnostic-r17 / final-mysqld handoff remediation inventory
+
+- consumed Cdiag=`316a71f753827f8f34063b0eb0669271f696c5ee`；fresh run=
+  `step4-coverage-20260717-diagnostic-r17`。outer 在 `child-unit / exit 1`、Unit 在
+  `unit-mysql57-lifecycle-negative / exit 1` immutable fail closed；r17 永久
+  `excluded/non-reusable`，canonical lifecycle receipt、fixture/Unit XML、exec、source-after、
+  aggregate、observation、summary、candidate/final success-only artifact 均 absent；
+- exact failed child=`unit-mysql57-49a76dbc70c3bd98`，phase=`fixture-first-apply / exit 1`，
+  callback-ready 与 fixture-first receipt absent；r17 run log 中两个 passed JSON 仅是 EXIT-trap
+  cleanup receipts，不是 lifecycle 或正常 fixture PASS；outer/run-owned cleanup=`0/0/0`，四个
+  demo database container 精确恢复；
+- confirmed RED inventory：unfixed stock ping 在 samples `15..40` 已报告 healthy，而
+  `/proc/1/comm=docker-entrypoi`；sample `41` 才为 healthy/final `mysqld`。该证据证明 health
+  与 final-server handoff 之间存在窗口，不是通过重复运行推断；
+- remediation code inventory：
+  `foggy-dataset-demo/docker/docker-compose-v934-authority.yml` 作为 Step 4 declared amendment，
+  MySQL57/8 healthcheck 均增加 PID1 exact `mysqld` 并保留原 ping；冻结 Step 3 provisioner
+  不改。`scripts/v934/step4/unit_mysql_fixture_tool.py` 为每个 lifecycle probe 使用 run-owned、
+  no-clobber、failure-retained combined diagnostics，成功后删除，不改变成功 receipt schema；
+  successor declared amendment/overlay/database authority/required contracts 与各层 manifest 同步封印；
+- runtime GREEN inventory：MySQL57 与 MySQL8 都在首次 healthy 时即为 PID1=`mysqld`，
+  premature healthy=`0`；修复后旧工具字节三轮 lifecycle=`15/15`。penultimate 加固字节 focused
+  `5/5` receipt=
+  `159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`；最新加固字节 r2=
+  `step4-unit-lifecycle-handoff-current-20260717-r2` 已 `5/5` PASS，receipt SHA-256=
+  `e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`，所有成功
+  `provisioner.log` absent、run-owned residue=`0/0/0`，demo exact restore=
+  `runner_rc=0/restore_rc=0` 且 healthy/listening；
+- static verification inventory：successor overlay negatives=`12/12`、Unit fixture negatives=
+  `36/36`、coverage contract negatives=`27 + source/Git 22 + frozen replay 12`，全部 PASS；machine
+  保持 `diagnostic-ready/diagnostic-pending`；
+- pre-Cdiag formal implementation quality：PASS，B/H/M/L=`0/0/0/0`，record=
+  `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；只授权
+  replacement Cdiag commit/push/clean 与 fresh diagnostic，不授权 full Unit/Step 4 exit 或任何
+  downstream gate；
+- 完整 Unit replacement=`681+55/4941/F0E0S0` 尚未由当前 remediation 后的 clean authority
+  证明，不能从 focused lifecycle 推断。下一许可链为 replacement Cdiag commit/push/clean -> fresh diagnostic ->
+  candidate/review -> direct-child Cfreeze -> fresh formal -> final quality -> coverage audit ->
+  acceptance；当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 closed。

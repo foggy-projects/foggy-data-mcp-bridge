@@ -116,6 +116,13 @@ excluded run，不能据此关闭本 BUG。r7 又在更早的 Unit hidden MySQL 
 contract drift fail closed。r9 随后已完成 database/state/required-report 动态证明；仍须 fresh
 formal 后才能关闭。
 
+r17 recovery 又为 run-owned authority Compose 增加 successor declared amendment，并同步
+database authority manifest、database/required successor contracts、overlay contract/tool 与 top
+exact manifest；MySQL57/8 health 现在同时要求 final PID1=`mysqld` 与原 ping，冻结 Step 3 字节
+保持不变。该 amendment/hash chain 的 positive 与 overlay negative=`12/12` 已封印，但 r17 自身在
+Unit child 提前失败，未进入 database lane，不能用来追加或关闭本 BUG 的 dynamic proof。必须由
+clean/pushed replacement Cdiag fresh diagnostic 重新验证同一 successor state binding。
+
 ## Fix Checklist
 
 - [x] 封存 r5 immutable failure、partial lanes 与 residue evidence。
@@ -134,6 +141,11 @@ formal 后才能关闭。
 - [x] fresh r8 已启动，但在所有 lane 前因独立 lifecycle contract drift fail closed/excluded。
 - [x] fresh r9 已通过 database `29/370`、state negatives=`18/18`、Step 3 required
       `45/446` 与 Step 4 report inventory；其后在无关 exec identity scope 上 fail closed。
+- [x] r17 handoff remediation 的 authority Compose amendment 与 successor database/required
+      manifest chain 已同步封印；r17 未到 database lane，不计为 dynamic PASS。
+- [x] r17 recovery pre-Cdiag formal quality=`PASS / 0/0/0/0`；只授权 replacement
+      Cdiag/fresh diagnostic，不等于 database dynamic PASS。
+- [ ] replacement Cdiag fresh diagnostic 重新进入并通过 database/state/required-report chain。
 - [ ] fresh formal 证明同一 successor state binding 后关闭 BUG。
 
 ## References
@@ -144,6 +156,9 @@ formal 后才能关闭。
 - `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r7-unit-hidden-mysql-fail-closed-20260716.md`
 - `docs/9.3.4/workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r17-unit-mysql57-final-mysqld-handoff-fail-closed-20260717.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-mysql57-final-mysqld-handoff-readiness-race.md`
+- `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`
 - `scripts/v934/step4/successor/database_state_negative_tool.py`
 - `scripts/v934/step4/successor/step3_required_report_tool.py`
 - `scripts/verify-v934-database-matrix.sh`

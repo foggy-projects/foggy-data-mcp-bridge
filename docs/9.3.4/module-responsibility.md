@@ -230,3 +230,43 @@ updated_at: 2026-07-17
   candidate/review -> direct-child Cfreeze -> fresh formal；后置 gate owner 只能在 fresh formal
   PASS 后按 final quality -> coverage audit -> acceptance 顺序接手；
 - 当前 Step 4 `in-progress`，Step 5/9.3.5 owner 无开工授权。
+
+## Superseding diagnostic-r17 final-mysqld handoff ownership boundary（2026-07-17）
+
+- Step 4 evidence owner 负责封存 Cdiag
+  `316a71f753827f8f34063b0eb0669271f696c5ee` 上的 r17 child-unit immutable failure，明确
+  cleanup-only receipt 不是 fixture PASS，并保持 Unit XML/exec、source-after、aggregate、
+  observation、candidate/summary absent；r17 excluded/non-reusable；
+- `foggy-dataset-demo/docker` successor authority Compose owner 只负责 MySQL 5.7/MySQL 8
+  final-server readiness amendment：PID 1 `/proc/1/comm` 必须精确为 `mysqld`，且原
+  `mysqladmin ping` 同时成功。frozen Step 3 provisioner、production deployment 与其他 DB
+  authority 不属于本次改动；
+- Step 4 fixture owner 继续负责 health 后的 business identity、schema/sentinel、四个
+  `preagg_watermark` 和 run-owned cleanup；final-mysqld guard 不得降低这些条件，也不得以
+  sleep、port-open 或 ambient listener 代替；
+- lifecycle tooling owner 负责 probe-local failure diagnostics：no-clobber、mode `0600`，
+  controlled failure 保留原 typed `FixtureError` code（如 `E_LIFECYCLE`/`E_CLEANUP`）并携带
+  diagnostics path；成功日志只能在 expected terminal state 和 final
+  cleanup 后删除。evidence owner 在正式引用 failure log 前负责 sensitive scan；
+- runtime verification owner 已完成 MySQL 5.7/MySQL 8 GREEN、修复旧字节 lifecycle
+  `15/15`；penultimate current-byte `5/5` receipt SHA-256=
+  `159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`。最终 current-byte
+  `step4-unit-lifecycle-handoff-current-20260717-r2` 在 fixture tool SHA-256=
+  `9be62daaf7a3d2d873c7647078c0bf798ab25c491a163e90960d4143965be5be` 上完成 `5/5`，receipt
+  SHA-256=`e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`；successful
+  `provisioner.log` absent，demo restore=`0/0` 且四库 healthy/listening。contract owner 已完成
+  overlay=`12/12`、Unit=`36/36`、coverage=`27`、
+  source/Git=`22`、replay=`12` negatives；这些均不替代 clean-source all-lane authority；
+- implementation-quality owner 已完成 pre-Cdiag formal gate，结论=
+  `PASS / B/H/M/L=0/0/0/0`，记录=
+  `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`。该 PASS 只授权
+  machine/commit owner 创建并 push 唯一 replacement clean Cdiag，再运行一个 fresh
+  diagnostic；dirty worktree full Unit 在 source seal 预检失败、未执行 Maven，不属于 Unit
+  PASS/FAIL 行为结论；
+- Step 4 coverage owner 随后按 fresh diagnostic -> candidate/review -> direct-child Cfreeze ->
+  fresh formal 推进；post-formal owner 只能再按 final implementation quality -> coverage audit
+  -> acceptance/signoff 接手。不得改变 test/report cardinality、production/public API、coverage
+  floor、critical set、threshold 或 exclusion；
+- 当前 machine=`diagnostic-ready/diagnostic-pending`，Step 4=`in-progress`。pre-Cdiag formal
+  quality 已 PASS；replacement Cdiag/fresh diagnostic pending，且仅这两个动作已获授权。full
+  Unit authority、Step 5、audit、acceptance、9.3.5 owner 仍无开工授权。

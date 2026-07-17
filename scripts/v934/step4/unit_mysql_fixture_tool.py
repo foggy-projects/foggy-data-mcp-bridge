@@ -1218,17 +1218,19 @@ def lifecycle_probe_run_id(base_run_id: str, probe: str) -> str:
     return f"unit-lifecycle-{scope}"
 
 
-def prepare_lifecycle_probe(root: Path, run_id: str) -> tuple[str, Path]:
+def prepare_lifecycle_probe(root: Path, run_id: str) -> tuple[str, Path, Path]:
     child_id = fixture_run_id(run_id)
     run_root = root / "target/v934-step3-database-matrix/runs" / child_id
     require(not run_root.exists() and not run_root.is_symlink(), "E_OUTPUT", f"lifecycle run root already exists: {run_root}")
     (run_root / "cells").mkdir(parents=True)
     real_directory(run_root / "cells", "E_OUTPUT")
-    return child_id, run_root / "cells/mysql57"
+    return child_id, run_root / "cells/mysql57", run_root / "provisioner.log"
 
 
-def start_lifecycle_provisioner(root: Path, run_id: str, callback_command: str) -> tuple[subprocess.Popen[bytes], str, Path]:
-    child_id, cell = prepare_lifecycle_probe(root, run_id)
+def start_lifecycle_provisioner(
+    root: Path, run_id: str, callback_command: str
+) -> tuple[subprocess.Popen[bytes], str, Path, Path]:
+    child_id, cell, log_path = prepare_lifecycle_probe(root, run_id)
     ready = lifecycle_ready_path(root, child_id)
     arguments = [
         str(root / PROVISIONER_PATH), "run", DATABASE, child_id, str(cell), "--",
@@ -1241,28 +1243,77 @@ def start_lifecycle_provisioner(root: Path, run_id: str, callback_command: str) 
         environment.pop(key, None)
     environment["V934_AUTHORITY_LOCK_MODE"] = "standalone"
     try:
-        process = subprocess.Popen(
-            arguments,
-            cwd=root,
-            env=environment,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        # Keep the child provisioner's exact diagnostics even when it exits
+        # before the callback can publish readiness.  The no-clobber log lives
+        # beside the run-owned cell and survives Docker resource cleanup.
+        with open(
+            log_path,
+            "xb",
+            opener=lambda path, flags: os.open(path, flags, 0o600),
+        ) as log_stream:
+            require(
+                stat.S_IMODE(os.fstat(log_stream.fileno()).st_mode) == 0o600,
+                "E_LIFECYCLE",
+                f"lifecycle diagnostics permissions differ; diagnostics={log_path}",
+            )
+            process = subprocess.Popen(
+                arguments,
+                cwd=root,
+                env=environment,
+                stdout=log_stream,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
     except OSError as exc:
-        reject("E_LIFECYCLE", f"cannot launch lifecycle provisioner: {exc.__class__.__name__}")
-    return process, child_id, ready
+        reject(
+            "E_LIFECYCLE",
+            f"cannot launch lifecycle provisioner: {exc.__class__.__name__}; diagnostics={log_path}",
+        )
+    return process, child_id, ready, log_path
 
 
-def wait_lifecycle_ready(process: subprocess.Popen[bytes], ready: Path, timeout_seconds: int = 180) -> None:
+def wait_lifecycle_ready(
+    process: subprocess.Popen[bytes], ready: Path, log_path: Path, timeout_seconds: int = 180
+) -> None:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if ready.is_file() and not ready.is_symlink():
             return
         code = process.poll()
-        require(code is None, "E_LIFECYCLE", f"lifecycle provisioner exited before callback ready: {code}")
+        require(
+            code is None,
+            "E_LIFECYCLE",
+            f"lifecycle provisioner exited before callback ready: {code}; diagnostics={log_path}",
+        )
         time.sleep(0.25)
-    reject("E_LIFECYCLE", "lifecycle callback readiness timed out")
+    reject("E_LIFECYCLE", f"lifecycle callback readiness timed out; diagnostics={log_path}")
+
+
+def lifecycle_error_with_diagnostics(error: FixtureError, log_path: Path | None) -> FixtureError:
+    if log_path is None or "diagnostics=" in str(error):
+        return error
+    prefix = f"{error.code}: "
+    detail = str(error)
+    if detail.startswith(prefix):
+        detail = detail[len(prefix):]
+    return FixtureError(error.code, f"{detail}; diagnostics={log_path}")
+
+
+def discard_successful_lifecycle_log(log_path: Path) -> None:
+    try:
+        regular_file(log_path, "E_LIFECYCLE")
+    except FixtureError as exc:
+        enriched = lifecycle_error_with_diagnostics(exc, log_path)
+        if enriched is exc:
+            raise
+        raise enriched from exc
+    try:
+        log_path.unlink()
+    except OSError as exc:
+        reject(
+            "E_LIFECYCLE",
+            f"cannot remove successful lifecycle diagnostics: {exc.__class__.__name__}; diagnostics={log_path}",
+        )
 
 
 def normalized_exit_code(return_code: int) -> int:
@@ -1301,48 +1352,93 @@ def command_lifecycle_negative(args: argparse.Namespace) -> None:
         run_id = lifecycle_probe_run_id(base_run_id, probe)
         process: subprocess.Popen[bytes] | None = None
         child_id = ""
+        log_path: Path | None = None
         try:
-            process, child_id, ready = start_lifecycle_provisioner(root, run_id, "wait-callback")
-            wait_lifecycle_ready(process, ready)
-            os.killpg(process.pid, signal_number)
             try:
-                return_code = process.wait(timeout=90)
-            except subprocess.TimeoutExpired:
-                reject("E_LIFECYCLE", f"probe {probe} did not exit after signal")
-            state = wait_cleanup_state(child_id)
-            rows.append(lifecycle_row(probe, expected_exit, normalized_exit_code(return_code), state))
-        finally:
-            if process is not None and child_id:
-                finalize_lifecycle_process(process, child_id)
+                process, child_id, ready, log_path = start_lifecycle_provisioner(root, run_id, "wait-callback")
+                wait_lifecycle_ready(process, ready, log_path)
+                os.killpg(process.pid, signal_number)
+                try:
+                    return_code = process.wait(timeout=90)
+                except subprocess.TimeoutExpired:
+                    reject("E_LIFECYCLE", f"probe {probe} did not exit after signal")
+                state = wait_cleanup_state(child_id)
+                rows.append(lifecycle_row(probe, expected_exit, normalized_exit_code(return_code), state))
+            finally:
+                if process is not None and child_id:
+                    finalize_lifecycle_process(process, child_id)
+        except FixtureError as exc:
+            enriched = lifecycle_error_with_diagnostics(exc, log_path)
+            if enriched is exc:
+                raise
+            raise enriched from exc
+        except OSError as exc:
+            reject(
+                "E_LIFECYCLE",
+                f"probe {probe} process operation failed: {exc.__class__.__name__}; diagnostics={log_path}",
+            )
+        require(log_path is not None, "E_LIFECYCLE", f"probe {probe} diagnostics path is absent")
+        discard_successful_lifecycle_log(log_path)
 
     failure_run = lifecycle_probe_run_id(base_run_id, "callback-failure")
     process = None
     child_id = ""
+    log_path = None
     try:
-        process, child_id, ready = start_lifecycle_provisioner(root, failure_run, "fail-callback")
-        wait_lifecycle_ready(process, ready)
         try:
-            return_code = process.wait(timeout=90)
-        except subprocess.TimeoutExpired:
-            reject("E_LIFECYCLE", "callback-failure probe timed out")
-        rows.append(lifecycle_row("callback-failure", 17, normalized_exit_code(return_code), wait_cleanup_state(child_id)))
-    finally:
-        if process is not None and child_id:
-            finalize_lifecycle_process(process, child_id)
+            process, child_id, ready, log_path = start_lifecycle_provisioner(root, failure_run, "fail-callback")
+            wait_lifecycle_ready(process, ready, log_path)
+            try:
+                return_code = process.wait(timeout=90)
+            except subprocess.TimeoutExpired:
+                reject("E_LIFECYCLE", "callback-failure probe timed out")
+            rows.append(lifecycle_row("callback-failure", 17, normalized_exit_code(return_code), wait_cleanup_state(child_id)))
+        finally:
+            if process is not None and child_id:
+                finalize_lifecycle_process(process, child_id)
+    except FixtureError as exc:
+        enriched = lifecycle_error_with_diagnostics(exc, log_path)
+        if enriched is exc:
+            raise
+        raise enriched from exc
+    except OSError as exc:
+        reject(
+            "E_LIFECYCLE",
+            f"callback-failure process operation failed: {exc.__class__.__name__}; diagnostics={log_path}",
+        )
+    require(log_path is not None, "E_LIFECYCLE", "callback-failure diagnostics path is absent")
+    discard_successful_lifecycle_log(log_path)
 
     kill_run = lifecycle_probe_run_id(base_run_id, "leader-kill-fallback")
     process = None
     child_id = ""
+    log_path = None
     try:
-        process, child_id, ready = start_lifecycle_provisioner(root, kill_run, "wait-callback")
-        wait_lifecycle_ready(process, ready)
-        os.killpg(process.pid, signal.SIGKILL)
-        return_code = process.wait(timeout=30)
-        cleanup_owned_resources(child_id)
-        rows.append(lifecycle_row("leader-kill-fallback", 137, normalized_exit_code(return_code), wait_cleanup_state(child_id)))
-    finally:
-        if process is not None and child_id:
-            finalize_lifecycle_process(process, child_id)
+        try:
+            process, child_id, ready, log_path = start_lifecycle_provisioner(root, kill_run, "wait-callback")
+            wait_lifecycle_ready(process, ready, log_path)
+            os.killpg(process.pid, signal.SIGKILL)
+            try:
+                return_code = process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                reject("E_LIFECYCLE", "leader-kill probe timed out")
+            cleanup_owned_resources(child_id)
+            rows.append(lifecycle_row("leader-kill-fallback", 137, normalized_exit_code(return_code), wait_cleanup_state(child_id)))
+        finally:
+            if process is not None and child_id:
+                finalize_lifecycle_process(process, child_id)
+    except FixtureError as exc:
+        enriched = lifecycle_error_with_diagnostics(exc, log_path)
+        if enriched is exc:
+            raise
+        raise enriched from exc
+    except OSError as exc:
+        reject(
+            "E_LIFECYCLE",
+            f"leader-kill process operation failed: {exc.__class__.__name__}; diagnostics={log_path}",
+        )
+    require(log_path is not None, "E_LIFECYCLE", "leader-kill diagnostics path is absent")
+    discard_successful_lifecycle_log(log_path)
 
     payload = {
         "schema_version": 1,

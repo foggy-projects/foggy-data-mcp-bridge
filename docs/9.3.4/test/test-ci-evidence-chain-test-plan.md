@@ -401,8 +401,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS /
-  new Cdiag and fresh diagnostic pending`
+- step4_result: `in-progress / diagnostic-r17 child-unit fail-closed / recovery formal quality
+  PASS / replacement Cdiag pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -833,3 +833,39 @@ coverage audit 与 acceptance 保持关闭。
   exec/XML/candidate；
 - new Cdiag、diagnostic、review、Cfreeze、formal 与 final quality/audit/signoff 全 pending；
   Step 4 `in-progress`，`can_enter_coverage_audit=no`，Step 5 closed。
+
+## diagnostic-r17 Unit final-mysqld handoff test boundary（2026-07-17）
+
+- run=`step4-coverage-20260717-diagnostic-r17`，tested clean/pushed Cdiag=
+  `316a71f753827f8f34063b0eb0669271f696c5ee`；result=
+  `failed / child-unit / exit 1`，Unit=`failed / unit-mysql57-lifecycle-negative / exit 1`；
+- failure oracle：third `signal-hup` child 在 `fixture-first-apply`、callback ready 前退出；
+  `fixture-first.txt`、`unit-lifecycle-ready.env`、canonical lifecycle receipt、normal fixture、
+  Unit XML/exec 与 source-after/aggregate/summary/candidate/final absent。EXIT cleanup JSON 不得计为
+  lifecycle `5/5` 或 full Unit PASS；r17 永久 `excluded/non-reusable`；
+- readiness RED：旧 authority MySQL57 在 samples `15..40` 为
+  `health=healthy / PID1=docker-entrypoi`，sample `41` 才为 final `mysqld`；证明 stock ping
+  可以在 temporary initialization server 上 premature healthy；
+- readiness GREEN：run-owned authority MySQL57/8 health 同时要求
+  `/proc/1/comm=mysqld` 与原 ping；两库 first healthy 都必须为 final mysqld，premature=`0`，并继续
+  通过 business identity 与 watermark gate；
+- lifecycle oracle：旧修复字节使用三个唯一 run 完成 `15/15`，receipt SHA-256=
+  `8a3900678a718a2df5b604854ad43a5622273128b94f18413ddc6a5979fdf5f2`、
+  `eb41ee0675c6c2677de708390125e1095178772e4849aece332be3eb89bb6da4`、
+  `dca7439a316899c064f231411ee4a48e052c0e1b1f28d25da5c8041ca8ddd48a`；penultimate
+  diagnostics run `step4-unit-lifecycle-handoff-current-20260717-r1`=`5/5` / `159fbe80…`；
+  final current bytes run `step4-unit-lifecycle-handoff-current-20260717-r2`=`5/5` / receipt
+  `e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`，successful
+  `provisioner.log` 全 absent，demo exact restore=`runner_rc=0 / restore_rc=0` 且
+  healthy/listening；
+- static oracle：overlay negative=`12/12` / `cf98e3306fcf5650ca4aad9475beb0e986b5363d15e4f3d326568753edd92e06`；
+  Unit fixture negative=`36/36` / `a5620aa80ac122a9489b14f8fc5352bf685c61e2fcd2426fdadfd36fb882212d`；
+  coverage negative=`27 + source/Git 22 + replay 12` / current r2
+  `0f8f5c7bbd6b8fcf18363f979b9948bd396b39b436f94b30c1ca697204fc6856`；
+- full Unit oracle 尚未在 remediation current bytes 上由 clean/pushed authority 通过；不得引用
+  focused lifecycle 或历史 Unit 绿色替代。pre-Cdiag formal implementation quality=
+  `PASS / 0/0/0/0`，record=
+  `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；只授权
+  replacement Cdiag commit/push/clean -> fresh diagnostic。machine=
+  `diagnostic-ready/diagnostic-pending`；Step 5、
+  coverage audit 与 acceptance closed。

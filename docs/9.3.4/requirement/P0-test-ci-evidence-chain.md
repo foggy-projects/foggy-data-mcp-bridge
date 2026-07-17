@@ -159,7 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS / new Cdiag pending`
+  `in-progress / diagnostic-r17 child-unit fail-closed / recovery formal quality PASS /
+  replacement Cdiag pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -183,14 +184,28 @@ updated_at: 2026-07-17
   historical bootstrap evidence，不是当前 machine identity。r16 candidate SHA-256=
   `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919` 已两路独立复算；
   review SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
-  B/H/M/L=`0/0/0/1`。该 r16 candidate 已被 formal-r3 failure supersede；当前 machine exact 为
-  threshold=`diagnostic-pending` SHA-256=`0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`、
-  contract=`diagnostic-ready` SHA-256=`15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`；
-- r16 pre-Cfreeze implementation quality 已 PASS，B/H/M/L=`0/0/0/1`，只授权一次
-  direct-child Cfreeze 与 fresh formal，不授权 post-formal final quality、coverage audit 或 acceptance；
+  B/H/M/L=`0/0/0/1`。该 r16 candidate 已被 formal-r3 failure supersede；formal-r3 recovery
+  时点的 contract/threshold/manifest hashes 也只作为 historical pre-Cdiag snapshot。当前 machine
+  状态=`diagnostic-ready/diagnostic-pending`，latest exact identity 由当前 manifests 机器校验，
+  不再引用旧 `cc356…` 作为 current；
+- r17 handoff recovery pre-Cdiag formal implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，
+  record=`docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；只授权
+  replacement Cdiag commit/push/clean -> fresh diagnostic，不授权 Cfreeze、post-formal final
+  quality、coverage audit 或 acceptance；
 - run-owned Unit fixture 的 restricted credential、schema/tamper、atomic publisher、profile
   isolation 与 lifecycle requirements 保持生效；r16 已在单一 fresh run 中完成全部 required
   replacement evidence，不复用或拼接 r15 partial artifacts；
+- QueryModel remediation Cdiag `316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，
+  但 fresh r17 在 Unit MySQL57 第三个 lifecycle probe、callback ready 前因 final-server handoff race
+  fail closed；canonical lifecycle、正常 fixture、Unit XML/exec 与后续 evidence absent。r17 永久
+  excluded，cleanup JSON 不得当作 lifecycle/Unit PASS，也不能证明 QueryModel all-lane remediation；
+- runtime RED 已证明 stock ping 在 PID1=`docker-entrypoi` 时可 premature healthy；authority
+  MySQL57/8 已改为 final PID1=`mysqld` + ping，且两库 runtime GREEN。旧修复字节 lifecycle=
+  `15/15`；penultimate diagnostics 字节 `5/5` receipt=`159fbe80…`，随后 latest callback
+  diagnostics 又有加固，final current bytes r2=`5/5` / receipt=
+  `e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`，successful logs absent、
+  demo exact restore=`runner_rc=0 / restore_rc=0` 且 healthy/listening。full Unit 必须由
+  clean/pushed replacement Cdiag 的 fresh diagnostic 证明；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -556,3 +571,34 @@ updated_at: 2026-07-17
   fresh diagnostic -> candidate/review -> direct-child Cfreeze -> fresh formal -> final implementation
   quality -> coverage audit -> acceptance。当前 Step 4=`in-progress`，
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与 9.3.5 closed。
+
+## Superseding diagnostic-r17 final-mysqld handoff requirement boundary（2026-07-17）
+
+- Cdiag `316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，并由 fresh
+  `step4-coverage-20260717-diagnostic-r17` 消耗；r17 在 outer `child-unit / exit 1`、Unit
+  `unit-mysql57-lifecycle-negative / exit 1` immutable fail closed；
+- third HUP child 在 `fixture-first-apply`、callback ready 前退出；canonical lifecycle receipt、
+  normal fixture、Unit XML/exec、source-after、sensitive/model/inventory、aggregate、observation、
+  summary/candidate/final 全 absent。r17=`excluded/non-reusable`；cleanup receipts 只能证明资源
+  cleanup，不得计为 lifecycle `5/5`、full Unit 或 QueryModel all-lane PASS；
+- readiness requirement：run-owned authority MySQL57/8 只有在 `/proc/1/comm=mysqld` 且原 ping
+  成功后才可 healthy；provisioner 之后仍须验证 business identity 与 fixture watermark，不得只用
+  stock ping 或只用 watermark。冻结 Step 3 provisioner 不改，差异须由 successor declared
+  amendment/authority manifest/contract/overlay/top manifest 共同绑定；
+- runtime oracle：MySQL57 RED 必须捕获旧配置 premature healthy；MySQL57/8 patched GREEN 必须
+  证明 first healthy 即 final mysqld、premature=`0`。真实 lifecycle 必须覆盖
+  INT/TERM/HUP/callback-failure/leader-kill，unexpected failure 保留 no-clobber diagnostics，成功
+  diagnostics 删除，所有路径 residue=`0/0/0`；
+- focused 现状：旧修复字节三个唯一 run=`15/15`；penultimate diagnostics 字节=`5/5` / receipt
+  `159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`，但 latest callback
+  OSError/成功日志存在性加固后的 final current bytes r2 已 `5/5` PASS，receipt=
+  `e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`，successful logs absent，
+  demo exact restore=`runner_rc=0 / restore_rc=0` 且 healthy/listening；完整 Unit 不得由 focused
+  证据推导；
+- static regressions 已通过 overlay=`12/12`、Unit fixture=`36/36`、coverage=
+  `27 + source/Git 22 + replay 12`；current machine=`diagnostic-ready/diagnostic-pending`；
+- pre-Cdiag formal implementation quality=`PASS / 0/0/0/0`，record=
+  `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；
+- only allowed sequence：replacement Cdiag commit/push/clean -> fresh diagnostic ->
+  candidate/review -> direct-child Cfreeze -> fresh
+  formal -> final quality -> coverage audit -> acceptance。Step 4=`in-progress`，Step 5/9.3.5 closed。

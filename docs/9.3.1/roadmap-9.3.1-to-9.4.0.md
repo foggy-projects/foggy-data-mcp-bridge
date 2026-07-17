@@ -30,7 +30,7 @@ updated_at: 2026-07-17
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 formal-r3 fail-closed / new Cdiag pending | [执行文档包](../9.3.4/README.md)；Cfreeze `a63c82c5…` 上的 formal-r3 完成全 lane 后因 aggregate branch `26110/44870 < 26111/44870` 正确 fail closed，line exact `54624/76830`；唯一差异是 `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL outcome 受线程调度影响，不是产品回归。既有 runtime binding 并发 testcase 的 targeted/overlay、5/5 fresh fork 与 `foggy-runtime-api=128/F0E0S0` module 均 PASS，无新/改名 `@Test`；formal-r3 recovery pre-Cdiag quality PASS `0/0/0/0`，machine/contract/overlay/negative suites 通过。machine 保持 `diagnostic-ready/diagnostic-pending`，待 new Cdiag commit/push/clean -> fresh diagnostic/review/Cfreeze/formal 与后置门；不是 coverage passed |
+| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 diagnostic-r17 fail-closed / pre-Cdiag formal quality PASS | [执行文档包](../9.3.4/README.md)；Cdiag `316a71f7…` 已被 r17 消耗，outer `child-unit/1`、Unit `unit-mysql57-lifecycle-negative/1` immutable fail closed，success-only artifacts absent，永久 excluded/non-reusable。authority MySQL57/8 final-PID1 修复两库 GREEN，旧字节 lifecycle `15/15`，current-byte r2 `5/5` receipt `e3bad41a…`，成功日志 absent、exact restore `0/0` 且 healthy/listening；静态 `12/12`、`36/36`、`27+22+12` PASS。pre-Cdiag formal quality PASS `0/0/0/0`，machine=`diagnostic-ready/diagnostic-pending`；只授权 replacement Cdiag + fresh diagnostic，不得声称 full Unit/Step 4/coverage passed |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,31 +85,39 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–3 passed / Step 4 formal-r3 fail-closed /
-QueryModelSupport deterministic regression + pre-Cdiag quality PASS / new Cdiag pending`；入口为
+当前状态：`in-progress / Steps 1–3 passed / Step 4 diagnostic-r17 Unit lifecycle fail-closed /
+final-mysqld handoff remediation focused PASS / pre-Cdiag formal quality PASS /
+replacement Cdiag pending`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。Step 1–3 authority 与 feature acceptance
 保持不变。Step 4 执行库存为 `23 exec / 48 sessions`，required overlay=
 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`。
 
-Cfreeze `a63c82c53ebaad1a1c22d78647fbda70b4bd6594` 上的 fresh formal-r3 完成
-`773+59/5707/F0E0S0`、`23 exec / 48 sessions`与全部证据 lane，随后在
-`formal-coverage-gate` 因 branch `26110/44870` 比 exact threshold `26111/44870`
-少一个 outcome 而 fail closed；line exact `54624/76830`。递归对比唯一差异为
-`QueryModelSupport#getMergedJoinGraph` line 316 的 inner double-check branch，根因是旧测试依赖
-两个调用者偶然并发，不是 production regression。既有
-`RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`
-已加入受控 QueryModel contention，第二 caller 在 exact support monitor 上
-`BLOCKED` 后释放 build，并断言 single-build/same-result；不新增或改名 `@Test`，
-targeted、protected overlay 与 5/5 fresh Maven/JVM 已 PASS，QueryModelSupport
-packed bitmap unique=`1`；`foggy-runtime-api` full module=`128/F0E0S0`，
-`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。formal-r3 recovery pre-Cdiag
-implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，machine/contract/overlay/negative
-suites 通过。全量 diagnostic 尚未完成，machine 已恢复
-`diagnostic-ready/diagnostic-pending`，contract/threshold/manifest SHA-256 分别为
-`15dae282…` / `0df17a87…` / `cc356897…`，manifest 保持 `60/60`。下一步按
-Cdiag commit/push/clean -> fresh diagnostic ->
-review -> direct-child Cfreeze -> fresh formal -> final quality/audit/signoff 顺序推进。
-Step 5、9.3.5 与 9.4.0 继续关闭。
+formal-r3 与确定性 QueryModel regression 保留为历史边界；其 recovery Cdiag=
+`316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，并被 fresh
+`step4-coverage-20260717-diagnostic-r17` 消耗。r17 在 outer `child-unit / exit 1`、Unit
+`unit-mysql57-lifecycle-negative / exit 1` immutable fail closed；callback 尚未 ready，canonical
+lifecycle receipt、fixture/Unit XML、exec、source-after、aggregate、observation、summary、candidate/
+final success-only artifact 均 absent。r17 永久 `excluded/non-reusable`，不能 freeze，也不能证明
+QueryModel remediation 的 all-lane 结果。
+
+根因 RED 捕获 stock ping 在 PID1 仍为 `docker-entrypoi` 时已 premature healthy。Step 4
+authority Compose 已让 MySQL57/8 同时要求 PID1=`mysqld` 与原 ping；两库 runtime GREEN 都证明
+首次 healthy 已是 final server。修复后旧字节三轮 lifecycle=`15/15`；penultimate 加固字节
+`5/5` receipt=`159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`。
+最新加固字节 r2=`step4-unit-lifecycle-handoff-current-20260717-r2` 已 `5/5` PASS，receipt
+SHA-256=`e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`；所有成功
+`provisioner.log` absent、residue=`0/0/0`，demo exact restore=`runner_rc=0/restore_rc=0`
+且 healthy/listening。
+静态 overlay=`12/12`、Unit negatives=`36/36`、coverage negatives=
+`27 + source/Git 22 + replay 12` PASS。
+
+machine 保持 `diagnostic-ready/diagnostic-pending`。完整 Unit 只能由新的 clean/pushed replacement
+Cdiag 上 fresh diagnostic 证明，当前不得声称 full Unit PASS。pre-Cdiag formal implementation quality
+已 PASS，B/H/M/L=`0/0/0/0`，record=
+`docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`。当前只授权
+replacement Cdiag commit/push/clean -> fresh diagnostic；其后仍须
+review -> direct-child Cfreeze -> fresh formal -> final quality/audit/signoff 顺序推进。Step 5、9.3.5 与
+9.4.0 继续关闭。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

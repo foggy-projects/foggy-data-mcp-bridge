@@ -22,18 +22,18 @@ updated_at: 2026-07-17
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed；Step 4 prior Cfreeze/formal-r3 failed immutably，canonical machine 已恢复 `diagnostic-ready/diagnostic-pending`；replacement Cdiag pending |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed；formal-r3 与 diagnostic-r17 均 immutable fail-closed；canonical machine=`diagnostic-ready/diagnostic-pending`；pre-Cdiag formal quality PASS，replacement Cdiag pending |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 formal-r3 fail-closed、deterministic regression and pre-Cdiag quality PASS、machine reset / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r17 Unit lifecycle fail-closed、final-mysqld handoff remediation focused PASS、machine diagnostic-ready / full Unit and Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 formal-r3 fail-closed、pre-Cdiag quality PASS、new Cdiag pending |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；Step 4 formal-r3 fail-closed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 formal-r1/formal-r2/r15 failures、r14/r16 historical chains、Cfreeze `a63c82c5…` 与 formal-r3 failure present；replacement Cdiag/diagnostic/review/Cfreeze/formal 与 Step 4 exit absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 formal-r3 recovery pre-Cdiag PASS，B/H/M/L=`0/0/0/0`，授权 new Cdiag/fresh diagnostic；post-formal final quality pending；can_enter_coverage_audit=no |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 diagnostic-r17 fail-closed、handoff remediation focused PASS、pre-Cdiag formal quality PASS、replacement Cdiag pending |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；Step 4 r17 excluded/non-reusable；full Unit/fresh diagnostic absent；version in-progress |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 historical failed/successful chains、formal-r3 failure 与 r17 failure present；r17 success-only evidence absent；replacement Cdiag/diagnostic/review/Cfreeze/formal 与 Step 4 exit absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 r17 recovery pre-Cdiag formal quality PASS，B/H/M/L=`0/0/0/0`；只授权 replacement Cdiag + fresh diagnostic；post-formal final quality pending；can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | formal-r3 recovery/pre-Cdiag quality state synced；final version sync after version signoff |
+| roadmap/status sync | `README.md` + authoritative roadmap | diagnostic-r17 fail-closed 与 final-mysqld handoff remediation state synced；final version sync after version signoff |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -58,17 +58,26 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-17）：
-`in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS / new Cdiag pending`。
-Cfreeze `a63c82c53ebaad1a1c22d78647fbda70b4bd6594` 上的 formal-r3 完成全 lane 后
-以 branch `26110/44870 < 26111/44870` fail closed，line exact `54624/76830`。唯一差异为
-`QueryModelSupport#getMergedJoinGraph` line 316 inner DCL outcome；既有 runtime binding
-并发 testcase 已加受控回归，targeted/overlay PASS，不新增/改名 `@Test`。machine 已恢复
-`diagnostic-ready/diagnostic-pending`；5/5 fresh fork 已 PASS、bitmap unique=`1`；
-`foggy-runtime-api=128/F0E0S0`、目标 class=`5/F0E0S0`；formal-r3 recovery
-pre-Cdiag quality PASS，B/H/M/L=`0/0/0/0`，machine/contract/overlay/negative suites
-通过；new Cdiag、fresh diagnostic/review/Cfreeze/formal
-和 post-formal gates 全 pending。该状态不是 acceptance evidence；`can_enter_coverage_audit=no`、
-`can_enter_acceptance=no`，Step 5 保持关闭。
+`in-progress / diagnostic-r17 Unit lifecycle fail-closed / final-mysqld handoff remediation
+focused PASS / pre-Cdiag formal quality PASS / replacement Cdiag pending`。Cdiag
+`316a71f753827f8f34063b0eb0669271f696c5ee` 已被 r17 消耗；r17 在 outer
+`child-unit / exit 1`、Unit `unit-mysql57-lifecycle-negative / exit 1` immutable fail closed，
+success-only XML/exec/source-after/aggregate/observation/summary/candidate/final 均 absent，永久
+`excluded/non-reusable`。RED 已证明 stock ping 在 PID1=`docker-entrypoi` 时 premature healthy；
+authority MySQL57/8 改为 PID1=`mysqld` + 原 ping 后，两库 runtime GREEN 均通过。修复后旧字节
+三轮 lifecycle=`15/15`；penultimate 加固字节的 `5/5` receipt=
+`159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`。最新加固字节 r2=
+`step4-unit-lifecycle-handoff-current-20260717-r2` 已 `5/5` PASS，receipt SHA-256=
+`e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`；所有成功
+`provisioner.log` absent，residue=`0/0/0`，demo exact restore=`runner_rc=0/restore_rc=0`
+且 healthy/listening；
+静态 overlay=`12/12`、Unit=`36/36`、coverage=`27 + source/Git 22 + replay 12` PASS。machine=
+`diagnostic-ready/diagnostic-pending`；完整 Unit 只能由新的 clean/pushed replacement Cdiag 上 fresh
+diagnostic 证明，当前不得声称 full Unit PASS。pre-Cdiag formal implementation quality 已 PASS，
+B/H/M/L=`0/0/0/0`，record=
+`quality/step4-diagnostic-r17-recovery-implementation-quality.md`；只授权 replacement Cdiag
+commit/push/clean 与 fresh diagnostic，review/Cfreeze/formal 与 post-formal gates 仍 pending。该状态不是 acceptance
+evidence；`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 保持关闭。
 
 Unit remediation r2 不是 acceptance evidence：
 `step4-unit-fixture-quality-20260716-r2` 在 commit
@@ -450,11 +459,36 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   `RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`；pre-Cdiag quality=
   `PASS / 0/0/0/0`，machine/contract/overlay/negative suites 通过；record=
   `quality/step4-formal-r3-recovery-implementation-quality.md`；all-lane diagnostic 尚未完成；
-- machine 已恢复 contract=`diagnostic-ready` / threshold=`diagnostic-pending`，
-  SHA-256 分别为 `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0` /
-  `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`；manifest=
-  `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60` / `60/60`；
+- machine 当时已恢复 contract=`diagnostic-ready` / threshold=`diagnostic-pending`；该轮
+  manifest identity 只属于 formal-r3 recovery 的历史 pre-Cdiag 快照，不是 current identity；
 - only allowed sequence 为 new Cdiag commit/push/clean ->
   fresh diagnostic -> candidate/review -> direct-child Cfreeze -> fresh formal -> final quality ->
   coverage audit -> acceptance。当前 Step 4=`in-progress`，`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。
+
+## Superseding diagnostic-r17 fail-closed acceptance boundary（2026-07-17）
+
+- Cdiag=`316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，并被 fresh
+  `step4-coverage-20260717-diagnostic-r17` 消耗；outer=`child-unit / exit 1`，Unit=
+  `unit-mysql57-lifecycle-negative / exit 1`。r17 immutable、`excluded/non-reusable`；success-only
+  lifecycle receipt、fixture/Unit XML、exec、source-after、aggregate、observation、summary、candidate
+  与 final artifact 均 absent；
+- root-cause RED 捕获 stock ping 在 PID1 仍为 `docker-entrypoi` 时 premature healthy。Step 4
+  authority override 已让 MySQL57/8 同时要求 PID1=`mysqld` 与原 ping；两库 runtime GREEN 均
+  证明首次 healthy 已是 final server；冻结 Step 3 provisioner 不变；
+- remediation focused evidence 为旧字节三轮真实 lifecycle=`15/15`；penultimate 加固字节的
+  `5/5` receipt=
+  `159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`。最新加固字节 r2=
+  `step4-unit-lifecycle-handoff-current-20260717-r2` 已 `5/5` PASS，receipt SHA-256=
+  `e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`；所有成功 probe 的
+  `provisioner.log` absent，run-owned residue=`0/0/0`，demo exact restore=
+  `runner_rc=0/restore_rc=0` 且 healthy/listening。静态 overlay=`12/12`、Unit fixture negatives=`36/36`、coverage negatives=
+  `27 + source/Git 22 + replay 12` PASS；
+- 上述 focused/static evidence 不等于 full Unit 或 all-lane authority。完整 Unit 必须在新的
+  clean/pushed replacement Cdiag 上由 fresh diagnostic 产生；当前 machine=
+  `diagnostic-ready/diagnostic-pending`。pre-Cdiag formal implementation quality 已 PASS，
+  B/H/M/L=`0/0/0/0`，record=
+  `quality/step4-diagnostic-r17-recovery-implementation-quality.md`；当前只授权 replacement Cdiag
+  commit/push/clean 与 fresh diagnostic，review/direct-child Cfreeze/formal 与 final quality 均 pending；
+- 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；test coverage audit、version
+  acceptance、Step 5 与 9.3.5 均保持关闭。

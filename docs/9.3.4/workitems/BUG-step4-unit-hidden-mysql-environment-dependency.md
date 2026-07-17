@@ -127,7 +127,12 @@ fresh r3 与 formal remediation quality 已证明 Unit replacement subgate 通�
 exit evidence。fresh r8 已启动，但因独立 lifecycle static contract drift 在 lane 前
 bootstrap-negative fail closed；这是 r8 时点的历史边界。r9 随后已完成完整 Unit replacement、
 全部 required lanes 与 `23 exec / 48 sessions`，并在无关 exec identity scope 上 fail
-closed；当前仍须 fresh r10、threshold freeze 与 fresh formal，Step 5 保持关闭。
+closed。此后 Cdiag `316a71f753827f8f34063b0eb0669271f696c5ee` 的 fresh r17 在 Unit
+lifecycle 第三个真实 probe 的 callback ready 前因 final-mysqld handoff race fail closed；canonical
+lifecycle receipt、正常 fixture、Unit XML/exec 均 absent。r17 退出后的 cleanup JSON 只证明资源清理，
+不得解释成 lifecycle 或完整 Unit PASS。authority Compose 的 MySQL57/8 final PID health remediation
+与 focused lifecycle 已验证，但 full Unit 仍须由 clean/pushed replacement Cdiag 的 fresh diagnostic
+重新证明；Step 5 保持关闭。
 
 ## Verification Checklist
 
@@ -153,6 +158,11 @@ closed；当前仍须 fresh r10、threshold freeze 与 fresh formal，Step 5 保
 - [x] authoritative closure commit/push 后 fresh r9 已通过完整 Unit replacement、全部
       required lanes 与 `23 exec / 48 sessions`；其后在无关 exec identity scope 上 fail
       closed。
+- [x] r17 在本 BUG 所治理的 run-owned lifecycle 内因新发现的 final-mysqld handoff race
+      fail closed；失败与 success-only absence 已单独封存，cleanup receipt 未被误计为 Unit PASS。
+- [x] r17 handoff recovery pre-Cdiag formal quality=`PASS / 0/0/0/0`；只授权 replacement
+      Cdiag/fresh diagnostic，不等于 full Unit PASS。
+- [ ] replacement Cdiag fresh diagnostic 重新证明完整 Unit replacement。
 - [ ] fresh formal 复验通过后关闭本 BUG。
 
 ## References
@@ -161,6 +171,9 @@ closed；当前仍须 fresh r10、threshold freeze 与 fresh formal，Step 5 保
 - `docs/9.3.4/evidence/step-4/step4-unit-profile-isolation-r2-fail-closed-20260716.md`
 - `docs/9.3.4/evidence/step-4/step4-unit-fixture-quality-r3-pass-20260717.md`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r8-bootstrap-negative-contract-drift-fail-closed-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r17-unit-mysql57-final-mysqld-handoff-fail-closed-20260717.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-mysql57-final-mysqld-handoff-readiness-race.md`
+- `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`
 - `docs/9.3.4/workitems/BLOCKER-step4-r6-mysql57-port-occupation.md`
 - `scripts/verify-v934-unit.sh`
 - `scripts/v934/step4/unit_mysql_fixture_tool.py`

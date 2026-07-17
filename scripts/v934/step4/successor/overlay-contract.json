@@ -10,6 +10,7 @@
     "paths": [
       "pom.xml",
       "foggy-dataset-model/pom.xml",
+      "foggy-dataset-demo/docker/docker-compose-v934-authority.yml",
       "scripts/verify-v934-unit.sh",
       "scripts/verify-v934-integration.sh",
       "scripts/verify-v934-step3-required-matrix.sh",
@@ -30,7 +31,7 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java"
     ],
-    "sha256": "0e4b885762a7d084c46b9f5851d0d6f6c75274685b1293f4088db1e368e49ddb"
+    "sha256": "4bde59059406430286e531f350899d3654f697146d2bdd732b288dd24aea453e"
   },
   "frozen_semantics": {
     "addon": {

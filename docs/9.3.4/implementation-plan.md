@@ -147,7 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS / new Cdiag pending`。
+`in-progress / diagnostic-r17 child-unit fail-closed / final-mysqld handoff remediation
+verified / pre-Cdiag formal implementation-quality PASS / replacement Cdiag pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -887,10 +888,70 @@ formal-r3 已将 r16 reviewed Cfreeze 的唯一 Low 转为确定 failure：不�
    `docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`；
 6. [completed] 将 machine 恢复 `diagnostic-ready/diagnostic-pending`，contract/threshold/
    manifest SHA-256=`15dae282…` / `0df17a87…` / `cc356897…`，manifest=`60/60`；
-7. [in-progress] commit/push/clean 唯一 new Cdiag，运行 fresh diagnostic，生成并独立审查
+7. [completed] QueryModel remediation Cdiag
+   `316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，并被 fresh diagnostic-r17
+   消耗；r17 因下方 final-mysqld handoff race 在 Unit child immutable fail closed，不能复用；
+8. [completed] 按下方 diagnostic-r17 addendum 完成 handoff focused remediation、authority docs
+   与 pre-Cdiag formal implementation-quality gate，结论=`PASS / 0/0/0/0`；
+9. [in-progress] 只创建一个 replacement Cdiag 并 commit/push/clean，随后运行唯一 fresh
+   diagnostic；diagnostic PASS 后才生成并独立审查
    candidate，再创建 direct-child Cfreeze 并运行 fresh formal；
-8. [pending] fresh formal PASS 后依次执行 final implementation quality、coverage audit、
-   acceptance/signoff。
+10. [pending] fresh formal PASS 后依次执行 final implementation quality、coverage audit、
+    acceptance/signoff。
 
-当前 Step 4=`in-progress`，new Cdiag 尚未建立，全量 diagnostic 尚未运行；
-`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与 9.3.5 保持关闭。
+当前 Step 4=`in-progress / diagnostic-r17 immutable fail-closed / final-mysqld handoff
+remediation verified / pre-Cdiag formal implementation-quality PASS`；replacement Cdiag 与 fresh
+diagnostic 尚未建立。`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与
+9.3.5 保持关闭。
+
+## Step 4 diagnostic-r17 final-mysqld handoff recovery addendum（2026-07-17）
+
+QueryModel determinism recovery Cdiag
+`316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean；fresh r17 在
+`child-unit` 第三个 MySQL 5.7 lifecycle probe 的 callback ready 前以 `E_LIFECYCLE`
+fail closed。r17 是 immutable/excluded/non-reusable failure；cleanup receipt 只证明资源回收，
+不代表 fixture PASS。
+
+恢复顺序固定为：
+
+1. [completed] 封存 r17 outer/Unit/failed probe status、source-before、toolchain/class-universe、
+   cleanup 与 exact container restore；确认 Unit XML/exec、source-after、aggregate、observation、
+   candidate/summary 等 success-only artifacts absent；
+2. [completed] 建立 final-mysqld handoff BUG，并以 runtime RED 证明原 stock
+   `mysqladmin ping` 可在 entrypoint 临时 server 阶段提前 healthy；拒绝 blind rerun、固定 sleep
+   或放宽 fixture identity/watermark；
+3. [completed] 只在 Step 4 successor authority Compose amendment 中令 MySQL 5.7/MySQL 8
+   healthcheck 同时要求 PID 1=`mysqld` 与原 `mysqladmin ping`；frozen Step 3 provisioner、
+   production/public API、coverage floor/critical/threshold/exclusion 与 testcase/report identity
+   均不变；
+4. [completed] lifecycle tool 增加 failure-only diagnostics：run-root no-clobber `0600` 日志，
+   受控 failure 保留原 typed `FixtureError` code（例如 lifecycle=`E_LIFECYCLE`、cleanup=
+   `E_CLEANUP`）并携带 diagnostics path；成功日志只在 expected terminal state 与 final cleanup
+   完成后删除，failure log 正式引用前必须 sensitive scan；
+5. [completed] MySQL 5.7/MySQL 8 runtime GREEN 均证明首次 healthy 时 PID 1=`mysqld`；修复
+   旧字节 lifecycle=`15/15`；penultimate current-byte `5/5` receipt SHA-256=
+   `159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`。最终 current-byte
+   `step4-unit-lifecycle-handoff-current-20260717-r2` 在 fixture tool SHA-256=
+   `9be62daaf7a3d2d873c7647078c0bf798ab25c491a163e90960d4143965be5be` 上完成 `5/5`，receipt
+   SHA-256=`e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`；successful
+   `provisioner.log` absent，demo restore=`0/0` 且四库 healthy/listening；
+6. [completed] 重新执行 successor overlay negatives=`12/12`、Unit fixture negatives=`36/36`、
+   coverage negatives=`27`、source/Git negatives=`22`、replay negatives=`12`，machine 保持
+   `diagnostic-ready/diagnostic-pending`；
+7. [completed] authority docs 与 pre-Cdiag formal implementation-quality gate 完成，结论=
+   `PASS / B/H/M/L=0/0/0/0`，记录=
+   `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；dirty worktree
+   上的 full Unit 仅在 source seal 预检 fail closed、未执行 Maven，因此不得作为全量行为证据；
+8. [in-progress] 只创建一个 replacement Cdiag commit，push 并验证 clean
+   `HEAD == origin/main`；再使用唯一新 run ID 执行 fresh diagnostic，由该 clean source run
+   完整证明 lifecycle、full Unit、all required lanes 与 aggregate；
+9. [pending] diagnostic PASS 后才可生成/独立审查 candidate，并以 replacement Cdiag 为唯一
+   parent 创建 direct-child Cfreeze，再运行 fresh formal；失败即封存并回到 fail-closed recovery，
+   禁止降低 threshold、扩大 exclusion 或跨 run 拼接；
+10. [pending] fresh formal PASS 后依次执行 final implementation quality、coverage audit、
+    acceptance/signoff。只有全部 PASS 才满足 Step 4 exit 和 Step 5 开启条件。
+
+当前 Step 4=`in-progress / diagnostic-r17 immutable fail-closed / final-mysqld handoff
+remediation verified / pre-Cdiag formal implementation-quality PASS`；当前只授权 one
+replacement Cdiag commit/push/clean + fresh diagnostic，二者尚未建立。full Unit authority、
+`can_enter_coverage_audit`、`can_enter_acceptance`、Step 4、Step 5 与 9.3.5 均保持关闭。

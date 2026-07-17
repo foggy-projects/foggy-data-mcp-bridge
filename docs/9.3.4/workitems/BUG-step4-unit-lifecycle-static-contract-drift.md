@@ -164,11 +164,17 @@ evidence。
       push，且 r9 启动时证明 clean `HEAD == origin/main`。
 - [x] fresh r9 已通过本 BUG 对应的 bootstrap lifecycle contract 并完成全部 required
       lanes；其后在无关的 JaCoCo exec class identity scope 上 fail closed。
+- [x] Cdiag `316a71f753827f8f34063b0eb0669271f696c5ee` 的 fresh r17 再次通过 lifecycle
+      static/bootstrap 边界，随后在第三个真实 MySQL57 probe 的 callback ready 前因独立
+      final-mysqld handoff race fail closed；r17 cleanup JSON 只证明 EXIT trap 清理，不是
+      canonical lifecycle `5/5` PASS。
+- [x] r17 handoff recovery pre-Cdiag formal quality=`PASS / 0/0/0/0`；只授权 replacement
+      Cdiag/fresh diagnostic，BUG 仍不关闭。
 - [ ] fresh formal、最终质量与 coverage evidence audit 通过后关闭本 BUG。
 
 本 BUG 的原始 stale-token drift 已被 r9 动态证明关闭；随后发现的更深层 semantic bypass
-由 `BUG-934-STEP4-LIFECYCLE-SEMANTIC-VALIDATOR-BYPASS` 单独治理。Step 4 仍不得通过；fresh
-r10、formal、coverage audit 与 acceptance 前 Step 5 保持关闭。
+由 `BUG-934-STEP4-LIFECYCLE-SEMANTIC-VALIDATOR-BYPASS` 单独治理。Step 4 仍不得通过；当前
+replacement Cdiag/fresh diagnostic、formal、coverage audit 与 acceptance 前 Step 5 保持关闭。
 
 ## References
 
@@ -178,3 +184,6 @@ r10、formal、coverage audit 与 acceptance 前 Step 5 保持关闭。
 - `scripts/verify-v934-integration.sh`
 - `scripts/verify-v934-step4-coverage.sh`
 - `target/v934-step4-coverage/runs/step4-coverage-20260716-diagnostic-r8/`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r17-unit-mysql57-final-mysqld-handoff-fail-closed-20260717.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-mysql57-final-mysqld-handoff-readiness-race.md`
+- `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`

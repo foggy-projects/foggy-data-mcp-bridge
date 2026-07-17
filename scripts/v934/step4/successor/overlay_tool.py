@@ -79,6 +79,7 @@ REDIS_SOURCE_PATH = (
 EXPECTED_AMENDMENT_PATHS = (
     "pom.xml",
     "foggy-dataset-model/pom.xml",
+    "foggy-dataset-demo/docker/docker-compose-v934-authority.yml",
     "scripts/verify-v934-unit.sh",
     "scripts/verify-v934-integration.sh",
     "scripts/verify-v934-step3-required-matrix.sh",
