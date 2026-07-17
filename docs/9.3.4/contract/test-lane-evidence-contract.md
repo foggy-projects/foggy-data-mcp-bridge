@@ -826,3 +826,31 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    result。两个 implementation regression 可按 diagnostic verified 关闭，但不得据此声明
    Step 4/9.3.4 accepted；`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5
    保持关闭。
+
+## Superseding formal-r3 QueryModel DCL determinism contract（2026-07-17）
+
+1. formal-r3 是 immutable failed authority：它在 Cfreeze
+   `a63c82c53ebaad1a1c22d78647fbda70b4bd6594` 上完成全部 required lanes 后，
+   必须因 aggregate branch `26110/44870 < 26111/44870` 保持 `E_FORMAL_LOW`；
+   line exact `54624/76830` 不得被用来覆盖 branch failure；
+2. exact aggregate 不得依赖 `QueryModelSupport#getMergedJoinGraph` 两个 caller 的偶然
+   调度。测试必须在受控的首次 build 窗口内证明第二 caller 已阻塞于 exact
+   `QueryModelSupport` monitor，释放后再断言内层 false outcome、single build 与两调用者
+   same graph；
+3. regression 必须置于既有
+   `RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`；
+   禁止新增/改名 `@Test`、
+   降低 aggregate/critical threshold、扩大 exclusion 或修改 production 来制造绿色；
+4. targeted/overlay 与 5/5 fresh Maven/JVM 已 PASS；QueryModelSupport class id=
+   `d242dafe9de31249`、probes=`34/629`，5 份 packed bitmap 完全一致、unique=`1`，
+   Surefire=`1/F0E0S0`。`foggy-runtime-api` full module=`128/F0E0S0`，
+   `RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。formal-r3 recovery pre-Cdiag
+   implementation quality 已 `PASS / 0/0/0/0`，machine/contract/overlay/negative suites 通过。
+   这些仍只证明确定性回归与 Cdiag 准备；下一步必须从 clean/pushed
+   new Cdiag 重跑完整 diagnostic authority；
+5. 因 test bytecode 已变，r16 candidate 与 formal-r3 threshold 不得直接复用。canonical
+   machine 必须保持 contract=`diagnostic-ready`、threshold=`diagnostic-pending`、
+   manifest=`60/60`，直到 fresh diagnostic -> review -> direct-child Cfreeze 再次完成；
+6. fresh formal PASS 后仍必须按 final implementation quality -> coverage audit -> acceptance
+   顺序执行。当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 4
+   `in-progress`，Step 5 closed。

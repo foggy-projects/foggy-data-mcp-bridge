@@ -310,6 +310,32 @@ updated_at: 2026-07-17
   Cfreeze 与 fresh formal。唯一 Low 要求 fresh formal 完整复现上述 aggregate 高水位，禁止
   下调 threshold。Step 4、coverage audit、acceptance 均未签收，`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`，Step 5 与 9.3.5 仍关闭。
+- 上述状态已由 formal-r3 supersede：direct-child Cfreeze=
+  `a63c82c53ebaad1a1c22d78647fbda70b4bd6594` 已 commit/push/clean，fresh
+  `step4-coverage-20260717-formal-r3` 完成 `773+59/5707/F0E0S0`、`23/48`、
+  cleanup=`0/0/0` 与 sensitive PASS，但在 final formal gate 因 branch=
+  `26110/44870 < 26111/44870` 正确 fail closed；line exact `54624/76830`，
+  success-only summary/gate 保持 absent。
+- r16/formal-r3 的 2,066 个 reportable class 仅
+  `QueryModelSupport#getMergedJoinGraph` 有一个 branch outcome 差异：源码 line 316
+  inner DCL 由 `0 missed/2 covered` 变为 `1 missed/1 covered`。根因是旧测试依赖
+  两调用者的偶然调度，不是 production regression。
+- 确定性回归已放入既有
+  `RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`：
+  受控暂停首次 build，确认第二 caller 在 exact `QueryModelSupport` monitor 上
+  `BLOCKED`，再断言 single build 和 same graph；不新增/改名 `@Test`。targeted、
+  protected overlay 与 5/5 fresh Maven/JVM 已 PASS；QueryModelSupport class id=
+  `d242dafe9de31249`、probes=`34/629`、packed bitmap unique=`1`，Surefire=
+  `1/F0E0S0`。`foggy-runtime-api` full module=`128/F0E0S0`，
+  `RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。formal-r3 recovery pre-Cdiag
+  implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，machine/contract/overlay/
+  negative suites 通过；fresh all-lane diagnostic 尚未完成。
+- machine 已恢复 threshold=`diagnostic-pending` / contract=`diagnostic-ready`；SHA-256
+  分别为 `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96` /
+  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，manifest=
+  `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60` / `60/60`。
+  新 Cdiag、diagnostic、review、Cfreeze、formal、final quality、coverage audit 与
+  acceptance 均 pending；Step 4 仍 `in-progress`，Step 5 保持关闭。
 
 ## 执行资料
 
@@ -396,6 +422,12 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md](evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md)
 - Step 4 r16 Cfreeze implementation quality：
   [quality/step4-r16-cfreeze-implementation-quality.md](quality/step4-r16-cfreeze-implementation-quality.md)
+- Step 4 formal-r3 QueryModel inner-DCL coverage-race regression：
+  [workitems/BUG-step4-query-model-join-graph-double-check-coverage-race.md](workitems/BUG-step4-query-model-join-graph-double-check-coverage-race.md)
+- Step 4 formal-r3 fail-closed evidence：
+  [evidence/step-4/step4-coverage-formal-r3-query-model-join-graph-double-check-race-fail-closed-20260717.md](evidence/step-4/step4-coverage-formal-r3-query-model-join-graph-double-check-race-fail-closed-20260717.md)
+- Step 4 formal-r3 recovery pre-Cdiag implementation quality：
+  [quality/step4-formal-r3-recovery-implementation-quality.md](quality/step4-formal-r3-recovery-implementation-quality.md)
 - Step 4 r14 Cfreeze implementation quality：
   [quality/step4-r14-cfreeze-implementation-quality.md](quality/step4-r14-cfreeze-implementation-quality.md)
 - Step 4 diagnostic r14 successful observation：
@@ -462,7 +494,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree | Cdiag `f863c672…` 已 push；r16=`773+59/5707/F0E0S0`、`23/48/16948`，aggregate=`54624/76830 line`、`26111/44870 branch`；12 critical 达标，唯一 `NamespaceScope.branch=0/0` N/A；candidate/review 两路复算 PASS；pre-Cfreeze quality PASS `0/0/0/1`；machine=`confirmed/formal-ready`；Cfreeze commit/push 与 fresh formal pending，formal 必须完整复现高水位且不得降阈值；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS | Cfreeze `a63c82c5…` 已 push；formal-r3 全 lane 后以 branch `26110/44870 < 26111/44870` fail closed，line exact；唯一差异为 `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL 调度 outcome。受控回归 targeted/overlay + 5/5 fresh fork PASS，`foggy-runtime-api=128/F0E0S0`、目标 class=`5/F0E0S0`；pre-Cdiag quality PASS `0/0/0/0`，machine/contract/overlay/negative suites 通过，machine=`diagnostic-ready/diagnostic-pending` / manifest `60/60`；new Cdiag commit/push/clean、fresh diagnostic/review/Cfreeze/formal 及 final quality/audit/signoff pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

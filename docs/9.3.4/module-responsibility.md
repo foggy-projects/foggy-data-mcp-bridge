@@ -206,3 +206,27 @@ updated_at: 2026-07-17
 - 当前授权仅为 direct-child Cfreeze commit/push 与一个唯一 fresh formal；Cfreeze 尚未提交、
   formal 尚未运行。fresh formal PASS 前不得进入 final quality 之后的 coverage audit/acceptance，
   不得声明 Step 4 完成，Step 5 与 9.3.5 保持关闭。
+
+## Superseding formal-r3 failure / recovery ownership boundary（2026-07-17）
+
+- Step 4 evidence owner 负责封存 Cfreeze `a63c82c53ebaad1a1c22d78647fbda70b4bd6594`
+  上的 formal-r3：全 lane complete，line exact，branch `26110/44870` 低于 exact
+  `26111/44870`，final gate immutable fail closed；
+- coverage-delta owner 负责保留唯一定位结论：
+  `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL 的一个 outcome 依赖调度；
+  该差异不转交 production owner，因为产品 single-build 语义没有回归；
+- `foggy-runtime-api` test owner 仅负责既有
+  `RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`
+  内的受控 QueryModel 并发 oracle；不得新增/改名 `@Test`、修改 production API
+  或加入无界等待。当前 targeted/overlay 与 5/5 fresh Maven/JVM PASS，
+  QueryModelSupport probes=`34/629`、bitmap unique=`1`；`foggy-runtime-api` full module=
+  `128/F0E0S0`，`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`；test owner 的
+  deterministic verification 已完成；pre-Cdiag quality owner 已完成 formal
+  implementation quality，结论=`PASS / 0/0/0/0`，machine/contract/overlay/negative suites
+  通过；
+- machine contract owner 已恢复 `diagnostic-ready/diagnostic-pending`和 `60/60`
+  manifest；不得在 fresh diagnostic/review 前恢复 r16 confirmed threshold；
+- Step 4 coverage owner 下一步负责 Cdiag commit/push/clean -> fresh diagnostic ->
+  candidate/review -> direct-child Cfreeze -> fresh formal；后置 gate owner 只能在 fresh formal
+  PASS 后按 final quality -> coverage audit -> acceptance 顺序接手；
+- 当前 Step 4 `in-progress`，Step 5/9.3.5 owner 无开工授权。

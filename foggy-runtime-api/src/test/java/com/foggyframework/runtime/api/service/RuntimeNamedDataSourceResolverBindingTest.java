@@ -1,12 +1,18 @@
 package com.foggyframework.runtime.api.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
+import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
+import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
 import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
 import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
 import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
 import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
 import com.foggyframework.dataset.db.model.spi.ProcessLocalDefaultDataSourceResolver;
+import com.foggyframework.dataset.db.model.spi.QueryObject;
+import com.foggyframework.dataset.db.model.spi.TableModel;
+import com.foggyframework.dataset.db.model.spi.support.SimpleQueryObject;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.RuntimeDatasourceRecord;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.RuntimeResolvedBinding;
@@ -17,6 +23,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.aop.framework.ProxyFactory;
 
 import javax.sql.DataSource;
+import java.lang.management.LockInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.nio.file.Path;
@@ -379,6 +386,9 @@ class RuntimeNamedDataSourceResolverBindingTest {
                     .isEqualTo(BindingCurrentness.STALE);
             assertThat(resolver.currentness(resolver.resolveBinding("sales").identity()))
                     .isEqualTo(BindingCurrentness.CURRENT);
+
+            // Preserve the frozen testcase identity while stabilizing the QueryModel DCL branch.
+            assertMergedJoinGraphDoubleCheckUnderContention(executor);
         } finally {
             releaseCallback.countDown();
             if (guardedPublication != null) {
@@ -404,17 +414,94 @@ class RuntimeNamedDataSourceResolverBindingTest {
     }
 
     private static void awaitBlockedOn(Thread contender, Thread owner) {
+        awaitBlockedOn(contender, owner, null, "publication guard");
+    }
+
+    private static void assertMergedJoinGraphDoubleCheckUnderContention(
+            ExecutorService executor
+    ) throws Exception {
+        CountDownLatch buildEntered = new CountDownLatch(1);
+        CountDownLatch releaseBuild = new CountDownLatch(1);
+        CountDownLatch secondCallerStarted = new CountDownLatch(1);
+        AtomicInteger buildCount = new AtomicInteger();
+        AtomicReference<Thread> firstCallerThread = new AtomicReference<>();
+        AtomicReference<Thread> secondCallerThread = new AtomicReference<>();
+
+        QueryObject root = SimpleQueryObject.of("runtime_binding", "runtime_binding", null);
+        JoinGraph sourceGraph = new JoinGraph(root);
+        TableModel tableModel = mock(TableModel.class);
+        when(tableModel.getQueryObject()).thenReturn(root);
+        when(tableModel.getAlias()).thenReturn(root.getAlias());
+        when(tableModel.getJoinGraph()).thenAnswer(invocation -> {
+            buildCount.incrementAndGet();
+            buildEntered.countDown();
+            awaitLatch(releaseBuild, "release merged JoinGraph build");
+            return sourceGraph;
+        });
+        QueryModelSupport support = new JdbcQueryModelImpl(List.of(tableModel), null, null, null);
+
+        Future<JoinGraph> firstResult = null;
+        Future<JoinGraph> secondResult = null;
+        try {
+            firstResult = executor.submit(() -> {
+                firstCallerThread.set(Thread.currentThread());
+                return support.getMergedJoinGraph();
+            });
+            awaitLatch(buildEntered, "enter merged JoinGraph build");
+
+            secondResult = executor.submit(() -> {
+                secondCallerThread.set(Thread.currentThread());
+                secondCallerStarted.countDown();
+                return support.getMergedJoinGraph();
+            });
+            awaitLatch(secondCallerStarted, "start second merged JoinGraph caller");
+            awaitBlockedOn(
+                    secondCallerThread.get(), firstCallerThread.get(), support,
+                    "QueryModelSupport monitor");
+            assertThat(secondResult).isNotDone();
+
+            releaseBuild.countDown();
+            JoinGraph firstGraph = firstResult.get(5, TimeUnit.SECONDS);
+            JoinGraph secondGraph = secondResult.get(5, TimeUnit.SECONDS);
+            assertThat(secondGraph).isSameAs(firstGraph);
+            assertThat(firstGraph.getRoot()).isSameAs(root);
+            assertThat(buildCount).hasValue(1);
+        } finally {
+            releaseBuild.countDown();
+            if (firstResult != null && !firstResult.isDone()) {
+                firstResult.cancel(true);
+            }
+            if (secondResult != null && !secondResult.isDone()) {
+                secondResult.cancel(true);
+            }
+        }
+    }
+
+    private static void awaitBlockedOn(
+            Thread contender,
+            Thread owner,
+            Object expectedMonitor,
+            String description
+    ) {
+        if (contender == null || owner == null) {
+            throw new AssertionError("Concurrent caller threads were not captured for " + description);
+        }
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (System.nanoTime() < deadline) {
             ThreadInfo info = ManagementFactory.getThreadMXBean()
                     .getThreadInfo(contender.getId());
+            LockInfo lockInfo = info == null ? null : info.getLockInfo();
+            boolean sameMonitor = expectedMonitor == null
+                    || (lockInfo != null
+                    && lockInfo.getIdentityHashCode() == System.identityHashCode(expectedMonitor));
             if (info != null
                     && info.getThreadState() == Thread.State.BLOCKED
-                    && info.getLockOwnerId() == owner.getId()) {
+                    && info.getLockOwnerId() == owner.getId()
+                    && sameMonitor) {
                 return;
             }
             Thread.onSpinWait();
         }
-        throw new AssertionError("Concurrent datasource rebind did not block on publication guard");
+        throw new AssertionError("Concurrent caller did not block on " + description);
     }
 }

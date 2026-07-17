@@ -147,8 +147,7 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r16 diagnostic PASS / reviewed Cfreeze worktree / Cfreeze commit pending /
-fresh formal pending`。
+`in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS / new Cdiag pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -860,3 +859,38 @@ new Cdiag `f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push/clean；fre
 
 当前只授权 Cfreeze commit/push 与 fresh formal；两者均尚未完成。`can_enter_coverage_audit=no`、
 `can_enter_acceptance=no`，不得写 Step 4 完成，Step 5 与 9.3.5 保持关闭。
+
+## Step 4 formal-r3 fail-closed recovery addendum（2026-07-17）
+
+formal-r3 已将 r16 reviewed Cfreeze 的唯一 Low 转为确定 failure：不降阈，
+重新建立 deterministic test evidence 后必须从 Cdiag 起完整重跑。
+
+1. [completed] commit/push direct-child Cfreeze=
+   `a63c82c53ebaad1a1c22d78647fbda70b4bd6594`，验证 parent=
+   `f863c672029d5d1e5a4903df74cf6cba22a04a85`、formal delta 与 clean identity；
+2. [completed] 运行 `step4-coverage-20260717-formal-r3`；全 lane 通过后在 final gate
+   以 line exact `54624/76830`、branch `26110/44870 < 26111/44870` fail closed，
+   并保持 success-only artifacts absent；
+3. [completed] 递归对比 r16/formal-r3，将唯一差异定位到
+   `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL，排除 production regression、
+   report/exec/class-universe drift；
+4. [completed] 在既有
+   `RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`
+   中加受控 QueryModel contention、exact-monitor second-caller `BLOCKED` 确认、
+   single-build 和 same-graph 断言；无新/改名 `@Test`，targeted/overlay PASS；
+5. [completed] 5/5 fresh Maven/JVM 已 PASS；QueryModelSupport class id=
+   `d242dafe9de31249`、probes=`34/629`、packed bitmap unique=`1`、Surefire=
+   `1/F0E0S0`，protected overlay 前后均 PASS；`foggy-runtime-api` full module=
+   `128/F0E0S0`，`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。独立 pre-Cdiag
+   implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，machine/contract/overlay/negative
+   suites 通过；record=
+   `docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`；
+6. [completed] 将 machine 恢复 `diagnostic-ready/diagnostic-pending`，contract/threshold/
+   manifest SHA-256=`15dae282…` / `0df17a87…` / `cc356897…`，manifest=`60/60`；
+7. [in-progress] commit/push/clean 唯一 new Cdiag，运行 fresh diagnostic，生成并独立审查
+   candidate，再创建 direct-child Cfreeze 并运行 fresh formal；
+8. [pending] fresh formal PASS 后依次执行 final implementation quality、coverage audit、
+   acceptance/signoff。
+
+当前 Step 4=`in-progress`，new Cdiag 尚未建立，全量 diagnostic 尚未运行；
+`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与 9.3.5 保持关闭。

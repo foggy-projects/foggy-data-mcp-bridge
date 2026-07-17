@@ -30,7 +30,7 @@ updated_at: 2026-07-17
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 r15 Unit fail-closed / new Cdiag pending | [执行文档包](../9.3.4/README.md)；formal-r2 recovery Cdiag `9270d2d4…` 已 push；r15 在已预热 Bean2Map cache 的单次纳秒倍率 oracle fail closed，仅 partial `124/F1E0S0`、`2/48 sessions`；确定性行为修复 10/10 fresh JVM、class 23、module 27 均 F0E0S0，pre-Cdiag quality PASS `0/0/0/0`，machine 保持 diagnostic pending，待 new Cdiag/diagnostic/Cfreeze/formal；不是 coverage passed |
+| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 formal-r3 fail-closed / new Cdiag pending | [执行文档包](../9.3.4/README.md)；Cfreeze `a63c82c5…` 上的 formal-r3 完成全 lane 后因 aggregate branch `26110/44870 < 26111/44870` 正确 fail closed，line exact `54624/76830`；唯一差异是 `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL outcome 受线程调度影响，不是产品回归。既有 runtime binding 并发 testcase 的 targeted/overlay、5/5 fresh fork 与 `foggy-runtime-api=128/F0E0S0` module 均 PASS，无新/改名 `@Test`；formal-r3 recovery pre-Cdiag quality PASS `0/0/0/0`，machine/contract/overlay/negative suites 通过。machine 保持 `diagnostic-ready/diagnostic-pending`，待 new Cdiag commit/push/clean -> fresh diagnostic/review/Cfreeze/formal 与后置门；不是 coverage passed |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,22 +85,31 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–3 passed / Step 4 r15 Unit fail-closed /
-deterministic timing-oracle remediation verified / new Cdiag pending`；入口为
+当前状态：`in-progress / Steps 1–3 passed / Step 4 formal-r3 fail-closed /
+QueryModelSupport deterministic regression + pre-Cdiag quality PASS / new Cdiag pending`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。Step 1–3 authority 与 feature acceptance
 保持不变。Step 4 执行库存为 `23 exec / 48 sessions`，required overlay=
 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`。
 
-formal-r2 deterministic recovery Cdiag `9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已
-commit/push/clean；fresh r15 在完整 Unit replacement 的
-`Bean2MapUtilsTest#testCachingMechanism` 单次纳秒倍率断言 fail closed。该 static cache 在方法前
-已由同类测试预热，三个样本实际均为 cache hit；r15 只产生 partial `26 reports /
-124/F1E0S0`、`2/48 sessions`，最终 sensitive scan 与 success-only artifacts absent。
-测试已改为三个同类、不同 source 实例复制的精确行为断言，并移除邻接 1000-copy 墙钟门；无生产变更、
-无 testcase 增删，10/10 fresh JVM、class=`23/F0E0S0`、module=`27/F0E0S0`。canonical
-contract/threshold 保持 `diagnostic-ready/diagnostic-pending`，manifest=`60/60`。下一动作是
-提交/push 唯一新 Cdiag，从 clean HEAD 运行 fresh diagnostic，再重新
-review/Cfreeze/formal。Step 5、9.3.5 与 9.4.0 继续关闭。
+Cfreeze `a63c82c53ebaad1a1c22d78647fbda70b4bd6594` 上的 fresh formal-r3 完成
+`773+59/5707/F0E0S0`、`23 exec / 48 sessions`与全部证据 lane，随后在
+`formal-coverage-gate` 因 branch `26110/44870` 比 exact threshold `26111/44870`
+少一个 outcome 而 fail closed；line exact `54624/76830`。递归对比唯一差异为
+`QueryModelSupport#getMergedJoinGraph` line 316 的 inner double-check branch，根因是旧测试依赖
+两个调用者偶然并发，不是 production regression。既有
+`RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`
+已加入受控 QueryModel contention，第二 caller 在 exact support monitor 上
+`BLOCKED` 后释放 build，并断言 single-build/same-result；不新增或改名 `@Test`，
+targeted、protected overlay 与 5/5 fresh Maven/JVM 已 PASS，QueryModelSupport
+packed bitmap unique=`1`；`foggy-runtime-api` full module=`128/F0E0S0`，
+`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。formal-r3 recovery pre-Cdiag
+implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，machine/contract/overlay/negative
+suites 通过。全量 diagnostic 尚未完成，machine 已恢复
+`diagnostic-ready/diagnostic-pending`，contract/threshold/manifest SHA-256 分别为
+`15dae282…` / `0df17a87…` / `cc356897…`，manifest 保持 `60/60`。下一步按
+Cdiag commit/push/clean -> fresh diagnostic ->
+review -> direct-child Cfreeze -> fresh formal -> final quality/audit/signoff 顺序推进。
+Step 5、9.3.5 与 9.4.0 继续关闭。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

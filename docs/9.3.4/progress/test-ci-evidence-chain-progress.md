@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree | Step 3 exit passed | Cdiag `f863c672…` committed/pushed；r16=`773+59/5707/F0E0S0`、exec/session/identity=`23/48/16948`，aggregate=`54624/76830 line`、`26111/44870 branch`；12 critical 达标、唯一 `NamespaceScope.branch=0/0` N/A；candidate/review 两路复算 PASS；pre-Cfreeze quality PASS `0/0/0/1`；machine=`confirmed/formal-ready`；Cfreeze commit/push/topology→fresh formal pending，formal 不得低于 r16 高水位；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS | Step 3 exit passed | Cfreeze `a63c82c5…` 已 committed/pushed；formal-r3 完成全 lane 后以 branch `26110/44870 < 26111/44870` fail closed，line exact；唯一差异为 `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL outcome。受控回归 targeted/overlay + 5/5 fresh fork PASS，`foggy-runtime-api=128/F0E0S0`、目标 class=`5/F0E0S0`；pre-Cdiag quality PASS `0/0/0/0`，machine/contract/overlay/negative suites 通过，machine=`diagnostic-ready/diagnostic-pending` / manifest `60/60`；new Cdiag commit/push/clean、fresh diagnostic/review/Cfreeze/formal 及 final quality/audit/signoff pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1586,3 +1586,36 @@ Cfreeze commit/push/formal-delta/clean identity -> one fresh formal。唯一 Low
   direct-child commit/push -> formal-delta/clean identity -> one fresh formal。
   Step 4、coverage audit、acceptance 均未签收，`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`；Step 5 与 9.3.5 closed。
+
+### Superseding Check-in — formal-r3 fail-closed / deterministic QueryModel recovery
+
+- recorded_at: 2026-07-17；tested Cfreeze=
+  `a63c82c53ebaad1a1c22d78647fbda70b4bd6594`，parent=
+  `f863c672029d5d1e5a4903df74cf6cba22a04a85`，已 commit/push/clean；
+- immutable run：`step4-coverage-20260717-formal-r3`，status=
+  `failed / formal-coverage-gate / exit 1`；required=`773+59/5707/F0E0S0`、Addon=`2/6`、
+  exec/session=`23/48`、cleanup=`0/0/0`、sensitive=`passed`；
+- exact gate：aggregate line=`54624/76830` exact，branch=`26110/44870`，低于 reviewed
+  exact `26111/44870` 一个 outcome；success-only summary/gate/candidate/final absent；
+- localization：r16/formal-r3 只有
+  `QueryModelSupport#getMergedJoinGraph` line 316 inner double-check branch 不同；r16=
+  `0 missed/2 covered`，formal-r3=`1 missed/1 covered`；root cause 是测试偶然调度，
+  不是 product regression 或 report/exec/class-universe drift；
+- deterministic remediation：既有
+  `RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`
+  使用受控 QueryModel first-build 窗口，确认 second caller 在 exact support monitor
+  上 `BLOCKED`后释放，断言 single build/same graph；无新/改名 `@Test`，
+  targeted/overlay 与 5/5 fresh Maven/JVM PASS；QueryModelSupport class id=
+  `d242dafe9de31249`、probes=`34/629`、packed bitmap=
+  `4P-_7xsAAIADAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA`、
+  unique=`1`，Surefire=`1/F0E0S0`；`foggy-runtime-api` full module=
+  `128/F0E0S0`，`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`；pre-Cdiag quality=
+  `PASS / 0/0/0/0`，machine/contract/overlay/negative suites 通过；record=
+  `docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`；
+- machine reset：contract=`diagnostic-ready` / SHA-256=`15dae282…`，threshold=
+  `diagnostic-pending` / SHA-256=`0df17a87…`，manifest SHA-256=`cc356897…` /
+  `60/60`；
+- decision：formal-r3 immutable，禁止 rerun 或降阈。next=one new Cdiag commit/push/clean ->
+  fresh diagnostic -> candidate/review -> direct-child Cfreeze ->
+  fresh formal -> final quality -> coverage audit -> acceptance。当前 Step 4 `in-progress`，
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5/9.3.5 closed。

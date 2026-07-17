@@ -159,7 +159,7 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree`
+  `in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS / new Cdiag pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -174,19 +174,18 @@ updated_at: 2026-07-17
   完成；feature decision=`accepted`，但 version acceptance 仍为 `not-started`；
 - r8d authority 因 signal fail-open 作废；r8e 已以 INT/TERM/HUP=`130/143/129`
   动态探针证明 durable fail closed；
-- Step 4 当前冻结结构仍为 exact `23 exec / 48 sessions`、required overlay=
+- Step 4 冻结结构仍为 exact `23 exec / 48 sessions`、required overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon companion=`2/6`；
-  superseding Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh r16 完成
-  required=`773+59/5707/F0E0S0`、exec/session/identity=`23/48/16948`，aggregate line=
-  `54624/76830`、branch=`26111/44870`；12 个 critical class 全部达标，唯一 structural N/A=
-  `NamespaceScope.branch=0/0`；
+  formal-r3 在完成该全量结构后以 aggregate branch `26110/44870 < 26111/44870`
+  fail closed，line exact `54624/76830`；唯一差异是
+  `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL outcome；
 - 早期 diagnostic-ready snapshot 的 contract/XML=`21/21`、`68/68` 与旧 tool hashes 只保留为
   historical bootstrap evidence，不是当前 machine identity。r16 candidate SHA-256=
   `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919` 已两路独立复算；
   review SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
-  B/H/M/L=`0/0/0/1`。当前 machine exact 为 threshold=`confirmed` SHA-256=
-  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`、contract=
-  `formal-ready` SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+  B/H/M/L=`0/0/0/1`。该 r16 candidate 已被 formal-r3 failure supersede；当前 machine exact 为
+  threshold=`diagnostic-pending` SHA-256=`0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`、
+  contract=`diagnostic-ready` SHA-256=`15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`；
 - r16 pre-Cfreeze implementation quality 已 PASS，B/H/M/L=`0/0/0/1`，只授权一次
   direct-child Cfreeze 与 fresh formal，不授权 post-formal final quality、coverage audit 或 acceptance；
 - run-owned Unit fixture 的 restricted credential、schema/tamper、atomic publisher、profile
@@ -524,3 +523,36 @@ updated_at: 2026-07-17
 - 唯一 Low 是 formal 必须完整复现 r16 aggregate 高水位；不得下调 threshold、重写 candidate
   或用重跑挑选低基线。formal PASS 与 post-formal final quality PASS 前不得启动 coverage audit；
 - 当前 Step 4、coverage audit、acceptance 均未签收，Step 5 与 9.3.5 保持关闭。
+
+## Superseding formal-r3 fail-closed requirement boundary（2026-07-17）
+
+- Cfreeze=`a63c82c53ebaad1a1c22d78647fbda70b4bd6594` 已 commit/push/clean，唯一
+  direct parent=`f863c672029d5d1e5a4903df74cf6cba22a04a85`；
+- formal-r3=`step4-coverage-20260717-formal-r3` 完成 required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`、cleanup=`0/0/0`、
+  sensitive PASS，然后以 `E_FORMAL_LOW` fail closed；line exact `54624/76830`，
+  branch=`26110/44870` 比 exact threshold `26111/44870` 少一个 outcome；
+- requirement 定位为唯一 class/method/line 差异：
+  `QueryModelSupport#getMergedJoinGraph` line 316 inner double-check；r16 内层 outcome 为
+  `0 missed/2 covered`，formal-r3 为 `1 missed/1 covered`。这是 test coverage determinism
+  缺口，不是 product regression、test/report/exec 丢失或 class-universe drift；
+- 新增确定性要求：既有
+  `RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`
+  必须受控暂停 QueryModel first build，确认 second caller 在 exact support monitor 上
+  `BLOCKED` 后释放，并精确断言只 build 一次且两结果 identity 相同；
+  不新增/改名 `@Test`，不修改 production 或降阈；
+- targeted、protected overlay 与 5/5 fresh Maven/JVM 已 PASS；QueryModelSupport class id=
+  `d242dafe9de31249`、probes=`34/629`、packed bitmap=
+  `4P-_7xsAAIADAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA`、
+  unique=`1`，Surefire=`1/F0E0S0`。`foggy-runtime-api` full module=
+  `128/F0E0S0`，`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。formal-r3 recovery
+  pre-Cdiag quality=`PASS / 0/0/0/0`，machine/contract/overlay/negative suites 通过；
+  record=`docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`。all-lane
+  diagnostic 尚未完成；当前回归结果不是 Step 4 exit evidence；
+- test bytecode 变化后 machine 已恢复 `diagnostic-ready/diagnostic-pending`；contract/
+  threshold/manifest SHA-256=`15dae282…` / `0df17a87…` / `cc356897…`，manifest=
+  `60/60`；
+- only allowed sequence：one new Cdiag commit/push/clean ->
+  fresh diagnostic -> candidate/review -> direct-child Cfreeze -> fresh formal -> final implementation
+  quality -> coverage audit -> acceptance。当前 Step 4=`in-progress`，
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与 9.3.5 closed。

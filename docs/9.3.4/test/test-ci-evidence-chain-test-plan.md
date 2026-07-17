@@ -401,8 +401,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree /
-  Cfreeze commit and fresh formal pending`
+- step4_result: `in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS /
+  new Cdiag and fresh diagnostic pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -803,3 +803,33 @@ coverage audit 与 acceptance 保持关闭。
 - 当前只到 reviewed Cfreeze worktree，direct-child Cfreeze commit/push 与 fresh formal 尚未
   完成。实现回归可记为 closed、diagnostic verified，但 Step 4、coverage audit、acceptance 与
   Step 5 仍关闭；`can_enter_coverage_audit=no`、`can_enter_acceptance=no`。
+
+## formal-r3 QueryModel DCL coverage-race test boundary（2026-07-17）
+
+- run=`step4-coverage-20260717-formal-r3`，tested clean/pushed Cfreeze=
+  `a63c82c53ebaad1a1c22d78647fbda70b4bd6594`；result=
+  `failed / formal-coverage-gate / exit 1`；
+- full-lane oracle=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`；aggregate
+  line=`54624/76830` exact，branch=`26110/44870 < 26111/44870`；cleanup=`0/0/0`，
+  sensitive=`passed`，success-only artifacts absent；
+- delta oracle：r16/formal-r3 的 aggregate XML 只有
+  `QueryModelSupport#getMergedJoinGraph` line 316 inner DCL 一个 outcome 不同；r16=
+  `0 missed/2 covered`，formal-r3=`1 missed/1 covered`；其余 class/method/source line 无差异；
+- deterministic regression 使用既有
+  `RuntimeNamedDataSourceResolverBindingTest#publicationGuardSerializesTheCallbackWithAConcurrentRebind`：
+  first caller 进入受控 QueryModel build 窗口并暂停，second caller 在 exact support
+  monitor 上 `BLOCKED`，释放后断言 both futures 返回同一 graph、root identity 不变且
+  build count=`1`；
+- cardinality oracle：不新增或改名 `@Test`，frozen Unit/required testcase 数不得因回归
+  修复而变化；当前 targeted selector、protected overlay 与 5/5 fresh Maven/JVM PASS；
+  QueryModelSupport class id=`d242dafe9de31249`、probes=`34/629`、packed bitmap=
+  `4P-_7xsAAIADAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA`、
+  unique=`1`，Surefire=`1/F0E0S0`；`foggy-runtime-api` full module=
+  `128/F0E0S0`，`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`；pre-Cdiag quality=
+  `PASS / 0/0/0/0`，machine/contract/overlay/negative suites 通过；record=
+  `docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`；
+- machine 已 reset 为 contract=`diagnostic-ready`、threshold=`diagnostic-pending`、manifest=
+  `60/60`。后续必须从 new Cdiag 运行 fresh diagnostic，不得复用 r16/formal-r3
+  exec/XML/candidate；
+- new Cdiag、diagnostic、review、Cfreeze、formal 与 final quality/audit/signoff 全 pending；
+  Step 4 `in-progress`，`can_enter_coverage_audit=no`，Step 5 closed。

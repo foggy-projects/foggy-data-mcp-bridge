@@ -339,13 +339,13 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / r16 diagnostic PASS / reviewed Cfreeze worktree / Cfreeze commit pending /
-  fresh formal pending`，不是
+- state：`in-progress / formal-r3 fail-closed / pre-Cdiag quality PASS /
+  new Cdiag pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
-- current r16 preflight evidence：contract mutations=`27/27`、source/Git identity=`22/22`、
+- historical r16 preflight evidence（已被 formal-r3 supersede）：contract mutations=`27/27`、source/Git identity=`22/22`、
   threshold/frozen replay=`12/12`、XML negatives=`118/118`、successor overlay negatives=`12/12`、
   toolchain seal/negative=`5/5`、Step 2 view=`728+59/5261`、class universe=
   `24 modules / 2,098 classes`、Unit fixture lifecycle negatives=`5/5`；r16 在单一 authority
@@ -778,3 +778,34 @@ code_inventory:
   clean-commit transition is prepared；不得清理以满足 authority。
 - plugin versions, image digests, inventory counts and coverage thresholds must
   be frozen by evidence, not copied from this planning document without Step 1 review。
+
+### Superseding formal-r3 failure / deterministic QueryModel regression inventory
+
+- tested Cfreeze=`a63c82c53ebaad1a1c22d78647fbda70b4bd6594`，formal-r3=
+  `step4-coverage-20260717-formal-r3`；full inventory=`773+59/5707/F0E0S0`、
+  `23 exec / 48 sessions`，line exact `54624/76830`，branch=
+  `26110/44870 < 26111/44870`，因而在 final gate immutable fail closed；
+- exact delta inventory：唯一变化类为
+  `foggy-dataset-model/.../QueryModelSupport`，唯一方法为 `getMergedJoinGraph()`，
+  唯一源码位置为 line 316 inner `if (mergedJoinGraph == null)`；r16=
+  `0 missed/2 covered`，formal-r3=`1 missed/1 covered`；
+- remediation code inventory 仅包含既有测试文件
+  `foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/service/RuntimeNamedDataSourceResolverBindingTest.java`；
+  在既有 `publicationGuardSerializesTheCallbackWithAConcurrentRebind` 内加受控
+  QueryModel contention 和 single-build/same-result 断言，
+  不改 production/public API/POM/runner/floor/critical/exclusion，不新增或改名 `@Test`；
+- current verification inventory 为 targeted selector PASS + protected overlay PASS + 5/5 fresh
+  Maven/JVM PASS；QueryModelSupport class id=`d242dafe9de31249`、probes=`34/629`、packed bitmap=
+  `4P-_7xsAAIADAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA`、
+  unique=`1`，Surefire=`1/F0E0S0`；`foggy-runtime-api` full module=
+  `128/F0E0S0`，`RuntimeNamedDataSourceResolverBindingTest=5/F0E0S0`。formal-r3 recovery
+  pre-Cdiag quality=`PASS / 0/0/0/0`，machine/contract/overlay/negative suites 通过；
+  record=`docs/9.3.4/quality/step4-formal-r3-recovery-implementation-quality.md`。all-lane
+  diagnostic 仍 pending，不得作为 Step 4 exit evidence；
+- reset machine inventory：contract=`diagnostic-ready` / SHA-256=
+  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，threshold=
+  `diagnostic-pending` / SHA-256=
+  `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`，manifest
+  SHA-256=`cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60` / `60/60`；
+- new Cdiag、diagnostic、review、Cfreeze、formal 与后置 quality/audit/signoff 全 pending；
+  Step 4 `in-progress`，Step 5 closed。
