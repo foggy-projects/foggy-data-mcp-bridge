@@ -333,16 +333,14 @@ code_inventory:
   `45/446/F0E0S0`，DB state `18/18`，Redis state `4/4`，Addon companion `2/6`；
 - explicit boundary：Addon `2/6` 不计入 45/446；optional LLM reviewed/excluded；
   runtime watermark 非持久化；Mongo production JDBC dialect 解耦未宣称完成；
-- Step 4 coverage 仅进入 diagnostic-ready；Step 5–7 的 single release runner、workflow、
+- 在 Step 3 exit 时点，Step 4 coverage 仅进入 diagnostic-ready；Step 5–7 的 single release runner、workflow、
   runtime-only image 与 version authority paths 仍保持 planned/not-started，不得从
   Step 3 result 或 Step 4 静态库存推断已通过。
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
-  lifecycle semantic remediation implemented / r10 sensitive-scan excluded /
-  producer-label remediation quality passed / r11 source-seal excluded / binding remediation
-  quality passed / commit/push + fresh r12 pending`，不是
+- state：`in-progress / r14 diagnostic sealed / thresholds confirmed /
+  second Cfreeze working tree formal-ready / fresh formal pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
@@ -670,6 +668,31 @@ code_inventory:
   只放行新 Cdiag 与 fresh diagnostic。`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`；formal 与 post-formal final quality pending，Step 4/Step 5、coverage
   audit、acceptance 均未通过。
+
+### r14 diagnostic / second Cfreeze inventory
+
+- diagnostic evidence：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r14-pass-20260717.md`；run=
+  `step4-coverage-20260717-diagnostic-r14`，tested Cdiag=
+  `322bb346cca19998a90d6d990505ef033f3a496a`，required=`773+59/5707/F0E0S0`、
+  Addon=`2/6`、exec=`23/48`、class universe=`24/2098`、cleanup=`0/0/0`；
+- immutable candidate：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r14-threshold-candidate-20260717.json`，
+  SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`；
+- review：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r14-threshold-review-20260717.md`，
+  SHA-256=`666f97d2eadef4dde43a575dba5793243e5674de1f09038c5ba8b760e8e4c680`，two independent
+  reviews PASS，combined B/H/M/L=`0/0/0/1`；
+- mandatory machine delta：
+  `scripts/v934/step4/coverage-thresholds.json` SHA-256=
+  `04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`、
+  `coverage-contract.json` SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`、
+  `SHA256SUMS` SHA-256=`915bf603c2cb04766143d73f0a2e81ab1a30863506fc194169d07dc06db173e3`；
+- validators：manifest=`60/60`、full contract=`formal/confirmed/passed`、frozen diagnostic and
+  successor overlay PASS；
+- current boundary：single direct-child Cfreeze commit/push and fresh formal pending；no production、
+  test、runner、floor、critical-set、exclusion or testcase-cardinality changes in this freeze delta。
 
 ## Protected Boundaries
 

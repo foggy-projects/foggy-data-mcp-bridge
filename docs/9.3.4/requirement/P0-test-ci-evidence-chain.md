@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / formal-r1 fail-closed / deterministic remediation verified /
-  new diagnostic pending`
+  `in-progress / r14 diagnostic sealed / thresholds confirmed /
+  second Cfreeze working tree formal-ready / fresh formal pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -462,3 +462,23 @@ updated_at: 2026-07-17
   `diagnostic-ready/diagnostic-pending`；新 Cdiag -> fresh diagnostic -> review -> direct-child
   Cfreeze -> fresh formal 顺序必须完整重走。`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`，Step 5 与 9.3.5 保持关闭。
+
+## Superseding r14 / second Cfreeze requirement boundary（2026-07-17）
+
+- new Cdiag=`322bb346cca19998a90d6d990505ef033f3a496a` 已 commit/push/clean；fresh r14
+  `step4-coverage-20260717-diagnostic-r14` 完成 exact all-lane authority：
+  `773+59/5707/F0E0S0`、Addon `2/6`、23 exec/48 sessions、24 modules/2098 classes；
+- r14 critical below-floor=`0`，unique structural N/A=`NamespaceScope.branch`；
+  `WatchServiceFileTracer=204/244 line,99/128 branch`，显式 lifecycle 不再依赖 JVM hook order；
+- r14 candidate 必须保持 immutable `review-required` bytes，SHA-256=
+  `9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`；canonical confirmed
+  threshold 是 review 后的独立 successor，不得回写 candidate；
+- review 记录 non-critical PostgreSQL Pivot probe variance 为 Low。Requirement 不要求 formal
+  复现 r13 的偶发高水位；它要求 formal 不低于 fresh r14 exact threshold，并对所有 critical
+  minimum 逐项 fail closed；
+- working-tree machine state 已为 `formal-ready/confirmed`。Cfreeze commit 必须是
+  `322bb346…` 的 direct-single-parent child，required paths 恰为 threshold/contract/manifest，
+  其他变化仅允许 `docs/9.3.4/**`；
+- direct-parent/formal-delta、push、clean identity 通过后才允许 fresh formal。Formal PASS 前
+  `can_enter_coverage_audit=no`；final implementation quality PASS 前仍不得启动 coverage audit；
+  audit PASS 前不得 acceptance。Step 5 与 9.3.5 保持关闭。

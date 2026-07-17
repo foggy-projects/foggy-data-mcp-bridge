@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r1 fail-closed / new diagnostic pending | Step 3 exit passed | formal-r1=`86d505e` 全 lane PASS 后 `E_FORMAL_LOW`；唯一 `WatchServiceFileTracer -9 line/-3 branch` shutdown-hook race；5/5 focused bitmap identical、11/F0E0S0；machine state=`diagnostic-ready/diagnostic-pending`；新 Cdiag/diagnostic/Cfreeze/formal pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r14 sealed / second Cfreeze working tree formal-ready | Step 3 exit passed | r14 on `322bb346…`：`773+59/5707/F0E0S0`、23/48、below-floor 0、N/A 1、cleanup 0/0/0；candidate/reviews PASS；machine=`confirmed/formal-ready`；Cfreeze commit/push/direct-parent proof、fresh formal、final quality pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1290,29 +1290,24 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 formal-r1 recovery pre-Cdiag quality passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-formal-r1-recovery-implementation-quality.md`，B/H/M/L=`0/0/0/0`，只放行 Cdiag/fresh diagnostic；后续 fresh formal/final quality 尚待执行，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r14 pre-Cfreeze quality passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-r14-cfreeze-implementation-quality.md`，B/H/M/L=`0/0/0/1`，只放行 Cfreeze/fresh formal；post-formal final quality 尚待执行，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 formal-r1 fail-closed / new diagnostic pending | roadmap 为 Steps 1–3 passed / Step 4 in-progress；新 diagnostic、formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r14 sealed / second Cfreeze working tree formal-ready | roadmap 为 Steps 1–3 passed / Step 4 in-progress；Cfreeze commit/push、fresh formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-formal-r1=`step4-coverage-20260717-formal-r1` 已在 clean/pushed Cfreeze `86d505e` 上完成
-全部执行/库存/provenance lane，并在 formal coverage gate 以 `E_FORMAL_LOW` fail closed；
-success-only artifacts absent、cleanup=`0/0/0`、sensitive scan=`passed`。r13/formal XML 与
-23 exec probe diff 只发现 `WatchServiceFileTracer` shutdown-hook race，不能盲重跑。
+r14=`step4-coverage-20260717-diagnostic-r14` 已在 clean/pushed Cdiag `322bb346…` sealed
+PASS；candidate and two independent reviews PASS。Current allowlisted working tree contains exact
+confirmed threshold、formal-ready contract、Step 4 manifest and `docs/9.3.4/**` writeback only；
+manifest/full contract/frozen diagnostic/overlay validators all PASS。
 
-既有 `testWatchServiceAvailable` 已加入 isolated tracer 显式 shutdown；5/5 fresh-fork exec
-均为 `177/245 probes`、目标 7 probes 全命中、bitmap unique=`1`，报告保持
-`11/F0E0S0`。canonical threshold/contract/manifest 已恢复 b765 exact pending trio：
-`0df17a87...ff96 / 15dae282...0b0b / cc356897...dc60`，full contract=
-`diagnostic/diagnostic-pending`、manifest=`60/60`。
-
-remediation pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`。下一步严格为一次 Cdiag commit/push -> clean
-`HEAD == origin/main` -> 停止 exact demo DB containers -> fresh diagnostic。随后重新
-candidate/review/direct-child Cfreeze/fresh formal；formal PASS 前不得启动最终 quality、coverage
-audit 或 acceptance。当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 关闭。
+Next action is exactly one Cfreeze commit directly on `322bb346…`，then push、direct-parent and
+formal-delta proof、clean `HEAD == origin/main`。Only then stop the same exact demo DB containers and
+start one fresh formal run ID。Formal PASS 前不得启动 final implementation quality、coverage audit
+or acceptance；formal-r1 remains immutable and is not reused。Current
+`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 closed。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1491,3 +1486,29 @@ audit 或 acceptance。当前 `can_enter_coverage_audit=no`、`can_enter_accepta
 - decision：formal-r1 immutable，不重用/修补/盲重跑。pre-Cdiag quality 已 PASS；Step 4=
   `in-progress`，下一门为新 Cdiag commit/push/clean identity；`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`，Step 5、formal、audit、acceptance 关闭。
+
+### Superseding Check-in — r14 sealed / second Cfreeze formal-ready working tree
+
+- recorded_at: 2026-07-17；
+- new Cdiag：`322bb346cca19998a90d6d990505ef033f3a496a`，已 commit/push，run 前
+  `HEAD == origin/main` clean；
+- fresh diagnostic：`step4-coverage-20260717-diagnostic-r14`，outer=
+  `diagnostic-observed / completed / exit 0`，source before=after=
+  `04e485088ae233c388cd0fd0bd9190d347e3b2a4d65faac238a1678147ec9d81`；
+- authority result：required=`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48/16,956`、
+  class universe=`24/2098`、aggregate line=`54,622/76,830`、branch=`26,106/44,870`；
+  critical below-floor=`0`、unique N/A=`NamespaceScope.branch`、sensitive=`passed`、cleanup=`0/0/0`；
+- WatchService：r14=`204/244 line, 99/128 branch`，相对 formal-r1 `+9/+4`，unit bitmap
+  包含 formal-r1 缺失 7 probes；5/5 focused identical bitmap remains a subset；
+- candidate：SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`，
+  public validator and independent exact projection PASS；two reviews B/H/M/L=`0/0/0/0` and
+  `0/0/0/1`；Low is non-critical PostgreSQL Pivot probe variance，not a freeze blocker；
+- machine transition in working tree：threshold=`confirmed` SHA-256=
+  `04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`，contract/publication=
+  `formal-ready` SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`，
+  Step 4 manifest SHA-256=`915bf603c2cb04766143d73f0a2e81ab1a30863506fc194169d07dc06db173e3` / `60/60`；
+- validators：full contract=`formal/confirmed/passed`，frozen diagnostic receipt=
+  `3ab047bd45c5f1f82712d49db50a872512ac9a0c325d79031757bb0b595a99ce`，overlay=`passed`；
+- next gate：single Cfreeze commit directly on `322bb346…` → push/direct-parent/formal-delta/clean
+  identity → fresh formal。`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、audit、
+  acceptance closed。

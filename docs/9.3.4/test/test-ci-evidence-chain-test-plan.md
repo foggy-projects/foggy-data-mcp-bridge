@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r11 outer source-seal excluded / binding remediation quality passed / commit+fresh r12 pending`
+- step4_result: `in-progress / r14 diagnostic sealed / thresholds confirmed / second Cfreeze working tree formal-ready / fresh formal pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -709,3 +709,20 @@ coverage audit 与 acceptance 保持关闭。
 - all-lane acceptance：focused 仅证明修复方向。必须在新 clean/pushed Cdiag 上 fresh
   diagnostic，再重新 review/Cfreeze/fresh formal；两次 run 都需保持 exact
   `773+59/5707`、23/48、24/2098、cleanup 0/0/0、sensitive pass。
+
+## r14 diagnostic and second Cfreeze transition（2026-07-17）
+
+- r14 authority：`step4-coverage-20260717-diagnostic-r14` on clean/pushed
+  `322bb346cca19998a90d6d990505ef033f3a496a`；required=`773+59/5707/F0E0S0`、Addon=`2/6`、
+  exec=`23/48`、DB=`29/370`、External=`16/76`、class universe=`24/2098`；
+- coverage：aggregate=`54622/76830 line,26106/44870 branch`；critical=`12`、below-floor=`0`、
+  unique N/A=`NamespaceScope.branch`；WatchService=`204/244 line,99/128 branch`；
+- candidate/public validators and independent exact projection PASS；confirmed threshold SHA-256=
+  `04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`；
+- fresh formal oracle：must start from the committed/pushed direct-child Cfreeze with a unique run ID，
+  rerun all 23 exec/48 sessions，retain exact inventory/F0E0S0，meet aggregate and 23 applicable
+  critical minima，preserve the one N/A，and finish cleanup/sensitive checks；
+- prohibited：reuse r14 exec/XML，repair a failed formal run，rerun until incidental PostgreSQL probes
+  happen，or treat candidate/review/Cfreeze as formal evidence；
+- post-formal order remains implementation quality → coverage audit → acceptance。Current
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。

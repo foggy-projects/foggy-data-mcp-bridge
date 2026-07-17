@@ -74,8 +74,10 @@ diagnostic 与 formal 两次 all-lane evidence 证明不再依赖 hook 顺序。
   全命中、bitmap unique=`1`，Surefire=`11/F0E0S0`。
 - [x] 恢复 b765 exact diagnostic machine state；contract/threshold/manifest=
   `15dae282...0b0b / 0df17a87...ff96 / cc356897...dc60`，manifest=`60/60`。
-- [ ] 完成新 Cdiag commit/push 与 clean identity。
-- [ ] fresh diagnostic、threshold review、direct-child Cfreeze 与 fresh formal 全部通过。
+- [x] 完成新 Cdiag commit/push 与 clean identity：`322bb346cca19998a90d6d990505ef033f3a496a`。
+- [x] fresh r14 diagnostic 与 threshold review 通过：WatchService=`204/244 line,99/128 branch`，
+  candidate SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`。
+- [ ] direct-child Cfreeze commit/push、fresh formal 全部通过。
 - [ ] 最终 implementation quality、coverage audit 与 acceptance 通过。
 
 ## References

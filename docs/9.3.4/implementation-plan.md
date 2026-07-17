@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / formal-r1 fail-closed / deterministic remediation verified /
-new diagnostic pending`。
+`in-progress / r14 diagnostic sealed / thresholds confirmed / second Cfreeze working tree
+formal-ready / fresh formal pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -746,3 +746,26 @@ formal-r1 在 Cfreeze `86d505e` 上通过全部执行与证据 lane，随后因
 
 当前 threshold/contract=`diagnostic-pending/diagnostic-ready`，Step 4=`in-progress`，
 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。
+
+## Step 4 r14 diagnostic / second Cfreeze transition（2026-07-17）
+
+1. [completed] new Cdiag `322bb346cca19998a90d6d990505ef033f3a496a` commit/push/clean
+   identity verified；four exact demo DB containers stopped only for the run window and restored
+   running/healthy afterwards；
+2. [completed] fresh r14 completed with required=`773+59/5,707/F0E0S0`、Addon=`2/6`、
+   exec=`23/48`、class universe=`24/2098`、critical below-floor=`0`、N/A=`1`、cleanup=`0/0/0`；
+3. [completed] candidate SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`
+   passed public verification and two independent reviews；the only Low is non-critical PostgreSQL
+   Pivot probe variance，which is frozen at r14's real lower observation and remains guarded by formal；
+4. [completed in working tree] reviewed threshold=`confirmed` SHA-256=
+   `04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`，contract/publication=
+   `formal-ready` SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`，
+   manifest=`60/60`、full contract/frozen diagnostic/overlay validators PASS；
+5. [pending] commit all allowlisted paths once as the direct-single-parent child of `322bb346…`，
+   push，validate topology/formal delta，and prove clean `HEAD == origin/main`；
+6. [pending] stop the same exact demo DB containers，run one fresh formal ID from scratch，and restore
+   exact IDs on every exit path；formal-r1 remains immutable and is not reused；
+7. [pending] only after formal PASS run final implementation quality，then test coverage audit，then
+   acceptance signoff。Step 5 stays closed until all Step 4 exit gates pass。
+
+Current Step 4=`in-progress`，`can_enter_coverage_audit=no`，`can_enter_acceptance=no`。

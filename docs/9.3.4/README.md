@@ -263,11 +263,17 @@ updated_at: 2026-07-17
   `773+59/5,707/F0E0S0` lane，但在 formal coverage gate 以 `E_FORMAL_LOW` fail closed。
   唯一漂移为 `WatchServiceFileTracer` 的 shutdown-hook 覆盖竞态：line `204/244 -> 195/244`、
   branch `98/128 -> 95/128`。该失败 run 保持 immutable，不以重跑碰运气。
-- 当前状态已回到 `in-progress / formal-r1 failed / deterministic remediation verified /
-  new diagnostic pending`。既有 testcase 内的 isolated shutdown 在 5/5 fresh fork 中得到完全
-  相同 probe bitmap，11 testcase/F0E0S0 不变；canonical threshold/contract 已恢复精确
-  `diagnostic-pending/diagnostic-ready`，等待新 Cdiag commit/push 后 fresh diagnostic。
-  `can_enter_coverage_audit=no`；Step 5、formal、coverage audit、acceptance 与 9.3.5 仍关闭。
+- new Cdiag=`322bb346cca19998a90d6d990505ef033f3a496a` 已 commit/push 并保持 clean identity；
+  fresh r14=`step4-coverage-20260717-diagnostic-r14` 完整 PASS：required=
+  `773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48`、critical below-floor=`0`、唯一
+  structural N/A=`NamespaceScope.branch`、sensitive=`passed`、cleanup=`0/0/0`。
+- r14 exact candidate SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`
+  经两路独立审查 PASS（合并 B/H/M/L=`0/0/0/1`）。canonical threshold 已转为
+  `confirmed` SHA-256=`04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`，
+  contract/publication=`formal-ready` SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+  Cfreeze direct-child commit/push 与 fresh formal 仍 pending。
+- 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、formal、coverage audit、
+  acceptance 与 9.3.5 仍关闭。
 
 ## 执行资料
 
@@ -334,6 +340,14 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-formal-r1-watchservice-shutdown-race-fail-closed-20260717.md](evidence/step-4/step4-coverage-formal-r1-watchservice-shutdown-race-fail-closed-20260717.md)
 - Step 4 formal-r1 recovery implementation quality：
   [quality/step4-formal-r1-recovery-implementation-quality.md](quality/step4-formal-r1-recovery-implementation-quality.md)
+- Step 4 r14 Cfreeze implementation quality：
+  [quality/step4-r14-cfreeze-implementation-quality.md](quality/step4-r14-cfreeze-implementation-quality.md)
+- Step 4 diagnostic r14 successful observation：
+  [evidence/step-4/step4-coverage-diagnostic-r14-pass-20260717.md](evidence/step-4/step4-coverage-diagnostic-r14-pass-20260717.md)
+- Step 4 diagnostic r14 threshold candidate：
+  [evidence/step-4/step4-coverage-diagnostic-r14-threshold-candidate-20260717.json](evidence/step-4/step4-coverage-diagnostic-r14-threshold-candidate-20260717.json)
+- Step 4 diagnostic r14 threshold review：
+  [evidence/step-4/step4-coverage-diagnostic-r14-threshold-review-20260717.md](evidence/step-4/step4-coverage-diagnostic-r14-threshold-review-20260717.md)
 - Step 4 canonical evidence JSON numeric type-alias regression：
   [workitems/BUG-step4-evidence-json-numeric-type-alias-bypass.md](workitems/BUG-step4-evidence-json-numeric-type-alias-bypass.md)
 - Step 4 exec class-ID scope regression：
@@ -392,7 +406,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r1 fail-closed / new diagnostic pending | formal-r1=`86d505e` 全 lane PASS 后以 `E_FORMAL_LOW` 拒绝；唯一差异为 `WatchServiceFileTracer -9 line/-3 branch` shutdown-hook race；5/5 isolated focused exec bitmap 相同、11/F0E0S0；machine state=`diagnostic-ready/diagnostic-pending`；新 Cdiag/diagnostic/freeze/formal/final quality pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r14 diagnostic sealed / thresholds confirmed / Cfreeze working tree formal-ready | r14=`322bb346…`：`773+59/5707/F0E0S0`、23/48、below-floor 0、N/A 1、cleanup 0/0/0；candidate/review PASS；machine state=`confirmed/formal-ready`；Cfreeze commit/push/direct-parent proof、fresh formal、final quality pending；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

@@ -24,12 +24,12 @@ updated_at: 2026-07-17
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 formal-r1 fail-closed、shutdown race remediation focused 5/5、machine state restored diagnostic pending / new diagnostic、Cfreeze、formal pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r14 diagnostic sealed、candidate/reviews PASS、machine working tree formal-ready / Cfreeze commit/push、formal pending / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 formal-r1 fail-closed、new Cdiag/diagnostic pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r14 sealed、second Cfreeze working tree formal-ready、fresh formal pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r13/Cfreeze historical positive 与 formal-r1 immutable failed evidence present，new diagnostic/formal/Step 4 exit positive absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` + `quality/step4-formal-r1-recovery-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 formal-r1 recovery pre-Cdiag quality PASS，B/H/M/L=`0/0/0/0`，仅放行 fresh diagnostic；post-formal final quality pending，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r13/Cfreeze historical、formal-r1 immutable failure、r14 diagnostic/candidate/review present；fresh formal/Step 4 exit absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` + `quality/step4-formal-r1-recovery-implementation-quality.md` + `quality/step4-r14-cfreeze-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 r14 pre-Cfreeze quality PASS，B/H/M/L=`0/0/0/1`，只放行 Cfreeze/fresh formal；post-formal final quality pending，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -58,19 +58,15 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-17）：
-`in-progress / formal-r1 fail-closed / deterministic shutdown remediation verified /
-new diagnostic pending`。formal-r1 在 Cfreeze `86d505e` 上完成 exact
-`773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、exec=`23/48`
-与 class universe=`24/2098` 后，由 formal gate 以 `E_FORMAL_LOW` 拒绝；positive summary/
-coverage-gate/candidate/final 均 absent。唯一变化是 `WatchServiceFileTracer -9 line/-3 branch`
-的 tracer/JaCoCo shutdown-hook race。
+`in-progress / r14 diagnostic sealed / thresholds confirmed / second Cfreeze working tree
+formal-ready / fresh formal pending`。r14 on clean/pushed `322bb346…` completed exact
+`773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、exec=`23/48`、
+class universe=`24/2098`、below-floor=`0`、N/A=`1`、cleanup=`0/0/0`。Candidate and two
+independent reviews PASS；canonical threshold/contract/manifest validators PASS。
 
-修复未新增 testcase：既有测试内 isolated shutdown 的 5 个独立 fork 均为
-`177/245 probes`，formal-r1 缺失的 7 probes 全部命中，bitmap unique=`1`，Surefire=
-`11/F0E0S0`。canonical machine state 已恢复 b765 exact
-`diagnostic-ready/diagnostic-pending`，manifest=`60/60`；新 Cdiag commit/push、fresh
-diagnostic、review/Cfreeze/fresh formal 与最终 quality 都尚未完成。focused 结果不得冒充
-Step 4 acceptance evidence。
+This state is still not acceptance evidence：Cfreeze direct-child commit/push/topology/formal-delta
+proof、fresh formal and final implementation quality remain pending。Only after those gates may the
+coverage audit start；candidate/review/working-tree machine state must not be counted as formal green。
 
 Unit remediation r2 不是 acceptance evidence：
 `step4-unit-fixture-quality-20260716-r2` 在 commit
@@ -357,3 +353,18 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   module split 或 SPI v2 提前实施。
 - experience=N/A：本版本没有 UI、浏览器或人工体验交付，不要求 screenshot/
   Playwright evidence。
+
+## Superseding r14 acceptance boundary（2026-07-17）
+
+- r14 diagnostic is a valid successful observation on tested commit
+  `322bb346cca19998a90d6d990505ef033f3a496a`：required=`773+59/5707/F0E0S0`、Addon=`2/6`、
+  exec/session=`23/48`、below-floor=`0`、N/A=`1`、cleanup=`0/0/0`、sensitive=`passed`；
+- candidate SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`
+  and independent review authorize Cfreeze only；they are not formal or acceptance positives；
+- canonical working-tree state=`confirmed/formal-ready`，but direct-child Cfreeze commit/push、
+  topology/formal-delta proof、clean identity and fresh formal are still required；
+- the only review Low is non-critical PostgreSQL Pivot probe variance。Acceptance may close it only by
+  a fresh formal PASS under the exact r14 minima；a failed run must remain immutable；
+- current `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。After formal PASS，final
+  implementation quality must pass before the coverage audit skill is used；acceptance remains after
+  audit PASS only。
