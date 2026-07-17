@@ -635,6 +635,34 @@ code_inventory:
   commit/push 与 fresh r13 pending。r13 前 threshold=`diagnostic-pending`、
   `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 关闭。
 
+### Superseding r13 diagnostic / Cfreeze inventory
+
+- fresh diagnostic：run=`step4-coverage-20260717-diagnostic-r13`，tested commit=
+  `b76552e21479c75111f648a4aa678abe018cc3f9`；sealed required=
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、exec=
+  `23/48`、critical below-floor=`0`、structural N/A=`1`、sensitive scan=`passed`、
+  cleanup container/volume/network=`0/0/0`；
+- applicability identity：唯一 N/A 为
+  `com.foggyframework.dataset.db.model.spi.NamespaceScope / foggy-dataset-model / branch`，
+  reviewed threshold 必须保留 exact `observed={covered:0,total:0,fraction:null}` 与
+  `minimum=null`；所有其他 critical line/branch denominator 保持 positive；
+- reviewed candidate：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r13-threshold-candidate-20260717.json`，
+  SHA-256=`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`，public
+  verification=`passed`；candidate 本身保持 `review-required`，不得冒充 canonical confirmed
+  threshold；
+- Cfreeze exact machine delta 仅为
+  `scripts/v934/step4/{coverage-thresholds.json,coverage-contract.json,SHA256SUMS}` 加
+  `docs/9.3.4/**` allowlist writeback；待创建的单次 Cfreeze commit 必须以
+  `b76552e21479c75111f648a4aa678abe018cc3f9` 为唯一直接 parent，threshold 转为
+  `confirmed`（SHA-256=`0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`）、
+  contract/publication 转为 `formal-ready`（SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`）；Cfreeze
+  machine delta 已就绪、manifest=`60/60`，单次 commit/direct-parent proof 待完成；
+- current boundary：r13、verified candidate 与 Cfreeze formal-ready transition 只放行 fresh formal。
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；formal 与 post-formal final quality
+  pending，Step 4/Step 5、coverage audit、acceptance 均未通过。
+
 ## Protected Boundaries
 
 - `docs/9.3.3/evidence/**` and existing `target/v933-*` are historical authority；

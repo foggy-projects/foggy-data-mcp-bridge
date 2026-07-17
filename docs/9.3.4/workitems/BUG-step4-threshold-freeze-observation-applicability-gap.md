@@ -4,7 +4,7 @@ bug_source: diagnostic-found
 version: 9.3.4
 ticket: BUG-934-STEP4-THRESHOLD-FREEZE-OBSERVATION-APPLICABILITY-GAP
 severity: blocker
-status: in-progress
+status: closed
 reproduction_status: confirmed
 product_regression: false
 test_strategy: real-observation-freeze-and-structural-na-regression
@@ -87,10 +87,12 @@ positive-total exact counter，形成 lifecycle 断点。
 - [x] 失败命令可重复复现，candidate absent，未修改 threshold。
 - [x] 确认 9 个 critical coverage gaps 与唯一结构性 N/A。
 - [x] 完成 enriched-schema / exact N/A machine policy 与 negatives。
-- [x] 完成 9 类 coverage tests；focused union 已达到 floor，仍等待 fresh JaCoCo authority 重算。
+- [x] 完成 9 类 coverage tests；focused union 与 fresh JaCoCo authority 均达到 floor。
 - [x] 刷新 machine manifest并运行 focused gates；正式实现质量复核 B/H/M/L=`0/0/0/0`。
-- [ ] commit/push、clean `HEAD == origin/main` 后执行 fresh diagnostic。
-- [ ] 仅在 fresh diagnostic/candidate 通过后创建 direct-single-parent Cfreeze。
+- [x] Cdiag commit/push、clean `HEAD == origin/main` 后执行 fresh r13 diagnostic。
+- [x] r13 sealed PASS，below floor=`0`、structural N/A=`1`，candidate public verification 通过。
+- [x] 将 reviewed threshold 写入 Cfreeze working-tree machine delta。
+- [ ] 将全部 allowlisted delta 一次提交为 Cdiag 的唯一 direct-child，并完成 topology proof；fresh formal 仍 pending。
 
 当前实现已额外关闭预提交审查发现的 JSON numeric alias：`false`、`0.0` 不得冒充
 canonical N/A integer zero，`gap:false` 不得冒充 `0.0`；frozen replay receipt 现在由完整
@@ -98,8 +100,22 @@ schema、strict JSON identity 与 direct formal-call binding 保护。XML fast n
 `118/118`，contract mutations=`27/27`，threshold/frozen replay policy=`12/12`；九类 focused
 test=`136/F0E0S0`，既有 report/testcase cardinality 不变。
 
-当前 `status=in-progress`；fresh diagnostic 尚未执行，因此 Step 4、formal、coverage audit、
-acceptance 与 Step 5 保持关闭。
+## Resolution evidence
+
+fresh diagnostic `step4-coverage-20260717-diagnostic-r13` 在 clean/pushed commit
+`b76552e21479c75111f648a4aa678abe018cc3f9` 上 sealed PASS，observation SHA-256=
+`91992393cc2dba4db2e8ae8f8e5fc400273329001b5a3aa61c8df7d91cb7f542`。12/12 critical
+class 的所有适用指标达到 floor，唯一非适用指标精确保持为
+`NamespaceScope.branch=0/0/null`。
+
+真实 candidate 已生成并通过 public verification，SHA-256=
+`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`。独立复算进一步证明
+aggregate exact projection、12 行 policy 顺序、23 个 positive metric、唯一 N/A 以及
+23/23 `minimum == observed` 全部成立。因此本 BUG 的 producer/consumer/applicability lifecycle
+缺陷范围关闭；Cfreeze machine delta 已准备为 `formal-ready`，单次 direct-child commit/topology
+proof 与 fresh formal 是仍待执行的后置 release gate，不再是本 BUG 未修复项。
+
+当前 `status=closed`；formal、coverage audit、acceptance 与 Step 5 仍保持关闭。
 
 ## References
 
@@ -108,3 +124,5 @@ acceptance 与 Step 5 保持关闭。
 - `scripts/v934/step4/coverage-contract.json`
 - `scripts/v934/step4/coverage_xml_negative_tool.py`
 - `scripts/v934/step4/coverage_contract_negative_tool.py`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r13-pass-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r13-threshold-review-20260717.md`

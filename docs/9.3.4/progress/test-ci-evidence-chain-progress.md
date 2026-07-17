@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r11 source-seal excluded / binding remediation quality passed / commit pending | Step 3 exit passed | r11 在 bootstrap-negative 以 `E_SOURCE_SEAL` fail closed，零 lane、excluded/non-reusable；early four-way binding=`1+6`、raw CRLF/executable no-op negatives 与两路 quality 已通过；commit/push→fresh r12 pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r13 diagnostic sealed / thresholds confirmed / Cfreeze formal-ready / fresh formal pending | Step 3 exit passed | r13=`b76552e2`：`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48`、below-floor=`0`、`NamespaceScope.branch` N/A=`1`、sensitive passed、cleanup=`0/0/0`；candidate SHA=`8bb47382...14d00` verified；threshold SHA=`0cfc6765...227cb` confirmed；formal/audit/acceptance pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1290,34 +1290,30 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r11 binding remediation quality passed | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r11 两路 post-fix implementation review 与 docs/status review B/H/M/L=`0/0/0/0`，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 pre-r13 remediation quality passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r13 diagnostic 已 sealed、Cfreeze transition 已 formal-ready；fresh formal 与其后的最终 quality 尚未执行，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r11 excluded / binding remediation quality passed / commit + fresh r12 pending | roadmap 为 Steps 1–3 passed / Step 4 not passed；Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r13 diagnostic sealed / Cfreeze formal-ready / fresh formal pending | roadmap 为 Steps 1–3 passed / Step 4 in-progress；formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-r11 在建立 run-owned source seal 与任何测试 lane 前，因 outer actual raw `57f5da9a...` 与
-lifecycle frozen raw `02a920d9...` 漂移，于 `bootstrap-negative` 以 `E_SOURCE_SEAL` fail
-closed。r11 零 lane、excluded/non-reusable。remediation 已建立 Unit/Integration/outer/library
-early four-way binding，canonical positive=`1`，outer+manifest refresh/nested stale、
-outer-only drift、valid-64 nested-only wrong、missing、duplicate、invalid-format negatives=
-`6`；raw CRLF/executable no-op 双层 negatives 与 focused lifecycle、manifest=`60/60`、
-successor=`14/14`、contract=`21/21`、overlay=`12/12` 均通过。当前 identity 为 outer raw=
-`90b4b979e55c17243644cce186767a4647ce79c85b431adcb415bddd18cc1cec`、semantic=
-`065211912aab5227125ef02f40e2965fce7ff5060df5c7b91a902c4ad4f34cae`、lifecycle=
-`61bf7b990bdef6e0d75c53010644bcc6d1525a67119cd36c5f82eeb911e005fc`、manifest=
-`a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`。安全复核发现的
-preflight TOCTOU Medium 已由 descriptor-bound strict read 关闭；两路 post-fix implementation
-review 与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`。下一步是 commit/push/clean HEAD，
-再以 fresh r12 从头
-执行 all-lane diagnostic。只有 r12 完整成功后才评审 exact observed thresholds。
-当前 threshold=`diagnostic-pending`，r1–r11 与 Unit remediation r2 都是 excluded failed
-evidence，历史 partial/incomplete 产物不可复用，尚无 reviewed/frozen baseline 或 Step 4
-exit evidence；
-`can_enter_coverage_audit=no`，
-Step 5 仍不得开始，coverage audit/acceptance 不得启动。
+r13=`step4-coverage-20260717-diagnostic-r13` 已在 clean/pushed Cdiag commit
+`b76552e21479c75111f648a4aa678abe018cc3f9` 以
+`diagnostic-observed / completed / exit 0` 封存；required=`773+59/5,707/F0E0S0`、
+Addon=`2/6`、exec=`23/48`，critical below-floor=`0`，唯一 structural N/A=`1` 为
+`NamespaceScope.branch`；sensitive scan=`passed`、cleanup=`0/0/0`。threshold freeze
+candidate 已 public verified，SHA-256=
+`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`。
+
+exact threshold review 已完成；canonical threshold=`confirmed`（SHA-256=
+`0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`），contract/publication=
+`formal-ready`（SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`）。
+下一步仅允许提交/推送 Cdiag 的 direct-single-parent Cfreeze，验证 direct-parent delta 与 clean
+`HEAD == origin/main` 后以唯一新 run ID 执行 fresh formal。r13/candidate 不得冒充 formal
+或 Step 4 exit。当前 Step 4=`in-progress`、threshold=`confirmed`、Cfreeze=`formal-ready`、
+formal=`pending`、`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、coverage
+audit 与 acceptance 不得启动。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1450,3 +1446,28 @@ Step 5 仍不得开始，coverage audit/acceptance 不得启动。
   `HEAD == origin/main` → 停止 exact DB containers/确认 ports free → fresh
   `step4-coverage-20260717-diagnostic-r13` → restore exact IDs。r13 通过前不得 Cfreeze；
   `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 关闭。
+
+### Superseding Post-diagnostic Check-in — r13 sealed / Cfreeze formal-ready
+
+- recorded_at: 2026-07-17；
+- immutable run：`step4-coverage-20260717-diagnostic-r13`，tested Cdiag commit=
+  `b76552e21479c75111f648a4aa678abe018cc3f9`，outer=
+  `diagnostic-observed / completed / exit 0`；
+- authority result：required=`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48`；critical
+  below-floor=`0`，structural N/A=`1` 且仅为 `NamespaceScope.branch`；sensitive scan=
+  `passed`、cleanup=`0/0/0`；
+- threshold freeze candidate：public verification=`passed`，SHA-256=
+  `8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`；candidate 不是
+  confirmed threshold、formal final 或 Step 4 exit；
+- independent review：SHA-256=
+  `2ab3dc50ed15399c07c1281c70961bf56593eae925727e5cc357bb448e737d8e`；canonical
+  threshold=`confirmed`，SHA-256=
+  `0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`；contract/publication=
+  `formal-ready`，SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+- status decision：Step 4=`in-progress`，Cfreeze=`formal-ready`、formal=`pending`、
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、audit、acceptance 与 9.3.5
+  保持关闭；
+- next gate：Cdiag direct-single-parent Cfreeze commit/push → direct-parent delta → clean
+  `HEAD == origin/main` → fresh formal → final implementation quality → coverage audit →
+  acceptance。任一步失败继续 fail closed。

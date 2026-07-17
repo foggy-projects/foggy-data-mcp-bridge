@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r11 outer source-seal excluded / binding remediation quality passed /
-  commit/push + fresh r12 pending`
+  `in-progress / r13 diagnostic sealed / thresholds confirmed / Cfreeze formal-ready /
+  fresh formal pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -401,10 +401,10 @@ updated_at: 2026-07-17
 - focused lifecycle suite=`PASS`，manifest=`60/60`、successor=`14/14`、contract
   mutations=`21/21`、overlay negatives=`12/12`。这些只证明 remediation，不是 r12、formal
   或 Step 4 exit；
-- 当前 Step 4=`in-progress / remediation quality passed / commit pending`。只有
-  commit/push、clean `HEAD == origin/main` 与 fresh r12
-  diagnostic 全部通过，才允许进入 exact threshold review/freeze；Step 5、formal coverage
-  run、coverage audit、acceptance 与 9.3.5 保持关闭。
+- 当前 Step 4=`in-progress / r13 diagnostic sealed / thresholds confirmed /
+  Cfreeze formal-ready / fresh formal pending`。r13 exact threshold review 与 machine transition 已完成，
+  单次 Cfreeze commit/direct-parent proof 待执行；formal、最终
+  implementation quality、coverage audit 与 acceptance 尚未执行；Step 5 与 9.3.5 保持关闭。
 
 ## Superseding r12 requirement boundary（2026-07-17）
 
@@ -423,3 +423,23 @@ updated_at: 2026-07-17
 - 当前 Step 4=`in-progress`，threshold=`diagnostic-pending`，precommit quality 已通过；
   commit/push 与 fresh r13 仍 required。只有 r13 below-floor=`0`、N/A=`1`、candidate verified 后，才允许
   direct-child Cfreeze；Step 5、formal、coverage audit、acceptance 与 9.3.5 保持关闭。
+
+## Superseding r13 sealed requirement boundary（2026-07-17）
+
+- r13=`step4-coverage-20260717-diagnostic-r13` 已在 clean/pushed Cdiag commit
+  `b76552e21479c75111f648a4aa678abe018cc3f9` 以
+  `diagnostic-observed / completed / exit 0` 封存；required=`773+59/5,707/F0E0S0`、
+  Addon=`2/6`、exec=`23/48`，sensitive scan=`passed`、cleanup=`0/0/0`；
+- exact critical requirement 已满足：below-floor class=`0`；唯一 structural N/A=`1`，只允许
+  machine-authorized tuple：FQCN=
+  `com.foggyframework.dataset.db.model.spi.NamespaceScope`、module=`foggy-dataset-model`、
+  metric=`branch`；
+- threshold freeze candidate 已通过 public verification，SHA-256=
+  `8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`；该 candidate 只允许
+  进入 review 与 direct-single-parent Cfreeze，不得等同 canonical confirmed threshold 或 formal pass；
+- review evidence SHA-256=`2ab3dc50ed15399c07c1281c70961bf56593eae925727e5cc357bb448e737d8e`；
+  canonical threshold SHA-256=`0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`
+  已 confirmed，contract/publication=`formal-ready`；
+- 当前 Step 4 仍为 `in-progress`，Cfreeze transition=`confirmed/formal-ready`、formal=`pending`、
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。只有 fresh formal、最终
+  implementation quality 依次通过后才可启动 coverage audit；Step 5 与 9.3.5 保持关闭。

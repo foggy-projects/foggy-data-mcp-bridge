@@ -66,12 +66,26 @@ canonical provenance fail-open。
 - [x] exact identity / exact integer / exact float consumer 已实现。
 - [x] 9 个 targeted negatives 已通过。
 - [x] post-fix full-closure 与正式实现质量复核均为 B/H/M/L=`0/0/0/0`。
-- [ ] Cdiag commit/push 后由 fresh r13 重算 canonical authority。
+- [x] Cdiag commit/push 后由 fresh r13 重算 canonical authority。
 
-当前不开放 threshold freeze、formal、coverage audit、acceptance 或 Step 5。
+## Fresh authority closure
+
+fresh r13 在 commit `b76552e21479c75111f648a4aa678abe018cc3f9` 上 sealed PASS，observation
+SHA-256=`91992393cc2dba4db2e8ae8f8e5fc400273329001b5a3aa61c8df7d91cb7f542`。真实
+threshold candidate 经 public verification 与独立 strict-type projection 复算通过：aggregate
+exact、critical rows=`12`、positive metrics=`23`、唯一 N/A=`1`、minimum exact match=`23/23`；
+candidate SHA-256=
+`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`。
+
+这补齐了 checklist 中最后一项 fresh authority evidence；BUG 保持 `status=closed`。Cfreeze
+machine delta 已准备为 `formal-ready`，单次 direct-child commit/topology proof 与 fresh formal 仍
+pending；coverage audit、acceptance 与
+Step 5 尚未开放。
 
 ## References
 
 - `scripts/v934/step4/coverage_xml_tool.py`
 - `scripts/v934/step4/coverage_xml_negative_tool.py`
 - `docs/9.3.4/workitems/BUG-step4-threshold-freeze-observation-applicability-gap.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r13-pass-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r13-threshold-review-20260717.md`

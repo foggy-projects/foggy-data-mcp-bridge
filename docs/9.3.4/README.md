@@ -252,20 +252,21 @@ updated_at: 2026-07-17
   消费真实六字段 row/enriched counter，N/A 只接受唯一 machine tuple，并以 strict JSON
   identity 拒绝 bool/int、int/float 与 `gap:false` aliases；XML=`118/118`、contract=
   `27/27`、frozen replay policy=`12/12`、overlay=`12/12`。
-- 当前状态为 `in-progress / r12 diagnostic observed / 9 critical coverage gaps remediated /
-  threshold lifecycle hardened / precommit quality passed / Cdiag commit + fresh r13 pending`。
-  `coverage-thresholds.json` 仍为
-  `diagnostic-pending`；r1–r11、Unit fixture quality r1/r2 与 focused/static 结果都不是
-  Step 4 exit evidence，r3 只通过 Unit remediation subgate；r9 remediation quality 是历史
-  通过结论，r10 producer-label remediation quality 也是历史通过结论；当前 r11 binding
-  remediation formal quality 已通过。
-  `can_enter_coverage_audit=no`；
-  r12 已完整发布 all-lane observation，但 9 类低于 floor 且 freeze lifecycle 暴露 schema/N/A
-  缺口，因此不能复用为 threshold authority。当前 closure 必须 commit/push Cdiag 并证明
-  clean `HEAD == origin/main`，再以新 run ID 执行 fresh r13；Step 5、
-  threshold freeze、formal
-  coverage run、coverage audit 与
-  acceptance 仍关闭。
+- fresh r13=`step4-coverage-20260717-diagnostic-r13` 已在 clean/pushed Cdiag commit
+  `b76552e21479c75111f648a4aa678abe018cc3f9` 完整封存：outer=
+  `diagnostic-observed / completed / exit 0`，required=`773+59/5,707/F0E0S0`、Addon=
+  `2/6`、exec=`23/48`；critical below-floor=`0`，唯一 structural N/A=`1`，即
+  `NamespaceScope.branch`；sensitive scan=`passed`、cleanup=`0/0/0`。threshold freeze
+  candidate 已通过 public verification，SHA-256=
+  `8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`。
+- 当前状态为 `in-progress / r13 diagnostic sealed / thresholds confirmed /
+  Cfreeze formal-ready / fresh formal pending`。`coverage-thresholds.json=confirmed`，coverage
+  contract/publication=`formal-ready`；candidate 仍保持 immutable `review-required`。当前工作树中的
+  Cfreeze machine delta 只准备 reviewed threshold 转换；单次 direct-child commit/topology proof
+  仍待完成，且该转换不是 Step 4 exit 或 formal pass。
+  下一步只能在 Cfreeze commit/push、direct-parent delta 与 clean `HEAD == origin/main` 全部通过后
+  执行 fresh formal；最终 implementation quality、coverage audit 与 acceptance 严格后置。
+  `can_enter_coverage_audit=no`；Step 5、formal、coverage audit、acceptance 与 9.3.5 仍关闭。
 
 ## 执行资料
 
@@ -384,7 +385,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r12 diagnostic observed / threshold+coverage remediation implemented / precommit quality passed | r12 全 lane、aggregate、sensitive scan、cleanup 通过，但 9/12 critical 低于 floor，且 freeze 暴露 enriched-schema/N/A 缺口；现 focused 九类=`136/F0E0S0`、XML=`118/118`、contract=`27/27`、frozen replay=`12/12`、overlay=`12/12`，quality B/H/M/L=`0/0/0/0`；commit/push→fresh r13 pending；`can_enter_coverage_audit=no`；Step 5/threshold/formal/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r13 diagnostic sealed / thresholds confirmed / Cfreeze formal-ready / fresh formal pending | r13=`b76552e2`：`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48`、below-floor=`0`、`NamespaceScope.branch` N/A=`1`、sensitive passed、cleanup=`0/0/0`；candidate SHA=`8bb47382...14d00` verified；threshold SHA=`0cfc6765...227cb` confirmed；fresh formal/final quality pending；`can_enter_coverage_audit=no`；Step 5/formal/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

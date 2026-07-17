@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r11 outer source-seal excluded / binding remediation quality passed /
-commit/push + fresh r12 pending`。
+`in-progress / r13 diagnostic sealed / thresholds confirmed / Cfreeze formal-ready /
+fresh formal pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -693,3 +693,31 @@ baseline。后续顺序更新为：
 7. 只有 r13 完整成功、`below_floor_class_count=0`、structural N/A count=`1` 且 candidate
    public verification 通过，才创建 Cdiag 的 direct-single-parent Cfreeze；Cfreeze 后 fresh
    formal、最终 quality、coverage audit、acceptance 顺序不变。Step 5 在 Step 4 exit 前关闭。
+
+## Step 4 r13 sealed diagnostic / Cfreeze formal-ready addendum（2026-07-17）
+
+r13 已完整成功并将 r12 remediation 重新证明为 fresh authority：run=
+`step4-coverage-20260717-diagnostic-r13`，tested Cdiag commit=
+`b76552e21479c75111f648a4aa678abe018cc3f9`，outer=
+`diagnostic-observed / completed / exit 0`；required=`773+59/5,707/F0E0S0`、Addon=`2/6`、
+exec=`23/48`，critical below-floor=`0`、唯一 `NamespaceScope.branch` structural N/A=`1`，
+sensitive scan=`passed`、cleanup=`0/0/0`。threshold freeze candidate public verification
+已通过，SHA-256=`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`；独立 review
+SHA-256=`2ab3dc50ed15399c07c1281c70961bf56593eae925727e5cc357bb448e737d8e`。
+reviewed threshold 已确认为
+`0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`，contract 已切换
+`formal-ready`（SHA-256=
+`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`）。
+
+后续严格按以下顺序推进：
+
+1. [completed] 以 r13 sealed diagnostic 和 verified candidate 完成 exact threshold 人工 review；
+2. [prepared] Cfreeze 工作树只包含 threshold/contract/`SHA256SUMS` exact allowlist 与
+   `docs/9.3.4/` writeback；单次 direct-single-parent commit 与 topology proof 待执行；
+3. Cfreeze commit/push、direct-parent delta 验证后证明 clean `HEAD == origin/main`，再使用唯一新 run ID 从头执行
+   fresh formal；不得复用 r13 exec、XML 或 candidate 充当 formal evidence；
+4. fresh formal 封存且 public final verification 通过后，依次执行最终 implementation quality、
+   test coverage audit 与 acceptance；任一步失败继续 fail closed。
+
+当前 Step 4=`in-progress`、threshold=`confirmed`、Cfreeze=`formal-ready`、formal=`pending`，
+`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。

@@ -663,3 +663,30 @@ coverage audit 与 acceptance 保持关闭。
   union 不替代 authority。r13 candidate 通过后才允许 direct-child Cfreeze 与 fresh formal。
 
 当前 `can_enter_coverage_audit=no`；Step 5、formal、coverage audit、acceptance 保持关闭。
+
+## Superseding r13 / Cfreeze test transition（2026-07-17）
+
+- fresh r13=`step4-coverage-20260717-diagnostic-r13` 已在 clean/pushed commit
+  `b76552e21479c75111f648a4aa678abe018cc3f9` sealed PASS：required=
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、exec=
+  `23/48`、sensitive scan=`passed`、cleanup container/volume/network=`0/0/0`；
+- critical authority result：below-floor class count=`0`，structural N/A metric count=`1`；唯一
+  N/A 仍为 machine-authorized
+  `com.foggyframework.dataset.db.model.spi.NamespaceScope / foggy-dataset-model / branch`，
+  其 reviewed projection 为 exact `observed=0/0/null`、`minimum=null`；
+- threshold candidate=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r13-threshold-candidate-20260717.json`，
+  SHA-256=`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`；public
+  candidate verification 已通过。candidate 保留 `status=review-required` 与 predecessor
+  `diagnostic-pending`，不在 diagnostic run 内自改 canonical threshold；
+- Cfreeze 只允许在 r13 Cdiag 的 direct-single-parent commit 中把 reviewed exact observation
+  转为 `coverage-thresholds.status=confirmed`，同步 contract 为 `formal-ready` 并刷新 machine
+  manifest；本次 machine delta 已 formal-ready（单次 commit/direct-parent proof 待完成）：threshold SHA-256=
+  `0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`、contract SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`、manifest=`60/60`，
+  confirmed/frozen validators 均通过；
+- r13 sealed PASS 与 candidate verified 只打开 fresh formal 的前置转换，不是 formal result、
+  Step 4 exit、coverage audit 或 acceptance evidence。
+
+当前 `step4_result=in-progress`、Cfreeze=`formal-ready`、`can_enter_coverage_audit=no`；fresh formal 与最终
+implementation quality 尚未执行，Step 5、coverage audit、acceptance 保持关闭。
