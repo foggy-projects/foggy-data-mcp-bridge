@@ -401,8 +401,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / diagnostic-r17 child-unit fail-closed / recovery formal quality
-  PASS / replacement Cdiag pending`
+- step4_result: `in-progress / diagnostic-r18 PASS / threshold candidate not authorized / Pivot
+  NULL-axis remediation verified / pre-Cdiag quality PASS / replacement Cdiag pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -869,3 +869,38 @@ coverage audit 与 acceptance 保持关闭。
   replacement Cdiag commit/push/clean -> fresh diagnostic。machine=
   `diagnostic-ready/diagnostic-pending`；Step 5、
   coverage audit 与 acceptance closed。
+
+## diagnostic-r18 Pivot NULL-axis deterministic-oracle test boundary（2026-07-17）
+
+- run=`step4-coverage-20260717-diagnostic-r18`，tested clean/pushed Cdiag=
+  `5be1edaa16c5883cde2f66396ac26a1ae113430b`；result=`completed / diagnostic-observed /
+  exit 0`，public `validate-diagnostic-run`=`VALID`；
+- all-lane oracle 完整：required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=
+  `23/48`、execution class identities=`16940`、class universe=`24/2098`、cleanup=`0/0/0`；
+- governed comparison oracle：r18 aggregate=`54622/76830 line, 26107/44870 branch`，r16 reviewed
+  high-water=`54624/76830 line, 26111/44870 branch`，delta=`-2 line/-4 branch`。因此 r18
+  虽为 complete PASS，decision 仍必须为 `threshold-candidate-not-authorized`，candidate absent；
+- XML/class oracle：分母和 production class tree 不变，唯一 delta 为
+  `BaselineRatioCalculator=-2 line/-3 branch` 与 `ResultShaper=-1 branch`；它们来自
+  PostgreSQL exec bitmap 的 NULL column/row axis incidental path，不是 report、exec、testcase 或
+  production drift；
+- deterministic semantic oracle 位于既有 `PivotSqlParityIT` S12：受控 fixture 必须断言
+  NULL column-axis tuple 被 `BaselineRatioCalculator` 排除在 first/last domain 之外，且
+  NULL row-axis tuple 经 `ResultShaper` 形成独立 `__null__` tree node；测试不得依赖
+  LEFT JOIN 偶发 unmatched data、lane 顺序或共享 fixture state；
+- cardinality/source oracle：保持原 testcase identity，无新增/改名 `@Test`、无
+  production/public API/POM/runner/threshold/exclusion 修改。三次 fresh JVM/JaCoCo focused=
+  `3 x 1/F0E0S0`，两目标 class bitmap `3/3 identical`，完整 `PivotSqlParityIT=23/F0E0S0`；
+  这些结果只证明修复方向，不替代 replacement all-lane diagnostic；
+- successor amendment/protected-tree/database/required/overlay 与双层 hash manifest 已一起验证：
+  successor/top=`14/14 + 60/60`，database=`7/29/370`、required=`45/446/F0E0S0`、overlay=
+  `22 amendments/9 bindings`、coverage contract=`23/48/773+59/5707`；
+  implementation quality 已 `PASS / 0/0/0/0`，当前只可 commit/push/clean replacement Cdiag。
+  machine 继续为
+  `diagnostic-ready/diagnostic-pending`；
+- fresh r19 必须 all-lane/public-valid 且达到或超过 r16 high-water，才可开始
+  candidate/review；否则 fail closed 且禁止降阈。当前
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，candidate/Cfreeze/formal/final
+  quality/coverage audit/acceptance/Step 5 全关闭。evidence=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`；
+  BUG=`docs/9.3.4/workitems/BUG-step4-pivot-null-axis-coverage-oracle.md`。

@@ -31,7 +31,7 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java"
     ],
-    "sha256": "4bde59059406430286e531f350899d3654f697146d2bdd732b288dd24aea453e"
+    "sha256": "8f989dc2d267dde8192886e0ea5db0246aca100c27ca6cd6381b03ce65c03827"
   },
   "frozen_semantics": {
     "addon": {

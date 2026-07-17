@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / diagnostic-r17 child-unit fail-closed / recovery formal quality PASS /
-  replacement Cdiag pending`
+  `in-progress / diagnostic-r18 PASS / threshold candidate not authorized / Pivot remediation
+  verified / pre-Cdiag quality PASS / replacement Cdiag pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -188,15 +188,17 @@ updated_at: 2026-07-17
   时点的 contract/threshold/manifest hashes 也只作为 historical pre-Cdiag snapshot。当前 machine
   状态=`diagnostic-ready/diagnostic-pending`，latest exact identity 由当前 manifests 机器校验，
   不再引用旧 `cc356…` 作为 current；
-- r17 handoff recovery pre-Cdiag formal implementation quality 已 PASS，B/H/M/L=`0/0/0/0`，
-  record=`docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；只授权
-  replacement Cdiag commit/push/clean -> fresh diagnostic，不授权 Cfreeze、post-formal final
-  quality、coverage audit 或 acceptance；
+- r17 handoff recovery quality=`PASS / 0/0/0/0` 只作为历史前因；r18 已完整复现 full Unit 与
+  required lanes，但 high-water guard 拒绝 candidate。当前 Pivot deterministic remediation 的
+  pre-Cdiag formal implementation quality 已 `PASS / 0/0/0/0`，record=
+  `docs/9.3.4/quality/step4-diagnostic-r18-pivot-null-axis-implementation-quality.md`；当前只授权
+  replacement Cdiag commit/push/clean 与 fresh r19，不授权 Cfreeze、post-formal final quality、
+  coverage audit 或 acceptance；
 - run-owned Unit fixture 的 restricted credential、schema/tamper、atomic publisher、profile
   isolation 与 lifecycle requirements 保持生效；r16 已在单一 fresh run 中完成全部 required
   replacement evidence，不复用或拼接 r15 partial artifacts；
 - QueryModel remediation Cdiag `316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，
-  但 fresh r17 在 Unit MySQL57 第三个 lifecycle probe、callback ready 前因 final-server handoff race
+  但 historical r17 在 Unit MySQL57 第三个 lifecycle probe、callback ready 前因 final-server handoff race
   fail closed；canonical lifecycle、正常 fixture、Unit XML/exec 与后续 evidence absent。r17 永久
   excluded，cleanup JSON 不得当作 lifecycle/Unit PASS，也不能证明 QueryModel all-lane remediation；
 - runtime RED 已证明 stock ping 在 PID1=`docker-entrypoi` 时可 premature healthy；authority
@@ -204,8 +206,9 @@ updated_at: 2026-07-17
   `15/15`；penultimate diagnostics 字节 `5/5` receipt=`159fbe80…`，随后 latest callback
   diagnostics 又有加固，final current bytes r2=`5/5` / receipt=
   `e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`，successful logs absent、
-  demo exact restore=`runner_rc=0 / restore_rc=0` 且 healthy/listening。full Unit 必须由
-  clean/pushed replacement Cdiag 的 fresh diagnostic 证明；
+  demo exact restore=`runner_rc=0 / restore_rc=0` 且 healthy/listening。该时点 full Unit 必须由
+  后续 clean/pushed replacement Cdiag 的 fresh diagnostic 证明；此项已由 r18 的
+  `681+55/4941/F0E0S0` 完成，但 r18 未满足 aggregate high-water；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -602,3 +605,34 @@ updated_at: 2026-07-17
 - only allowed sequence：replacement Cdiag commit/push/clean -> fresh diagnostic ->
   candidate/review -> direct-child Cfreeze -> fresh
   formal -> final quality -> coverage audit -> acceptance。Step 4=`in-progress`，Step 5/9.3.5 closed。
+
+## Superseding diagnostic-r18 governed-high-water requirement boundary（2026-07-17）
+
+- replacement Cdiag=`5be1edaa16c5883cde2f66396ac26a1ae113430b` 已 commit/push/clean；fresh
+  `step4-coverage-20260717-diagnostic-r18` 完成 all-lane authority 并经 public validator 复算
+  `VALID`：required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/identity=
+  `23/48/16940`、cleanup=`0/0/0`、sensitive/model gate PASS；
+- r18 aggregate exact 为 line=`54622/76830`、branch=`26107/44870`，低于 r16 reviewed
+  high-water line=`54624/76830`、branch=`26111/44870`，delta=`-2 line / -4 branch`。因此
+  r18 decision 必须保持 `threshold-candidate-not-authorized`，threshold candidate absent；不得
+  以 complete diagnostic PASS 代替 high-water 审查，不得降低 threshold；
+- exact XML delta 仅为 `BaselineRatioCalculator=-2 line/-3 branch` 与
+  `ResultShaper=-1 branch`，对应 PostgreSQL exec bitmap 中的 NULL column baseline exclusion、
+  NULL coordinate key 与 NULL row tree fallback。两个 production source、class universe、分母与
+  report inventory 未变，本次判定为 incidental data-path coverage，不是 product regression；
+- blocker 记录=
+  `docs/9.3.4/workitems/BUG-step4-pivot-null-axis-coverage-oracle.md`，governed evidence=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`；
+- deterministic regression 必须位于既有 `PivotSqlParityIT` S12 节点，显式证明 NULL column
+  不进入 first/last baseline domain，以及 NULL row 被 `ResultShaper` 保留为
+  `__null__` tree node。当前 amendment 无新增/改名 `@Test`、无 production 修改；三次 fresh
+  JVM/JaCoCo focused 均 `1/F0E0S0` 且目标 bitmap `3/3 identical`，完整 test class=
+  `23/F0E0S0`；successor amendment/protected-tree/contract/overlay/hash manifest 已作为同一
+  replacement Cdiag identity 同步绑定并通过 validators；
+- focused/整类绿色不是 all-lane authority。canonical machine 保持
+  `diagnostic-ready/diagnostic-pending`；本次 implementation quality 已 PASS，当前可且仅可
+  commit/push/clean 唯一 replacement Cdiag，再运行 fresh r19 diagnostic；
+- r19 必须完整 PASS 且 aggregate 不低于 r16 high-water，才可生成 candidate 并进入
+  independent review；否则继续 fail closed，不得 freeze。当前 candidate/Cfreeze/formal/final
+  quality/coverage audit/acceptance/Step 5 全关闭，`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`。

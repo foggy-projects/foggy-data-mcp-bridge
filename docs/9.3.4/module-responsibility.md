@@ -270,3 +270,29 @@ updated_at: 2026-07-17
 - 当前 machine=`diagnostic-ready/diagnostic-pending`，Step 4=`in-progress`。pre-Cdiag formal
   quality 已 PASS；replacement Cdiag/fresh diagnostic pending，且仅这两个动作已获授权。full
   Unit authority、Step 5、audit、acceptance、9.3.5 owner 仍无开工授权。
+
+## Superseding diagnostic-r18 / deterministic Pivot oracle ownership boundary（2026-07-17）
+
+- Step 4 evidence owner 负责把 clean Cdiag
+  `5be1edaa16c5883cde2f66396ac26a1ae113430b` 上的 r18 封存为有效 diagnostic PASS，同时记录
+  aggregate 相对 r16 reviewed high water 的 `-2 line/-4 branch`；r18 candidate 必须保持 absent，
+  decision=`threshold-candidate-not-authorized`，不得由 threshold owner 降低高水位；
+- coverage-delta owner 负责保留精确归因：差异只涉及 `BaselineRatioCalculator=-2 line/-3 branch`
+  与 `ResultShaper=-1 branch` 的 PostgreSQL exec bitmap，不得据此修改 production、critical set、
+  coverage floor、exclusion 或 runner merge semantics；
+- `foggy-dataset-model` test owner 只负责既有
+  `PivotSqlParityIT#testBaselineRatioParity` 中的 deterministic semantic oracle：null column 保留为
+  可见 cell 但不成为 baseline domain，null row 独立分组并由 tree 映射为 `__null__`。不得新增/
+  改名 `@Test`，不得扩大到产品 Pivot API；focused=`3 x 1/F0E0S0`、两目标 bitmap=
+  `3/3 identical`、完整 test class=`23/F0E0S0`，test cardinality 保持 `23`；
+- successor authority owner 负责同步同一已声明测试 amendment、protected test tree、database/required/
+  overlay contracts 与两级 SHA manifest；当前 positive validators 为 successor=`14/14`、top=`60/60`、
+  database=`7 variants/29 reports/370 nodes`、required=`45/446/F0E0S0`、overlay=
+  `22 amendments/9 bindings`，不得修改 frozen Step 3、report cardinality 或 coverage totals；
+- implementation-quality owner 已完成本次 deterministic oracle、顶层文档与 authority 哈希链 formal
+  gate，结论=`PASS / 0/0/0/0`，record=
+  `docs/9.3.4/quality/step4-diagnostic-r18-pivot-null-axis-implementation-quality.md`。machine/commit
+  owner 当前可提交并 push 一个 replacement Cdiag；Step 4 coverage owner 随后运行
+  fresh r19，且只有 r19 aggregate 不低于 r16 reviewed high water 才可把 candidate/review owner 接入；
+- 当前 machine=`diagnostic-ready/diagnostic-pending`，Step 4=`in-progress`。Cfreeze、formal、final quality、
+  coverage audit、acceptance、Step 5 与 9.3.5 owner 均无开工授权。

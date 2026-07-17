@@ -122,7 +122,7 @@ code_inventory:
     path: foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java
     role: Legacy/V934 branch oracle for PreAgg-before-Pivot parameter order and exact table identity
     expected_change: update
-    notes: proactive audit exposed two stable legacy RED runs after hybrid default changed; only the legacy branch disables hybrid while V934 FULL keeps production defaults; legacy and V934 SQLite focused each 1/F0E0S0; source SHA-256 5c6dcd3b4afba4d93a93c1af47cc4484a1dfc9976da92669bfbcc4529ede6155
+    notes: proactive audit exposed two stable legacy RED runs after hybrid default changed; only the legacy branch disables hybrid while V934 FULL keeps production defaults; r18 follow-up adds deterministic NULL-axis baseline/tree semantics inside the same S12 node; current source SHA-256 18ebeedf8d79a84d5ba59ff991aeffeefea73cbb8aa51c6c10444ed64ba6d325; @Test remains 23
   - module: model-test-config
     path: foggy-dataset-model/src/test/resources/application-*.yml
     role: five database profiles
@@ -339,8 +339,8 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / diagnostic-r17 Unit lifecycle fail-closed / final-mysqld handoff
-  remediation focused PASS / pre-Cdiag formal quality PASS / replacement Cdiag pending`，不是 `passed`；
+- state：`in-progress / diagnostic-r18 PASS / threshold candidate not authorized / Pivot NULL-axis
+  remediation verified / pre-Cdiag quality PASS / replacement Cdiag pending`，不是 `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
@@ -841,7 +841,43 @@ code_inventory:
   `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`；只授权
   replacement Cdiag commit/push/clean 与 fresh diagnostic，不授权 full Unit/Step 4 exit 或任何
   downstream gate；
-- 完整 Unit replacement=`681+55/4941/F0E0S0` 尚未由当前 remediation 后的 clean authority
-  证明，不能从 focused lifecycle 推断。下一许可链为 replacement Cdiag commit/push/clean -> fresh diagnostic ->
+- 在 r17 recovery snapshot，完整 Unit replacement=`681+55/4941/F0E0S0` 尚未由当时 remediation
+  后的 clean authority 证明，不能从 focused lifecycle 推断；该缺口随后由 r18 full Unit 补齐，但
+  r18 未达到 r16 aggregate high-water。r17 snapshot 的下一许可链曾为 replacement Cdiag commit/push/clean -> fresh diagnostic ->
   candidate/review -> direct-child Cfreeze -> fresh formal -> final quality -> coverage audit ->
   acceptance；当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 closed。
+
+### Superseding diagnostic-r18 / Pivot null-axis oracle inventory
+
+- immutable diagnostic inventory：Cdiag=
+  `5be1edaa16c5883cde2f66396ac26a1ae113430b`，run=
+  `step4-coverage-20260717-diagnostic-r18`，public validation PASS；required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/class identity=`23/48/16940`、
+  class universe=`24 modules/2098 classes`、critical below-floor=`0`、cleanup=`0/0/0`；
+- governed high-water inventory：r18 aggregate=`54622/76830 line`、`26107/44870 branch`，相对
+  r16 reviewed high water=`54624/76830`、`26111/44870` 为 `-2 line/-4 branch`；r18 candidate
+  absent，decision=`threshold-candidate-not-authorized`。精确差异仅在
+  `BaselineRatioCalculator`（`-2 line/-3 branch`）和 `ResultShaper`（`-1 branch`）的
+  PostgreSQL exec bitmap；
+- remediation source inventory：仅修改
+  `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java`，
+  current SHA-256=`18ebeedf8d79a84d5ba59ff991aeffeefea73cbb8aa51c6c10444ed64ba6d325`；
+  在既有 S12 `testBaselineRatioParity` 内构造确定性 null-column/null-row 输入，断言 null column
+  不进入 first/last domain、null row 与 named row 隔离，并在 tree 输出映射为 `__null__`；production
+  unchanged，`@Test` static count=`23 -> 23`；三次 fresh JVM/JaCoCo focused=
+  `3 x 1/F0E0S0`，`BaselineRatioCalculator=79/131 probes`、`ResultShaper=45/139 probes`，
+  bitmap `3/3 identical`；完整 test class=`23/F0E0S0`；
+- successor binding inventory：`foggy-dataset-model/src/test/java` protected tree=
+  `d11f9d478b4d4c29e036fd714586663591677f9ea0f833c505cba299523f0ea4`（306 files）；
+  database amendment=`ec4b1668...9414`、declared amendment=`8f989dc2...827`、database contract=
+  `cca2158b...67e5`、required contract=`a7ae5fc7...53a3`、overlay contract=`b0fba556...3982`、
+  successor manifest=`8cec5511...f1e9`、top manifest=`812b148b...1de5`；validators=
+  successor `14/14`、top `60/60`、database `7 variants/29 reports/370 nodes`、required=
+  `45/446/F0E0S0`、overlay=`22 amendments/9 bindings`、coverage=`23/48/773+59/5707`；
+- tracking inventory：
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`
+  与 `docs/9.3.4/workitems/BUG-step4-pivot-null-axis-coverage-oracle.md`。machine 保持
+  `diagnostic-ready/diagnostic-pending`；本 inventory 只支撑 implementation quality 与 replacement
+  Cdiag/r19，不支撑 candidate/Cfreeze/formal/audit/acceptance；pre-Cdiag quality=
+  `PASS / 0/0/0/0`，record=
+  `docs/9.3.4/quality/step4-diagnostic-r18-pivot-null-axis-implementation-quality.md`；Step 5 closed。

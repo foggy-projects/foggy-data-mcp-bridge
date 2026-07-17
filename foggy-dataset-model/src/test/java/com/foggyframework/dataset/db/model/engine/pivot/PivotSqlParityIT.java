@@ -5,6 +5,8 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.pivot.algo.BaselineRatioCalculator;
+import com.foggyframework.dataset.db.model.engine.pivot.algo.ResultShaper;
 import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeErrorCode;
 import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeException;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
@@ -810,6 +812,78 @@ class PivotSqlParityIT extends EcommerceTestSupport {
 
         assertBaselineRatioParity(sqlItems, pivotItems, true, "idxFirst");
         assertBaselineRatioParity(sqlItems, pivotItems, false, "idxLast");
+
+        // LEFT JOIN may produce both an unclassified row member and an unmatched
+        // column member. The null column is still a visible cell, but must never
+        // become the first/last baseline domain member.
+        Map<String, Object> unclassifiedNullMonth = new LinkedHashMap<>();
+        unclassifiedNullMonth.put("product$categoryName", null);
+        unclassifiedNullMonth.put("salesDate$month", null);
+        unclassifiedNullMonth.put("salesAmount", 600.0);
+
+        Map<String, Object> unclassifiedFirstMonth = new LinkedHashMap<>();
+        unclassifiedFirstMonth.put("product$categoryName", null);
+        unclassifiedFirstMonth.put("salesDate$month", 1);
+        unclassifiedFirstMonth.put("salesAmount", 100.0);
+
+        Map<String, Object> unclassifiedLastMonth = new LinkedHashMap<>();
+        unclassifiedLastMonth.put("product$categoryName", null);
+        unclassifiedLastMonth.put("salesDate$month", 2);
+        unclassifiedLastMonth.put("salesAmount", 200.0);
+
+        Map<String, Object> namedFirstMonth = new LinkedHashMap<>();
+        namedFirstMonth.put("product$categoryName", "Named");
+        namedFirstMonth.put("salesDate$month", 1);
+        namedFirstMonth.put("salesAmount", 400.0);
+
+        Map<String, Object> namedLastMonth = new LinkedHashMap<>();
+        namedLastMonth.put("product$categoryName", "Named");
+        namedLastMonth.put("salesDate$month", 2);
+        namedLastMonth.put("salesAmount", 100.0);
+
+        List<Map<String, Object>> nullAxisItems = new ArrayList<>(List.of(
+                unclassifiedNullMonth,
+                unclassifiedFirstMonth,
+                unclassifiedLastMonth,
+                namedFirstMonth,
+                namedLastMonth));
+        List<String> rowFields = List.of("product$categoryName");
+        List<String> colFields = List.of("salesDate$month");
+        BaselineRatioCalculator.apply(nullAxisItems, pivot, rowFields, colFields);
+
+        assertEquals(6.0, ((Number) unclassifiedNullMonth.get("idxFirst")).doubleValue(), 0.001,
+                "null column cell must use the first real month as its baseline");
+        assertEquals(3.0, ((Number) unclassifiedNullMonth.get("idxLast")).doubleValue(), 0.001,
+                "null column cell must not become the last baseline member");
+        assertEquals(1.0, ((Number) unclassifiedFirstMonth.get("idxFirst")).doubleValue(), 0.001);
+        assertEquals(0.5, ((Number) unclassifiedFirstMonth.get("idxLast")).doubleValue(), 0.001);
+        assertEquals(2.0, ((Number) unclassifiedLastMonth.get("idxFirst")).doubleValue(), 0.001);
+        assertEquals(1.0, ((Number) unclassifiedLastMonth.get("idxLast")).doubleValue(), 0.001);
+        assertEquals(4.0, ((Number) namedFirstMonth.get("idxLast")).doubleValue(), 0.001,
+                "null row coordinate must remain isolated from the named category baseline");
+        assertEquals(0.25, ((Number) namedLastMonth.get("idxFirst")).doubleValue(), 0.001,
+                "named category must retain its own first-month baseline");
+
+        pivot.setOutputFormat("tree");
+        PivotResult nullAxisTree = ResultShaper.shape(
+                nullAxisItems,
+                pivot,
+                rowFields,
+                colFields,
+                List.of("salesAmount", "idxFirst", "idxLast"));
+        assertEquals(2, nullAxisTree.getTreeData().size(),
+                "tree output must keep unclassified and named categories separate");
+        PivotResult.TreeNode unclassifiedNode = nullAxisTree.getTreeData().stream()
+                .filter(node -> "__null__".equals(node.getNode().get("product$categoryName")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("null row axis must be exposed as an unclassified tree node"));
+        assertEquals(6.0, ((Number) unclassifiedNode.getCells().get("null|idxFirst")).doubleValue(), 0.001,
+                "unclassified tree node must retain the unmatched-column first ratio");
+        assertEquals(3.0, ((Number) unclassifiedNode.getCells().get("null|idxLast")).doubleValue(), 0.001,
+                "unclassified tree node must retain the unmatched-column last ratio");
+        assertTrue(nullAxisTree.getTreeData().stream()
+                        .anyMatch(node -> "Named".equals(node.getNode().get("product$categoryName"))),
+                "named category must not be merged into the null-axis fallback node");
 
         log.info("S12: baselineRatio (first & last) Parity 验证通过");
     }

@@ -900,3 +900,43 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    direct-child Cfreeze 与 fresh formal 均 pending。fresh formal PASS 后仍必须按 final
    implementation quality -> coverage audit -> acceptance/signoff 顺序执行；当前 full Unit
    authority、Step 4、Step 5、audit、acceptance 与 9.3.5 均关闭。
+
+## Superseding diagnostic-r18 governed-high-water / Pivot NULL-axis contract（2026-07-17）
+
+1. replacement Cdiag=`5be1edaa16c5883cde2f66396ac26a1ae113430b` 上的 fresh
+   `step4-coverage-20260717-diagnostic-r18` 是 complete/public-valid diagnostic authority：
+   required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/identity=`23/48/16940`、
+   class universe=`24/2098`、cleanup=`0/0/0`；
+2. complete diagnostic PASS 不自动授权 threshold candidate。r18 aggregate exact=
+   `54622/76830 line, 26107/44870 branch`，必须与 r16 reviewed high-water
+   `54624/76830 line, 26111/44870 branch` 比较并记录 delta=`-2/-4`。r18 decision
+   固定为 `threshold-candidate-not-authorized`，candidate 必须 absent；禁止降低 aggregate/
+   critical threshold、扩大 exclusion、选择性重跑或复用 r18 exec/XML 来制造 freeze；
+3. r16/r18 exact delta 仅允许解释为
+   `BaselineRatioCalculator=-2 line/-3 branch` 与 `ResultShaper=-1 branch`的 NULL-axis
+   coverage-oracle gap，因为 production source/class tree、denominator、test/report inventory 均无
+   drift。该结论不得外推为 product defect，也不允许忽略 exact high-water；
+4. 既有 `PivotSqlParityIT` S12 必须包含不依赖数据库偶发 LEFT JOIN 结果的
+   deterministic semantic oracle：NULL column-axis member 不得进入 first/last baseline domain，
+   NULL row-axis member 必须保留为 `__null__` tree node，并对这些可观测业务结果
+   作精确断言；禁止只为命中 probe 而不证明语义；
+5. regression 必须保持 testcase/report identity，不新增/改名 `@Test`，不改
+   production/public API/POM/runner/floor/critical/threshold/exclusion。当前三次 fresh JVM/JaCoCo
+   focused 均 `1/F0E0S0` 且两目标 bitmap `3/3 identical`，完整 test class=`23/F0E0S0`；
+   这些仍只是 focused/class evidence，不是 all-lane authority；
+6. 变更的 test bytes 已由 successor declared amendment、protected-tree manifest、
+   database/required contract、overlay contract、successor/top SHA256SUMS 完整绑定；required
+   negatives 与 pre-Cdiag implementation quality=`PASS / 0/0/0/0`，record=
+   `docs/9.3.4/quality/step4-diagnostic-r18-pivot-null-axis-implementation-quality.md`。当前只可建立
+   唯一 replacement Cdiag commit/push/clean；
+7. fresh r19 diagnostic 必须重跑全部 `23 exec / 48 sessions`、通过 public
+   validation，且 line/branch 均达到或超过 r16 reviewed high-water，才允许生成
+   candidate 并进入 independent review。任一不足都必须 fail closed，不得进入
+   Cfreeze/formal；
+8. canonical machine 保持 `diagnostic-ready/diagnostic-pending`。当前
+   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，candidate/Cfreeze/formal/final
+   implementation quality/coverage audit/acceptance/Step 5/9.3.5 均关闭。fresh formal PASS 后
+   仍必须依次完成 final implementation quality -> coverage audit -> acceptance/signoff。
+   governed evidence=
+   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`；
+   BUG=`docs/9.3.4/workitems/BUG-step4-pivot-null-axis-coverage-oracle.md`。

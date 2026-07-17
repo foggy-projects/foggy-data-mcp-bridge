@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / diagnostic-r17 child-unit fail-closed / final-mysqld handoff remediation
-verified / pre-Cdiag formal implementation-quality PASS / replacement Cdiag pending`。
+`in-progress / diagnostic-r18 PASS / threshold candidate not authorized / Pivot NULL-axis
+remediation verified / pre-Cdiag quality PASS / replacement Cdiag pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -955,3 +955,45 @@ fail closed。r17 是 immutable/excluded/non-reusable failure；cleanup receipt 
 remediation verified / pre-Cdiag formal implementation-quality PASS`；当前只授权 one
 replacement Cdiag commit/push/clean + fresh diagnostic，二者尚未建立。full Unit authority、
 `can_enter_coverage_audit`、`can_enter_acceptance`、Step 4、Step 5 与 9.3.5 均保持关闭。
+
+## Step 4 diagnostic-r18 governed-high-water remediation addendum（2026-07-17）
+
+Cdiag `5be1edaa16c5883cde2f66396ac26a1ae113430b` 已 commit/push/clean；fresh r18 是完整、
+public-valid 的 diagnostic PASS，但 aggregate 未达 r16 reviewed high-water。本 addendum
+supersede r17 handoff 恢复的 next gate，不改写 r17 immutable failure history。
+
+1. [completed] 封存 `step4-coverage-20260717-diagnostic-r18`：required=
+   `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/identity=`23/48/16940`、
+   class universe=`24/2098`、cleanup=`0/0/0`，public validation PASS；
+2. [completed] 以 r16 reviewed high-water 作为 governed predecessor 复核 aggregate；r18=
+   `54622/76830 line, 26107/44870 branch`，r16=`54624/76830 line, 26111/44870 branch`，
+   delta=`-2/-4`；设定 decision=`threshold-candidate-not-authorized`并保持 candidate absent；
+3. [completed] 将 delta 定位到 `BaselineRatioCalculator=-2 line/-3 branch` 与
+   `ResultShaper=-1 branch`的 PostgreSQL exec bitmap incidentality；确认 production、分母、
+   class universe 与 report inventory 无 drift；
+4. [completed] 建立
+   `docs/9.3.4/workitems/BUG-step4-pivot-null-axis-coverage-oracle.md`，并在既有
+   `PivotSqlParityIT` S12 中增加 deterministic NULL-column baseline exclusion / NULL-row tree
+   fallback semantic oracle；无新增/改名 `@Test`、无 production 修改，单方法 PASS；
+5. [completed] 同步 successor amendment、protected-tree、database/required contract、overlay 与
+   双层 hash manifests；successor/top=`14/14 + 60/60`，database=`7/29/370`、required=
+   `45/446/F0E0S0`、overlay=`22/9`、coverage contract=`23/48/773+59/5707`。三次 fresh
+   JVM/JaCoCo focused 均 `1/F0E0S0`，两目标 class probe bitmap=`3/3 identical`，完整
+   `PivotSqlParityIT=23/F0E0S0`；implementation-quality=`PASS / B/H/M/L=0/0/0/0`，record=
+   `docs/9.3.4/quality/step4-diagnostic-r18-pivot-null-axis-implementation-quality.md`；
+6. [in-progress] 只创建一个 replacement Cdiag，commit/push 并证明 clean
+   `HEAD == origin/main`；使用唯一新 run ID 运行 fresh diagnostic-r19；
+7. [pending] r19 必须 all-lane/public validation PASS，且 aggregate line/branch 均不低于
+   r16 reviewed `54624/76830` / `26111/44870`。仅此情况允许生成 candidate 并进行
+   public verification/independent review；任一不足继续 fail closed，禁止降阈；
+8. [pending] candidate review PASS 后以 replacement Cdiag 为唯一 direct parent 建立 Cfreeze，
+   commit/push/clean 后运行 fresh formal；
+9. [pending] fresh formal PASS 后依次执行 final implementation quality、coverage audit 与
+   acceptance/signoff；仅全部 PASS 后才满足 Step 4 exit 与 Step 5 开启条件。
+
+当前 machine=`diagnostic-ready/diagnostic-pending`，Step 4=`in-progress / r18 diagnostic PASS /
+threshold candidate not authorized / Pivot NULL-axis remediation verified / pre-Cdiag quality PASS /
+replacement Cdiag pending`。candidate、Cfreeze、formal、
+final quality、coverage audit、acceptance、Step 5 与 9.3.5 全部关闭；
+`can_enter_coverage_audit=no`、`can_enter_acceptance=no`。governed record=
+`docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r18-governed-high-water-gap-20260717.md`。
