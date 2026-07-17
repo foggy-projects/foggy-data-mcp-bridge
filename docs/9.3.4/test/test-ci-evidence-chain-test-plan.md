@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r14 diagnostic sealed / thresholds confirmed / second Cfreeze working tree formal-ready / fresh formal pending`
+- step4_result: `in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -688,10 +688,9 @@ coverage audit 与 acceptance 保持关闭。
 - r13 sealed PASS 与 candidate verified 只打开 fresh formal 的前置转换，不是 formal result、
   Step 4 exit、coverage audit 或 acceptance evidence。
 
-该 r13/Cfreeze 结论已被 formal-r1 fail-closed 记录 supersede。当前
+该 r13/Cfreeze 结论已被 formal-r1 fail-closed 记录 supersede。该时点
 `step4_result=in-progress`、machine state=`diagnostic-ready/diagnostic-pending`、
-`can_enter_coverage_audit=no`；新 diagnostic/Cfreeze/formal 与最终 implementation quality
-尚未执行，Step 5、coverage audit、acceptance 保持关闭。
+`can_enter_coverage_audit=no`；后续 r14/Cfreeze/formal-r2 链路见下方 superseding records。
 
 ## Formal-r1 shutdown-hook race regression（2026-07-17）
 
@@ -719,10 +718,37 @@ coverage audit 与 acceptance 保持关闭。
   unique N/A=`NamespaceScope.branch`；WatchService=`204/244 line,99/128 branch`；
 - candidate/public validators and independent exact projection PASS；confirmed threshold SHA-256=
   `04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`；
-- fresh formal oracle：must start from the committed/pushed direct-child Cfreeze with a unique run ID，
+- historical fresh formal oracle：must start from the committed/pushed direct-child Cfreeze with a unique run ID，
   rerun all 23 exec/48 sessions，retain exact inventory/F0E0S0，meet aggregate and 23 applicable
   critical minima，preserve the one N/A，and finish cleanup/sensitive checks；
 - prohibited：reuse r14 exec/XML，repair a failed formal run，rerun until incidental PostgreSQL probes
   happen，or treat candidate/review/Cfreeze as formal evidence；
-- post-formal order remains implementation quality → coverage audit → acceptance。Current
+- Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` subsequently committed/pushed as the
+  direct child and formal-r2 was run；its failure is recorded below。At this historical boundary
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。
+
+## formal-r2 branch-order regression and recovery test boundary（2026-07-17）
+
+- immutable formal-r2=`step4-coverage-20260717-formal-r2` on Cfreeze `1901a101…` completed
+  required=`773+59/5707/F0E0S0`、Addon=`2/6`、DB=`29/370`、external=`16/76`、
+  exec/session=`23/48`、class universe=`24/2098`，then failed closed at the formal coverage gate；
+- threshold comparison：aggregate line exact `54622/76830`；branch=`26105/44870` versus
+  `26106/44870`。All 12 critical classes exact，below-floor=`0`，unique N/A=
+  `NamespaceScope.branch`；
+- 2066 reportable classes have one delta only：`FileSystemListPresetStore` line remains `69/88`，
+  branch=`18/26 -> 17/26`；`lambda$findById$2` line 74=`4/4 -> 3/4`；Unit class ID=
+  `d1bd017e92baa090` only misses probe 106；
+- report/exec oracle：both runs have exact 23 exec/48 sessions and semantically identical 834
+  authority XML/testcase results；the failure is not missing test、exec/report loss、WatchService or
+  PostgreSQL Pivot；
+- deterministic regression：existing
+  `ListPresetServiceTest.FileStoreTests#shouldIsolatePresetByUserAndBusinessKey` adds one
+  `service.get("u1", "missing").isEmpty()` assertion，forcing exhaustive regular-file traversal and
+  filename-false outcome；no production source and no new `@Test`；
+- focused oracle：5 independent Maven/JVM/JaCoCo forks all hit probe 106，target packed bitmap
+  unique=`1`，suite remains `11/F0E0S0`；full Data Viewer module=`104/F0E0S0` and target class
+  restores r14 exact `74/113` bitmap；
+- machine state restored to `diagnostic-ready/diagnostic-pending`，manifest=`60/60`。Focused/module
+  results are not Step 4 exit evidence；must run new Cdiag -> fresh diagnostic -> review -> Cfreeze ->
+  fresh formal。Current `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、audit、
+  acceptance closed。

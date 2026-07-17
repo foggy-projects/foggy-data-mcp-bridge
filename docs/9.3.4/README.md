@@ -39,8 +39,8 @@ updated_at: 2026-07-17
   `16/76` = exact `45/446/F0E0S0`，gap/overlap/extra=`0/0/0`；DB state=`18/18`、
   Redis state=`4/4`、Addon companion=`2/6`。quality→coverage→feature acceptance
   已按序完成；Step 4 仍为 `in-progress`。diagnostic r7 在无 ambient DB listener 的环境中
-  暴露 Unit 对 `127.0.0.1:13306` 的隐式依赖并 fail closed，尚无 coverage pass 或
-  可复用的 reviewed aggregate baseline。
+  暴露 Unit 对 `127.0.0.1:13306` 的隐式依赖并 fail closed；该 r7 时点尚无 coverage pass
+  或可复用的 reviewed aggregate baseline。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -271,9 +271,17 @@ updated_at: 2026-07-17
   经两路独立审查 PASS（合并 B/H/M/L=`0/0/0/1`）。canonical threshold 已转为
   `confirmed` SHA-256=`04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`，
   contract/publication=`formal-ready` SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
-  Cfreeze direct-child commit/push 与 fresh formal 仍 pending。
-- 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、formal、coverage audit、
-  acceptance 与 9.3.5 仍关闭。
+  direct-child Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` 已 commit/push/clean。
+- fresh formal-r2 完成全部 `773+59/5,707/F0E0S0` lane 后正确 fail closed：aggregate line
+  exact `54622/76830`，branch=`26105/44870`，比 r14 reviewed threshold 只少 `1`。2066 个
+  reportable class 只有 `FileSystemListPresetStore` line 74 的 filename-false outcome 波动；
+  12 个 critical class 全部 exact、below-floor=`0`、N/A=`1`。
+- 确定性回归已放入既有 FileStore testcase：不存在 ID 查询强制穷尽已有 regular files；
+  focused 5/5 fresh fork 稳定命中缺失 probe 106，Data Viewer module=`104/F0E0S0`，无生产
+  变更、无新 testcase。machine state 已恢复 `diagnostic-ready/diagnostic-pending`。
+- 当前新 Cdiag、fresh diagnostic、review/Cfreeze/formal 均 pending；
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5、coverage audit、acceptance 与
+  9.3.5 仍关闭。
 
 ## 执行资料
 
@@ -340,6 +348,12 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-formal-r1-watchservice-shutdown-race-fail-closed-20260717.md](evidence/step-4/step4-coverage-formal-r1-watchservice-shutdown-race-fail-closed-20260717.md)
 - Step 4 formal-r1 recovery implementation quality：
   [quality/step4-formal-r1-recovery-implementation-quality.md](quality/step4-formal-r1-recovery-implementation-quality.md)
+- Step 4 formal-r2 ListPreset branch-order regression：
+  [workitems/BUG-step4-list-preset-files-find-coverage-order.md](workitems/BUG-step4-list-preset-files-find-coverage-order.md)
+- Step 4 formal-r2 fail-closed evidence：
+  [evidence/step-4/step4-coverage-formal-r2-list-preset-branch-order-fail-closed-20260717.md](evidence/step-4/step4-coverage-formal-r2-list-preset-branch-order-fail-closed-20260717.md)
+- Step 4 formal-r2 recovery implementation quality：
+  [quality/step4-formal-r2-recovery-implementation-quality.md](quality/step4-formal-r2-recovery-implementation-quality.md)
 - Step 4 r14 Cfreeze implementation quality：
   [quality/step4-r14-cfreeze-implementation-quality.md](quality/step4-r14-cfreeze-implementation-quality.md)
 - Step 4 diagnostic r14 successful observation：
@@ -406,7 +420,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r14 diagnostic sealed / thresholds confirmed / Cfreeze working tree formal-ready | r14=`322bb346…`：`773+59/5707/F0E0S0`、23/48、below-floor 0、N/A 1、cleanup 0/0/0；candidate/review PASS；machine state=`confirmed/formal-ready`；Cfreeze commit/push/direct-parent proof、fresh formal、final quality pending；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending | Cfreeze `1901a101…` 已 push；formal-r2 全 lane 后 aggregate branch `-1`，唯一为 `FileSystemListPresetStore` 无序遍历覆盖波动；focused 5/5、module 104/F0E0S0；machine=`diagnostic-ready/diagnostic-pending`；新 Cdiag→diagnostic→review/Cfreeze→formal 与 final quality pending；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

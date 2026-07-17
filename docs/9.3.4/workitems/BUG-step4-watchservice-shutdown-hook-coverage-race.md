@@ -4,7 +4,7 @@ bug_source: formal-gate-found
 version: 9.3.4
 ticket: BUG-934-STEP4-WATCHSERVICE-SHUTDOWN-HOOK-COVERAGE-RACE
 severity: blocker
-status: in-progress
+status: closed
 reproduction_status: confirmed
 product_regression: false
 test_strategy: deterministic-isolated-lifecycle-unit-regression
@@ -77,8 +77,10 @@ diagnostic 与 formal 两次 all-lane evidence 证明不再依赖 hook 顺序。
 - [x] 完成新 Cdiag commit/push 与 clean identity：`322bb346cca19998a90d6d990505ef033f3a496a`。
 - [x] fresh r14 diagnostic 与 threshold review 通过：WatchService=`204/244 line,99/128 branch`，
   candidate SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`。
-- [ ] direct-child Cfreeze commit/push、fresh formal 全部通过。
-- [ ] 最终 implementation quality、coverage audit 与 acceptance 通过。
+- [x] direct-child Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` commit/push；
+  fresh formal-r2 中 WatchService exact `204/244 line,99/128 branch`，关闭本 BUG 的稳定性验证。
+- [ ] 9.3.4 最终 implementation quality、coverage audit 与 acceptance 通过（版本级后置门，
+  当前由独立的 ListPreset branch-order BUG 阻塞）。
 
 ## References
 

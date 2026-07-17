@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r14 diagnostic sealed / thresholds confirmed /
-  second Cfreeze working tree formal-ready / fresh formal pending`
+  `in-progress / formal-r2 fail-closed / deterministic repair verified /
+  new Cdiag pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -193,10 +193,10 @@ updated_at: 2026-07-17
   `998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`，
   successor declared amendments=`18`，SHA-256=
   `8e21b8527f290061361ef0b8fbf084d51b2536ef479e1f70e45488f996090bfc`；本地
-  `SHA256SUMS`=`60/60`，当前 SHA-256=
-  `a9b105ce2f8f640dfa09863e797697bcf9892a7b0fa68b38f83b5bbd7435afb4`；
+  `SHA256SUMS`=`60/60`，当前 diagnostic-state SHA-256=
+  `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60`；
   successor=`14/14`，SHA-256=
-  `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`；coverage
+  `3d4ed31f1ca8e3f1086ceade81be9ce94d90ee82beae1117dc708f71064a6e0f`；coverage
   contract diagnostic/formal SHA-256=
   `58f7dfc0716539dd741595aefcd3f5b37d6456703e8e5430854c721393a923f0` /
   `cabedad99522bb1c76e8cd35eb25922a1117d445256f1e346b47687dbadbb66e`；coverage tool /
@@ -404,8 +404,8 @@ updated_at: 2026-07-17
 - formal-r1 已在 Cfreeze `86d505e` 上完成全量 lane 后以 `E_FORMAL_LOW` fail closed；唯一
   counter 漂移来自 `WatchServiceFileTracer` shutdown hook 与 JaCoCo dump hook 的退出竞态。
   5/5 fresh-fork isolated shutdown regression bitmap 完全一致，既有 11 testcase 不变。
-  当前 machine tuple 已恢复 `diagnostic-ready/diagnostic-pending`，必须先提交/推送新 Cdiag、
-  fresh diagnostic 并重新 review/Cfreeze/formal；Step 5 与 9.3.5 保持关闭。
+  该边界已由 r14/Cfreeze/formal-r2 历史链路推进并由下方 formal-r2 boundary supersede；
+  Step 5 与 9.3.5 始终保持关闭。
 
 ## Superseding r12 requirement boundary（2026-07-17）
 
@@ -458,8 +458,8 @@ updated_at: 2026-07-17
   incidental coverage。必须在 JVM exit 前用隔离实例显式完成 lifecycle，且不得关闭 singleton；
 - regression 已放入既有 testcase，5/5 fresh fork 对目标类均为 `177/245 probes`，formal-r1
   缺失的 7 probes 全部命中，bitmap unique=`1`，报告保持 `11/F0E0S0`；
-- formal-r1 保持 immutable failed evidence，不复用、不修补、不盲重跑。当前 canonical state=
-  `diagnostic-ready/diagnostic-pending`；新 Cdiag -> fresh diagnostic -> review -> direct-child
+- formal-r1 保持 immutable failed evidence，不复用、不修补、不盲重跑。该时点 canonical state=
+  `diagnostic-ready/diagnostic-pending`；后续 Cdiag -> fresh diagnostic -> review -> direct-child
   Cfreeze -> fresh formal 顺序必须完整重走。`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`，Step 5 与 9.3.5 保持关闭。
 
@@ -476,9 +476,37 @@ updated_at: 2026-07-17
 - review 记录 non-critical PostgreSQL Pivot probe variance 为 Low。Requirement 不要求 formal
   复现 r13 的偶发高水位；它要求 formal 不低于 fresh r14 exact threshold，并对所有 critical
   minimum 逐项 fail closed；
-- working-tree machine state 已为 `formal-ready/confirmed`。Cfreeze commit 必须是
+- 该时点 working-tree machine state 已为 `formal-ready/confirmed`。Cfreeze commit 必须是
   `322bb346…` 的 direct-single-parent child，required paths 恰为 threshold/contract/manifest，
   其他变化仅允许 `docs/9.3.4/**`；
-- direct-parent/formal-delta、push、clean identity 通过后才允许 fresh formal。Formal PASS 前
+- direct-parent/formal-delta、push、clean identity 通过后才允许 fresh formal。该 Cfreeze 已以
+  `1901a10138bac06a09b875c907b7aea6e2789b04` 完成并运行 formal-r2；本节其余 future boundary
+  由下节 supersede。Formal PASS 前
   `can_enter_coverage_audit=no`；final implementation quality PASS 前仍不得启动 coverage audit；
   audit PASS 前不得 acceptance。Step 5 与 9.3.5 保持关闭。
+
+## Superseding formal-r2 fail-closed requirement boundary（2026-07-17）
+
+- Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` 已 commit/push/clean，唯一 direct parent=
+  `322bb346cca19998a90d6d990505ef033f3a496a`；
+- formal-r2=`step4-coverage-20260717-formal-r2` 完成 unit/integration/DB/external/Addon、
+  report inventory、exec/session、class universe 与 provenance；required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec=`23/48`、cleanup=`0/0/0`、sensitive PASS；
+- formal gate 正确返回 `E_FORMAL_LOW`：aggregate line exact `54622/76830`，branch=
+  `26105/44870`，比 reviewed exact threshold 少 `1`；success summary/gate absent；
+- 12 critical class 全部 exact，below-floor=`0`，唯一 N/A=`NamespaceScope.branch`；2066 个
+  reportable class 只有 `FileSystemListPresetStore` branch `18/26 -> 17/26`。差异只在 Unit
+  class ID=`d1bd017e92baa090` 的 probe 106；测试报告/exec/session 未丢失；
+- requirement 新增确定性约束：exact aggregate 不得依赖 `Files.find(...).findFirst()` 的未定义
+  目录遍历顺序。已有多 regular-file 的 testcase 必须以不存在 ID 查询强制执行
+  filename-false outcome；不得通过重跑或下调 threshold 掩盖；
+- regression 不改 production、floor、critical set、exclusion 或 testcase cardinality；5/5
+  fresh fork 均命中 probe 106、bitmap unique=`1`，Data Viewer=`104/F0E0S0`；
+- current machine state=`diagnostic-ready/diagnostic-pending`：threshold SHA-256=
+  `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`，contract SHA-256=
+  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，manifest SHA-256=
+  `cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60`；
+- only allowed sequence：formal-r2 recovery quality -> one new Cdiag commit/push/clean -> fresh
+  diagnostic -> candidate/review -> direct-child Cfreeze -> fresh formal -> final quality -> coverage
+  audit -> acceptance。当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与
+  9.3.5 保持关闭。

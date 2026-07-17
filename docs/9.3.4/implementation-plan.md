@@ -147,8 +147,7 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r14 diagnostic sealed / thresholds confirmed / second Cfreeze working tree
-formal-ready / fresh formal pending`。
+`in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -737,12 +736,12 @@ formal-r1 在 Cfreeze `86d505e` 上通过全部执行与证据 lane，随后因
    目标 probe bitmap 完全一致，11 testcase/F0E0S0 不变；
 3. [completed] 恢复 b765 exact pending machine trio，完成 focused/static quality；正式
    pre-Cdiag quality PASS，B/H/M/L=`0/0/0/0`；
-4. [in-progress] 一次提交并 push 为新 Cdiag，证明 clean `HEAD == origin/main`；
-5. [pending] 停止 exact demo DB containers，使用唯一新 run ID 执行 fresh diagnostic；
-6. [pending] 对新 observation 生成 candidate、独立复核，并以新 Cdiag 为唯一 parent 创建一次
+4. [completed] 一次提交并 push 为新 Cdiag，证明 clean `HEAD == origin/main`；
+5. [completed] 停止 exact demo DB containers，使用唯一新 run ID 执行 fresh diagnostic；
+6. [completed] 对新 observation 生成 candidate、独立复核，并以新 Cdiag 为唯一 parent 创建一次
    Cfreeze commit；Cdiag 与 Cfreeze 间不得插入其他提交；
-7. [pending] fresh formal PASS 后依次执行最终 implementation quality、coverage audit 与
-   acceptance。任一步失败继续 fail closed。
+7. [failed-closed] fresh formal-r2 因独立的 ListPreset branch-order 波动被门禁拒绝；后续顺序
+   由 formal-r2 recovery addendum supersede。
 
 当前 threshold/contract=`diagnostic-pending/diagnostic-ready`，Step 4=`in-progress`，
 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。
@@ -757,15 +756,50 @@ formal-r1 在 Cfreeze `86d505e` 上通过全部执行与证据 lane，随后因
 3. [completed] candidate SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`
    passed public verification and two independent reviews；the only Low is non-critical PostgreSQL
    Pivot probe variance，which is frozen at r14's real lower observation and remains guarded by formal；
-4. [completed in working tree] reviewed threshold=`confirmed` SHA-256=
+4. [completed] reviewed threshold=`confirmed` SHA-256=
    `04544480ef73df4bfcba4ddb1d0323b8314fbb4a6934eae5eae51bb2a958486e`，contract/publication=
    `formal-ready` SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`，
    manifest=`60/60`、full contract/frozen diagnostic/overlay validators PASS；
-5. [pending] commit all allowlisted paths once as the direct-single-parent child of `322bb346…`，
-   push，validate topology/formal delta，and prove clean `HEAD == origin/main`；
-6. [pending] stop the same exact demo DB containers，run one fresh formal ID from scratch，and restore
-   exact IDs on every exit path；formal-r1 remains immutable and is not reused；
-7. [pending] only after formal PASS run final implementation quality，then test coverage audit，then
-   acceptance signoff。Step 5 stays closed until all Step 4 exit gates pass。
+5. [completed] committed as direct-single-parent Cfreeze
+   `1901a10138bac06a09b875c907b7aea6e2789b04`，pushed，validated topology/formal delta，and
+   proved clean `HEAD == origin/main`；
+6. [failed-closed] exact demo DB containers were stopped for fresh formal-r2 and restored on exit；
+   formal-r2 completed all lanes but failed aggregate branch exact threshold by `1`；formal-r1 and
+   formal-r2 remain immutable；
+7. [pending] only after a new diagnostic/Cfreeze/fresh formal PASS run final implementation quality，
+   then test coverage audit，then acceptance signoff。Step 5 stays closed until all Step 4 exit gates pass。
 
-Current Step 4=`in-progress`，`can_enter_coverage_audit=no`，`can_enter_acceptance=no`。
+At the r14/Cfreeze snapshot Step 4=`in-progress`，`can_enter_coverage_audit=no`，
+`can_enter_acceptance=no`；the formal-r2 recovery addendum below is current。
+
+## Step 4 formal-r2 failure recovery addendum（2026-07-17）
+
+formal-r2 在 committed/pushed direct-child Cfreeze
+`1901a10138bac06a09b875c907b7aea6e2789b04` 上完成全部测试、库存、exec/report provenance，
+随后因 aggregate branch 比 r14 reviewed exact threshold 少 `1` 被 `E_FORMAL_LOW` 拒绝。
+aggregate line、12 critical class、below-floor 与 N/A 均符合要求；2066 个 reportable class
+只有 `FileSystemListPresetStore` line 74 的 filename-false outcome 变化。逐 exec/probe 和全部
+authority XML 证明原因是 `Files.find(...).findFirst()` 的目录遍历短路顺序，不是漏跑、
+artifact 缺失或生产行为回归。
+
+恢复顺序固定为：
+
+1. [completed] 封存 formal-r2 immutable failure、success-only artifact absence、cleanup=`0/0/0`、
+   sensitive PASS、source before=after，以及 aggregate/class/source/probe exact diff；
+2. [completed] 登记
+   `BUG-934-STEP4-LIST-PRESET-FILES-FIND-COVERAGE-ORDER`，拒绝重跑碰运气或降低 threshold；
+3. [completed] 在既有 FileStore testcase 内增加不存在 ID empty assertion，强制遍历已有
+   regular files；无生产变更、无新 testcase；
+4. [completed] 5/5 fresh Maven/JVM/JaCoCo fork 均命中缺失 probe 106，bitmap unique=`1`；
+   Data Viewer module=`104/F0E0S0`，目标类恢复 r14 exact `74/113` bitmap；
+5. [completed] canonical machine trio 恢复为 `diagnostic-ready/diagnostic-pending`，manifest=
+   `60/60`，contract 与 successor overlay validator PASS；
+6. [in-progress] 正式 pre-Cdiag implementation quality 已 PASS；一次 commit/push 为新 Cdiag，
+   并证明 clean `HEAD == origin/main`；
+7. [pending] 停止 exact demo DB containers，仅在 evidence window 运行唯一 fresh diagnostic，
+   退出后恢复 exact IDs；通过后重新 candidate/review/direct-child Cfreeze/fresh formal；
+8. [pending] fresh formal PASS 后依次执行最终 implementation quality、coverage audit 与
+   acceptance。任一步失败继续 fail closed。
+
+当前 Step 4=`in-progress`，machine=`diagnostic-ready/diagnostic-pending`，
+`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。

@@ -111,7 +111,7 @@ updated_at: 2026-07-17
   fixture/manifest probes=`20/20`、connection typed=`7/7`、atomic publisher=`3/3`、
   profile boundary=`6/6`），negative receipt 文件 schema/tamper 另为 `4/4`，真实
   lifecycle=`5/5`，report inventory=`30/30`。
-- 当前 identity：top=`60/60` /
+- r8 historical identity：top=`60/60` /
   `6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`；
   successor=`14/14` /
   `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`；
@@ -149,6 +149,22 @@ updated_at: 2026-07-17
   不得把 raw substring 或任意 `ShapeError` 当作 semantic negative；
 - r9 failure 是 coverage tooling identity model defect，不是 production Java 或 9.3.5/9.4.0
   module boundary；修复不得扩到产品 API；
-- 当前 Step 4=`in-progress / r9 excluded / remediation quality passed / commit pending`；
+- r9 时点 Step 4=`in-progress / r9 excluded / remediation quality passed / commit pending`；
   两个 blocker BUG 的 coded regression 与三路正式质量均通过，fresh r10 前仍须
-  commit/push 并证明 clean `HEAD == origin/main`。Step 5 与后续 gate 不得提前。
+  commit/push 并证明 clean `HEAD == origin/main`。该 ownership boundary 已由后续 runs
+  supersede；Step 5 与后续 gate 始终不得提前。
+
+## Superseding formal-r2 ownership boundary（2026-07-17）
+
+- `addons/foggy-data-viewer` 负责本次 deterministic test regression：只修改
+  `ListPresetServiceTest.FileStoreTests#shouldIsolatePresetByUserAndBusinessKey`，用不存在 ID
+  查询强制执行已有 regular-file 的 filename-false outcome；
+- `FileSystemListPresetStore` 生产实现、Data Viewer public API、starter 装配与模块边界均不改；
+  本缺陷属于 test evidence stability，不扩到 9.3.5/9.4.0 产品设计；
+- Step 4 coverage owner 负责封存 formal-r2 failure、恢复 diagnostic machine trio，并完整执行
+  new Cdiag -> fresh diagnostic -> candidate/review -> Cfreeze -> fresh formal；
+- test/report ownership 保持 frozen cardinality：无新 `@Test`；focused 5/5 probe 106 hit，
+  Data Viewer module=`104/F0E0S0`；all-lane authority 仍必须由 Step 4 runner 重新产生；
+- 当前 Step 4=`in-progress / formal-r2 immutable fail-closed / deterministic repair verified /
+  new Cdiag pending`，machine=`diagnostic-ready/diagnostic-pending`；
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与后续 gate 不得提前。

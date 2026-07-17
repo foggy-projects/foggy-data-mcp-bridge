@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r14 sealed / second Cfreeze working tree formal-ready | Step 3 exit passed | r14 on `322bb346…`：`773+59/5707/F0E0S0`、23/48、below-floor 0、N/A 1、cleanup 0/0/0；candidate/reviews PASS；machine=`confirmed/formal-ready`；Cfreeze commit/push/direct-parent proof、fresh formal、final quality pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r2 fail-closed / new Cdiag pending | Step 3 exit passed | Cfreeze `1901a101…` committed/pushed；formal-r2 all-lane 后 aggregate branch `-1`，唯一为 ListPreset 无序遍历覆盖波动；deterministic focused 5/5、module 104/F0E0S0；machine=`diagnostic-ready/diagnostic-pending`；new Cdiag→diagnostic→review/Cfreeze→formal、final quality pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1258,11 +1258,9 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
 - r1–r11 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
-  不完整 Unit 产物不可复用，
-  当前仍无 reviewed
-  reactor aggregate baseline；
-  0.80/0.70 只是 critical-class candidate floor，必须由 fresh all-lane observation
-  与人工 review 确认。
+  不完整 Unit 产物不可复用；该 r11 时点仍无 reviewed reactor aggregate baseline。
+  后续 r14 baseline 已 review/Cfreeze，但 formal-r2 揭示一个目录顺序覆盖波动，当前又回到
+  `diagnostic-ready/diagnostic-pending`，必须由新 fresh all-lane observation 与人工 review 重建；
 - remote required check、five-cell collector、branch protection、release artifact reuse
   和 Docker embedded-JAR equality 尚无实际证据。
 - Step 3 authority 永久绑定 tested commit
@@ -1290,24 +1288,24 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r14 pre-Cfreeze quality passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-r14-cfreeze-implementation-quality.md`，B/H/M/L=`0/0/0/1`，只放行 Cfreeze/fresh formal；post-formal final quality 尚待执行，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 formal-r2 recovery pre-Cdiag passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-formal-r2-recovery-implementation-quality.md`，B/H/M/L=`0/0/0/0`，只放行新 Cdiag/fresh diagnostic；post-formal final quality 尚待执行，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r14 sealed / second Cfreeze working tree formal-ready | roadmap 为 Steps 1–3 passed / Step 4 in-progress；Cfreeze commit/push、fresh formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 formal-r2 fail-closed / deterministic repair verified | roadmap 为 Steps 1–3 passed / Step 4 in-progress；new Cdiag/diagnostic/Cfreeze/formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-r14=`step4-coverage-20260717-diagnostic-r14` 已在 clean/pushed Cdiag `322bb346…` sealed
-PASS；candidate and two independent reviews PASS。Current allowlisted working tree contains exact
-confirmed threshold、formal-ready contract、Step 4 manifest and `docs/9.3.4/**` writeback only；
-manifest/full contract/frozen diagnostic/overlay validators all PASS。
+direct-child Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` 已 commit/push/clean；
+fresh formal-r2=`step4-coverage-20260717-formal-r2` 完成全部 lane 后因 aggregate branch 比 r14
+threshold 少 `1` fail closed。唯一 class/source/probe delta 为 `FileSystemListPresetStore`
+filename-false outcome；formal-r2 保持 immutable。
 
-Next action is exactly one Cfreeze commit directly on `322bb346…`，then push、direct-parent and
-formal-delta proof、clean `HEAD == origin/main`。Only then stop the same exact demo DB containers and
-start one fresh formal run ID。Formal PASS 前不得启动 final implementation quality、coverage audit
-or acceptance；formal-r1 remains immutable and is not reused。Current
-`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 closed。
+既有 testcase 已加入 nonexistent-ID empty assertion，5/5 fresh forks 稳定命中 probe 106，
+Data Viewer module=`104/F0E0S0`；machine tuple 已恢复 diagnostic state；formal pre-Cdiag
+quality PASS，B/H/M/L=`0/0/0/0`。Next action is exactly one Cdiag commit/push and clean identity；随后停止 exact demo DB
+containers 并运行唯一 fresh diagnostic。Current `can_enter_coverage_audit=no`、
+`can_enter_acceptance=no`；Step 5 closed。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1487,7 +1485,7 @@ or acceptance；formal-r1 remains immutable and is not reused。Current
   `in-progress`，下一门为新 Cdiag commit/push/clean identity；`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`，Step 5、formal、audit、acceptance 关闭。
 
-### Superseding Check-in — r14 sealed / second Cfreeze formal-ready working tree
+### Historical Check-in — r14 sealed / second Cfreeze formal-ready working tree
 
 - recorded_at: 2026-07-17；
 - new Cdiag：`322bb346cca19998a90d6d990505ef033f3a496a`，已 commit/push，run 前
@@ -1512,3 +1510,27 @@ or acceptance；formal-r1 remains immutable and is not reused。Current
 - next gate：single Cfreeze commit directly on `322bb346…` → push/direct-parent/formal-delta/clean
   identity → fresh formal。`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、audit、
   acceptance closed。
+
+### Superseding Check-in — formal-r2 fail-closed / ListPreset deterministic recovery
+
+- recorded_at: 2026-07-17；
+- Cfreeze：`1901a10138bac06a09b875c907b7aea6e2789b04`，direct parent=
+  `322bb346cca19998a90d6d990505ef033f3a496a`，已 commit/push/clean；
+- immutable failed run：`step4-coverage-20260717-formal-r2`，status=
+  `failed / formal-coverage-gate / exit 1`；source before=after；summary/gate absent，cleanup=
+  `0/0/0`、sensitive PASS；
+- completed lanes：required=`773+59/5,707/F0E0S0`、Addon=`2/6`、DB=`29/370`、external=
+  `16/76`、exec=`23/48`、class universe=`24/2098`；
+- exact failure：aggregate line=`54622/76830` exact，branch=`26105/44870` versus threshold
+  `26106/44870`；12 critical exact、below-floor=`0`、N/A=`NamespaceScope.branch`；
+- root cause：only `FileSystemListPresetStore` branch `18/26 -> 17/26`；Unit class ID=
+  `d1bd017e92baa090` only missing probe 106；`Files.find(...).findFirst()` 在 UUID 文件上按
+  未定义目录顺序短路；
+- remediation：existing `shouldIsolatePresetByUserAndBusinessKey` 增加 missing-ID empty assertion；
+  no production/no new testcase；focused 5/5 probe106 hit、bitmap unique=`1`，module=
+  `104/F0E0S0`、target class restored r14 exact `74/113`；
+- machine recovery：contract=`diagnostic-ready`、threshold=`diagnostic-pending`、manifest=`60/60`，
+  validators PASS；
+- decision：formal-r2 immutable；formal-r2 recovery quality -> one new Cdiag commit/push/clean ->
+  fresh diagnostic -> review/Cfreeze/formal。`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`；Step 5、audit、acceptance、9.3.5 closed。

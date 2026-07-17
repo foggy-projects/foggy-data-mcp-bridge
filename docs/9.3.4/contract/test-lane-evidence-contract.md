@@ -739,7 +739,7 @@ exec 含 `16,693` 个唯一名称、`16,939` 个 class-ID identity、135 个同�
 sealed `2,098` 个 production class 中冲突为 0。r9 在 exec-manifest 发布前 fail closed，
 aggregate/source-after/threshold/summary absent，必须 excluded/non-reusable。
 
-自本节起的 current contract：
+自本节起生效且延续至今的 class-ID contract：
 
 1. `coverage-contract.json/jacoco.class_id_consistency_scope` 必须精确为
    `frozen-24-module-production-class-universe`；任何缺失、扩张或替换都 fail closed；
@@ -753,9 +753,27 @@ aggregate/source-after/threshold/summary absent，必须 excluded/non-reusable�
    `exact-session-and-jacoco-class-id-probe-bitmap-union`；XML verifier 精确消费新 schema；
 5. r9 focused regression=`17/17`，contract mutations=`21/21`，overlay=`12/12`，但这些
    不是 diagnostic/formal exit evidence；
-6. lifecycle semantic validator bypass 已重新打开 implementation quality；coded mutation
-   已证明 comment/dead-context/dynamic-trap 不能满足 executable contract，fresh r10 前仍须
-   完成两路独立正式质量。
+6. lifecycle semantic validator bypass 当时重新打开 implementation quality；coded mutation
+   已证明 comment/dead-context/dynamic-trap 不能满足 executable contract；该 r9 remediation
+   的独立正式质量与后续 fresh runs 已完成。
 
-当前 threshold=`diagnostic-pending`、`can_enter_coverage_audit=no`；fresh r10、threshold
-freeze、formal、最终质量、coverage audit、acceptance 必须继续按序，Step 5 不得提前。
+该 r9 时点 threshold=`diagnostic-pending`、`can_enter_coverage_audit=no`；当时要求 fresh r10、
+threshold freeze、formal、最终质量、coverage audit、acceptance 按序，Step 5 不得提前。
+
+## Superseding formal-r2 deterministic coverage contract（2026-07-17）
+
+1. reviewed exact aggregate threshold 不得依赖未定义执行顺序，包括 JVM shutdown-hook
+   scheduling、filesystem directory traversal、random UUID filename ordering 或其短路副作用；
+2. formal-r2=`step4-coverage-20260717-formal-r2` 完成 exact
+   `773+59/5707/F0E0S0`、Addon=`2/6`、23 exec/48 sessions 后，aggregate branch 比 reviewed
+   threshold 少 `1` 并 fail closed；唯一变化为非 critical
+   `FileSystemListPresetStore#findById` filename-false outcome；
+3. `Files.find(...).findFirst()` 的 coverage 必须由已有多 regular-file 的 testcase 执行
+   nonexistent-ID 查询来确定性覆盖，不得依赖目标/非目标 UUID 文件谁先出现；
+4. 回归不得增加 testcase/report identity，不得改 production、floor、critical set 或 exclusion；
+   focused 5/5 必须命中 probe 106，Data Viewer module 必须 F0E0S0；
+5. focused evidence 不替代 authority。测试字节变化后必须恢复
+   `diagnostic-ready/diagnostic-pending`，从 new Cdiag 完整重走 fresh diagnostic -> candidate/
+   review -> direct-child Cfreeze -> fresh formal；
+6. 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。fresh formal PASS 后仍须最终
+   implementation quality，再按 coverage audit -> acceptance 顺序执行；Step 5 不得提前。

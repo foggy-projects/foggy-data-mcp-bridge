@@ -30,7 +30,7 @@ updated_at: 2026-07-17
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 formal-r1 fail-closed / new diagnostic pending | [执行文档包](../9.3.4/README.md)；r13 diagnostic/Cfreeze 为历史证据；formal-r1 全 lane 后因 `WatchServiceFileTracer` shutdown-hook 覆盖竞态被门禁拒绝；确定性 isolated shutdown 5/5 focused 已通过，machine state 已恢复 diagnostic pending，待新 Cdiag/diagnostic/Cfreeze/formal；不是 coverage passed |
+| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 formal-r2 fail-closed / new Cdiag pending | [执行文档包](../9.3.4/README.md)；r14/Cfreeze `1901a101…` 为历史证据；formal-r2 全 lane 后因 `FileSystemListPresetStore` 无序目录遍历少 1 branch 被门禁拒绝；确定性 missing-ID 回归 5/5 focused、module 104/F0E0S0 已通过，machine 已恢复 diagnostic pending，待新 Cdiag/diagnostic/Cfreeze/formal；不是 coverage passed |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,21 +85,21 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–3 passed / Step 4 formal-r1 fail-closed /
-deterministic remediation verified / new diagnostic pending`；入口为
+当前状态：`in-progress / Steps 1–3 passed / Step 4 formal-r2 fail-closed /
+deterministic remediation verified / new Cdiag pending`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。Step 1–3 authority 与 feature acceptance
 保持不变。Step 4 执行库存为 `23 exec / 48 sessions`，required overlay=
 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`。
 
-r13 diagnostic 与 Cfreeze `86d505e` 已作为历史 evidence 封存；fresh formal-r1 完成全部
-执行/库存/provenance lane 后，因 `WatchServiceFileTracer` line/branch 比 reviewed threshold
-少 `9/3` 而以 `E_FORMAL_LOW` fail closed。逐 class/exec 复核证明原因是 tracer 与 JaCoCo
-两个 JVM shutdown hook 的无序竞态，不是漏跑或 class-tree drift。既有 testcase 内的
-isolated explicit shutdown 已连续 5 个 fresh fork 得到 identical `177/245` probe bitmap，
-11 testcase/F0E0S0 不变；canonical contract/threshold 已恢复
-`diagnostic-ready/diagnostic-pending`，manifest=`60/60`。下一动作是 precommit quality 后
-提交/push 新 Cdiag，从 clean HEAD 运行 fresh diagnostic，再重新 review/Cfreeze/formal。
-Step 5、9.3.5 与 9.4.0 继续关闭。
+r14 diagnostic 与 direct-child Cfreeze `1901a101…` 已作为历史 evidence 封存；fresh formal-r2
+完成全部 `773+59/5707/F0E0S0` 执行/库存/provenance lane 后，aggregate line exact，branch
+比 reviewed threshold 少 `1` 而以 `E_FORMAL_LOW` fail closed。逐 class/exec 复核证明唯一原因
+是 `FileSystemListPresetStore` 中 `Files.find(...).findFirst()` 对 UUID 文件的未定义遍历顺序，
+不是漏跑、exec/report 缺失或生产回归。既有 testcase 内的 nonexistent-ID assertion 已连续
+5 个 fresh fork 稳定命中 probe 106，Data Viewer module=`104/F0E0S0`，无新 testcase；
+canonical contract/threshold 已恢复 `diagnostic-ready/diagnostic-pending`，manifest=`60/60`。
+pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`；下一动作是提交/push 新 Cdiag，从 clean HEAD 运行 fresh diagnostic，再
+重新 review/Cfreeze/formal。Step 5、9.3.5 与 9.4.0 继续关闭。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

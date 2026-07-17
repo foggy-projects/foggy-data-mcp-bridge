@@ -24,12 +24,12 @@ updated_at: 2026-07-17
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r14 diagnostic sealed、candidate/reviews PASS、machine working tree formal-ready / Cfreeze commit/push、formal pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 Cfreeze `1901a101…` committed、formal-r2 immutable failure recorded、deterministic repair verified、machine diagnostic pending / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r14 sealed、second Cfreeze working tree formal-ready、fresh formal pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 formal-r2 fail-closed、deterministic repair verified、new Cdiag pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r13/Cfreeze historical、formal-r1 immutable failure、r14 diagnostic/candidate/review present；fresh formal/Step 4 exit absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` + `quality/step4-formal-r1-recovery-implementation-quality.md` + `quality/step4-r14-cfreeze-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 r14 pre-Cfreeze quality PASS，B/H/M/L=`0/0/0/1`，只放行 Cfreeze/fresh formal；post-formal final quality pending，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 formal-r1/formal-r2 immutable failures、r14 diagnostic/candidate/review/Cfreeze present；new diagnostic/formal/Step 4 exit absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 formal-r2 recovery pre-Cdiag PASS，B/H/M/L=`0/0/0/0`，只放行 Cdiag/fresh diagnostic；post-formal final quality pending，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -58,15 +58,17 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-17）：
-`in-progress / r14 diagnostic sealed / thresholds confirmed / second Cfreeze working tree
-formal-ready / fresh formal pending`。r14 on clean/pushed `322bb346…` completed exact
-`773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、exec=`23/48`、
-class universe=`24/2098`、below-floor=`0`、N/A=`1`、cleanup=`0/0/0`。Candidate and two
-independent reviews PASS；canonical threshold/contract/manifest validators PASS。
+`in-progress / formal-r2 fail-closed / deterministic repair verified / new Cdiag pending`。
+r14 reviewed threshold 的 direct-child Cfreeze `1901a101…` 已 commit/push/clean；formal-r2
+完成 exact `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、
+exec=`23/48`，但 aggregate branch=`26105/44870` 比 threshold 少 `1`，因此没有发布成功
+summary/gate。唯一变化是非 critical `FileSystemListPresetStore` 的 filename-false branch；
+critical below-floor=`0`、N/A=`1`。
 
-This state is still not acceptance evidence：Cfreeze direct-child commit/push/topology/formal-delta
-proof、fresh formal and final implementation quality remain pending。Only after those gates may the
-coverage audit start；candidate/review/working-tree machine state must not be counted as formal green。
+既有 testcase 的不存在 ID 查询已在 5/5 fresh fork 稳定命中缺失 probe，module=
+`104/F0E0S0`；machine 已恢复 `diagnostic-ready/diagnostic-pending`。该状态仍不是 acceptance
+evidence：新 Cdiag、fresh diagnostic、review/Cfreeze/formal 与 final implementation quality 均
+pending；只有这些通过后才允许 coverage audit。
 
 Unit remediation r2 不是 acceptance evidence：
 `step4-unit-fixture-quality-20260716-r2` 在 commit
@@ -174,8 +176,9 @@ Step 4 implementation quality 已记录于
 最终字节修正的正式复核为 `ready-with-risks`、B/H/M/L=`0/0/0/2`，两项 Low accepted。历史
 Unit remediation superseding gate=`pass`；r8 lifecycle contract gate 的历史结论曾为
 `pass / ready-for-commit-and-fresh-r9`。r9 随后在 coverage-report fail closed，且新的
-lifecycle semantic bypass 审计重新打开 Step 4 quality。formal-r1 recovery 是当前边界：
-`can_enter_coverage_audit=no`。新 Cdiag、fresh diagnostic、review/Cfreeze、fresh formal 与
+lifecycle semantic bypass 审计重新打开 Step 4 quality。formal-r1 recovery 是历史边界，
+已由 r14/Cfreeze/formal-r2 推进并由 formal-r2 recovery supersede；
+`can_enter_coverage_audit=no`。新的 Cdiag、fresh diagnostic、review/Cfreeze、fresh formal 与
 最终 implementation quality 完成前不得启动 coverage audit。
 
 ## Mandatory Acceptance Evidence
@@ -316,10 +319,11 @@ version acceptance；Step 7 仍需在最终 clean authority 后重新执行版�
 - formal-r1 全 lane evidence 与 absence semantics 保留，但不得计为 acceptance positive；
 - deterministic regression 已以 5/5 identical probe bitmap 和 11/F0E0S0 focused result证明，
   仍不足以进入 coverage audit；
-- canonical machine state 已回到 `diagnostic-ready/diagnostic-pending`。必须取得新 Cdiag、fresh
+- 该时点 canonical machine state 已回到 `diagnostic-ready/diagnostic-pending`。必须取得新 Cdiag、fresh
   diagnostic、独立 threshold review、direct-child Cfreeze、fresh formal 和最终 implementation
   quality 的完整证据后，才允许运行 `foggy-test-coverage-audit`；
-- 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 保持关闭。
+- 该时点 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，后续边界见 r14 与 formal-r2
+  superseding sections；Step 5 始终保持关闭。
 
 ## Final Signoff Contract
 
@@ -354,7 +358,7 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
 - experience=N/A：本版本没有 UI、浏览器或人工体验交付，不要求 screenshot/
   Playwright evidence。
 
-## Superseding r14 acceptance boundary（2026-07-17）
+## Historical r14 acceptance boundary（2026-07-17）
 
 - r14 diagnostic is a valid successful observation on tested commit
   `322bb346cca19998a90d6d990505ef033f3a496a`：required=`773+59/5707/F0E0S0`、Addon=`2/6`、
@@ -368,3 +372,20 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
 - current `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。After formal PASS，final
   implementation quality must pass before the coverage audit skill is used；acceptance remains after
   audit PASS only。
+
+## Superseding formal-r2 acceptance boundary（2026-07-17）
+
+- direct-child Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` 已 commit/push，parent=
+  `322bb346cca19998a90d6d990505ef033f3a496a`；r14 machine threshold/contract 曾为
+  `confirmed/formal-ready`；
+- immutable formal-r2=`step4-coverage-20260717-formal-r2` 完成 required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`、cleanup=`0/0/0`、
+  sensitive=`passed`，随后在 `formal-coverage-gate` 以 aggregate branch `-1` fail closed；
+- 12 个 critical class 与 aggregate line 全部 exact；唯一 delta 为
+  `FileSystemListPresetStore` branch `18/26 -> 17/26`，根因是 `Files.find(...).findFirst()`
+  在 UUID 文件上的未定义遍历顺序；不是漏跑、exec/report 缺失或生产回归；
+- deterministic regression 不改生产、不增 testcase；focused 5/5 命中缺失 probe 106，
+  Data Viewer=`104/F0E0S0`；machine state 已恢复 `diagnostic-ready/diagnostic-pending`；
+- 当前只允许完成 pre-Cdiag quality、提交/push 新 Cdiag 并从头执行 fresh diagnostic。
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、coverage audit、acceptance 与
+  9.3.5 保持关闭。

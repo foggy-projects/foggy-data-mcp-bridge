@@ -75,6 +75,7 @@ class ListPresetServiceTest {
             assertEquals(1, service.list("u2", "TicketModel", "ticket-list").size());
             assertEquals(1, service.list("u1", "TicketModel", "feedback-list").size());
             assertTrue(service.list("u2", "TicketModel", "feedback-list").isEmpty());
+            assertTrue(service.get("u1", "missing").isEmpty());
         }
 
         @Test

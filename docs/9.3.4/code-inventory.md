@@ -339,8 +339,8 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / r14 diagnostic sealed / thresholds confirmed /
-  second Cfreeze working tree formal-ready / fresh formal pending`，不是
+- state：`in-progress / formal-r2 fail-closed / deterministic repair verified /
+  new Cdiag pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
@@ -664,10 +664,10 @@ code_inventory:
   `foggy-core/src/test/java/com/foggyframework/core/utils/file/WatchServiceFileTracerTest.java`
   在既有 `testWatchServiceAvailable` 内反射创建 isolated tracer，显式 shutdown，并证明
   singleton 不受污染；没有新增 testcase/report identity。
-- current boundary：formal-r1 immutable failed；pending machine trio 已恢复为 b765 exact blobs，
+- historical boundary：formal-r1 immutable failed；pending machine trio 当时恢复为 b765 exact blobs，
   只放行新 Cdiag 与 fresh diagnostic。`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`；formal 与 post-formal final quality pending，Step 4/Step 5、coverage
-  audit、acceptance 均未通过。
+  audit、acceptance 均未通过；后续已由 r14/Cfreeze/formal-r2 inventory supersede。
 
 ### r14 diagnostic / second Cfreeze inventory
 
@@ -691,8 +691,35 @@ code_inventory:
   `SHA256SUMS` SHA-256=`915bf603c2cb04766143d73f0a2e81ab1a30863506fc194169d07dc06db173e3`；
 - validators：manifest=`60/60`、full contract=`formal/confirmed/passed`、frozen diagnostic and
   successor overlay PASS；
-- current boundary：single direct-child Cfreeze commit/push and fresh formal pending；no production、
-  test、runner、floor、critical-set、exclusion or testcase-cardinality changes in this freeze delta。
+- historical boundary：single direct-child Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04`
+  已 commit/push/clean；其 fresh formal-r2 随后 fail closed，由下方 inventory supersede。
+
+### formal-r2 failure / ListPreset deterministic recovery inventory
+
+- immutable formal evidence：
+  `docs/9.3.4/evidence/step-4/step4-coverage-formal-r2-list-preset-branch-order-fail-closed-20260717.md`；
+  run=`step4-coverage-20260717-formal-r2`，tested Cfreeze=
+  `1901a10138bac06a09b875c907b7aea6e2789b04`，required=`773+59/5707/F0E0S0`、
+  Addon=`2/6`、exec=`23/48`、class universe=`24/2098`、cleanup=`0/0/0`、sensitive PASS；
+- gate delta：aggregate line exact `54622/76830`，branch=`26105/44870`，比 confirmed
+  `26106/44870` 少 `1`；12 critical exact，below-floor=`0`，唯一 N/A=
+  `NamespaceScope.branch`；
+- unique class delta：
+  `addons/foggy-data-viewer/.../FileSystemListPresetStore` line=`69/88` 不变，branch=
+  `18/26 -> 17/26`；Unit `jacoco-ut.exec` class ID=`d1bd017e92baa090` 只缺 probe 106；
+- root cause：`Files.find(...).findFirst()` 对 UUID 文件的遍历顺序未定义，导致 filename-false
+  branch 是否在 short-circuit 前执行不稳定；workitem=
+  `docs/9.3.4/workitems/BUG-step4-list-preset-files-find-coverage-order.md`；
+- deterministic test delta：只在既有
+  `ListPresetServiceTest.FileStoreTests#shouldIsolatePresetByUserAndBusinessKey` 增加 nonexistent-ID
+  empty assertion；无 production、runner、floor、critical-set、exclusion 或 testcase-cardinality
+  变化；focused 5/5 probe106 hit、bitmap unique=`1`，Data Viewer=`104/F0E0S0`；
+- current machine inventory：threshold=`diagnostic-pending` SHA-256=
+  `0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`，contract=
+  `diagnostic-ready` SHA-256=`15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`，
+  manifest=`60/60`；
+- current boundary：pre-Cdiag quality -> one Cdiag commit/push -> fresh diagnostic -> review ->
+  direct-child Cfreeze -> fresh formal。`can_enter_coverage_audit=no`、Step 5/acceptance closed。
 
 ## Protected Boundaries
 
