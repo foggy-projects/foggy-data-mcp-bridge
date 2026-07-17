@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r13 diagnostic sealed / thresholds confirmed / Cfreeze formal-ready / fresh formal pending | Step 3 exit passed | r13=`b76552e2`：`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48`、below-floor=`0`、`NamespaceScope.branch` N/A=`1`、sensitive passed、cleanup=`0/0/0`；candidate SHA=`8bb47382...14d00` verified；threshold SHA=`0cfc6765...227cb` confirmed；formal/audit/acceptance pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r1 fail-closed / new diagnostic pending | Step 3 exit passed | formal-r1=`86d505e` 全 lane PASS 后 `E_FORMAL_LOW`；唯一 `WatchServiceFileTracer -9 line/-3 branch` shutdown-hook race；5/5 focused bitmap identical、11/F0E0S0；machine state=`diagnostic-ready/diagnostic-pending`；新 Cdiag/diagnostic/Cfreeze/formal pending；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1290,30 +1290,29 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 pre-r13 remediation quality passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；r13 diagnostic 已 sealed、Cfreeze transition 已 formal-ready；fresh formal 与其后的最终 quality 尚未执行，`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 formal-r1 recovery pre-Cdiag quality passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-formal-r1-recovery-implementation-quality.md`，B/H/M/L=`0/0/0/0`，只放行 Cdiag/fresh diagnostic；后续 fresh formal/final quality 尚待执行，`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r13 diagnostic sealed / Cfreeze formal-ready / fresh formal pending | roadmap 为 Steps 1–3 passed / Step 4 in-progress；formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 formal-r1 fail-closed / new diagnostic pending | roadmap 为 Steps 1–3 passed / Step 4 in-progress；新 diagnostic、formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-r13=`step4-coverage-20260717-diagnostic-r13` 已在 clean/pushed Cdiag commit
-`b76552e21479c75111f648a4aa678abe018cc3f9` 以
-`diagnostic-observed / completed / exit 0` 封存；required=`773+59/5,707/F0E0S0`、
-Addon=`2/6`、exec=`23/48`，critical below-floor=`0`，唯一 structural N/A=`1` 为
-`NamespaceScope.branch`；sensitive scan=`passed`、cleanup=`0/0/0`。threshold freeze
-candidate 已 public verified，SHA-256=
-`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`。
+formal-r1=`step4-coverage-20260717-formal-r1` 已在 clean/pushed Cfreeze `86d505e` 上完成
+全部执行/库存/provenance lane，并在 formal coverage gate 以 `E_FORMAL_LOW` fail closed；
+success-only artifacts absent、cleanup=`0/0/0`、sensitive scan=`passed`。r13/formal XML 与
+23 exec probe diff 只发现 `WatchServiceFileTracer` shutdown-hook race，不能盲重跑。
 
-exact threshold review 已完成；canonical threshold=`confirmed`（SHA-256=
-`0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`），contract/publication=
-`formal-ready`（SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`）。
-下一步仅允许提交/推送 Cdiag 的 direct-single-parent Cfreeze，验证 direct-parent delta 与 clean
-`HEAD == origin/main` 后以唯一新 run ID 执行 fresh formal。r13/candidate 不得冒充 formal
-或 Step 4 exit。当前 Step 4=`in-progress`、threshold=`confirmed`、Cfreeze=`formal-ready`、
-formal=`pending`、`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、coverage
-audit 与 acceptance 不得启动。
+既有 `testWatchServiceAvailable` 已加入 isolated tracer 显式 shutdown；5/5 fresh-fork exec
+均为 `177/245 probes`、目标 7 probes 全命中、bitmap unique=`1`，报告保持
+`11/F0E0S0`。canonical threshold/contract/manifest 已恢复 b765 exact pending trio：
+`0df17a87...ff96 / 15dae282...0b0b / cc356897...dc60`，full contract=
+`diagnostic/diagnostic-pending`、manifest=`60/60`。
+
+remediation pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`。下一步严格为一次 Cdiag commit/push -> clean
+`HEAD == origin/main` -> 停止 exact demo DB containers -> fresh diagnostic。随后重新
+candidate/review/direct-child Cfreeze/fresh formal；formal PASS 前不得启动最终 quality、coverage
+audit 或 acceptance。当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 关闭。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1447,7 +1446,7 @@ audit 与 acceptance 不得启动。
   `step4-coverage-20260717-diagnostic-r13` → restore exact IDs。r13 通过前不得 Cfreeze；
   `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 关闭。
 
-### Superseding Post-diagnostic Check-in — r13 sealed / Cfreeze formal-ready
+### Historical Post-diagnostic Check-in — r13 sealed / Cfreeze formal-ready
 
 - recorded_at: 2026-07-17；
 - immutable run：`step4-coverage-20260717-diagnostic-r13`，tested Cdiag commit=
@@ -1465,9 +1464,30 @@ audit 与 acceptance 不得启动。
   `0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`；contract/publication=
   `formal-ready`，SHA-256=
   `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
-- status decision：Step 4=`in-progress`，Cfreeze=`formal-ready`、formal=`pending`、
+- status decision at r13 snapshot：Step 4=`in-progress`，Cfreeze=`formal-ready`、formal=`pending`、
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5、audit、acceptance 与 9.3.5
   保持关闭；
-- next gate：Cdiag direct-single-parent Cfreeze commit/push → direct-parent delta → clean
+- next gate at r13 snapshot：Cdiag direct-single-parent Cfreeze commit/push → direct-parent delta → clean
   `HEAD == origin/main` → fresh formal → final implementation quality → coverage audit →
   acceptance。任一步失败继续 fail closed。
+
+### Superseding Check-in — formal-r1 fail-closed / new diagnostic generation
+
+- recorded_at: 2026-07-17；
+- immutable failed run：`step4-coverage-20260717-formal-r1`，tested commit=
+  `86d505810524383da6211bcc2a7965e9a4afb34e`，status=
+  `failed / formal-coverage-gate / exit 1`；summary/coverage-gate/candidate/final absent；
+- completed lanes：required=`773+59/5,707/F0E0S0`、Addon=`2/6`、exec=`23/48`、class
+  universe=`24/2098`、DB state=`18/18`、Redis state=`4/4`；cleanup=`0/0/0`、sensitive passed；
+- failure isolation：only `WatchServiceFileTracer` changed, line `204/244 -> 195/244`, branch
+  `98/128 -> 95/128`; aggregate exact `-9/-3`; only `jacoco-ut.exec` differs；
+- root cause：tracer/JaCoCo JVM shutdown hooks concurrently race；r13 recorded incidental exit
+  coverage，formal-r1 correctly rejected it；
+- remediation：existing testcase 内反射 isolated tracer 并显式 shutdown；5/5 independent
+  forks=`177/245 probes`、target7 all covered、bitmap unique=`1`、test report=`11/F0E0S0`，
+  singleton 保持 available；
+- machine recovery：contract=`diagnostic-ready` SHA `15dae282...0b0b`，threshold=
+  `diagnostic-pending` SHA `0df17a87...ff96`，manifest SHA `cc356897...dc60` / `60/60`；
+- decision：formal-r1 immutable，不重用/修补/盲重跑。pre-Cdiag quality 已 PASS；Step 4=
+  `in-progress`，下一门为新 Cdiag commit/push/clean identity；`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`，Step 5、formal、audit、acceptance 关闭。

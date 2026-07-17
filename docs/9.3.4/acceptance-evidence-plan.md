@@ -24,12 +24,12 @@ updated_at: 2026-07-17
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r13 sealed PASS、threshold candidate verified、Cfreeze machine delta formal-ready / commit/topology proof 与 fresh formal pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 formal-r1 fail-closed、shutdown race remediation focused 5/5、machine state restored diagnostic pending / new diagnostic、Cfreeze、formal pending / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r13 diagnostic observed、Cfreeze transition / formal pending |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 formal-r1 fail-closed、new Cdiag/diagnostic pending |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r13 sealed diagnostic 与 verified threshold candidate present，formal/Step 4 exit evidence absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 Cdiag remediation quality passed B/H/M/L=`0/0/0/0`，post-formal final quality pending，can_enter_coverage_audit=no |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 r13/Cfreeze historical positive 与 formal-r1 immutable failed evidence present，new diagnostic/formal/Step 4 exit positive absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-diagnostic-ready-implementation-quality.md` + `quality/step4-formal-r1-recovery-implementation-quality.md` | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 formal-r1 recovery pre-Cdiag quality PASS，B/H/M/L=`0/0/0/0`，仅放行 fresh diagnostic；post-formal final quality pending，can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -57,50 +57,20 @@ external `16/76`、exact union `45/446/F0E0S0`、gap/overlap/extra=`0/0/0`，DB 
 Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结果满足 Step 3 exit，
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
-Current Step 4 readiness（2026-07-17）：状态仅为
-`in-progress / r9 coverage-report excluded / exec-scope remediation implemented /
-lifecycle semantic remediation implemented / quality passed / commit pending / fresh r10 pending`。
-静态执行结构仍精确为
-`23 exec / 48 sessions`，required
-report overlay 为 `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon
-companion 仍单列 `2/6`。contract/source identity=`21/21 + 22/22`，effective POM/
-toolchain/report inventory=`4/4 + 5/5 + 30/30`。Unit negative receipt=`36/36`：原
-fixture/manifest schema/tamper=`20/20`、connection receipt typed=`7/7`、atomic
-publisher=`3/3`、profile isolation=`6/6`；negative receipt schema tamper 另为 `4/4`，
-真实 fixture lifecycle=
-`5/5`。Step 2 derived view/successor overlay=`12/12 + 12/12`，XML=`68/68`，logger=
-`9 类 / 14 case`；toolchain receipt 绑定 Step 1 raw 工具版本、ASM `9.6/9.7/9.7.1`
-三层 realm 和 24 个 production module effective compiler。tracked FIFO preflight
-fail-fast 与 before/after raw stat identity 并发重写拒绝均已纳入 `22/22`。
-当前 r9-remediation static identity 已复验为 top=`60/60` /
-`6be72b655b322d89763fc4871c953cd0d4bd5516206964d4cb1f8117b3133376`、successor=
-`14/14` / `e63b315e9607c1f7efbf3f0bffe99e0800a4c1062e9fcfa5c2c569ecf67cc5db`、
-amendment=`12 rows / 4 new + 8 changed` /
-`998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c`。
-source seal 清除 ambient/global Git clean 配置并显式复算 raw 与 CRLF-input 两个
-candidate，使真实 CRLF worktree 在 HEAD/index clean-equivalent 时通过；HEAD-fixed
-attributes 若声明 external clean filter，则在任何 worktree-aware Git hash/driver hook
-执行前 fail closed，negative 证明 hook 未执行。
+Current Step 4 readiness（2026-07-17）：
+`in-progress / formal-r1 fail-closed / deterministic shutdown remediation verified /
+new diagnostic pending`。formal-r1 在 Cfreeze `86d505e` 上完成 exact
+`773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、exec=`23/48`
+与 class universe=`24/2098` 后，由 formal gate 以 `E_FORMAL_LOW` 拒绝；positive summary/
+coverage-gate/candidate/final 均 absent。唯一变化是 `WatchServiceFileTracer -9 line/-3 branch`
+的 tracer/JaCoCo shutdown-hook race。
 
-该 remediation 以 run-owned MySQL 5.7 替换完整 Unit lane；`6 reports / 11 testcase
-nodes` 只是已知隐藏依赖清单，不是其他 Unit 测试无 DB 访问的声明。Step 2
-identity/cardinality 继续提供结构基线，但其 Unit 正确性绿色不复用。机器例外契约为
-`scripts/v934/step4/unit-mysql57-fixture-contract.json`，迁移债务为
-`docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`。只有
-`foggy-dataset` test resource 使用 `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholder；
-其他模块 profile 不受 callback 影响。outer/callback 双层拒绝 underscore/dotted/hyphen
-Spring/custom key 及 `@argfile`、`VMOptionsFile`、`javaagent/agentlib/agentpath` 间接注入；
-adapter inventory 使用 scrubbed Git environment、`HEAD` tree 与 no-replace object。
-connection receipt 的 closed Unit Maven window 由 configure `init_connect` 开始，由同一
-root batch 先 disable 再按 `connection_id` SELECT 结束；有序 observed user 必须证明该
-窗口内全部 non-super connection exclusively 使用 restricted `v934_unit`，callback 后的
-provisioner `foggy` 控制面在窗口外。fixture hardening 的 top
-manifest/amendment 最终静态身份已按上文复验；fresh Unit r3 与正式 remediation quality
-均已通过，B/H/M/L=`0/0/0/0`。fresh r8 已在 lifecycle bootstrap contract drift 上 fail
-closed/excluded；对应修复的 Unit shape/seal=`13+3`、Integration=`11+5` 且两路质量=
-`0/0/0/0`。这是 r8 前的历史边界；当时 authoritative closure commit/push/clean HEAD 与
-fresh r9 仍 required；不得以 Unit
-或 focused lifecycle subgate 冒充 Step 4 通过结论。
+修复未新增 testcase：既有测试内 isolated shutdown 的 5 个独立 fork 均为
+`177/245 probes`，formal-r1 缺失的 7 probes 全部命中，bitmap unique=`1`，Surefire=
+`11/F0E0S0`。canonical machine state 已恢复 b765 exact
+`diagnostic-ready/diagnostic-pending`，manifest=`60/60`；新 Cdiag commit/push、fresh
+diagnostic、review/Cfreeze/fresh formal 与最终 quality 都尚未完成。focused 结果不得冒充
+Step 4 acceptance evidence。
 
 Unit remediation r2 不是 acceptance evidence：
 `step4-unit-fixture-quality-20260716-r2` 在 commit
@@ -205,12 +175,12 @@ Step 4 implementation quality 已记录于
 `docs/9.3.4/quality/step4-diagnostic-ready-implementation-quality.md`，decision=
 `ready-with-risks` 的 r1/r2 结论仅作历史记录。Cdiag pre-r4 main gate 已以
 `ready-with-risks`、open Blocker/High/Medium=`0/0/0` 放行了历史 clean-HEAD r4；source-policy
-最终字节修正的正式复核为 `ready-with-risks`、B/H/M/L=`0/0/0/2`，两项 Low accepted。当前
+最终字节修正的正式复核为 `ready-with-risks`、B/H/M/L=`0/0/0/2`，两项 Low accepted。历史
 Unit remediation superseding gate=`pass`；r8 lifecycle contract gate 的历史结论曾为
 `pass / ready-for-commit-and-fresh-r9`。r9 随后在 coverage-report fail closed，且新的
-lifecycle semantic bypass 审计重新打开 Step 4 quality；当前
-`can_enter_coverage_audit=no`。fresh r10、aggregate review、confirmed thresholds 与 fresh
-formal 完成前不得启动 coverage audit。
+lifecycle semantic bypass 审计重新打开 Step 4 quality。formal-r1 recovery 是当前边界：
+`can_enter_coverage_audit=no`。新 Cdiag、fresh diagnostic、review/Cfreeze、fresh formal 与
+最终 implementation quality 完成前不得启动 coverage audit。
 
 ## Mandatory Acceptance Evidence
 
@@ -299,7 +269,7 @@ Step 3 execution check-in
 该 feature 链只打开 Step 4，不替代上方 Step 7 的 version-scope quality、coverage 与
 version acceptance；Step 7 仍需在最终 clean authority 后重新执行版本后置门。
 
-## Current Step 4 acceptance boundary（r9 superseding）
+## Historical Step 4 acceptance boundary（r9 snapshot）
 
 - r9=`excluded/non-reusable`：required lanes 与 `23/48` exec 已完成，但 exec-manifest、
   aggregate、source-after、threshold observation、summary 均 absent；
@@ -312,7 +282,7 @@ version acceptance；Step 7 仍需在最终 clean authority 后重新执行版�
   direct-child exact threshold freeze、fresh formal 与最终 implementation quality PASS，才可
   按 Gate Order 调用 test coverage audit；audit PASS 后才可执行 version acceptance。
 
-## Superseding Current Step 4 acceptance boundary（r12）
+## Historical Step 4 acceptance boundary（r12 snapshot）
 
 - r12=`step4-coverage-20260717-diagnostic-r12` 是 clean/pushed commit
   `05351ecab0d7fc43d12dfa307ffecf81feb41539` 上完整、可复验的 diagnostic；all-lane、
@@ -322,12 +292,12 @@ version acceptance；Step 7 仍需在最终 clean authority 后重新执行版�
   旧 freeze consumer 暴露的 enriched-row、N/A applicability 与 retained raw-exec replay
   闭包缺口已修复，九类测试 focused=`136/F0E0S0`，静态/负向门为 XML=`118/118`、
   contract=`27/27`、frozen replay=`12/12`、overlay=`12/12`；
-- 当前仍为 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。本轮正式
+- 该时点仍为 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。本轮正式
   implementation quality 已通过；仍必须依次完成 Cdiag commit/push/clean HEAD、fresh r13、direct-single-parent
   Cfreeze、fresh formal 与最终 implementation quality；只有上述链路通过后才按 Gate Order
   启动 test coverage audit，audit PASS 后才允许 acceptance。
 
-## Superseding Current Step 4 acceptance boundary（r13 / Cfreeze）
+## Historical Step 4 acceptance boundary（r13 / Cfreeze snapshot）
 
 - r13=`step4-coverage-20260717-diagnostic-r13` 已在 clean/pushed commit
   `b76552e21479c75111f648a4aa678abe018cc3f9` sealed PASS：required=
@@ -337,12 +307,23 @@ version acceptance；Step 7 仍需在最终 clean authority 后重新执行版�
   `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r13-threshold-candidate-20260717.json`，
   SHA-256=`8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`，public
   verification 已通过；
-- Cfreeze working-tree machine delta 只确认 r13 observed counters，并把 workflow 准备为
-  `formal-ready`；单次 direct-child commit/topology proof 仍 pending。它不是 formal gate、最终 implementation quality、coverage audit、
-  acceptance 或 Step 4 exit；
-- 当前仍为 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。下一门严格为 clean/pushed
-  Cfreeze 上的 fresh formal；formal PASS 后仍须最终 implementation quality，随后才允许启动
-  test coverage audit。Step 5 在 Step 4 exit 前保持关闭。
+- Cfreeze 已以 `86d505810524383da6211bcc2a7965e9a4afb34e` commit/push；唯一 direct parent=
+  `b76552e21479c75111f648a4aa678abe018cc3f9`，topology/formal-delta proof 通过。该转换本身
+  不是 formal gate、最终 implementation quality、coverage audit、acceptance 或 Step 4 exit；
+- 该时点 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，随后 fresh formal-r1 已执行
+  并 fail closed；本 snapshot 已由下一节 supersede。Step 5 始终关闭。
+
+## Superseding formal-r1 acceptance boundary（2026-07-17）
+
+- r13/Cfreeze 仅是历史 diagnostic/freeze evidence；formal-r1 在同 source/class tree 上因
+  shutdown-hook incidental coverage 下降被 `E_FORMAL_LOW` 正确拒绝，Step 4 未通过；
+- formal-r1 全 lane evidence 与 absence semantics 保留，但不得计为 acceptance positive；
+- deterministic regression 已以 5/5 identical probe bitmap 和 11/F0E0S0 focused result证明，
+  仍不足以进入 coverage audit；
+- canonical machine state 已回到 `diagnostic-ready/diagnostic-pending`。必须取得新 Cdiag、fresh
+  diagnostic、独立 threshold review、direct-child Cfreeze、fresh formal 和最终 implementation
+  quality 的完整证据后，才允许运行 `foggy-test-coverage-audit`；
+- 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 保持关闭。
 
 ## Final Signoff Contract
 

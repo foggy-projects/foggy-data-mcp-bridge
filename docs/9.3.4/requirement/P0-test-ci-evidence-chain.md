@@ -159,8 +159,8 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r13 diagnostic sealed / thresholds confirmed / Cfreeze formal-ready /
-  fresh formal pending`
+  `in-progress / formal-r1 fail-closed / deterministic remediation verified /
+  new diagnostic pending`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -347,7 +347,7 @@ updated_at: 2026-07-17
   拼接可伪绿；其 coded executable-stream regression 已通过，Unit/Integration shape=
   `16/16 + 14/14`、semantic stream=`2/2 + 5/5`、raw seal=`2/2`、outer/library=
   `3/3 + 3/3`，三路独立正式质量最终 B/H/M/L=`0/0/0/0`；
-- 当前 Step 4=`in-progress`，threshold=`diagnostic-pending`，
+- 当时 Step 4=`in-progress`，threshold=`diagnostic-pending`，
   `can_enter_coverage_audit=no`。只有 remediation commit/push/clean HEAD 与 fresh r10
   diagnostic 全部通过，才允许进入 exact threshold
   review/freeze；Step 5、formal、coverage audit、acceptance 与 9.3.5 保持关闭。
@@ -366,7 +366,7 @@ updated_at: 2026-07-17
 - remediation：producer 改用明确的 demo identity result 措辞；outer bootstrap-negative
   新增内存 `7 dangerous + 3 safe` probe，和最终扫描共用同一 pattern 数组，`rg rc>1`
   双向 fail closed，不落 `RUN_ROOT`、不回显 fixture；launcher request smoke test 通过；
-- 当前 Step 4=`in-progress`，formal remediation quality 最终 B/H/M/L=`0/0/0/0`；
+- 该时点 Step 4=`in-progress`，formal remediation quality 最终 B/H/M/L=`0/0/0/0`；
   commit/push/clean HEAD 与 fresh r11 仍 required。threshold=`diagnostic-pending`、
   `can_enter_coverage_audit=no`；Step 5、formal、
   coverage audit、acceptance 与 9.3.5 保持关闭。
@@ -401,10 +401,11 @@ updated_at: 2026-07-17
 - focused lifecycle suite=`PASS`，manifest=`60/60`、successor=`14/14`、contract
   mutations=`21/21`、overlay negatives=`12/12`。这些只证明 remediation，不是 r12、formal
   或 Step 4 exit；
-- 当前 Step 4=`in-progress / r13 diagnostic sealed / thresholds confirmed /
-  Cfreeze formal-ready / fresh formal pending`。r13 exact threshold review 与 machine transition 已完成，
-  单次 Cfreeze commit/direct-parent proof 待执行；formal、最终
-  implementation quality、coverage audit 与 acceptance 尚未执行；Step 5 与 9.3.5 保持关闭。
+- formal-r1 已在 Cfreeze `86d505e` 上完成全量 lane 后以 `E_FORMAL_LOW` fail closed；唯一
+  counter 漂移来自 `WatchServiceFileTracer` shutdown hook 与 JaCoCo dump hook 的退出竞态。
+  5/5 fresh-fork isolated shutdown regression bitmap 完全一致，既有 11 testcase 不变。
+  当前 machine tuple 已恢复 `diagnostic-ready/diagnostic-pending`，必须先提交/推送新 Cdiag、
+  fresh diagnostic 并重新 review/Cfreeze/formal；Step 5 与 9.3.5 保持关闭。
 
 ## Superseding r12 requirement boundary（2026-07-17）
 
@@ -420,7 +421,7 @@ updated_at: 2026-07-17
   strict identity；frozen receipt 必须证明 retained raw exec replay；
 - coverage remediation 只能补测试，不得改变 production、critical set、0.80/0.70 floor、
   exclusion 或 report/testcase cardinality；九类 focused=`136/F0E0S0` 只作 fresh r13 前置；
-- 当前 Step 4=`in-progress`，threshold=`diagnostic-pending`，precommit quality 已通过；
+- 该时点 Step 4=`in-progress`，threshold=`diagnostic-pending`，precommit quality 已通过；
   commit/push 与 fresh r13 仍 required。只有 r13 below-floor=`0`、N/A=`1`、candidate verified 后，才允许
   direct-child Cfreeze；Step 5、formal、coverage audit、acceptance 与 9.3.5 保持关闭。
 
@@ -440,6 +441,24 @@ updated_at: 2026-07-17
 - review evidence SHA-256=`2ab3dc50ed15399c07c1281c70961bf56593eae925727e5cc357bb448e737d8e`；
   canonical threshold SHA-256=`0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`
   已 confirmed，contract/publication=`formal-ready`；
-- 当前 Step 4 仍为 `in-progress`，Cfreeze transition=`confirmed/formal-ready`、formal=`pending`、
+- r13/Cfreeze 时点 Step 4 仍为 `in-progress`，transition=`confirmed/formal-ready`、formal=`pending`、
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。只有 fresh formal、最终
   implementation quality 依次通过后才可启动 coverage audit；Step 5 与 9.3.5 保持关闭。
+
+## Superseding formal-r1 fail-closed requirement boundary（2026-07-17）
+
+- formal-r1=`step4-coverage-20260717-formal-r1`，tested Cfreeze=
+  `86d505810524383da6211bcc2a7965e9a4afb34e`；unit/integration/DB/external/Addon、
+  report inventory、exec/session、class universe 与 provenance 全部通过，formal gate 返回
+  `E_FORMAL_LOW`，未发布 summary、coverage gate、candidate 或 final manifest；
+- r13 与 formal-r1 全量 XML 逐类 diff 只有 `WatchServiceFileTracer`：aggregate 与 critical
+  同步少 `9 line / 3 branch`。该类 line=`195/244`，低于 80% floor；原因是 tracer 与
+  JaCoCo 两个 JVM shutdown hook 的并发无序，不是漏跑、skip 或 class-tree drift；
+- requirement 新增稳定性约束：reviewed threshold 不得包含仅由 JVM exit hook 顺序决定的
+  incidental coverage。必须在 JVM exit 前用隔离实例显式完成 lifecycle，且不得关闭 singleton；
+- regression 已放入既有 testcase，5/5 fresh fork 对目标类均为 `177/245 probes`，formal-r1
+  缺失的 7 probes 全部命中，bitmap unique=`1`，报告保持 `11/F0E0S0`；
+- formal-r1 保持 immutable failed evidence，不复用、不修补、不盲重跑。当前 canonical state=
+  `diagnostic-ready/diagnostic-pending`；新 Cdiag -> fresh diagnostic -> review -> direct-child
+  Cfreeze -> fresh formal 顺序必须完整重走。`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`，Step 5 与 9.3.5 保持关闭。

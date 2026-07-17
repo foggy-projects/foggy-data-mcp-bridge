@@ -543,7 +543,7 @@ code_inventory:
   regression 已通过，Unit/Integration shape=`16/16 + 14/14`、semantic stream=
   `2/2 + 5/5`、raw seal=`2/2`、outer/library=`3/3 + 3/3`；三路独立正式复核最终
   B/H/M/L=`0/0/0/0`；
-- 当前 evidence boundary：r1–r9 均不能作为 threshold/formal/Step 4 exit；fresh r10 pending，
+- r9 时点 evidence boundary：r1–r9 均不能作为 threshold/formal/Step 4 exit；fresh r10 pending，
   `can_enter_coverage_audit=no`，Step 5、formal、coverage audit 与 acceptance 关闭。
 
 ### Superseding r10 remediation inventory
@@ -635,7 +635,7 @@ code_inventory:
   commit/push 与 fresh r13 pending。r13 前 threshold=`diagnostic-pending`、
   `can_enter_coverage_audit=no`，Step 5/formal/audit/acceptance 关闭。
 
-### Superseding r13 diagnostic / Cfreeze inventory
+### Historical r13 diagnostic / committed Cfreeze inventory
 
 - fresh diagnostic：run=`step4-coverage-20260717-diagnostic-r13`，tested commit=
   `b76552e21479c75111f648a4aa678abe018cc3f9`；sealed required=
@@ -653,15 +653,23 @@ code_inventory:
   threshold；
 - Cfreeze exact machine delta 仅为
   `scripts/v934/step4/{coverage-thresholds.json,coverage-contract.json,SHA256SUMS}` 加
-  `docs/9.3.4/**` allowlist writeback；待创建的单次 Cfreeze commit 必须以
-  `b76552e21479c75111f648a4aa678abe018cc3f9` 为唯一直接 parent，threshold 转为
+  `docs/9.3.4/**` allowlist writeback；已提交并 push 为
+  `86d505810524383da6211bcc2a7965e9a4afb34e`，其唯一直接 parent 为
+  `b76552e21479c75111f648a4aa678abe018cc3f9`。threshold 当时转为
   `confirmed`（SHA-256=`0cfc6765eda1aa8a5209e46bf668136ee1786c4761d66a07262ac3557e7227cb`）、
   contract/publication 转为 `formal-ready`（SHA-256=
-  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`）；Cfreeze
-  machine delta 已就绪、manifest=`60/60`，单次 commit/direct-parent proof 待完成；
-- current boundary：r13、verified candidate 与 Cfreeze formal-ready transition 只放行 fresh formal。
-  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；formal 与 post-formal final quality
-  pending，Step 4/Step 5、coverage audit、acceptance 均未通过。
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`）；manifest=`60/60`、
+  commit/direct-parent/formal-delta proof 均已完成；
+- historical boundary：r13、verified candidate 与 Cfreeze formal-ready transition 原只放行
+  fresh formal；formal-r1 已执行并 fail closed，该 boundary 不再是 current。
+- new deterministic test delta：
+  `foggy-core/src/test/java/com/foggyframework/core/utils/file/WatchServiceFileTracerTest.java`
+  在既有 `testWatchServiceAvailable` 内反射创建 isolated tracer，显式 shutdown，并证明
+  singleton 不受污染；没有新增 testcase/report identity。
+- current boundary：formal-r1 immutable failed；pending machine trio 已恢复为 b765 exact blobs，
+  只放行新 Cdiag 与 fresh diagnostic。`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`；formal 与 post-formal final quality pending，Step 4/Step 5、coverage
+  audit、acceptance 均未通过。
 
 ## Protected Boundaries
 

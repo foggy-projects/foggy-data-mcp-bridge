@@ -4,6 +4,7 @@ import org.junit.jupiter.api.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -55,8 +56,21 @@ class WatchServiceFileTracerTest {
 
     @Test
     @DisplayName("WatchService 应该可用")
-    void testWatchServiceAvailable() {
+    void testWatchServiceAvailable() throws ReflectiveOperationException {
         assertTrue(tracer.isAvailable(), "WatchService 应该可用");
+
+        Constructor<WatchServiceFileTracer> constructor =
+                WatchServiceFileTracer.class.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        WatchServiceFileTracer isolated = constructor.newInstance();
+        try {
+            assertTrue(isolated.isAvailable(), "隔离 WatchService 应该可用");
+        } finally {
+            isolated.shutdown();
+        }
+
+        assertFalse(isolated.isAvailable(), "显式关闭后隔离 WatchService 应该不可用");
+        assertTrue(tracer.isAvailable(), "隔离关闭不得污染全局 WatchService");
     }
 
     @Test

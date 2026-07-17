@@ -3,7 +3,7 @@ doc_role: root_plan_review
 doc_purpose: Record the reviewed dependency order and release gates from 9.3.1 through 9.4.0.
 status: active
 created_at: 2026-07-13
-updated_at: 2026-07-16
+updated_at: 2026-07-17
 ---
 
 # 9.3.1 → 9.4.0 迭代顺序评审
@@ -30,7 +30,7 @@ updated_at: 2026-07-16
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 r2 fail-closed / r3 pending | [执行文档包](../9.3.4/README.md)；Step 3 feature accepted；r2 Unit 全绿后在 SQLite broad Integration fail closed；L2 与主动发现的 Pivot legacy fixture 已按最终源码 focused 修复且 identity 收口，待提交/push 后从新 clean HEAD 执行 r3；不是 coverage passed |
+| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 formal-r1 fail-closed / new diagnostic pending | [执行文档包](../9.3.4/README.md)；r13 diagnostic/Cfreeze 为历史证据；formal-r1 全 lane 后因 `WatchServiceFileTracer` shutdown-hook 覆盖竞态被门禁拒绝；确定性 isolated shutdown 5/5 focused 已通过，machine state 已恢复 diagnostic pending，待新 Cdiag/diagnostic/Cfreeze/formal；不是 coverage passed |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,43 +85,21 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–3 passed / Step 4 r2 fail-closed / L2+Pivot focused-green / r3 pending`；入口为
-[`docs/9.3.4/README.md`](../9.3.4/README.md)。confirmed run
-`step1-candidate-r8-20260714` 已冻结 532 sources、820 discovery rows、829 execution
-keys、519 predecessor nodes/edges，28/28 expected-negative probes 通过；两路独立
-复核 blocker=0。Step 2 保持该 baseline immutable，并将 59 个 zero-test outer report
-typed 为 structural；confirmed r8e successor 为 `770 positive = 724 Step 2 + 46 Step 3`
-和 519 typed predecessor refs。Surefire/Failsafe 实际通过 `5,205 testcase / F0/E0/S0`，
-INT/TERM/HUP durable fail-closed probe=`130/143/129`；r8d 已作废。Step 3 formal parent
-`step3-required-20260716-final-r4` 在同一 committed HEAD 上完成 database `29/370` 与
-required external `16/76` 的 exact union `45/446/F0E0S0`，gap/overlap/extra=
-`0/0/0`；DB state=`18/18`、Redis state=`4/4`，Addon companion=`2/6` 且不计入
-union。Step 3 quality→coverage→feature acceptance 已完成。Step 4 静态覆盖执行库存精确为 `23 exec / 48
-sessions`，required report overlay 为 `773 positive + 59 structural / 5,707
-testcase / F0E0S0`，Addon 仍单列 `2/6`；raw contract/effective POM/toolchain/
-report inventory 负例分别为 `8/8`、`4/4`、`5/5`、`27/27`；Step 2 derived view 与
-successor overlay 负例为 `12/12`、`8/8`。当前 report amendment 已更新为 exact
-`11 rows = 4 new + 7 changed`，SHA-256=
-`937666fc1926ec1c4764ebb50d4b4d4bdd1f1013f0d63cc77d9a1856fae153d2`；successor declared
-amendments=`17`，SHA-256=
-`be9a2d553499f799d5dc81cee353397799ad3f01d2923c6aeccb82fdb9bd7548`，总量不变。
-Step 4 `SHA256SUMS` 已通过 exact 51 项校验，manifest SHA-256=
-`348ade918a5020b9b65b9fb93e4bb7034e73f197c8545c7cbbfeb3d34d044ac1`。
-clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的
-`step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
-`3115 tests / 1 failure / 0 errors / 0 skipped` fail closed：腐化 daily 表时查询实际命中
-monthly，另有 raw-vs-raw/nullable-empty 伪绿。测试修复后 focused=`9/F0E0S0`、组合
-回归=`57/F0E0S0`。其后 clean/pushed HEAD
-`0101a44a07784bf6b484d490c7fb508727fbab70` 的
-`step4-coverage-20260716-diagnostic-r2` 完整通过 Unit
-`681 execution + 55 structural / 4,941 testcase / F0E0S0`，随后在 Integration
-`sqlite-broad` 的 `PreAggregationL2CacheIT` 唯一失败；已执行 Integration 合计
-`312/F1E0S0`，outer 在 `child-integration` fail closed，未运行 database/external/Add-on/
-aggregate/threshold。L2 snapshot fixture 修复后为 `1/F0E0S0`、与 `PreAggregationIT`
-组合=`30/F0E0S0`；主动扫描发现的 Pivot legacy hybrid drift 两次稳定 RED，修复后 legacy
-与 V934 SQLite 分支各 `1/F0E0S0`。阈值仍为 `diagnostic-pending`，尚无 all-lane
-aggregate baseline/review 或 Step 4 exit evidence。下一动作是从修复与 identity 收口后的
-新 clean/pushed HEAD 执行 r3；Step 5 和 9.3.5 仍关闭。
+当前状态：`in-progress / Steps 1–3 passed / Step 4 formal-r1 fail-closed /
+deterministic remediation verified / new diagnostic pending`；入口为
+[`docs/9.3.4/README.md`](../9.3.4/README.md)。Step 1–3 authority 与 feature acceptance
+保持不变。Step 4 执行库存为 `23 exec / 48 sessions`，required overlay=
+`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`。
+
+r13 diagnostic 与 Cfreeze `86d505e` 已作为历史 evidence 封存；fresh formal-r1 完成全部
+执行/库存/provenance lane 后，因 `WatchServiceFileTracer` line/branch 比 reviewed threshold
+少 `9/3` 而以 `E_FORMAL_LOW` fail closed。逐 class/exec 复核证明原因是 tracer 与 JaCoCo
+两个 JVM shutdown hook 的无序竞态，不是漏跑或 class-tree drift。既有 testcase 内的
+isolated explicit shutdown 已连续 5 个 fresh fork 得到 identical `177/245` probe bitmap，
+11 testcase/F0E0S0 不变；canonical contract/threshold 已恢复
+`diagnostic-ready/diagnostic-pending`，manifest=`60/60`。下一动作是 precommit quality 后
+提交/push 新 Cdiag，从 clean HEAD 运行 fresh diagnostic，再重新 review/Cfreeze/formal。
+Step 5、9.3.5 与 9.4.0 继续关闭。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

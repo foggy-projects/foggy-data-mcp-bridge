@@ -688,5 +688,24 @@ coverage audit 与 acceptance 保持关闭。
 - r13 sealed PASS 与 candidate verified 只打开 fresh formal 的前置转换，不是 formal result、
   Step 4 exit、coverage audit 或 acceptance evidence。
 
-当前 `step4_result=in-progress`、Cfreeze=`formal-ready`、`can_enter_coverage_audit=no`；fresh formal 与最终
-implementation quality 尚未执行，Step 5、coverage audit、acceptance 保持关闭。
+该 r13/Cfreeze 结论已被 formal-r1 fail-closed 记录 supersede。当前
+`step4_result=in-progress`、machine state=`diagnostic-ready/diagnostic-pending`、
+`can_enter_coverage_audit=no`；新 diagnostic/Cfreeze/formal 与最终 implementation quality
+尚未执行，Step 5、coverage audit、acceptance 保持关闭。
+
+## Formal-r1 shutdown-hook race regression（2026-07-17）
+
+- immutable formal run：`step4-coverage-20260717-formal-r1`，Cfreeze=`86d505e`，全量
+  required=`773+59/5707/F0E0S0` 后 `E_FORMAL_LOW`；
+- exact delta：aggregate `line -9 / branch -3`，全部来自
+  `WatchServiceFileTracer`；其 line=`195/244` 低于 80% floor；
+- root-cause oracle：22 integration exec bitmap 相同，仅 `jacoco-ut.exec` 缺 7 probes；
+  `shutdown()` 唯一入口与 JaCoCo dump 都是 unordered JVM shutdown hooks；
+- deterministic regression：不新增 testcase，在既有 `testWatchServiceAvailable` 内创建
+  isolated tracer，显式 shutdown，断言 isolated unavailable 且 singleton available；
+- focused result：5 个独立 Maven/JVM forks 均为 `177/245 probes`，目标 probes
+  `[103,110,223,226,230,231,234]` 全命中，五份 bitmap 完全相同；Surefire=
+  `11/F0E0S0`；
+- all-lane acceptance：focused 仅证明修复方向。必须在新 clean/pushed Cdiag 上 fresh
+  diagnostic，再重新 review/Cfreeze/fresh formal；两次 run 都需保持 exact
+  `773+59/5707`、23/48、24/2098、cleanup 0/0/0、sensitive pass。

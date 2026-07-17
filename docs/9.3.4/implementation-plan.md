@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r13 diagnostic sealed / thresholds confirmed / Cfreeze formal-ready /
-fresh formal pending`。
+`in-progress / formal-r1 fail-closed / deterministic remediation verified /
+new diagnostic pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -694,7 +694,7 @@ baseline。后续顺序更新为：
    public verification 通过，才创建 Cdiag 的 direct-single-parent Cfreeze；Cfreeze 后 fresh
    formal、最终 quality、coverage audit、acceptance 顺序不变。Step 5 在 Step 4 exit 前关闭。
 
-## Step 4 r13 sealed diagnostic / Cfreeze formal-ready addendum（2026-07-17）
+## Historical Step 4 r13 diagnostic / Cfreeze snapshot（2026-07-17）
 
 r13 已完整成功并将 r12 remediation 重新证明为 fresh authority：run=
 `step4-coverage-20260717-diagnostic-r13`，tested Cdiag commit=
@@ -712,12 +712,37 @@ reviewed threshold 已确认为
 后续严格按以下顺序推进：
 
 1. [completed] 以 r13 sealed diagnostic 和 verified candidate 完成 exact threshold 人工 review；
-2. [prepared] Cfreeze 工作树只包含 threshold/contract/`SHA256SUMS` exact allowlist 与
-   `docs/9.3.4/` writeback；单次 direct-single-parent commit 与 topology proof 待执行；
-3. Cfreeze commit/push、direct-parent delta 验证后证明 clean `HEAD == origin/main`，再使用唯一新 run ID 从头执行
+2. [completed] Cfreeze 只包含 threshold/contract/`SHA256SUMS` exact allowlist 与
+   `docs/9.3.4/` writeback；已以 direct-single-parent `86d505e` commit/push 并通过 topology proof；
+3. [completed] Cfreeze commit/push、direct-parent delta 与 clean `HEAD == origin/main` 通过后，使用唯一新 run ID 从头执行
    fresh formal；不得复用 r13 exec、XML 或 candidate 充当 formal evidence；
-4. fresh formal 封存且 public final verification 通过后，依次执行最终 implementation quality、
-   test coverage audit 与 acceptance；任一步失败继续 fail closed。
+4. [failed-closed] fresh formal-r1 在 coverage gate 失败；后续最终 implementation quality、
+   test coverage audit 与 acceptance 未启动。
 
-当前 Step 4=`in-progress`、threshold=`confirmed`、Cfreeze=`formal-ready`、formal=`pending`，
+该时点 Step 4=`in-progress`、threshold=`confirmed`、Cfreeze=`formal-ready`；随后 formal-r1
+fail closed 并由下方 recovery addendum supersede。Step 5 与 9.3.5 始终关闭。
+
+## Step 4 formal-r1 failure recovery addendum（2026-07-17）
+
+formal-r1 在 Cfreeze `86d505e` 上通过全部执行与证据 lane，随后因
+`WatchServiceFileTracer` aggregate/critical exact threshold 下降 `9 line / 3 branch` 被
+`E_FORMAL_LOW` 拒绝。逐类 XML 与 23 exec probe 对比确认唯一原因是 tracer shutdown hook
+和 JaCoCo dump hook 的退出顺序竞态；不得以重跑获取伪绿色。
+
+恢复顺序固定为：
+
+1. [completed] 登记 immutable formal-r1 failure 与 BUG，验证 cleanup=`0/0/0`、敏感扫描通过、
+   success-only artifacts absent；
+2. [completed] 在既有 testcase 内创建 isolated tracer 并显式 shutdown；5/5 fresh fork 的
+   目标 probe bitmap 完全一致，11 testcase/F0E0S0 不变；
+3. [completed] 恢复 b765 exact pending machine trio，完成 focused/static quality；正式
+   pre-Cdiag quality PASS，B/H/M/L=`0/0/0/0`；
+4. [in-progress] 一次提交并 push 为新 Cdiag，证明 clean `HEAD == origin/main`；
+5. [pending] 停止 exact demo DB containers，使用唯一新 run ID 执行 fresh diagnostic；
+6. [pending] 对新 observation 生成 candidate、独立复核，并以新 Cdiag 为唯一 parent 创建一次
+   Cfreeze commit；Cdiag 与 Cfreeze 间不得插入其他提交；
+7. [pending] fresh formal PASS 后依次执行最终 implementation quality、coverage audit 与
+   acceptance。任一步失败继续 fail closed。
+
+当前 threshold/contract=`diagnostic-pending/diagnostic-ready`，Step 4=`in-progress`，
 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。
