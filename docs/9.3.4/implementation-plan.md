@@ -147,8 +147,8 @@ required external=`16/76/F0E0S0`，exact union=`45/446`，gap/overlap/extra=
 `reviewed-optional-excluded`。quality→coverage→feature acceptance 已按序通过，证据见
 `evidence/step-3/step3-required-matrix-exit-20260716.md`。该句是 Step 3 准出时的历史
 entry 结论；当前 Step 4 已由下方 superseding record 更新为
-`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
-new Cdiag pending`。
+`in-progress / r16 diagnostic PASS / reviewed Cfreeze worktree / Cfreeze commit pending /
+fresh formal pending`。
 
 ## Step 4 — JaCoCo Unit+IT 聚合与关键类门
 
@@ -821,12 +821,42 @@ diagnostic candidate 或与后续结果拼接。
    `10/10`、`23/F0E0S0`、`27/F0E0S0`；
 5. [completed] 同步 requirement/contract/inventory/responsibility/test/progress/evidence；正式
    pre-Cdiag implementation quality PASS，B/H/M/L=`0/0/0/0`；
-6. [pending] 只创建一个新的 Cdiag commit/push/clean identity；在 exact demo DB 停止窗口中运行
+6. [completed] 只创建一个新的 Cdiag commit/push/clean identity；在 exact demo DB 停止窗口中运行
    唯一 fresh diagnostic，退出后按 exact container ID 恢复；
-7. [pending] diagnostic PASS 后生成并独立审查 candidate，再形成 direct-child Cfreeze 和 fresh
-   formal；失败则封存并重复 fail-closed recovery，不盲重跑；
+7. [in-progress] diagnostic PASS 后生成并独立审查 candidate；reviewed Cfreeze 工作树已形成，
+   direct-child Cfreeze commit/push 与 fresh formal 尚未执行；失败则封存并重复 fail-closed recovery，
+   不盲重跑；
 8. [pending] fresh formal PASS 后执行 final implementation quality；仅其 PASS 后进入 coverage
    audit，再在 audit PASS 后执行 acceptance。Step 5 在 Step 4 exit 前关闭。
 
-当前 machine=`diagnostic-ready/diagnostic-pending`，`can_enter_coverage_audit=no`、
-`can_enter_acceptance=no`；formal pre-Cdiag quality PASS 只放行 new Cdiag/fresh diagnostic。
+r15 closure 时点 machine=`diagnostic-ready/diagnostic-pending`；该状态已由下方 r16 addendum
+supersede。
+
+## Step 4 diagnostic-r16 / reviewed Cfreeze addendum（2026-07-17）
+
+new Cdiag `f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push/clean；fresh r16
+完整通过并完成 exact candidate/review。该状态只满足 Cfreeze 开启条件，不等于 Step 4 exit。
+
+1. [completed] sealed diagnostic=`step4-coverage-20260717-diagnostic-r16`：required lanes=
+   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，coverage inventory=
+   `23 exec / 48 sessions / 16,948 unique execution class identities`；
+2. [completed] aggregate observation=`54,624/76,830 line`、`26,111/44,870 branch`；12 个
+   critical class 全部通过，唯一 `NamespaceScope` branch 按 contract 保持 `N/A`；
+3. [completed] immutable candidate SHA-256=
+   `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`，独立 review
+   SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+   B/H/M/L=`0/0/0/1`；Low 要求 fresh formal 复现 aggregate；
+4. [completed] canonical threshold=`confirmed`，SHA-256=
+   `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`；contract=
+   `formal-ready`，SHA-256=
+   `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+5. [in-progress] Cfreeze 只允许 machine contract trio 与 `docs/9.3.4/**` 文档证据，且必须是
+   Cdiag 的 direct single parent；runner、production、public API 与测试清单无新增改动，
+   formal-delta allowlist 持续 fail closed；
+6. [pending] commit/push Cfreeze，验证 clean `HEAD == origin/main` 与 direct-parent delta 后，
+   使用唯一新 run ID 从头执行 fresh formal，并验证其复现 reviewed aggregate；
+7. [pending] fresh formal PASS 后执行 final implementation quality；仅其 PASS 后进入 coverage
+   audit，再在 audit PASS 后执行 acceptance。
+
+当前只授权 Cfreeze commit/push 与 fresh formal；两者均尚未完成。`can_enter_coverage_audit=no`、
+`can_enter_acceptance=no`，不得写 Step 4 完成，Step 5 与 9.3.5 保持关闭。

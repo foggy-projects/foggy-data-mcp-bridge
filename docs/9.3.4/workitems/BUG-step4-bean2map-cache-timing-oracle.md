@@ -4,7 +4,7 @@ bug_source: diagnostic-found
 version: 9.3.4
 ticket: BUG-934-STEP4-BEAN2MAP-CACHE-TIMING-ORACLE
 severity: blocker
-status: in-progress
+status: closed
 reproduction_status: confirmed
 product_regression: false
 test_strategy: deterministic-behavior-regression
@@ -79,9 +79,29 @@ correctness，而不是简单删除测试或扩大计时容忍；同时移除同
 - [x] 邻接 1000-copy test 移除墙钟门，保留批量 correctness。
 - [x] focused 10/10 fresh JVM=`1/F0E0S0`；class=`23/F0E0S0`；module=`27/F0E0S0`。
 - [x] 完成正式 pre-Cdiag implementation quality，B/H/M/L=`0/0/0/0`。
-- [ ] 完成一次 Cdiag commit/push 与 clean identity。
-- [ ] fresh diagnostic、candidate review、direct-child Cfreeze 与 fresh formal 全部通过。
+- [x] 完成一次 Cdiag commit/push 与 clean identity：
+  `f863c672029d5d1e5a4903df74cf6cba22a04a85`。
+- [x] fresh r16 diagnostic sealed PASS：`773+59/5707/F0E0S0`、exec/session/class IDs=
+  `23/48/16948`、aggregate=`54624/76830 line,26111/44870 branch`；Bean2MapUtils 关键回归
+  coverage 无退化。
+- [x] candidate/review 已通过：candidate=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`、review=
+  `88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`。
+- [x] Cfreeze machine worktree 已为 threshold `confirmed` / contract `formal-ready`：
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8` /
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`。
+- [ ] direct-child Cfreeze commit/push 与 fresh formal 通过；review 的 Low 必须由 fresh formal
+  复现 aggregate，不得降低 threshold。
 - [ ] 最终 implementation quality、coverage audit 与 acceptance 通过。
+
+## Closure Scope
+
+本 BUG 按 implementation regression closed / diagnostic verified 关闭：r16 已在完整 Unit 与
+all-lane diagnostic 中证明 deterministic behavior oracle 稳定，且 Bean2MapUtils 关键回归
+coverage 无退化。
+该关闭不等于 fresh formal、Step 4 或 9.3.4 accepted；fresh formal 与版本级后置门仍按上方未完成
+项执行。
 
 ## References
 
@@ -90,3 +110,5 @@ correctness，而不是简单删除测试或扩大计时容忍；同时移除同
 - `scripts/verify-v934-unit.sh`
 - `scripts/verify-v934-step4-coverage.sh`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r15-bean2map-timing-oracle-fail-closed-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-pass-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md`

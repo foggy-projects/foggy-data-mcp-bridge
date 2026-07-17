@@ -165,7 +165,7 @@ updated_at: 2026-07-17
   new Cdiag -> fresh diagnostic -> candidate/review -> Cfreeze -> fresh formal；
 - test/report ownership 保持 frozen cardinality：无新 `@Test`；focused 5/5 probe 106 hit，
   Data Viewer module=`104/F0E0S0`；all-lane authority 仍必须由 Step 4 runner 重新产生；
-- 当前 Step 4=`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
+- formal-r2 recovery 时点 Step 4=`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
   new Cdiag pending`，machine=`diagnostic-ready/diagnostic-pending`；
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5 与后续 gate 不得提前。
 
@@ -180,6 +180,29 @@ updated_at: 2026-07-17
   与 success-only artifact absence，并禁止跨 run 拼接；
 - test/report owner 保持 frozen cardinality：无 `@Test` 增删；focused 10/10、class 23、module 27
   均 F0E0S0 只证明 remediation，不替代 all-lane authority；
-- Step 4 coverage owner 已完成 r15 recovery quality `PASS / 0/0/0/0`；当前按 new Cdiag ->
+- Step 4 coverage owner 已完成 r15 recovery quality `PASS / 0/0/0/0`；r15 closure 按 new Cdiag ->
   fresh diagnostic -> candidate/review -> Cfreeze -> fresh formal -> final quality 推进；machine=
-  `diagnostic-ready/diagnostic-pending`，Step 5、coverage audit、acceptance 与 9.3.5 不得提前。
+  `diagnostic-ready/diagnostic-pending`。该时点已由下方 r16 boundary supersede。
+
+## Superseding diagnostic-r16 / reviewed Cfreeze ownership boundary（2026-07-17）
+
+- Step 4 evidence owner 已在 pushed/clean Cdiag
+  `f863c672029d5d1e5a4903df74cf6cba22a04a85` 上封存 fresh diagnostic r16：
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`，`23 exec / 48 sessions /
+  16,948 unique execution class identities`；
+- coverage review owner 已核对 aggregate=`54,624/76,830 line`、`26,111/44,870 branch`，
+  12 个 critical class 全部通过，唯一 `NamespaceScope` branch 按 schema 保持 `N/A`；
+- threshold review owner 已封存 candidate SHA-256=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919` 与 review
+  SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`；Low 的 owner action 是由 fresh formal 复现 aggregate；
+- machine contract owner 已将 canonical threshold 切为 `confirmed`（SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`），contract 切为
+  `formal-ready`（SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`）；
+- Cfreeze owner 只能提交 machine contract trio 与 `docs/9.3.4/**` 文档证据，并保持
+  formal-delta direct-single-parent allowlist；runner、production、public API、测试清单不属于本次
+  Cfreeze delta；
+- 当前授权仅为 direct-child Cfreeze commit/push 与一个唯一 fresh formal；Cfreeze 尚未提交、
+  formal 尚未运行。fresh formal PASS 前不得进入 final quality 之后的 coverage audit/acceptance，
+  不得声明 Step 4 完成，Step 5 与 9.3.5 保持关闭。

@@ -22,14 +22,14 @@ updated_at: 2026-07-17
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed + Step 4 canonical `confirmed/formal-ready` working tree；Cfreeze pending |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r15 immutable Unit failure recorded、deterministic timing-oracle remediation verified、machine diagnostic pending / Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / Step 4 r16 diagnostic PASS、candidate/review complete、reviewed Cfreeze working tree / Steps 5–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r15 Unit fail-closed、deterministic timing-oracle remediation verified、new Cdiag pending |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 formal-r1/formal-r2/r15 immutable failures、r14 diagnostic/candidate/review/Cfreeze present；new diagnostic/formal/Step 4 exit absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 r15 recovery pre-Cdiag PASS，B/H/M/L=`0/0/0/0`；只放行 new Cdiag/fresh diagnostic；post-formal final quality pending，can_enter_coverage_audit=no |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / Step 4 r16 diagnostic PASS、candidate/review complete、Cfreeze commit pending |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；Step 4 r16 diagnostic PASS；version in-progress |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；Step 4 formal-r1/formal-r2/r15 immutable failures、r14 historical chain、r16 diagnostic/candidate/review present；Cfreeze/fresh formal/Step 4 exit absent；Steps 4–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2 reviewed；Step 3 ready-for-coverage-audit；Step 4 r16 pre-Cfreeze PASS，B/H/M/L=`0/0/0/1`，只授权一次 Cfreeze/fresh formal；post-formal final quality pending；can_enter_coverage_audit=no |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -58,19 +58,23 @@ Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结�
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
 Current Step 4 readiness（2026-07-17）：
-`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
-new Cdiag pending`。formal-r2 deterministic recovery Cdiag
-`9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已 commit/push/clean；fresh r15 在 Unit 的
-`Bean2MapUtilsTest#testCachingMechanism` 单次纳秒倍率断言 fail closed。r15 仅产生 partial
-`26 reports / 124/F1E0S0` 和 `2/48 sessions`；source-after、final sensitive scan、inventory、
-aggregate、observation、candidate、summary/gate 均 absent。
+`in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree`。superseding Cdiag
+`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh r16 完成 required=
+`773+59/5707/F0E0S0`、exec/session/identity=`23/48/16948`，aggregate line=
+`54624/76830`、branch=`26111/44870`。12 个 critical class 全部达标，唯一 structural N/A=
+`NamespaceScope.branch=0/0`。
 
-修复用三个同类、不同 source 实例的精确复制结果替代 cache-hit 墙钟比较，并删除邻接 1000-copy
-的 1000ms 门；无生产/API/POM/runner/floor 变更、无 testcase 增删。focused 10/10 fresh JVM、
-class=`23/F0E0S0`、module=`27/F0E0S0`；machine 保持
-`diagnostic-ready/diagnostic-pending`。正式 pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`；
-该状态仍不是 acceptance evidence：新 Cdiag、fresh diagnostic、review/Cfreeze/formal 与 final implementation quality 均 pending；
-只有这些通过后才允许 coverage audit。
+candidate SHA-256=`2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`
+已经两路独立复算；review SHA-256=
+`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，B/H/M/L=
+`0/0/0/1`。canonical threshold=`confirmed`，SHA-256=
+`ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`；contract=
+`formal-ready`，SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`。
+该状态仍不是 acceptance evidence：Cfreeze 尚未 commit/push，fresh formal 尚未运行，Step 4、
+coverage audit、acceptance 均未签收。pre-Cfreeze implementation quality 已 PASS，B/H/M/L=
+`0/0/0/1`，只授权一次 direct-child Cfreeze 与 fresh formal；唯一 Low 要求 fresh formal 完整
+复现 aggregate 高水位，不得降低 threshold；formal PASS 与 post-formal final quality PASS 前
+不得启动 coverage audit。
 
 Unit remediation r2 不是 acceptance evidence：
 `step4-unit-fixture-quality-20260716-r2` 在 commit
@@ -407,3 +411,24 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
 - 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；只允许按
   new Cdiag commit/push/clean -> fresh diagnostic -> review/Cfreeze -> fresh formal -> final quality
   推进，Step 5 与 9.3.5 保持关闭。
+
+## Superseding r16 reviewed-Cfreeze acceptance boundary（2026-07-17）
+
+- superseding Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh r16=
+  `step4-coverage-20260717-diagnostic-r16` 完成 required=`773+59/5707/F0E0S0`、
+  exec/session/identity=`23/48/16948`，aggregate=`54624/76830 line`、`26111/44870 branch`；
+- 12 个 critical class 全部达到 observed minimum，唯一 structural N/A=
+  `NamespaceScope.branch=0/0`；candidate SHA-256=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919` 已两路独立复算，
+  review SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`；
+- canonical threshold=`confirmed` / SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`，contract=
+  `formal-ready` / SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+- pre-Cfreeze implementation quality=`PASS / 0/0/0/1`，只授权一次 direct-child Cfreeze 与
+  fresh formal，不授权 final quality、coverage audit 或 acceptance；
+- Cfreeze commit/push、direct-parent/formal-delta/clean identity 与 fresh formal 仍 pending；唯一
+  Low 要求 formal 完整复现 r16 aggregate 高水位，禁止通过下调 threshold 放行；
+- 当前 Step 4、coverage audit、acceptance 均未签收，`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`；Step 5 与 9.3.5 保持关闭。

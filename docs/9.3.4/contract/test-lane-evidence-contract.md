@@ -795,3 +795,34 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 6. 测试字节变化后 machine 保持 `diagnostic-ready/diagnostic-pending`，必须从 new Cdiag 完整重走
    fresh diagnostic -> candidate/review -> direct-child Cfreeze -> fresh formal；fresh formal PASS 后
    仍按 final quality -> coverage audit -> acceptance。Step 5 不得提前。
+
+## Superseding diagnostic-r16 / reviewed Cfreeze contract（2026-07-17）
+
+1. replacement Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 上的 fresh diagnostic
+   `step4-coverage-20260717-diagnostic-r16` 是当前唯一可用于本次 threshold review 的
+   diagnostic authority：required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=
+   `23/48`、unique execution class IDs=`16,948`；
+2. reviewed aggregate observation 精确为 `54624/76830 line, 26111/44870 branch`；12 个
+   critical row 全部通过、below-floor=`0`、唯一 N/A 为 `NamespaceScope.branch`。
+   Bean2MapUtils 关键回归 coverage 也不得低于 r16 observation；
+3. `FileSystemListPresetStore#findById` 的 filename-false outcome 必须由既有 testcase 的
+   missing-ID assertion 显式穷尽 predicate，formal-r2 缺失的 branch/probe 106 已在 r16
+   恢复；不得重新依赖 UUID 文件遍历顺序或 `findFirst()` 偶然短路；
+4. candidate SHA-256=
+   `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`；review
+   SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+   B/H/M/L=`0/0/0/1`。唯一 Low 只允许由 fresh formal 复核非 critical probe 稳定性，不构成
+   aggregate/critical threshold 下调、exclusion 扩张或 authority 重跑挑选的授权；
+5. canonical Cfreeze machine worktree 必须保持 threshold `confirmed` / SHA-256=
+   `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`，contract
+   `formal-ready` / SHA-256=
+   `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`，并由 Cdiag
+   的 direct-single-parent Cfreeze commit 封存；
+6. fresh formal 必须使用唯一新 run ID 重跑全部 23 exec/48 sessions，保持
+   `773+59/5707/F0E0S0` 与 exact inventory，并复现（达到或高于）aggregate minimum
+   `54624/76830 line, 26111/44870 branch`、12 个 critical minima 和唯一 N/A；任何不足均
+   fail closed，禁止复用 r16 exec/XML 或降低 threshold；
+7. 当前仅完成 reviewed Cfreeze worktree，尚无 direct-child Cfreeze commit/push 或 fresh formal
+   result。两个 implementation regression 可按 diagnostic verified 关闭，但不得据此声明
+   Step 4/9.3.4 accepted；`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5
+   保持关闭。

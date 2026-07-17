@@ -4,7 +4,7 @@ bug_source: formal-gate-found
 version: 9.3.4
 ticket: BUG-934-STEP4-LIST-PRESET-FILES-FIND-COVERAGE-ORDER
 severity: blocker
-status: in-progress
+status: closed
 reproduction_status: confirmed
 product_regression: false
 test_strategy: deterministic-existing-test-regression
@@ -89,9 +89,28 @@ all-lane diagnostic/formal authority 证明。
 - [x] machine tuple 恢复 diagnostic state；manifest=`60/60`、contract/overlay validator PASS。
 - [x] 正式 pre-Cdiag implementation quality PASS，B/H/M/L=`0/0/0/0`。
 - [x] 完成 Cdiag `9270d2d4e58684226aeb15eff55b027e6aa4a7eb` commit/push 与 clean identity。
-- [ ] fresh r15 因独立 Bean2Map timing oracle fail closed；replacement diagnostic、candidate
-  review、direct-child Cfreeze 与 fresh formal 仍待全部通过。
+- [x] fresh r15 因独立 Bean2Map timing oracle fail closed，未把 partial evidence 复用为本 BUG
+  的绿色；replacement Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push。
+- [x] fresh r16 diagnostic sealed PASS：`773+59/5707/F0E0S0`、exec/session/class IDs=
+  `23/48/16948`、aggregate=`54624/76830 line,26111/44870 branch`；missing-ID assertion
+  显式覆盖 `findById` predicate，formal-r2 缺失的 branch/probe 106 已恢复。
+- [x] candidate/review 已通过：candidate=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`、review=
+  `88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`。
+- [x] Cfreeze machine worktree 已为 threshold `confirmed` / contract `formal-ready`：
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8` /
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`。
+- [ ] direct-child Cfreeze commit/push 与 fresh formal 通过；review 的 Low 必须由 fresh formal
+  复现 aggregate，不得降低 threshold。
 - [ ] 最终 implementation quality、coverage audit 与 acceptance 通过。
+
+## Closure Scope
+
+本 BUG 按 implementation regression closed / diagnostic verified 关闭：r16 已证明
+missing-ID assertion 不依赖 UUID 文件遍历顺序，并恢复 formal-r2 缺失的 predicate branch。
+该关闭不等于 fresh formal、Step 4 或 9.3.4 accepted；fresh formal 与版本级后置门仍按上方未完成
+项执行。
 
 ## References
 
@@ -100,3 +119,5 @@ all-lane diagnostic/formal authority 证明。
 - `scripts/v934/step4/coverage-thresholds.json`
 - `scripts/verify-v934-step4-coverage.sh`
 - `docs/9.3.4/evidence/step-4/step4-coverage-formal-r2-list-preset-branch-order-fail-closed-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-pass-20260717.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md`

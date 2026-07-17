@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r15 Unit fail-closed / new Cdiag pending | Step 3 exit passed | prior Cdiag `9270d2d4…` committed/pushed；r15 在预热 cache 的单次计时 oracle fail closed，仅 partial `124/F1E0S0`、`2/48 sessions`；deterministic focused 10/10、class 23、module 27 均 F0E0S0；pre-Cdiag quality PASS `0/0/0/0`；machine=`diagnostic-ready/diagnostic-pending`；new Cdiag→diagnostic→review/Cfreeze→formal、final quality pending；`can_enter_coverage_audit=no`；Step 5 closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree | Step 3 exit passed | Cdiag `f863c672…` committed/pushed；r16=`773+59/5707/F0E0S0`、exec/session/identity=`23/48/16948`，aggregate=`54624/76830 line`、`26111/44870 branch`；12 critical 达标、唯一 `NamespaceScope.branch=0/0` N/A；candidate/review 两路复算 PASS；pre-Cfreeze quality PASS `0/0/0/1`；machine=`confirmed/formal-ready`；Cfreeze commit/push/topology→fresh formal pending，formal 不得低于 r16 高水位；`can_enter_coverage_audit=no`；Step 5 closed |
 | 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1259,8 +1259,10 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
 - r1–r11 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
   不完整 Unit 产物不可复用；该 r11 时点仍无 reviewed reactor aggregate baseline。
-  后续 r14 baseline 已 review/Cfreeze，但 formal-r2 揭示一个目录顺序覆盖波动，当前又回到
-  `diagnostic-ready/diagnostic-pending`，必须由新 fresh all-lane observation 与人工 review 重建；
+  后续 r14 baseline 已 review/Cfreeze，但 formal-r2 揭示一个目录顺序覆盖波动；r16 已用新的
+  fresh all-lane observation 与独立 review 重建 `confirmed/formal-ready` machine state。当前
+  风险转为 Cfreeze commit/topology 与 fresh formal 尚未完成，且 formal 必须复现 r16 aggregate
+  高水位，不得下调 threshold；
 - remote required check、five-cell collector、branch protection、release artifact reuse
   和 Docker embedded-JAR equality 尚无实际证据。
 - Step 3 authority 永久绑定 tested commit
@@ -1288,24 +1290,29 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | Gate | 状态 | 证据 |
 |---|---|---|
 | implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r15 recovery pre-Cdiag passed / final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-r15-recovery-implementation-quality.md`，B/H/M/L=`0/0/0/0`，只放行 new Cdiag/fresh diagnostic；`can_enter_coverage_audit=no` |
+| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r16 pre-Cfreeze passed / post-formal final quality pending | Step 3：`docs/9.3.4/quality/step3-required-matrix-implementation-quality.md`；Step 4：`docs/9.3.4/quality/step4-r16-cfreeze-implementation-quality.md`，B/H/M/L=`0/0/0/1`，只授权一次 Cfreeze/fresh formal；`can_enter_coverage_audit=no` |
 | coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
 | feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 r15 Unit fail-closed / deterministic timing-oracle remediation verified | roadmap 为 Steps 1–3 passed / Step 4 in-progress；pre-Cdiag quality passed；new Cdiag/diagnostic/Cfreeze/formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Step 4 r16 diagnostic PASS / reviewed Cfreeze working tree | roadmap 为 Steps 1–3 passed / Step 4 in-progress；Cdiag/r16/candidate/review complete；Cfreeze commit/fresh formal、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
 
 ## Next Action
 
-formal-r2 recovery Cdiag=`9270d2d4e58684226aeb15eff55b027e6aa4a7eb` 已 commit/push/clean；
-fresh r15=`step4-coverage-20260717-diagnostic-r15` 在 Unit Bean2Map 单次纳秒倍率 oracle fail
-closed，只产生 partial `26 reports / 124/F1E0S0` 与 `2/48 sessions`。r15 immutable，最终
-sensitive scan 和 success-only artifacts absent。
+superseding Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh r16=
+`step4-coverage-20260717-diagnostic-r16` 完整 PASS：required=`773+59/5707/F0E0S0`、
+exec/session/identity=`23/48/16948`，aggregate line=`54624/76830`、branch=`26111/44870`；
+12 critical 全部达标，唯一 `NamespaceScope.branch=0/0` N/A。
 
-确定性修复保持两个 testcase 与节点数：三个同类、不同 source 实例复制逐 target 精确断言，邻接
-1000-copy 仅保留批量 correctness。focused 10/10 fresh JVM、class=`23/F0E0S0`、module=
-`27/F0E0S0`。formal pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`。Next action is exactly one new
-Cdiag commit/push/clean identity；随后停止 exact demo DB containers 并运行唯一 fresh
-diagnostic。Current `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5 closed。
+candidate SHA-256=`2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`
+已经两路独立复算；review SHA-256=
+`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，B/H/M/L=
+`0/0/0/1`。canonical machine=`confirmed/formal-ready`，threshold SHA-256=
+`ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`，contract SHA-256=
+`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`。pre-Cfreeze quality
+已 PASS，B/H/M/L=`0/0/0/1`，只授权一次 Cfreeze/fresh formal。Next action is direct-child
+Cfreeze commit/push/formal-delta/clean identity -> one fresh formal。唯一 Low 要求 formal 完整
+复现 r16 aggregate 高水位，不得降 threshold。Current
+`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 4、Step 5、audit、acceptance closed。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1554,3 +1561,28 @@ diagnostic。Current `can_enter_coverage_audit=no`、`can_enter_acceptance=no`�
 - decision：r15 immutable；one new Cdiag commit/push/clean -> fresh
   diagnostic -> review/Cfreeze/formal。`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；
   Step 5、audit、acceptance、9.3.5 closed。
+
+### Superseding Check-in — diagnostic-r16 PASS / reviewed Cfreeze working tree
+
+- recorded_at: 2026-07-17；superseding Cdiag=
+  `f863c672029d5d1e5a4903df74cf6cba22a04a85`，已 commit/push；
+- immutable run：`step4-coverage-20260717-diagnostic-r16`，status=
+  `diagnostic-observed / completed / exit 0`；required=`773+59/5707/F0E0S0`、
+  exec/session/identity=`23/48/16948`，aggregate line=`54624/76830`、branch=`26111/44870`；
+- critical：12/12 全部达标、below-floor=`0`；唯一 structural N/A=
+  `NamespaceScope.branch=0/0`；
+- threshold evidence：candidate SHA-256=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919` 已两路独立复算；
+  review SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`；
+- machine：canonical threshold=`confirmed` / SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`；contract=
+  `formal-ready` / SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+- quality：pre-Cfreeze PASS，B/H/M/L=`0/0/0/1`，只授权一次 direct-child Cfreeze 与
+  fresh formal；
+- Low：fresh formal 必须完整复现 r16 aggregate 高水位，禁止降低 threshold；
+- decision：Cfreeze 尚未 commit/push，fresh formal 尚未运行；next=
+  direct-child commit/push -> formal-delta/clean identity -> one fresh formal。
+  Step 4、coverage audit、acceptance 均未签收，`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`；Step 5 与 9.3.5 closed。

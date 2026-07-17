@@ -290,9 +290,26 @@ updated_at: 2026-07-17
   断言，并移除邻接 1000-copy 的墙钟阈值；无生产/API/POM/runner/floor 变更、无 testcase
   增删。focused 10/10 fresh JVM、class=`23/F0E0S0`、module=`27/F0E0S0`；machine 仍为
   `diagnostic-ready/diagnostic-pending`。正式 pre-Cdiag quality 已 PASS，B/H/M/L=`0/0/0/0`；
-  当前待新 Cdiag、fresh diagnostic、
+  该时点待新 Cdiag、fresh diagnostic、
   review/Cfreeze/formal；`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5、
   coverage audit、acceptance 与 9.3.5 仍关闭。
+- superseding Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh
+  r16=`step4-coverage-20260717-diagnostic-r16` 完整 PASS：required=
+  `773+59/5,707/F0E0S0`、exec/session/identity=`23/48/16,948`，aggregate line=
+  `54,624/76,830`、branch=`26,111/44,870`；12 个 critical class 全部达标，唯一 structural
+  N/A 为 `NamespaceScope.branch=0/0`。
+- immutable candidate SHA-256=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919` 已经两路独立复算；
+  review SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`。canonical threshold 已转为 `confirmed`，SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`；contract 已转为
+  `formal-ready`，SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`。
+- 当前仍是 reviewed Cfreeze working tree：Cfreeze 尚未 commit/push，fresh formal 尚未运行；
+  pre-Cfreeze implementation quality 已 PASS，B/H/M/L=`0/0/0/1`，只授权一次 direct-child
+  Cfreeze 与 fresh formal。唯一 Low 要求 fresh formal 完整复现上述 aggregate 高水位，禁止
+  下调 threshold。Step 4、coverage audit、acceptance 均未签收，`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`，Step 5 与 9.3.5 仍关闭。
 
 ## 执行资料
 
@@ -371,6 +388,14 @@ updated_at: 2026-07-17
   [evidence/step-4/step4-coverage-diagnostic-r15-bean2map-timing-oracle-fail-closed-20260717.md](evidence/step-4/step4-coverage-diagnostic-r15-bean2map-timing-oracle-fail-closed-20260717.md)
 - Step 4 diagnostic r15 recovery implementation quality：
   [quality/step4-r15-recovery-implementation-quality.md](quality/step4-r15-recovery-implementation-quality.md)
+- Step 4 diagnostic r16 successful observation：
+  [evidence/step-4/step4-coverage-diagnostic-r16-pass-20260717.md](evidence/step-4/step4-coverage-diagnostic-r16-pass-20260717.md)
+- Step 4 diagnostic r16 threshold candidate：
+  [evidence/step-4/step4-coverage-diagnostic-r16-threshold-candidate-20260717.json](evidence/step-4/step4-coverage-diagnostic-r16-threshold-candidate-20260717.json)
+- Step 4 diagnostic r16 threshold review：
+  [evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md](evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md)
+- Step 4 r16 Cfreeze implementation quality：
+  [quality/step4-r16-cfreeze-implementation-quality.md](quality/step4-r16-cfreeze-implementation-quality.md)
 - Step 4 r14 Cfreeze implementation quality：
   [quality/step4-r14-cfreeze-implementation-quality.md](quality/step4-r14-cfreeze-implementation-quality.md)
 - Step 4 diagnostic r14 successful observation：
@@ -437,7 +462,7 @@ updated_at: 2026-07-17
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified / new Cdiag pending | previous Cdiag `9270d2d4…` 已 push；r15 在预热 cache 的单次纳秒倍率 oracle fail closed，仅 partial `124/F1E0S0`、`2/48 sessions`；修复保持测试节点数，focused 10/10、class 23、module 27 均 F0E0S0；pre-Cdiag quality PASS `0/0/0/0`；machine=`diagnostic-ready/diagnostic-pending`；新 Cdiag→diagnostic→review/Cfreeze→formal 与 final quality pending；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree | Cdiag `f863c672…` 已 push；r16=`773+59/5707/F0E0S0`、`23/48/16948`，aggregate=`54624/76830 line`、`26111/44870 branch`；12 critical 达标，唯一 `NamespaceScope.branch=0/0` N/A；candidate/review 两路复算 PASS；pre-Cfreeze quality PASS `0/0/0/1`；machine=`confirmed/formal-ready`；Cfreeze commit/push 与 fresh formal pending，formal 必须完整复现高水位且不得降阈值；`can_enter_coverage_audit=no`；Step 5/audit/acceptance closed |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | pending | dirty-safe candidate 可独立复算，但不更新 final authority pointer |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |

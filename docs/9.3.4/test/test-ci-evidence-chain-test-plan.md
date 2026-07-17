@@ -401,8 +401,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
-  new Cdiag pending`
+- step4_result: `in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree /
+  Cfreeze commit and fresh formal pending`
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -775,3 +775,31 @@ coverage audit 与 acceptance 保持关闭。
   quality 已 PASS，B/H/M/L=`0/0/0/0`；新 Cdiag、fresh diagnostic、candidate/review、Cfreeze、
   fresh formal 与 final quality pending；
   `can_enter_coverage_audit=no`，Step 5 closed。
+
+## diagnostic-r16 / reviewed Cfreeze test transition（2026-07-17）
+
+- replacement Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh
+  diagnostic=`step4-coverage-20260717-diagnostic-r16` sealed PASS：required=
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon=`2/6`、exec/session=
+  `23/48`、unique execution class IDs=`16,948`；
+- aggregate observation=`54624/76830 line, 26111/44870 branch`。12 个 critical row 全部
+  通过、below-floor=`0`，唯一 N/A 仍为 `NamespaceScope.branch`；Bean2MapUtils 关键回归的
+  coverage 无退化；
+- deterministic regression evidence：Bean2MapUtils replacement oracle 在完整 Unit replacement
+  中保持绿色；`ListPresetServiceTest` 的 missing-ID assertion 明确执行
+  `FileSystemListPresetStore#findById` predicate 的 filename-false outcome，formal-r2 缺失的
+  branch/probe 106 已在 r16 恢复；
+- reviewed candidate SHA-256=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`，review SHA-256=
+  `88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`；review
+  B/H/M/L=`0/0/0/1`，唯一 Low 为非 critical probe 波动风险；
+- canonical Cfreeze machine worktree 已转换为 threshold `confirmed`，threshold SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`；contract=
+  `formal-ready`，SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+- Low disposition 不是降阈授权：fresh formal 必须重新执行全部 23 exec/48 sessions，并复现
+  （达到或高于）reviewed aggregate minimum `54624/76830 line, 26111/44870 branch`；任何不足都必须
+  fail closed，不得降低 aggregate/critical threshold、修改 exclusion 或复用 r16 exec/XML；
+- 当前只到 reviewed Cfreeze worktree，direct-child Cfreeze commit/push 与 fresh formal 尚未
+  完成。实现回归可记为 closed、diagnostic verified，但 Step 4、coverage audit、acceptance 与
+  Step 5 仍关闭；`can_enter_coverage_audit=no`、`can_enter_acceptance=no`。

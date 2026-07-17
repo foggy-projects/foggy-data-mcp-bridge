@@ -339,17 +339,18 @@ code_inventory:
 
 ## Step 4 Diagnostic / Fix Inventory Result
 
-- state：`in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
-  new Cdiag pending`，不是
+- state：`in-progress / r16 diagnostic PASS / reviewed Cfreeze worktree / Cfreeze commit pending /
+  fresh formal pending`，不是
   `passed`；
 - frozen structure：`23 exec / 48 sessions`；required report overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon companion 独立为
   `2/6`；
-- current r15 preflight evidence：contract mutations=`27/27`、source/Git identity=`22/22`、
+- current r16 preflight evidence：contract mutations=`27/27`、source/Git identity=`22/22`、
   threshold/frozen replay=`12/12`、XML negatives=`118/118`、successor overlay negatives=`12/12`、
   toolchain seal/negative=`5/5`、Step 2 view=`728+59/5261`、class universe=
-  `24 modules / 2,098 classes`、Unit fixture lifecycle negatives=`5/5`；历史 bootstrap 的
-  contract/XML=`21/21`、`68/68` 与 report inventory/fixture receipts 不得拼入 r15 partial run；
+  `24 modules / 2,098 classes`、Unit fixture lifecycle negatives=`5/5`；r16 在单一 authority
+  window 内重新产生完整证据，历史 bootstrap 的 contract/XML=`21/21`、`68/68` 与 r15 partial
+  report inventory/fixture receipts 均未拼入 r16；
 - build regression：根 Surefire/Failsafe 将共享参数从 `${argLine}` 改为
   `@{argLine}` late evaluation，修复 legacy coverage 无 exec 却 BUILD SUCCESS；三态
   focused 验证已完成，`coverage_tool.py` + manifest + `validate-contract` +
@@ -739,9 +740,33 @@ code_inventory:
   exclusion 或 machine file 变化；
 - formal pre-Cdiag implementation quality：PASS，B/H/M/L=`0/0/0/0`，record=
   `docs/9.3.4/quality/step4-r15-recovery-implementation-quality.md`；
-- current boundary：machine=`diagnostic-ready/diagnostic-pending`；new Cdiag
+- r15 closure boundary：machine=`diagnostic-ready/diagnostic-pending`；new Cdiag
   commit/push/clean -> fresh diagnostic -> review/Cfreeze -> fresh formal。`can_enter_coverage_audit=no`、
   `can_enter_acceptance=no`，Step 5 closed。
+
+### Superseding r16 diagnostic / reviewed Cfreeze inventory
+
+- new Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push/clean；fresh diagnostic=
+  `step4-coverage-20260717-diagnostic-r16` 已完整通过：required lanes=
+  `773 positive + 59 structural / 5,707 testcase / F0E0S0`，raw coverage inventory=
+  `23 exec / 48 sessions / 16,948 unique execution class identities`；
+- aggregate observation=`54,624/76,830 line`、`26,111/44,870 branch`；12 个 critical class
+  全部通过，唯一 `NamespaceScope` branch 为 contract-defined `N/A`，不得伪装成正数阈值；
+- immutable candidate=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-threshold-candidate-20260717.json`，
+  SHA-256=`2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`；独立 review=
+  `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r16-threshold-review-20260717.md`，
+  SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`；Low 仅要求 fresh formal 复现 aggregate，不授权降阈值或重跑碰运气；
+- reviewed machine state：canonical threshold=`confirmed`，SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`；contract=
+  `formal-ready`，SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+- Cfreeze 工作树只包含 machine contract trio 与 `docs/9.3.4/**` 文档证据；runner、production、
+  public API 与测试清单均无新增改动。formal-delta direct-single-parent allowlist 继续生效；
+- current authorization 仅为提交并 push direct-child Cfreeze、随后执行一个唯一 fresh formal。
+  Cfreeze 尚未提交，fresh formal 尚未运行；`can_enter_coverage_audit=no`、
+  `can_enter_acceptance=no`，不得声明 Step 4 完成，Step 5 保持关闭。
 
 ## Protected Boundaries
 

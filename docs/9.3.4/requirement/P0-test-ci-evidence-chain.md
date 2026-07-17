@@ -159,8 +159,7 @@ updated_at: 2026-07-17
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / r15 Unit fail-closed / deterministic timing-oracle remediation verified /
-  new Cdiag pending`
+  `in-progress / r16 diagnostic PASS / reviewed Cfreeze working tree`
   （不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
@@ -177,21 +176,22 @@ updated_at: 2026-07-17
   动态探针证明 durable fail closed；
 - Step 4 当前冻结结构仍为 exact `23 exec / 48 sessions`、required overlay=
   `773 positive + 59 structural / 5,707 testcase / F0E0S0`、Addon companion=`2/6`；
-  r15 启动前及失败前已通过 contract mutations=`27/27`、source/Git identity=`22/22`、
-  threshold/frozen replay=`12/12`、XML negatives=`118/118`、successor overlay negatives=
-  `12/12`、toolchain seal/negative=`5/5`、Step 2 report view=`728+59/5261`、class universe=
-  `24 modules / 2,098 classes`、Unit fixture lifecycle negatives=`5/5`；
+  superseding Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh r16 完成
+  required=`773+59/5707/F0E0S0`、exec/session/identity=`23/48/16948`，aggregate line=
+  `54624/76830`、branch=`26111/44870`；12 个 critical class 全部达标，唯一 structural N/A=
+  `NamespaceScope.branch=0/0`；
 - 早期 diagnostic-ready snapshot 的 contract/XML=`21/21`、`68/68` 与旧 tool hashes 只保留为
-  historical bootstrap evidence，不是当前 machine identity。当前 machine exact 为 threshold=
-  `diagnostic-pending` SHA-256=`0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96`、
-  contract=`diagnostic-ready` SHA-256=
-  `15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0`、top manifest=
-  `60/60` SHA-256=`cc356897f6588beedf00c057c5988a176b6cef241d4d9c274103b691d254dc60`、
-  successor=`14/14` SHA-256=
-  `3d4ed31f1ca8e3f1086ceade81be9ce94d90ee82beae1117dc708f71064a6e0f`；
+  historical bootstrap evidence，不是当前 machine identity。r16 candidate SHA-256=
+  `2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919` 已两路独立复算；
+  review SHA-256=`88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，
+  B/H/M/L=`0/0/0/1`。当前 machine exact 为 threshold=`confirmed` SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`、contract=
+  `formal-ready` SHA-256=`6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+- r16 pre-Cfreeze implementation quality 已 PASS，B/H/M/L=`0/0/0/1`，只授权一次
+  direct-child Cfreeze 与 fresh formal，不授权 post-formal final quality、coverage audit 或 acceptance；
 - run-owned Unit fixture 的 restricted credential、schema/tamper、atomic publisher、profile
-  isolation 与 lifecycle requirements 保持生效；r15 只通过启动前 lifecycle negatives，未完成
-  Unit replacement，因此不得把历史 `36/36`/report inventory 结果拼入 r15；
+  isolation 与 lifecycle requirements 保持生效；r16 已在单一 fresh run 中完成全部 required
+  replacement evidence，不复用或拼接 r15 partial artifacts；
 - clean/pushed HEAD `bc100b0f63bd3ff62d1105611dae41741790aedd` 的 diagnostic r1
   `step4-coverage-20260716-diagnostic-r1` 在 `child-unit` 以
   `3115 tests / 1 failure / 0 errors / 0 skipped` fail closed。根因是
@@ -501,3 +501,26 @@ updated_at: 2026-07-17
 - only allowed sequence：one new Cdiag commit/push/clean -> fresh diagnostic
   -> candidate/review -> direct-child Cfreeze -> fresh formal -> final implementation quality ->
   coverage audit -> acceptance。当前 Step 4=`in-progress`，Step 5 与 9.3.5 关闭。
+
+## Superseding diagnostic-r16 reviewed-Cfreeze requirement boundary（2026-07-17）
+
+- superseding Cdiag=`f863c672029d5d1e5a4903df74cf6cba22a04a85` 已 commit/push；fresh r16=
+  `step4-coverage-20260717-diagnostic-r16` 完成 exact all-lane authority：
+  `773+59/5707/F0E0S0`、exec/session/identity=`23/48/16948`、aggregate line=
+  `54624/76830`、branch=`26111/44870`；
+- 12 个 critical class 全部达标，唯一 structural N/A=`NamespaceScope.branch=0/0`；candidate
+  SHA-256=`2160ef2e16fad161b91c8e3d2571a91a6a8142ae84e06d4539ec69e976563919`
+  经两路独立复算，review SHA-256=
+  `88b99e76e5584d3cd17bcdcffd138f1fe6655ce0b7795d3430d2f15a018c8fb3`，B/H/M/L=
+  `0/0/0/1`；
+- canonical threshold 已为 `confirmed` / SHA-256=
+  `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8`，contract 已为
+  `formal-ready` / SHA-256=
+  `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`；
+- pre-Cfreeze implementation quality=`PASS / 0/0/0/1`，只授权一次 direct-child Cfreeze 与
+  fresh formal；
+- Cfreeze 必须是 Cdiag 的 direct-single-parent child，并通过 push、formal-delta 与 clean identity；
+  当前 Cfreeze 尚未提交，fresh formal 尚未运行；
+- 唯一 Low 是 formal 必须完整复现 r16 aggregate 高水位；不得下调 threshold、重写 candidate
+  或用重跑挑选低基线。formal PASS 与 post-formal final quality PASS 前不得启动 coverage audit；
+- 当前 Step 4、coverage audit、acceptance 均未签收，Step 5 与 9.3.5 保持关闭。
