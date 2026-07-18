@@ -4,7 +4,9 @@ bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP4-DATABASE-STATE-SUCCESSOR-AUTHORITY-MANIFEST
 severity: major
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: successor-runtime-binding-test
 automation_decision: required
@@ -145,8 +147,8 @@ clean/pushed replacement Cdiag fresh diagnostic 重新验证同一 successor sta
       manifest chain 已同步封印；r17 未到 database lane，不计为 dynamic PASS。
 - [x] r17 recovery pre-Cdiag formal quality=`PASS / 0/0/0/0`；只授权 replacement
       Cdiag/fresh diagnostic，不等于 database dynamic PASS。
-- [ ] replacement Cdiag fresh diagnostic 重新进入并通过 database/state/required-report chain。
-- [ ] fresh formal 证明同一 successor state binding 后关闭 BUG。
+- [x] replacement Cdiag fresh diagnostic 重新进入并通过 database/state/required-report chain。
+- [x] fresh formal 证明同一 successor state binding 后关闭 BUG。
 
 ## References
 

@@ -4,7 +4,9 @@ bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP4-UNIT-HIDDEN-MYSQL-ENVIRONMENT-DEPENDENCY
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: run-owned-mysql57-fixture-and-fresh-all-lane
@@ -132,7 +134,7 @@ lifecycle 第三个真实 probe 的 callback ready 前因 final-mysqld handoff r
 lifecycle receipt、正常 fixture、Unit XML/exec 均 absent。r17 退出后的 cleanup JSON 只证明资源清理，
 不得解释成 lifecycle 或完整 Unit PASS。authority Compose 的 MySQL57/8 final PID health remediation
 与 focused lifecycle 已验证，但 full Unit 仍须由 clean/pushed replacement Cdiag 的 fresh diagnostic
-重新证明；Step 5 保持关闭。
+重新证明；该时点 Step 5 保持关闭，后续 formal-r4 与 feature acceptance 已完成。
 
 ## Verification Checklist
 
@@ -162,8 +164,8 @@ lifecycle receipt、正常 fixture、Unit XML/exec 均 absent。r17 退出后的
       fail closed；失败与 success-only absence 已单独封存，cleanup receipt 未被误计为 Unit PASS。
 - [x] r17 handoff recovery pre-Cdiag formal quality=`PASS / 0/0/0/0`；只授权 replacement
       Cdiag/fresh diagnostic，不等于 full Unit PASS。
-- [ ] replacement Cdiag fresh diagnostic 重新证明完整 Unit replacement。
-- [ ] fresh formal 复验通过后关闭本 BUG。
+- [x] replacement Cdiag fresh diagnostic 重新证明完整 Unit replacement。
+- [x] fresh formal 复验通过后关闭本 BUG。
 
 ## References
 

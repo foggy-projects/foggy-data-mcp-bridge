@@ -4,7 +4,7 @@ doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and rel
 version: 9.3.4
 status: confirmed
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # Test Lane and Evidence Contract
@@ -956,3 +956,36 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    identity 后才允许 fresh formal；formal 必须 fresh 重跑所有 lane，不得复用 diagnostic bytes；
 6. 当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。formal/final quality/audit/
    acceptance/Step 5/9.3.5 均 pending；machine formal-ready 不等于 Step 4 exit。
+
+## Superseding formal-r4 / quality-reviewed contract（2026-07-18）
+
+1. Cfreeze `f97483a0…` 必须且已经是 Cdiag `613b11a0…` 的 direct-single-parent child，
+   formalization delta=`passed`，push/clean identity成立；
+2. formal-r4 必须且已经 fresh 重跑全部 `23 exec / 48 sessions` 与 required lanes，产生
+   `773+59/5707/F0E0S0`、Addon=`2/6`，没有复用 diagnostic exec/XML；
+3. aggregate denominator 必须 exact，covered 不低于 confirmed minimum；actual=
+   minimum=`54624/76830 line, 26111/44870 branch`。12 类/23 适用指标通过、below=`0`，
+   唯一 N/A 仍为 `NamespaceScope.branch`；
+4. run-status、summary、coverage gate、candidate、final、source、report/exec/provenance、
+   model、negative、lifecycle、cleanup 哈希链及 public final replay 全部通过；
+5. evidence window 内 live report inventory `verify + validate` 必须 PASS；外层恢复 demo DB 后的
+   sealed public gate 是 final artifact verifier。不得要求 live validator 把外部恢复状态误作
+   run-owned port-free，也不得由此降低 fail-closed；
+6. post-formal quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`。当前
+   `can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；coverage audit/feature acceptance
+   未完成前 Step 4/5/9.3.5 仍关闭。
+
+## Superseding Step 4 feature-accepted contract（2026-07-18）
+
+1. coverage audit 必须且已经映射 14 个 requirement/acceptance item 与 25 个 Step 4
+   workitem；Step 4 scope critical/major gap=`0/0`；
+2. formal 五库只执行 V934 Pivot 分支的边界必须显式记录；同一 Cfreeze/final source 的 legacy
+   companion=`1/F0E0S0`，并绑定 property absent、source/XML SHA 与 exact preAgg oracle；它不
+   改写 formal totals 或 final artifact；
+3. feature acceptance 必须且已经为 `signed-off / accepted / blocking none`；25 个 Step 4
+   workitem 只能在该 decision 后关闭；classification DEBT 继续 open；
+4. Step 4=`passed`，`can_enter_step5=yes`；Step 5=`ready / not-started`，其输入只能是已签收的
+   formal-r4 与 companion，不得选择历史 diagnostic 或降低 threshold；
+5. Step 5 必须生成 portable/single-authority candidate 并拆分 live/durable replay 入口；该 entry
+   不等于 Step 5 exit、remote CI、release same artifact 或 version acceptance；
+6. 9.3.4 继续 `in-progress`，Steps 6/7 pending，9.3.5=`queued`。

@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-PREAGG-UNIT-ORDER-ISOLATION
 severity: major
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: unit-test
 automation_decision: required
@@ -92,7 +94,7 @@ watermark 的 fail-closed 保护。
 - [x] 定位默认 hybrid 与 null watermark 的 fixture 契约漂移。
 - [x] 三个 snapshot-only fixture 显式关闭 hybrid；生产 Matcher 不变。
 - [x] focused 单类与聚合回归 GREEN。
-- [ ] Unit authority 与 coverage exec 证据 GREEN。
+- [x] Unit authority 与 coverage exec 证据 GREEN。
 - [x] 回写根因、测试结果、源码 SHA 与当前缺口。
 
 ## Verification

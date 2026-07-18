@@ -4,7 +4,9 @@ bug_source: diagnostic-found
 version: 9.3.4
 ticket: BUG-934-STEP4-EXEC-CLASS-ID-SCOPE-DRIFT
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: jacoco-exec-scope-and-aggregate-identity-regression
@@ -102,12 +104,12 @@ Focused 结果只证明修复逻辑，不能替代 fresh all-lane diagnostic 或
 - [x] exec focused regression=`17/17`，contract mutation=`21/21`，XML=`68/68`，
       overlay=`12/12`。
 - [x] 完成三路独立实现质量闸门，最终 B/H/M/L=`0/0/0/0`。
-- [ ] commit/push 并证明 clean `HEAD == origin/main`。
-- [ ] 使用新 run ID 完成 fresh all-lane diagnostic。
-- [ ] fresh formal、最终质量、coverage evidence audit 与 acceptance 通过后关闭本 BUG。
+- [x] commit/push 并证明 clean `HEAD == origin/main`。
+- [x] 使用新 run ID 完成 fresh all-lane diagnostic。
+- [x] fresh formal、最终质量、coverage evidence audit 与 acceptance 通过后关闭本 BUG。
 
-当前 `status=in-progress`；r9 不可复用，Step 4/5、threshold freeze、formal、coverage audit
-与 acceptance 保持关闭。
+该 r9 时点 `status=in-progress`，且 r9 不可复用；后续 replacement diagnostic、formal-r4、
+coverage audit 与 feature acceptance 已按序通过，本 workitem 现已关闭。
 
 ## References
 

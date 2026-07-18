@@ -4,7 +4,9 @@ bug_source: quality-gate-found
 version: 9.3.4
 ticket: BUG-934-STEP4-SOURCE-CONTEXT-CROSSLINK-GAP
 severity: critical
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: provenance-negative-test
 automation_decision: required
@@ -91,7 +93,7 @@ focused fast negative 当前为 `63/63`。
 - [x] hermetic positive/negative `63/63`，两个 Python 文件 `py_compile` 通过。
 - [x] identity manifest 刷新后 full validator、contract `20/20 + Git 7/7` 与
   XML `63/63` 通过。
-- [ ] fresh all-lane diagnostic 证明 retained raw exec replay 通过。
+- [x] fresh all-lane diagnostic/formal 证明 retained raw exec replay 通过。
 - [x] pre-r4 正式质量闸门复核，open Blocker/High/Medium=`0/0/0`。
 
 ## References

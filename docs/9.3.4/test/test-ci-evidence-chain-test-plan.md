@@ -7,9 +7,9 @@ result: in-progress
 step1_result: passed
 step2_result: passed
 step3_result: passed
-step4_result: in-progress
+step4_result: passed
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # 9.3.4 Test and Evidence Plan
@@ -401,8 +401,12 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / diagnostic-r18 PASS / threshold candidate not authorized / Pivot
-  NULL-axis remediation verified / pre-Cdiag quality PASS / replacement Cdiag pending`
+- step4_result: `passed / formal-r4 + final quality + coverage audit + feature acceptance`
+- step5_status: `ready / not-started`
+- version_acceptance: `not-started`
+
+### Historical result ledger
+
 - confirmed run: `step1-candidate-r8-20260714`
 - Step 1：532 workspace sources、820 discovery rows、829 execution keys、519
   predecessor nodes/edges；28/28 expected-negative probes 精确通过。
@@ -920,3 +924,27 @@ coverage audit 与 acceptance 保持关闭。
   fail closed；不得复用 r19 exec/XML 代替 formal；
 - 本文件 `result` 与 `step4_result` 继续为 `in-progress`。formal、final quality、coverage audit、
   acceptance 尚未 PASS，Step 5 closed。
+
+## formal-r4 / final-quality test boundary（2026-07-18）
+
+- fresh formal-r4 在 Cfreeze `f97483a0…` 上完整 PASS：Unit=`681+55/4941`、Integration=
+  `47+4/320`、Step 3 required=`45/446`、required union=`773+59/5707/F0E0S0`、Addon=`2/6`；
+- `23 exec / 48 sessions / 16,953 class identities` 与 `24 modules / 2,098 classes`均经
+  manifest/provenance验证；source before/after exact；
+- aggregate line=`54624/76830`、branch=`26111/44870`，12 critical/23 applicable 全部通过，
+  below=`0`、唯一 N/A=`NamespaceScope.branch`；public final artifact=`VALID`；
+- post-formal quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`。当前开始测试证据覆盖审计，
+  但 `result` 与 `step4_result` 仍为 `in-progress`；`can_enter_coverage_audit=yes`、
+  `can_enter_acceptance=no`，Step 5 closed。
+
+## Step 4 accepted test boundary（2026-07-18）
+
+- coverage audit 对 14 个 requirement/acceptance item 与 25 个 workitem 完成映射；Step 4
+  feature critical/major gap=`0/0`；
+- formal-r4 五库均执行 V934 Pivot 分支；legacy fallback 在同一 tested HEAD/final source 上
+  单独取得 `1/F0E0S0`，property absent、exact preAgg identity/table 与 XML/source SHA 均已持久化；
+  companion 不计入 formal `5707` 或 `23/48`；
+- feature acceptance=`accepted`，Experience=`N/A`，blocking items=`none`；因此
+  `step4_result=passed`，而版本级 `result` 继续 `in-progress`；
+- Step 5=`ready / not-started`；后续测试边界为 portable single-authority rehearsal，不能复用
+  failed diagnostics、不能降低 threshold、不能提前宣称 CI/release/version PASS。

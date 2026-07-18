@@ -4,7 +4,7 @@ doc_purpose: Define the strict Step 1-7 implementation and verification order fo
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # 9.3.4 Implementation Plan
@@ -1012,13 +1012,26 @@ final quality、coverage audit、acceptance、Step 5 与 9.3.5 全部关闭；
    independent exact-projection/evidence-binding review PASS；
 5. [completed] canonical threshold/contract/SHA256SUMS working-tree delta exact 投影为
    `confirmed/formal-ready`，pre-Cfreeze implementation quality=`PASS / 0/0/0/0`；
-6. [in-progress] 将当前 allowlisted delta 作为 Cdiag 的唯一 direct-child Cfreeze commit，验证
-   formalization delta，push 并证明 clean `HEAD == origin/main`；
-7. [pending] 从 Cfreeze 启动唯一 fresh formal，完整重放 `23/48` 与全部 required lane，必须达到
-   confirmed exact threshold；
-8. [pending] formal PASS 后严格执行 final implementation quality -> coverage audit ->
-   acceptance/signoff；全部 PASS 后才把 Step 4 标为 passed 并开启 Step 5。
+6. [completed] 将 allowlisted delta 作为 Cdiag 的唯一 direct-child Cfreeze `f97483a0…` commit，
+   formalization delta PASS，push 并证明 clean `HEAD == origin/main`；
+7. [completed] 从 Cfreeze 启动唯一 fresh formal-r4，完整重放 `23/48` 与全部 required lane；
+   required=`773+59/5707/F0E0S0`、aggregate exact confirmed threshold、public final=`VALID`；
+8. [completed] formal PASS 后执行 final implementation quality；decision=
+   `ready-for-coverage-audit / B/H/M/L 0/0/0/1`；
+9. [completed] test evidence coverage audit=`ready-for-acceptance`；25/25 workitem covered，
+   critical/major gap=`0/0`；Pivot legacy companion=`1/F0E0S0`；
+10. [completed] feature acceptance=`signed-off / accepted / blocking none`；Step 4=`passed`，
+    Step 5=`ready / not-started`。
 
-当前 Step 4=`in-progress / r19 diagnostic PASS / candidate reviewed / Cfreeze worktree formal-ready`；
-fresh formal 与后置门均 pending，`can_enter_coverage_audit=no`、`can_enter_acceptance=no`，
-Step 5/9.3.5 closed。
+当前 Step 4=`passed / feature accepted`；`can_enter_step5=yes`，Step 5=`ready / not-started`；
+9.3.4 仍 `in-progress`，Steps 6/7 pending，9.3.5=`queued`。
+
+## Step 4 feature-acceptance closure（2026-07-18）
+
+- quality→coverage audit→feature acceptance 已按固定顺序完成，records 位于
+  `quality/step4-coverage-gate-final-implementation-quality.md`、
+  `coverage/step4-coverage-gate-coverage-audit.md` 与
+  `acceptance/step4-coverage-gate-acceptance.md`；
+- 25 个 Step 4 workitem 已在 acceptance decision 后关闭；唯一 classification DEBT 继续 open；
+- 下一动作严格进入 Step 5 rehearsal，不启动 Step 6/7，不创建 version signoff，不建立
+  `docs/9.3.5` 实施目录。

@@ -3,7 +3,7 @@ doc_role: root_plan_review
 doc_purpose: Record the reviewed dependency order and release gates from 9.3.1 through 9.4.0.
 status: active
 created_at: 2026-07-13
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # 9.3.1 → 9.4.0 迭代顺序评审
@@ -30,7 +30,7 @@ updated_at: 2026-07-17
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Steps 1–3 passed / Step 4 diagnostic-r17 fail-closed / pre-Cdiag formal quality PASS | [执行文档包](../9.3.4/README.md)；Cdiag `316a71f7…` 已被 r17 消耗，outer `child-unit/1`、Unit `unit-mysql57-lifecycle-negative/1` immutable fail closed，success-only artifacts absent，永久 excluded/non-reusable。authority MySQL57/8 final-PID1 修复两库 GREEN，旧字节 lifecycle `15/15`，current-byte r2 `5/5` receipt `e3bad41a…`，成功日志 absent、exact restore `0/0` 且 healthy/listening；静态 `12/12`、`36/36`、`27+22+12` PASS。pre-Cdiag formal quality PASS `0/0/0/0`，machine=`diagnostic-ready/diagnostic-pending`；只授权 replacement Cdiag + fresh diagnostic，不得声称 full Unit/Step 4/coverage passed |
+| 9.3.4 | in-progress / Steps 1–4 passed / Step 5 ready | [执行文档包](../9.3.4/README.md)；Step 4 fresh formal-r4=`773+59/5707/F0E0S0`、Addon=`2/6`、coverage=`54624/76830 line + 26111/44870 branch`、critical=`12/23/below0`；quality→coverage audit→feature acceptance 已按序通过，25/25 workitem closed，Step 5=`ready / not-started` |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,39 +85,20 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Steps 1–3 passed / Step 4 diagnostic-r17 Unit lifecycle fail-closed /
-final-mysqld handoff remediation focused PASS / pre-Cdiag formal quality PASS /
-replacement Cdiag pending`；入口为
-[`docs/9.3.4/README.md`](../9.3.4/README.md)。Step 1–3 authority 与 feature acceptance
-保持不变。Step 4 执行库存为 `23 exec / 48 sessions`，required overlay=
-`773 positive + 59 structural / 5,707 testcase / F0E0S0`，Addon=`2/6`。
+当前状态：`in-progress / Steps 1–4 passed / Step 5 ready-not-started`；入口为
+[`docs/9.3.4/README.md`](../9.3.4/README.md)。Step 4 已在 Cfreeze `f97483a0…` 上完成 fresh
+formal-r4：required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/class identity=
+`23/48/16953`、aggregate=`54624/76830 line + 26111/44870 branch`、critical=
+`12/23/below0`，source/model/sensitive/lifecycle/cleanup 与 public final replay 全部 PASS。
 
-formal-r3 与确定性 QueryModel regression 保留为历史边界；其 recovery Cdiag=
-`316a71f753827f8f34063b0eb0669271f696c5ee` 已 commit/push/clean，并被 fresh
-`step4-coverage-20260717-diagnostic-r17` 消耗。r17 在 outer `child-unit / exit 1`、Unit
-`unit-mysql57-lifecycle-negative / exit 1` immutable fail closed；callback 尚未 ready，canonical
-lifecycle receipt、fixture/Unit XML、exec、source-after、aggregate、observation、summary、candidate/
-final success-only artifact 均 absent。r17 永久 `excluded/non-reusable`，不能 freeze，也不能证明
-QueryModel remediation 的 all-lane 结果。
+post-formal quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`；coverage audit 在补齐同一
+tested HEAD 的 Pivot legacy companion `1/F0E0S0` 后得到 25/25 workitem covered、
+critical/major gap=`0/0`；feature acceptance=`signed-off / accepted / blocking none`。25 个
+Step 4 workitem 已关闭，Unit MySQL classification DEBT 继续由 9.3.5 version acceptance 收口。
 
-根因 RED 捕获 stock ping 在 PID1 仍为 `docker-entrypoi` 时已 premature healthy。Step 4
-authority Compose 已让 MySQL57/8 同时要求 PID1=`mysqld` 与原 ping；两库 runtime GREEN 都证明
-首次 healthy 已是 final server。修复后旧字节三轮 lifecycle=`15/15`；penultimate 加固字节
-`5/5` receipt=`159fbe80595933e29f05f13c0f1d82e9b65d7f947dddec253477f0b3f3876799`。
-最新加固字节 r2=`step4-unit-lifecycle-handoff-current-20260717-r2` 已 `5/5` PASS，receipt
-SHA-256=`e3bad41ad9ec634c1702ffe20f4c0ddbff3050a227956e2ba9054a11f6b606c7`；所有成功
-`provisioner.log` absent、residue=`0/0/0`，demo exact restore=`runner_rc=0/restore_rc=0`
-且 healthy/listening。
-静态 overlay=`12/12`、Unit negatives=`36/36`、coverage negatives=
-`27 + source/Git 22 + replay 12` PASS。
-
-machine 保持 `diagnostic-ready/diagnostic-pending`。完整 Unit 只能由新的 clean/pushed replacement
-Cdiag 上 fresh diagnostic 证明，当前不得声称 full Unit PASS。pre-Cdiag formal implementation quality
-已 PASS，B/H/M/L=`0/0/0/0`，record=
-`docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`。当前只授权
-replacement Cdiag commit/push/clean -> fresh diagnostic；其后仍须
-review -> direct-child Cfreeze -> fresh formal -> final quality/audit/signoff 顺序推进。Step 5、9.3.5 与
-9.4.0 继续关闭。
+因此 Step 4=`passed`，Step 5=`ready / not-started`，下一步只允许推进 single-authority runner、
+portable immutable candidate 与 live/durable replay rehearsal。Steps 6/7、9.3.4 version signoff、
+9.3.5 与 9.4.0 仍不得提前。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

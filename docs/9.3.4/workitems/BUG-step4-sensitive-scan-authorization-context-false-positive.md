@@ -4,7 +4,9 @@ bug_source: diagnostic-found
 version: 9.3.4
 ticket: BUG-934-STEP4-SENSITIVE-SCAN-AUTHORIZATION-CONTEXT-FALSE-POSITIVE
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: sensitive-scan-authorization-context-regression
@@ -103,13 +105,13 @@ diagnostic 永远无法发布，过窄会允许凭据进入持久证据。自动
       不写入 run root。
 - [x] 完成 focused regression、contract mutation 与实现质量复核；首轮 Medium cardinality
       伪绿已由 pre/post exact `7/3` 断言关闭，最终 B/H/M/L=`0/0/0/0`。
-- [ ] commit/push 并证明 clean `HEAD == origin/main`。
-- [ ] 使用全新 run ID 完成 fresh r11 all-lane diagnostic。
-- [ ] 仅在 fresh diagnostic 成功后冻结 exact-observed threshold，再执行 fresh formal、最终质量、
+- [x] commit/push 并证明 clean `HEAD == origin/main`。
+- [x] 使用全新 run ID 完成 fresh all-lane replacement。
+- [x] 仅在 fresh diagnostic 成功后冻结 exact-observed threshold，再执行 fresh formal、最终质量、
       coverage evidence audit 与 acceptance。
 
-当前 `status=in-progress`；r10 不可复用，threshold freeze、formal、Step 4/5、coverage audit
-与 acceptance 保持关闭。
+该 r10 时点 `status=in-progress`，且 r10 不可复用；后续 replacement diagnostic、formal-r4、
+coverage audit 与 feature acceptance 已按序通过，本 workitem 现已关闭。
 
 ## References
 

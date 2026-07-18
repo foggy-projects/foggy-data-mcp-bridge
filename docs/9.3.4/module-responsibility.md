@@ -4,7 +4,7 @@ doc_purpose: Define ownership and dependency boundaries for the 9.3.4 test and C
 version: 9.3.4
 status: ready
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # 9.3.4 Module Responsibility
@@ -309,3 +309,26 @@ updated_at: 2026-07-17
   final implementation quality -> coverage audit -> acceptance 接手；
 - 当前 machine=`confirmed/formal-ready`，Step 4=`in-progress`。formal/audit/acceptance、Step 5 与
   9.3.5 owner 尚无开工授权。
+
+## Superseding formal-r4 / post-formal ownership boundary（2026-07-18）
+
+- Cfreeze/formal owner 已完成 `f97483a0…` direct-parent、push/clean、formalization delta 与
+  fresh formal-r4；exit evidence/public final replay均 PASS；
+- implementation-quality owner 已完成 post-formal gate，decision=
+  `ready-for-coverage-audit / B/H/M/L 0/0/0/1`；唯一 Low 交 Step 5 single-authority owner
+  拆分 live inventory 与 durable artifact replay；
+- coverage-audit owner 当前获授权逐项映射 requirement、25 workitems、positive/negative/
+  lifecycle/cleanup/public artifact。acceptance owner 仅在 audit=`ready-for-acceptance` 后接手；
+- 当前 Step 4=`in-progress`，`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5、
+  Step 6/7 与 9.3.5 owner 未因本质量门提前开工。
+
+## Superseding Step 4 accepted ownership handoff（2026-07-18）
+
+- coverage-audit owner 已完成 25/25 workitem 与 requirement matrix，critical/major gap=`0/0`；
+  Pivot legacy companion 经两路独立复核；
+- acceptance owner 已签署 `accepted / blocking none`，并在 decision 后关闭全部 25 个 Step 4
+  workitem；debt owner 继续持有 Unit MySQL classification migration；
+- Step 4 owner 只保留 immutable evidence 维护责任，不得改写 formal-r4；
+- Step 5 single-authority owner 现获得开工授权，负责 portable candidate、live/durable replay
+  入口与 rehearsal；状态=`ready / not-started`；
+- Step 6/7 owner 与 9.3.5 owner 仍无开工授权，9.3.4 version owner 尚不能签收版本。

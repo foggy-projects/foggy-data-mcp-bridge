@@ -4,7 +4,9 @@ bug_source: diagnostic-found
 version: 9.3.4
 ticket: BUG-934-STEP4-OUTER-RUNNER-SOURCE-SEAL-BINDING-DRIFT
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: outer-runner-source-seal-exact-binding-regression
@@ -123,8 +125,8 @@ implementation review 与独立 docs/status review 最终 B/H/M/L=`0/0/0/0`。
 
 Focused result：early binding=`1 positive + 6 negative`；full lifecycle suite=`PASS`；top
 manifest=`60/60`、successor manifest=`14/14`、coverage contract mutations=`21/21`、overlay
-negatives=`12/12`。这些结果只关闭 coded/focused remediation，不是 r12、formal coverage 或
-Step 4 exit evidence；formal implementation quality 已通过，commit/push 与 fresh r12 仍 pending。
+negatives=`12/12`。该 remediation 时点这些结果只关闭 coded/focused gap，不是 formal exit；
+后续 commit/push、fresh replacement、formal-r4 与 feature acceptance 已完成。
 
 ## Fix Checklist
 
@@ -135,13 +137,13 @@ Step 4 exit evidence；formal implementation quality 已通过，commit/push 与
 - [x] 将 Unit/Integration/outer/library nested constants 纳入 early manifest/raw binding。
 - [x] 完成完整 lifecycle suite、manifest、successor、contract/overlay focused 回归。
 - [x] 完成正式实现质量复核并清零 B/H/M；两路 post-fix 与 docs/status review=`0/0/0/0`。
-- [ ] commit/push 并证明 clean `HEAD == origin/main`。
-- [ ] 使用全新 run ID 完成 fresh r12 all-lane diagnostic。
-- [ ] 仅在 fresh diagnostic 成功后冻结 exact-observed threshold，再执行 fresh formal、最终质量、
+- [x] commit/push 并证明 clean `HEAD == origin/main`。
+- [x] 使用全新 run ID 完成 fresh r12 all-lane diagnostic。
+- [x] 仅在 fresh diagnostic 成功后冻结 exact-observed threshold，再执行 fresh formal、最终质量、
       coverage evidence audit 与 acceptance。
 
-当前 `status=in-progress`；r11 不可复用，threshold freeze、formal、Step 4/5、coverage audit
-与 acceptance 保持关闭。
+该 r11 时点 `status=in-progress`，且 r11 不可复用；后续 formal-r4、final quality、coverage
+audit 与 feature acceptance 已按序通过，本 workitem 现由正式 acceptance 关闭。
 
 ## References
 

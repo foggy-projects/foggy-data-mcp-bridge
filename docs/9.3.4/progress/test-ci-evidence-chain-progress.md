@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # 9.3.4 测试与 CI 证据链进度
@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / diagnostic-r19 PASS / candidate reviewed / Cfreeze worktree formal-ready | Step 3 exit passed | Cdiag `613b11a0…` 的 r19 已 public `VALID`：required=`773+59/5707/F0E0S0`、`23/48/16931`、aggregate=`54624/76830 line + 26111/44870 branch`；达到 r16 high-water，critical=`12/23/below0`、唯一 N/A=`NamespaceScope.branch`。candidate `6588e30b…` 两路 review PASS，machine=`confirmed/formal-ready`，pre-Cfreeze quality=`PASS/0/0/0/0`；direct-child Cfreeze commit/push/topology/clean 与 fresh formal pending，`can_enter_coverage_audit=no`；Step 5 closed |
-| 5 | authority runner rehearsal / immutable candidate | pending | Step 4 exit | pending：candidate root、two-layer/archive/JAR=image digest；no final pointer |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / feature accepted | Step 3 exit passed | Cfreeze `f97483a0…` fresh formal-r4=`773+59/5707/F0E0S0`、`23/48/16953`、aggregate=`54624/76830 line + 26111/44870 branch`、critical=`12/23/below0`；quality/audit/acceptance PASS，25/25 workitem closed |
+| 5 | authority runner rehearsal / immutable candidate | ready / not-started | Step 4 feature accepted | entry satisfied；pending candidate root、two-layer/archive/JAR=image digest；no final pointer |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -1250,32 +1250,20 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 
 ## Current Risks / Stop Conditions
 
-- 33 个 frozen rename + 2 个 Mongo corrective rename 已由 r8e successor exact
-  确认；当前 35 source / 64 planned reports / 76 planned keys 被分类为 72 positive
-  key rename + 4 structural rename，计划外 source/semantic delta=`0`。
-- v933 Batch 7 冻结旧 FQCN/count，重命名后不能原样重跑；519-node predecessor
-  migration 已冻结，Step 5/7 只能运行 v934 successor regression。
-- Step 3 fresh five-DB/external authority 已完成；其 correctness XML 没有 JaCoCo exec，
-  Step 4 必须带 agent 重跑全部 required lanes并绑定新的 exec provenance。
-- r1–r11 与 Unit remediation r2 均已 fail closed/excluded，r5/r6 partial lanes、r7/r2
-  不完整 Unit 产物不可复用；该 r11 时点仍无 reviewed reactor aggregate baseline。
-  后续 r14 baseline 已 review/Cfreeze，但 formal-r2 揭示目录顺序覆盖波动；r16 随后曾以 fresh
-  all-lane observation 与独立 review 重建 historical `confirmed/formal-ready` state，formal-r3
-  又正确 fail closed。其 replacement Cdiag `316a71f7…` 已被 r17 消耗，而 r17 因 Unit final-mysqld
-  handoff race immutable/excluded；随后 r18 已在 Cdiag `5be1edaa…` 完成 full Unit/all-lane/public
-  validation，但 aggregate 比 r16 reviewed high-water 少 `2 line / 4 branch`，candidate 因而保持 absent。
-  当前 machine=`diagnostic-ready/diagnostic-pending`；Pivot deterministic oracle 已完成 3/3 bitmap
-  与整类/authority validators，pre-Cdiag quality 已 `PASS / 0/0/0/0`；当前风险链是
-  replacement Cdiag -> fresh r19 ->
-  review/direct-child Cfreeze -> fresh formal；不得复用 r16/r18、下调 threshold 或扩大 exclusion；
-- remote required check、five-cell collector、branch protection、release artifact reuse
-  和 Docker embedded-JAR equality 尚无实际证据。
-- Step 3 authority 永久绑定 tested commit
-  `ce3d70c391c7b8bd8046fe66dde0ad568d66601e`；其后的纯文档收口 commit 不是新的
-  tested commit。Step 7 仍须在未来 exact clean commit 上完成全量回放。
+- Step 4 已 accepted；r1–r19 failed/diagnostic history 永久 immutable/excluded，Step 5 不得选择、
+  拼接或重标这些产物，只能消费 `f97483a0…` formal-r4 与已登记 companion。
+- Step 5 当前风险是 single-authority orchestration、portable raw archive、candidate two-layer digest
+  与 live lifecycle/durable replay 入口混淆；任一 identity/hash/replay 不一致必须 fail closed，
+  final authority pointer 保持不变。
+- Unit MySQL classification DEBT 仍 open；Step 5 不得把 9.3.4-only fixture 例外永久化，最终
+  9.3.4 临时放行由 Step 7 version acceptance 决定，债务须在 9.3.5 acceptance 前关闭。
+- remote required check、five-cell collector、branch protection、release artifact reuse 与 Docker
+  embedded-JAR equality 尚无实际证据，分别属于 Steps 6/7。
+- v933 Batch 7 旧 FQCN/count 不能原样重跑；Step 5/7 必须继续使用 frozen predecessor mapping 与
+  v934 successor regression。
 
-上述是已知执行风险，不是已通过项。触发 implementation plan 的 stop condition 时，
-当前 Step 保持未通过并记录 blocker，不继续后续 Step。
+上述是 Step 5 及后续步骤的当前风险。触发 stop condition 时保持当前 Step 未通过并记录 blocker，
+不得回退 Step 4 accepted 状态或跳到 Step 6/7。
 
 ## Planning Reviews
 
@@ -1294,24 +1282,21 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 
 | Gate | 状态 | 证据 |
 |---|---|---|
-| implementation self-check | Steps 1–3 passed | Step 3 r4 exact authority + independent source/final evidence review；version final self-check 仍在 Step 7 |
-| formal implementation quality | Step 3 ready-for-coverage-audit；Step 4 r19 pre-Cfreeze PASS / post-formal final quality pending | Step 4 record=`docs/9.3.4/quality/step4-r19-cfreeze-implementation-quality.md`，B/H/M/L=`0/0/0/0`；只授权 direct-child Cfreeze + one fresh formal；`can_enter_coverage_audit=no` |
-| coverage evidence audit | Step 3 ready-for-acceptance | `docs/9.3.4/coverage/step3-required-matrix-coverage-audit.md`；critical/major gap=0 |
-| feature acceptance | Step 3 signed-off / accepted | `docs/9.3.4/acceptance/step3-required-matrix-acceptance.md`；只签收 feature |
+| implementation self-check | Steps 1–4 passed | Step 4 formal-r4 exact authority + independent source/artifact/state review；version final self-check 仍在 Step 7 |
+| formal implementation quality | Steps 2–4 quality complete | Step 4 record=`docs/9.3.4/quality/step4-coverage-gate-final-implementation-quality.md`，B/H/M/L=`0/0/0/1`、mandatory fixes=0 |
+| coverage evidence audit | Steps 2–4 complete | Step 4 record=`docs/9.3.4/coverage/step4-coverage-gate-coverage-audit.md`；25/25 workitem，critical/major gap=`0/0` |
+| feature acceptance | Steps 3–4 signed-off / accepted | Step 4 record=`docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md`；只签收 feature |
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
-| roadmap sync / downstream | Step 4 diagnostic-r19 PASS / candidate reviewed / Cfreeze pending | roadmap 为 Steps 1–3 passed / Step 4 in-progress；machine=`confirmed/formal-ready`；Cfreeze/fresh formal/final gates、Step 5 与 9.3.5 仍关闭，仅在各自上游 exit 后开放 |
+| roadmap sync / downstream | Steps 1–4 passed / Step 5 ready | roadmap/README 已同步；Step 5=`ready / not-started`，9.3.5=`queued` |
 
 ## Next Action
 
-clean/pushed Cdiag `613b11a0ae6732f865f918551cd9116079771b5e` 的 fresh r19 已完整/public-valid，
-aggregate exact 达到 r16 high-water；immutable candidate `6588e30b…f545b8` 已经 public verify 与两路
-independent review PASS。canonical machine working tree=`confirmed/formal-ready`，pre-Cfreeze
-implementation quality=`PASS / 0/0/0/0`。
+Step 4 已完成 formal-r4、final quality、coverage audit 与 feature acceptance；decision=
+`accepted`，25/25 workitem closed，blocking items=`none`。
 
-Next action：把当前 allowlisted delta 作为 Cdiag 的唯一 direct-single-parent Cfreeze commit，运行
-formalization-delta validator，push 并证明 clean `HEAD == origin/main`，随后启动唯一 fresh formal。
-当前 `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；formal/final quality/audit/
-acceptance、Step 4 exit、Step 5 与 9.3.5 closed。
+Next action：启动 Step 5 single-authority rehearsal，生成 portable immutable candidate，拆分
+live lifecycle validation 与 durable artifact replay，并保持 final authority pointer 不变。
+当前 `can_enter_step5=yes`，Step 5=`ready / not-started`；Steps 6/7 pending，9.3.5 queued。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1707,3 +1692,49 @@ acceptance、Step 4 exit、Step 5 与 9.3.5 closed。
 - next=direct-child Cfreeze commit -> formalization-delta -> push/clean -> one fresh formal。
   Step 4 仍 `in-progress`；final quality、coverage audit、acceptance、Step 5/9.3.5 closed，
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。
+
+### Superseding Check-in — Cfreeze committed / formal-r4 PASS / final quality PASS
+
+- recorded_at: 2026-07-18；Cfreeze=
+  `f97483a0b87a82734d21888e7b5bea74b0c5fe55`，direct parent=
+  `613b11a0ae6732f865f918551cd9116079771b5e`；`HEAD == origin/main`、clean、single parent；
+  formalization delta=`passed / formal / 17 paths`；
+- immutable run=`step4-coverage-20260717-formal-r4`，window=
+  `2026-07-17T15:09:20Z..16:16:14Z`，status=
+  `formal-passed / completed / exit 0`；public final artifact verifier=
+  `ARTIFACT VALID stage=final`；
+- lane/result：Unit=`681+55/4941/F0E0S0`、Integration=`47+4/320/F0E0S0`、required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、database/external=`29/370 + 16/76 = 45/446`；
+- execution/provenance：`23 exec / 48 sessions / 16,953 class identities`，production universe=
+  `24/2,098`，class tree=`a72007a8…99be`；source before=after=`96e2c871…c3a3`；
+- coverage gate：line=`54,624/76,830`、branch=`26,111/44,870`，均 exact 达到 confirmed
+  minimum；critical=`12/23/below0`，唯一 N/A=`NamespaceScope.branch`；model/sensitive PASS；
+- lifecycle/cleanup：三个 child 均 reaped、PG residue=0；Unit fixture negatives=`36/36`、
+  lifecycle=`5/5`；runner residue=`0/0/0`；四个 evidence-window 外 demo DB exact ID 已恢复为
+  `running/healthy`；
+- persistent evidence=
+  `docs/9.3.4/evidence/step-4/step4-coverage-exit-20260717.md`；formal gate 已通过；
+  post-formal implementation quality=
+  `docs/9.3.4/quality/step4-coverage-gate-final-implementation-quality.md`，decision=
+  `ready-for-coverage-audit`，B/H/M/L=`0/0/0/1`、mandatory fixes=`0`；
+- 外层 restore 后单独 live 重放 `report_inventory_tool validate` 会因 Unit fixture 的全局
+  `13306 free` 动态前置条件返回 `E_UNIT_FIXTURE`；运行内 validate 与 post-run public final
+  verifier 均 PASS。正式质量闸门将其定为非阻断 Low，owner=Step 5 single authority/rehearsal；
+- current：Step 4=`in-progress / formal-passed / final-quality-passed`，
+  `can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5/9.3.5 closed。
+
+### Superseding Check-in — Step 4 coverage audit / feature acceptance complete
+
+- recorded_at: 2026-07-18；coverage audit=
+  `docs/9.3.4/coverage/step4-coverage-gate-coverage-audit.md`；workitem matrix=
+  `25 covered / 0 partial / 0 not-covered`，critical/major gap=`0/0`；
+- audit 中发现 formal 五库未覆盖 Pivot legacy fallback；同一 tested HEAD/source 的 current-source
+  companion 已补跑 `1/F0E0S0`，XML/source SHA 与 formal source inventory 绑定，两路独立复核
+  确认无需修改 runner 或重跑 unchanged formal；
+- feature acceptance=
+  `docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md`，status/decision=
+  `signed-off / accepted`，blocking items=`none`，Experience=`N/A`；
+- 25 个 Step 4 workitem 已关闭；classification DEBT 继续
+  `open / accepted-for-9.3.4-only / due-before-9.3.5-acceptance`；
+- current：Step 4=`passed`；Step 5=`ready / not-started`；`can_enter_step5=yes`；
+  9.3.4=`in-progress`，Steps 6/7=`pending`，9.3.5=`queued`。

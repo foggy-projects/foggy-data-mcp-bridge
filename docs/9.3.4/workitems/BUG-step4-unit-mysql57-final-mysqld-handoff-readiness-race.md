@@ -4,7 +4,9 @@ bug_source: diagnostic-found
 version: 9.3.4
 ticket: BUG-934-STEP4-UNIT-MYSQL57-FINAL-MYSQLD-HANDOFF-READINESS-RACE
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: final-mysqld-handoff-readiness-and-lifecycle-forensics
@@ -93,19 +95,18 @@ focused lifecycle control 5/5 通过只说明竞态非必现，不能覆盖 RED 
   Unit fixture=`36/36` / `a5620aa80ac122a9489b14f8fc5352bf685c61e2fcd2426fdadfd36fb882212d`；
   coverage=`27 + source/Git 22 + replay 12` / current r2
   `0f8f5c7bbd6b8fcf18363f979b9948bd396b39b436f94b30c1ca697204fc6856`。
-- [ ] 完整 Unit replacement=`681+55/4941/F0E0S0`，fixture/receipt/cleanup 全部通过。
+- [x] 完整 Unit replacement=`681+55/4941/F0E0S0`，fixture/receipt/cleanup 全部通过。
 - [x] 正式 remediation implementation quality=`PASS / 0/0/0/0`；记录：
   `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`。
-- [ ] replacement Cdiag commit/push/clean。
-- [ ] fresh diagnostic -> review -> direct-child Cfreeze -> fresh formal。
-- [ ] final quality -> coverage audit -> acceptance。
+- [x] replacement Cdiag commit/push/clean。
+- [x] fresh diagnostic -> review -> direct-child Cfreeze -> fresh formal。
+- [x] final quality -> coverage audit -> acceptance。
 
 ## Closure Scope
 
-本 BUG 在 fresh formal 前保持 `in-progress`。当前 focused/static remediation 已通过，但完整 Unit
-尚无新 authority PASS，必须由 clean/pushed replacement Cdiag 的 fresh diagnostic 证明。r17 永久保留为
-failed/excluded evidence；threshold 不得降低、coverage exclusion 不得扩大。Step 5、coverage audit 与
-acceptance 在 Step 4 正式签收前保持关闭。
+本 BUG 在 fresh formal 前保持 `in-progress`；后续 clean/pushed replacement、完整 Unit、formal-r4、
+coverage audit 与 feature acceptance 已全部通过，因此关闭。r17 永久保留为 failed/excluded
+evidence；threshold 不得降低、coverage exclusion 不得扩大。Step 5 现为 `ready / not-started`。
 
 ## References
 

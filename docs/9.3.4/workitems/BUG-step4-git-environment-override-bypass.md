@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-GIT-ENVIRONMENT-OVERRIDE-BYPASS
 severity: critical
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: security-negative-test
 automation_decision: required

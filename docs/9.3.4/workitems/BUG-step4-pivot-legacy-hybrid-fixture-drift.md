@@ -4,7 +4,9 @@ bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP4-PIVOT-LEGACY-HYBRID-FIXTURE-DRIFT
 severity: major
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -106,7 +108,7 @@ Matcher 正确 fail closed，测试前提却未同步。
 - [x] 显式冻结 legacy snapshot policy 与两分支 exact identity。
 - [x] legacy/V934 focused 回归 GREEN。
 - [x] 级联 database successor、Step 4 overlay 与 SHA 清单并完成静态正负例。
-- [ ] 从 clean/pushed HEAD 完成 r3 all-lane diagnostic。
+- [x] 从 clean/pushed HEAD 完成 fresh all-lane/formal，并以 current-source companion 补齐 legacy 分支。
 
 ## Verification
 

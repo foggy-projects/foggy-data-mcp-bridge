@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-BEAN2MAP-CACHE-TIMING-ORACLE
 severity: blocker
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: deterministic-behavior-regression
@@ -91,17 +93,17 @@ correctness，而不是简单删除测试或扩大计时容忍；同时移除同
 - [x] Cfreeze machine worktree 已为 threshold `confirmed` / contract `formal-ready`：
   `ca6a25c66fbbe9a595adde74f1b7589bd3829b93edebfd5b11dc394ab8d088c8` /
   `6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160`。
-- [ ] direct-child Cfreeze commit/push 与 fresh formal 通过；review 的 Low 必须由 fresh formal
+- [x] direct-child Cfreeze commit/push 与 fresh formal 通过；review 的 Low 必须由 fresh formal
   复现 aggregate，不得降低 threshold。
-- [ ] 最终 implementation quality、coverage audit 与 acceptance 通过。
+- [x] 最终 implementation quality、coverage audit 与 acceptance 通过。
 
 ## Closure Scope
 
 本 BUG 按 implementation regression closed / diagnostic verified 关闭：r16 已在完整 Unit 与
 all-lane diagnostic 中证明 deterministic behavior oracle 稳定，且 Bean2MapUtils 关键回归
 coverage 无退化。
-该关闭不等于 fresh formal、Step 4 或 9.3.4 accepted；fresh formal 与版本级后置门仍按上方未完成
-项执行。
+该 implementation closure 当时不等于 fresh formal 或 Step 4 accepted；后续 formal-r4、最终质量、
+coverage audit 与 feature acceptance 已完成。9.3.4 version gate 仍由 Steps 5–7 承接。
 
 ## References
 

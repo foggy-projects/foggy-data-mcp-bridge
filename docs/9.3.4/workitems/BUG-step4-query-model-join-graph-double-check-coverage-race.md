@@ -4,7 +4,9 @@ bug_source: formal-gate-found
 version: 9.3.4
 ticket: BUG-934-STEP4-QUERY-MODEL-JOIN-GRAPH-DOUBLE-CHECK-COVERAGE-RACE
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: controlled-deterministic-concurrency-unit-regression
@@ -93,15 +95,15 @@ coverage regression 与线程调度波动，也无法让 formal authority 可复
   fail closed，不能证明本 BUG 的 all-lane remediation。
 - [x] handoff remediation pre-Cdiag formal quality=`PASS / 0/0/0/0`；记录：
   `docs/9.3.4/quality/step4-diagnostic-r17-recovery-implementation-quality.md`。
-- [ ] 形成 replacement Cdiag commit/push/clean identity。
-- [ ] fresh diagnostic 全 lane PASS，aggregate exact 不低于 `54624/76830 line, 26111/44870 branch`。
-- [ ] threshold candidate/review PASS，direct-child Cfreeze commit/push。
-- [ ] fresh formal PASS，随后完成最终 implementation quality、coverage audit 与 acceptance。
+- [x] 形成 replacement Cdiag commit/push/clean identity。
+- [x] fresh diagnostic 全 lane PASS，aggregate exact 不低于 `54624/76830 line, 26111/44870 branch`。
+- [x] threshold candidate/review PASS，direct-child Cfreeze commit/push。
+- [x] fresh formal PASS，随后完成最终 implementation quality、coverage audit 与 acceptance。
 
 ## Closure Scope
 
-本 BUG 当前保持 `in-progress`。只有 deterministic regression、fresh diagnostic、review 和 fresh formal
-authority 全部通过后才能关闭；任何 focused 或单次绿色都不构成关闭条件。formal-r3 永久保留为 immutable
+本 BUG 在 formal-r3 后保持 `in-progress`；后续 deterministic regression、fresh diagnostic、review、
+formal-r4 与 feature acceptance 已全部通过，本 workitem 现已关闭。formal-r3 永久保留为 immutable
 failed evidence，不复用、不修补；r17 同样永久 excluded，且不能把无关基础设施先失败解释为
 QueryModel all-lane PASS 或 FAIL。
 

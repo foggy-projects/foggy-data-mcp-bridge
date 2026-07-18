@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-EVIDENCE-JSON-NUMERIC-TYPE-ALIAS-BYPASS
 severity: high
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: canonical-evidence-type-alias-negative
@@ -77,10 +79,9 @@ exact、critical rows=`12`、positive metrics=`23`、唯一 N/A=`1`、minimum ex
 candidate SHA-256=
 `8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`。
 
-这补齐了 checklist 中最后一项 fresh authority evidence；BUG 保持 `status=closed`。Cfreeze
-machine delta 已准备为 `formal-ready`，单次 direct-child commit/topology proof 与 fresh formal 仍
-pending；coverage audit、acceptance 与
-Step 5 尚未开放。
+这补齐了 checklist 中最后一项 fresh authority evidence；BUG 保持 `status=closed`。该记录时点
+Cfreeze/formal/audit 尚未开放；后续 formal-r4、coverage audit 与 feature acceptance 已完成，
+Step 5 现为 `ready / not-started`。
 
 ## References
 

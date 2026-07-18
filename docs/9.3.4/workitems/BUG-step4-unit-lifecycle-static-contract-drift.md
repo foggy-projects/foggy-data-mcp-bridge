@@ -4,7 +4,9 @@ bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP4-UNIT-LIFECYCLE-STATIC-CONTRACT-DRIFT
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: unit-integration-lifecycle-shape-and-negative-regression
@@ -70,7 +72,7 @@ shared finalizer、Unit cleanup 必须在委托之前”的新契约。这是测
 - outer cleanup container/volume/network=`0/0/0`；
 - 四个 demo exact container 已在 evidence window 外按相同 ID 恢复为
   `running/healthy`；
-- Step 4 仍为 `in-progress`，`can_enter_coverage_audit=no`，Step 5 保持关闭。
+- 该 r8 时点 Step 4 仍为 `in-progress`，`can_enter_coverage_audit=no`，Step 5 保持关闭。
 
 Immutable evidence：
 
@@ -170,11 +172,11 @@ evidence。
       canonical lifecycle `5/5` PASS。
 - [x] r17 handoff recovery pre-Cdiag formal quality=`PASS / 0/0/0/0`；只授权 replacement
       Cdiag/fresh diagnostic，BUG 仍不关闭。
-- [ ] fresh formal、最终质量与 coverage evidence audit 通过后关闭本 BUG。
+- [x] fresh formal、最终质量与 coverage evidence audit 通过后关闭本 BUG。
 
 本 BUG 的原始 stale-token drift 已被 r9 动态证明关闭；随后发现的更深层 semantic bypass
-由 `BUG-934-STEP4-LIFECYCLE-SEMANTIC-VALIDATOR-BYPASS` 单独治理。Step 4 仍不得通过；当前
-replacement Cdiag/fresh diagnostic、formal、coverage audit 与 acceptance 前 Step 5 保持关闭。
+由 `BUG-934-STEP4-LIFECYCLE-SEMANTIC-VALIDATOR-BYPASS` 单独治理并关闭。后续 replacement、
+formal-r4、coverage audit 与 feature acceptance 已通过；Step 5 现为 `ready / not-started`。
 
 ## References
 

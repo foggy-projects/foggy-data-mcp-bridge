@@ -4,7 +4,9 @@ bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP4-PREAGG-L2-HYBRID-FIXTURE-DRIFT
 severity: major
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -128,7 +130,7 @@ hybrid，也没有建立/验证 watermark，导致测试前提失效。
 - [x] 显式冻结 snapshot-only fixture 与 exact pre-aggregation identity。
 - [x] focused/组合回归 GREEN。
 - [x] 级联 Step 4 successor/SHA 契约并完成静态正负例。
-- [ ] 从修复提交的 clean/pushed HEAD 完成 r3 all-lane diagnostic。
+- [x] 从修复提交的 clean/pushed HEAD 完成 fresh all-lane/formal replacement。
 
 ## Verification
 

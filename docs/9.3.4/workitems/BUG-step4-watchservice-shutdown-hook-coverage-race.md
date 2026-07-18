@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-WATCHSERVICE-SHUTDOWN-HOOK-COVERAGE-RACE
 severity: blocker
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: deterministic-isolated-lifecycle-unit-regression
@@ -79,8 +81,8 @@ diagnostic 与 formal 两次 all-lane evidence 证明不再依赖 hook 顺序。
   candidate SHA-256=`9087774387f0bb4b177a1b5f2fe28a4102e0434afe7a5b316aa106511c9e6d55`。
 - [x] direct-child Cfreeze=`1901a10138bac06a09b875c907b7aea6e2789b04` commit/push；
   fresh formal-r2 中 WatchService exact `204/244 line,99/128 branch`，关闭本 BUG 的稳定性验证。
-- [ ] 9.3.4 最终 implementation quality、coverage audit 与 acceptance 通过（版本级后置门，
-  当前由独立的 ListPreset branch-order BUG 阻塞）。
+- [x] Step 4 最终 implementation quality、coverage audit 与 feature acceptance 通过；formal-r2
+  时点的 ListPreset 阻塞已由后续 deterministic remediation 与 formal-r4 supersede。
 
 ## References
 

@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-LIST-PRESET-FILES-FIND-COVERAGE-ORDER
 severity: blocker
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: deterministic-existing-test-regression
@@ -104,22 +106,21 @@ all-lane diagnostic/formal authority 证明。
 - [x] direct-child Cfreeze `a63c82c53ebaad1a1c22d78647fbda70b4bd6594` 已
   commit/push/clean；fresh formal-r3 再次覆盖本 BUG 相关的
   `FileSystemListPresetStore#findById` filename-false branch，本回归未再退化。
-- [ ] formal-r3 整体因独立 `QueryModelSupport#getMergedJoinGraph` inner-DCL coverage race
+- [x] formal-r3 整体因独立 `QueryModelSupport#getMergedJoinGraph` inner-DCL coverage race
   以 aggregate branch `26110/44870 < 26111/44870` fail closed；待该确定性回归的
   new Cdiag -> diagnostic -> review -> Cfreeze -> formal 新链完整通过，不得降阈。
 - [x] 独立 QueryModel recovery 的 pre-Cdiag implementation quality 已 PASS，
   B/H/M/L=`0/0/0/0`；该结果只授权 new Cdiag -> fresh diagnostic，不代替
   formal 或 Step 4 exit。
-- [ ] 最终 implementation quality、coverage audit 与 acceptance 通过。
+- [x] 最终 implementation quality、coverage audit 与 acceptance 通过。
 
 ## Closure Scope
 
 本 BUG 按 implementation regression closed / diagnostic verified 关闭：r16 已证明
 missing-ID assertion 不依赖 UUID 文件遍历顺序，并恢复 formal-r2 缺失的 predicate branch。
-formal-r3 已再次覆盖本 predicate branch 且未复发，但该 run 因独立 QueryModel
-DCL coverage race 整体 fail closed。因此本 BUG 的实现关闭不等于 formal PASS、
-Step 4 或 9.3.4 accepted；新 Cdiag/diagnostic/review/Cfreeze/formal 与版本级后置门
-仍必须完整执行。
+formal-r3 已再次覆盖本 predicate branch 且未复发，但该 run 因独立 QueryModel DCL race 整体
+fail closed。后续 new Cdiag/diagnostic/review/Cfreeze/formal-r4 与 Step 4 feature acceptance 已完整
+执行；9.3.4 version gate 仍由 Steps 5–7 承接。
 
 ## References
 

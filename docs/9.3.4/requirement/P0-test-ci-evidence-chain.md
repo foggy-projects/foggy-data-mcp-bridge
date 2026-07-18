@@ -6,7 +6,7 @@ priority: P0
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # P0 测试与 CI 证据链
@@ -158,10 +158,17 @@ updated_at: 2026-07-17
 
 ## Current Progress
 
-- version status：`in-progress`；Steps 1–3=`passed`；Step 4=
+- version status：`in-progress`；Steps 1–4=`passed`；Step 5=`ready / not-started`；
+- Step 4 authority=`step4-coverage-20260717-formal-r4` on Cfreeze `f97483a0…`；quality、
+  coverage audit 与 feature acceptance 已按序完成，decision=`accepted`、blocking=`none`；
+- Steps 6/7=`pending`，version acceptance=`not-started`，9.3.5=`queued`；
+- Unit MySQL classification DEBT 继续 open，最终 9.3.4 临时放行由 Step 7 决定。
+
+### Historical Step 4 diagnostic ledger
+
+- r18 snapshot：Step 4=
   `in-progress / diagnostic-r18 PASS / threshold candidate not authorized / Pivot remediation
-  verified / pre-Cdiag quality PASS / replacement Cdiag pending`
-  （不是 `passed`）；
+  verified / pre-Cdiag quality PASS / replacement Cdiag pending`（当时不是 `passed`）；
 - Step 2 confirmed successor：`step2-candidate-r8e-20260715`，
   `724 positive + 59 structural` 已由 Surefire/Failsafe exact 覆盖，testcase=`5,205`，
   F/E/S=`0/0/0`；其 identity/cardinality 作为 Step 2 历史结构保留，Unit lane correctness
@@ -656,3 +663,30 @@ updated_at: 2026-07-17
   child，并在 commit/push/topology/clean proof 后运行一次 fresh formal。fresh formal、final
   implementation quality、coverage audit、acceptance 尚未发生；Step 4=`in-progress`，
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`，Step 5/9.3.5 closed。
+
+## Superseding formal-r4 / quality-reviewed requirement boundary（2026-07-18）
+
+- Cfreeze `f97483a0…` 已满足 direct-single-parent、formalization delta、push/clean；fresh
+  formal-r4=`formal-passed / completed / exit 0`，public final artifact复算通过；
+- required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/class identity=`23/48/16953`，
+  database/external=`29/370 + 16/76`；source exact、三 child lifecycle、negative、model、
+  sensitive、cleanup 与外部 exact restore 均符合 requirement；
+- aggregate line=`54624/76830`、branch=`26111/44870`，critical=`12/23/below0`，唯一 N/A=
+  `NamespaceScope.branch`；confirmed threshold 未降低、exclusion/critical set 未扩大；
+- post-formal quality=`ready-for-coverage-audit / 0/0/0/1`，mandatory fixes=`0`。本 requirement
+  当前只开放 evidence coverage audit：`can_enter_coverage_audit=yes`、
+  `can_enter_acceptance=no`；Step 4、Step 5 与 9.3.5 仍关闭。
+
+## Superseding Step 4 accepted requirement boundary（2026-07-18）
+
+- final quality、coverage audit 与 feature acceptance 已按顺序完成；audit=
+  `ready-for-acceptance / critical-major gap 0/0`，acceptance=
+  `signed-off / accepted / blocking none`；
+- Step 4 direct requirements `COVERAGE-AGG/COVERAGE-CRITICAL` 与其消费的 inventory、runner、DB、
+  skip、regression、source/provenance/lifecycle/cleanup requirements 均有同一 Cfreeze 的 formal
+  evidence；Pivot legacy fallback 由同 source companion `1/F0E0S0` 补齐；
+- 25 个 Step 4 workitem 均 closed；Unit MySQL classification DEBT 继续 open，且不得跨越
+  9.3.5 version acceptance；
+- Step 4=`passed`，`can_enter_step5=yes`；Step 5=`ready / not-started`。这不满足
+  `CI-REQUIRED`、`RELEASE-SAME-ARTIFACT` 或 version completion definition；
+- 9.3.4 `acceptance_status` 继续 `not-started`，版本状态仍 `in-progress`；9.3.5=`queued`。

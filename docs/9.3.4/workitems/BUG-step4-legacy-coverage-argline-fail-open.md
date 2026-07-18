@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-LEGACY-COVERAGE-ARGLINE-FAIL-OPEN
 severity: major
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -95,7 +97,7 @@ exec 存在性、report/check 数据消费、低门失败和普通 profile 不�
 - [x] 完成 legacy、普通与 v934 三态 focused 验证。
 - [x] `coverage_tool.py` 精确强制 canonical late-evaluation 形式，并由
   manifest + `validate-contract` + `8/8` baseline negatives 自动防回退。
-- [ ] 在 fresh all-lane diagnostic 中复验实际 exec/session/report 链路。
+- [x] 在 fresh all-lane diagnostic 中复验实际 exec/session/report 链路。
 
 ## Verification
 
@@ -111,8 +113,8 @@ exec 存在性、report/check 数据消费、低门失败和普通 profile 不�
 
 上述结果证明 build 链已从“missing data 跳过且绿色”恢复为“有数据必读取、
 低于门必失败”。canonical 形式已由 versioned contract guard 自动保护，
-三态 focused 动态证据已完成，因此本 BUG 状态为 `closed`。fresh all-lane
-diagnostic 仍是 Step 4 阶段待办，但不是重开本 BUG 的条件。
+三态 focused 动态证据已完成，因此本 BUG 状态为 `closed`。该时点待办的 fresh all-lane/formal
+已由 formal-r4 完成，并通过最终质量、coverage audit 与 feature acceptance。
 
 ## References
 

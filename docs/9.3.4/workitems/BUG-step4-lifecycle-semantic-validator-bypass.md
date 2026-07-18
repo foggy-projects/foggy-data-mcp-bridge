@@ -4,7 +4,9 @@ bug_source: quality-gate-found
 version: 9.3.4
 ticket: BUG-934-STEP4-LIFECYCLE-SEMANTIC-VALIDATOR-BYPASS
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: lifecycle-semantic-shape-and-coded-mutation-regression
@@ -82,11 +84,12 @@ runner 与 shared library 均未被篡改，top SHA manifest 仍会拒绝直接 
       seal=`2/2`、outer/library=`3/3 + 3/3`。
 - [x] 两路独立 lifecycle review 与全量正式质量最终 B/H/M/L=`0/0/0/0`。
 - [x] 更新并验证 top=`60/60`、successor=`14/14` SHA manifest。
-- [ ] commit/push，证明 clean `HEAD == origin/main`。
-- [ ] 使用全新 run ID 完成 fresh all-lane diagnostic。
-- [ ] fresh formal、最终质量、coverage audit 与 acceptance 后关闭本 BUG。
+- [x] commit/push，证明 clean `HEAD == origin/main`。
+- [x] 使用全新 run ID 完成 fresh all-lane diagnostic。
+- [x] fresh formal、最终质量、coverage audit 与 acceptance 后关闭本 BUG。
 
-当前 Step 4/5、threshold freeze、formal、coverage audit 与 acceptance 全部保持关闭。
+该 remediation 时点 Step 4/5、threshold freeze、formal、coverage audit 与 acceptance 全部保持关闭；
+后续 formal-r4 与 feature acceptance 已按序完成。
 
 ## References
 

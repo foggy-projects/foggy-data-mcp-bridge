@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-PREAGG-VALIDATION-WRONG-TABLE
 severity: major
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: unit-test
 automation_decision: required
@@ -103,7 +105,7 @@ matcher 修复该测试。
 - [x] 补齐 hit/name、精确 update/restore 与禁止空 fixture 的断言。
 - [x] 三项 snapshot 对比补齐显式模式和 expected pre-aggregation identity。
 - [x] focused 整类回归 GREEN，且日志证明不是 raw-vs-raw。
-- [ ] 在修复提交的 clean/pushed HEAD 上完成 Unit authority 与 r2 all-lane diagnostic。
+- [x] 在修复提交的 clean/pushed HEAD 上完成 Unit authority 与 fresh all-lane/formal replacement。
 
 ## Verification
 

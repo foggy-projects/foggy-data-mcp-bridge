@@ -4,7 +4,9 @@ bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP4-CHILD-RUN-LOG-TEE-RESIDUE-RACE
 severity: major
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: runner-lifecycle-test
 automation_decision: required
@@ -95,7 +97,7 @@ r1 的 Unit 自身失败，不经过同一成功收口路径。Integration 具�
 - [x] 补 logger lifecycle 和真实 process-group residue 自动化负例（9 类 / 14 case）。
 - [x] 增加 child process-group ready/成员快照证据，关闭 fast-leader fail-open。
 - [x] 完成 54/54 identity、全量静态与 pre-r4 正式质量闸门。
-- [ ] 从新的 clean/pushed HEAD 完成 fresh all-lane diagnostic。
+- [x] 从新的 clean/pushed HEAD 完成 fresh all-lane diagnostic。
 
 ## References
 

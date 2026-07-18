@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # 9.3.4 Acceptance Evidence Plan
@@ -22,18 +22,19 @@ updated_at: 2026-07-17
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | Step 1 frozen + Step 3 exit confirmed；r19 complete/public-valid 且达到 r16 high-water；candidate 两路 review PASS；machine=`confirmed/formal-ready`；Cfreeze/fresh formal pending |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | machine=`confirmed/formal-ready`；Cfreeze/formal-r4、coverage audit 与 Step 4 feature acceptance complete |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | Step 1 frozen / Step 3 runtime recorded / r19 full Unit=`681+55/4941/F0E0S0`；`23/48/16931`、`24/2098` exact；Steps 5–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | formal-r4 Unit=`681+55/4941/F0E0S0`；`23/48/16953`、`24/2098`；Step 5 ready/not-started，Steps 6–7 pending |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–3 passed / r19 diagnostic PASS / candidate reviewed / Cfreeze worktree formal-ready；fresh formal pending |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | Steps 1–3 passed；r19=`773+59/5707/F0E0S0`、aggregate exact r16 high-water；Step 4/version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 authority present；r19 pass/candidate/review present；Cfreeze commit/fresh formal 与 Step 4 exit absent；Steps 4–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r19 pre-Cfreeze quality=`PASS / 0/0/0/0`，只授权 direct-child Cfreeze + fresh formal；post-formal final quality pending；can_enter_coverage_audit=no |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` | Step 2/3 feature evidence ready；Step 4 not-started/not-allowed，critical/major gap 尚未审计 |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–4 passed / Step 5 ready-not-started |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r4=`773+59/5707/F0E0S0`、aggregate exact confirmed threshold；Step 4 passed，version in-progress |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–4 exit/quality/audit/feature acceptance present；Steps 5–6 pending |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2–4 quality gates complete；Step 4 B/H/M/L=`0/0/0/1`、mandatory fixes=0 |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | Steps 2–4 ready；Step 4 workitems=25/25、critical/major gap=`0/0` |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
+| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | signed-off / accepted；Step 5 ready；not version signoff |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | README 已同步 r19 reviewed-Cfreeze-pending；authoritative roadmap 保持历史 current，待 fresh formal/Step 4 exit 后同步；Step 5/9.3.5 downstream remains closed |
+| roadmap/status sync | `README.md` + authoritative roadmap | Steps 1–4 passed；Step 5 ready/not-started；9.3.5 queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -57,7 +58,7 @@ external `16/76`、exact union `45/446/F0E0S0`、gap/overlap/extra=`0/0/0`，DB 
 Step 3 quality、coverage audit 与 feature acceptance 已按序完成；该结果满足 Step 3 exit，
 但不满足 Step 4 coverage 或 9.3.4 version acceptance。
 
-Current Step 4 readiness（2026-07-17）：
+Historical Step 4 diagnostic-r18 readiness snapshot（2026-07-17）：
 `in-progress / diagnostic-r18 PASS / threshold candidate not authorized / Pivot NULL-axis
 remediation verified / pre-Cdiag quality PASS / replacement Cdiag pending`。clean/pushed Cdiag=
 `5be1edaa16c5883cde2f66396ac26a1ae113430b` 的 r18 已完成 full Unit=
@@ -525,3 +526,29 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   不得提前创建 Step 4 exit、final quality、coverage audit 或 acceptance 结论；
 - `can_enter_coverage_audit=no`、`can_enter_acceptance=no`。必须等待 fresh formal PASS，再按
   final implementation quality -> coverage audit -> feature acceptance 顺序开放；Step 5/9.3.5 closed。
+
+## Superseding formal-r4 / final-quality acceptance boundary（2026-07-18）
+
+- Cfreeze `f97483a0…` 已证明 direct-single-parent、push/clean identity；fresh formal-r4=
+  `formal-passed / completed / exit 0`，public final artifact=`VALID`；
+- required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/class identity=`23/48/16953`；
+  aggregate=`54624/76830 line, 26111/44870 branch`，critical=`12/23/below0`，source/model/
+  sensitive/cleanup 与 exact external restore 均满足边界；
+- post-formal implementation quality=`ready-for-coverage-audit`，B/H/M/L=`0/0/0/1`、mandatory
+  fixes=`0`；唯一 Low 由 Step 5 负责拆分 live inventory 与 durable artifact replay；
+- `acceptance_status` 继续表示 9.3.4 version acceptance，保持 `not-started`。当前只开放 Step 4
+  test evidence coverage audit：`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；
+  Step 4 仍 `in-progress`，Step 5/9.3.5 closed。
+
+## Superseding Step 4 feature acceptance boundary（2026-07-18）
+
+- coverage audit=`ready-for-acceptance`：25/25 Step 4 workitem covered，critical/major gap=`0/0`；
+  审计发现的 Pivot legacy 分支已由同一 tested HEAD 的 current-source companion
+  `1/F0E0S0` 补齐并独立复核；
+- feature acceptance record=
+  `docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md`，decision=`accepted`、
+  blocking items=`none`；25 个 Step 4 workitem 已在 decision 后统一关闭；
+- `acceptance_status` 仍表示 9.3.4 version acceptance，保持 `not-started`；本次只把
+  Step 4 标为 `passed`，把 Step 5 标为 `ready / not-started`；
+- live/durable replay Low、portable raw archive 与 Unit MySQL classification debt 分别由
+  Step 5/9.3.5 承接；Steps 6/7、9.3.4 version signoff 与 9.3.5 开工均未提前。

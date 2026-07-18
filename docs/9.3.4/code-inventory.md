@@ -4,7 +4,7 @@ doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-17
+updated_at: 2026-07-18
 ---
 
 # 9.3.4 Code Inventory
@@ -895,3 +895,29 @@ code_inventory:
   POM、runner、successor manifest、floor、critical set 或 exclusion 变化；
 - working tree machine=`confirmed/formal-ready`；direct-child Cfreeze commit/push/topology/clean 与
   fresh formal pending。Step 4/5、final quality、coverage audit、acceptance 仍关闭。
+
+### Superseding formal-r4 / final-quality inventory
+
+- tested Cfreeze=`f97483a0b87a82734d21888e7b5bea74b0c5fe55`，formalization delta=
+  `passed / direct-single-parent / 17 paths`；Cfreeze 没有 production/test/POM/runner/floor/
+  critical/exclusion/successor byte delta；
+- fresh formal-r4 inventory：required=`773+59/5707/F0E0S0`、Addon=`2/6`、Unit=
+  `681+55/4941`、Integration=`47+4/320`、DB/external=`29/370 + 16/76`，exec=
+  `23/48/16953`，production universe=`24/2098`；
+- aggregate exact=`54624/76830 line, 26111/44870 branch`；critical=`12/23/below0`；source
+  before=after=`96e2c871…c3a3`，final artifact public replay、model/sensitive/cleanup PASS；
+- post-formal implementation quality=`ready-for-coverage-audit / 0/0/0/1`。当前 code inventory
+  已封存；只开放 test evidence coverage audit，Step 4/5、acceptance 与 9.3.5 仍关闭。
+
+### Superseding Step 4 accepted inventory
+
+- formal inventory 不变：Cfreeze=`f97483a0…`、required=`773+59/5707/F0E0S0`、Addon=
+  `2/6`、exec=`23/48/16953`、production universe=`24/2098`、aggregate=
+  `54624/76830 line, 26111/44870 branch`；
+- coverage audit 补入唯一 companion inventory：final `PivotSqlParityIT.java` SHA=
+  `18ebeedf…d325`，legacy focused XML=`1/F0E0S0`、SHA=`802933e6…0dd`；该 companion
+  不加入 formal report/exec/coverage totals；
+- 25 个 Step 4 workitem 均 closed；`DEBT-unit-mysql57-fixture-classification-migration.md`
+  仍 open，owner/截止点保持 9.3.5 version acceptance；
+- Step 4 inventory 现为 accepted/frozen input；Step 5=`ready / not-started`，后续不得修改
+  formal-r4 bytes，只能消费并封装 portable single-authority candidate。

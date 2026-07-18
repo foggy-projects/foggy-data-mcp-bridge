@@ -5,6 +5,8 @@ version: 9.3.4
 ticket: BUG-934-STEP4-THRESHOLD-FREEZE-OBSERVATION-APPLICABILITY-GAP
 severity: blocker
 status: closed
+post_gate_confirmed_at: 2026-07-18
+post_gate_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: real-observation-freeze-and-structural-na-regression
@@ -92,7 +94,7 @@ positive-total exact counter，形成 lifecycle 断点。
 - [x] Cdiag commit/push、clean `HEAD == origin/main` 后执行 fresh r13 diagnostic。
 - [x] r13 sealed PASS，below floor=`0`、structural N/A=`1`，candidate public verification 通过。
 - [x] 将 reviewed threshold 写入 Cfreeze working-tree machine delta。
-- [ ] 将全部 allowlisted delta 一次提交为 Cdiag 的唯一 direct-child，并完成 topology proof；fresh formal 仍 pending。
+- [x] 将全部 allowlisted delta 一次提交为 Cdiag 的唯一 direct-child，并完成 topology proof 与 fresh formal。
 
 当前实现已额外关闭预提交审查发现的 JSON numeric alias：`false`、`0.0` 不得冒充
 canonical N/A integer zero，`gap:false` 不得冒充 `0.0`；frozen replay receipt 现在由完整
@@ -115,7 +117,8 @@ aggregate exact projection、12 行 policy 顺序、23 个 positive metric、唯
 缺陷范围关闭；Cfreeze machine delta 已准备为 `formal-ready`，单次 direct-child commit/topology
 proof 与 fresh formal 是仍待执行的后置 release gate，不再是本 BUG 未修复项。
 
-当前 `status=closed`；formal、coverage audit、acceptance 与 Step 5 仍保持关闭。
+该 r13 implementation closure 时点 `status=closed`，formal、coverage audit、acceptance 与 Step 5
+仍保持关闭；后续 formal-r4 与 feature acceptance 已按序通过。
 
 ## References
 

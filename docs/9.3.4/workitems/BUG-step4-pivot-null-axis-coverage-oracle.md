@@ -4,7 +4,9 @@ bug_source: diagnostic-governance-found
 version: 9.3.4
 ticket: BUG-934-STEP4-PIVOT-NULL-AXIS-COVERAGE-ORACLE
 severity: blocker
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 product_regression: false
 test_strategy: deterministic-pivot-null-axis-correctness-regression
@@ -108,8 +110,8 @@ authority。
   `54624/76830 line, 26111/44870 branch`。
 - [x] replacement threshold candidate/public verification/两路 independent review PASS；candidate=
   `6588e30b…f545b8`。
-- [ ] direct-child Cfreeze commit/push，fresh formal PASS。
-- [ ] final implementation quality、coverage audit 与 acceptance PASS。
+- [x] direct-child Cfreeze commit/push，fresh formal PASS。
+- [x] final implementation quality、coverage audit 与 acceptance PASS。
 
 ## Evidence Mapping
 
@@ -127,10 +129,10 @@ authority。
 
 ## Closure Scope
 
-本 BUG 保持 `blocker / in-progress`。只有 deterministic regression、多 fork focused proof、
-replacement fresh diagnostic、reviewed threshold 与 fresh formal 全部通过后才可关闭。r18 永久保留为
-valid diagnostic + governed high-water gap evidence；不得补写 candidate、修改 sealed artifact 或把
-public validation PASS 冒充 threshold-freeze authorization。
+本 BUG 在 r18 后保持 `blocker / in-progress`；deterministic regression、多 fork focused proof、
+replacement r19、reviewed threshold、formal-r4 与 feature acceptance 现已全部通过，因此关闭。r18
+永久保留为 valid diagnostic + governed high-water gap evidence；不得补写 candidate 或修改 sealed
+artifact。
 
 ## References
 

@@ -4,7 +4,9 @@ bug_source: regression-found
 version: 9.3.4
 ticket: BUG-934-STEP4-SOURCE-INVENTORY-FILEMODE-FALSE
 severity: major
-status: in-progress
+status: closed
+closed_at: 2026-07-18
+closure_evidence: docs/9.3.4/acceptance/step4-coverage-gate-acceptance.md
 reproduction_status: confirmed
 test_strategy: source-identity-negative-test
 automation_decision: required
@@ -123,7 +125,7 @@ source-policy remediation 已实现并静态通过：
   `a16aadf9c4d540cda8b95d1fc1ded94cf420aa0cfe5a1653b8f90d4cb72e0f51` /
   `254c7603554787ca38d880ac607f7dd4a21ae89064674490858245f0824951c9`。
 
-当前状态仍为 `in-progress / r4 historical fail-closed / source-policy remediation statically
+该 r4 时点状态仍为 `in-progress / r4 historical fail-closed / source-policy remediation statically
 passed / final review passed B/H/M/L=0/0/0/2 / amend/push + fresh r5 pending`；两项 Low
 均 accepted：`/usr/bin/echo` 平台前提漂移会 fail closed；同 UID 视为 build authority，未来
 更强隔离改用 readonly snapshot/独立 checkout。静态绿色不替代 fresh all-lane
@@ -147,8 +149,8 @@ diagnostic，`can_enter_coverage_audit=no`，Step 5 关闭。
 - [x] 完整 contract/source/XML/overlay negatives/static 通过。
 - [x] 最终复核=`ready-with-risks`，B/H/M/L=`0/0/0/2`。
 - [x] 两项 Low disposition 均 accepted。
-- [ ] amend/push 后证明 clean worktree 且 `HEAD == origin/main`。
-- [ ] 从新的 clean/pushed HEAD 完成唯一 fresh all-lane diagnostic。
+- [x] amend/push 后证明 clean worktree 且 `HEAD == origin/main`。
+- [x] 从新的 clean/pushed HEAD 完成 fresh all-lane diagnostic/formal。
 
 ## References
 
