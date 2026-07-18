@@ -311,11 +311,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     capsule_self_test = tool.diagnostic_capsule.run_self_test()
     if (
         capsule_self_test.get("status") != "passed"
-        or capsule_self_test.get("case_count") != 7
-        or len(capsule_self_test.get("cases", [])) != 7
+        or capsule_self_test.get("case_count") != 8
+        or len(capsule_self_test.get("cases", [])) != 8
     ):
         raise RuntimeError("portable diagnostic capsule self-test differs")
-    record_positive(cases, "frozen-diagnostic-capsule-self-test", "7-cases")
+    record_positive(cases, "frozen-diagnostic-capsule-self-test", "8-cases")
 
     identity_manifest = {
         "class_id_consistency_scope": tool.EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,

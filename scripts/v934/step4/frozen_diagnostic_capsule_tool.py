@@ -35,7 +35,7 @@ SUPPORT_FILES = (
     "scripts/v934/step4/reporter_effective_pom_tool.py",
     "scripts/v934/step4/toolchain_receipt_tool.py",
 )
-NEGATIVE_FIXTURE_LINKS = {
+FORBIDDEN_NEGATIVE_FIXTURE_LINKS = {
     "negative/coverage-exec/symlink.exec": "report/jacoco-aggregate.exec",
     "negative/coverage-xml/symlink.xml": "report/jacoco-aggregate/jacoco.xml",
 }
@@ -223,40 +223,10 @@ def add_ancestors(paths: set[str], relative: PurePosixPath) -> None:
         parent = parent.parent
 
 
-def allowed_negative_fixture_links(run_id: str) -> dict[str, str]:
-    prefix = f"target/v934-step4-coverage/runs/{run_id}/"
-    return {
-        f"{prefix}{link}": f"{prefix}{target}"
-        for link, target in NEGATIVE_FIXTURE_LINKS.items()
-    }
-
-
-def validate_omitted_link(
-    repo_root: Path,
-    relative: str,
-    expected_target: str,
-) -> None:
-    link = repo_root.joinpath(*PurePosixPath(relative).parts)
-    target = repo_root.joinpath(*PurePosixPath(expected_target).parts)
-    require(link.is_symlink(), "E_SYMLINK", f"negative fixture link differs: {relative}")
-    try:
-        resolved = link.resolve(strict=True)
-    except OSError as error:
-        raise CapsuleError("E_SYMLINK", f"negative fixture link is broken: {relative}") from error
-    require(
-        resolved == target.resolve(strict=True),
-        "E_SYMLINK",
-        f"negative fixture link target differs: {relative}",
-    )
-    regular_file(target, f"negative fixture link target {expected_target}")
-
-
 def scan_root(
     repo_root: Path,
     relative_value: str,
     collected: set[str],
-    allowed_links: dict[str, str],
-    omitted_links: set[str],
 ) -> None:
     relative = safe_relative(relative_value)
     candidate = repo_root.joinpath(*relative.parts)
@@ -281,15 +251,7 @@ def scan_root(
             child_relative = child.relative_to(repo_root).as_posix()
             child_stat = os.lstat(child)
             if stat.S_ISLNK(child_stat.st_mode):
-                expected_target = allowed_links.get(child_relative)
-                require(
-                    expected_target is not None,
-                    "E_SYMLINK",
-                    f"capsule closure contains symlink: {child_relative}",
-                )
-                validate_omitted_link(repo_root, child_relative, expected_target)
-                omitted_links.add(child_relative)
-                continue
+                reject("E_SYMLINK", f"capsule closure contains symlink: {child_relative}")
             require(
                 stat.S_ISDIR(child_stat.st_mode) or stat.S_ISREG(child_stat.st_mode),
                 "E_SPECIAL",
@@ -298,7 +260,7 @@ def scan_root(
             collected.add(child_relative)
 
 
-def closure_paths(repo_root: Path, run_id: str) -> tuple[list[str], list[str]]:
+def closure_paths(repo_root: Path, run_id: str) -> list[str]:
     require(RUN_ID.fullmatch(run_id) is not None, "E_RUN_ID", "unsafe diagnostic run id")
     roots = [
         f"target/v934-step4-coverage/runs/{run_id}",
@@ -307,24 +269,11 @@ def closure_paths(repo_root: Path, run_id: str) -> tuple[list[str], list[str]]:
     for module in frozen_modules(repo_root):
         roots.extend((f"{module}/pom.xml", f"{module}/target/classes"))
     collected: set[str] = set()
-    allowed_links = allowed_negative_fixture_links(run_id)
-    omitted_links: set[str] = set()
     for relative in roots:
-        scan_root(
-            repo_root,
-            relative,
-            collected,
-            allowed_links,
-            omitted_links,
-        )
-    require(
-        omitted_links == set(allowed_links),
-        "E_CLOSURE",
-        "diagnostic negative fixture symlink set differs",
-    )
+        scan_root(repo_root, relative, collected)
     result = sorted(collected, key=lambda item: item.encode("utf-8"))
     require(0 < len(result) <= MAX_ENTRIES, "E_ENTRY_COUNT", "capsule entry count differs")
-    return result, sorted(omitted_links, key=lambda item: item.encode("utf-8"))
+    return result
 
 
 def entry_record(repo_root: Path, relative: str) -> dict[str, Any]:
@@ -441,7 +390,7 @@ def build_capsule(
     require(not archive.exists() and not archive.is_symlink(), "E_OUTPUT_EXISTS", f"output exists: {archive}")
     require(not manifest.exists() and not manifest.is_symlink(), "E_OUTPUT_EXISTS", f"output exists: {manifest}")
     git_head, source_sha = run_identity(root, run_id)
-    relative_paths, omitted_links = closure_paths(root, run_id)
+    relative_paths = closure_paths(root, run_id)
     records = [entry_record(root, relative) for relative in relative_paths]
     with tempfile.TemporaryDirectory(prefix=".v934-capsule-build-", dir=output_parent) as temporary_name:
         temporary = Path(temporary_name)
@@ -459,7 +408,7 @@ def build_capsule(
             "git_head": git_head,
             "source_sha256": source_sha,
             "archive": {"sha256": archive_sha, "size": archive_size},
-            "omitted_negative_fixture_symlinks": omitted_links,
+            "omitted_negative_fixture_symlinks": [],
             "entry_count": len(records),
             "entries": records,
         }
@@ -521,13 +470,9 @@ def load_manifest(path: Path) -> dict[str, Any]:
     require(type(value["git_head"]) is str and HEX40.fullmatch(value["git_head"]) is not None, "E_MANIFEST", "capsule Git HEAD differs")
     require(type(value["source_sha256"]) is str and HEX64.fullmatch(value["source_sha256"]) is not None, "E_MANIFEST", "capsule source SHA differs")
     require(
-        value["omitted_negative_fixture_symlinks"]
-        == sorted(
-            allowed_negative_fixture_links(value["run_id"]),
-            key=lambda item: item.encode("utf-8"),
-        ),
+        value["omitted_negative_fixture_symlinks"] == [],
         "E_MANIFEST",
-        "omitted diagnostic negative fixture symlink set differs",
+        "portable diagnostic capsule must omit no symlinks",
     )
     archive = value["archive"]
     require(type(archive) is dict, "E_MANIFEST", "capsule archive binding is absent")
@@ -822,12 +767,6 @@ def fixture_repo(root: Path, run_id: str, git_head: str, source_sha: str) -> Non
     (run / "report/jacoco-aggregate.exec").write_bytes(b"exec\n")
     (run / "report/jacoco-aggregate").mkdir()
     (run / "report/jacoco-aggregate/jacoco.xml").write_bytes(b"<report/>\n")
-    for relative, target in NEGATIVE_FIXTURE_LINKS.items():
-        link = run / relative
-        link.parent.mkdir(parents=True, exist_ok=True)
-        link.symlink_to(run / target)
-
-
 def expect_failure(cases: list[dict[str, str]], name: str, code: str, action: Any) -> None:
     try:
         action()
@@ -904,6 +843,25 @@ def run_self_test() -> dict[str, Any]:
         nonempty.mkdir()
         (nonempty / "keep").write_text("keep", encoding="utf-8")
         expect_failure(cases, "nonempty-destination", "E_DESTINATION", lambda: materialize_capsule(first_archive, first_manifest, nonempty))
+        negative_link_repo = temporary / "negative-link-repo"
+        shutil.copytree(repo, negative_link_repo)
+        relative, target = next(iter(FORBIDDEN_NEGATIVE_FIXTURE_LINKS.items()))
+        negative_link = negative_link_repo / "target/v934-step4-coverage/runs" / run_id / relative
+        negative_link.parent.mkdir(parents=True, exist_ok=True)
+        negative_link.symlink_to(
+            negative_link_repo / "target/v934-step4-coverage/runs" / run_id / target
+        )
+        expect_failure(
+            cases,
+            "negative-fixture-symlink",
+            "E_SYMLINK",
+            lambda: build_capsule(
+                negative_link_repo,
+                run_id,
+                output / "negative-link.tar.gz",
+                output / "negative-link.json",
+            ),
+        )
         link_repo = temporary / "link-repo"
         shutil.copytree(repo, link_repo)
         link_target = link_repo / "module-00/target/classes/example/Fixture.class"
