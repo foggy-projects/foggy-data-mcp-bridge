@@ -963,3 +963,15 @@ coverage audit 与 acceptance 保持关闭。
 - replacement dynamic boundary：只允许从 clean/pushed replacement Cdiag 运行完整 diagnostic-r24；
   成功且 counter/probe 稳定后才能生成 candidate/capsule、双审/Cfreeze 和 fresh formal-r7。任何失败
   继续关闭 Step 5/9.3.5。
+
+## diagnostic-r24 reviewed-threshold test boundary（2026-07-19）
+
+- r24 full lanes=`773+59/5707/F0E0S0 + Addon 2/6`，exec/session=`23/48`；public diagnostic
+  validation、source before/after、model/sensitive、cleanup 与 exact external restore PASS；
+- aggregate oracle=`54624/76830 line, 26112/44870 branch`；12 critical/23 applicable 全部达 floor，
+  unique N/A=`NamespaceScope.branch`；target method=`4/4`，raw Unit bitmap=`_wU`；
+- candidate public verify、Reviewer A counter/probe replay、Reviewer B capsule rebuild/materialize 全 PASS；
+- canonical formal machine=`confirmed/formal-ready`；contract/frozen diagnostic/Step 4+6 manifests/workflows
+  与 negatives PASS；
+- fresh formal-r7 必须在 direct-child Cfreeze push/clean 后从真正 fresh clone 完整重跑，不得复用 r24
+  exec/XML 代替；任何 exact threshold、source、provenance、negative 或 cleanup 失败均 fail closed。

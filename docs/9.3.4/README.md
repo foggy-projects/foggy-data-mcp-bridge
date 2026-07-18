@@ -43,8 +43,9 @@ updated_at: 2026-07-19
   或可复用的 reviewed aggregate baseline。
 - Step 4 historical formal-r4、final quality、coverage audit 与 feature acceptance 已按序关闭；
   decision=`accepted`，25/25 workitem closed。后续 release-authority delta 触发 replacement
-  coverage authority；current Step 4=`in-progress / replacement Cdiag`、Step 5=`hold / closed`，
-  historical acceptance 不构成当前 downstream 授权。
+  coverage authority；current Step 4=`in-progress / pre-Cfreeze`，r24 candidate/capsule 双审与
+  machine formalization 已通过，Step 5=`hold / closed`；historical acceptance 不构成当前
+  downstream 授权。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -592,7 +593,7 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | r23 full PASS/public-valid but scheduling high-water freeze refused；MapBeanInfo deterministic regression `5/5`，pending clean/pushed Cdiag + diagnostic-r24 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-Cfreeze | r24 full PASS/public-valid；candidate/capsule 双审 `0/0/0/0`；machine=`confirmed/formal-ready`，pending direct-child Cfreeze commit/push + formal-r7 |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal-r7 + quality/audit/acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
@@ -629,3 +630,27 @@ predecessor migration manifest 和 successor current-source lanes 证明等价�
 - current machine=`diagnostic-ready / diagnostic-pending`。历史 r22/r23/Cfreeze 不可复用；必须
   replacement Cdiag→fresh diagnostic-r24→candidate/capsule/双审→direct-child Cfreeze→formal-r7；
 - Step 5–7、coverage acceptance replacement、9.3.5 与 9.4.0 在 formal-r7 完成前保持关闭。
+
+## Superseding diagnostic-r24 reviewed-Cfreeze status（2026-07-19）
+
+- replacement Cdiag=`414c8b12bff31155584e639e74987bf22df13ba9` 已 clean/pushed；fresh r24=
+  `completed / diagnostic-observed / exit 0 / public-valid`，required=`773+59/5707/F0E0S0`、
+  Addon=`2/6`、exec/session=`23/48`、source exact、cleanup/restore PASS；
+- aggregate exact line=`54624/76830`、branch=`26112/44870`、complexity=`17659/35571`；目标
+  `MapBeanInfoHelper#getBeanProperty` 在受控 existing-node regression 下稳定为 branch=`4/4`、
+  probe=`10/11 / _wU`；
+- immutable candidate=`f13f3c35…2ee`；portable capsule=`6638 entries / symlink 0`，两次独立
+  rebuild、public verify、空目录 materialize 全部 PASS；两路 independent review=`0/0/0/0`；
+- canonical machine 已 exact formalize：threshold=`confirmed / ddc1b24d…c04c`、contract=
+  `formal-ready / babdcd88…be1e`，Step 4/6 manifest=`61/61 + 16/16`，frozen r24 replay PASS；
+- pre-Cfreeze quality=`PASS / B0 H0 M0 L0`。当前只授权以 `414c8b12…` 为唯一直接父提交的
+  Cfreeze commit/push/clean 与一次 fresh-clone formal-r7；Step 5–7、post-formal audit/acceptance、
+  9.3.5 与 9.4.0 继续关闭。
+
+Current r24 records：
+
+- [diagnostic PASS](evidence/step-4/step4-coverage-diagnostic-r24-pass-20260719.md)
+- [immutable threshold candidate](evidence/step-4/step4-coverage-diagnostic-r24-threshold-candidate-20260719.json)
+- [dual threshold review](evidence/step-4/step4-coverage-diagnostic-r24-threshold-review-20260719.md)
+- [portable capsule manifest](evidence/step-4/step4-coverage-20260719-diagnostic-r24-portable-capsule.manifest.json)
+- [pre-Cfreeze implementation quality](quality/step4-r24-cfreeze-implementation-quality.md)

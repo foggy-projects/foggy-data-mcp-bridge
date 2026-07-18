@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | Step 3 exit passed | r23 full PASS/public-valid but scheduling high-water freeze refused；controlled MapBeanInfo regression `5/5`，pending replacement Cdiag/fresh diagnostic-r24 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-Cfreeze | Step 3 exit passed | r24 full PASS/public-valid；candidate/capsule 双审 `0/0/0/0`；machine=`confirmed/formal-ready`，pending direct-child Cfreeze + formal-r7 |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r7 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1760,3 +1760,18 @@ formal-r6 recovery 重新关闭。
   `foggy-core=97/F0E0S0`、independent review=`0/0/0/0`；
 - current：Step 4=`in-progress`，Step 5–7=`closed/hold`，9.3.5=`queued`；next=`replacement Cdiag
   commit/push -> fresh diagnostic-r24`。
+
+## Execution check-in — diagnostic-r24 reviewed Cfreeze（2026-07-19）
+
+- Cdiag=`414c8b12…` 已 clean/pushed；r24=`completed / diagnostic-observed / exit 0 / public-valid`；
+- lanes=`773+59/5707/F0E0S0 + Addon 2/6`，exec/session/classes=`23/48/16953`，production
+  universe=`24/2098`，source exact，cleanup=`0/0/0`，四个 exact demo DB restored healthy；
+- aggregate=`54624/76830 line, 26112/44870 branch, 17659/35571 complexity`；MapBeanInfo
+  method=`4/4`，raw Unit probe=`10/11 / _wU`；
+- candidate=`f13f3c35…2ee` 保持 `review-required`；capsule=`6638 entries / 0 symlink`，独立双
+  rebuild、verify、空目录 materialize PASS；Reviewer A/B=`APPROVE / combined 0/0/0/0`；
+- canonical working tree=`confirmed/formal-ready`；Step 4/6 manifests=`61/61 + 16/16`，frozen
+  diagnostic、contract、workflow 与 negatives PASS；pre-Cfreeze quality=`PASS / 0/0/0/0`；
+- current Step 4=`in-progress / ready-for-one-direct-child-Cfreeze`，`can_enter_step5=no`、
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；next=Cfreeze commit/push/topology/clean，
+  then one fresh-clone formal-r7。

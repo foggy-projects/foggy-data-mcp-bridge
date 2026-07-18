@@ -1013,3 +1013,14 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    public-valid 且目标 branch/probe 稳定，才允许生成全新 candidate/capsule 和启动 dual review；
 5. r22/r23/r6 均为历史只读输入，不能拼接；当前 authority 顺序为
    replacement Cdiag→r24→candidate/capsule→dual review→Cfreeze→formal-r7→post-gates。
+
+## Superseding r24 reviewed-threshold contract boundary（2026-07-19）
+
+1. Cdiag=`414c8b12…` 与 r24 source/run/provenance exact；public diagnostic validator PASS；
+2. reviewed aggregate exact 为 line=`54624/76830`、branch=`26112/44870`；12 critical、23 applicable、
+   1 structural N/A、below-floor=`0`，target probe=`10/11 / _wU`；
+3. candidate=`f13f3c35…2ee` 保持 immutable `review-required`；双审 receipt=`APPROVE / 0/0/0/0`；
+4. capsule 两次独立 rebuild 与 canonical exact，空目录 materialize PASS；source closure mismatch=`0`；
+5. canonical threshold/contract=`confirmed/formal-ready`，machine delta 只允许六个 exact paths；
+6. 下一状态只能是 direct-single-parent Cfreeze 后 fresh formal-r7；任何 counter/source/provenance/
+   negative/cleanup failure 均 fail closed，且不得降低 reviewed exact threshold。

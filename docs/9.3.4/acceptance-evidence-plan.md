@@ -565,3 +565,14 @@ contract；source、tests、coverage 和 final artifacts 均 absent。修复位�
 的 fresh diagnostic-r24、全新 review/Cfreeze 和 fresh formal-r7；r22/r23/r6 不得拼接。r23 虽
 public-valid，但 candidate/capsule 因 scheduling high-water 保持 absent。r7 PASS 后仍按 implementation
 quality→coverage audit→acceptance 顺序恢复 downstream entry。
+
+## Superseding diagnostic-r24 pre-Cfreeze acceptance boundary（2026-07-19）
+
+- r24 在 clean/pushed Cdiag `414c8b12…` 上完成全部 required lanes；public validation、source seal、
+  model/sensitive、cleanup 与 exact DB restore PASS；aggregate=`54624/76830 line + 26112/44870 branch`；
+- deterministic MapBeanInfo target=`4/4 branch / 10/11 _wU`；candidate=`f13f3c35…2ee`，capsule=
+  `6638 entries / 0 symlink`；dual independent review=`APPROVE / 0/0/0/0`；
+- canonical machine=`confirmed/formal-ready`，frozen r24 replay PASS，pre-Cfreeze quality=
+  `PASS / 0/0/0/0`。这些材料只授权 direct-child Cfreeze 和 fresh formal-r7；
+- acceptance 仍未重开：`can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+  formal-r7 PASS 后仍必须按 final quality→coverage audit→acceptance 顺序恢复。

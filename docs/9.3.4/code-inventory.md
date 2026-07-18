@@ -946,3 +946,15 @@ code_inventory:
   five fresh JVM class probe=`a6629aa379049ec7 / 10/11 / _wU` exact，owning module=`97/F0E0S0`；
 - current inventory 只授权 replacement Cdiag/fresh diagnostic-r24；r23 candidate/capsule absent，
   Step 5–7/9.3.5 继续 closed。
+
+## Execution check-in — diagnostic-r24 freeze inventory（2026-07-19）
+
+- replacement Cdiag=`414c8b12…`；r24 source closure=`4,077 tracked files / 102,591,681 bytes`，
+  before/after exact；production universe=`24 modules / 2,098 bytecode classes`；
+- required inventory=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`，runtime-loaded
+  identities=`16,953`；
+- r24 exact aggregate=`54624/76830 line, 26112/44870 branch, 17659/35571 complexity`；target
+  class id/probe=`a6629aa379049ec7 / 10/11 / _wU`；
+- candidate/capsule/review 已闭合；canonical formalization 只改六个 machine paths，其余仅
+  `docs/9.3.4/**`。production/test/POM/runner/workflow/floor/critical/exclusion inventory delta=`0`；
+- current inventory authorizes one direct-child Cfreeze and fresh formal-r7 only；Step 5–7/9.3.5 closed。

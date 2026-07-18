@@ -353,3 +353,12 @@ updated_at: 2026-07-19
   唯一 fresh diagnostic-r24；
 - threshold owner 在 r24 public validation、counter/probe review 前无 freeze 权限；Step 5–7、9.3.5、
   9.4.0 owners 继续 queued/closed。
+
+## Superseding r24 ownership handoff（2026-07-19）
+
+- Step 4 coverage owner 已关闭 r24 all-lane/public-validation、counter/probe 与 cleanup responsibility；
+- threshold reviewers 已关闭 candidate/critical/provenance/capsule 双审，combined findings=`0/0/0/0`；
+- machine owner 已将 exact projection 封为 `confirmed/formal-ready` 并关闭 Step 4/6 hash cascade；
+- Cfreeze owner 当前只负责 direct-single-parent commit/push/topology/clean proof；随后 formal owner
+  必须在真正 fresh clone 完整运行 formal-r7；
+- quality/audit/acceptance、Step 5–7、9.3.5/9.4.0 owners 在 formal-r7 PASS 前不得接管 execution。

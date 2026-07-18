@@ -704,3 +704,15 @@ updated_at: 2026-07-19
 - current definition of done：controlled regression 后 replacement Cdiag、fresh diagnostic-r24、new
   review/Cfreeze、fresh formal-r7、final quality/audit/acceptance 全 PASS；在此之前
   `can_enter_step5=no` 且 9.3.5 closed。
+
+## Superseding diagnostic-r24 reviewed-Cfreeze requirement boundary（2026-07-19）
+
+- replacement Cdiag=`414c8b12…` 已 clean/pushed；r24 满足全部 lane、source/provenance、critical、
+  model/sensitive、cleanup 与 DB restore requirement；
+- exact coverage requirement 输入更新为 line=`54624/76830`、branch=`26112/44870`；target
+  MapBeanInfo outcome 已由 controlled existing-node regression 稳定为 branch=`4/4`、probe=`_wU`；
+- immutable candidate、deterministic capsule、empty-directory materialize 与两路 independent review
+  全部 PASS，B/H/M/L=`0/0/0/0`；
+- canonical threshold/contract=`confirmed/formal-ready`，frozen r24 replay 与 fail-closed negatives PASS；
+- 当前 requirement exit 仅到 `ready-for-direct-child-Cfreeze`。fresh formal-r7、final quality、coverage
+  audit、acceptance 未发生，故 `can_enter_step5=no`、9.3.5 closed。

@@ -48,9 +48,10 @@ r23 不可作为可复现 threshold authority。
   `a6629aa379049ec7 / 10/11 / _wU` exact identical，method branch=`4/4`、complexity=`3/3`；
 - [x] owning module=`97/F0E0S0`；test cardinality 不变；production/POM/runner/threshold diff=`0`；
 - [x] independent code review=`APPROVE / B0 H0 M0 L0`；
-- [ ] replacement Cdiag commit/push/clean；
-- [ ] fresh diagnostic-r24 and exact counter/probe confirmation；
-- [ ] new threshold review/Cfreeze/fresh formal-r7；
+- [x] replacement Cdiag commit/push/clean=`414c8b12…`；
+- [x] fresh diagnostic-r24 and exact counter/probe confirmation；
+- [x] new candidate/capsule、dual threshold review 与 canonical machine formalization；
+- [ ] direct-child Cfreeze commit/push/clean 与 fresh formal-r7；
 - [ ] replacement quality/coverage/acceptance 后关闭本 BUG。
 
 ## References
@@ -58,4 +59,6 @@ r23 不可作为可复现 threshold authority。
 - `foggy-core/src/main/java/com/foggyframework/core/utils/beanhelper/BeanInfoHelper.java`
 - `foggy-core/src/test/java/com/foggyframework/core/utils/beanhelper/BeanInfoHelperTest.java`
 - `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r23-incidental-map-double-check-high-water-20260719.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r24-pass-20260719.md`
+- `docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r24-threshold-review-20260719.md`
 - `scripts/v934/step4/coverage_xml_tool.py`
