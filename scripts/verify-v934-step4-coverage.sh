@@ -39,11 +39,15 @@ usage() {
 Usage:
   scripts/verify-v934-step4-coverage.sh [diagnostic] [RUN_ID]
   scripts/verify-v934-step4-coverage.sh formal [RUN_ID]
+  scripts/verify-v934-step4-coverage.sh release [RUN_ID]
 
 Diagnostic requires the exact diagnostic-ready/diagnostic-pending workflow
 state and records an observed baseline without an acceptance artifact. Formal
 requires the exact formal-ready/confirmed successor, a direct single-parent
 threshold-freeze commit, and publishes the canonical gate/candidate/final chain.
+Release is a post-Step-4 successor replay: it consumes the already confirmed
+thresholds and publishes the same fully checked artifact chain, but does not
+pretend that its current commit is the historical diagnostic's Cfreeze child.
 EOF
 }
 
@@ -1815,6 +1819,8 @@ finalize_run() {
   if [[ "$sealed" == true ]]; then
     if [[ "$MODE" == diagnostic ]]; then
       echo "[v934-step4-coverage] DIAGNOSTIC PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=not-generated"
+    elif [[ "$MODE" == release ]]; then
+      echo "[v934-step4-coverage] RELEASE PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=successor-final"
     else
       echo "[v934-step4-coverage] FORMAL PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=final"
     fi
@@ -2038,7 +2044,7 @@ case "$#" in
   0) ;;
   1)
     case "$1" in
-      diagnostic|formal) MODE="$1" ;;
+      diagnostic|formal|release) MODE="$1" ;;
       -h|--help) usage; exit 0 ;;
       *) RUN_ID="$1" ;;
     esac
@@ -2049,7 +2055,8 @@ case "$#" in
     ;;
   *) usage >&2; exit 2 ;;
 esac
-[[ "$MODE" == diagnostic || "$MODE" == formal ]] || fail "mode must be diagnostic or formal"
+[[ "$MODE" == diagnostic || "$MODE" == formal || "$MODE" == release ]] || \
+  fail "mode must be diagnostic, formal, or release"
 RUN_ID="${RUN_ID:-step4-coverage-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$RUN_ID" != . && "$RUN_ID" != .. && "${#RUN_ID}" -le 128 ]] || \
   fail "unsafe run id: $RUN_ID"
@@ -2171,7 +2178,7 @@ if [[ "$MODE" == diagnostic ]]; then
     fail "diagnostic requires diagnostic-ready/diagnostic-pending, got $WORKFLOW_STATE/$THRESHOLD_STATUS"
 else
   [[ "$WORKFLOW_STATE" == formal && "$THRESHOLD_STATUS" == confirmed ]] || \
-    fail "formal requires formal-ready/confirmed, got $WORKFLOW_STATE/$THRESHOLD_STATUS"
+    fail "$MODE requires formal-ready/confirmed, got $WORKFLOW_STATE/$THRESHOLD_STATUS"
 fi
 
 # The top-level runner is the only owner of the canonical authority lock.
@@ -2318,7 +2325,7 @@ if [[ "$MODE" == formal ]]; then
   require_real_file "$RUN_ROOT/formalization-delta.json"
 else
   [[ ! -e "$RUN_ROOT/formalization-delta.json" && ! -L "$RUN_ROOT/formalization-delta.json" ]] || \
-    fail "diagnostic run contains a formalization delta"
+    fail "non-Cfreeze run contains a formalization delta"
 fi
 
 PHASE=bootstrap-negative
@@ -2874,6 +2881,8 @@ SUMMARY_ROWS=( \
 )
 if [[ "$MODE" == formal ]]; then
   SUMMARY_ROWS+=("formalization_delta_sha256=$(sha256_file "$RUN_ROOT/formalization-delta.json")")
+elif [[ "$MODE" == release ]]; then
+  SUMMARY_ROWS+=("release_successor=confirmed-threshold-post-step4-replay")
 fi
 SUMMARY_ROWS+=( \
   "toolchain_receipt_sha256=$TOOLCHAIN_RECEIPT_SHA" \
@@ -2910,28 +2919,32 @@ SUMMARY_ROWS+=( \
   "addon_testcase_nodes=6" \
   "model_external_gate=passed" \
   "acceptance_candidate=$([[ "$MODE" == diagnostic ]] && printf not-generated || printf required)" \
-  "status=$([[ "$MODE" == diagnostic ]] && printf diagnostic-observed || printf formal-candidate-ready)"
+  "status=$([[ "$MODE" == diagnostic ]] && printf diagnostic-observed || { [[ "$MODE" == formal ]] && printf formal-candidate-ready || printf release-candidate-ready; })"
 )
 atomic_env "$RUN_ROOT/summary.env" "${SUMMARY_ROWS[@]}"
 
-if [[ "$MODE" == formal ]]; then
-  PHASE=formal-coverage-gate
+if [[ "$MODE" != diagnostic ]]; then
+  PHASE="${MODE}-coverage-gate"
   python3 "$COVERAGE_XML_TOOL" formal-check \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --run-id "$RUN_ID" \
     --output "$RUN_ROOT/coverage-gate.json"
-  PHASE=formal-candidate
+  PHASE="${MODE}-candidate"
   python3 "$COVERAGE_XML_TOOL" build-artifact \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --stage candidate \
     --run-id "$RUN_ID" \
     --coverage-gate "$RUN_ROOT/coverage-gate.json" \
     --output "$RUN_ROOT/candidate-manifest.json"
   python3 "$COVERAGE_XML_TOOL" verify-artifact \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --artifact "$RUN_ROOT/candidate-manifest.json"
-  PHASE=formal-final-preseal
+  PHASE="${MODE}-final-preseal"
   python3 "$COVERAGE_XML_TOOL" build-artifact \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --stage final \
     --candidate "$RUN_ROOT/candidate-manifest.json" \

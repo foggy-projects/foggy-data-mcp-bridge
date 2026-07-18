@@ -31,11 +31,11 @@
     },
     "database_contract": {
       "path": "scripts/v934/step4/successor/database-matrix-contract.json",
-      "sha256": "cca2158bb0cdb99d125f9d93b8fb37cbfd589ade059fdd039e7c42dfa3c167e5"
+      "sha256": "7bdb04e8a12244c737b656f3fab316aa571649bc8ca5fb5a68f2d712929f64de"
     },
     "database_report_tool": {
       "path": "scripts/v934/step4/successor/database_matrix_report_tool.py",
-      "sha256": "819124b30f993703eeaff973b53c69d0b7ce27fbad0407db331336f993359f3f"
+      "sha256": "f742c9e3a6a11ec419db196dd81861e83fbbc2994b3b335204263f8ded8266b2"
     },
     "database_runner": {
       "path": "scripts/verify-v934-database-matrix.sh",

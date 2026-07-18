@@ -284,7 +284,7 @@ def load_contract(root: Path) -> tuple[dict[str, Any], Path]:
     require(
         amendment == {
             "path": "scripts/v934/step4/coverage-report-amendment.tsv",
-            "sha256": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
+            "sha256": "8fc95f9a04f8c0e6c50d3bcd4361975bcfec42b8b893d93ed041f33a5f8f765c",
             "rows": 12,
             "new_positive_reports": 4,
             "changed_positive_reports": 8,

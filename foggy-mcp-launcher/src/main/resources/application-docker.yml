@@ -12,8 +12,8 @@ spring:
   # ==========================================
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:13306/foggy_test}
-    username: ${SPRING_DATASOURCE_USERNAME:foggy}
-    password: ${SPRING_DATASOURCE_PASSWORD:foggy_test_123}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       pool-name: FoggyMcpHikariCP
@@ -97,7 +97,7 @@ foggy:
         timeout-seconds: 30
       chart-render:
         base-url: ${CHART_RENDER_URL:http://localhost:3000}
-        auth-token: ${CHART_RENDER_TOKEN:default-render-token}
+        auth-token: ${CHART_RENDER_TOKEN:}
         timeout-seconds: 60
 
     audit:

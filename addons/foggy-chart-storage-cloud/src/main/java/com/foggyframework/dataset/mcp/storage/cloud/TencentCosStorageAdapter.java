@@ -28,8 +28,8 @@ import java.io.ByteArrayInputStream;
  *       type: tencent-cos
  *       tencent-cos:
  *         region: ap-guangzhou
- *         secret-id: your-secret-id
- *         secret-key: your-secret-key
+ *         secret-id: ${TENCENT_COS_SECRET_ID}
+ *         secret-key: ${TENCENT_COS_SECRET_KEY}
  *         bucket-name: your-bucket-1250000000
  *         path-prefix: charts/
  *         custom-domain: https://cdn.example.com

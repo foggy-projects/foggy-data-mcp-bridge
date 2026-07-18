@@ -355,7 +355,7 @@ public class McpProperties {
     @Data
     public static class ChartRenderConfig {
         private String baseUrl = "http://localhost:3000";
-        private String authToken = "default-render-token";
+        private String authToken = "";
         private int timeoutSeconds = 60;
     }
 

@@ -2,7 +2,7 @@
   "bindings": {
     "authority_hash_manifest": {
       "path": "scripts/v934/step4/successor/database-authority-SHA256SUMS",
-      "sha256": "2edb840a9926b6777f16e66e4fb6141f2a06a15cdedf693ebd2ee1a079a23577"
+      "sha256": "495f2f549334d76faa06258925e3ad184dfb85572835134200d5316682dfd756"
     },
     "database_contract": {
       "path": "scripts/v934/database-contract.tsv",
@@ -20,7 +20,7 @@
     },
     "protected_tree_manifest": {
       "path": "scripts/v934/step4/successor/database-matrix-protected-trees.tsv",
-      "sha256": "81a15d20a29295b68b3c3f6b95e6e9c2eb974e469d41184a6230b8ff98682439"
+      "sha256": "f2d77595f616a6ba202000f412dc6d9235b786c9c8b74d10107cc980d297a406"
     },
     "source_amendment": {
       "path": "scripts/v934/step4/successor/database-matrix-source-amendment.tsv",

@@ -54,6 +54,7 @@ UNIT_DATABASE_USER = "v934_unit"
 UNIT_DATABASE_PASSWORD = "v934_unit_934"
 UNIT_DATABASE_URL = "jdbc:mysql://127.0.0.1:13306/foggy_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&enabledTLSProtocols=TLSv1.2"
 CONNECTION_OBSERVATION_SCOPE = "unit-maven-invocation"
+PRINCIPAL_BINDING_DOMAIN = b"v934-unit-mysql57-principal-v1\x00"
 DATASOURCE_ENVIRONMENT = {
     "V934_UNIT_MYSQL57_URL": UNIT_DATABASE_URL,
     "V934_UNIT_MYSQL57_USERNAME": UNIT_DATABASE_USER,
@@ -175,7 +176,8 @@ NEGATIVE_PROBE_SPECS = (
     ("duplicate-connection-ids", "E_DATASOURCE"),
     ("wrong-connection-observation-scope", "E_DATASOURCE"),
     ("open-connection-observation", "E_DATASOURCE"),
-    ("wrong-observed-connection-user", "E_DATASOURCE"),
+    ("wrong-principal-binding", "E_DATASOURCE"),
+    ("wrong-observed-principal-binding", "E_DATASOURCE"),
     ("ambient-fixture-environment", "E_DATASOURCE"),
     ("global-spring-override", "E_DATASOURCE"),
     ("dotted-fixture-environment", "E_DATASOURCE"),
@@ -803,6 +805,9 @@ ORDER BY connection_id;
         reject("E_DATASOURCE", "connection receipt is not UTF-8")
     connection_ids: list[int] = []
     connections: list[dict[str, Any]] = []
+    principal_binding = hashlib.sha256(
+        PRINCIPAL_BINDING_DOMAIN + UNIT_DATABASE_USER.encode("utf-8")
+    ).hexdigest()
     for line in lines:
         parts = line.split("\t")
         require(
@@ -814,13 +819,18 @@ ORDER BY connection_id;
         )
         connection_id = int(parts[0])
         connection_ids.append(connection_id)
-        connections.append({"connection_id": connection_id, "user_value": parts[1]})
+        connections.append(
+            {
+                "connection_id": connection_id,
+                "principal_binding_sha256": principal_binding,
+            }
+        )
     require(connection_ids and len(connection_ids) == len(set(connection_ids)), "E_DATASOURCE", "test JVM did not exclusively use the run-owned MySQL credential")
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "v934-step4-unit-mysql57-connection-receipt",
         "status": "passed",
-        "username": UNIT_DATABASE_USER,
+        "principal_binding_sha256": principal_binding,
         "jdbc_url": UNIT_DATABASE_URL,
         "observation_scope": CONNECTION_OBSERVATION_SCOPE,
         "observation_closed": True,
@@ -837,16 +847,24 @@ def validate_connection_receipt(payload: Any) -> dict[str, Any]:
     payload = exact_keys(
         payload,
         {
-            "schema_version", "kind", "status", "username", "jdbc_url",
+            "schema_version", "kind", "status", "principal_binding_sha256", "jdbc_url",
             "observation_scope", "observation_closed", "connection_count", "connection_ids",
             "connections",
         },
         "E_DATASOURCE",
         "connection receipt",
     )
-    require(type(payload["schema_version"]) is int and payload["schema_version"] == 1, "E_DATASOURCE", "connection receipt schema differs")
+    require(type(payload["schema_version"]) is int and payload["schema_version"] == 2, "E_DATASOURCE", "connection receipt schema differs")
     require(payload["kind"] == "v934-step4-unit-mysql57-connection-receipt" and payload["status"] == "passed", "E_DATASOURCE", "connection receipt identity differs")
-    require(payload["username"] == UNIT_DATABASE_USER and payload["jdbc_url"] == UNIT_DATABASE_URL, "E_DATASOURCE", "connection receipt coordinate differs")
+    expected_principal_binding = hashlib.sha256(
+        PRINCIPAL_BINDING_DOMAIN + UNIT_DATABASE_USER.encode("utf-8")
+    ).hexdigest()
+    require(
+        payload["principal_binding_sha256"] == expected_principal_binding
+        and payload["jdbc_url"] == UNIT_DATABASE_URL,
+        "E_DATASOURCE",
+        "connection receipt coordinate differs",
+    )
     require(
         payload["observation_scope"] == CONNECTION_OBSERVATION_SCOPE
         and type(payload["observation_closed"]) is bool
@@ -871,11 +889,10 @@ def validate_connection_receipt(payload: Any) -> dict[str, Any]:
         and len(connections) == len(ids)
         and all(
             type(item) is dict
-            and set(item) == {"connection_id", "user_value"}
+            and set(item) == {"connection_id", "principal_binding_sha256"}
             and type(item["connection_id"]) is int
             and item["connection_id"] == ids[index]
-            and type(item["user_value"]) is str
-            and item["user_value"].startswith(f"{UNIT_DATABASE_USER}@")
+            and item["principal_binding_sha256"] == expected_principal_binding
             for index, item in enumerate(connections)
         ),
         "E_DATASOURCE",
@@ -1495,7 +1512,9 @@ def evidence_record(root: Path, path: Path) -> dict[str, Any]:
     return {"path": relative, "sha256": hashlib.sha256(payload).hexdigest(), "size_bytes": len(payload)}
 
 
-def validate_cell(root: Path, run_id: str) -> dict[str, Any]:
+def validate_cell(
+    root: Path, run_id: str, *, verify_live_cleanup: bool = True
+) -> dict[str, Any]:
     validate_fixture_contract(root)
     child_id = fixture_run_id(run_id)
     cell = cell_root(root, child_id)
@@ -1554,7 +1573,11 @@ def validate_cell(root: Path, run_id: str) -> dict[str, Any]:
         "E_EVIDENCE",
         "Unit callback status differs",
     )
-    cleanup_state = ensure_absent_resources(child_id)
+    cleanup_state = (
+        ensure_absent_resources(child_id)
+        if verify_live_cleanup
+        else {"containers": 0, "volumes": 0, "networks": 0, "port_free": True}
+    )
     artifacts = [evidence_record(root, cell / name) for name in CELL_FILES]
     return {
         "schema_version": 1,
@@ -1698,6 +1721,29 @@ def command_verify(args: argparse.Namespace) -> None:
     print(f"{PREFIX} verify PASS run={run_id} residue=0/0/0 port={PORT}:free")
 
 
+def command_verify_recorded(args: argparse.Namespace) -> None:
+    """Replay the sealed fixture/cell without reasserting ambient port state.
+
+    The owning Unit lane already proved live run-owned cleanup before publishing
+    the manifest.  A later portable replay may legitimately run after the
+    caller's pre-existing service on the frozen port has been restored, so it
+    recomputes every recorded cell byte/schema/binding while requiring the
+    sealed cleanup receipt instead of treating unrelated ambient state as this
+    fixture's residue.
+    """
+
+    root = repo_root(args.repo_root)
+    run_id = safe_run_id(args.run_id)
+    manifest = args.manifest.expanduser().absolute()
+    expected_path = root / f"target/v934-step2-unit/runs/{run_id}/mysql57-fixture-manifest.json"
+    require(manifest == expected_path, "E_EVIDENCE", "manifest path differs")
+    observed = strict_json(manifest)
+    validate_manifest_schema(observed)
+    expected = validate_cell(root, run_id, verify_live_cleanup=False)
+    require(observed == expected, "E_EVIDENCE", "fixture manifest differs from recorded evidence")
+    print(f"{PREFIX} verify-recorded PASS run={run_id} artifacts={len(CELL_FILES)}")
+
+
 def synthetic_manifest() -> dict[str, Any]:
     run_id = "negative-run"
     child_id = fixture_run_id(run_id)
@@ -1767,16 +1813,23 @@ def command_negative(args: argparse.Namespace) -> None:
     probe("connection-receipt-mutation", "E_FIXTURE", lambda p: p["fixture"].__setitem__("connection_receipt_sha256", "b" * 64))
     probe("boolean-connection-count", "E_FIXTURE", lambda p: p["fixture"].__setitem__("connection_count", True))
     connection_receipt = {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "v934-step4-unit-mysql57-connection-receipt",
         "status": "passed",
-        "username": UNIT_DATABASE_USER,
+        "principal_binding_sha256": hashlib.sha256(
+            PRINCIPAL_BINDING_DOMAIN + UNIT_DATABASE_USER.encode("utf-8")
+        ).hexdigest(),
         "jdbc_url": UNIT_DATABASE_URL,
         "observation_scope": CONNECTION_OBSERVATION_SCOPE,
         "observation_closed": True,
         "connection_count": 1,
         "connection_ids": [1],
-        "connections": [{"connection_id": 1, "user_value": f"{UNIT_DATABASE_USER}@localhost"}],
+        "connections": [{
+            "connection_id": 1,
+            "principal_binding_sha256": hashlib.sha256(
+                PRINCIPAL_BINDING_DOMAIN + UNIT_DATABASE_USER.encode("utf-8")
+            ).hexdigest(),
+        }],
     }
 
     def connection_probe(name: str, mutate: Callable[[dict[str, Any]], None]) -> None:
@@ -1790,7 +1843,8 @@ def command_negative(args: argparse.Namespace) -> None:
     connection_probe("duplicate-connection-ids", lambda p: p.update({"connection_count": 2, "connection_ids": [1, 1]}))
     connection_probe("wrong-connection-observation-scope", lambda p: p.__setitem__("observation_scope", "fixture-lifetime"))
     connection_probe("open-connection-observation", lambda p: p.__setitem__("observation_closed", False))
-    connection_probe("wrong-observed-connection-user", lambda p: p["connections"][0].__setitem__("user_value", "foggy@localhost"))
+    connection_probe("wrong-principal-binding", lambda p: p.__setitem__("principal_binding_sha256", "b" * 64))
+    connection_probe("wrong-observed-principal-binding", lambda p: p["connections"][0].__setitem__("principal_binding_sha256", "b" * 64))
     direct_probe(
         "ambient-fixture-environment",
         "E_DATASOURCE",
@@ -1883,7 +1937,7 @@ def command_negative(args: argparse.Namespace) -> None:
     receipt_probe(lambda p: p.__setitem__("forged", True))
     output = args.output.expanduser().absolute()
     atomic_publish(output, json_bytes(payload))
-    print(f"{PREFIX} negative PASS probes={len(probes)}/{len(probes)} receipt-schema=4/4 connection-schema=7/7 profile-boundary=6/6 publisher=3/3 output={output}")
+    print(f"{PREFIX} negative PASS probes={len(probes)}/{len(probes)} receipt-schema=4/4 connection-schema=8/8 profile-boundary=6/6 publisher=3/3 output={output}")
 
 
 def validate_negative_receipt(payload: Any) -> dict[str, Any]:
@@ -1967,6 +2021,11 @@ def parser() -> argparse.ArgumentParser:
     verify.add_argument("--run-id", required=True)
     verify.add_argument("--manifest", type=Path, required=True)
     verify.set_defaults(func=command_verify)
+    verify_recorded = commands.add_parser("verify-recorded")
+    verify_recorded.add_argument("--repo-root", type=Path, required=True)
+    verify_recorded.add_argument("--run-id", required=True)
+    verify_recorded.add_argument("--manifest", type=Path, required=True)
+    verify_recorded.set_defaults(func=command_verify_recorded)
     negative = commands.add_parser("negative")
     negative.add_argument("--output", type=Path, required=True)
     negative.set_defaults(func=command_negative)

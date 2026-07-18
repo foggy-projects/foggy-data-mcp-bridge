@@ -1,0 +1,482 @@
+{
+  "schema_version": 1,
+  "kind": "v934-final-promotion-contract",
+  "version": "9.3.4",
+  "authority_candidate_pointer": "authority-candidate-run.env",
+  "final_pointer": "final-authority-run.env",
+  "evidence_directory": "step7/runs/{authority_run_id}",
+  "evidence_files": [
+    "branch-protection-api.json",
+    "branch-protection-receipt.json",
+    "main-aggregate-receipt.json",
+    "main-artifacts-api.json",
+    "main-ci-receipt.json",
+    "main-jobs-api.json",
+    "main-required-artifact-transport.json",
+    "main-required-artifact.zip",
+    "main-run-api.json",
+    "portable-replay.json",
+    "pr-aggregate-receipt.json",
+    "pr-api.json",
+    "pr-artifacts-api.json",
+    "pr-ci-receipt.json",
+    "pr-jobs-api.json",
+    "pr-required-artifact-transport.json",
+    "pr-required-artifact.zip",
+    "pr-run-api.json",
+    "release-artifacts-api.json",
+    "release-dry-run-artifact-transport.json",
+    "release-dry-run-artifact.zip",
+    "release-dry-run-receipt.json",
+    "release-jobs-api.json",
+    "release-platform-receipt.json",
+    "release-run-api.json",
+    "version-coverage-audit.md",
+    "version-implementation-quality.md",
+    "version-signoff.md"
+  ],
+  "authority_artifacts": {
+    "summary": "summary.env",
+    "archive": "bundle/v934-release-evidence.tar.gz",
+    "archive_manifest": "bundle/v934-release-evidence.archive.json",
+    "archive_digest": "bundle/v934-release-evidence.tar.gz.sha256",
+    "jar": "package/app.jar",
+    "package_manifest": "package/package-manifest.json",
+    "image_manifest": "package/image-manifest.json"
+  },
+  "runtime_base_image": {
+    "tag_reference": "eclipse-temurin:17-jre-alpine",
+    "pinned_reference": "eclipse-temurin:17-jre-alpine@sha256:b658bee7bbf0277559bd07dfb2e8473c30dc90c3da0d8cfe568e61f52792ce52",
+    "index_digest": "sha256:02320dd4ce20e243dfb915c686089cf9315c763084fafbb12d5c9993aee18b57",
+    "manifest_digest": "sha256:b658bee7bbf0277559bd07dfb2e8473c30dc90c3da0d8cfe568e61f52792ce52",
+    "config_digest": "sha256:af15432fe4678068270da7f69356edd1e53555f15671a6373ce44d9e65c2dfcc",
+    "platform": {
+      "os": "linux",
+      "architecture": "amd64"
+    }
+  },
+  "repository": {
+    "full_name": "foggy-projects/foggy-data-mcp-bridge",
+    "branch": "main",
+    "origin_urls": [
+      "git@github.com:foggy-projects/foggy-data-mcp-bridge.git",
+      "https://github.com/foggy-projects/foggy-data-mcp-bridge",
+      "https://github.com/foggy-projects/foggy-data-mcp-bridge.git"
+    ],
+    "tooling_manifest": "scripts/v934/step5/SHA256SUMS",
+    "frozen_tooling_paths": [
+      "foggy-mcp-launcher/Dockerfile.release",
+      "scripts/v934/step5/final-promotion-contract.json",
+      "scripts/v934/step5/pointer_tool.py",
+      "scripts/v934/step5/portable_replay_tool.py",
+      "scripts/v934/step5/release-artifact-contract.json",
+      "scripts/v934/step5/release_artifact_tool.py",
+      "scripts/v934/step5/release_package_tool.py",
+      "scripts/verify-v934-release-gate.sh"
+    ]
+  },
+  "portable_replay": {
+    "schema_version": 1,
+    "kind": "v934-portable-release-replay",
+    "top_level_fields": [
+      "schema_version",
+      "kind",
+      "status",
+      "run_id",
+      "release_mode",
+      "git_head",
+      "source_sha256",
+      "fixture_run_id",
+      "input",
+      "contract_freeze",
+      "fixture_manifest",
+      "package",
+      "materialized",
+      "subprocesses",
+      "step4"
+    ],
+    "package_fields": [
+      "files",
+      "manifest_kind",
+      "tested_classes"
+    ],
+    "package_file_fields": [
+      "sha256",
+      "size"
+    ]
+  },
+  "artifact_transport": {
+    "schema_version": 1,
+    "kind": "v934-rest-artifact-transport",
+    "receipt_fields": [
+      "schema_version",
+      "kind",
+      "status",
+      "repository",
+      "role",
+      "workflow_run_id",
+      "attempt",
+      "artifact",
+      "archive",
+      "member",
+      "entries"
+    ],
+    "artifact_fields": [
+      "id",
+      "name",
+      "digest",
+      "expired"
+    ],
+    "archive_fields": [
+      "file",
+      "sha256",
+      "size_bytes"
+    ],
+    "member_fields": [
+      "path",
+      "sha256",
+      "size_bytes"
+    ],
+    "entries_fields": [
+      "file_count",
+      "directory_count",
+      "total_uncompressed_bytes",
+      "manifest_sha256"
+    ],
+    "framing": "unique-eocd-at-eof-no-comment-no-zip64-exact-central-and-contiguous-local-records-no-prefix-trailing-concatenation",
+    "roles": {
+      "pr": {
+        "role": "pr-required",
+        "archive_file": "pr-required-artifact.zip",
+        "receipt_file": "pr-required-artifact-transport.json",
+        "member_path": "aggregator/required-aggregate-receipt.json",
+        "local_file": "pr-aggregate-receipt.json",
+        "artifact_prefix": "v934-required-receipt",
+        "exact_files": null
+      },
+      "main": {
+        "role": "main-required",
+        "archive_file": "main-required-artifact.zip",
+        "receipt_file": "main-required-artifact-transport.json",
+        "member_path": "aggregator/required-aggregate-receipt.json",
+        "local_file": "main-aggregate-receipt.json",
+        "artifact_prefix": "v934-required-receipt",
+        "exact_files": null
+      },
+      "release": {
+        "role": "release-dry-run",
+        "archive_file": "release-dry-run-artifact.zip",
+        "receipt_file": "release-dry-run-artifact-transport.json",
+        "member_path": "receipt.json",
+        "local_file": "release-dry-run-receipt.json",
+        "artifact_prefix": "v934-release-dry-run",
+        "exact_files": [
+          "main-artifacts.json",
+          "main-jobs.json",
+          "main-run.json",
+          "receipt.json"
+        ]
+      }
+    },
+    "limits": {
+      "archive_bytes": 67108864,
+      "entries": 256,
+      "extracted_bytes": 67108864,
+      "member_bytes": 33554432
+    }
+  },
+  "ci": {
+    "workflow_file": ".github/workflows/test-ci-evidence-chain.yml",
+    "aggregator_id": "required-aggregator",
+    "aggregator_name": "9.3.4 Test & Release Authority",
+    "pr_event": "pull_request",
+    "pr_gate_mode": "rehearsal",
+    "main_event": "push",
+    "main_gate_mode": "authority",
+    "receipt_fields": [
+      "schema_version",
+      "kind",
+      "status",
+      "version",
+      "repository",
+      "event_name",
+      "workflow_file",
+      "workflow_run_id",
+      "attempt",
+      "commit_sha",
+      "platform_head_sha",
+      "authority_run_id",
+      "gate_mode",
+      "pull_request_number",
+      "aggregator",
+      "aggregate_receipt_sha256",
+      "required_receipt_artifact",
+      "required_artifact_transport_sha256",
+      "run_api_sha256",
+      "jobs_api_sha256",
+      "artifacts_api_sha256",
+      "pull_request_api_sha256"
+    ],
+    "aggregator_fields": [
+      "id",
+      "name",
+      "job_id",
+      "conclusion"
+    ],
+    "artifact_fields": [
+      "id",
+      "name",
+      "digest",
+      "expired"
+    ],
+    "required_job_names": [
+      "Inventory + Unit — single gate producer",
+      "SQLite broad integration evidence",
+      "Exact five-database artifact collector",
+      "External integration evidence",
+      "Immutable coverage collector/check",
+      "Same-tested JAR and package evidence",
+      "9.3.4 Test & Release Authority"
+    ],
+    "required_artifact_prefixes": [
+      "v934-gate-run",
+      "v934-db-sqlite",
+      "v934-db-mysql57",
+      "v934-db-mysql8",
+      "v934-db-postgres15",
+      "v934-db-sqlserver2022",
+      "v934-db-collector",
+      "v934-portable-replay",
+      "v934-tested-release-assets",
+      "v934-required-receipt"
+    ]
+  },
+  "branch_protection": {
+    "branch": "main",
+    "strict": true,
+    "receipt_fields": [
+      "schema_version",
+      "kind",
+      "status",
+      "version",
+      "repository",
+      "branch",
+      "commit_sha",
+      "strict",
+      "enforce_admins",
+      "required_contexts",
+      "github_api_response_sha256"
+    ],
+    "required_contexts": [
+      "9.3.4 Test & Release Authority"
+    ]
+  },
+  "release_dry_run": {
+    "schema_version": 3,
+    "kind": "v934-release-dry-run",
+    "gate_mode": "authority",
+    "event_name": "workflow_dispatch",
+    "publish_performed": false,
+    "receipt_fields": [
+      "schema_version",
+      "kind",
+      "status",
+      "version",
+      "commit_sha",
+      "gate_mode",
+      "release_workflow",
+      "consumed_main_authority",
+      "tested_assets",
+      "dry_run_image",
+      "publish_performed"
+    ],
+    "release_workflow_fields": [
+      "run_id",
+      "attempt",
+      "event_name"
+    ],
+    "consumed_main_authority_fields": [
+      "workflow_run_id",
+      "attempt",
+      "authority_run_id",
+      "artifact_id",
+      "artifact_name",
+      "artifact_digest",
+      "run_api_sha256",
+      "jobs_api_sha256",
+      "artifacts_api_sha256"
+    ],
+    "tested_asset_fields": [
+      "jar_sha256",
+      "archive_sha256",
+      "archive_manifest_sha256",
+      "archive_digest_sha256",
+      "package_manifest_sha256",
+      "image_manifest_sha256",
+      "release_assets_sha256",
+      "gate_image_id",
+      "gate_base_image"
+    ],
+    "dry_run_image_fields": [
+      "image_id",
+      "embedded_jar_sha256",
+      "context_files",
+      "base_image",
+      "status"
+    ],
+    "base_image_fields": [
+      "tag_reference",
+      "pinned_reference",
+      "index_digest",
+      "manifest_digest",
+      "config_digest",
+      "platform"
+    ],
+    "base_image_platform_fields": [
+      "os",
+      "architecture"
+    ],
+    "context_files": [
+      "Dockerfile",
+      "app.jar"
+    ]
+  },
+  "release_platform": {
+    "workflow_file": ".github/workflows/release.yml",
+    "job_name": "Same-tested JAR/archive/image dry run",
+    "job_results": {
+      "Same-tested JAR/archive/image dry run": "success",
+      "Publish verified runtime-only image": "skipped",
+      "Publish same-tested GitHub release assets": "skipped"
+    },
+    "receipt_fields": [
+      "schema_version",
+      "kind",
+      "status",
+      "version",
+      "repository",
+      "workflow_file",
+      "event_name",
+      "workflow_run_id",
+      "attempt",
+      "commit_sha",
+      "dry_run_job",
+      "dry_run_artifact",
+      "dry_run_receipt_sha256",
+      "dry_run_artifact_transport_sha256",
+      "run_api_sha256",
+      "jobs_api_sha256",
+      "artifacts_api_sha256"
+    ],
+    "job_fields": [
+      "id",
+      "name",
+      "conclusion"
+    ],
+    "artifact_fields": [
+      "id",
+      "name",
+      "digest",
+      "expired"
+    ]
+  },
+  "review_chain": [
+    {
+      "file": "version-implementation-quality.md",
+      "kind": "v934-version-implementation-quality",
+      "status": "reviewed",
+      "decision": "ready-for-coverage-audit",
+      "frontmatter_fields": [
+        "schema_version",
+        "kind",
+        "version",
+        "status",
+        "decision",
+        "authority_run_id",
+        "git_head",
+        "authority_candidate_sha256",
+        "summary_sha256"
+      ]
+    },
+    {
+      "file": "version-coverage-audit.md",
+      "kind": "v934-version-coverage-audit",
+      "status": "reviewed",
+      "decision": "ready-for-signoff",
+      "frontmatter_fields": [
+        "schema_version",
+        "kind",
+        "version",
+        "status",
+        "decision",
+        "authority_run_id",
+        "git_head",
+        "authority_candidate_sha256",
+        "summary_sha256",
+        "quality_sha256"
+      ]
+    },
+    {
+      "file": "version-signoff.md",
+      "kind": "v934-version-signoff",
+      "status": "signed-off",
+      "decision": "accepted",
+      "frontmatter_fields": [
+        "schema_version",
+        "kind",
+        "version",
+        "status",
+        "decision",
+        "authority_run_id",
+        "git_head",
+        "authority_candidate_sha256",
+        "summary_sha256",
+        "quality_sha256",
+        "coverage_sha256"
+      ]
+    }
+  ],
+  "final_pointer_fields": [
+    "schema_version",
+    "kind",
+    "status",
+    "version",
+    "authority_run_id",
+    "git_head",
+    "source_sha256",
+    "repository_origin",
+    "tooling_manifest_sha256",
+    "promotion_tool_sha256",
+    "promotion_contract_sha256",
+    "authority_candidate_sha256",
+    "summary_sha256",
+    "archive_sha256",
+    "archive_manifest_sha256",
+    "archive_digest_sha256",
+    "launcher_jar_sha256",
+    "package_manifest_sha256",
+    "image_manifest_sha256",
+    "runtime_base_tag_reference",
+    "runtime_base_pinned_reference",
+    "runtime_base_index_digest",
+    "runtime_base_manifest_digest",
+    "runtime_base_config_digest",
+    "runtime_base_os",
+    "runtime_base_architecture",
+    "portable_replay_sha256",
+    "pr_ci_receipt_sha256",
+    "pr_ci_commit_sha",
+    "pr_ci_platform_head_sha",
+    "pr_number",
+    "pr_ci_workflow_run_id",
+    "main_ci_receipt_sha256",
+    "main_ci_workflow_run_id",
+    "branch_protection_receipt_sha256",
+    "release_dry_run_receipt_sha256",
+    "release_platform_receipt_sha256",
+    "release_workflow_run_id",
+    "quality_review_sha256",
+    "coverage_audit_sha256",
+    "version_signoff_sha256"
+  ]
+}

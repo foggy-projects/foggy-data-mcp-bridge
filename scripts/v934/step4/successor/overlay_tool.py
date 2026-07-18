@@ -22,6 +22,7 @@ DEFAULT_CONTRACT = HERE / "overlay-contract.json"
 DEFAULT_MANIFEST = HERE / "SHA256SUMS"
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
+GIT_MODE_PATTERN = re.compile(r"100(?:644|755)")
 
 EXPECTED_PARENT_COMMIT = "e1a2a275ae5f39ca0be641ef18ca5622fa4c7076"
 EXPECTED_PARENT_MANIFESTS = {
@@ -90,8 +91,11 @@ EXPECTED_AMENDMENT_PATHS = (
     "scripts/verify-v934-external-mysql.sh",
     "scripts/verify-v934-external-vector.sh",
     "scripts/verify-v934-preagg-addon-lifecycle.sh",
+    "scripts/v934/step3/database_state_probe_callback.sh",
+    "scripts/v934/step3/provision-database-cell.sh",
     REDIS_SOURCE_PATH,
     "foggy-dataset/src/test/resources/application.yml",
+    "foggy-dataset/src/main/java/com/foggyframework/dataset/utils/DataSourceFactory.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
@@ -214,19 +218,19 @@ EXPECTED_STEP4_RUNTIME_BINDINGS = {
         "diagnostic": {
             "contract_status": "diagnostic-ready",
             "publication_status": "diagnostic-ready",
-            "sha256": "15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0",
+            "sha256": "5f7ba4bf9d6e6b0673065c3f4d004d2ce627cd87dea7a286996d14b06f07d530",
         },
         "formal": {
             "contract_status": "formal-ready",
             "publication_status": "formal-ready",
-            "sha256": "6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160",
+            "sha256": "babdcd887faa766aee2283fa95d885f5b51bbc3af11720e19047085c48c0be1e",
         },
     },
-    "scripts/v934/step4/coverage-report-amendment.tsv": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
+    "scripts/v934/step4/coverage-report-amendment.tsv": "8fc95f9a04f8c0e6c50d3bcd4361975bcfec42b8b893d93ed041f33a5f8f765c",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "965ec00d76fe4a91e903ba140c3a5ca4b5aa69854bffcdcdf5c1d544aeccbb13",
-    "scripts/v934/step4/step2-report-view-contract.json": "545853cecfb3129a49a3fa3b2d8c0c3aef31f737c032097a3e6e68846accc7c9",
-    "scripts/v934/step4/step2_report_view_tool.py": "1258f65c8ed1a8969766031a8356a10014a41936190de741ed6210a58716863c",
+    "scripts/v934/step4/coverage_tool.py": "43ac484942e36c1856cd33f8b228b08f43e095ede2109ac934f2027c25f66d32",
+    "scripts/v934/step4/step2-report-view-contract.json": "bf284cdd8b34b35e27137c0cfca59ad6f16bf782d38eaf523095c181f9f6f52b",
+    "scripts/v934/step4/step2_report_view_tool.py": "8eae016bc5dcea03f7634d19e018c6722490632716ea72fc19fdf29888be13de",
     "scripts/v934/step4/unit-mysql57-fixture-contract.json": "7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a",
 }
 REDIS_SOURCE_ID = f"v934-src|{len(REDIS_SOURCE_PATH)}:{REDIS_SOURCE_PATH}"
@@ -329,10 +333,66 @@ def git(*arguments: str, binary: bool = False) -> bytes | str:
     return completed.stdout
 
 
-def git_blob_sha(commit: str, path: str) -> str:
+def git_blob(commit: str, path: str) -> bytes:
     payload = git("show", f"{commit}:{path}", binary=True)
     assert isinstance(payload, bytes)
-    return hashlib.sha256(payload).hexdigest()
+    return payload
+
+
+def git_blob_sha(commit: str, path: str) -> str:
+    return hashlib.sha256(git_blob(commit, path)).hexdigest()
+
+
+def git_mode(commit: str, path: str) -> str:
+    payload = git("ls-tree", "-z", commit, "--", path, binary=True)
+    assert isinstance(payload, bytes)
+    if not payload.endswith(b"\0") or payload.count(b"\0") != 1:
+        reject("E_AMENDMENT", f"Git mode lookup is not unique: {path}")
+    try:
+        metadata, raw_path = payload[:-1].split(b"\t", 1)
+        mode, kind, object_id = metadata.decode("ascii").split(" ")
+        decoded_path = raw_path.decode("utf-8")
+    except (UnicodeDecodeError, ValueError) as error:
+        raise OverlayError("E_AMENDMENT", f"malformed Git mode record: {path}") from error
+    if (
+        decoded_path != path
+        or kind != "blob"
+        or GIT_MODE_PATTERN.fullmatch(mode) is None
+        or re.fullmatch(r"[0-9a-f]{40,64}", object_id) is None
+    ):
+        reject("E_AMENDMENT", f"unsupported Git mode record: {path}")
+    return mode
+
+
+def require_git_clean_path(path: str, code: str) -> None:
+    payload = git("diff", "--name-only", "-z", "HEAD", "--", path, binary=True)
+    assert isinstance(payload, bytes)
+    if payload:
+        reject(code, f"tracked path differs from its HEAD blob: {path}")
+
+
+def parent_blob_identities(payload: bytes) -> tuple[str, str | None]:
+    raw = hashlib.sha256(payload).hexdigest()
+    projection: str | None = None
+    if b"\n" in payload and b"\r" not in payload and b"\0" not in payload:
+        try:
+            payload.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            pass
+        else:
+            projected = payload.replace(b"\n", b"\r\n")
+            projection = hashlib.sha256(projected).hexdigest()
+    return raw, projection
+
+
+def require_parent_manifest_digest(payload: bytes, digest: str) -> tuple[str, set[str]]:
+    raw, projection = parent_blob_identities(payload)
+    accepted = {raw}
+    if projection is not None:
+        accepted.add(projection)
+    if digest not in accepted:
+        reject("E_PARENT_MANIFEST", "manifest digest is neither the parent Git blob nor its unique LF-to-CRLF projection")
+    return raw, accepted
 
 
 def parse_hash_manifest(path: Path, expected_names: set[str] | None = None) -> dict[str, str]:
@@ -350,6 +410,32 @@ def parse_hash_manifest(path: Path, expected_names: set[str] | None = None) -> d
     return rows
 
 
+def validate_transition_tuple(
+    row: dict[str, str],
+    *,
+    parent_sha: str,
+    successor_sha: str,
+    parent_mode: str,
+    successor_mode: str,
+) -> None:
+    path_value = row.get("path", "<missing>")
+    if row.get("parent_sha256") != parent_sha:
+        reject("E_PARENT_BLOB", f"parent blob digest differs: {path_value}")
+    if row.get("successor_sha256") != successor_sha:
+        reject("E_AMENDMENT", f"successor digest differs: {path_value}")
+    if row.get("parent_git_mode") != parent_mode or row.get("successor_git_mode") != successor_mode:
+        reject("E_AMENDMENT", f"Git mode transition differs: {path_value}")
+    byte_changed = parent_sha != successor_sha
+    mode_changed = parent_mode != successor_mode
+    if not byte_changed and not mode_changed:
+        reject("E_AMENDMENT", f"amendment has no byte or Git mode delta: {path_value}")
+    if row.get("kind") == "mode-amendment":
+        if byte_changed or not mode_changed:
+            reject("E_AMENDMENT", f"mode amendment tuple differs: {path_value}")
+    elif not byte_changed:
+        reject("E_AMENDMENT", f"byte amendment has no byte delta: {path_value}")
+
+
 def read_amendments(contract: dict[str, Any]) -> dict[str, dict[str, str]]:
     definition = contract["declared_amendments"]
     if definition.get("path") != "scripts/v934/step4/successor/declared-amendments.tsv":
@@ -360,7 +446,9 @@ def read_amendments(contract: dict[str, Any]) -> dict[str, dict[str, str]]:
     with path.open(encoding="utf-8", newline="") as stream:
         reader = csv.DictReader(stream, delimiter="\t")
         if reader.fieldnames != [
-            "path", "parent_sha256", "successor_sha256", "kind", "owner", "allowed_effect"
+            "path", "parent_sha256", "successor_sha256",
+            "parent_git_mode", "successor_git_mode",
+            "kind", "owner", "allowed_effect",
         ]:
             reject("E_AMENDMENT", "declared amendment header differs")
         rows = list(reader)
@@ -373,20 +461,30 @@ def read_amendments(contract: dict[str, Any]) -> dict[str, dict[str, str]]:
         path_value = row["path"]
         if (
             path_value in result
-            or row["kind"] not in {"build-contract", "runner-binding", "source-amendment"}
+            or row["kind"] not in {
+                "build-contract", "runner-binding", "source-amendment", "mode-amendment"
+            }
             or not row["owner"]
             or not row["allowed_effect"].strip()
             or SHA_PATTERN.fullmatch(row["parent_sha256"]) is None
             or SHA_PATTERN.fullmatch(row["successor_sha256"]) is None
+            or GIT_MODE_PATTERN.fullmatch(row["parent_git_mode"]) is None
+            or GIT_MODE_PATTERN.fullmatch(row["successor_git_mode"]) is None
         ):
             reject("E_AMENDMENT", f"malformed amendment row: {path_value}")
-        current = safe_repo_path(path_value, "E_AMENDMENT")
-        if git_blob_sha(EXPECTED_PARENT_COMMIT, path_value) != row["parent_sha256"]:
-            reject("E_PARENT_BLOB", f"parent blob digest differs: {path_value}")
-        if sha256(current) != row["successor_sha256"]:
-            reject("E_AMENDMENT", f"successor digest differs: {path_value}")
-        if row["parent_sha256"] == row["successor_sha256"]:
-            reject("E_AMENDMENT", f"amendment has no byte delta: {path_value}")
+        safe_repo_path(path_value, "E_AMENDMENT")
+        require_git_clean_path(path_value, "E_AMENDMENT")
+        parent_sha = git_blob_sha(EXPECTED_PARENT_COMMIT, path_value)
+        successor_sha = git_blob_sha("HEAD", path_value)
+        parent_mode = git_mode(EXPECTED_PARENT_COMMIT, path_value)
+        successor_mode = git_mode("HEAD", path_value)
+        validate_transition_tuple(
+            row,
+            parent_sha=parent_sha,
+            successor_sha=successor_sha,
+            parent_mode=parent_mode,
+            successor_mode=successor_mode,
+        )
         result[path_value] = row
     return result
 
@@ -404,12 +502,22 @@ def verify_parent_manifests(contract: dict[str, Any], amendments: dict[str, dict
         entries = parse_hash_manifest(path)
         for name, digest in entries.items():
             target_relative = (Path(base) / name).as_posix() if base != "." else name
-            target = safe_repo_path(target_relative, "E_PARENT_MANIFEST")
-            actual = sha256(target)
-            if actual == digest:
+            safe_repo_path(target_relative, "E_PARENT_MANIFEST")
+            require_git_clean_path(target_relative, "E_UNDECLARED_DRIFT")
+            parent_payload = git_blob(EXPECTED_PARENT_COMMIT, target_relative)
+            parent_digest, accepted_parent_identities = require_parent_manifest_digest(
+                parent_payload,
+                digest,
+            )
+            actual = git_blob_sha("HEAD", target_relative)
+            if actual in accepted_parent_identities:
                 continue
             amendment = amendments.get(target_relative)
-            if amendment is None or amendment["parent_sha256"] != digest or amendment["successor_sha256"] != actual:
+            if (
+                amendment is None
+                or amendment["parent_sha256"] != parent_digest
+                or amendment["successor_sha256"] != actual
+            ):
                 reject("E_UNDECLARED_DRIFT", f"undeclared {key} manifest drift: {target_relative}")
 
 
@@ -633,11 +741,20 @@ def verify_protected_drift(contract: dict[str, Any], amendments: dict[str, dict[
     assert isinstance(raw_changed, str)
     changed = {relative for relative in raw_changed.splitlines() if relative in protected}
     for relative in changed:
-        current = safe_repo_path(relative, "E_PROTECTED_SCOPE")
+        safe_repo_path(relative, "E_PROTECTED_SCOPE")
+        require_git_clean_path(relative, "E_UNDECLARED_DRIFT")
         parent_digest = git_blob_sha(EXPECTED_PARENT_COMMIT, relative)
-        current_digest = sha256(current)
+        current_digest = git_blob_sha("HEAD", relative)
+        parent_mode = git_mode(EXPECTED_PARENT_COMMIT, relative)
+        current_mode = git_mode("HEAD", relative)
         row = amendments.get(relative)
-        if row is None or row["parent_sha256"] != parent_digest or row["successor_sha256"] != current_digest:
+        if (
+            row is None
+            or row["parent_sha256"] != parent_digest
+            or row["successor_sha256"] != current_digest
+            or row["parent_git_mode"] != parent_mode
+            or row["successor_git_mode"] != current_mode
+        ):
             reject("E_UNDECLARED_DRIFT", f"undeclared protected drift: {relative}")
     validate_drift_rows(changed, set(amendments))
 
@@ -749,7 +866,7 @@ def validate(contract_path: Path, manifest_path: Path) -> None:
         "parent_artifacts", "declared_amendments", "successors", "frozen_semantics",
         "protected_git_scope", "activation_requirements", "step4_runtime_bindings",
     }
-    if set(contract) != expected_fields or contract.get("schema_version") != 1 \
+    if set(contract) != expected_fields or contract.get("schema_version") != 2 \
             or contract.get("kind") != "v934-step4-step3-successor-overlay-contract" \
             or contract.get("parent_commit") != EXPECTED_PARENT_COMMIT:
         reject("E_CONTRACT", "overlay contract identity or fields differ")
@@ -873,6 +990,7 @@ def publish_no_clobber(path: Path, payload: bytes) -> None:
 def negative(output: Path) -> int:
     contract = load_json(DEFAULT_CONTRACT)
     probes: list[tuple[str, str, Callable[[], None]]] = []
+    amendments = read_amendments(contract)
     coverage_binding = contract["step4_runtime_bindings"][
         "scripts/v934/step4/coverage-contract.json"
     ]
@@ -892,6 +1010,88 @@ def negative(output: Path) -> int:
     ):
         reject("E_STEP4_BINDING", "formal workflow binding positive control differs")
     verify_git_environment_isolation()
+    eol_fixture = b"alpha\nbeta\n"
+    raw_fixture_sha, projected_fixture_sha = parent_blob_identities(eol_fixture)
+    if projected_fixture_sha is None:
+        reject("E_NEGATIVE", "LF-to-CRLF positive fixture is not projectable")
+    require_parent_manifest_digest(eol_fixture, raw_fixture_sha)
+    require_parent_manifest_digest(eol_fixture, projected_fixture_sha)
+    probes.append((
+        "legacy-parent-arbitrary-digest", "E_PARENT_MANIFEST",
+        lambda: require_parent_manifest_digest(eol_fixture, "0" * 64),
+    ))
+    ambiguous_fixture = b"alpha\r\nbeta\r\n"
+    ambiguous_projection = hashlib.sha256(
+        ambiguous_fixture.replace(b"\n", b"\r\n")
+    ).hexdigest()
+    probes.append((
+        "legacy-parent-ambiguous-crlf-projection", "E_PARENT_MANIFEST",
+        lambda: require_parent_manifest_digest(ambiguous_fixture, ambiguous_projection),
+    ))
+
+    mode_path = "scripts/v934/step3/database_state_probe_callback.sh"
+    canonical_mode_row = amendments[mode_path]
+    wrong_successor_mode = copy.deepcopy(canonical_mode_row)
+    wrong_successor_mode["successor_git_mode"] = "100644"
+    probes.append((
+        "mode-amendment-successor-mode-drift", "E_AMENDMENT",
+        lambda: validate_transition_tuple(
+            wrong_successor_mode,
+            parent_sha=canonical_mode_row["parent_sha256"],
+            successor_sha=canonical_mode_row["successor_sha256"],
+            parent_mode=canonical_mode_row["parent_git_mode"],
+            successor_mode=canonical_mode_row["successor_git_mode"],
+        ),
+    ))
+    provision_mode_row = amendments[
+        "scripts/v934/step3/provision-database-cell.sh"
+    ]
+    wrong_parent_mode = copy.deepcopy(provision_mode_row)
+    wrong_parent_mode["parent_git_mode"] = "100755"
+    probes.append((
+        "mode-amendment-parent-mode-drift", "E_AMENDMENT",
+        lambda: validate_transition_tuple(
+            wrong_parent_mode,
+            parent_sha=provision_mode_row["parent_sha256"],
+            successor_sha=provision_mode_row["successor_sha256"],
+            parent_mode=provision_mode_row["parent_git_mode"],
+            successor_mode=provision_mode_row["successor_git_mode"],
+        ),
+    ))
+    byte_changed_mode = copy.deepcopy(canonical_mode_row)
+    byte_changed_mode["successor_sha256"] = "1" * 64
+    probes.append((
+        "mode-amendment-byte-drift", "E_AMENDMENT",
+        lambda: validate_transition_tuple(
+            byte_changed_mode,
+            parent_sha=canonical_mode_row["parent_sha256"],
+            successor_sha=byte_changed_mode["successor_sha256"],
+            parent_mode=canonical_mode_row["parent_git_mode"],
+            successor_mode=canonical_mode_row["successor_git_mode"],
+        ),
+    ))
+    misclassified_mode = copy.deepcopy(canonical_mode_row)
+    misclassified_mode["kind"] = "runner-binding"
+    probes.append((
+        "mode-amendment-kind-drift", "E_AMENDMENT",
+        lambda: validate_transition_tuple(
+            misclassified_mode,
+            parent_sha=canonical_mode_row["parent_sha256"],
+            successor_sha=canonical_mode_row["successor_sha256"],
+            parent_mode=canonical_mode_row["parent_git_mode"],
+            successor_mode=canonical_mode_row["successor_git_mode"],
+        ),
+    ))
+    probes.append((
+        "missing-mode-amendment", "E_UNDECLARED_DRIFT",
+        lambda: validate_drift_rows(
+            {
+                mode_path,
+                "scripts/v934/step3/provision-database-cell.sh",
+            },
+            {mode_path},
+        ),
+    ))
     crossed_projection = copy.deepcopy(formal_projection)
     crossed_projection["tooling_manifest"]["publication_status"] = "diagnostic-ready"
     probes.append((
@@ -908,7 +1108,7 @@ def negative(output: Path) -> int:
     parent_mutation["parent_manifests"]["step1"]["sha256"] = "0" * 64
     probes.append((
         "parent-manifest-binding-drift", "E_PARENT_MANIFEST",
-        lambda: verify_parent_manifests(parent_mutation, read_amendments(contract)),
+        lambda: verify_parent_manifests(parent_mutation, amendments),
     ))
     step4_mutation = copy.deepcopy(contract)
     step4_mutation["step4_runtime_bindings"][
@@ -978,6 +1178,7 @@ def negative(output: Path) -> int:
     rows = [
         ("coverage-workflow-formal-positive", "validated", "validated", "passed"),
         ("git-environment-isolation-positive", "validated", "validated", "passed"),
+        ("legacy-parent-raw-or-crlf-positive", "validated", "validated", "passed"),
     ]
     for name, code, callback in probes:
         expect(code, callback)

@@ -1,0 +1,465 @@
+{
+  "addon_companion": {
+    "included_in_required_totals": false,
+    "required": true,
+    "resource_residue": "0/0/0",
+    "totals": {
+      "errors": 0,
+      "failures": 0,
+      "reports": 2,
+      "skipped": 0,
+      "testcase_nodes": 6,
+      "variants": 2
+    }
+  },
+  "children": {
+    "addon-companion": {
+      "artifacts": 18,
+      "candidate_sha256": "2634a23e64aee150a574998e6af99084c8b7e5ff3064bda2b25c1c47ff5e1741",
+      "included_in_required_totals": false,
+      "root": "target/v934-step3-preagg-addon/runs/step3-required-20260716-final-r4",
+      "totals": {
+        "errors": 0,
+        "failures": 0,
+        "reports": 2,
+        "skipped": 0,
+        "testcase_nodes": 6,
+        "variants": 2
+      },
+      "tree_sha256": "84441e779f7cf5890e8e8c51deb012b954a079241b2798b79e80ba417ee48c6b"
+    },
+    "database-matrix": {
+      "artifacts": 687,
+      "final_manifest_sha256": "366c0306b973419b6cbdaff6ba22ce56f230706a509428d9130f5a722a61f014",
+      "included_in_required_totals": true,
+      "root": "target/v934-step3-database-matrix/runs/step3-required-20260716-final-r4",
+      "totals": {
+        "database_cells": 5,
+        "errors": 0,
+        "failures": 0,
+        "reports": 29,
+        "skipped": 0,
+        "testcase_nodes": 370,
+        "variants": 7
+      },
+      "tree_sha256": "acbcf16816c0aa8a963042d8791d9529151faaadb0425b68dc6b7c70e89d09f3"
+    },
+    "external-matrix": {
+      "artifacts": 276,
+      "candidate_sha256": "b2eac65e4452b206e640d746551e643929d41c71f30fc96ac46fa578964d2db4",
+      "included_in_required_totals": true,
+      "root": "target/v934-step3-external-matrix/runs/step3-required-20260716-final-r4",
+      "totals": {
+        "errors": 0,
+        "failures": 0,
+        "reports": 16,
+        "skipped": 0,
+        "testcase_nodes": 76,
+        "variants": 7
+      },
+      "tree_sha256": "55274ac66977a10794bd90299ca49f20555879b06eb5d9a561e4e22ff8d3efb0"
+    }
+  },
+  "complete": true,
+  "contract_sha256": "f2bd52df7ed2829051ad263f97d560d3f8babe048d25864edb725eb671ba4d1b",
+  "created_at": "2026-07-15T20:42:17.839066+00:00",
+  "deferred_inventory_sha256": "89190db9370fe3117d5316c72835efffa577d132d39cef9b5d9ae3558afa7601",
+  "git_head": "ce3d70c391c7b8bd8046fe66dde0ad568d66601e",
+  "kind": "v934-step3-required-matrix-final",
+  "lane": "step3-required-matrix",
+  "optional_execution": {
+    "disposition": "reviewed-optional-excluded",
+    "execution_key": "v934|8:failsafe|12:external-llm|11:mysql57-llm|59:com.foggyframework.dataset.mcp.ai.AiToolsIT$AiModelCallTest",
+    "lane": "external-llm",
+    "optional_reason": "third-party model quality is non-deterministic and not the required direct-tool correctness contract",
+    "owner": "foggy-dataset-mcp",
+    "report_fqcn": "com.foggyframework.dataset.mcp.ai.AiToolsIT$AiModelCallTest",
+    "review_at": "2026-08-31",
+    "variant_key": "mysql57-llm"
+  },
+  "outer_marker_sha256": "e3a5f1fdaa13299f8649f85fbdcb8709cc8efaa216aeae3e3ea70f0e2335710e",
+  "partition": {
+    "database_keys": 29,
+    "external_keys": 16,
+    "extra_keys": 0,
+    "gap_keys": 0,
+    "overlap_keys": 0
+  },
+  "required_execution_keys": [
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mongo|6:mongo6|60:com.foggyframework.dataset.db.model.mongo.McpAuditLogMongoIT",
+      "failures": 0,
+      "lane": "external-mongo",
+      "skipped": 0,
+      "testcase_nodes": 12
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mongo|6:mongo6|64:com.foggyframework.dataset.db.model.mongo.MongoCalculatedFieldIT",
+      "failures": 0,
+      "lane": "external-mongo",
+      "skipped": 0,
+      "testcase_nodes": 9
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mongo|6:mongo6|67:com.foggyframework.dataset.db.model.mongo.MongoArrayElementAccessIT",
+      "failures": 0,
+      "lane": "external-mongo",
+      "skipped": 0,
+      "testcase_nodes": 6
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mongo|6:mongo6|71:com.foggyframework.dataviewer.service.listpreset.MongoListPresetStoreIT",
+      "failures": 0,
+      "lane": "external-mongo",
+      "skipped": 0,
+      "testcase_nodes": 3
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|11:mysql57-mcp|53:com.foggyframework.dataset.mcp.integration.McpToolsIT",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 2
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|11:mysql57-mcp|74:com.foggyframework.dataset.mcp.integration.McpToolsIT$EndToEndScenarioTest",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 2
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|11:mysql57-mcp|81:com.foggyframework.dataset.mcp.integration.McpToolsIT$MetadataToolIntegrationTest",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 2
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|11:mysql57-mcp|83:com.foggyframework.dataset.mcp.integration.McpToolsIT$QueryModelToolIntegrationTest",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 6
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|11:mysql57-mcp|89:com.foggyframework.dataset.mcp.integration.McpToolsIT$DescriptionModelToolIntegrationTest",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 2
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|14:mysql57-direct|43:com.foggyframework.dataset.mcp.ai.AiToolsIT",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 3
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|14:mysql57-direct|62:com.foggyframework.dataset.mcp.ai.AiToolsIT$DirectToolCallTest",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 4
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-mysql|15:mysql57-compose|62:com.foggyframework.dataset.mcp.integration.ComposeScriptToolIT",
+      "failures": 0,
+      "lane": "external-mysql",
+      "skipped": 0,
+      "testcase_nodes": 2
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-redis|13:redis7-sqlite|92:com.foggyframework.dataset.db.model.cache.lifecycle.realquery.QueryCacheLifecycleRealQueryIT",
+      "failures": 0,
+      "lane": "external-redis",
+      "skipped": 0,
+      "testcase_nodes": 2
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|14:external-redis|6:redis7|71:com.foggyframework.dataset.db.model.cache.provider.RedisCrossJvmCacheIT",
+      "failures": 0,
+      "lane": "external-redis",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|15:external-vector|18:milvus24-embedding|51:com.foggyframework.dataset.db.model.vector.VectorIT",
+      "failures": 0,
+      "lane": "external-vector",
+      "skipped": 0,
+      "testcase_nodes": 15
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|15:external-vector|18:milvus24-embedding|59:com.foggyframework.dataset.vector.integration.VectorStoreIT",
+      "failures": 0,
+      "lane": "external-vector",
+      "skipped": 0,
+      "testcase_nodes": 5
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|10:db-mysql57|65:com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 23
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|10:db-mysql57|66:com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 18
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|10:db-mysql57|78:com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|10:db-mysql57|80:com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 7
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|10:db-mysql57|91:com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|13:db-postgres15|65:com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 23
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|13:db-postgres15|66:com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 18
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|13:db-postgres15|78:com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|13:db-postgres15|80:com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 7
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|13:db-postgres15|91:com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|15:mysql8-targeted|56:com.foggyframework.dataset.db.model.engine.pivot.PivotIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 55
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|16:db-sqlserver2022|65:com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 23
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|16:db-sqlserver2022|66:com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 18
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|16:db-sqlserver2022|78:com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|16:db-sqlserver2022|80:com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 7
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|16:db-sqlserver2022|91:com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|19:postgres15-targeted|56:com.foggyframework.dataset.db.model.engine.pivot.PivotIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 55
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|19:postgres15-targeted|70:com.foggyframework.dataset.db.model.semantic.DslCteResultStageWindowIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|19:postgres15-targeted|74:com.foggyframework.dataset.db.model.semantic.DslCteRelationMetricFixtureIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 9
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-mysql8|65:com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 23
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-mysql8|66:com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 18
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-mysql8|78:com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-mysql8|80:com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 7
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-mysql8|91:com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-sqlite|65:com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 23
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-sqlite|66:com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 18
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-sqlite|78:com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-sqlite|80:com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 7
+    },
+    {
+      "errors": 0,
+      "execution_key": "v934|8:failsafe|24:database-contract-matrix|9:db-sqlite|91:com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT",
+      "failures": 0,
+      "lane": "database-contract-matrix",
+      "skipped": 0,
+      "testcase_nodes": 1
+    }
+  ],
+  "run_id": "step3-required-20260716-final-r4",
+  "runner": "orchestrator",
+  "schema_version": 1,
+  "source_sha256": "350e671354f99c76237913619558255cde18131872cb0807ff227545614b9a60",
+  "status": "passed",
+  "totals": {
+    "database_variants": 7,
+    "errors": 0,
+    "execution_keys": 45,
+    "external_variants": 7,
+    "failures": 0,
+    "reports": 45,
+    "skipped": 0,
+    "testcase_nodes": 446
+  }
+}

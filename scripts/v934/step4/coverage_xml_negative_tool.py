@@ -308,6 +308,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     tool.real_directory(repo_root, "E_REPO_ROOT")
     cases: dict[str, dict[str, str]] = {}
 
+    capsule_self_test = tool.diagnostic_capsule.run_self_test()
+    if (
+        capsule_self_test.get("status") != "passed"
+        or capsule_self_test.get("case_count") != 7
+        or len(capsule_self_test.get("cases", [])) != 7
+    ):
+        raise RuntimeError("portable diagnostic capsule self-test differs")
+    record_positive(cases, "frozen-diagnostic-capsule-self-test", "7-cases")
+
     identity_manifest = {
         "class_id_consistency_scope": tool.EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,
         "unique_execution_classes": 2,
@@ -1118,6 +1127,67 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     tool.validate_formal_delta_policy(formal_policy, valid_formal_changes)
     record_positive(cases, "formal-delta-policy-positive")
+
+    summary_values = {field: "fixture" for field in tool.RELEASE_SUMMARY_FIELDS}
+    summary_values.update(
+        {
+            "mode": "release",
+            "release_successor": tool.RELEASE_SUCCESSOR_MARKER,
+            "status": "release-candidate-ready",
+        }
+    )
+    release_summary_payload = tool.encode_env(
+        summary_values,
+        tool.RELEASE_SUMMARY_FIELDS,
+        "E_RUN_SUMMARY",
+    )
+    tool.parse_env_bytes(
+        release_summary_payload,
+        tool.RELEASE_SUMMARY_FIELDS,
+        "E_RUN_SUMMARY",
+        "release summary positive",
+    )
+    record_positive(cases, "release-summary-schema-positive")
+    release_as_formal = release_summary_payload.replace(
+        b"mode=release\n", b"mode=formal\n", 1
+    ).replace(
+        b"status=release-candidate-ready\n",
+        b"status=formal-candidate-ready\n",
+        1,
+    )
+    expect_failure(
+        cases,
+        "release-summary-cannot-masquerade-as-formal",
+        "E_RUN_SUMMARY",
+        lambda: tool.parse_env_bytes(
+            release_as_formal,
+            tool.FORMAL_SUMMARY_FIELDS,
+            "E_RUN_SUMMARY",
+            "release-as-formal summary",
+        ),
+    )
+    formal_without_delta_values = {
+        field: "fixture" for field in tool.DIAGNOSTIC_SUMMARY_FIELDS
+    }
+    formal_without_delta_values.update(
+        {"mode": "formal", "status": "formal-candidate-ready"}
+    )
+    formal_without_delta = tool.encode_env(
+        formal_without_delta_values,
+        tool.DIAGNOSTIC_SUMMARY_FIELDS,
+        "E_RUN_SUMMARY",
+    )
+    expect_failure(
+        cases,
+        "formal-summary-still-requires-formalization-delta",
+        "E_RUN_SUMMARY",
+        lambda: tool.parse_env_bytes(
+            formal_without_delta,
+            tool.FORMAL_SUMMARY_FIELDS,
+            "E_RUN_SUMMARY",
+            "formal summary without delta",
+        ),
+    )
     expect_failure(
         cases,
         "formal-delta-forbidden-path",
@@ -1640,10 +1710,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "bindings": {"aggregate_xml": {"sha256": "e" * 64}},
         }
 
-        def fake_formal_check(_repo_root: Path, run_id: str) -> dict[str, Any]:
+        def fake_formal_check(
+            _repo_root: Path,
+            run_id: str,
+            mode: str = "formal",
+        ) -> dict[str, Any]:
             if run_id != fake_gate["run_id"]:
                 tool.reject("E_COVERAGE_GATE", "fake gate run mismatch")
-            return copy.deepcopy(fake_gate)
+            result = copy.deepcopy(fake_gate)
+            if mode == "release":
+                result["release_successor"] = tool.RELEASE_SUCCESSOR_MARKER
+            return result
 
         tool.formal_check_data = fake_formal_check
         gate_path = temporary_root / "coverage-gate.json"
@@ -1659,6 +1736,37 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         write_json(final_path, final_value)
         tool.validate_acceptance_final(repo_root, final_path)
         record_positive(cases, "canonical-gate-candidate-final-positive")
+
+        release_gate = fake_formal_check(repo_root, run_id, "release")
+        write_json(gate_path, release_gate)
+        release_candidate = tool.acceptance_candidate_data(
+            repo_root, run_id, gate_path, "release"
+        )
+        write_json(candidate_path, release_candidate)
+        tool.validate_acceptance_candidate(repo_root, candidate_path, "release")
+        release_final = tool.acceptance_final_data(
+            repo_root, candidate_path, "release"
+        )
+        write_json(final_path, release_final)
+        tool.validate_acceptance_final(repo_root, final_path, "release")
+        record_positive(cases, "release-gate-candidate-final-positive")
+
+        release_as_formal_candidate = copy.deepcopy(release_candidate)
+        release_as_formal_candidate["status"] = "formal-candidate"
+        release_as_formal_candidate.pop("release_successor")
+        write_json(candidate_path, release_as_formal_candidate)
+        expect_failure(
+            cases,
+            "release-candidate-cannot-masquerade-as-formal",
+            "E_COVERAGE_GATE_MODE",
+            lambda: tool.validate_acceptance_candidate(
+                repo_root, candidate_path, "formal"
+            ),
+        )
+
+        write_json(gate_path, fake_gate)
+        write_json(candidate_path, candidate_value)
+        write_json(final_path, final_value)
 
         gate_numeric_alias = copy.deepcopy(fake_gate)
         gate_numeric_alias["schema_version"] = True

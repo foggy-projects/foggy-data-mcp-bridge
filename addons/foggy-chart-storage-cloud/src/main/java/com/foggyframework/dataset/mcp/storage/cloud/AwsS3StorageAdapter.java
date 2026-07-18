@@ -25,8 +25,8 @@ import software.amazon.awssdk.services.s3.model.*;
  *       type: aws-s3
  *       aws-s3:
  *         region: us-east-1
- *         access-key-id: your-access-key-id
- *         secret-access-key: your-secret-access-key
+ *         access-key-id: ${AWS_S3_ACCESS_KEY_ID}
+ *         secret-access-key: ${AWS_S3_SECRET_ACCESS_KEY}
  *         bucket-name: your-bucket-name
  *         path-prefix: charts/
  *         custom-domain: https://cdn.example.com

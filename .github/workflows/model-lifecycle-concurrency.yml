@@ -1,10 +1,6 @@
-name: Model Lifecycle Entry Gate
+name: Legacy Model Lifecycle Diagnostic
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -19,7 +15,7 @@ env:
 
 jobs:
   gate-0:
-    name: 9.3.3 Gate 0 — runner, concurrency and required DB proof
+    name: Legacy 9.3.3 runner/concurrency diagnostic
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -33,17 +29,17 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
 
-      - name: Run the fail-closed 9.3.3 entry gate
+      - name: Run the frozen 9.3.3 diagnostic
         shell: bash
         run: |
           timeout --signal=TERM --kill-after=30s 50m \
             scripts/verify-v933-entry-gate.sh
 
-      - name: Upload Gate 0 reports and logs
+      - name: Upload legacy diagnostic reports and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: model-lifecycle-entry-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          name: legacy-model-lifecycle-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/v933-entry-gate/runs/
           if-no-files-found: error
           retention-days: 14

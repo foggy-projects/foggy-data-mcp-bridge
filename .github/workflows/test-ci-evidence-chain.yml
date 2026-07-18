@@ -1,0 +1,841 @@
+name: 9.3.4 Test & Release Evidence Chain
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      authority_run_id:
+        description: Exact v9.3.4 authority run identifier.
+        value: ${{ jobs.package-evidence.outputs.authority_run_id }}
+      release_artifact_name:
+        description: Same-tested-JAR release asset artifact.
+        value: ${{ jobs.package-evidence.outputs.release_artifact_name }}
+      jar_sha256:
+        description: SHA-256 of the tested Launcher JAR.
+        value: ${{ jobs.package-evidence.outputs.jar_sha256 }}
+      gate_mode:
+        description: Rehearsal for PRs; authority for main/manual/release.
+        value: ${{ jobs.package-evidence.outputs.gate_mode }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v934-test-release-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AUTHORITY_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+  GATE_ARTIFACT_NAME: v934-gate-run-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+  RELEASE_ASSET_ARTIFACT_NAME: v934-tested-release-assets-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+  CI_TOOL: scripts/v934/step6/ci_contract_tool.py
+  RELEASE_ARTIFACT_TOOL: scripts/v934/step5/release_artifact_tool.py
+  RELEASE_PACKAGE_TOOL: scripts/v934/step5/release_package_tool.py
+  POINTER_TOOL: scripts/v934/step5/pointer_tool.py
+
+jobs:
+  inventory-unit:
+    name: Inventory + Unit — single gate producer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify frozen Steps 4-6 workflow/tooling bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c scripts/v934/step6/SHA256SUMS
+          sha256sum -c scripts/v934/step4/SHA256SUMS
+          sha256sum -c scripts/v934/step5/SHA256SUMS
+          python3 "$CI_TOOL" validate-workflows --repo-root .
+
+      - name: Install the frozen Ubuntu Java and Maven toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            openjdk-17-jdk-headless=17.0.19+10-1~24.04.2 \
+            openjdk-17-jre-headless=17.0.19+10-1~24.04.2 \
+            maven=3.8.7-2
+          test -x /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+          test -x /usr/share/maven/bin/mvn
+          test "$(dpkg-query -W -f='${Version}' openjdk-17-jdk-headless)" = \
+            17.0.19+10-1~24.04.2
+          test "$(dpkg-query -W -f='${Version}' openjdk-17-jre-headless)" = \
+            17.0.19+10-1~24.04.2
+          test "$(dpkg-query -W -f='${Version}' maven)" = 3.8.7-2
+
+      - name: Bootstrap the exact offline-seal Maven closure
+        shell: bash
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          PATH: /usr/lib/jvm/java-17-openjdk-amd64/bin:/usr/share/maven/bin:/usr/bin:/bin
+        run: |
+          set -euo pipefail
+          mvn -B -N -P\!multi-db,\!v934-coverage,\!release \
+            org.apache.maven.plugins:maven-compiler-plugin:3.13.0:help \
+            -Ddetail=false -Dgoal=compile
+          mvn -B -N -P\!multi-db,\!v934-coverage,\!release \
+            org.jacoco:jacoco-maven-plugin:0.8.12:help \
+            -Ddetail=false -Dgoal=report
+          mvn -B -P\!multi-db,\!v934-coverage,\!release \
+            -DskipTests=true -DskipUnitTests=true -DskipITs=true \
+            org.apache.maven.plugins:maven-help-plugin:3.5.1:effective-pom \
+            -Doutput=target/v934-ci-bootstrap-effective.xml
+          for coordinate in \
+            org.ow2.asm:asm:9.7.1 \
+            org.ow2.asm:asm-commons:9.7.1 \
+            org.ow2.asm:asm-tree:9.7.1; do
+            mvn -B -N org.apache.maven.plugins:maven-dependency-plugin:3.8.1:get \
+              -Dtransitive=true -Dartifact="$coordinate"
+          done
+          rm -f target/v934-ci-bootstrap-effective.xml
+
+      - name: Bind gate identity
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --verify 'HEAD^{commit}')" = "$GITHUB_SHA"
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            mode=rehearsal
+          else
+            git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+            test "$(git rev-parse --verify 'origin/main^{commit}')" = "$GITHUB_SHA"
+            mode=authority
+          fi
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      - name: Run the single full v9.3.4 gate
+        shell: bash
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          PATH: /usr/lib/jvm/java-17-openjdk-amd64/bin:/usr/share/maven/bin:/usr/bin:/bin
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=60s 350m \
+            scripts/verify-v934-release-gate.sh "${{ steps.identity.outputs.mode }}" "$AUTHORITY_RUN_ID"
+
+      - name: Stage the exact published candidate pointer for durable upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_root="target/v934-release-gate/runs/$AUTHORITY_RUN_ID"
+          if [[ "${{ steps.identity.outputs.mode }}" == rehearsal ]]; then
+            pointer="target/v934-release-gate/candidate-run.env"
+          else
+            pointer="target/v934-release-gate/authority-candidate-run.env"
+          fi
+          python3 "$POINTER_TOOL" verify-candidate \
+            --target-root target/v934-release-gate --run-root "$run_root" \
+            --run-id "$AUTHORITY_RUN_ID" --git-head "$GITHUB_SHA" \
+            --mode "${{ steps.identity.outputs.mode }}"
+          test -f "$pointer"
+          test ! -L "$pointer"
+          test "$(awk -F= '$1 == "run_id" {if (found) exit 3; print $2; found=1} END {if (!found) exit 2}' "$pointer")" = "$AUTHORITY_RUN_ID"
+          test "$(awk -F= '$1 == "git_head" {if (found) exit 3; print $2; found=1} END {if (!found) exit 2}' "$pointer")" = "$GITHUB_SHA"
+          test "$(awk -F= '$1 == "status" {if (found) exit 3; print $2; found=1} END {if (!found) exit 2}' "$pointer")" = passed
+          install -m 0644 "$pointer" "$run_root/published-candidate-pointer.env"
+          cmp -s "$pointer" "$run_root/published-candidate-pointer.env"
+
+      - name: Build five exact cells from live database evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_root="target/v934-step3-database-matrix/runs/$AUTHORITY_RUN_ID/final"
+          test -f "$evidence_root/outer-run-marker.json"
+          test -f "$evidence_root/report-manifest.json"
+          test -f "$evidence_root/report-metrics.tsv"
+          mkdir -p target/v934-ci/cells
+          for db_kind in sqlite mysql57 mysql8 postgres15 sqlserver2022; do
+            artifact_name="v934-db-$db_kind-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            python3 "$CI_TOOL" build-cell \
+              --repo-root . \
+              --db-kind "$db_kind" \
+              --commit-sha "$GITHUB_SHA" \
+              --workflow-run-id "$GITHUB_RUN_ID" \
+              --attempt "$GITHUB_RUN_ATTEMPT" \
+              --authority-run-id "$AUTHORITY_RUN_ID" \
+              --evidence-dir "$evidence_root" \
+              --output-dir "target/v934-ci/cells/$artifact_name"
+          done
+
+      - name: Upload successful full gate run
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.GATE_ARTIFACT_NAME }}
+          path: target/v934-release-gate/runs/${{ env.AUTHORITY_RUN_ID }}/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 21
+
+      - name: Upload exact SQLite cell
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-db-sqlite-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/cells/v934-db-sqlite-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 21
+
+      - name: Upload exact MySQL 5.7 cell
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-db-mysql57-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/cells/v934-db-mysql57-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 21
+
+      - name: Upload exact MySQL 8 cell
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-db-mysql8-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/cells/v934-db-mysql8-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 21
+
+      - name: Upload exact PostgreSQL 15 cell
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-db-postgres15-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/cells/v934-db-postgres15-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 21
+
+      - name: Upload exact SQL Server 2022 cell
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-db-sqlserver2022-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/cells/v934-db-sqlserver2022-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 21
+
+  sqlite-integration:
+    name: SQLite broad integration evidence
+    needs: inventory-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify frozen Steps 4-6 workflow/tooling bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c scripts/v934/step6/SHA256SUMS
+          sha256sum -c scripts/v934/step4/SHA256SUMS
+          sha256sum -c scripts/v934/step5/SHA256SUMS
+          python3 "$CI_TOOL" validate-workflows --repo-root .
+
+      - name: Download gate evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.GATE_ARTIFACT_NAME }}
+          path: target/v934-release-gate/runs/${{ env.AUTHORITY_RUN_ID }}
+
+      - name: Verify SQLite successor evidence without rerunning tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("target/v934-release-gate/runs") / os.environ["AUTHORITY_RUN_ID"]
+          lane = root / "staging/evidence/integration"
+
+          def env_file(path):
+              values = {}
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  key, separator, value = line.partition("=")
+                  if not separator or not key or key in values:
+                      raise SystemExit(f"invalid or duplicate env row in {path}: {line!r}")
+                  values[key] = value
+              return values
+
+          summary = env_file(lane / "summary.env")
+          expected = {
+              "run_id": os.environ["AUTHORITY_RUN_ID"],
+              "runner": "failsafe",
+              "git_head": os.environ["GITHUB_SHA"],
+              "variants": "caffeine-sqlite,hermetic,sqlite-broad,sqlite-harness,sqlite-lifecycle,sqlite-refresh",
+              "failures": "0",
+              "errors": "0",
+              "skipped": "0",
+              "status": "passed",
+          }
+          if any(summary.get(key) != value for key, value in expected.items()):
+              raise SystemExit("SQLite integration summary identity/status differs")
+          manifest = json.loads((lane / "final/report-manifest.json").read_text(encoding="utf-8"))
+          variants = [
+              "caffeine-sqlite", "hermetic", "sqlite-broad", "sqlite-harness",
+              "sqlite-lifecycle", "sqlite-refresh",
+          ]
+          source_variants = [row.get("variant_key") for row in manifest.get("source_manifests", [])]
+          totals = manifest.get("totals", {})
+          successor = manifest.get("successor", {})
+          if (
+              manifest.get("status") != "passed"
+              or manifest.get("runner") != "failsafe"
+              or manifest.get("variant_keys") != variants
+              or source_variants != variants
+              or any(totals.get(key) != 0 for key in ("failures", "errors", "skipped"))
+              or set(successor) != {
+                  "contract_freeze_sha256", "discovery_inventory_sha256",
+                  "hash_manifest_sha256", "required_execution_sha256",
+                  "runner_contract_sha256", "structural_report_inventory_sha256",
+              }
+              or any(not isinstance(value, str) or len(value) != 64 for value in successor.values())
+          ):
+              raise SystemExit("SQLite FQCN successor/parent linkage differs")
+          seen_execution_keys = set()
+          seen_report_fqcns = set()
+          for binding in manifest["source_manifests"]:
+              path = lane / "final" / binding["evidence_manifest"]
+              raw = path.read_bytes()
+              if hashlib.sha256(raw).hexdigest() != binding.get("sha256"):
+                  raise SystemExit("SQLite source-manifest digest differs")
+              source = json.loads(raw)
+              source_totals = source.get("totals", {})
+              if (
+                  source.get("kind") != "v934-step2-report-run"
+                  or source.get("status") != "passed"
+                  or source.get("variant_key") != binding.get("variant_key")
+                  or source.get("successor") != successor
+                  or any(source_totals.get(key) != 0 for key in ("failures", "errors", "skipped"))
+              ):
+                  raise SystemExit("SQLite source-manifest identity/status differs")
+              execution_keys = {row.get("execution_key") for row in source.get("reports", [])}
+              report_fqcns = {row.get("report_fqcn") for row in source.get("reports", [])}
+              if None in execution_keys or None in report_fqcns:
+                  raise SystemExit("SQLite source-manifest contains an incomplete report row")
+              if seen_execution_keys.intersection(execution_keys) or seen_report_fqcns.intersection(report_fqcns):
+                  raise SystemExit("SQLite source manifests are not mutually exclusive")
+              seen_execution_keys.update(execution_keys)
+              seen_report_fqcns.update(report_fqcns)
+          PY
+
+  database-matrix:
+    name: Exact five-database artifact collector
+    needs:
+      - inventory-unit
+      - sqlite-integration
+      - external-integration
+      - coverage
+      - package-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify frozen Steps 4-6 workflow/tooling bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c scripts/v934/step6/SHA256SUMS
+          sha256sum -c scripts/v934/step4/SHA256SUMS
+          sha256sum -c scripts/v934/step5/SHA256SUMS
+          python3 "$CI_TOOL" validate-workflows --repo-root .
+
+      - name: Download SQLite cell
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-sqlite-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-sqlite-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download MySQL 5.7 cell
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-mysql57-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-mysql57-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download MySQL 8 cell
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-mysql8-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-mysql8-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download PostgreSQL 15 cell
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-postgres15-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-postgres15-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download SQL Server 2022 cell
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-sqlserver2022-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-sqlserver2022-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Assert exact five-cell set and immutable bindings
+        shell: bash
+        env:
+          INVENTORY_UNIT_RESULT: ${{ needs.inventory-unit.result }}
+          SQLITE_INTEGRATION_RESULT: ${{ needs.sqlite-integration.result }}
+          EXTERNAL_INTEGRATION_RESULT: ${{ needs.external-integration.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          PACKAGE_EVIDENCE_RESULT: ${{ needs.package-evidence.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/v934-ci/collector
+          jq -n \
+            --arg inventory_unit "$INVENTORY_UNIT_RESULT" \
+            --arg sqlite_integration "$SQLITE_INTEGRATION_RESULT" \
+            --arg external_integration "$EXTERNAL_INTEGRATION_RESULT" \
+            --arg coverage "$COVERAGE_RESULT" \
+            --arg package_evidence "$PACKAGE_EVIDENCE_RESULT" \
+            '{"inventory-unit": $inventory_unit,
+              "sqlite-integration": $sqlite_integration,
+              "database-matrix": "success",
+              "external-integration": $external_integration,
+              "coverage": $coverage,
+              "package-evidence": $package_evidence}' \
+            > target/v934-ci/collector/structural-job-states.json
+          python3 "$CI_TOOL" aggregate \
+            --repo-root . \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --attempt "$GITHUB_RUN_ATTEMPT" \
+            --authority-run-id "$AUTHORITY_RUN_ID" \
+            --job-states target/v934-ci/collector/structural-job-states.json \
+            --artifacts-dir target/v934-ci/database-artifacts \
+            --output target/v934-ci/collector/database-collector-receipt.json
+          test "$(sha256sum target/v934-ci/collector/structural-job-states.json | cut -d' ' -f1)" = \
+            "$(jq -er '.job_states_sha256' target/v934-ci/collector/database-collector-receipt.json)"
+          python3 "$CI_TOOL" verify \
+            --repo-root . \
+            --receipt target/v934-ci/collector/database-collector-receipt.json \
+            --artifacts-dir target/v934-ci/database-artifacts
+
+      - name: Upload collector receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-db-collector-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/collector/
+          if-no-files-found: error
+          retention-days: 21
+
+  external-integration:
+    name: External integration evidence
+    needs: inventory-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify frozen Steps 4-6 workflow/tooling bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c scripts/v934/step6/SHA256SUMS
+          sha256sum -c scripts/v934/step4/SHA256SUMS
+          sha256sum -c scripts/v934/step5/SHA256SUMS
+          python3 "$CI_TOOL" validate-workflows --repo-root .
+
+      - name: Download gate evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.GATE_ARTIFACT_NAME }}
+          path: target/v934-release-gate/runs/${{ env.AUTHORITY_RUN_ID }}
+
+      - name: Verify external evidence without rerunning tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("target/v934-release-gate/runs") / os.environ["AUTHORITY_RUN_ID"]
+          lane = root / "staging/evidence/external"
+
+          def env_file(path):
+              values = {}
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  key, separator, value = line.partition("=")
+                  if not separator or not key or key in values:
+                      raise SystemExit(f"invalid or duplicate env row in {path}: {line!r}")
+                  values[key] = value
+              return values
+
+          summary = env_file(lane / "summary.env")
+          expected = {
+              "run_id": os.environ["AUTHORITY_RUN_ID"],
+              "runner": "failsafe",
+              "lane": "external-matrix",
+              "git_head": os.environ["GITHUB_SHA"],
+              "failures": "0",
+              "errors": "0",
+              "skipped": "0",
+              "resource_residue": "0/0/0",
+              "status": "passed",
+          }
+          if any(summary.get(key) != value for key, value in expected.items()):
+              raise SystemExit("external integration summary identity/status differs")
+          manifest = json.loads((lane / "final/report-manifest.json").read_text(encoding="utf-8"))
+          totals = manifest.get("totals", {})
+          if (
+              manifest.get("complete") is not True
+              or manifest.get("runner") != "failsafe"
+              or manifest.get("lane") != "external-matrix"
+              or manifest.get("run_id") != os.environ["AUTHORITY_RUN_ID"]
+              or manifest.get("git_head") != os.environ["GITHUB_SHA"]
+              or any(totals.get(key) != 0 for key in ("failures", "errors", "skipped"))
+          ):
+              raise SystemExit("external report manifest is not an exact zero-failure pass")
+          PY
+
+  coverage:
+    name: Immutable coverage collector/check
+    needs: inventory-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify frozen Steps 4-6 workflow/tooling bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c scripts/v934/step6/SHA256SUMS
+          sha256sum -c scripts/v934/step4/SHA256SUMS
+          sha256sum -c scripts/v934/step5/SHA256SUMS
+          python3 "$CI_TOOL" validate-workflows --repo-root .
+
+      - name: Download gate evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.GATE_ARTIFACT_NAME }}
+          path: target/v934-release-gate/runs/${{ env.AUTHORITY_RUN_ID }}
+
+      - name: Independently verify archive, JAR and coverage gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_root="target/v934-release-gate/runs/$AUTHORITY_RUN_ID"
+          archive="$run_root/bundle/v934-release-evidence.tar.gz"
+          archive_manifest="$run_root/bundle/v934-release-evidence.archive.json"
+          archive_digest="$run_root/bundle/v934-release-evidence.tar.gz.sha256"
+          extracted="target/v934-ci/coverage-extracted"
+          (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive_digest")")
+          python3 "$RELEASE_ARTIFACT_TOOL" verify-archive \
+            --archive "$archive" --archive-manifest "$archive_manifest"
+          test ! -e target/v934-ci
+          mkdir target/v934-ci
+          python3 "$RELEASE_ARTIFACT_TOOL" extract-verify \
+            --archive "$archive" --archive-manifest "$archive_manifest" \
+            --destination "$extracted"
+          python3 "$RELEASE_PACKAGE_TOOL" verify \
+            --repo-root . \
+            --manifest "$extracted/package/package-manifest.json" \
+            --jar "$extracted/package/app.jar"
+          python3 scripts/v934/step5/portable_replay_tool.py verify \
+            --repo-root . \
+            --root "$extracted" \
+            --output target/v934-ci/portable-replay.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("target/v934-ci/coverage-extracted/evidence/step4")
+          gate = json.loads((root / "coverage-gate.json").read_text(encoding="utf-8"))
+          final = json.loads((root / "final-manifest.json").read_text(encoding="utf-8"))
+          if gate.get("status") != "passed" or gate.get("run_id") != os.environ["AUTHORITY_RUN_ID"]:
+              raise SystemExit("coverage gate identity/status differs")
+          for counter in ("line", "branch"):
+              if gate.get("aggregate", {}).get(counter, {}).get("outcome") != "passed":
+                  raise SystemExit(f"aggregate coverage {counter} gate differs")
+          critical = gate.get("critical_classes")
+          if not isinstance(critical, list) or len(critical) != 12:
+              raise SystemExit("critical coverage class cardinality differs")
+          for row in critical:
+              for counter in ("line", "branch"):
+                  if row.get(counter, {}).get("outcome") not in ("passed", "not-applicable"):
+                      raise SystemExit("critical coverage gate differs")
+          if (
+              final.get("stage") != "final"
+              or final.get("status") != "release-final"
+              or final.get("run_id") != os.environ["AUTHORITY_RUN_ID"]
+              or "release_successor" not in final
+          ):
+              raise SystemExit("release coverage final identity/status differs")
+          PY
+
+      - name: Upload portable semantic replay receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-portable-replay-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/portable-replay.json
+          if-no-files-found: error
+          retention-days: 21
+
+  package-evidence:
+    name: Same-tested JAR and package evidence
+    needs: inventory-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      authority_run_id: ${{ steps.metadata.outputs.authority_run_id }}
+      release_artifact_name: ${{ steps.metadata.outputs.release_artifact_name }}
+      jar_sha256: ${{ steps.metadata.outputs.jar_sha256 }}
+      gate_mode: ${{ steps.metadata.outputs.gate_mode }}
+    steps:
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify frozen Steps 4-6 workflow/tooling bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c scripts/v934/step6/SHA256SUMS
+          sha256sum -c scripts/v934/step4/SHA256SUMS
+          sha256sum -c scripts/v934/step5/SHA256SUMS
+          python3 "$CI_TOOL" validate-workflows --repo-root .
+
+      - name: Download gate evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.GATE_ARTIFACT_NAME }}
+          path: target/v934-release-gate/runs/${{ env.AUTHORITY_RUN_ID }}
+
+      - name: Independently verify immutable archive and tested JAR
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_root="target/v934-release-gate/runs/$AUTHORITY_RUN_ID"
+          archive="$run_root/bundle/v934-release-evidence.tar.gz"
+          archive_manifest="$run_root/bundle/v934-release-evidence.archive.json"
+          archive_digest="$run_root/bundle/v934-release-evidence.tar.gz.sha256"
+          extracted="target/v934-ci/package-extracted"
+          assets="target/v934-ci/release-assets"
+          package_assets="$assets/package"
+          (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive_digest")")
+          python3 "$RELEASE_ARTIFACT_TOOL" verify-archive \
+            --archive "$archive" --archive-manifest "$archive_manifest"
+          test ! -e target/v934-ci
+          mkdir target/v934-ci
+          python3 "$RELEASE_ARTIFACT_TOOL" extract-verify \
+            --archive "$archive" --archive-manifest "$archive_manifest" \
+            --destination "$extracted"
+          python3 "$RELEASE_PACKAGE_TOOL" verify \
+            --repo-root . \
+            --manifest "$extracted/package/package-manifest.json" \
+            --jar "$extracted/package/app.jar"
+          cmp -s "$run_root/package/app.jar" "$extracted/package/app.jar"
+          cmp -s "$run_root/package/package-manifest.json" "$extracted/package/package-manifest.json"
+          cmp -s "$run_root/package/image-manifest.json" "$extracted/package/image-manifest.json"
+          cmp -s "$run_root/package/maven-invocations.log" "$extracted/package/maven-invocations.log"
+          cmp -s "$run_root/package/docker-build.log" "$extracted/package/docker-build.log"
+          cmp -s "$run_root/package/tested-tree-validation.log" "$extracted/package/tested-tree-validation.log"
+          mkdir "$assets"
+          mkdir "$package_assets"
+          cp "$extracted/package/app.jar" "$package_assets/app.jar"
+          cp "$extracted/package/package-manifest.json" "$package_assets/package-manifest.json"
+          cp "$extracted/package/image-manifest.json" "$package_assets/image-manifest.json"
+          cp "$extracted/package/maven-invocations.log" "$package_assets/maven-invocations.log"
+          cp "$extracted/package/docker-build.log" "$package_assets/docker-build.log"
+          cp "$extracted/package/tested-tree-validation.log" "$package_assets/tested-tree-validation.log"
+          cp "$archive" "$assets/v934-release-evidence.tar.gz"
+          cp "$archive_manifest" "$assets/v934-release-evidence.archive.json"
+          cp "$archive_digest" "$assets/v934-release-evidence.tar.gz.sha256"
+          jar_sha256="$(sha256sum "$package_assets/app.jar" | cut -d' ' -f1)"
+          archive_sha256="$(sha256sum "$assets/v934-release-evidence.tar.gz" | cut -d' ' -f1)"
+          archive_manifest_sha256="$(sha256sum "$assets/v934-release-evidence.archive.json" | cut -d' ' -f1)"
+          archive_digest_sha256="$(sha256sum "$assets/v934-release-evidence.tar.gz.sha256" | cut -d' ' -f1)"
+          package_manifest_sha256="$(sha256sum "$package_assets/package-manifest.json" | cut -d' ' -f1)"
+          image_manifest_sha256="$(sha256sum "$package_assets/image-manifest.json" | cut -d' ' -f1)"
+          maven_log_sha256="$(sha256sum "$package_assets/maven-invocations.log" | cut -d' ' -f1)"
+          docker_log_sha256="$(sha256sum "$package_assets/docker-build.log" | cut -d' ' -f1)"
+          tested_tree_log_sha256="$(sha256sum "$package_assets/tested-tree-validation.log" | cut -d' ' -f1)"
+          gate_mode="$(awk -F= '$1 == "mode" { if (found) exit 3; print $2; found=1 } END { if (!found) exit 2 }' "$run_root/summary.env")"
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            test "$gate_mode" = rehearsal
+          else
+            test "$gate_mode" = authority
+          fi
+          jq -n \
+            --arg authority_run_id "$AUTHORITY_RUN_ID" \
+            --arg commit_sha "$GITHUB_SHA" \
+            --argjson workflow_run_id "$GITHUB_RUN_ID" \
+            --argjson attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg jar_sha256 "$jar_sha256" \
+            --arg archive_sha256 "$archive_sha256" \
+            --arg archive_manifest_sha256 "$archive_manifest_sha256" \
+            --arg archive_digest_sha256 "$archive_digest_sha256" \
+            --arg package_manifest_sha256 "$package_manifest_sha256" \
+            --arg image_manifest_sha256 "$image_manifest_sha256" \
+            --arg maven_log_sha256 "$maven_log_sha256" \
+            --arg docker_log_sha256 "$docker_log_sha256" \
+            --arg tested_tree_log_sha256 "$tested_tree_log_sha256" \
+            --arg gate_mode "$gate_mode" \
+            '{schema_version: 1, kind: "v934-tested-release-assets", status: "passed",
+              identity: {authority_run_id: $authority_run_id, commit_sha: $commit_sha,
+                workflow_run_id: $workflow_run_id, attempt: $attempt, gate_mode: $gate_mode},
+              files: {"package/app.jar": $jar_sha256,
+                "v934-release-evidence.tar.gz": $archive_sha256,
+                "v934-release-evidence.archive.json": $archive_manifest_sha256,
+                "v934-release-evidence.tar.gz.sha256": $archive_digest_sha256,
+                "package/package-manifest.json": $package_manifest_sha256,
+                "package/image-manifest.json": $image_manifest_sha256,
+                "package/maven-invocations.log": $maven_log_sha256,
+                "package/docker-build.log": $docker_log_sha256,
+                "package/tested-tree-validation.log": $tested_tree_log_sha256}}' \
+            > "$assets/release-assets.json"
+          python3 "$CI_TOOL" verify-release-assets \
+            --assets-dir "$assets" \
+            --authority-run-id "$AUTHORITY_RUN_ID" \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --attempt "$GITHUB_RUN_ATTEMPT" \
+            --gate-mode "$gate_mode" \
+            --expected-jar-sha256 "$jar_sha256"
+          {
+            echo "authority_run_id=$AUTHORITY_RUN_ID"
+            echo "release_artifact_name=$RELEASE_ASSET_ARTIFACT_NAME"
+            echo "jar_sha256=$jar_sha256"
+            echo "gate_mode=$gate_mode"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload same-tested release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.RELEASE_ASSET_ARTIFACT_NAME }}
+          path: target/v934-ci/release-assets/
+          if-no-files-found: error
+          retention-days: 21
+
+  required-aggregator:
+    name: 9.3.4 Test & Release Authority
+    if: ${{ always() }}
+    needs:
+      - inventory-unit
+      - sqlite-integration
+      - database-matrix
+      - external-integration
+      - coverage
+      - package-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify frozen Steps 4-6 workflow/tooling bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c scripts/v934/step6/SHA256SUMS
+          sha256sum -c scripts/v934/step4/SHA256SUMS
+          sha256sum -c scripts/v934/step5/SHA256SUMS
+          python3 "$CI_TOOL" validate-workflows --repo-root .
+
+      - name: Download SQLite cell if present
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-sqlite-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-sqlite-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download MySQL 5.7 cell if present
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-mysql57-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-mysql57-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download MySQL 8 cell if present
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-mysql8-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-mysql8-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download PostgreSQL 15 cell if present
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-postgres15-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-postgres15-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Download SQL Server 2022 cell if present
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: v934-db-sqlserver2022-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/v934-ci/database-artifacts/v934-db-sqlserver2022-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Aggregate exact required states and artifacts
+        shell: bash
+        env:
+          INVENTORY_UNIT_RESULT: ${{ needs.inventory-unit.result }}
+          SQLITE_INTEGRATION_RESULT: ${{ needs.sqlite-integration.result }}
+          DATABASE_MATRIX_RESULT: ${{ needs.database-matrix.result }}
+          EXTERNAL_INTEGRATION_RESULT: ${{ needs.external-integration.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          PACKAGE_EVIDENCE_RESULT: ${{ needs.package-evidence.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/v934-ci/aggregator target/v934-ci/database-artifacts
+          jq -n \
+            --arg inventory_unit "$INVENTORY_UNIT_RESULT" \
+            --arg sqlite_integration "$SQLITE_INTEGRATION_RESULT" \
+            --arg database_matrix "$DATABASE_MATRIX_RESULT" \
+            --arg external_integration "$EXTERNAL_INTEGRATION_RESULT" \
+            --arg coverage "$COVERAGE_RESULT" \
+            --arg package_evidence "$PACKAGE_EVIDENCE_RESULT" \
+            '{"inventory-unit": $inventory_unit,
+              "sqlite-integration": $sqlite_integration,
+              "database-matrix": $database_matrix,
+              "external-integration": $external_integration,
+              "coverage": $coverage,
+              "package-evidence": $package_evidence}' \
+            > target/v934-ci/aggregator/required-job-states.json
+          python3 "$CI_TOOL" negative \
+            --repo-root . \
+            --output-dir target/v934-ci/negative-contract
+          python3 "$CI_TOOL" aggregate \
+            --repo-root . \
+            --commit-sha "$GITHUB_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --attempt "$GITHUB_RUN_ATTEMPT" \
+            --authority-run-id "$AUTHORITY_RUN_ID" \
+            --job-states target/v934-ci/aggregator/required-job-states.json \
+            --artifacts-dir target/v934-ci/database-artifacts \
+            --output target/v934-ci/aggregator/required-aggregate-receipt.json
+          test "$(sha256sum target/v934-ci/aggregator/required-job-states.json | cut -d' ' -f1)" = \
+            "$(jq -er '.job_states_sha256' target/v934-ci/aggregator/required-aggregate-receipt.json)"
+          python3 "$CI_TOOL" verify \
+            --repo-root . \
+            --receipt target/v934-ci/aggregator/required-aggregate-receipt.json \
+            --artifacts-dir target/v934-ci/database-artifacts
+
+      - name: Upload required aggregate receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v934-required-receipt-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/v934-ci/aggregator/
+            target/v934-ci/negative-contract/
+          if-no-files-found: error
+          retention-days: 21

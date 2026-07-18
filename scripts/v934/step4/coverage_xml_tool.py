@@ -26,6 +26,8 @@ import tempfile
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Iterable, Sequence
 
+import frozen_diagnostic_capsule_tool as diagnostic_capsule
+
 
 JACOCO_DOCTYPE = b'<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">'
 MAVEN_NAMESPACE = "http://maven.apache.org/POM/4.0.0"
@@ -55,6 +57,9 @@ EXPECTED_AGGREGATE_MERGE_SEMANTICS = (
 EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256 = (
     "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96"
 )
+RELEASE_SUCCESSOR_MARKER = "confirmed-threshold-post-step4-replay"
+RUN_MODES = ("diagnostic", "formal", "release")
+ARTIFACT_MODES = ("formal", "release")
 LEDGER_HEADER = (
     "exec_file",
     "runner",
@@ -110,6 +115,9 @@ FORMALIZATION_EXACT_PATHS = (
     "scripts/v934/step4/coverage-thresholds.json",
     "scripts/v934/step4/coverage-contract.json",
     "scripts/v934/step4/SHA256SUMS",
+    "scripts/v934/step6/ci-contract.json",
+    "scripts/v934/step6/ci_contract_tool.py",
+    "scripts/v934/step6/SHA256SUMS",
 )
 FORMALIZATION_ALLOWED_PREFIXES = ("docs/9.3.4/",)
 HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
@@ -241,6 +249,11 @@ FORMAL_SUMMARY_FIELDS = (
     "formalization_delta_sha256",
     *DIAGNOSTIC_SUMMARY_FIELDS[_FORMAL_SUMMARY_INSERT:],
 )
+RELEASE_SUMMARY_FIELDS = (
+    *DIAGNOSTIC_SUMMARY_FIELDS[:_FORMAL_SUMMARY_INSERT],
+    "release_successor",
+    *DIAGNOSTIC_SUMMARY_FIELDS[_FORMAL_SUMMARY_INSERT:],
+)
 DIAGNOSTIC_RUN_STATUS_FIELDS = (
     "run_id",
     "mode",
@@ -262,6 +275,7 @@ FORMAL_RUN_STATUS_FIELDS = DIAGNOSTIC_RUN_STATUS_FIELDS[:-1] + (
     "final_manifest_sha256",
     "status",
 )
+RELEASE_RUN_STATUS_FIELDS = FORMAL_RUN_STATUS_FIELDS
 
 
 class CoverageXmlError(RuntimeError):
@@ -280,6 +294,38 @@ def reject(code: str, message: str) -> None:
 def require(condition: bool, code: str, message: str) -> None:
     if not condition:
         reject(code, message)
+
+
+def summary_fields(mode: str) -> tuple[str, ...]:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    if mode == "diagnostic":
+        return DIAGNOSTIC_SUMMARY_FIELDS
+    if mode == "formal":
+        return FORMAL_SUMMARY_FIELDS
+    return RELEASE_SUMMARY_FIELDS
+
+
+def run_status_fields(mode: str) -> tuple[str, ...]:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    return DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+
+
+def successful_run_status(mode: str) -> str:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    return {
+        "diagnostic": "diagnostic-observed",
+        "formal": "formal-passed",
+        "release": "release-passed",
+    }[mode]
+
+
+def candidate_summary_status(mode: str) -> str:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    return {
+        "diagnostic": "diagnostic-observed",
+        "formal": "formal-candidate-ready",
+        "release": "release-candidate-ready",
+    }[mode]
 
 
 def reject_json_constant(value: str) -> None:
@@ -4047,7 +4093,7 @@ def validate_summary_artifact_hashes(
         require(
             not formalization_path.exists() and not formalization_path.is_symlink(),
             "E_RUN_SUMMARY",
-            "diagnostic run must not contain formalization-delta.json",
+            f"{mode} run must not contain formalization-delta.json",
         )
     for field, path in bindings.items():
         require(
@@ -4098,9 +4144,9 @@ def validate_run_status(
     expected_artifact_hashes: dict[str, str] | None = None,
 ) -> tuple[dict[str, str], str]:
     status_path = run_root / "run-status.env"
-    fields = DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+    fields = run_status_fields(mode)
     status = load_env(status_path, fields, "E_RUN_STATUS", "run status")
-    expected_status = "diagnostic-observed" if mode == "diagnostic" else "formal-passed"
+    expected_status = successful_run_status(mode)
     require(
         status["run_id"] == run_id
         and status["mode"] == mode
@@ -4120,7 +4166,7 @@ def validate_run_status(
     )
     finished_at = validate_utc_timestamp(status["finished_at"], "E_RUN_STATUS", "finished_at")
     require(finished_at >= context["started_at"], "E_RUN_STATUS", "run finished before it started")
-    if mode == "formal":
+    if mode in ARTIFACT_MODES:
         require_sha256_fields(
             status,
             ("coverage_gate_sha256", "candidate_manifest_sha256", "final_manifest_sha256"),
@@ -4169,16 +4215,16 @@ def validate_run_data(
     _expected_git_head: str | None = None,
     _preseal: bool = False,
 ) -> dict[str, Any]:
-    require(mode in ("diagnostic", "formal"), "E_RUN_MODE", "unsupported coverage run mode")
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
     require(
         not _preseal or not require_run_status,
         "E_RUN_STATUS",
         "preseal validation cannot require an already-published status",
     )
     require(
-        mode == "formal" or expected_artifact_hashes is None,
+        mode in ARTIFACT_MODES or expected_artifact_hashes is None,
         "E_RUN_STATUS",
-        "artifact hashes are formal-only",
+        "artifact hashes are formal/release-only",
     )
     repo_root = repo_root.resolve()
     real_directory(repo_root, "E_REPO_ROOT")
@@ -4194,7 +4240,11 @@ def validate_run_data(
     )
     expected_threshold_status = "diagnostic-pending" if mode == "diagnostic" else "confirmed"
     if step4["status"] != expected_threshold_status:
-        code = "E_FORMAL_THRESHOLD_STATUS" if mode == "formal" else "E_DIAGNOSTIC_THRESHOLD_STATUS"
+        code = {
+            "diagnostic": "E_DIAGNOSTIC_THRESHOLD_STATUS",
+            "formal": "E_FORMAL_THRESHOLD_STATUS",
+            "release": "E_RELEASE_THRESHOLD_STATUS",
+        }[mode]
         reject(code, f"{mode} run requires threshold status {expected_threshold_status}")
 
     contract_path, contract_sha = validate_workflow_contract(
@@ -4231,11 +4281,11 @@ def validate_run_data(
     )
     summary = load_env(
         run_root / "summary.env",
-        DIAGNOSTIC_SUMMARY_FIELDS if mode == "diagnostic" else FORMAL_SUMMARY_FIELDS,
+        summary_fields(mode),
         "E_RUN_SUMMARY",
         "run summary",
     )
-    expected_summary_status = "diagnostic-observed" if mode == "diagnostic" else "formal-candidate-ready"
+    expected_summary_status = candidate_summary_status(mode)
     expected_acceptance = "not-generated" if mode == "diagnostic" else "required"
     require(
         summary["run_id"] == run_id
@@ -4250,6 +4300,12 @@ def validate_run_data(
         "E_RUN_SUMMARY",
         "run summary identity or state differs",
     )
+    if mode == "release":
+        require(
+            summary["release_successor"] == RELEASE_SUCCESSOR_MARKER,
+            "E_RUN_SUMMARY",
+            "release successor marker differs",
+        )
     require(
         {
             "exec_files": summary["exec_files"],
@@ -4401,7 +4457,7 @@ def seal_run_data(
     *,
     _exit_on_commit: bool = False,
 ) -> dict[str, Any]:
-    require(mode in ("diagnostic", "formal"), "E_RUN_MODE", "unsupported seal mode")
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported seal mode")
     repo_root = repo_root.resolve()
     validation = validate_run_data(
         repo_root,
@@ -4412,17 +4468,17 @@ def seal_run_data(
     )
     run_root = validation["run_root"]
     artifact_hashes: dict[str, str] = {}
-    if mode == "formal":
+    if mode in ARTIFACT_MODES:
         gate_path = run_root / "coverage-gate.json"
         candidate_path = run_root / "candidate-manifest.json"
         final_path = run_root / "final-manifest.json"
-        gate = validate_coverage_gate(repo_root, gate_path)
-        candidate = validate_acceptance_candidate(repo_root, candidate_path)
-        final = validate_acceptance_final(repo_root, final_path)
+        gate = validate_coverage_gate(repo_root, gate_path, mode)
+        candidate = validate_acceptance_candidate(repo_root, candidate_path, mode)
+        final = validate_acceptance_final(repo_root, final_path, mode)
         require(
             gate["run_id"] == candidate["run_id"] == final["run_id"] == run_id,
             "E_ACCEPTANCE_ARTIFACT",
-            "formal gate/candidate/final run identities differ",
+            f"{mode} gate/candidate/final run identities differ",
         )
         artifact_hashes = {
             "coverage_gate_sha256": sha256_file(gate_path, "E_COVERAGE_GATE"),
@@ -4440,7 +4496,7 @@ def seal_run_data(
         "E_RUN_STATUS",
         "run cannot be sealed before its start time",
     )
-    status_value = "diagnostic-observed" if mode == "diagnostic" else "formal-passed"
+    status_value = successful_run_status(mode)
     status_values = {
         "run_id": run_id,
         "mode": mode,
@@ -4461,7 +4517,7 @@ def seal_run_data(
         **artifact_hashes,
         "status": status_value,
     }
-    fields = DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+    fields = run_status_fields(mode)
     payload = encode_env(status_values, fields, "E_RUN_STATUS")
     status_path = run_root / "run-status.env"
     result = {
@@ -5279,20 +5335,45 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
         "diagnostic coverage contract",
     )
 
+    capsule_stem = (
+        repo_root
+        / "docs/9.3.4/evidence/step-4"
+        / f"{confirmed_evidence['run_id']}-portable-capsule"
+    )
+    capsule_archive = Path(f"{capsule_stem}.tar.gz")
+    capsule_manifest = Path(f"{capsule_stem}.manifest.json")
+
     with tempfile.TemporaryDirectory(prefix="v934-frozen-diagnostic-") as temporary_name:
         temporary_root = Path(temporary_name)
+        override_root = temporary_root / "overrides"
+        override_root.mkdir(mode=0o700)
+        sandbox_root = temporary_root / "repo"
+        try:
+            diagnostic_capsule.materialize_capsule(
+                capsule_archive,
+                capsule_manifest,
+                sandbox_root,
+                expected_run_id=confirmed_evidence["run_id"],
+                expected_git_head=diagnostic_head,
+                expected_source_sha256=confirmed_evidence["source_sha256"],
+            )
+        except diagnostic_capsule.CapsuleError as exc:
+            reject(
+                "E_FROZEN_CAPSULE",
+                f"portable diagnostic capsule rejected ({exc.code}): {exc}",
+            )
         threshold_path = write_private_blob(
-            temporary_root,
+            override_root,
             "coverage-thresholds.json",
             threshold_blob,
         )
         contract_path = write_private_blob(
-            temporary_root,
+            override_root,
             "coverage-contract.json",
             contract_blob,
         )
         old_step1, old_threshold, old_hashes = load_thresholds(
-            repo_root,
+            sandbox_root,
             _step4_path_override=threshold_path,
         )
         require(old_step1 == step1, "E_FROZEN_RECOMPUTE", "Step 1 policy changed during replay")
@@ -5303,7 +5384,7 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             "frozen threshold blob is not the exact diagnostic-pending predecessor",
         )
         _contract_path, validated_contract_sha = validate_workflow_contract(
-            repo_root,
+            sandbox_root,
             "diagnostic",
             _contract_path_override=contract_path,
         )
@@ -5313,7 +5394,7 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             "frozen contract blob is not the exact diagnostic-ready contract",
         )
         validation = validate_run_data(
-            repo_root,
+            sandbox_root,
             confirmed_evidence["run_id"],
             mode="diagnostic",
             require_run_status=True,
@@ -5483,7 +5564,12 @@ def formal_critical_metric_result(
     }
 
 
-def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
+def formal_check_data(
+    repo_root: Path,
+    run_id: str,
+    mode: str = "formal",
+) -> dict[str, Any]:
+    require(mode in ARTIFACT_MODES, "E_RUN_MODE", "coverage gate mode must be formal or release")
     repo_root = repo_root.resolve()
     step1, step4, threshold_hashes = load_thresholds(repo_root)
     if step4["status"] != "confirmed":
@@ -5498,7 +5584,7 @@ def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
     validation = validate_run_data(
         repo_root,
         run_id,
-        mode="formal",
+        mode=mode,
         require_run_status=False,
     )
     require_formal_class_tree(
@@ -5585,7 +5671,7 @@ def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
                 "branch": metrics["branch"],
             }
         )
-    return {
+    result = {
         "schema_version": 1,
         "kind": "v934-step4-coverage-gate",
         "status": "passed",
@@ -5604,6 +5690,9 @@ def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
         "aggregate": aggregate_results,
         "critical_classes": critical_results,
     }
+    if mode == "release":
+        result["release_successor"] = RELEASE_SUCCESSOR_MARKER
+    return result
 
 
 def formal_check_command(args: argparse.Namespace) -> None:
@@ -5620,13 +5709,29 @@ def formal_check_command(args: argparse.Namespace) -> None:
         "coverage-gate.json",
         "E_COVERAGE_GATE_PATH",
     )
-    result = formal_check_data(args.repo_root, args.run_id)
+    result = formal_check_data(args.repo_root, args.run_id, args.mode)
     atomic_json(output, result)
-    print(f"[v934-coverage-xml] FORMAL PASS run={args.run_id} output={output}")
+    print(f"[v934-coverage-xml] {args.mode.upper()} PASS run={args.run_id} output={output}")
 
 
-def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
+def validate_coverage_gate(
+    repo_root: Path,
+    gate_path: Path,
+    expected_mode: str | None = None,
+) -> dict[str, Any]:
     gate = load_json(gate_path, "E_COVERAGE_GATE")
+    mode = "release" if "release_successor" in gate else "formal"
+    require(
+        expected_mode is None or expected_mode == mode,
+        "E_COVERAGE_GATE_MODE",
+        "coverage gate workflow mode differs",
+    )
+    if mode == "release":
+        require(
+            gate.get("release_successor") == RELEASE_SUCCESSOR_MARKER,
+            "E_COVERAGE_GATE_MODE",
+            "release coverage gate successor marker differs",
+        )
     require(
         gate.get("kind") == "v934-step4-coverage-gate"
         and gate.get("status") == "passed"
@@ -5642,7 +5747,7 @@ def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
         "E_COVERAGE_GATE_PATH",
     )
     require(gate_path.absolute() == canonical_gate, "E_COVERAGE_GATE_PATH", "coverage gate path differs")
-    expected = formal_check_data(repo_root, gate["run_id"])
+    expected = formal_check_data(repo_root, gate["run_id"], mode)
     require(
         exact_json_identity(gate, expected),
         "E_COVERAGE_GATE",
@@ -5651,11 +5756,36 @@ def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
     return gate
 
 
+def artifact_workflow_mode(
+    value: dict[str, Any],
+    stage: str,
+    code: str,
+) -> str:
+    status = value.get("status")
+    if status == f"formal-{stage}":
+        require(
+            "release_successor" not in value,
+            code,
+            "formal artifact contains a release successor marker",
+        )
+        return "formal"
+    if status == f"release-{stage}":
+        require(
+            value.get("release_successor") == RELEASE_SUCCESSOR_MARKER,
+            code,
+            "release artifact successor marker differs",
+        )
+        return "release"
+    reject(code, f"{stage} artifact workflow status differs")
+
+
 def acceptance_candidate_data(
     repo_root: Path,
     run_id: str,
     gate_path: Path,
+    mode: str = "formal",
 ) -> dict[str, Any]:
+    require(mode in ARTIFACT_MODES, "E_RUN_MODE", "candidate mode must be formal or release")
     gate_path = require_canonical_run_artifact_path(
         repo_root,
         run_id,
@@ -5663,13 +5793,13 @@ def acceptance_candidate_data(
         "coverage-gate.json",
         "E_COVERAGE_GATE_PATH",
     )
-    gate = validate_coverage_gate(repo_root, gate_path)
+    gate = validate_coverage_gate(repo_root, gate_path, mode)
     require(gate["run_id"] == run_id, "E_ACCEPTANCE_CANDIDATE", "gate/run identity differs")
-    return {
+    result = {
         "schema_version": 1,
         "kind": "v934-step4-coverage-acceptance-artifact",
         "stage": "candidate",
-        "status": "formal-candidate",
+        "status": f"{mode}-candidate",
         "run_id": run_id,
         "git_head": gate["git_head"],
         "threshold": gate["threshold"],
@@ -5677,24 +5807,42 @@ def acceptance_candidate_data(
         "evidence": gate["formal_evidence"],
         "bindings": gate["bindings"],
     }
+    if mode == "release":
+        result["release_successor"] = RELEASE_SUCCESSOR_MARKER
+    return result
 
 
-def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict[str, Any]:
+def validate_acceptance_candidate(
+    repo_root: Path,
+    candidate_path: Path,
+    expected_mode: str | None = None,
+) -> dict[str, Any]:
     candidate = load_json(candidate_path, "E_ACCEPTANCE_CANDIDATE")
+    mode = artifact_workflow_mode(
+        candidate, "candidate", "E_ACCEPTANCE_CANDIDATE"
+    )
+    require(
+        expected_mode is None or expected_mode == mode,
+        "E_ACCEPTANCE_CANDIDATE_MODE",
+        "acceptance candidate workflow mode differs",
+    )
+    expected_keys = (
+        "schema_version",
+        "kind",
+        "stage",
+        "status",
+        "run_id",
+        "git_head",
+        "threshold",
+        "coverage_gate",
+        "evidence",
+        "bindings",
+    )
+    if mode == "release":
+        expected_keys = (*expected_keys, "release_successor")
     exact_keys(
         candidate,
-        (
-            "schema_version",
-            "kind",
-            "stage",
-            "status",
-            "run_id",
-            "git_head",
-            "threshold",
-            "coverage_gate",
-            "evidence",
-            "bindings",
-        ),
+        expected_keys,
         "E_ACCEPTANCE_CANDIDATE",
         "formal acceptance candidate",
     )
@@ -5703,7 +5851,7 @@ def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict
         and type(candidate["schema_version"]) is int
         and candidate["kind"] == "v934-step4-coverage-acceptance-artifact"
         and candidate["stage"] == "candidate"
-        and candidate["status"] == "formal-candidate",
+        and candidate["status"] == f"{mode}-candidate",
         "E_ACCEPTANCE_CANDIDATE",
         "formal acceptance candidate identity/status differs",
     )
@@ -5722,7 +5870,9 @@ def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict
         "candidate coverage gate",
         expected_path=expected_gate_path,
     )
-    expected = acceptance_candidate_data(repo_root, candidate["run_id"], gate_path)
+    expected = acceptance_candidate_data(
+        repo_root, candidate["run_id"], gate_path, mode
+    )
     require(
         exact_json_identity(candidate, expected),
         "E_ACCEPTANCE_CANDIDATE",
@@ -5731,13 +5881,20 @@ def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict
     return candidate
 
 
-def acceptance_final_data(repo_root: Path, candidate_path: Path) -> dict[str, Any]:
-    candidate = validate_acceptance_candidate(repo_root, candidate_path)
-    return {
+def acceptance_final_data(
+    repo_root: Path,
+    candidate_path: Path,
+    mode: str | None = None,
+) -> dict[str, Any]:
+    candidate = validate_acceptance_candidate(repo_root, candidate_path, mode)
+    workflow_mode = artifact_workflow_mode(
+        candidate, "candidate", "E_ACCEPTANCE_FINAL"
+    )
+    result = {
         "schema_version": 1,
         "kind": "v934-step4-coverage-acceptance-artifact",
         "stage": "final",
-        "status": "formal-final",
+        "status": f"{workflow_mode}-final",
         "run_id": candidate["run_id"],
         "git_head": candidate["git_head"],
         "threshold": candidate["threshold"],
@@ -5748,25 +5905,41 @@ def acceptance_final_data(repo_root: Path, candidate_path: Path) -> dict[str, An
         "evidence": candidate["evidence"],
         "bindings": candidate["bindings"],
     }
+    if workflow_mode == "release":
+        result["release_successor"] = RELEASE_SUCCESSOR_MARKER
+    return result
 
 
-def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, Any]:
+def validate_acceptance_final(
+    repo_root: Path,
+    final_path: Path,
+    expected_mode: str | None = None,
+) -> dict[str, Any]:
     final = load_json(final_path, "E_ACCEPTANCE_FINAL")
+    mode = artifact_workflow_mode(final, "final", "E_ACCEPTANCE_FINAL")
+    require(
+        expected_mode is None or expected_mode == mode,
+        "E_ACCEPTANCE_FINAL_MODE",
+        "acceptance final workflow mode differs",
+    )
+    expected_keys = (
+        "schema_version",
+        "kind",
+        "stage",
+        "status",
+        "run_id",
+        "git_head",
+        "threshold",
+        "coverage_gate",
+        "candidate_manifest",
+        "evidence",
+        "bindings",
+    )
+    if mode == "release":
+        expected_keys = (*expected_keys, "release_successor")
     exact_keys(
         final,
-        (
-            "schema_version",
-            "kind",
-            "stage",
-            "status",
-            "run_id",
-            "git_head",
-            "threshold",
-            "coverage_gate",
-            "candidate_manifest",
-            "evidence",
-            "bindings",
-        ),
+        expected_keys,
         "E_ACCEPTANCE_FINAL",
         "formal acceptance final",
     )
@@ -5775,7 +5948,7 @@ def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, An
         and type(final["schema_version"]) is int
         and final["kind"] == "v934-step4-coverage-acceptance-artifact"
         and final["stage"] == "final"
-        and final["status"] == "formal-final",
+        and final["status"] == f"{mode}-final",
         "E_ACCEPTANCE_FINAL",
         "formal acceptance final identity/status differs",
     )
@@ -5794,7 +5967,7 @@ def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, An
         "final candidate manifest",
         expected_path=expected_candidate_path,
     )
-    expected = acceptance_final_data(repo_root, candidate_path)
+    expected = acceptance_final_data(repo_root, candidate_path, mode)
     require(
         exact_json_identity(final, expected),
         "E_ACCEPTANCE_FINAL",
@@ -5805,19 +5978,22 @@ def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, An
 
 def build_artifact_command(args: argparse.Namespace) -> None:
     repo_root = args.repo_root.resolve()
-    # Both acceptance stages are formal-only. Check this before looking at an
-    # attacker-controlled candidate/gate path so pending can never fall through.
+    mode = getattr(args, "mode", "formal")
+    # Both acceptance stages are confirmed-threshold-only. Check this before
+    # looking at an attacker-controlled candidate/gate path.
     _, step4, _ = load_thresholds(repo_root)
     if step4["status"] != "confirmed":
         reject(
             "E_FORMAL_THRESHOLD_STATUS",
-            "formal artifacts require a confirmed threshold successor",
+            "formal/release artifacts require a confirmed threshold successor",
         )
     if args.stage == "candidate":
         require(args.run_id is not None, "E_ARGUMENT", "candidate stage requires --run-id")
         require(args.coverage_gate is not None, "E_ARGUMENT", "candidate stage requires --coverage-gate")
         require(args.candidate is None, "E_ARGUMENT", "candidate stage forbids --candidate")
-        value = acceptance_candidate_data(repo_root, args.run_id, args.coverage_gate)
+        value = acceptance_candidate_data(
+            repo_root, args.run_id, args.coverage_gate, mode
+        )
         output = require_canonical_run_artifact_path(
             repo_root,
             value["run_id"],
@@ -5829,7 +6005,7 @@ def build_artifact_command(args: argparse.Namespace) -> None:
         require(args.candidate is not None, "E_ARGUMENT", "final stage requires --candidate")
         require(args.run_id is None, "E_ARGUMENT", "final stage forbids --run-id")
         require(args.coverage_gate is None, "E_ARGUMENT", "final stage forbids --coverage-gate")
-        value = acceptance_final_data(repo_root, args.candidate)
+        value = acceptance_final_data(repo_root, args.candidate, mode)
         output = require_canonical_run_artifact_path(
             repo_root,
             value["run_id"],
@@ -5846,24 +6022,26 @@ def build_artifact_command(args: argparse.Namespace) -> None:
 
 def verify_artifact_command(args: argparse.Namespace) -> None:
     repo_root = args.repo_root.resolve()
+    expected_mode = getattr(args, "mode", None)
     _, step4, _ = load_thresholds(repo_root)
     if step4["status"] != "confirmed":
         reject(
             "E_FORMAL_THRESHOLD_STATUS",
-            "formal artifact verification requires confirmed thresholds",
+            "formal/release artifact verification requires confirmed thresholds",
         )
     payload = load_json(args.artifact, "E_ACCEPTANCE_ARTIFACT")
     stage = payload.get("stage")
     if stage == "candidate":
         require(args.run_status is None, "E_ARGUMENT", "--run-status is final-only")
-        value = validate_acceptance_candidate(repo_root, args.artifact)
+        value = validate_acceptance_candidate(repo_root, args.artifact, expected_mode)
     elif stage == "final":
         require(
             args.run_status is not None,
             "E_RUN_STATUS",
-            "public final verification requires the canonical formal run status",
+            "public final verification requires the canonical run status",
         )
-        value = validate_acceptance_final(repo_root, args.artifact)
+        value = validate_acceptance_final(repo_root, args.artifact, expected_mode)
+        mode = artifact_workflow_mode(value, "final", "E_ACCEPTANCE_ARTIFACT")
         run_root = canonical_run_root(repo_root, value["run_id"])
         canonical_status = run_root / "run-status.env"
         require(
@@ -5871,7 +6049,7 @@ def verify_artifact_command(args: argparse.Namespace) -> None:
             and args.run_status == canonical_status
             and args.run_status.resolve(strict=False) == canonical_status,
             "E_RUN_STATUS",
-            "--run-status is not the canonical formal run status",
+            "--run-status is not the canonical run status",
         )
         expected_hashes = {
             "coverage_gate_sha256": value["coverage_gate"]["sha256"],
@@ -5881,12 +6059,12 @@ def verify_artifact_command(args: argparse.Namespace) -> None:
         validate_run_data(
             repo_root,
             value["run_id"],
-            mode="formal",
+            mode=mode,
             require_run_status=True,
             expected_artifact_hashes=expected_hashes,
         )
     else:
-        reject("E_ACCEPTANCE_ARTIFACT", "formal acceptance artifact stage differs")
+        reject("E_ACCEPTANCE_ARTIFACT", "acceptance artifact stage differs")
     print(f"[v934-coverage-xml] ARTIFACT VALID stage={stage} run={value['run_id']}")
 
 
@@ -5991,6 +6169,12 @@ def negative_command(args: argparse.Namespace) -> None:
     cases["symlink"] = expect_failure(
         "E_FILE_SYMLINK",
         lambda: validate_mutated_xml(symlink_path),
+    )
+    symlink_path.unlink()
+    require(
+        not symlink_path.exists() and not symlink_path.is_symlink(),
+        "E_NEGATIVE_CLEANUP",
+        "symlink XML negative fixture survived",
     )
 
     malformed_path = output_dir / "malformed.xml"
@@ -6123,15 +6307,16 @@ def build_parser() -> argparse.ArgumentParser:
         "seal-run",
         help="fully prevalidate and atomically publish the canonical success status",
     )
-    seal_run.add_argument("--mode", choices=("diagnostic", "formal"), required=True)
+    seal_run.add_argument("--mode", choices=RUN_MODES, required=True)
     seal_run.add_argument("--repo-root", type=Path, required=True)
     seal_run.add_argument("--run-id", required=True)
     seal_run.set_defaults(function=seal_run_command)
 
     formal = commands.add_parser(
         "formal-check",
-        help="apply confirmed exact coverage gates to a fresh formal run",
+        help="apply confirmed exact coverage gates to a fresh formal or release run",
     )
+    formal.add_argument("--mode", choices=ARTIFACT_MODES, default="formal")
     formal.add_argument("--repo-root", type=Path, required=True)
     formal.add_argument("--run-id", required=True)
     formal.add_argument("--output", type=Path, required=True)
@@ -6139,8 +6324,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_artifact = commands.add_parser(
         "build-artifact",
-        help="build a formal acceptance candidate or final manifest",
+        help="build a formal or release acceptance candidate/final manifest",
     )
+    build_artifact.add_argument("--mode", choices=ARTIFACT_MODES, default="formal")
     build_artifact.add_argument("--repo-root", type=Path, required=True)
     build_artifact.add_argument("--stage", choices=("candidate", "final"), required=True)
     build_artifact.add_argument("--run-id")
@@ -6151,8 +6337,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_artifact = commands.add_parser(
         "verify-artifact",
-        help="recompute a formal candidate or verify a sealed formal final",
+        help="recompute a formal/release candidate or verify a sealed final",
     )
+    verify_artifact.add_argument("--mode", choices=ARTIFACT_MODES)
     verify_artifact.add_argument("--repo-root", type=Path, required=True)
     verify_artifact.add_argument("--artifact", type=Path, required=True)
     verify_artifact.add_argument("--run-status", type=Path)

@@ -13,12 +13,12 @@ import org.springframework.context.annotation.Configuration;
  * <h3>Usage:</h3>
  * <pre>
  * # Environment variable
- * FOGGY_AUTH_TOKEN=foggy_your_secret_token
+ * FOGGY_AUTH_TOKEN=${FOGGY_AUTH_TOKEN}
  *
  * # Or in application.yml
  * foggy:
  *   auth:
- *     token: foggy_your_secret_token
+ *     token: ${FOGGY_AUTH_TOKEN}
  * </pre>
  *
  * @author foggy-framework
