@@ -592,7 +592,7 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | historical formal-r4 accepted；formal-r6 bootstrap-negative immutable failed；NUL-token fix、diagnostic machine/hash closure PASS，pending clean/pushed Cdiag + diagnostic-r23 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | r23 full PASS/public-valid but scheduling high-water freeze refused；MapBeanInfo deterministic regression `5/5`，pending clean/pushed Cdiag + diagnostic-r24 |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal-r7 + quality/audit/acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
@@ -622,6 +622,10 @@ predecessor migration manifest 和 successor current-source lanes 证明等价�
   real index/source 漂移；
 - fixture 已改为 NUL-token，保留 exact `h` 前置条件与 validator rc=2 拒绝；focused stress=
   `100/100`、独立 stress=`1000/1000`、full negative processes=`5/5`；
-- current machine=`diagnostic-ready / diagnostic-pending`。历史 r22 candidate/capsule/Cfreeze 保留但
-  不可复用；必须新 Cdiag→fresh diagnostic→candidate/capsule/双审→direct-child Cfreeze→formal-r7；
+- r23 在新 Cdiag `9b0bd281…` 上 full PASS/public-valid，但 branch=`26112/44870` 的唯一新增 outcome
+  来自 `MapBeanInfoHelper#getBeanProperty` inner double-check 偶发调度；candidate/capsule 均 absent；
+- existing-node controlled regression 已在 5 个 fresh JVM 得到 exact class probe bitmap，owning module
+  `97/F0E0S0`，pre-Cdiag review=`0/0/0/0`；
+- current machine=`diagnostic-ready / diagnostic-pending`。历史 r22/r23/Cfreeze 不可复用；必须
+  replacement Cdiag→fresh diagnostic-r24→candidate/capsule/双审→direct-child Cfreeze→formal-r7；
 - Step 5–7、coverage acceptance replacement、9.3.5 与 9.4.0 在 formal-r7 完成前保持关闭。

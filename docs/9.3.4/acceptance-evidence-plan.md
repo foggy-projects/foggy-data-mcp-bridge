@@ -27,7 +27,7 @@ updated_at: 2026-07-19
 | reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r22 retained；NUL-token recovery inventory reviewed；Step 5–7 execution closed |
 | implementation plan | `implementation-plan.md` | ready |
 | progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Step 4 replacement Cdiag / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r6=`failed/bootstrap-negative`；fresh diagnostic-r23 and formal-r7 pending |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r23 full PASS but exact freeze refused for scheduling high-water；replacement diagnostic-r24 and formal-r7 pending |
 | Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；historical Step 4 retained；replacement Step 4 pending；Steps 5–6 closed |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r6 recovery quality=`0/0/0/0`；replacement post-formal quality pending |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement audit closed until formal-r7 |
@@ -561,6 +561,7 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
 contract；source、tests、coverage 和 final artifacts 均 absent。修复位于 prior formal allowlist 外，
 所以 current `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
 
-新的 acceptance 输入只能来自 clean/pushed Cdiag 的 fresh diagnostic-r23、全新 review/Cfreeze 和
-fresh formal-r7；r22/r6 不得拼接。r7 PASS 后仍按 implementation quality→coverage audit→acceptance
-顺序恢复 downstream entry。
+新的 acceptance 输入只能来自 controlled MapBeanInfo regression 之后 clean/pushed replacement Cdiag
+的 fresh diagnostic-r24、全新 review/Cfreeze 和 fresh formal-r7；r22/r23/r6 不得拼接。r23 虽
+public-valid，但 candidate/capsule 因 scheduling high-water 保持 absent。r7 PASS 后仍按 implementation
+quality→coverage audit→acceptance 顺序恢复 downstream entry。

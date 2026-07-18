@@ -1043,9 +1043,13 @@ current Step 4=`in-progress`、Step 5–7=`hold/closed`、9.3.5=`queued`。
 2. [completed] 两路独立根因审计，确认 malformed v2 newline token 和 real index 无漂移；
 3. [completed] NUL-token 最小修复、focused/independent/full-negative stress；
 4. [completed] machine 恢复 `diagnostic-ready / diagnostic-pending`，Step 4/6 hash closure PASS；
-5. [in-progress] one Cdiag commit/push/clean identity，然后 fresh diagnostic-r23；
-6. [pending] new candidate、portable capsule、双审和 direct-child Cfreeze；
-7. [pending] fresh-clone formal-r7；
-8. [pending] final quality→coverage audit→acceptance，随后恢复 Step 5 entry。
+5. [completed] Cdiag `9b0bd281…` commit/push/clean，fresh diagnostic-r23 full PASS/public-valid；
+6. [completed] 拒绝 r23 scheduling-dependent `+1 branch/+1 complexity` high-water freeze；candidate/
+   capsule absent；existing-node MapBeanInfo controlled regression、5 fresh JVM probes、owning module 与
+   pre-Cdiag review PASS；
+7. [in-progress] one replacement Cdiag commit/push/clean identity，然后 fresh diagnostic-r24；
+8. [pending] new candidate、portable capsule、双审和 direct-child Cfreeze；
+9. [pending] fresh-clone formal-r7；
+10. [pending] final quality→coverage audit→acceptance，随后恢复 Step 5 entry。
 
 任一步失败继续 fail closed；formal-r6/r22 均不得成为 replacement authority。

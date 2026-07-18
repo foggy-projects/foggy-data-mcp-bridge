@@ -933,3 +933,16 @@ code_inventory:
 - production/POM/API/test/report/exec/database delta=`0`；threshold floor、critical set、exclusion 和
   real source-hash rejection semantic 不变；
 - current inventory 只授权 new Cdiag/fresh diagnostic；r22 capsule 与 r6 artifacts 只读保留。
+
+### Superseding diagnostic-r23 remediation inventory
+
+- r23 dynamic inventory=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/classes=
+  `23/48/16962`、production universe=`24/2098`，public validation/source/model/sensitive/cleanup PASS；
+- r23 aggregate=`54624/76830 line, 26112/44870 branch`；唯一相对 r22 的 class/method delta 是
+  `BeanInfoHelper$MapBeanInfoHelper#getBeanProperty` inner double-check，不能冻结为 exact minimum；
+- remediation inventory 只增加既有 `BeanInfoHelperTest#getClassHelper` 内部 assertions/interleaving；
+  `@Test`、report/testcase cardinality、production/POM/runner/threshold/critical/exclusion delta=`0`；
+- final test source SHA-256=`52bf8b885f6cd0e6e65fafe4f4afa753699edf5b5e902b93c778ef36f020966c`；
+  five fresh JVM class probe=`a6629aa379049ec7 / 10/11 / _wU` exact，owning module=`97/F0E0S0`；
+- current inventory 只授权 replacement Cdiag/fresh diagnostic-r24；r23 candidate/capsule absent，
+  Step 5–7/9.3.5 继续 closed。

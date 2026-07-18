@@ -159,8 +159,9 @@ updated_at: 2026-07-19
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=`in-progress / replacement Cdiag`；
-- historical Step 4 authority/formal-r4 acceptance 保留；formal-r6 bootstrap-negative immutable
-  failed，current machine=`diagnostic-ready / diagnostic-pending`，diagnostic-r23/formal-r7 pending；
+- historical Step 4 authority/formal-r4 acceptance 保留；r23 full PASS/public-valid，但 scheduling
+  high-water exact freeze 被拒绝；current machine=`diagnostic-ready / diagnostic-pending`，replacement
+  diagnostic-r24/formal-r7 pending；
 - Step 5–7=`hold / execution closed`，version acceptance=`not-started`，9.3.5=`queued`；
 - Unit MySQL classification DEBT 继续 open，最终 9.3.4 临时放行由 Step 7 决定。
 
@@ -698,5 +699,8 @@ updated_at: 2026-07-19
 - formal-r6 正确 fail closed，但因未启动 source/test/coverage，它不能满足任何 replacement exit；
 - protocol fix 位于 formal allowlist 外，触发 new diagnostic requirement；不得以历史 feature
   acceptance、r22 candidate 或同-ID rerun豁免；
-- current definition of done：new Cdiag、fresh diagnostic-r23、new review/Cfreeze、fresh formal-r7、
-  final quality/audit/acceptance 全 PASS；在此之前 `can_enter_step5=no` 且 9.3.5 closed。
+- r23 满足全 lane diagnostic correctness，但不满足可复现 threshold authority：其唯一新增 branch
+  来自 MapBeanInfo inner double-check 偶发调度，candidate/capsule 必须 absent；
+- current definition of done：controlled regression 后 replacement Cdiag、fresh diagnostic-r24、new
+  review/Cfreeze、fresh formal-r7、final quality/audit/acceptance 全 PASS；在此之前
+  `can_enter_step5=no` 且 9.3.5 closed。

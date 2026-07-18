@@ -30,7 +30,7 @@ updated_at: 2026-07-19
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Step 4 replacement authority | [执行文档包](../9.3.4/README.md)；历史 formal-r4 feature acceptance 保留；后续 authority 变更触发 replacement。formal-r6 在 bootstrap negative fixture fail closed，修复已回到 `diagnostic-ready/pending`，新 Cdiag→diagnostic→Cfreeze→formal 尚待完成；Steps 5–7/9.3.5 closed |
+| 9.3.4 | in-progress / Step 4 replacement authority | [执行文档包](../9.3.4/README.md)；r23 全 lane PASS 但偶发命中 MapBeanInfo inner double-check，exact threshold freeze 已拒绝；确定性 existing-node regression 与 5-fork probe 已通过，replacement Cdiag→r24→Cfreeze→formal 尚待完成；Steps 5–7/9.3.5 closed |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -88,8 +88,9 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 当前状态：`in-progress / Step 4 replacement authority`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。历史 Cfreeze `f97483a0…` / formal-r4 的 feature
 acceptance 保留，但后续 release-authority 变更要求 replacement coverage authority。formal-r6 在
-bootstrap negative fixture fail closed；合规 fsmonitor v2 NUL-token 修复已恢复
-`diagnostic-ready / diagnostic-pending`，必须新走 Cdiag→diagnostic→review→Cfreeze→formal。
+bootstrap negative fixture fail closed；其修复后的 r23 完整 PASS，但 r23 偶发覆盖
+`MapBeanInfoHelper` inner double-check，不能把调度高水位冻结为 formal exact minimum。确定性回归与
+5 个 fresh JVM probe 已通过，必须由 replacement Cdiag 上的 r24 重新建立可冻结 observation。
 
 post-formal quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`；coverage audit 在补齐同一
 tested HEAD 的 Pivot legacy companion `1/F0E0S0` 后得到 25/25 workitem covered、
@@ -140,8 +141,12 @@ Step 4 workitem 已关闭，Unit MySQL classification DEBT 继续由 9.3.5 versi
 
 ## 2026-07-19 authority checkpoint
 
-- formal-r6=`failed / bootstrap-negative / immutable`；生产测试尚未启动；
-- root cause=`synthetic fsmonitor v2 newline token`，非 real index/clone 漂移；
-- fix=`NUL-token`，focused=`100/100`、independent=`1000/1000`、full negative=`5/5`；
-- machine=`diagnostic-ready / diagnostic-pending`；下一动作是提交/push 新 Cdiag 并执行 fresh
-  diagnostic-r23。主线优先不变，安全工作仅限维持 fail-closed gate。
+- formal-r6=`failed / bootstrap-negative / immutable`；NUL-token recovery 已由 r23 全 lane 验证；
+- r23=`completed / diagnostic-observed / public-valid`，required=`773+59/5707`、exec/session=
+  `23/48`、source exact、cleanup/DB restore PASS；
+- r23 branch=`26112/44870` 比稳定值多 1，唯一来源是 MapBeanInfo inner double-check 的调度偶发；
+  candidate/capsule absent，禁止冻结；
+- existing-node controlled regression=`5 x 1/F0E0S0`，class probe bitmap `5/5 exact`，owning
+  module=`97/F0E0S0`，pre-Cdiag quality=`0/0/0/0`；
+- 下一动作是提交/push replacement Cdiag 并执行唯一 fresh diagnostic-r24。主线优先不变，安全工作
+  仅限维持 fail-closed gate。

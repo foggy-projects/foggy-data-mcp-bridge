@@ -956,5 +956,10 @@ coverage audit 与 acceptance 保持关闭。
 - fixture regression：合规 NUL-token 后必须 exact `h tracked.txt\0`，生产 validator 仍必须 rc=2；
 - stability：independent 1000 iterations、local 100 iterations、five complete negative processes；
 - static closure：Step 4 `61/61`、Step 6 `16/16`、diagnostic contract/overlay/workflows PASS；
-- replacement dynamic boundary：只允许从 clean/pushed Cdiag 运行完整 diagnostic-r23；成功后才能生成
-  candidate/capsule、双审/Cfreeze 和 fresh formal-r7。任何失败继续关闭 Step 5/9.3.5。
+- r23 dynamic result：full PASS/public-valid，但唯一新增 MapBeanInfo inner double-check branch 依赖
+  scheduling；candidate/capsule absent，不能把 PASS 等同于 freeze authorization；
+- deterministic regression：既有 test node 内 100 次 controlled monitor interleaving；5 个 fresh
+  Maven/JVM/JaCoCo fork class id/probe/bitmap exact，方法 branch=`4/4`、complexity=`3/3`；
+- replacement dynamic boundary：只允许从 clean/pushed replacement Cdiag 运行完整 diagnostic-r24；
+  成功且 counter/probe 稳定后才能生成 candidate/capsule、双审/Cfreeze 和 fresh formal-r7。任何失败
+  继续关闭 Step 5/9.3.5。

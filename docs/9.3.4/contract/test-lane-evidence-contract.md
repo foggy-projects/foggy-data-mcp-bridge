@@ -1000,3 +1000,16 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 4. authority 顺序固定为 Cdiag→fresh diagnostic→new candidate/capsule→dual review→direct-child
    Cfreeze→fresh formal→quality→coverage audit→acceptance；
 5. current `can_enter_step5=no`，Steps 5–7/9.3.5 均 closed。
+
+## Superseding diagnostic-r23 scheduling-high-water contract（2026-07-19）
+
+1. diagnostic PASS 只证明 run/evidence 完整，不自动授权 freeze；若 exact-observed counter 来自
+   incidental scheduling，candidate/capsule 必须 absent；
+2. r23 branch=`26112/44870` 的唯一新增 outcome 是 MapBeanInfo inner double-check，historical probe
+   证明不稳定，因此不得手工降低/修改 candidate，也不得反复 formal 直到碰中；
+3. remediation 必须保留 test/report cardinality，只在既有节点用 controlled monitor interleaving
+   确定覆盖 create/cache/inner-non-null paths，并以多 fresh JVM probe identity 证明稳定；
+4. replacement r24 必须从 clean/pushed new Cdiag 运行全部 lane，source before/after exact；只有 r24
+   public-valid 且目标 branch/probe 稳定，才允许生成全新 candidate/capsule 和启动 dual review；
+5. r22/r23/r6 均为历史只读输入，不能拼接；当前 authority 顺序为
+   replacement Cdiag→r24→candidate/capsule→dual review→Cfreeze→formal-r7→post-gates。

@@ -4,14 +4,54 @@ import lombok.Data;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
  class BeanInfoHelperTest {
 
      @Test
-     void getClassHelper() {
+     void getClassHelper() throws InterruptedException {
 
         BeanInfoHelper bp =   BeanInfoHelper.getClassHelper(String[].class);
 
         Assertions.assertEquals(bp.getBeanProperty("length").getBeanValue(new String[]{"a"}),1);
+
+        for (int iteration = 0; iteration < 100; iteration++) {
+            String propertyName = "concurrent-" + iteration;
+            BeanInfoHelper.MapBeanInfoHelper mapHelper =
+                    new BeanInfoHelper.MapBeanInfoHelper(HashMap.class);
+            BeanProperty created = mapHelper.getBeanProperty("created-" + iteration, false);
+            Assertions.assertSame(
+                    created,
+                    mapHelper.getBeanProperty("created-" + iteration, false)
+            );
+            BeanProperty installed = new BeanInfoHelper.MapItemBeanProperty(propertyName);
+            AtomicReference<BeanProperty> observed = new AtomicReference<>();
+            Thread lookup = new Thread(
+                    () -> observed.set(mapHelper.getBeanProperty(propertyName, false)),
+                    "bean-info-map-double-check-" + iteration
+            );
+
+            synchronized (mapHelper) {
+                lookup.start();
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                while (lookup.getState() != Thread.State.BLOCKED
+                        && System.nanoTime() < deadline) {
+                    Thread.onSpinWait();
+                }
+                Assertions.assertEquals(
+                        Thread.State.BLOCKED,
+                        lookup.getState(),
+                        "lookup must complete its first miss before the cached value is installed"
+                );
+                mapHelper.mapBp.put(propertyName, installed);
+            }
+
+            lookup.join(TimeUnit.SECONDS.toMillis(5));
+            Assertions.assertFalse(lookup.isAlive(), "lookup thread must terminate");
+            Assertions.assertSame(installed, observed.get());
+        }
     }
 
     @Test

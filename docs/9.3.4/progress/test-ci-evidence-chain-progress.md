@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | Step 3 exit passed | historical formal-r4 accepted；formal-r6 bootstrap-negative immutable failed；NUL-token fix + diagnostic state PASS，pending Cdiag push/fresh diagnostic-r23 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | Step 3 exit passed | r23 full PASS/public-valid but scheduling high-water freeze refused；controlled MapBeanInfo regression `5/5`，pending replacement Cdiag/fresh diagnostic-r24 |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r7 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1752,5 +1752,11 @@ formal-r6 recovery 重新关闭。
   `5/5`；
 - machine=`diagnostic-ready / diagnostic-pending`，Step4 manifest=`51ff1d26…f76`，Step6 workflow
   closure PASS；
-- current：Step 4=`in-progress`，Step 5–7=`closed/hold`，9.3.5=`queued`；next=`new Cdiag commit/push
-  -> fresh diagnostic-r23`。
+- r23：`completed / diagnostic-observed / public-valid`，required=`773+59/5707`、exec/session=
+  `23/48`、source exact、cleanup/restore PASS；
+- r23 high-water：branch=`26112/44870`、complexity=`17659/35571`，唯一 delta 为
+  `MapBeanInfoHelper#getBeanProperty` inner double-check；candidate/capsule absent；
+- controlled regression：existing node、100 interleavings、5 fresh JVM class probe bitmap exact、
+  `foggy-core=97/F0E0S0`、independent review=`0/0/0/0`；
+- current：Step 4=`in-progress`，Step 5–7=`closed/hold`，9.3.5=`queued`；next=`replacement Cdiag
+  commit/push -> fresh diagnostic-r24`。

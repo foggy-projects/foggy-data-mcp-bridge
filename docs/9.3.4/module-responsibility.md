@@ -340,3 +340,16 @@ updated_at: 2026-07-19
 - fixture owner 只维护合规 v2 NUL-token synthetic precondition，不能修改 real validator policy；
 - Step 5–7 owners 的既有实现可保留但 execution authorization 撤回；9.3.5/9.4.0 owner 继续 queued；
 - formal-r7 及后置三门全部 PASS 后才重新交接 downstream ownership。
+
+## Superseding diagnostic-r23 remediation ownership（2026-07-19）
+
+- evidence owner 负责永久记录 r23 为 `diagnostic-observed / public-valid / freeze refused`，保持
+  candidate/capsule absent；不得把较高 covered counter 当成天然更可靠；
+- coverage-delta owner 负责保存 XML/raw-exec 唯一归因：MapBeanInfo inner double-check probe 4，
+  其余 22 exec 对目标类不变；
+- `foggy-core` test owner 只维护 existing-node controlled monitor regression、5 秒有界等待和线程
+  termination；不得改 production double-check 或增加测试节点；
+- machine/Cdiag owner 负责形成一次 clean/pushed replacement Cdiag，再由 Step 4 coverage owner运行
+  唯一 fresh diagnostic-r24；
+- threshold owner 在 r24 public validation、counter/probe review 前无 freeze 权限；Step 5–7、9.3.5、
+  9.4.0 owners 继续 queued/closed。
