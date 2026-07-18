@@ -4,7 +4,7 @@ doc_purpose: Define the strict Step 1-7 implementation and verification order fo
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # 9.3.4 Implementation Plan
@@ -1023,8 +1023,9 @@ final quality、coverage audit、acceptance、Step 5 与 9.3.5 全部关闭；
 10. [completed] feature acceptance=`signed-off / accepted / blocking none`；Step 4=`passed`，
     Step 5=`ready / not-started`。
 
-当前 Step 4=`passed / feature accepted`；`can_enter_step5=yes`，Step 5=`ready / not-started`；
-9.3.4 仍 `in-progress`，Steps 6/7 pending，9.3.5=`queued`。
+Historical formal-r4 closure：当时 Step 4=`passed / feature accepted`、`can_enter_step5=yes`、
+Step 5=`ready / not-started`。该授权已由下方 formal-r6 replacement recovery plan 重新关闭；
+current Step 4=`in-progress`、Step 5–7=`hold/closed`、9.3.5=`queued`。
 
 ## Step 4 feature-acceptance closure（2026-07-18）
 
@@ -1035,3 +1036,16 @@ final quality、coverage audit、acceptance、Step 5 与 9.3.5 全部关闭；
 - 25 个 Step 4 workitem 已在 acceptance decision 后关闭；唯一 classification DEBT 继续 open；
 - 下一动作严格进入 Step 5 rehearsal，不启动 Step 6/7，不创建 version signoff，不建立
   `docs/9.3.5` 实施目录。
+
+## Superseding formal-r6 recovery plan（2026-07-19）
+
+1. [completed] 封存 formal-r6 bootstrap-negative failure 与 success-only absence boundary；
+2. [completed] 两路独立根因审计，确认 malformed v2 newline token 和 real index 无漂移；
+3. [completed] NUL-token 最小修复、focused/independent/full-negative stress；
+4. [completed] machine 恢复 `diagnostic-ready / diagnostic-pending`，Step 4/6 hash closure PASS；
+5. [in-progress] one Cdiag commit/push/clean identity，然后 fresh diagnostic-r23；
+6. [pending] new candidate、portable capsule、双审和 direct-child Cfreeze；
+7. [pending] fresh-clone formal-r7；
+8. [pending] final quality→coverage audit→acceptance，随后恢复 Step 5 entry。
+
+任一步失败继续 fail closed；formal-r6/r22 均不得成为 replacement authority。

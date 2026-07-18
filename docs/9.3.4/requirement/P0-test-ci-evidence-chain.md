@@ -6,7 +6,7 @@ priority: P0
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # P0 测试与 CI 证据链
@@ -158,10 +158,10 @@ updated_at: 2026-07-18
 
 ## Current Progress
 
-- version status：`in-progress`；Steps 1–4=`passed`；Step 5=`ready / not-started`；
-- Step 4 authority=`step4-coverage-20260717-formal-r4` on Cfreeze `f97483a0…`；quality、
-  coverage audit 与 feature acceptance 已按序完成，decision=`accepted`、blocking=`none`；
-- Steps 6/7=`pending`，version acceptance=`not-started`，9.3.5=`queued`；
+- version status：`in-progress`；Steps 1–3=`passed`；Step 4=`in-progress / replacement Cdiag`；
+- historical Step 4 authority/formal-r4 acceptance 保留；formal-r6 bootstrap-negative immutable
+  failed，current machine=`diagnostic-ready / diagnostic-pending`，diagnostic-r23/formal-r7 pending；
+- Step 5–7=`hold / execution closed`，version acceptance=`not-started`，9.3.5=`queued`；
 - Unit MySQL classification DEBT 继续 open，最终 9.3.4 临时放行由 Step 7 决定。
 
 ### Historical Step 4 diagnostic ledger
@@ -673,8 +673,8 @@ updated_at: 2026-07-18
   sensitive、cleanup 与外部 exact restore 均符合 requirement；
 - aggregate line=`54624/76830`、branch=`26111/44870`，critical=`12/23/below0`，唯一 N/A=
   `NamespaceScope.branch`；confirmed threshold 未降低、exclusion/critical set 未扩大；
-- post-formal quality=`ready-for-coverage-audit / 0/0/0/1`，mandatory fixes=`0`。本 requirement
-  当前只开放 evidence coverage audit：`can_enter_coverage_audit=yes`、
+- post-formal quality=`ready-for-coverage-audit / 0/0/0/1`，mandatory fixes=`0`。At that
+  formal-r4 checkpoint only evidence coverage audit was open：`can_enter_coverage_audit=yes`、
   `can_enter_acceptance=no`；Step 4、Step 5 与 9.3.5 仍关闭。
 
 ## Superseding Step 4 accepted requirement boundary（2026-07-18）
@@ -690,3 +690,13 @@ updated_at: 2026-07-18
 - Step 4=`passed`，`can_enter_step5=yes`；Step 5=`ready / not-started`。这不满足
   `CI-REQUIRED`、`RELEASE-SAME-ARTIFACT` 或 version completion definition；
 - 9.3.4 `acceptance_status` 继续 `not-started`，版本状态仍 `in-progress`；9.3.5=`queued`。
+
+## Superseding formal-r6 requirement boundary（2026-07-19）
+
+- `COVERAGE-AGG/COVERAGE-CRITICAL` 的 replacement authority 必须包含 deterministic mandatory
+  negative fixtures；malformed fsmonitor v2 output 不可作为 formal precondition；
+- formal-r6 正确 fail closed，但因未启动 source/test/coverage，它不能满足任何 replacement exit；
+- protocol fix 位于 formal allowlist 外，触发 new diagnostic requirement；不得以历史 feature
+  acceptance、r22 candidate 或同-ID rerun豁免；
+- current definition of done：new Cdiag、fresh diagnostic-r23、new review/Cfreeze、fresh formal-r7、
+  final quality/audit/acceptance 全 PASS；在此之前 `can_enter_step5=no` 且 9.3.5 closed。

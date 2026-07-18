@@ -7,9 +7,9 @@ result: in-progress
 step1_result: passed
 step2_result: passed
 step3_result: passed
-step4_result: passed
+step4_result: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # 9.3.4 Test and Evidence Plan
@@ -401,8 +401,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `passed / formal-r4 + final quality + coverage audit + feature acceptance`
-- step5_status: `ready / not-started`
+- step4_result: `in-progress / formal-r6 recovery / replacement Cdiag pending`
+- step5_status: `hold / execution closed`
 - version_acceptance: `not-started`
 
 ### Historical result ledger
@@ -948,3 +948,13 @@ coverage audit 与 acceptance 保持关闭。
   `step4_result=passed`，而版本级 `result` 继续 `in-progress`；
 - Step 5=`ready / not-started`；后续测试边界为 portable single-authority rehearsal，不能复用
   failed diagnostics、不能降低 threshold、不能提前宣称 CI/release/version PASS。
+
+## Superseding formal-r6 recovery test boundary（2026-07-19）
+
+- r6 failure oracle：bootstrap negative 返回非零，source/test/summary absent，cleanup 与 exact demo DB
+  restore PASS；
+- fixture regression：合规 NUL-token 后必须 exact `h tracked.txt\0`，生产 validator 仍必须 rc=2；
+- stability：independent 1000 iterations、local 100 iterations、five complete negative processes；
+- static closure：Step 4 `61/61`、Step 6 `16/16`、diagnostic contract/overlay/workflows PASS；
+- replacement dynamic boundary：只允许从 clean/pushed Cdiag 运行完整 diagnostic-r23；成功后才能生成
+  candidate/capsule、双审/Cfreeze 和 fresh formal-r7。任何失败继续关闭 Step 5/9.3.5。

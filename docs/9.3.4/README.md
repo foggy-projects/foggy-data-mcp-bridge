@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -41,9 +41,10 @@ updated_at: 2026-07-18
   已按序完成。diagnostic r7 在无 ambient DB listener 的环境中
   暴露 Unit 对 `127.0.0.1:13306` 的隐式依赖并 fail closed；该 r7 时点尚无 coverage pass
   或可复用的 reviewed aggregate baseline。
-- Step 4 已由 fresh formal-r4、final quality、coverage audit 与 feature acceptance 按序关闭；
-  decision=`accepted`，25/25 workitem closed，Step 5=`ready / not-started`。下方 r1–r19
-  记录均为历史 fail-closed/recovery ledger，不覆盖本 superseding decision。
+- Step 4 historical formal-r4、final quality、coverage audit 与 feature acceptance 已按序关闭；
+  decision=`accepted`，25/25 workitem closed。后续 release-authority delta 触发 replacement
+  coverage authority；current Step 4=`in-progress / replacement Cdiag`、Step 5=`hold / closed`，
+  historical acceptance 不构成当前 downstream 授权。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -591,8 +592,8 @@ updated_at: 2026-07-18
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / feature accepted | Cfreeze `f97483a0…` 上 fresh formal=`formal-passed`：required=`773+59/5707/F0E0S0`、Addon=`2/6`、`23/48/16953`、line=`54624/76830`、branch=`26111/44870`、critical=`12/23/below0`、唯一 N/A=`NamespaceScope.branch`、source/model/sensitive/cleanup PASS；Pivot legacy companion=`1/F0E0S0`；quality/audit/acceptance 按序 PASS，25/25 workitem closed |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | ready / not-started | Step 4 feature acceptance=`accepted`，entry 已满足；下一步产 dirty-safe、可独立复算的 immutable candidate，但不更新 final authority pointer |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | historical formal-r4 accepted；formal-r6 bootstrap-negative immutable failed；NUL-token fix、diagnostic machine/hash closure PASS，pending clean/pushed Cdiag + diagnostic-r23 |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal-r7 + quality/audit/acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
 
@@ -612,3 +613,15 @@ predecessor migration manifest 和 successor current-source lanes 证明等价�
   或 Addon TCK。
 - 测试治理发现生产 BUG 时先建 9.3.4 workitem，做最小 RED→fix→GREEN；若需
   公共 API/模块边界变更则停止并转交 9.3.5/9.4.0。
+
+## Superseding replacement-authority status（2026-07-19）
+
+- fresh formal-r6 on Cfreeze `14931b68…` 在 `bootstrap-negative` fail closed；formal delta、
+  frozen r22 和 contract 已通过，但 source seal/所有 test lane 尚未开始；r6 永久 failed/excluded；
+- 根因是 synthetic fsmonitor v2 hook 使用换行 token，导致首读偶发掩码，不是 fresh clone 的
+  real index/source 漂移；
+- fixture 已改为 NUL-token，保留 exact `h` 前置条件与 validator rc=2 拒绝；focused stress=
+  `100/100`、独立 stress=`1000/1000`、full negative processes=`5/5`；
+- current machine=`diagnostic-ready / diagnostic-pending`。历史 r22 candidate/capsule/Cfreeze 保留但
+  不可复用；必须新 Cdiag→fresh diagnostic→candidate/capsule/双审→direct-child Cfreeze→formal-r7；
+- Step 5–7、coverage acceptance replacement、9.3.5 与 9.4.0 在 formal-r7 完成前保持关闭。

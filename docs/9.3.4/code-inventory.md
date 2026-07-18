@@ -4,7 +4,7 @@ doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # 9.3.4 Code Inventory
@@ -893,7 +893,7 @@ code_inventory:
 - Cfreeze machine delta 精确只有 `scripts/v934/step4/coverage-thresholds.json`、
   `coverage-contract.json`、`SHA256SUMS`；其余变更仅 `docs/9.3.4/**`。没有 production、test、
   POM、runner、successor manifest、floor、critical set 或 exclusion 变化；
-- working tree machine=`confirmed/formal-ready`；direct-child Cfreeze commit/push/topology/clean 与
+- At that r19 checkpoint machine=`confirmed/formal-ready`；direct-child Cfreeze commit/push/topology/clean 与
   fresh formal pending。Step 4/5、final quality、coverage audit、acceptance 仍关闭。
 
 ### Superseding formal-r4 / final-quality inventory
@@ -919,5 +919,17 @@ code_inventory:
   不加入 formal report/exec/coverage totals；
 - 25 个 Step 4 workitem 均 closed；`DEBT-unit-mysql57-fixture-classification-migration.md`
   仍 open，owner/截止点保持 9.3.5 version acceptance；
-- Step 4 inventory 现为 accepted/frozen input；Step 5=`ready / not-started`，后续不得修改
-  formal-r4 bytes，只能消费并封装 portable single-authority candidate。
+- Historical formal-r4 inventory 当时为 accepted/frozen input；formal-r6 recovery 已重新关闭
+  downstream entry。Current Step 4=`in-progress / replacement Cdiag`、Step 5=`hold/closed`；
+  historical bytes 只读保留且不得被拼接为 replacement authority。
+
+### Superseding formal-r6 recovery inventory
+
+- implementation delta：`scripts/v934/step4/coverage_contract_negative_tool.py`，只把 synthetic
+  fsmonitor hook response 从 newline token 改为 protocol-v2 NUL token；
+- diagnostic state delta：Step 4 threshold/contract/manifest 与 Step 6 contract/tool/manifest，恢复
+  `diagnostic-pending / diagnostic-ready` 并级联 exact SHA；
+- evidence delta：formal-r6 failure、BUG、recovery quality 和本轮状态同步；
+- production/POM/API/test/report/exec/database delta=`0`；threshold floor、critical set、exclusion 和
+  real source-hash rejection semantic 不变；
+- current inventory 只授权 new Cdiag/fresh diagnostic；r22 capsule 与 r6 artifacts 只读保留。

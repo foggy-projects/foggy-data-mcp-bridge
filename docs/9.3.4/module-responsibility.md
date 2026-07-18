@@ -4,7 +4,7 @@ doc_purpose: Define ownership and dependency boundaries for the 9.3.4 test and C
 version: 9.3.4
 status: ready
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # 9.3.4 Module Responsibility
@@ -307,7 +307,7 @@ updated_at: 2026-07-18
   `docs/9.3.4/**`，并负责 direct-parent、formalization-delta、push 与 clean identity；
 - formal owner 只有在 Cfreeze clean pushed 后才能启动一次 fresh formal；post-formal owner 仍须按
   final implementation quality -> coverage audit -> acceptance 接手；
-- 当前 machine=`confirmed/formal-ready`，Step 4=`in-progress`。formal/audit/acceptance、Step 5 与
+- At that r19/Cfreeze checkpoint machine=`confirmed/formal-ready`，Step 4=`in-progress`。formal/audit/acceptance、Step 5 与
   9.3.5 owner 尚无开工授权。
 
 ## Superseding formal-r4 / post-formal ownership boundary（2026-07-18）
@@ -319,7 +319,7 @@ updated_at: 2026-07-18
   拆分 live inventory 与 durable artifact replay；
 - coverage-audit owner 当前获授权逐项映射 requirement、25 workitems、positive/negative/
   lifecycle/cleanup/public artifact。acceptance owner 仅在 audit=`ready-for-acceptance` 后接手；
-- 当前 Step 4=`in-progress`，`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5、
+- At that formal-r4 checkpoint Step 4=`in-progress`，`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5、
   Step 6/7 与 9.3.5 owner 未因本质量门提前开工。
 
 ## Superseding Step 4 accepted ownership handoff（2026-07-18）
@@ -332,3 +332,11 @@ updated_at: 2026-07-18
 - Step 5 single-authority owner 现获得开工授权，负责 portable candidate、live/durable replay
   入口与 rehearsal；状态=`ready / not-started`；
 - Step 6/7 owner 与 9.3.5 owner 仍无开工授权，9.3.4 version owner 尚不能签收版本。
+
+## Superseding formal-r6 recovery ownership（2026-07-19）
+
+- Step 4 authority owner 重新持有唯一 active gate：提交/push Cdiag 并完成 diagnostic→freeze→formal；
+- failure-evidence owner 保持 r6 immutable，禁止任何 artifact repair；
+- fixture owner 只维护合规 v2 NUL-token synthetic precondition，不能修改 real validator policy；
+- Step 5–7 owners 的既有实现可保留但 execution authorization 撤回；9.3.5/9.4.0 owner 继续 queued；
+- formal-r7 及后置三门全部 PASS 后才重新交接 downstream ownership。

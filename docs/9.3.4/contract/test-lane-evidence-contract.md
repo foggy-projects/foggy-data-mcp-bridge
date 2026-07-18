@@ -4,7 +4,7 @@ doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and rel
 version: 9.3.4
 status: confirmed
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # Test Lane and Evidence Contract
@@ -989,3 +989,14 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 5. Step 5 必须生成 portable/single-authority candidate 并拆分 live/durable replay 入口；该 entry
    不等于 Step 5 exit、remote CI、release same artifact 或 version acceptance；
 6. 9.3.4 继续 `in-progress`，Steps 6/7 pending，9.3.5=`queued`。
+
+## Superseding formal-r6 recovery contract（2026-07-19）
+
+1. formal-r6=`failed / bootstrap-negative / immutable`；不得续跑、补写或与 r22 拼接；
+2. malformed synthetic fsmonitor token 只能修成 v2 NUL-token；exact lowercase precondition 与
+   validator rc=2 rejection 均不可删除、放宽或以 retry 替代；
+3. changed tool 不在 prior formalization allowlist，必须恢复 diagnostic machine state 并形成 new
+   Cdiag；r22 Cfreeze 不再是可执行 formal parent；
+4. authority 顺序固定为 Cdiag→fresh diagnostic→new candidate/capsule→dual review→direct-child
+   Cfreeze→fresh formal→quality→coverage audit→acceptance；
+5. current `can_enter_step5=no`，Steps 5–7/9.3.5 均 closed。

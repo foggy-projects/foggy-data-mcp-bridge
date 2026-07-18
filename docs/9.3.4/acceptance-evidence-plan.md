@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # 9.3.4 Acceptance Evidence Plan
@@ -22,19 +22,19 @@ updated_at: 2026-07-18
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | machine=`confirmed/formal-ready`；Cfreeze/formal-r4、coverage audit 与 Step 4 feature acceptance complete |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | current machine=`diagnostic-pending/diagnostic-ready`；formal-r6 immutable failed，replacement formal pending |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | formal-r4 Unit=`681+55/4941/F0E0S0`；`23/48/16953`、`24/2098`；Step 5 ready/not-started，Steps 6–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r22 retained；NUL-token recovery inventory reviewed；Step 5–7 execution closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–4 passed / Step 5 ready-not-started |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r4=`773+59/5707/F0E0S0`、aggregate exact confirmed threshold；Step 4 passed，version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–4 exit/quality/audit/feature acceptance present；Steps 5–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2–4 quality gates complete；Step 4 B/H/M/L=`0/0/0/1`、mandatory fixes=0 |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | Steps 2–4 ready；Step 4 workitems=25/25、critical/major gap=`0/0` |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Step 4 replacement Cdiag / Step 5–7 hold |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r6=`failed/bootstrap-negative`；fresh diagnostic-r23 and formal-r7 pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；historical Step 4 retained；replacement Step 4 pending；Steps 5–6 closed |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r6 recovery quality=`0/0/0/0`；replacement post-formal quality pending |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement audit closed until formal-r7 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
-| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | signed-off / accepted；Step 5 ready；not version signoff |
+| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement acceptance pending |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | Steps 1–4 passed；Step 5 ready/not-started；9.3.5 queued |
+| roadmap/status sync | `README.md` + authoritative roadmap | Step 4 replacement in-progress；Step 5–7 closed；9.3.5 queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -536,7 +536,8 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   sensitive/cleanup 与 exact external restore 均满足边界；
 - post-formal implementation quality=`ready-for-coverage-audit`，B/H/M/L=`0/0/0/1`、mandatory
   fixes=`0`；唯一 Low 由 Step 5 负责拆分 live inventory 与 durable artifact replay；
-- `acceptance_status` 继续表示 9.3.4 version acceptance，保持 `not-started`。当前只开放 Step 4
+- `acceptance_status` 继续表示 9.3.4 version acceptance，保持 `not-started`。At that formal-r4
+  checkpoint only Step 4
   test evidence coverage audit：`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；
   Step 4 仍 `in-progress`，Step 5/9.3.5 closed。
 
@@ -552,3 +553,14 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   Step 4 标为 `passed`，把 Step 5 标为 `ready / not-started`；
 - live/durable replay Low、portable raw archive 与 Unit MySQL classification debt 分别由
   Step 5/9.3.5 承接；Steps 6/7、9.3.4 version signoff 与 9.3.5 开工均未提前。
+
+## Superseding replacement evidence boundary（2026-07-19）
+
+历史 feature acceptance 不改写，但 post-acceptance authority delta 必须以 replacement formal 重新
+证明。formal-r6 在 bootstrap negative fixture fail closed，成功证据边界止于 delta/frozen replay/
+contract；source、tests、coverage 和 final artifacts 均 absent。修复位于 prior formal allowlist 外，
+所以 current `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+
+新的 acceptance 输入只能来自 clean/pushed Cdiag 的 fresh diagnostic-r23、全新 review/Cfreeze 和
+fresh formal-r7；r22/r6 不得拼接。r7 PASS 后仍按 implementation quality→coverage audit→acceptance
+顺序恢复 downstream entry。

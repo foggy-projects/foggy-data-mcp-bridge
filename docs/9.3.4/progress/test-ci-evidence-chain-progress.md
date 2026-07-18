@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-19
 ---
 
 # 9.3.4 测试与 CI 证据链进度
@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / feature accepted | Step 3 exit passed | Cfreeze `f97483a0…` fresh formal-r4=`773+59/5707/F0E0S0`、`23/48/16953`、aggregate=`54624/76830 line + 26111/44870 branch`、critical=`12/23/below0`；quality/audit/acceptance PASS，25/25 workitem closed |
-| 5 | authority runner rehearsal / immutable candidate | ready / not-started | Step 4 feature accepted | entry satisfied；pending candidate root、two-layer/archive/JAR=image digest；no final pointer |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / replacement Cdiag | Step 3 exit passed | historical formal-r4 accepted；formal-r6 bootstrap-negative immutable failed；NUL-token fix + diagnostic state PASS，pending Cdiag push/fresh diagnostic-r23 |
+| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r7 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -1278,7 +1278,10 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - final review：`READY`，blocker/high/medium=`0/0/0`；最后一项 low（1:N/N:1
   mapping 的 stop-condition 措辞）已修正，无未处理 planning finding。
 
-## Post-Gate Status
+## Historical post-gate status after formal-r4 acceptance
+
+This table records the 2026-07-18 checkpoint only. Its downstream authorization was withdrawn by the
+formal-r6 replacement recovery recorded at the end of this document; it is not the current status.
 
 | Gate | 状态 | 证据 |
 |---|---|---|
@@ -1289,14 +1292,15 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
 | roadmap sync / downstream | Steps 1–4 passed / Step 5 ready | roadmap/README 已同步；Step 5=`ready / not-started`，9.3.5=`queued` |
 
-## Next Action
+## Historical next action after formal-r4 acceptance
 
 Step 4 已完成 formal-r4、final quality、coverage audit 与 feature acceptance；decision=
 `accepted`，25/25 workitem closed，blocking items=`none`。
 
-Next action：启动 Step 5 single-authority rehearsal，生成 portable immutable candidate，拆分
+At that checkpoint，next action was Step 5 single-authority rehearsal，生成 portable immutable candidate，拆分
 live lifecycle validation 与 durable artifact replay，并保持 final authority pointer 不变。
-当前 `can_enter_step5=yes`，Step 5=`ready / not-started`；Steps 6/7 pending，9.3.5 queued。
+At that checkpoint `can_enter_step5=yes`，Step 5=`ready / not-started`；该授权已由文末
+formal-r6 recovery 重新关闭。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1720,7 +1724,7 @@ live lifecycle validation 与 durable artifact replay，并保持 final authorit
 - 外层 restore 后单独 live 重放 `report_inventory_tool validate` 会因 Unit fixture 的全局
   `13306 free` 动态前置条件返回 `E_UNIT_FIXTURE`；运行内 validate 与 post-run public final
   verifier 均 PASS。正式质量闸门将其定为非阻断 Low，owner=Step 5 single authority/rehearsal；
-- current：Step 4=`in-progress / formal-passed / final-quality-passed`，
+- At that checkpoint：Step 4=`in-progress / formal-passed / final-quality-passed`，
   `can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5/9.3.5 closed。
 
 ### Superseding Check-in — Step 4 coverage audit / feature acceptance complete
@@ -1736,5 +1740,17 @@ live lifecycle validation 与 durable artifact replay，并保持 final authorit
   `signed-off / accepted`，blocking items=`none`，Experience=`N/A`；
 - 25 个 Step 4 workitem 已关闭；classification DEBT 继续
   `open / accepted-for-9.3.4-only / due-before-9.3.5-acceptance`；
-- current：Step 4=`passed`；Step 5=`ready / not-started`；`can_enter_step5=yes`；
+- At that checkpoint：Step 4=`passed`；Step 5=`ready / not-started`；`can_enter_step5=yes`；
   9.3.4=`in-progress`，Steps 6/7=`pending`，9.3.5=`queued`。
+
+## Execution check-in — formal-r6 recovery（2026-07-19）
+
+- Cfreeze=`14931b68…`，fresh formal-r6=`failed / bootstrap-negative / exit 1`；delta、r22 replay、
+  contract、overlay PASS，source/tests/summary absent，cleanup/DB restore PASS；
+- cause=`synthetic fsmonitor v2 newline token`；real main/fresh index=`4066 × ordinary H`；
+- fixed hook=`token\0`；independent stress=`1000/1000`、local focused=`100/100`、five full negative=
+  `5/5`；
+- machine=`diagnostic-ready / diagnostic-pending`，Step4 manifest=`51ff1d26…f76`，Step6 workflow
+  closure PASS；
+- current：Step 4=`in-progress`，Step 5–7=`closed/hold`，9.3.5=`queued`；next=`new Cdiag commit/push
+  -> fresh diagnostic-r23`。

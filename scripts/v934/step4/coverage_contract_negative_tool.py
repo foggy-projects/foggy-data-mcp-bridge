@@ -1936,7 +1936,11 @@ def source_hash_fsmonitor_probes(
     valid = temporary_root / "source-hash-fsmonitor-valid"
     initialize_source_hash_repository(valid, (b"fsmonitor-valid\n",))
     valid_hook = valid / ".git" / "v934-fsmonitor-hook"
-    valid_hook.write_text('#!/bin/sh\nprintf "0\\n"\n', encoding="ascii")
+    # Git's fsmonitor hook protocol v2 requires a NUL-terminated response
+    # token followed by zero or more NUL-terminated changed paths.  A newline
+    # token can make the first flags read transiently mask a persisted valid
+    # bit, turning this synthetic precondition into a timing oracle.
+    valid_hook.write_text('#!/bin/sh\nprintf "token\\000"\n', encoding="ascii")
     valid_hook.chmod(0o700)
     run_fixture_git(valid, ["config", "core.fsmonitor", str(valid_hook)])
     run_fixture_git(valid, ["update-index", "--fsmonitor"])
