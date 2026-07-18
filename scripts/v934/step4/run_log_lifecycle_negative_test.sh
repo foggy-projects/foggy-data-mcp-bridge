@@ -719,7 +719,7 @@ class ShapeError(RuntimeError):
         super().__init__(f"{code}: {message}")
 
 
-UNIT_RUNNER_SHA256 = "45536c0a969731f6b7c87acecdb225b13a8a0fca45a9a04c9cdfb2173fc60c66"
+UNIT_RUNNER_SHA256 = "15a37faf2d6deb8c4b77962a02b4cf75145a5f18334020e014f09e88e993e569"
 INTEGRATION_RUNNER_SHA256 = "19d5a9e8d58a554f416e269a35666e439b5f611f44a50783482613316cb33639"
 OUTER_RUNNER_SHA256 = "ea4d2641f4721cb0ca2d65fc0457d100977fcfc1de1578b61b4e74a0c6b33622"
 LIBRARY_SHA256 = "48921fd25916e698197b5a4d555b6c2f5a0d86de4069dbf50262339efd6088b2"
@@ -728,7 +728,7 @@ LIBRARY_SHA256 = "48921fd25916e698197b5a4d555b6c2f5a0d86de4069dbf50262339efd6088
 # comments and heredoc bodies have been removed.  They complement the raw-byte
 # seals: semantic probes deliberately disable the raw seal and must still be
 # rejected when reviewed commands are moved into a false/subshell/dead context.
-UNIT_EXECUTABLE_STREAM_SHA256 = "d7f7ab99e8098c89b9a61c5f30ce49227a6b9b10791a185f2d0ca46c31d1e3dd"
+UNIT_EXECUTABLE_STREAM_SHA256 = "61a2407afcfa5edbeeac172f0503a221ac49e1ec9173c3e7efbf889b6de22dd1"
 INTEGRATION_EXECUTABLE_STREAM_SHA256 = "1d2c0f3a81a70831b0cf01a64d1e6ff48db4d9f393ae93ef81fdb8f89e1a6bc5"
 OUTER_EXECUTABLE_STREAM_SHA256 = "6d02fd8543fce782580bc9f6db135ceb3d8263c12b28a9906d42bc52a0e06257"
 LIBRARY_EXECUTABLE_STREAM_SHA256 = "c18f95f1daf8b6ce1f1db1dd5b43f9026ed41232e9d7d26b2236586ed0786a6e"

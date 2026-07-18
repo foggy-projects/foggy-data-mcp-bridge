@@ -183,21 +183,11 @@ class FormulaParitySnapshotTest {
         snapshot.put("snapshots", snapshots);
 
         ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-        Path targetPath = Path.of(
-                "..",
-                "..",
-                "foggy-data-mcp-bridge-python",
-                "tests",
-                "integration",
-                "_parity_snapshot.json"
-        ).normalize();
-        Files.createDirectories(targetPath.getParent());
-        mapper.writeValue(targetPath.toFile(), snapshot);
-
-        Path localCopy = Path.of("target", "parity", "_parity_snapshot.json");
-        Files.createDirectories(localCopy.getParent());
-        mapper.writeValue(localCopy.toFile(), snapshot);
-        assertTrue(Files.exists(targetPath), "snapshot was not written: " + targetPath.toAbsolutePath());
+        Path localArtifact = Path.of("target", "parity", "_parity_snapshot.json");
+        Files.createDirectories(localArtifact.getParent());
+        mapper.writeValue(localArtifact.toFile(), snapshot);
+        assertTrue(Files.exists(localArtifact),
+                "snapshot was not written: " + localArtifact.toAbsolutePath());
     }
 
     // ------------------------------------------------------------------ //

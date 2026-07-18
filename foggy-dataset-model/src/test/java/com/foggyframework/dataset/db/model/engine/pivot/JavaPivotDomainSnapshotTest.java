@@ -66,22 +66,11 @@ class JavaPivotDomainSnapshotTest {
         snapshot.put("source", "JavaPivotDomainSnapshotTest");
         snapshot.put("cases", cases);
 
-        Path pythonTarget = Path.of(
-                "..",
-                "..",
-                "foggy-data-mcp-bridge-python",
-                "tests",
-                "fixtures",
-                "java_pivot_domain_snapshot_parity.json"
-        ).normalize();
-        Files.createDirectories(pythonTarget.getParent());
-        MAPPER.writeValue(pythonTarget.toFile(), snapshot);
-
-        Path localCopy = Path.of("target", "parity", "java_pivot_domain_snapshot_parity.json");
-        Files.createDirectories(localCopy.getParent());
-        MAPPER.writeValue(localCopy.toFile(), snapshot);
-        assertTrue(Files.exists(pythonTarget),
-                "snapshot was not written: " + pythonTarget.toAbsolutePath());
+        Path localArtifact = Path.of("target", "parity", "java_pivot_domain_snapshot_parity.json");
+        Files.createDirectories(localArtifact.getParent());
+        MAPPER.writeValue(localArtifact.toFile(), snapshot);
+        assertTrue(Files.exists(localArtifact),
+                "snapshot was not written: " + localArtifact.toAbsolutePath());
     }
 
     private static void assertJavaContract(Map<String, Object> c) {

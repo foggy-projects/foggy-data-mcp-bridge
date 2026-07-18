@@ -32,9 +32,19 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStoreTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",
-      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java"
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaComposeScriptToolErrorSnapshotTest.java",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaDomainQuestionNeutralRunnerSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/compilation/JavaComposeSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/runtime/JavaComposeScriptSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/security/JavaGovernanceSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotDomainSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotOutputSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/FormulaParitySnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaSemanticScaleSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/TimeWindowParitySnapshotTest.java"
     ],
-    "sha256": "6fdedde91f43b923692316f86ce0299fc8c88f0dfa9df4c45adf69dbcd6774da"
+    "sha256": "045c43ae87040be8482cebddcbb6174774f9e2028823862a3063db74b45bdfb9"
   },
   "frozen_semantics": {
     "addon": {
@@ -132,7 +142,9 @@
       "foggy-dataset-model/pom.xml",
       "foggy-dataset/src/test/resources/application.yml",
       "scripts/verify-v934-unit.sh",
-      "scripts/verify-v934-integration.sh"
+      "scripts/verify-v934-integration.sh",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaComposeScriptToolErrorSnapshotTest.java",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaDomainQuestionNeutralRunnerSnapshotTest.java"
     ],
     "source_inventory": "scripts/v934/successor/step2/source-inventory.tsv"
   },

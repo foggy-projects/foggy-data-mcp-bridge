@@ -62,22 +62,11 @@ class JavaComposeSnapshotTest {
         snapshot.put("cases", cases);
 
         ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-        Path pythonTarget = Path.of(
-                "..",
-                "..",
-                "foggy-data-mcp-bridge-python",
-                "tests",
-                "fixtures",
-                "java_compose_snapshot_parity.json"
-        ).normalize();
-        Files.createDirectories(pythonTarget.getParent());
-        mapper.writeValue(pythonTarget.toFile(), snapshot);
-
-        Path localCopy = Path.of("target", "parity", "java_compose_snapshot_parity.json");
-        Files.createDirectories(localCopy.getParent());
-        mapper.writeValue(localCopy.toFile(), snapshot);
-        assertTrue(Files.exists(pythonTarget),
-                "snapshot was not written: " + pythonTarget.toAbsolutePath());
+        Path localArtifact = Path.of("target", "parity", "java_compose_snapshot_parity.json");
+        Files.createDirectories(localArtifact.getParent());
+        mapper.writeValue(localArtifact.toFile(), snapshot);
+        assertTrue(Files.exists(localArtifact),
+                "snapshot was not written: " + localArtifact.toAbsolutePath());
     }
 
     private static void assertJavaContract(Map<String, Object> c) {

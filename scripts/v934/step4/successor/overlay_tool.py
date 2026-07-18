@@ -103,6 +103,16 @@ EXPECTED_AMENDMENT_PATHS = (
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStoreTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java",
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaComposeScriptToolErrorSnapshotTest.java",
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaDomainQuestionNeutralRunnerSnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/compilation/JavaComposeSnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/runtime/JavaComposeScriptSnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/security/JavaGovernanceSnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotDomainSnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotOutputSnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/FormulaParitySnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaSemanticScaleSnapshotTest.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/TimeWindowParitySnapshotTest.java",
 )
 EXPECTED_SUCCESSOR_FILES = (
     "database-authority-SHA256SUMS",
@@ -202,6 +212,8 @@ EXPECTED_PROTECTED_SCOPE = {
         "pom.xml", "foggy-dataset-model/pom.xml",
         "foggy-dataset/src/test/resources/application.yml",
         "scripts/verify-v934-unit.sh", "scripts/verify-v934-integration.sh",
+        "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaComposeScriptToolErrorSnapshotTest.java",
+        "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaDomainQuestionNeutralRunnerSnapshotTest.java",
     ],
 }
 EXPECTED_ACTIVATION_REQUIREMENTS = [
