@@ -1051,5 +1051,6 @@ code_inventory:
   `handleFileDeleted` to branch/complexity=`11/12` / `6/7` in five independent JVMs; full `foggy-core` is
   `97/F0E0S0` with the same semantic counters;
 - independent review is `PASS / B/H/M/L=0/0/0/1`, mandatory=`0`. The Low is existing singleton fake-watcher
-  cleanup debt, not expanded by this Cdiag. Current inventory authorizes only clean/pushed Cdiag → fresh r33;
-  candidate/Cfreeze/formal/Step 5–7/9.3.5/9.4.0 remain closed.
+  cleanup debt, not expanded by this Cdiag. r33 consumed the one fresh-run authorization but is excluded before
+  canonical Unit authority; current inventory authorizes only docs-only Cdiag → governed readiness preflight →
+  fresh r34. candidate/Cfreeze/formal/Step 5–7/9.3.5/9.4.0 remain closed.

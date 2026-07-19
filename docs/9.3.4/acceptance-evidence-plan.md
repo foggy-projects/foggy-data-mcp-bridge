@@ -684,6 +684,16 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - deterministic filtered-delete coverage is pre-diagnostic remediation only. It preserves the existing test
   node and has focused five-JVM plus full-module evidence; it does not open final quality, coverage audit,
   feature acceptance, Step 5, 9.3.5, or 9.4.0;
-- acceptance input must restart from this clean/pushed Cdiag → fresh r33 satisfying the governed high-water
-  → new candidate/Git-safe closure/dual review → direct-single-parent Cfreeze → fresh formal → final quality
+- r33 has consumed that fresh-run authorization and is excluded before canonical Unit authority. Acceptance
+  input must restart from a clean/pushed docs-only Cdiag → governed readiness preflight → fresh r34 satisfying
+  the governed high-water → new candidate/Git-safe closure/dual review → direct-single-parent Cfreeze → fresh formal → final quality
   → replacement coverage audit → feature acceptance.
+
+## Superseding diagnostic-r33 pre-marker acceptance boundary（2026-07-20）
+
+- r33 is `failed / excluded / non-reusable / non-candidate / zero-lane-authority`; successor/marker/lifecycle/
+  normal-fixture/Unit-lane authority is absent and its fallback cleanup closure is unproven.
+- This is not acceptance evidence and it authorizes no source, fixture, runner, threshold, contract, quality,
+  coverage-audit, Step 5, 9.3.5 or 9.4.0 transition.
+- The replacement acceptance chain resumes only after r33 is sealed, a clean/pushed docs-only Cdiag and an
+  independent governed readiness preflight allow fresh r34 to complete the original all-lane/high-water gate.

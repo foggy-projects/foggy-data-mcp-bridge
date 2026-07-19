@@ -1238,12 +1238,16 @@ can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。
    restored line=`4/4` and method branch/complexity=`11/12` / `6/7`, and full `foggy-core`=`97/F0E0S0`.
 4. [completed] Independent implementation review=`PASS / B/H/M/L=0/0/0/1`, mandatory=`0`; the Low is
    pre-existing singleton fake-watcher cleanup debt and is not enlarged by this change.
-5. [pending] Commit/push exactly this test-only Cdiag and verify clean identity. Then run one fresh strict-umask
-   diagnostic-r33. Only if r33 completes all lanes and reaches line >= `54624/76830`, branch >= `26112/44870`,
-   complexity >= `17659/35571` may new candidate/Git-safe closure/dual review begin.
-6. [pending] Only r33's Cdiag may receive a direct-single-parent Cfreeze, followed by fresh formal, final
+5. [completed / failed-excluded] The test-only Cdiag was clean/pushed and its fresh r33 stopped before a Unit
+   marker or canonical lane authority. Its fallback cleanup returned non-zero, so cleanup closure is unproven;
+   r33 is immutable and cannot be repaired, rerun, or used for candidate/Cfreeze authority.
+6. [pending] Seal r33, commit/push a docs-only Cdiag, independently preflight Docker reachability, fixed port and
+   run-owned scope, then run fresh strict-umask diagnostic-r34. Only if r34 completes all lanes and reaches line
+   >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571` may new candidate/Git-safe
+   closure/dual review begin.
+7. [pending] Only r34's Cdiag may receive a direct-single-parent Cfreeze, followed by fresh formal, final
    implementation quality, replacement coverage audit, and Step 4 feature acceptance.
 
-Current Step 4=`in-progress / r32 non-freezable / test-only Cdiag ready / fresh r33 pending`.
+Current Step 4=`in-progress / r32 non-freezable / r33 excluded / docs-only Cdiag and fresh r34 pending`.
 `can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
 can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。

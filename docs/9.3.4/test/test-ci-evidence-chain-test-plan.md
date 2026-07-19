@@ -1079,6 +1079,9 @@ coverage audit 与 acceptance 保持关闭。
   `.txt` under `.qm` filter invokes none, and `.qm` under the filter invokes exactly one.
 - Five independent focused Maven/Surefire/JaCoCo JVMs must each yield line 442=`4/4` and
   `handleFileDeleted` branch/complexity=`11/12` / `6/7`; full `foggy-core` must remain `F0E0S0`.
-- The next authority test sequence is clean/pushed Cdiag → fresh r33 satisfying line >= `54624/76830`,
-  branch >= `26112/44870`, complexity >= `17659/35571` → new candidate/Git-safe closure/dual review →
-  direct-child Cfreeze → fresh formal. No r32 material substitutes for any stage.
+- r33 consumed the prior Cdiag's one fresh-run authorization but stopped before canonical Unit authority; it is
+  failed/excluded and its fallback cleanup closure is unproven.
+- The next authority test sequence is clean/pushed docs-only Cdiag → independent governed readiness preflight →
+  fresh r34 satisfying line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571` → new
+  candidate/Git-safe closure/dual review → direct-child Cfreeze → fresh formal. No r32 or r33 material
+  substitutes for any stage.

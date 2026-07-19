@@ -607,7 +607,7 @@ updated_at: 2026-07-20
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r32 non-freezable / pending Cdiag | r32 completed all lanes with source/cleanup closure, but branch/complexity each remain one below governed high-water; next=test-only Cdiag→fresh r33→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | r9 exclusion and recovery reset do not open entry; wait for replacement formal successor + final quality + Step 4 coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
@@ -874,10 +874,26 @@ Current recovery records：
 - the unique delta is `WatchServiceFileTracer.java:442` filtered-delete coverage. One existing mock-key test
   now synchronously covers unfiltered, filtered-reject and filtered-match deletes; five focused JVMs and the
   `foggy-core` suite (`97/F0E0S0`) confirm the recovery without changing production code or test identity;
-- the only path is this clean/pushed test-only Cdiag → fresh strict-umask r33 meeting line >= `54624/76830`,
-  branch >= `26112/44870`, complexity >= `17659/35571` → new candidate/Git-safe closure/dual review →
+- r33 consumed this Cdiag's one fresh-run authorization and is permanently excluded before a Unit marker or
+  canonical lane result. The only path is a clean/pushed docs-only Cdiag → governed readiness preflight →
+  fresh strict-umask r34 meeting line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571`
+  → new candidate/Git-safe closure/dual review →
   direct-child Cfreeze → fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
 
 - [r32 high-water rejection](evidence/step-4/step4-coverage-diagnostic-r32-watchservice-delete-high-water-fail-closed-20260720.md)
 - [delete-event determinism workitem](workitems/BUG-step4-watchservice-delete-event-coverage-determinism.md)
 - [r32 recovery implementation quality](quality/step4-diagnostic-r32-watchservice-delete-recovery-implementation-quality.md)
+
+## Superseding diagnostic-r33 Unit pre-marker failure（2026-07-20）
+
+- r33 from Cdiag `4d917214…` is `failed / excluded / non-reusable / non-candidate / zero-lane-authority`.
+  Its Unit marker, successor view, lifecycle receipt, normal fixture manifest, canonical Unit result and all
+  downstream authority are absent; the final fallback-cleanup failure does not identify the primary cause or
+  establish cleanup closure.
+- No product, test, runner, threshold, or successor-contract change is authorized by this unclassified
+  pre-marker failure. The failed run is immutable and must not be manually repaired or reused.
+- The only authorized path is r33 exclusion record → clean/pushed docs-only Cdiag → independent Docker,
+  fixed-port and run-owned-scope readiness preflight → fresh strict-umask r34 → candidate/review → Cfreeze →
+  fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+- [r33 Unit pre-marker fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r33-unit-pre-marker-fallback-cleanup-fail-closed-20260720.md)

@@ -30,7 +30,7 @@ updated_at: 2026-07-20
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / r32 high-water recovery | [执行文档包](../9.3.4/README.md)；formal-r9、r30、r31 均 permanent excluded；r29 与 r32=`non-freezable`。r32 已完成 all-lane diagnostic，但 branch/complexity 各低于 governed high-water 1；当前主线为 test-only Cdiag→fresh r33→new review/Cfreeze→fresh formal→post gates |
+| 9.3.4 | in-progress / r33 excluded / r34 pending | [执行文档包](../9.3.4/README.md)；formal-r9、r30、r31、r33 均 permanent excluded；r29 与 r32=`non-freezable`。r33 在 Unit pre-marker 区间 fail-closed，cleanup closure 未获证明；当前主线为 docs-only Cdiag→governed readiness preflight→fresh r34→new review/Cfreeze→fresh formal→post gates |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready；开工先执行 Gate 0 classification-debt migration |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -112,8 +112,9 @@ excluded。binding repair Cdiag `f80fadd6…` 的 fresh r31 随后在 Unit fixtu
 closed，尚未进入 lifecycle probe、fixture、Maven Unit 或任何 lane；其派生资源和 outer cleanup 均为零，
 不得接管或复用外部 listener。端口恢复后 fresh r32 完成全 lane，但 aggregate line=`54624/76830`、
 branch=`26111/44870`、complexity=`17658/35571`；后两项各低于 reviewed high-water 一，故 r32 永久
-`non-freezable`。当前唯一后续链为：test-only clean/pushed Cdiag→fresh all-lane diagnostic-r33（line >=
-`54624/76830`、branch >= `26112/44870`、complexity >= `17659/35571`）→new candidate/Git-safe closure/
+`non-freezable`。r33 已在 Unit pre-marker 区间 fail-closed，不能复用。当前唯一后续链为：docs-only
+clean/pushed Cdiag→governed readiness preflight→fresh all-lane diagnostic-r34（line >= `54624/76830`、branch >=
+`26112/44870`、complexity >= `17659/35571`）→new candidate/Git-safe closure/
 dual review→direct-single-parent Cfreeze→fresh formal successor→post gates.
 
 以下仅记录已被 replacement recovery 撤回授权的 historical formal-r4 checkpoint：当时 post-formal
@@ -203,5 +204,8 @@ r22 只作历史 diagnostic evidence。
   所以只能作为 `diagnostic-observed / non-freezable`，不得进入 candidate、Cfreeze 或 formal；
 - 唯一差异是 `WatchServiceFileTracer.java:442` 的过滤删除事件覆盖。修复仅扩展一个既有 mock-key 测试，
   五个 focused JVM 和完整 `foggy-core=97/F0E0S0` 均恢复预期 counter；生产 API/模块边界未变；
-- 主线仍优先完成 9.3.4：先 clean/push 该 Cdiag，再 fresh r33。9.3.5 仍必须等待 version signoff 后的
-  Gate 0，9.4.0 仍必须等待 9.3.5 的公共 API 瘦身与去环结果；两者均不提前开工。
+- r33 已消费该 Cdiag 的一次 fresh-run 授权，并在 Unit pre-marker 区间 fail-closed；其最终 fallback
+  cleanup 非零不构成可用 cleanup closure，也不证明具体 Docker 根因。唯一后续是封存 r33→docs-only
+  Cdiag→Docker/control-plane、固定端口与 run-owned scope 的独立预检→fresh r34。
+- 主线仍优先完成 9.3.4。9.3.5 仍必须等待 version signoff 后的 Gate 0，9.4.0 仍必须等待 9.3.5 的公共
+  API 瘦身与去环结果；两者均不提前开工。

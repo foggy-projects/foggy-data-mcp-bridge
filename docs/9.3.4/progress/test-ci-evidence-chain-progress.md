@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r32 non-freezable | Step 3 exit passed | r32 completed all lanes after the port precondition was restored, but aggregate branch/complexity are each one below high-water. Next=test-only Cdiag→fresh r33→new candidate/Git-safe closure/review→Cfreeze→fresh formal→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded | Step 3 exit passed | r32 remains non-freezable; r33 stopped before canonical Unit authority and its cleanup closure is unproven. Next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/review→Cfreeze→fresh formal→post gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r9 exclusion/recovery reset do not enter Step 5; wait for fresh formal successor + final quality + coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1942,7 +1942,22 @@ Records：
   unfiltered, filtered-reject, and filtered-match deletion. Five focused JVMs restored line=`4/4` and method
   branch/complexity=`11/12` / `6/7`; full `foggy-core`=`97/F0E0S0`; independent review=
   `PASS / B/H/M/L=0/0/0/1`, mandatory=`0`;
-- only successor: commit/push/clean this test-only Cdiag → fresh strict-umask r33 with all lanes, source/cleanup
-  closure, line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571` → new
-  candidate/Git-safe closure/dual review → direct-child Cfreeze → fresh formal → post gates. Step 5–7,
-  9.3.5 and 9.4.0 remain closed.
+- r33 consumed the test-only Cdiag's one fresh-run authorization but is permanently excluded before canonical
+  Unit authority; its fallback cleanup failure cannot be treated as a successful cleanup closure.
+- only successor: clean/pushed docs-only Cdiag → governed readiness preflight → fresh strict-umask r34 with all
+  lanes, source/cleanup closure, line >= `54624/76830`, branch >= `26112/44870`, complexity >=
+  `17659/35571` → new candidate/Git-safe closure/dual review → direct-child Cfreeze → fresh formal → post
+  gates. Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r33 Unit pre-marker fail-closed（2026-07-20）
+
+- Cdiag=`4d91721406c81eb14112e68f660a80e464e2401e`; fresh strict-umask
+  `step4-coverage-20260720-diagnostic-r33` stopped in `child-unit`. The final Unit status is
+  `unit-mysql57-fallback-cleanup-failed`, while the successor view, Unit outer/run marker, lifecycle receipt,
+  normal fixture manifest and canonical Unit lane authority are absent.
+- r33=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. The final cleanup label only
+  proves a non-zero fallback cleanup invocation; it neither identifies the primary pre-marker failure nor proves
+  cleanup closure. No raw run material is promoted.
+- The authorized path is r33 exclusion record → clean/pushed docs-only Cdiag → independent governed readiness
+  preflight → fresh r34 meeting every all-lane/high-water gate → candidate/Git-safe closure/review →
+  direct-child Cfreeze → fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.

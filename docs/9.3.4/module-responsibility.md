@@ -440,6 +440,10 @@ updated_at: 2026-07-20
   Production owner must not alter `WatchServiceFileTracer` to manufacture coverage;
 - independent reviewer owns the narrow code/test review and has recorded `PASS / B/H/M/L=0/0/0/1`,
   mandatory=`0`. Existing singleton fake-watcher cleanup is Low debt, not an authorization bypass;
-- Cdiag owner must commit/push/clean this recovery, then diagnostic owner runs fresh r33. Candidate/Git-safe
-  closure/reviewer/Cfreeze/formal owners remain closed until r33 meets the governed high-water. Step 5–7,
-  9.3.5, and 9.4.0 owners remain closed.
+- r33 consumed that fresh-run authorization and is excluded before canonical Unit authority. Evidence owner must
+  preserve its boundary; no owner may manually repair, reuse, or reinterpret its fallback cleanup as a successful
+  closure.
+- Cdiag owner must commit/push/clean the r33 exclusion record, then diagnostic owner independently preflights
+  Docker reachability, fixed port and run-owned scope before fresh r34. Candidate/Git-safe closure/reviewer/
+  Cfreeze/formal owners remain closed until r34 meets the governed high-water. Step 5–7, 9.3.5, and 9.4.0
+  owners remain closed.

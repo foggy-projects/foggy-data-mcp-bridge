@@ -1114,6 +1114,9 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 3. The approved remediation is limited to the existing mock-key delete test. It must synchronously prove the
    line-442 unfiltered, filtered-reject, and filtered-match outcomes without changing production behavior,
    test/report identity, floor, critical policy, or exclusions.
-4. Five focused JVMs and one full owning-module suite are Cdiag quality input only. Fresh r33 must satisfy every
-   all-lane gate and the governed high-water before new candidate/Git-safe closure/review/Cfreeze authority
-   can begin.
+4. Five focused JVMs and one full owning-module suite are Cdiag quality input only. r33 consumed that fresh-run
+   authorization but failed before canonical Unit authority; its final cleanup label cannot be promoted to a
+   primary cause or cleanup closure.
+5. A clean/pushed docs-only Cdiag and independent governed readiness preflight are required before fresh r34
+   may satisfy every all-lane gate and the governed high-water. Only r34's complete authority may begin new
+   candidate/Git-safe closure/review/Cfreeze processing.

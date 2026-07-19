@@ -834,6 +834,9 @@ updated_at: 2026-07-20
 - Five focused JVMs restoring line 442=`4/4` and method branch/complexity=`11/12` / `6/7`, plus one full
   `foggy-core` suite=`97/F0E0S0`, are Cdiag quality proof only. The reviewed Low test-hygiene debt is
   non-blocking and cannot be used to widen scope.
-- A clean/pushed new Cdiag and fresh r33 must again prove every lane, source/cleanup closure, critical policy,
-  line >= `54624/76830`, branch >= `26112/44870`, and complexity >= `17659/35571` before new
-  candidate/Git-safe closure/review/Cfreeze authority exists. Step 5–7, 9.3.5, and 9.4.0 stay closed.
+- r33 has consumed the one fresh-run authorization and is excluded before canonical Unit authority; its final
+  fallback cleanup failure does not establish a primary cause or cleanup closure.
+- A clean/pushed docs-only Cdiag, independent governed readiness preflight, and fresh r34 must again prove every
+  lane, source/cleanup closure, critical policy, line >= `54624/76830`, branch >= `26112/44870`, and complexity
+  >= `17659/35571` before new candidate/Git-safe closure/review/Cfreeze authority exists. Step 5–7, 9.3.5, and
+  9.4.0 stay closed.
