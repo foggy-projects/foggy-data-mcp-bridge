@@ -1,0 +1,83 @@
+{
+  "version": "v1.5.1",
+  "feature": "restricted_calculate_mvp",
+  "scope": "Only CALCULATE(SUM(metric), REMOVE(dim...)) is supported.",
+  "cases": [
+    {
+      "id": "calculate_remove_all_group_dims",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)",
+      "groupBy": ["customer$customerType"],
+      "expectSqlContains": [
+        "SUM(SUM(t.sales_amount)) OVER ()",
+        "NULLIF(SUM(SUM(t.sales_amount)) OVER (), 0)"
+      ],
+      "expectError": null
+    },
+    {
+      "id": "calculate_remove_one_dim_keep_partition",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(product$categoryName)), 0)",
+      "groupBy": ["customer$customerType", "product$categoryName"],
+      "expectSqlContains": [
+        "SUM(SUM(t.sales_amount)) OVER (PARTITION BY dc.customer_type)",
+        "NULLIF(SUM(SUM(t.sales_amount)) OVER (PARTITION BY dc.customer_type), 0)"
+      ],
+      "expectError": null
+    },
+    {
+      "id": "calculate_round_ratio_scalar_wrapper",
+      "expression": "ROUND(SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0), 4)",
+      "groupBy": ["customer$customerType"],
+      "expectSqlContains": [
+        "ROUND(",
+        "SUM(SUM(t.sales_amount)) OVER ()",
+        "NULLIF(SUM(SUM(t.sales_amount)) OVER (), 0)"
+      ],
+      "expectError": null
+    },
+    {
+      "id": "calculate_denominator_requires_nullif",
+      "expression": "SUM(salesAmount) / CALCULATE(SUM(salesAmount), REMOVE(customer$customerType))",
+      "groupBy": ["customer$customerType"],
+      "expectSqlContains": [],
+      "expectError": "CALCULATE_RATIO_REQUIRES_NULLIF"
+    },
+    {
+      "id": "calculate_remove_non_group_field",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(product$categoryName)), 0)",
+      "groupBy": ["customer$customerType"],
+      "expectSqlContains": [],
+      "expectError": "CALCULATE_REMOVE_FIELD_NOT_GROUPED"
+    },
+    {
+      "id": "calculate_remove_system_slice_field",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)",
+      "groupBy": ["customer$customerType"],
+      "systemSliceFields": ["customer"],
+      "expectSqlContains": [],
+      "expectError": "CALCULATE_SYSTEM_SLICE_OVERRIDE_DENIED"
+    },
+    {
+      "id": "calculate_nested_rejected",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType))), REMOVE(customer$customerType)), 0)",
+      "groupBy": ["customer$customerType"],
+      "expectSqlContains": [],
+      "expectError": "CALCULATE_NESTED_UNSUPPORTED"
+    },
+    {
+      "id": "calculate_mysql_57_window_unsupported",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)",
+      "dialect": "mysql",
+      "groupBy": ["customer$customerType"],
+      "expectSqlContains": [],
+      "expectError": "CALCULATE_WINDOW_UNSUPPORTED"
+    },
+    {
+      "id": "calculate_time_window_post_calc_rejected",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)",
+      "groupBy": ["customer$customerType"],
+      "timeWindowPostCalculatedFields": true,
+      "expectSqlContains": [],
+      "expectError": "CALCULATE_TIMEWINDOW_POST_CALC_UNSUPPORTED"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "v934-step4-formal-failure-outer-restore",
+  "run_id": "step4-coverage-20260719-formal-r7",
+  "tested_commit": "439aea5e4e30b7a9fb50acc51e4898244f479df4",
+  "runner_rc": 1,
+  "restore_rc": 0,
+  "run_finished_at": "2026-07-18T23:44:10Z",
+  "post_restore_observed_at": "2026-07-18T23:59:37Z",
+  "containers": [
+    {
+      "name": "foggy-demo-mysql",
+      "database": "mysql57",
+      "id": "0c50bf7e8684950ee1f9c3c257d3b2a8ba1ace8fbc85f2aa57fd35ff0fe5c166",
+      "host_port": 13306,
+      "started_at": "2026-07-18T23:44:10.358600144Z",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "foggy-demo-mysql8",
+      "database": "mysql8",
+      "id": "f603e63eaf82f0c2243bef89d68cfe4ff59b60caf93dc4dbf44ea6f183c7816a",
+      "host_port": 13308,
+      "started_at": "2026-07-18T23:44:10.538337803Z",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "foggy-demo-postgres",
+      "database": "postgres15",
+      "id": "a4d6a278b0b99ff6a427b1870f24e7ebef4958341af327053eae76d4eb681d07",
+      "host_port": 15432,
+      "started_at": "2026-07-18T23:44:10.728711334Z",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "name": "foggy-demo-sqlserver",
+      "database": "sqlserver2022",
+      "id": "7881fa53039f1251ddd7ae8c43fd3cff549174a2cbaf07b4247c57495b8bf1fd",
+      "host_port": 11433,
+      "started_at": "2026-07-18T23:44:10.92458924Z",
+      "status": "running",
+      "health": "healthy"
+    }
+  ],
+  "status": "passed"
+}

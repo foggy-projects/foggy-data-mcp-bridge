@@ -1024,3 +1024,12 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 5. canonical threshold/contract=`confirmed/formal-ready`，machine delta 只允许六个 exact paths；
 6. 下一状态只能是 direct-single-parent Cfreeze 后 fresh formal-r7；任何 counter/source/provenance/
    negative/cleanup failure 均 fail closed，且不得降低 reviewed exact threshold。
+
+## Superseding formal-r7 repository-contained input contract（2026-07-19）
+
+1. `CalculateMvpIT` parity catalog 必须是 bridge HEAD 中 exact tracked `100644` blob
+   `d7879a6a…` 且 raw SHA=`f52eba37…`；仓外父/兄弟目录同名文件无 authority；
+2. Step 4 runner 必须在 Docker/Test 启动前验证该 identity；missing/tampered/index-stage drift 均失败；
+3. runner bytes变化必须同步 raw source seal、executable-stream seal、Step4 manifest 与 Step6 bindings；
+4. r7 永久 failed/excluded；下一链路改为 Cdiag→fresh diagnostic-r25→candidate/capsule/双审→
+   direct-child Cfreeze→fresh formal-r8→post-gates。

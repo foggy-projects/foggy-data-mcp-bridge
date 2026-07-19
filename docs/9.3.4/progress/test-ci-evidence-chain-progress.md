@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-Cfreeze | Step 3 exit passed | r24 full PASS/public-valid；candidate/capsule 双审 `0/0/0/0`；machine=`confirmed/formal-ready`，pending direct-child Cfreeze + formal-r7 |
-| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r7 + post-formal gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r7 portability recovery | Step 3 exit passed | formal-r7 Unit PASS 后在 Integration 因仓外 catalog fail closed；machine reset diagnostic，pending Cdiag→r25→Cfreeze→formal-r8 |
+| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r8 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -1775,3 +1775,16 @@ formal-r6 recovery 重新关闭。
 - current Step 4=`in-progress / ready-for-one-direct-child-Cfreeze`，`can_enter_step5=no`、
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；next=Cfreeze commit/push/topology/clean，
   then one fresh-clone formal-r7。
+
+## Execution check-in — formal-r7 CALCULATE catalog portability recovery（2026-07-19）
+
+- Cfreeze=`439aea5e…`；fresh formal-r7=`failed / child-integration / exit 1`；Unit=
+  `681+55/4941/F0E0S0`，Integration `caffeine-sqlite=2`、`hermetic=3` PASS，`sqlite-broad=307/F1`；
+- 唯一失败=`CalculateMvpIT.parityCatalogCasesStayExecutable`，根因是 catalog 从未进入 bridge Git tree，
+  diagnostic 被上层 workspace 文件偶然喂绿；production/test source、node、selector无回归；
+- r7 capsule=`9 entries / 10303 bytes`，Base64 封装的 byte-exact Failsafe text、per-entry provenance、cleanup、source、
+  sensitive scan、四 DB exact restore 均已复核；r7 永久 excluded；
+- remediation：repo-local catalog exact blob/SHA + pre-test Git ownership/hash gate；lifecycle raw/executable
+  seals与 Step4/6 hash closure同步；focused=`14/F0E0S0`；machine=`diagnostic-ready/diagnostic-pending`；
+- current：只授权 Cdiag commit/push、isolated focused/negative proof 和 fresh diagnostic-r25；Step 5–7、
+  post-formal gates、9.3.5/9.4.0 closed。

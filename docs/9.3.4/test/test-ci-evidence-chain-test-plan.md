@@ -975,3 +975,11 @@ coverage audit 与 acceptance 保持关闭。
   与 negatives PASS；
 - fresh formal-r7 必须在 direct-child Cfreeze push/clean 后从真正 fresh clone 完整重跑，不得复用 r24
   exec/XML 代替；任何 exact threshold、source、provenance、negative 或 cleanup 失败均 fail closed。
+
+## Superseding formal-r7 portability test boundary（2026-07-19）
+
+- observed RED=`CalculateMvpIT 14/F1E0S0`，唯一 named failure为 parity catalog missing；
+- remediation positive=`CalculateMvpIT 14/F0E0S0`，test source SHA/node count不变；提交后还必须在
+  parent/sibling catalog absent 的 isolated clone 复验 focused method与全类；
+- authority negative必须证明 repo-local missing、single-byte tamper、仅有仓外诱饵均在 Docker/tests 前拒绝；
+- full GREEN只能来自 fresh diagnostic-r25 和 fresh formal-r8；r7/r24 results 不可拼接。

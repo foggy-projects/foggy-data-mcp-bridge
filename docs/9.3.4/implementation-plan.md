@@ -1048,13 +1048,18 @@ current Step 4=`in-progress`、Step 5–7=`hold/closed`、9.3.5=`queued`。
    capsule absent；existing-node MapBeanInfo controlled regression、5 fresh JVM probes、owning module 与
    pre-Cdiag review PASS；
 7. [completed] replacement Cdiag commit/push/clean identity + fresh diagnostic-r24；
-8. [in-progress] candidate、portable capsule、双审、machine formalization 已完成；pending direct-child Cfreeze commit/push/clean；
-9. [pending] fresh-clone formal-r7；
-10. [pending] final quality→coverage audit→acceptance，随后恢复 Step 5 entry。
+8. [completed] candidate、portable capsule、双审、machine formalization、direct-child Cfreeze commit/push/clean；
+9. [failed / excluded] fresh-clone formal-r7 在 Integration 暴露仓外 CALCULATE catalog 依赖；
+10. [in-progress] 封存 r7、纳入 exact repo-local catalog、增加 pre-test tracked blob/SHA gate、同步
+    lifecycle seals 与 diagnostic Step4→Step6 hash closure；
+11. [pending] Cdiag commit/push，isolated focused/negative proof，fresh all-lane diagnostic-r25；
+12. [pending] r25 candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8；
+13. [pending] final quality→coverage audit→acceptance，随后恢复 Step 5 entry。
 
 任一步失败继续 fail closed；formal-r6/r22 均不得成为 replacement authority。
 
 r24 checkpoint：Cdiag=`414c8b12…`，r24 public-valid，aggregate=`54624/76830 line +
 26112/44870 branch`，candidate=`f13f3c35…2ee`，capsule=`6638/0 symlink`，dual review 与
-pre-Cfreeze quality 均=`PASS / 0/0/0/0`，machine=`confirmed/formal-ready`。当前严格执行第 8 步
-最后的 direct-child commit/push；完成后只进入第 9 步 fresh formal-r7。
+pre-Cfreeze quality 均=`PASS / 0/0/0/0`，machine=`confirmed/formal-ready`。第 8 步已完成；
+第 9 步 formal-r7 已按 fail-closed 规则终止并封存。当前只进入第 10–11 步；不得续跑 r7 或复用
+r24 evidence。

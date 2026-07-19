@@ -27,10 +27,10 @@ updated_at: 2026-07-19
 | reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r22 retained；NUL-token recovery inventory reviewed；Step 5–7 execution closed |
 | implementation plan | `implementation-plan.md` | ready |
 | progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Step 4 replacement Cdiag / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r23 full PASS but exact freeze refused for scheduling high-water；replacement diagnostic-r24 and formal-r7 pending |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r24/Cfreeze retained；formal-r7 portability failure excluded；repo-contained remediation focused GREEN，Cdiag→diagnostic-r25→formal-r8 pending |
 | Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；historical Step 4 retained；replacement Step 4 pending；Steps 5–6 closed |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r6 recovery quality=`0/0/0/0`；replacement post-formal quality pending |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement audit closed until formal-r7 |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement audit closed until formal-r8 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement acceptance pending |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -576,3 +576,12 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
   `PASS / 0/0/0/0`。这些材料只授权 direct-child Cfreeze 和 fresh formal-r7；
 - acceptance 仍未重开：`can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
   formal-r7 PASS 后仍必须按 final quality→coverage audit→acceptance 顺序恢复。
+
+## Superseding formal-r7 evidence boundary（2026-07-19）
+
+- r7 只形成 failed outer、完整 Unit、partial Integration、cleanup/restore 与 root-cause evidence；
+  success-only aggregate/candidate/final absent，任何 r7/r24 拼接均禁止；
+- persistent capsule 包含可解码为 byte-exact raw Failsafe failure 的 Base64 封装、outer/integration status、Unit summary、
+  formal delta、cleanup 与 per-entry provenance；敏感扫描 PASS；
+- repo-local catalog、tracked blob/SHA preflight、lifecycle seal/hash closure 与 focused 14/0/0/0 只构成
+  remediation input；acceptance 必须等待 Cdiag→r25→new Cfreeze→formal-r8→三后置门。

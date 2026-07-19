@@ -958,3 +958,13 @@ code_inventory:
 - candidate/capsule/review 已闭合；canonical formalization 只改六个 machine paths，其余仅
   `docs/9.3.4/**`。production/test/POM/runner/workflow/floor/critical/exclusion inventory delta=`0`；
 - current inventory authorizes one direct-child Cfreeze and fresh formal-r7 only；Step 5–7/9.3.5 closed。
+
+## formal-r7 portability recovery inventory（2026-07-19）
+
+- new tracked input=`docs/v1.5.1/P1-CALCULATE-restricted-mvp-parity-catalog.json`，mode/blob/raw=
+  `100644 / d7879a6a… / f52eba37…`；
+- changed authority bytes=`verify-v934-step4-coverage.sh` + lifecycle seal test + Step4/Step6 hash closure；
+- unchanged inventory=`CalculateMvpIT.java 21d8d817… / 14 nodes`、all successor source/discovery/
+  execution/report identities、production/POM、exec ledger、critical set、floors、exclusions；
+- current inventory authorizes only new Cdiag/fresh diagnostic-r25；formal-r7/r24/Cfreeze are historical，
+  Step 5–7/9.3.5 closed。

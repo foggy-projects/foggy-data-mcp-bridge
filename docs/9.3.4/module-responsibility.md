@@ -362,3 +362,11 @@ updated_at: 2026-07-19
 - Cfreeze owner 当前只负责 direct-single-parent commit/push/topology/clean proof；随后 formal owner
   必须在真正 fresh clone 完整运行 formal-r7；
 - quality/audit/acceptance、Step 5–7、9.3.5/9.4.0 owners 在 formal-r7 PASS 前不得接管 execution。
+
+## Superseding formal-r7 portability recovery ownership（2026-07-19）
+
+- failure-evidence owner 保持 formal-r7 immutable/excluded，并维护可解码为 byte-exact raw Failsafe 的 Base64 + provenance capsule；
+- catalog owner 只维护 exact repo-contained v1.5.1 bytes，不改 CALCULATE 业务语义或 test nodes；
+- authority owner 维护 tracked blob/SHA preflight、raw/executable lifecycle seals 与 Step4→Step6 hash closure；
+- diagnostic owner 仅在 clean/pushed Cdiag 和 isolated proof 后运行 fresh r25；
+- quality/audit/acceptance、Step 5–7、9.3.5/9.4.0 owners 在 formal-r8 + post-gates PASS 前不得接管。

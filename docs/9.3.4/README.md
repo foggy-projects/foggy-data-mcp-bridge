@@ -43,9 +43,11 @@ updated_at: 2026-07-19
   或可复用的 reviewed aggregate baseline。
 - Step 4 historical formal-r4、final quality、coverage audit 与 feature acceptance 已按序关闭；
   decision=`accepted`，25/25 workitem closed。后续 release-authority delta 触发 replacement
-  coverage authority；current Step 4=`in-progress / pre-Cfreeze`，r24 candidate/capsule 双审与
-  machine formalization 已通过，Step 5=`hold / closed`；historical acceptance 不构成当前
-  downstream 授权。
+  coverage authority；r24 candidate/capsule 双审与 Cfreeze `439aea5e…` 已完成，但 fresh
+  formal-r7 因仓外 CALCULATE catalog 依赖 fail closed。current Step 4=`in-progress / formal-r7
+  portability recovery`，machine=`diagnostic-ready / diagnostic-pending`，下一链路是
+  Cdiag→fresh diagnostic-r25→Cfreeze→formal-r8；Step 5=`hold / closed`，historical acceptance
+  不构成当前 downstream 授权。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -593,8 +595,8 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / pre-Cfreeze | r24 full PASS/public-valid；candidate/capsule 双审 `0/0/0/0`；machine=`confirmed/formal-ready`，pending direct-child Cfreeze commit/push + formal-r7 |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal-r7 + quality/audit/acceptance |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r7 portability recovery | r24/Cfreeze frozen historical；fresh formal-r7 在 Integration 因仓外 CALCULATE catalog 依赖 fail closed；catalog/preflight 已最小修复，machine=`diagnostic-ready/diagnostic-pending`，pending Cdiag→r25→Cfreeze→formal-r8 |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal-r8 + quality/audit/acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
 
@@ -654,3 +656,24 @@ Current r24 records：
 - [dual threshold review](evidence/step-4/step4-coverage-diagnostic-r24-threshold-review-20260719.md)
 - [portable capsule manifest](evidence/step-4/step4-coverage-20260719-diagnostic-r24-portable-capsule.manifest.json)
 - [pre-Cfreeze implementation quality](quality/step4-r24-cfreeze-implementation-quality.md)
+
+## Superseding formal-r7 portability recovery（2026-07-19）
+
+- Cfreeze=`439aea5e…` 已 clean/pushed；fresh formal-r7 的 Unit 完整通过
+  `681+55/4941/F0E0S0`，Integration 前两变体通过，`sqlite-broad` 在
+  `CalculateMvpIT.parityCatalogCasesStayExecutable` 以 `307/F1E0S0` fail closed；
+- 唯一根因是 bridge Git tree 未跟踪 parity catalog，本地 diagnostic 误读工作区父目录同名文件；
+  r7 永久 `failed/excluded/non-reusable`，cleanup=`0/0/0`，四个 demo DB exact ID 恢复 healthy；
+- exact catalog 已纳入 `docs/v1.5.1/`；Step 4 runner 在任何测试前校验 exact tracked
+  `100644` blob + SHA-256，raw/executable lifecycle 双层 seal 与 Step4→Step6 hash cascade 已同步；
+- focused `CalculateMvpIT=14/F0E0S0`，test source SHA/node count 不变；machine 已回到
+  `diagnostic-ready/diagnostic-pending`；
+- 下一合法状态只允许 Cdiag commit/push/isolated proof→fresh diagnostic-r25→candidate/capsule/双审→
+  direct-child Cfreeze→fresh formal-r8。Step 5–7、9.3.5、9.4.0 继续关闭。
+
+Current recovery records：
+
+- [formal-r7 fail-closed evidence](evidence/step-4/step4-coverage-formal-r7-calculate-catalog-portability-fail-closed-20260719.md)
+- [formal-r7 failure capsule](evidence/step-4/formal-r7-failure-capsule/manifest.json)
+- [portability blocker workitem](workitems/BUG-calculate-mvp-parity-catalog-fresh-clone-portability.md)
+- [portability recovery implementation quality](quality/step4-formal-r7-portability-recovery-implementation-quality.md)

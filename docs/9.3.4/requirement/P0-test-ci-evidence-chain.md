@@ -159,9 +159,9 @@ updated_at: 2026-07-19
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=`in-progress / replacement Cdiag`；
-- historical Step 4 authority/formal-r4 acceptance 保留；r23 full PASS/public-valid，但 scheduling
-  high-water exact freeze 被拒绝；current machine=`diagnostic-ready / diagnostic-pending`，replacement
-  diagnostic-r24/formal-r7 pending；
+- historical Step 4 authority/formal-r4/r24/Cfreeze 保留；fresh formal-r7 因仓外 CALCULATE catalog
+  依赖 fail closed 并永久 excluded；current machine=`diagnostic-ready / diagnostic-pending`，
+  repo-contained remediation 后 Cdiag→diagnostic-r25→Cfreeze→formal-r8 pending；
 - Step 5–7=`hold / execution closed`，version acceptance=`not-started`，9.3.5=`queued`；
 - Unit MySQL classification DEBT 继续 open，最终 9.3.4 临时放行由 Step 7 决定。
 
@@ -716,3 +716,11 @@ updated_at: 2026-07-19
 - canonical threshold/contract=`confirmed/formal-ready`，frozen r24 replay 与 fail-closed negatives PASS；
 - 当前 requirement exit 仅到 `ready-for-direct-child-Cfreeze`。fresh formal-r7、final quality、coverage
   audit、acceptance 未发生，故 `can_enter_step5=no`、9.3.5 closed。
+
+## Superseding formal-r7 repository portability requirement boundary（2026-07-19）
+
+- formal-r7 正确拒绝仓外 test input；完整 Unit 不足以替代未完成的 Integration/Step3/aggregate；
+- repo-contained catalog identity必须在 authority 启动测试前由 Git blob + raw SHA双重绑定，外部诱饵无效；
+- runner seal/hash closure 属 mandatory authority input；任何漏级联均阻断 Cdiag；
+- definition of done 改为 clean/pushed Cdiag→fresh r25→review/Cfreeze→fresh formal-r8→final
+  quality/audit/acceptance。此前 `can_enter_step5=no`、9.3.5 closed。

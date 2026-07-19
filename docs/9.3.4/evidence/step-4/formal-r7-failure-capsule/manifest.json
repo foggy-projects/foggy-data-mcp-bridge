@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "kind": "v934-step4-formal-failure-capsule",
+  "run_id": "step4-coverage-20260719-formal-r7",
+  "tested_commit": "439aea5e4e30b7a9fb50acc51e4898244f479df4",
+  "status": "sealed-failed",
+  "source_roots": {
+    "outer": "/tmp/v934-formal-r7.6IPa1r/repo/target/v934-step4-coverage/runs/step4-coverage-20260719-formal-r7",
+    "unit": "/tmp/v934-formal-r7.6IPa1r/repo/target/v934-step2-unit/runs/step4-coverage-20260719-formal-r7",
+    "integration": "/tmp/v934-formal-r7.6IPa1r/repo/target/v934-step2-integration/runs/step4-coverage-20260719-formal-r7",
+    "failsafe": "/tmp/v934-formal-r7.6IPa1r/repo/foggy-dataset-model/target/failsafe-reports"
+  },
+  "entries": [
+    {
+      "path": "calculate-mvp-failsafe.base64",
+      "sha256": "486ecd2b4f1f8f59fdb8d8c586c2019dfb7b5fa7bca072c5dd1e143e8ed00190",
+      "size": 1399,
+      "provenance": "base64-encoded-byte-exact-copy",
+      "encoding": "base64-rfc4648",
+      "decoded_sha256": "f7bc9e32c69b852314f3c8f084c7b8a1aaaa7c3a883143d4744e5775d13ec1c2",
+      "decoded_size": 1035,
+      "source_path": "failsafe/com.foggyframework.dataset.db.model.ecommerce.CalculateMvpIT.txt"
+    },
+    {
+      "path": "cleanup.env",
+      "sha256": "5524f0c68afb6ff1d13358f8fa3d2d19f7c1270454f2dfed1d2fe72cfe334ff1",
+      "size": 69,
+      "provenance": "byte-exact-copy",
+      "source_path": "outer/cleanup.env"
+    },
+    {
+      "path": "failure-excerpt.txt",
+      "sha256": "b2712c23f7c52f3a432530a469fd7a6da0e7fa67dabcb9b3deefc7b455367528",
+      "size": 983,
+      "provenance": "normalized-excerpt",
+      "source_paths": [
+        "outer/run.log",
+        "integration/run.log",
+        "outer-wrapper-session"
+      ]
+    },
+    {
+      "path": "formalization-delta.json",
+      "sha256": "6cff2e9d6b6b516dcbebc5ba7bd7edd0e7d10113072ab86b4db136199d5e8c63",
+      "size": 3705,
+      "provenance": "byte-exact-copy",
+      "source_path": "outer/formalization-delta.json"
+    },
+    {
+      "path": "integration-run-status.env",
+      "sha256": "489b15e6dfe558cbac998d322729bcae3caf32f18e97bf01ac01372d7c65b0b9",
+      "size": 543,
+      "provenance": "byte-exact-copy",
+      "source_path": "integration/run-status.env"
+    },
+    {
+      "path": "outer-restore.json",
+      "sha256": "878fdca795c1d9eb1e1a46f117e0cf81ed2701231d7fe78a0675847dff2f0d2d",
+      "size": 1542,
+      "provenance": "post-run-read-only-observation",
+      "source_path": "docker-inspect-and-wrapper-restore-receipt"
+    },
+    {
+      "path": "run-context.json",
+      "sha256": "3af9905bd4d70e97803018de70032ae8fbde8aa8e6a4f0a49e40f9680f141a2b",
+      "size": 463,
+      "provenance": "byte-exact-copy",
+      "source_path": "outer/run-context.json"
+    },
+    {
+      "path": "run-status.env",
+      "sha256": "d24dda69cff4249ccd10d5324fa25bcdd34553cbe722475f4f07d55d76e2f6c4",
+      "size": 527,
+      "provenance": "byte-exact-copy",
+      "source_path": "outer/run-status.env"
+    },
+    {
+      "path": "unit-summary.env",
+      "sha256": "ee82354a5548c04fc652b447ba00587e0946d07b8002277b25e4717c8e98c6ab",
+      "size": 1072,
+      "provenance": "byte-exact-copy",
+      "source_path": "unit/summary.env"
+    }
+  ],
+  "entry_count": 9,
+  "total_size": 10303
+}
