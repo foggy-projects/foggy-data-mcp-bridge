@@ -1201,15 +1201,21 @@ Current Step 4=`in-progress / formal-r9 strict-umask excluded / diagnostic-ready
 3. [completed] Git-safety review found that the local capsule recursively captured Git-excluded raw runtime
    content. r29 is permanently `non-freezable`; its candidate, local capsule and reviews grant no Cfreeze
    authority and may not be repaired or reused in place.
-4. [completed locally; not yet Cdiag] replace recursive capsule closure and raw-exec-only frozen replay with an
+4. [completed] Cdiag `7757aa36c0efd0970422669e0f88f74daa8f15b0` replaced recursive capsule closure and raw-exec-only frozen replay with an
    explicit two-file Git-safe allowlist, source-validated hash-only diagnostic attestation, and XML-only semantic
    recomputation boundary. The capsule rejects raw execution/log/process/container content, unsafe XML/tar framing
    and TOCTOU; static evidence is `21` capsule probes, `28` contract probes, `128` XML probes and `86` CI probes.
-5. [pending] submit/push that tooling as a new Cdiag, then run one fresh strict-umask diagnostic in a fresh
-   clone. Only its new candidate and independently reviewed Git-safe closure may be considered for Cfreeze.
-6. [pending] after a valid successor Cfreeze, run one fresh formal successor, then final implementation
+5. [failed / excluded] fresh `step4-coverage-20260719-diagnostic-r30` started from that Cdiag under outer
+   `umask 077` but stopped in `contract-validate` when the successor overlay retained stale dual
+   coverage-contract and coverage-tool bindings. It executed zero lanes and has no candidate/Cfreeze authority.
+6. [completed locally; not yet Cdiag] synchronize both successor binding sources, successor/Step 4/Step 6
+   integrity manifests, and add a canonical overlay positive control to the contract-negative suite. The original
+   `21 / 28 / 128 / 86` static counts remain intact; the new overlay binding control is separate.
+7. [pending] submit/push that binding repair as a new Cdiag, then run one fresh strict-umask diagnostic-r31 in a
+   fresh clone. Only its new candidate and independently reviewed Git-safe closure may be considered for Cfreeze.
+8. [pending] after a valid successor Cfreeze, run one fresh formal successor, then final implementation
    quality → replacement coverage audit `31/31` → Step 4 feature acceptance.
 
-Current Step 4=`in-progress / r29 non-freezable safety hold / Git-safe capsule Cdiag pending`。
+Current Step 4=`in-progress / r29 non-freezable + r30 binding exclusion / replacement Cdiag pending`。
 `can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
 can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。

@@ -37,6 +37,10 @@ NS = {"m": MAVEN_NS}
 TOOL_PATH = Path("scripts/v934/step4/coverage_contract_negative_tool.py")
 VALIDATOR_PATH = Path("scripts/v934/step4/coverage_tool.py")
 REPORT_RUNNER_PATH = Path("scripts/v934/step4/coverage_report_runner.sh")
+SUCCESSOR_OVERLAY_CONTRACT_PATH = Path(
+    "scripts/v934/step4/successor/overlay-contract.json"
+)
+SUCCESSOR_OVERLAY_TOOL_PATH = Path("scripts/v934/step4/successor/overlay_tool.py")
 PYTHON_DISPATCH_TOOLS = (
     ("EXEC_TOOL", Path("scripts/v934/step4/coverage_exec_tool.py")),
     ("CONTRACT_TOOL", Path("scripts/v934/step4/coverage_tool.py")),
@@ -1144,6 +1148,65 @@ def validate_repo_root(value: Path) -> Path:
         raise NegativeError("cannot resolve Git repository root") from exc
     require(observed == str(root), "supplied repository root differs from Git worktree root")
     return root
+
+
+def verify_successor_overlay_binding(root: Path) -> dict[str, Any]:
+    """Exercise the exact Step 4 preflight binding before a real run can do so.
+
+    A contract or coverage-validator change has to update the successor
+    overlay's dual workflow identity.  The outer runner invokes this overlay
+    before it starts test lanes, so the static contract suite must invoke the
+    same canonical validator as a positive control.
+    """
+
+    contract = root / SUCCESSOR_OVERLAY_CONTRACT_PATH
+    tool = root / SUCCESSOR_OVERLAY_TOOL_PATH
+    validator = root / VALIDATOR_PATH
+    for path in (contract, tool, validator):
+        require(
+            path.is_file() and not path.is_symlink(),
+            f"E_SUCCESSOR_OVERLAY_BINDING: required file is unsafe: {path.name}",
+        )
+    identities = {
+        "coverage_contract_sha256": sha256_file(root / JSON_PATHS["contract"]),
+        "coverage_tool_sha256": sha256_file(validator),
+        "overlay_contract_sha256": sha256_file(contract),
+        "overlay_tool_sha256": sha256_file(tool),
+    }
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(tool), "validate"],
+            cwd=root,
+            env=fixture_git_environment(),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise NegativeError(
+            "E_SUCCESSOR_OVERLAY_BINDING: cannot execute canonical overlay validator"
+        ) from exc
+    require(
+        completed.returncode == 0
+        and completed.stderr == ""
+        and len(completed.stdout.splitlines()) == 1
+        and completed.stdout.startswith("V934_STEP4_SUCCESSOR_OVERLAY ")
+        and completed.stdout.rstrip("\n").endswith(" status=passed"),
+        "E_SUCCESSOR_OVERLAY_BINDING: canonical overlay validator rejected its bindings",
+    )
+    require(
+        identities
+        == {
+            "coverage_contract_sha256": sha256_file(root / JSON_PATHS["contract"]),
+            "coverage_tool_sha256": sha256_file(validator),
+            "overlay_contract_sha256": sha256_file(contract),
+            "overlay_tool_sha256": sha256_file(tool),
+        },
+        "E_SUCCESSOR_OVERLAY_BINDING: binding inputs changed during validation",
+    )
+    return {"command": "validate", **identities, "status": "passed"}
 
 
 def only(values: Sequence[ET.Element], label: str) -> ET.Element:
@@ -3248,6 +3311,7 @@ def build_result(root: Path) -> dict[str, Any]:
             root, temporary_root
         )
         reporter_effective_pom_umask_077_probe(root, temporary_root)
+        successor_overlay_binding = verify_successor_overlay_binding(root)
     require(
         source_hashes == {role: sha256_file(root / relative) for role, relative in INPUT_PATHS.items()},
         "canonical input changed while running negative probes",
@@ -3270,6 +3334,7 @@ def build_result(root: Path) -> dict[str, Any]:
         "probes": cases,
         "git_environment_policy": git_environment_policy,
         "python_dispatch_portability": python_dispatch_portability,
+        "successor_overlay_binding": successor_overlay_binding,
         "source_hash_git_identity": source_hash_identity,
         "threshold_and_frozen_replay": threshold_and_frozen_replay,
         "status": "passed",

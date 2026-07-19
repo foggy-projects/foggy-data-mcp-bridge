@@ -826,11 +826,26 @@ Current recovery records：
 - r29 的候选事实只保留为本地诊断观察。审计发现其 local capsule 包含 Git 排除的原始运行内容，
   因而不存在可入库的安全 closure；r29=`non-freezable / no-cfreeze-authority`；
 - 不得为 r29 补录、重打包或引用 capsule identity，也不得将其 candidate/review 与任何历史运行拼接；
-- 当前唯一授权是：提交并推送已完成本地验证的显式 Git-safe 内容白名单、脱敏 attestation 与可重算
-  frozen replay → 在 fresh clone 运行新的 strict-umask diagnostic。Cfreeze、formal、coverage audit、
-  acceptance、Step 5–7、9.3.5 与 9.4.0 继续关闭。
+- Git-safe tooling 已作为 Cdiag `7757aa36…` 推送；其 fresh r30 在 successor overlay binding 预检
+  fail-closed，未启动任何 lane。该 run 永久 excluded，不能补跑或复用。binding closure 与防回归已完成
+  本地验证，仍须新的 clean/pushed Cdiag→fresh strict-umask diagnostic-r31。Cfreeze、formal、coverage
+  audit、acceptance、Step 5–7、9.3.5 与 9.4.0 继续关闭。
 
 - [r29 diagnostic evidence](evidence/step-4/step4-coverage-diagnostic-r29-pass-20260719.md)
 - [r29 candidate review](quality/step4-diagnostic-r29-candidate-review.md)
 - [r29 capsule review](quality/step4-diagnostic-r29-capsule-review.md)
 - [Git-safe capsule blocker](workitems/BUG-step4-frozen-capsule-git-safe-content-boundary.md)
+
+## Superseding diagnostic-r30 successor-binding failure（2026-07-19）
+
+- Cdiag `7757aa36c0efd0970422669e0f88f74daa8f15b0` introduced the Git-safe capsule/replay closure.
+  Fresh `step4-coverage-20260719-diagnostic-r30` stopped in `contract-validate` because its Step 3 successor
+  overlay still bound the old dual coverage-contract projection and coverage-tool identities.
+- r30=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. It has no source seal, child
+  lane, aggregate, XML, observation, summary, candidate or final authority; it must not be repaired in place or
+  combined with r29 or historical material.
+- The remediation synchronizes both overlay binding sources and their manifest chain, and makes the Step 4
+  contract-negative suite execute the same canonical overlay preflight. A new clean/pushed Cdiag is mandatory
+  before one fresh strict-umask diagnostic-r31.
+
+- [r30 fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r30-successor-binding-fail-closed-20260719.md)

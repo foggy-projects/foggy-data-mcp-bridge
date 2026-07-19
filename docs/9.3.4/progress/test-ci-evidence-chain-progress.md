@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r29 non-freezable safety hold | Step 3 exit passed | r9 strict-umask remains excluded; f420 Cdiag's r29 diagnostic facts are preserved but its recursive local capsule is not Git-safe. Git-safe tooling local validation passed; Next=new clean/pushed Cdiag→fresh diagnostic→new candidate/review→Cfreeze→fresh formal→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r29 non-freezable + r30 binding excluded | Step 3 exit passed | r9 strict-umask remains excluded; r29 has no Git-safe closure; Git-safe Cdiag `7757aa36…` r30 stopped at successor binding preflight with zero lanes. Binding repair is locally verified; Next=new clean/pushed Cdiag→fresh r31→new candidate/review→Cfreeze→fresh formal→post gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r9 exclusion/recovery reset do not enter Step 5; wait for fresh formal successor + final quality + coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1905,3 +1905,15 @@ Records：
 - The fail-closed tooling repair is locally validated: explicit allowlist, de-identified attestation, safe frozen
   recomputation, and persistent rejection tests. It still requires a new Cdiag and a fresh diagnostic before any
   candidate, Cfreeze or formal decision. Step 5–7, coverage audit, acceptance, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r30 successor-binding fail-closed（2026-07-19）
+
+- Cdiag=`7757aa36c0efd0970422669e0f88f74daa8f15b0`; fresh strict-umask
+  `step4-coverage-20260719-diagnostic-r30` failed in `contract-validate` when the Step 3 successor overlay
+  rejected stale dual coverage-contract and coverage-tool bindings.
+- r30=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. No source seal, lane result,
+  aggregate, XML, observation, summary, candidate or final output exists; it cannot be rerun, repaired or merged
+  with another run.
+- Remediation synchronizes the two binding sources and Step 4/6 manifest chain, then exercises canonical overlay
+  validation from the contract-negative suite. A new Cdiag and fresh r31 are required before any review/Cfreeze/
+  formal transition; Step 5–7, 9.3.5 and 9.4.0 remain closed.
