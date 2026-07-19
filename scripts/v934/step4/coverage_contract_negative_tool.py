@@ -1056,6 +1056,50 @@ def python_dispatch_portability_probes(
     }
 
 
+def reporter_effective_pom_umask_077_probe(
+    root: Path,
+    temporary_root: Path,
+) -> None:
+    tool_path = root / "scripts/v934/step4/reporter_effective_pom_tool.py"
+    spec = importlib.util.spec_from_file_location(
+        "v934_effective_pom_umask_probe",
+        tool_path,
+    )
+    require(
+        spec is not None and spec.loader is not None,
+        "E_EFFECTIVE_POM_UMASK: cannot load effective-POM tool",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    output = temporary_root / "strict-umask-effective-pom-receipt.json"
+    payload = {"probe": "strict-umask-public-output"}
+    previous_umask = os.umask(0o077)
+    try:
+        module.atomic_json(output, payload)
+    except Exception as exc:  # the imported tool owns the precise error code
+        raise NegativeError(
+            f"E_EFFECTIVE_POM_UMASK: public receipt publication failed: {exc}"
+        ) from exc
+    finally:
+        os.umask(previous_umask)
+
+    try:
+        observed = output.lstat()
+        decoded = json.loads(output.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise NegativeError(
+            f"E_EFFECTIVE_POM_UMASK: cannot inspect strict-umask receipt: {exc.__class__.__name__}"
+        ) from exc
+    require(
+        stat.S_ISREG(observed.st_mode)
+        and not output.is_symlink()
+        and stat.S_IMODE(observed.st_mode) == 0o644
+        and decoded == payload,
+        "E_EFFECTIVE_POM_UMASK: strict umask receipt contract differs",
+    )
+
+
 def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -3186,6 +3230,7 @@ def build_result(root: Path) -> dict[str, Any]:
         python_dispatch_portability = python_dispatch_portability_probes(
             root, temporary_root
         )
+        reporter_effective_pom_umask_077_probe(root, temporary_root)
     require(
         source_hashes == {role: sha256_file(root / relative) for role, relative in INPUT_PATHS.items()},
         "canonical input changed while running negative probes",
