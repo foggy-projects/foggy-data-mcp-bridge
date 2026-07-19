@@ -1096,3 +1096,16 @@ coverage audit 与 acceptance 保持关闭。
   enforcement call site, the explicit normalization, or the exact-mode assertion is removed or weakened.
 - formal-r10 is permanently excluded as a contract-invalid mechanical result. The end-to-end authority test
   starts from a new Cdiag and fresh r35; no r10/r34/Cfreeze artifact substitutes for it.
+
+## r35-to-formal-r11 replacement test boundary（2026-07-20）
+
+- r35 proves only diagnostic readiness. After its direct-child Cfreeze is clean/pushed, formal-r11 must run
+  under outer `umask 077` in a new clone and independently rebuild Unit, Integration, Step 3 required and
+  Addon companion; diagnostic exec, XML, aggregate and raw runtime material must not be imported.
+- Formal must reprove all-lane inventory, source/provenance/lifecycle/cleanup, high-water thresholds,
+  critical/model gates and a regular/non-link final public effective-POM receipt at exact `0644`. The
+  independent final-artifact verifier must reject content-correct but mode-incorrect receipt metadata.
+- After formal succeeds, rerun the focused
+  `PivotSqlParityIT#testPreAggHitWithSystemSliceAndLimitKeepsFinalParamOrder` companion on the same Cfreeze.
+  It is supplemental coverage evidence only and must not alter formal `23 exec / 48 session` or aggregate
+  counters.

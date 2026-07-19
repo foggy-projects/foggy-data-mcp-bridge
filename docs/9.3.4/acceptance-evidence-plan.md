@@ -708,3 +708,13 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - Acceptance remains `not-started`. It may reopen only after a new clean/pushed Cdiag, fresh r35,
   fresh candidate/reviews, direct-child Cfreeze, fresh formal, final quality, and a separately recorded
   `legacy 31 + supplemental 4` audit with critical/major gaps `0/0`.
+
+## r35 Cfreeze acceptance boundary（2026-07-20）
+
+- r35 is fresh diagnostic evidence only: it confirms the repaired exact public receipt mode=`0644`, but it
+  is not a formal artifact, audit input, or acceptance substitute.
+- The r35 candidate/capsule and two independent reviews authorize one Cfreeze from Cdiag `93b3993e…` only.
+  No r34/r10/prior-Cfreeze output may be joined to the future acceptance packet.
+- Future acceptance input must originate from a clean-clone formal-r11 on that Cfreeze, its independently
+  verified public final artifact, a same-Cfreeze Pivot supplemental companion, final implementation quality,
+  and a replacement audit whose critical/major gaps are `0/0`.

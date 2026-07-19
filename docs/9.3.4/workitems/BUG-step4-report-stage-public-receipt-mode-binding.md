@@ -3,7 +3,7 @@ workitem_type: BUG
 version: 9.3.4
 step: 4
 severity: blocker
-status: fixed-awaiting-new-cdiag
+status: fixed-verified-awaiting-fresh-formal
 owner: Step 4 coverage tooling
 discovered_by: step4-coverage-20260720-formal-r10-postformal-review
 ---
@@ -40,10 +40,14 @@ coverage thresholds, test/report cardinality, database behavior, or public API.
 
 - [x] report-stage `0644` enforcement and exact-mode provenance binding implemented;
 - [x] strict-umask report-stage-copy probe and mutation negatives implemented;
-- [ ] new clean, pushed Cdiag static closure completed;
-- [ ] fresh all-lane diagnostic-r35, candidate/capsule/reviews, direct-child Cfreeze, and fresh formal
-  completed;
+- [x] new clean, pushed Cdiag static closure completed;
+- [x] fresh all-lane diagnostic-r35 plus candidate/capsule/reviews completed;
+- [ ] direct-child Cfreeze and wholly fresh formal completed;
 - [ ] replacement final quality, `legacy 31 + supplemental 4` audit, and Step 4 acceptance completed.
 
 formal-r10 remains immutable and excluded; this work item does not authorize a retroactive repair,
 rerun, audit, or acceptance of r10.
+
+Fresh r35 proved the report-stage public receipt as regular/non-link exact `0644` under strict umask, and its
+independent candidate/capsule reviews are `APPROVE / B/H/M/L=0/0/0/0`. This validates the repair but is not
+a replacement formal authority; Cfreeze and formal must remain new-run evidence.

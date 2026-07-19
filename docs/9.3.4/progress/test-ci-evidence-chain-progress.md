@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r10 contract-invalid | Step 3 exit passed | r34 remains diagnostic-only; r10 mechanically passed but its final public report receipt was `0600`, not governed `0644`. Next=new Cdiag→fresh r35→new candidate/Git-safe closure/review→Cfreeze→fresh formal→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r35 Cfreeze-authorized | Step 3 exit passed | Cdiag `93b3993e…` and fresh r35=`diagnostic-observed / public-valid`; all lanes/high-water, exact public receipt `0644`, Git-safe candidate/capsule and dual review pass. Next=one direct-child Cfreeze→fresh formal→post gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r10 exclusion/recovery reset does not enter Step 5; wait for a fresh formal successor + final quality + scoped coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1976,3 +1976,24 @@ Records：
 - The only continuation is a clean/pushed Cdiag → fresh r35 → fresh candidate/Git-safe closure/capsule/dual
   review → direct-child Cfreeze → fresh formal → replacement final quality → `legacy 31 + supplemental 4`
   audit → Step 4 acceptance. No r34/r10/Cfreeze output may be reused; Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r35 reviewed Cfreeze authorization（2026-07-20）
+
+- recovery Cdiag=`93b3993e41d285300cb6968865da229319dad26d` is clean/pushed and contains the report-stage
+  public-receipt mode repair. Fresh strict-umask `step4-coverage-20260720-diagnostic-r35` completed
+  `diagnostic-observed / public-valid / exit 0` with required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`,
+  exec/session=`23/48`, line=`54624/76830`, branch=`26112/44870`, complexity=`17659/35571`, critical
+  below=`0`, and cleanup=`0/0/0`.
+- The report-stage public effective-POM receipt is regular/non-link and exact mode=`0644`. This is a fresh
+  observation under the repaired code; r10 remains mechanically recorded but `contract-invalid /
+  non-authoritative / excluded-from-audit-and-acceptance`.
+- The new threshold candidate, Git-safe three-member capsule, independent rebuild/materialization review,
+  and result review are all recorded under `evidence/step-4/`; both reviews are `APPROVE`,
+  B/H/M/L=`0/0/0/0`. r35 is the only permitted diagnostic input; r34, r10 and every prior Cfreeze stay
+  excluded from this successor chain.
+- Machine state is `coverage-contract=formal-ready` and `coverage-thresholds=confirmed`; Step 4/6 manifest,
+  frozen diagnostic, successor overlay and CI workflow validation all pass. This authorizes exactly one
+  direct-single-parent Cfreeze from Cdiag `93b3993e…`, then one fresh clean-clone formal-r11.
+- Current decision: `can_enter_cfreeze=yes`; `can_enter_formal=no` until that Cfreeze is pushed and cloned
+  clean; `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`. Steps 5–7, 9.3.5
+  and 9.4.0 remain closed.

@@ -913,3 +913,18 @@ Current recovery records：
 
 - [formal-r10 report-stage fail-closed evidence](evidence/step-4/step4-coverage-formal-r10-report-stage-public-receipt-fail-closed-20260720.md)
 - [formal-r10 implementation-quality rejection](quality/step4-formal-r10-report-stage-receipt-fail-closed-implementation-quality.md)
+
+## r35 reviewed Cfreeze boundary（2026-07-20）
+
+- Clean/pushed recovery Cdiag `93b3993e…` produced fresh strict-umask diagnostic-r35 with all required
+  lanes, high-water counters, source/lifecycle/cleanup closure, and a regular/non-link final public
+  effective-POM receipt at exact `0644`.
+- Its candidate and Git-safe capsule were independently recomputed/rebuilt/materialized; both independent
+  reviews are `APPROVE / B/H/M/L=0/0/0/0`. This establishes a Cfreeze input, not formal, audit, acceptance,
+  Step 5, 9.3.5, or 9.4.0 authority.
+- The sole authorized successor is one direct-child Cfreeze of `93b3993e…`, followed by fresh formal-r11
+  in a clean clone, final quality, a replacement `legacy 31 + supplemental 4` audit, and Step 4 feature
+  acceptance. r34, r10 and prior Cfreeze material remain non-reusable.
+
+- [r35 diagnostic pass](evidence/step-4/step4-coverage-diagnostic-r35-pass-20260720.md)
+- [r35 threshold review](evidence/step-4/step4-coverage-diagnostic-r35-threshold-review-20260720.md)

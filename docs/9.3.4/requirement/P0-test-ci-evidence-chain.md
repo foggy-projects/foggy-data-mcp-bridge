@@ -854,3 +854,13 @@ updated_at: 2026-07-20
 - Only a fresh Cdiag → fresh r35 → fresh candidate/review → direct-child Cfreeze → fresh formal → final
   quality → `legacy 31 + supplemental 4` audit → feature acceptance can reopen Step 4. Step 5–7, 9.3.5,
   and 9.4.0 remain closed until then.
+
+## r35 reviewed Cfreeze requirement boundary（2026-07-20）
+
+- The repaired Cdiag and fresh r35 have now proven all lanes/high-water and exact public receipt mode=`0644`.
+  Their candidate/capsule reviews authorize a single Cfreeze only; diagnostic material is not formal evidence.
+- The Cfreeze must be a direct single child of Cdiag `93b3993e…`, retain the governed Step 4→Step 6 hash
+  closure, and be pushed before formal-r11 starts in a clean clone.
+- formal-r11 must independently reproduce all authority checks under strict umask, including regular/non-link
+  exact-`0644` final report receipt. Post-formal quality, same-Cfreeze Pivot supplemental coverage,
+  replacement audit and feature acceptance remain mandatory; Step 5–7, 9.3.5 and 9.4.0 remain closed.

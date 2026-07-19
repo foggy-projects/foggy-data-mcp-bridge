@@ -1268,3 +1268,28 @@ can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。
 Current Step 4=`in-progress / formal-r10 contract-invalid / replacement Cdiag pending`.
 `can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
 can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Superseding diagnostic-r35 Cfreeze plan（2026-07-20）
+
+1. [completed] Clean/pushed Cdiag `93b3993e…` carries the report-stage exact-mode repair, strict-umask
+   real-copy proof, mutation negatives, machine reset and Step 4→Step 6 hash closure.
+2. [completed] Fresh strict-umask diagnostic-r35 completed all governed lanes and high-water checks;
+   required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`, line=`54624/76830`,
+   branch=`26112/44870`, complexity=`17659/35571`, critical below=`0`, cleanup=`0/0/0`, and final public
+   report receipt=`0644` regular/non-link.
+3. [completed] r35-only candidate and Git-safe capsule passed canonical validation plus independent result
+   and capsule reviews (`APPROVE / B/H/M/L=0/0/0/0`); contract/threshold state is
+   `formal-ready / confirmed`.
+4. [pending / authorized exactly once] Commit/push one Cfreeze whose sole parent is `93b3993e…`; its only
+   non-document delta is the six governed Step 4/Step 6 contract/hash files. Recheck topology and clean
+   remote identity before handoff.
+5. [pending] From a new non-shallow clean clone of that Cfreeze, independently preflight Docker/port scope
+   and run `step4-coverage-20260720-formal-r11` under `umask 077`. Rebuild every lane; r35 exec/XML/raw
+   material is not formal input.
+6. [pending] Verify formal public final artifact and exact `0644` receipt, then run the same-Cfreeze focused
+   Pivot companion (supplemental only, excluded from formal totals), final implementation quality, replacement
+   `legacy 31 + supplemental 4` audit, and Step 4 feature acceptance.
+
+Current Step 4=`in-progress / r35 Cfreeze-authorized`; `can_enter_cfreeze=yes`, while
+`can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no` until
+the ordered successors complete. Steps 5–7, 9.3.5 and 9.4.0 remain closed.

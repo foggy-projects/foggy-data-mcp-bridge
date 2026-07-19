@@ -1065,3 +1065,16 @@ code_inventory:
 - machine state is `diagnostic-ready / diagnostic-pending`. formal-r10 and all its upstream r34/Cfreeze
   material are historical observation only. Inventory authorization is limited to clean/pushed Cdiag then
   fresh r35; candidate/Cfreeze/formal/audit/acceptance/Step 5–7/9.3.5/9.4.0 remain closed.
+
+## diagnostic-r35 Cfreeze inventory boundary（2026-07-20）
+
+- r35 is a new all-lane diagnostic observation on Cdiag `93b3993e…`: required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, line/branch/complexity=`54624/76830` /
+  `26112/44870` / `17659/35571`, critical below=`0`, cleanup=`0/0/0`, and report-stage public receipt
+  regular/non-link mode=`0644`.
+- Cfreeze surface is restricted to `coverage-contract.json`, `coverage-thresholds.json`, and their Step 4
+  manifest plus the corresponding Step 6 contract/tool/manifest hash cascade; all other tracked changes are
+  r35 evidence/review/authority documentation under `docs/9.3.4/**`. Production Java, Java tests, POMs,
+  selector, cardinality, database policy, threshold floors, critical policy and public API delta=`0`.
+- The r35 candidate and Git-safe capsule are tracked evidence; no raw run log, exec/XML root, container
+  identity or r34/r10 artifact enters Git. Cfreeze/formal/audit/acceptance have not yet executed.

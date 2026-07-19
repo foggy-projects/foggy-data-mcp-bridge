@@ -459,3 +459,14 @@ updated_at: 2026-07-20
 - Cdiag owner owns the clean/pushed reset. diagnostic owner may then run fresh r35 only. r10 is immutable
   and excluded; candidate, Cfreeze, formal, final quality, audit, acceptance, Step 5–7, 9.3.5, and 9.4.0
   owners remain closed until the replacement chain completes.
+
+## r35 Cfreeze/formal ownership（2026-07-20）
+
+- evidence/review owners have completed r35 candidate and Git-safe capsule review; their `APPROVE /
+  0/0/0/0` decision authorizes exactly one Cfreeze and transfers no formal or acceptance authority.
+- Cfreeze owner must make `93b3993e…` the sole parent, limit the machine delta to the governed six-file
+  Step 4→Step 6 hash cascade, push it, and hand over only a clean non-shallow clone.
+- formal owner must independently preflight Docker and fixed-port scope, rebuild all formal lanes under
+  `umask 077`, prove exact public receipt mode=`0644`, and preserve r35 as diagnostic-only evidence.
+- post-formal owner then runs public final replay and the same-Cfreeze Pivot supplemental companion; quality,
+  coverage-audit and feature-acceptance owners remain sequentially closed until their predecessor record passes.

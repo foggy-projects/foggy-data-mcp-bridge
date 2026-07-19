@@ -3,7 +3,7 @@ workitem_type: BUG
 version: 9.3.4
 step: 4
 severity: blocker
-status: reopened-awaiting-replacement-authority
+status: fixed-verified-awaiting-replacement-formal
 owner: Step 4 coverage authority
 discovered_by: step4-coverage-20260719-formal-r9
 ---
@@ -90,3 +90,10 @@ The active recovery sequence supersedes the old r29 wording: clean/pushed replac
 diagnostic-r35 → new candidate/Git-safe closure/capsule/dual review → direct-child Cfreeze → fresh formal
 → replacement final quality → `legacy 31 + supplemental 4` audit → Step 4 feature acceptance. No r34,
 r10, or prior Cfreeze material may be reused.
+
+## r35 verified successor state（2026-07-20）
+
+The clean/pushed repair Cdiag is `93b3993e…`; fresh r35 completed all lanes and its report-stage public
+receipt is regular/non-link at exact `0644` under strict umask. Its candidate, Git-safe capsule and two
+independent reviews are complete. The remaining authority is one direct-child Cfreeze and a wholly fresh
+formal successor, followed by the ordered post-formal gates; this work item does not reopen r10.
