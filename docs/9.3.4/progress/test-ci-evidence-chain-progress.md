@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r8 recovery / ready-for-new-Cdiag | Step 3 exit passed | r26/Cfreeze complete；formal-r8 all child/report inventory PASS then coverage dispatch rc126；r8 excluded；三处 interpreter fix + raw/stream seal + four-tool/seven-call semantic gate + reviews PASS，next=Cdiag→r27→Cfreeze→formal-r9→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r27 high-water recovery / Cdiag→r28 | Step 3 exit passed | r26/Cfreeze complete；formal-r8 rc126 excluded；r27 public-valid but aggregate `-1` rejected；ordered-fixture proof `5/5` PASS，next=Cdiag→r28→Cfreeze→formal-r9→post gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until replacement formal-r9 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1861,3 +1861,13 @@ Records：
   formal-r8、post-formal quality/coverage audit/acceptance 均尚未完成；Step 5–7、9.3.5、9.4.0
   继续关闭；9.3.4 version signoff 后 classification debt 交 9.3.5 Gate 0 owner，deadline=
   `9.3.5 version acceptance`。
+
+## Execution check-in — diagnostic-r27 governed high-water rejection（2026-07-19）
+
+- fresh r27 on `f102b52c…` completed/public-valid with required=`773+59/5707/F0E0S0`、Addon=`2/6`、
+  exec/session=`23/48`、source exact、cleanup and external restore PASS;
+- aggregate was line=`54624/76830`、branch=`26111/44870`、complexity=`17658/35571`; r26 reviewed
+  high-water is branch=`26112/44870`、complexity=`17659/35571`, so r27 is `non-freezable`;
+- sole delta=`ExportWithChartTool.java:248` due to unordered test fixture. Candidate/capsule were isolated
+  and are non-canonical. Ordered-test remediation and five fresh-JVM exact probe proofs are complete;
+  next=clean/pushed Cdiag -> fresh diagnostic-r28.

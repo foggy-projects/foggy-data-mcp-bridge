@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -278,9 +279,15 @@ class ExportWithChartToolTest {
         @DisplayName("字段应自动推断")
         void fields_shouldBeInferredAutomatically() {
             SemanticQueryResponse queryResponse = new SemanticQueryResponse();
+            Map<String, Object> firstItem = new LinkedHashMap<>();
+            firstItem.put("category", "A");
+            firstItem.put("amount", 100);
+            Map<String, Object> secondItem = new LinkedHashMap<>();
+            secondItem.put("category", "B");
+            secondItem.put("amount", 200);
             queryResponse.setItems(List.of(
-                    Map.of("category", "A", "amount", 100),
-                    Map.of("category", "B", "amount", 200)
+                    firstItem,
+                    secondItem
             ));
             queryResponse.setTotal(2L);
             Map<String, Object> chartResult = Map.of("success", true, "chart", Map.of("url", "test"));

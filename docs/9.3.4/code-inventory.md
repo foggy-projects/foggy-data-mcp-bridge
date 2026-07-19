@@ -1014,3 +1014,12 @@ code_inventory:
 - independent pre-Cdiag code/docs reviews 已 `PASS / 0/0/0/0`；current inventory 只授权创建一个
   clean/pushed new Cdiag，再运行 fresh diagnostic-r27。r26 candidate、旧 Cfreeze 与 formal-r8 均不能作为 replacement authority；
   Step 5–7、coverage audit、acceptance、9.3.5/9.4.0 继续 closed/queued。
+
+## diagnostic-r27 ExportWithChart high-water remediation inventory（2026-07-19）
+
+- r27 evidence is retained as non-freezable: only `foggy-dataset-mcp/ExportWithChartTool.java:248` changed
+  coverage outcome, aggregate branch/complexity each `-1` from r26;
+- implementation delta is one test file: `ExportWithChartToolTest.java`, `Map.of` fixture -> two ordered
+  `LinkedHashMap` items. production/POM/runner/workflow/test-node/report cardinality/floor/critical/API delta=`0`;
+- five fresh JVM execs share target class id `eefbab946aa40203`, `182` probes, `134` covered and bitmap
+  `f37_3_Pq__l_e68z_z8AKhy__U___zE`; new Cdiag then r28 are the only authorized successors.

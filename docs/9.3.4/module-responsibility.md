@@ -410,3 +410,12 @@ updated_at: 2026-07-19
   clone 交给 diagnostic-r27 owner；
 - candidate/reviewer/Cfreeze/formal-r9/final-quality/audit/acceptance owners 必须逐门串行接管，不得复用
   r26/r8 authority；Step 5–7、9.3.5/9.4.0 owners 继续 closed/queued。
+
+## Superseding diagnostic-r27 map-order recovery ownership（2026-07-19）
+
+- evidence owner records r27 as public-valid but non-freezable and keeps its candidate/capsule out of
+  canonical authority;
+- `foggy-dataset-mcp` test owner owns only the ordered existing-node fixture and its five-JVM proof; production
+  owner must not change `inferFields` for coverage;
+- Cdiag owner must commit/push/clean the recovery, then diagnostic owner runs fresh r28. Candidate/Cfreeze/
+  formal owners remain closed until r28 meets the r26 aggregate high-water.

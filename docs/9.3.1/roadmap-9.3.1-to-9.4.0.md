@@ -30,7 +30,7 @@ updated_at: 2026-07-19
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Step 4 formal-r8 fail-closed recovery | [执行文档包](../9.3.4/README.md)；r26 与 direct-child Cfreeze 已完成；fresh formal-r8 在全部测试/report inventory 通过后暴露 report runner 对非权威 executable bit 的依赖并以 rc126 fail closed；三处 interpreter 修复、runner raw/逻辑命令流双封印、focused suite 与双审均 PASS，当前 ready-for-new-Cdiag→r27→Cfreeze→formal-r9 |
+| 9.3.4 | in-progress / Step 4 formal-r8+r27 recovery | [执行文档包](../9.3.4/README.md)；r26 与 direct-child Cfreeze 已完成；formal-r8 rc126 已修复并形成 Cdiag；r27 虽 public-valid 但 aggregate high-water 少 1，已 fail-closed 拒绝 candidate/Cfreeze；ExportWithChart ordered-fixture recovery 已经 5 fresh JVM proof，当前 Cdiag→fresh r28→Cfreeze→formal-r9 |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready；开工先执行 Gate 0 classification-debt migration |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -98,8 +98,10 @@ schema 1 的 MySQL consumer set。follow-up audit 确认 `DatasetJdbcUtilsTest` 
 reporter 直接执行 Git `100644` Python 工具时以 rc126 fail closed。r8 永久 excluded；三处调用已统一
 显式 `python3`，runner raw bytes/292-command stream 双封印、四工具/七调用 semantic gate、Git-mode
 mutation 与 non-executable smoke 已通过，machine 重置为
-`diagnostic-ready / diagnostic-pending`。独立 pre-Cdiag code/docs reviews 已 PASS；当前只允许 new Cdiag→fresh diagnostic-r27→candidate/review→
-direct-child Cfreeze→fresh formal-r9→post gates。
+`diagnostic-ready / diagnostic-pending`。r27 随后虽 public-valid 但 aggregate high-water 各少一，永久
+`non-freezable`，其 candidate/capsule 均 non-canonical。独立 recovery review 已 PASS；当前只允许 new
+Cdiag→fresh diagnostic-r28（先达到 r26 high-water）→new candidate/capsule/双审→direct-child Cfreeze→
+fresh formal-r9→post gates。
 
 以下仅记录已被 replacement recovery 撤回授权的 historical formal-r4 checkpoint：当时 post-formal
 quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`；coverage audit 在补齐同一

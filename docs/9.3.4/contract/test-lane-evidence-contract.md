@@ -1077,3 +1077,13 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 5. replacement 顺序固定为 new Cdiag→fresh diagnostic-r27→new candidate/capsule/双审→direct-child
    Cfreeze→fresh formal-r9→final quality→coverage audit `31/31`→feature acceptance。三门未完成前
    `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+
+## Superseding diagnostic-r27 aggregate high-water contract（2026-07-19）
+
+1. A public-valid diagnostic whose aggregate counter is below the reviewed high-water is non-freezable even if
+   `freeze-thresholds` and `verify-threshold-candidate` mechanically pass.
+2. r27 branch/complexity=`26111/44870` / `17658/35571` must not replace r26
+   `26112/44870` / `17659/35571`; its temporary candidate/capsule are non-canonical.
+3. The controlled `LinkedHashMap` fixture only stabilizes the existing `ExportWithChartTool` test path. Five
+   fresh JVM exact probe proofs authorize a new Cdiag, not a threshold exception.
+4. Fresh r28 must meet or exceed r26 aggregate high-water before candidate/capsule/review/Cfreeze may start.

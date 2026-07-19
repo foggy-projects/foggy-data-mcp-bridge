@@ -629,3 +629,12 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - 新增 blocker workitem 后 replacement audit denominator=`31`。唯一顺序为 new Cdiag→fresh r27→
   reviewed candidate/capsule→direct-child Cfreeze→fresh formal-r9→final quality→coverage audit
   `31/31`→feature acceptance；Step 5 继续关闭。
+
+## Superseding diagnostic-r27 acceptance boundary（2026-07-19）
+
+- r27 is not acceptance input: it is public-valid but one branch/complexity outcome below r26 high-water;
+  its non-canonical candidate/capsule cannot be promoted.
+- Test-only deterministic map ordering is pre-diagnostic remediation, proven by five fresh JVMs, but does not
+  reopen quality/audit/acceptance.
+- Replacement acceptance chain begins only after new Cdiag -> fresh r28 -> new reviewed Cfreeze -> fresh
+  formal-r9. Step 5 and later versions remain closed.

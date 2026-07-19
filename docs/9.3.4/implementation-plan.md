@@ -1149,5 +1149,18 @@ migration。记录：
    acceptance；三门全部 PASS 后才恢复 Step 5 entry；
 10. [pending] 继续 Steps 5–7 与 9.3.4 version signoff，再进入 9.3.5 Gate 0；9.4.0 仍按主线顺序 queued。
 
-Current Step 4=`in-progress / formal-r8 failed / remediation ready-for-new-Cdiag`。
+Current Step 4=`in-progress / formal-r8 failed + r27 high-water remediation / Cdiag→fresh-r28`。
 `can_enter_cfreeze=no / can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+
+## diagnostic-r27 ExportWithChart order remediation addendum（2026-07-19）
+
+1. [completed] reject r27 as threshold input despite public validation: its aggregate branch and complexity
+   each lost one covered outcome relative to r26.
+2. [completed] localize the sole delta to `ExportWithChartTool.java:248`; identify unspecified `Map.of`
+   iteration plus short-circuit field selection as the cause.
+3. [completed] stabilize only existing test data with `LinkedHashMap(category -> amount)`; no production,
+   POM, test cardinality, report inventory, floor or critical-target change.
+4. [completed] independently review and replay five fresh JVM/JaCoCo runs with exact `mb0/cb2` and target
+   bitmap identity.
+5. [pending] commit/push/clean this Cdiag, then execute one fresh diagnostic-r28. Do not create candidate,
+   Cfreeze or formal authority until r28 reaches r26 high-water.

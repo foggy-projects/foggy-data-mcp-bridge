@@ -1044,3 +1044,13 @@ coverage audit 与 acceptance 保持关闭。
   validator均 PASS；
 - r8 永久 excluded。next test sequence=new Cdiag→fresh diagnostic-r27→candidate/capsule/双审→
   direct-child Cfreeze→fresh formal-r9→final quality→coverage audit `31/31`→feature acceptance。
+
+## diagnostic-r27 map-order high-water regression test boundary（2026-07-19）
+
+- r27 full diagnostic is valid but non-freezable: branch/complexity=`26111/44870` / `17658/35571`, below
+  r26 by one. Candidate/capsule must not be committed or reused.
+- `ExportWithChartToolTest#fields_shouldBeInferredAutomatically` must preserve its existing node and use
+  ordered `category -> amount` item data so line 248 visits both false and true outcomes. Five independent
+  Maven/Surefire/JaCoCo JVMs produced `16/F0E0S0`, line 248=`mb0/cb2`, and one identical target bitmap.
+- Next full-run test sequence is new Cdiag -> fresh diagnostic-r28 (at least r26 aggregate high-water) ->
+  new candidate/capsule/dual review -> direct-child Cfreeze -> fresh formal-r9.

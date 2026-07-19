@@ -159,7 +159,7 @@ updated_at: 2026-07-19
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / formal-r8 recovery / ready-for-new-Cdiag`；
+  `in-progress / r27 high-water recovery / Cdiag→fresh-r28`；
 - historical Step 4 authority/formal-r4/r24/Cfreeze 保留；fresh formal-r7 因仓外 CALCULATE catalog
   依赖 fail closed 并永久 excluded；r25 保持
   `pre-remediation / superseded / non-candidate`；修复后的 Cdiag `4fe86929…`、isolated r4、fresh
@@ -791,3 +791,15 @@ updated_at: 2026-07-19
 - replacement workitem denominator=`31`。当前 machine 必须为
   `diagnostic-ready / diagnostic-pending`；独立 pre-Cdiag code/docs reviews 已 PASS，唯一授权链为 new Cdiag→fresh r27→reviewed
   candidate/capsule→direct-child Cfreeze→fresh formal-r9→post gates `31/31`。所有后续版本门继续关闭。
+
+## Superseding diagnostic-r27 high-water requirement boundary（2026-07-19）
+
+- r27 is a complete public-valid diagnostic, but branch=`26111/44870` and complexity=`17658/35571` are
+  below the r26 reviewed high-water by one each. Its candidate/capsule are non-canonical and must stay
+  absent from Git authority; public candidate verification does not override this governed-high-water rule.
+- The unique delta is the false outcome of `ExportWithChartTool.java:248`, caused by unspecified `Map.of`
+  entry iteration before a short-circuit `break`. The only approved remediation is ordered test fixture data;
+  production behavior, test cardinality, report authority and thresholds remain unchanged.
+- Five fresh JVM/JaCoCo proofs must be treated only as Cdiag quality input. A clean/pushed new Cdiag and
+  fresh diagnostic-r28 must reach branch >= `26112/44870` and complexity >= `17659/35571` before new
+  candidate/capsule/review/Cfreeze authority exists.

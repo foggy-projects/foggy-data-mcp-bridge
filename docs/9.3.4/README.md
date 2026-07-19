@@ -51,8 +51,9 @@ updated_at: 2026-07-19
   child/report inventory 后在 coverage reporter 直接执行 Git `100644` Python 工具时 rc126；r8 永久
   `failed/excluded/non-reusable/non-candidate`。三处 interpreter 修复、runner raw/逻辑命令流双封印、
   四工具/七调用的 semantic/Git-mode negative gate 与
-  Step4→Step6 hash closure 已完成，machine=`diagnostic-ready/diagnostic-pending`。current Step 4=
-  `in-progress / formal-r8 recovery / ready-for-new-Cdiag`；Step 5=`hold / closed`。
+  Step4→Step6 hash closure 已完成，machine=`diagnostic-ready/diagnostic-pending`。r27 随后因 aggregate
+  high-water 少一而被拒绝，current Step 4=`in-progress / r27 map-order recovery / Cdiag→fresh-r28`；
+  Step 5=`hold / closed`。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -600,7 +601,7 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r8 recovery / ready-for-new-Cdiag | r26/Cfreeze complete；formal-r8 rc126 excluded；三处 interpreter fix + `raw 44 / stream 43 / semantic 33 / mode 4 / nonexec 4` gate + code/docs reviews PASS；next=Cdiag→r27→Cfreeze→formal-r9→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r27 high-water recovery / Cdiag→r28 | r26/Cfreeze complete；formal-r8 rc126 excluded；r27 public-valid but `-1` aggregate outcome was rejected; ordered-fixture proof `5/5` PASS；next=Cdiag→r28→Cfreeze→formal-r9→post gates |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal + final quality + Step 4 coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
@@ -769,3 +770,19 @@ Current recovery records：
 - [report-runner executable-bit BUG](workitems/BUG-step4-report-runner-nonauthoritative-exec-bit-dependency.md)
 - [interpreter recovery evidence](evidence/step-4/step4-coverage-report-runner-interpreter-recovery-20260719.md)
 - [pre-Cdiag recovery quality](quality/step4-formal-r8-report-runner-recovery-implementation-quality.md)
+
+## Superseding diagnostic-r27 high-water recovery status（2026-07-19）
+
+- r27 completed and public validation passed, but is permanently `non-freezable`: aggregate branch/complexity
+  were `26111/44870` / `17658/35571`, each one below r26 reviewed high-water. Candidate and capsule
+  generated during tool validation were isolated outside canonical evidence and are not reusable.
+- The only delta was `ExportWithChartTool.java:248`; the existing test used unordered `Map.of` before a
+  short-circuit numeric-field search. The test-only `LinkedHashMap(category -> amount)` stabilization is
+  independently reviewed PASS and reproduced `mb=0/cb=2` with an identical target probe bitmap in five
+  fresh JVMs.
+- Current authority is new Cdiag -> fresh diagnostic-r28 -> candidate/capsule/dual review -> direct-child
+  Cfreeze -> fresh formal-r9. Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+- [r27 rejection and controlled recovery evidence](evidence/step-4/step4-coverage-diagnostic-r27-export-chart-order-high-water-fail-closed-20260719.md)
+- [recovery implementation quality](quality/step4-diagnostic-r27-export-chart-order-recovery-implementation-quality.md)
+- [map-order coverage workitem](workitems/BUG-step4-export-chart-inference-map-order-coverage.md)
