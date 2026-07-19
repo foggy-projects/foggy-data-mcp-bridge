@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -271,7 +272,7 @@ class WatchServiceFileTracerTest {
             throws IOException {
         Path child = Files.createDirectory(tempDir.resolve("child"));
         AtomicReference<WatchAuthorityLossReason> childLoss = new AtomicReference<>();
-        AtomicBoolean parentDeletedCallback = new AtomicBoolean();
+        AtomicInteger parentDeleteCallbacks = new AtomicInteger();
         DirectoryChangeListener parentListener = new DirectoryChangeListener() {
             @Override
             public void onFileCreated(File file) {
@@ -279,7 +280,7 @@ class WatchServiceFileTracerTest {
 
             @Override
             public void onFileDeleted(File file) {
-                parentDeletedCallback.set(true);
+                parentDeleteCallbacks.incrementAndGet();
             }
         };
         WatchKey parentKey = installFakeWatchKey(tempDir, parentListener);
@@ -287,12 +288,33 @@ class WatchServiceFileTracerTest {
         WatchEvent<Path> deleted = mock(WatchEvent.class);
         when(deleted.kind()).thenReturn(StandardWatchEventKinds.ENTRY_DELETE);
         when(deleted.context()).thenReturn(child.getFileName());
-        when(parentKey.pollEvents()).thenReturn(List.of(deleted));
+        WatchEvent<Path> filteredDelete = mock(WatchEvent.class);
+        when(filteredDelete.kind()).thenReturn(StandardWatchEventKinds.ENTRY_DELETE);
+        when(filteredDelete.context()).thenReturn(Path.of("ignored.txt"));
+        WatchEvent<Path> matchingDelete = mock(WatchEvent.class);
+        when(matchingDelete.kind()).thenReturn(StandardWatchEventKinds.ENTRY_DELETE);
+        when(matchingDelete.context()).thenReturn(Path.of("included.qm"));
+        when(parentKey.pollEvents()).thenReturn(
+                List.of(deleted), List.of(filteredDelete), List.of(matchingDelete));
         when(parentKey.reset()).thenReturn(true);
 
         tracer.processWatchKey(parentKey);
+        assertEquals(1, parentDeleteCallbacks.get());
+        parentDeleteCallbacks.set(0);
 
-        assertTrue(parentDeletedCallback.get());
+        directoryExtensionFilters().put(normalize(tempDir), Set.of(".qm"));
+        try {
+            tracer.processWatchKey(parentKey);
+            assertEquals(0, parentDeleteCallbacks.get(),
+                    "a deleted file outside the extension filter must not notify the listener");
+
+            tracer.processWatchKey(parentKey);
+            assertEquals(1, parentDeleteCallbacks.get(),
+                    "a deleted file inside the extension filter must notify the listener");
+        } finally {
+            directoryExtensionFilters().remove(normalize(tempDir));
+        }
+
         assertEquals(WatchAuthorityLossReason.WATCHED_DIRECTORY_DELETED, childLoss.get());
         assertTrue(directoryListeners().containsKey(normalize(tempDir)),
                 "parent authority must remain registered");
@@ -423,6 +445,11 @@ class WatchServiceFileTracerTest {
     @SuppressWarnings("unchecked")
     private Map<Path, WatchKey> watchedDirs() {
         return (Map<Path, WatchKey>) readField("watchedDirs");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Path, Set<String>> directoryExtensionFilters() {
+        return (Map<Path, Set<String>>) readField("directoryExtensionFilters");
     }
 
     @SuppressWarnings("unchecked")

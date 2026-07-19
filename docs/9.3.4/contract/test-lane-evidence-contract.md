@@ -4,7 +4,7 @@ doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and rel
 version: 9.3.4
 status: confirmed
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # Test Lane and Evidence Contract
@@ -1103,3 +1103,17 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    `diagnostic-ready / diagnostic-pending` and exact pending threshold predecessor bytes. The sole recovery
    sequence is new Cdiag→fresh diagnostic-r29→new candidate/capsule/dual review→direct-child Cfreeze→fresh
    formal→quality→coverage audit→acceptance; downstream execution remains closed before all gates pass.
+
+## Superseding diagnostic-r32 WatchService delete high-water contract（2026-07-20）
+
+1. A completed public-valid diagnostic below the reviewed high-water is non-freezable even when its required
+   lanes, source seal, cleanup, technical candidate, and Git-safe tooling checks pass.
+2. r32 line=`54624/76830`, branch=`26111/44870`, complexity=`17658/35571` must not replace the governed
+   line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571`. Its non-canonical material
+   must remain isolated and cannot enter Git authority.
+3. The approved remediation is limited to the existing mock-key delete test. It must synchronously prove the
+   line-442 unfiltered, filtered-reject, and filtered-match outcomes without changing production behavior,
+   test/report identity, floor, critical policy, or exclusions.
+4. Five focused JVMs and one full owning-module suite are Cdiag quality input only. Fresh r33 must satisfy every
+   all-lane gate and the governed high-water before new candidate/Git-safe closure/review/Cfreeze authority
+   can begin.

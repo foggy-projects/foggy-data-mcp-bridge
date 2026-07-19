@@ -4,7 +4,7 @@ doc_purpose: Define ownership and dependency boundaries for the 9.3.4 test and C
 version: 9.3.4
 status: ready
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Module Responsibility
@@ -431,3 +431,15 @@ updated_at: 2026-07-19
 - Cdiag owner may only hand off one clean/pushed successor to diagnostic-r29. Candidate, Cfreeze, formal,
   quality/audit/acceptance, Step 5–7, 9.3.5, and 9.4.0 owners remain closed until the replacement sequence
   completes in order.
+
+## Superseding diagnostic-r32 WatchService delete recovery ownership（2026-07-20）
+
+- evidence owner records r32 as `diagnostic-observed / non-freezable` and retains all non-canonical material
+  outside Git authority; required lane success and cleanup do not transfer freeze responsibility;
+- `foggy-core` test owner owns only the existing mock-key delete test's null/filter-false/filter-true oracle.
+  Production owner must not alter `WatchServiceFileTracer` to manufacture coverage;
+- independent reviewer owns the narrow code/test review and has recorded `PASS / B/H/M/L=0/0/0/1`,
+  mandatory=`0`. Existing singleton fake-watcher cleanup is Low debt, not an authorization bypass;
+- Cdiag owner must commit/push/clean this recovery, then diagnostic owner runs fresh r33. Candidate/Git-safe
+  closure/reviewer/Cfreeze/formal owners remain closed until r33 meets the governed high-water. Step 5–7,
+  9.3.5, and 9.4.0 owners remain closed.

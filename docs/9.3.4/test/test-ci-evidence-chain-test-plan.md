@@ -9,7 +9,7 @@ step2_result: passed
 step3_result: passed
 step4_result: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Test and Evidence Plan
@@ -1069,3 +1069,16 @@ coverage audit 与 acceptance 保持关闭。
   test substitute;
 - r29 must additionally meet or exceed reviewed high-water line=`54624/76830`, branch=`26112/44870`, and
   complexity=`17659/35571` before candidate/review/Cfreeze authority can resume.
+
+## diagnostic-r32 WatchService filtered-delete regression test boundary（2026-07-20）
+
+- r32 is valid but non-freezable: line=`54624/76830`, branch=`26111/44870`, complexity=`17658/35571`.
+  Its branch/complexity shortfall is a governed rejection even if technical candidate tooling succeeds.
+- `WatchServiceFileTracerTest#watchedChildDeletionMustSignalAuthorityLossAndCleanOnlyChildTree` must retain its
+  existing node and fake-key setup. Its ordered events must prove: unfiltered deletion invokes the callback,
+  `.txt` under `.qm` filter invokes none, and `.qm` under the filter invokes exactly one.
+- Five independent focused Maven/Surefire/JaCoCo JVMs must each yield line 442=`4/4` and
+  `handleFileDeleted` branch/complexity=`11/12` / `6/7`; full `foggy-core` must remain `F0E0S0`.
+- The next authority test sequence is clean/pushed Cdiag → fresh r33 satisfying line >= `54624/76830`,
+  branch >= `26112/44870`, complexity >= `17659/35571` → new candidate/Git-safe closure/dual review →
+  direct-child Cfreeze → fresh formal. No r32 material substitutes for any stage.

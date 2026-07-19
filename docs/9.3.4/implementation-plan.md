@@ -4,7 +4,7 @@ doc_purpose: Define the strict Step 1-7 implementation and verification order fo
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Implementation Plan
@@ -1222,5 +1222,28 @@ Current Step 4=`in-progress / formal-r9 strict-umask excluded / diagnostic-ready
    quality → replacement coverage audit `31/31` → Step 4 feature acceptance.
 
 Current Step 4=`in-progress / r29 non-freezable + r30 binding exclusion + r31 environment exclusion / replacement Cdiag pending`。
+`can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
+can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。
+
+## Superseding diagnostic-r32 WatchService delete recovery addendum（2026-07-20）
+
+1. [completed] Fresh strict-umask r32 from clean `a9ec2a2f…` completed all lanes: required=`773+59/5707/F0E0S0`,
+   Addon=`2/6/F0E0S0`, exec/session=`23/48`, source before=after, critical below-floor=`0`, cleanup=`0/0/0`.
+2. [completed / fail-closed] r32 aggregate line=`54624/76830` reached the floor, while branch=`26111/44870`
+   and complexity=`17658/35571` are each one below reviewed high-water. r32 is permanently non-freezable;
+   its isolated non-canonical material must not enter candidate/review/Cfreeze authority.
+3. [completed] Semantic comparison localized the sole loss to `WatchServiceFileTracer.java:442`. One existing
+   mock-key test now drives unfiltered, filtered-reject, and filtered-match deletion. It preserves production,
+   POM, runner, test-node/report identity, floor, critical set, exclusion, and public API; five focused JVMs
+   restored line=`4/4` and method branch/complexity=`11/12` / `6/7`, and full `foggy-core`=`97/F0E0S0`.
+4. [completed] Independent implementation review=`PASS / B/H/M/L=0/0/0/1`, mandatory=`0`; the Low is
+   pre-existing singleton fake-watcher cleanup debt and is not enlarged by this change.
+5. [pending] Commit/push exactly this test-only Cdiag and verify clean identity. Then run one fresh strict-umask
+   diagnostic-r33. Only if r33 completes all lanes and reaches line >= `54624/76830`, branch >= `26112/44870`,
+   complexity >= `17659/35571` may new candidate/Git-safe closure/dual review begin.
+6. [pending] Only r33's Cdiag may receive a direct-single-parent Cfreeze, followed by fresh formal, final
+   implementation quality, replacement coverage audit, and Step 4 feature acceptance.
+
+Current Step 4=`in-progress / r32 non-freezable / test-only Cdiag ready / fresh r33 pending`.
 `can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
 can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。

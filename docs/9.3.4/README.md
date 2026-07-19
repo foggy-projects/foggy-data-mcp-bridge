@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -607,7 +607,7 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r9 strict-umask excluded / pending Cdiag | r9 on `34cd2452…` failed at coverage-report with `E_OUTPUT` mode `0600`; `39032229…` is recovery baseline only and machine is `diagnostic-ready/diagnostic-pending`; next=new clean/pushed Cdiag→fresh r29→new candidate/capsule/dual review→direct-child Cfreeze→fresh formal successor→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r32 non-freezable / pending Cdiag | r32 completed all lanes with source/cleanup closure, but branch/complexity each remain one below governed high-water; next=test-only Cdiag→fresh r33→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | r9 exclusion and recovery reset do not open entry; wait for replacement formal successor + final quality + Step 4 coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
@@ -863,3 +863,21 @@ Current recovery records：
 - The authorized path is now: seal r31 → new clean/pushed Cdiag → independently confirm the port is free → fresh
   r32 → new candidate/review → direct-child Cfreeze → fresh formal → post gates. Step 5–7, 9.3.5 and 9.4.0 remain
   closed.
+
+## Superseding diagnostic-r32 WatchService delete high-water boundary（2026-07-20）
+
+- fresh r32 is `completed / diagnostic-observed / public-valid`, with required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, source-before=after and cleanup=`0/0/0`;
+- its line=`54624/76830` reaches the floor, but branch=`26111/44870` and complexity=`17658/35571` remain one
+  below the reviewed high-water. It is permanently `non-freezable`; no r32 candidate or Git-safe closure is
+  admitted to Git authority;
+- the unique delta is `WatchServiceFileTracer.java:442` filtered-delete coverage. One existing mock-key test
+  now synchronously covers unfiltered, filtered-reject and filtered-match deletes; five focused JVMs and the
+  `foggy-core` suite (`97/F0E0S0`) confirm the recovery without changing production code or test identity;
+- the only path is this clean/pushed test-only Cdiag → fresh strict-umask r33 meeting line >= `54624/76830`,
+  branch >= `26112/44870`, complexity >= `17659/35571` → new candidate/Git-safe closure/dual review →
+  direct-child Cfreeze → fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+- [r32 high-water rejection](evidence/step-4/step4-coverage-diagnostic-r32-watchservice-delete-high-water-fail-closed-20260720.md)
+- [delete-event determinism workitem](workitems/BUG-step4-watchservice-delete-event-coverage-determinism.md)
+- [r32 recovery implementation quality](quality/step4-diagnostic-r32-watchservice-delete-recovery-implementation-quality.md)

@@ -4,7 +4,7 @@ doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Code Inventory
@@ -1037,3 +1037,19 @@ code_inventory:
   `diagnostic-ready / diagnostic-pending` with pending threshold predecessor `0df17a…`;
 - inventory authorization is limited to a clean/pushed Cdiag successor and fresh diagnostic-r29. r9/r28
   partial artifacts cannot cross that boundary; Step 5–7, 9.3.5, and 9.4.0 remain closed.
+
+## diagnostic-r32 WatchService delete determinism inventory（2026-07-20）
+
+- r32 is retained as `diagnostic-observed / non-freezable`: it completed required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, source closure and cleanup=`0/0/0`, but aggregate
+  branch/complexity=`26111/44870` / `17658/35571` are one below high-water;
+- the implementation delta is one existing test file,
+  `foggy-core/.../WatchServiceFileTracerTest.java`. It extends one existing mock-key test with filtered
+  delete reject/match cases; production/POM/runner/workflow/test-node/report cardinality/floor/critical/API
+  delta=`0`, and the source remains `11` test nodes;
+- focused proof restores `WatchServiceFileTracer.java:442` to branch=`4/4` and
+  `handleFileDeleted` to branch/complexity=`11/12` / `6/7` in five independent JVMs; full `foggy-core` is
+  `97/F0E0S0` with the same semantic counters;
+- independent review is `PASS / B/H/M/L=0/0/0/1`, mandatory=`0`. The Low is existing singleton fake-watcher
+  cleanup debt, not expanded by this Cdiag. Current inventory authorizes only clean/pushed Cdiag → fresh r33;
+  candidate/Cfreeze/formal/Step 5–7/9.3.5/9.4.0 remain closed.

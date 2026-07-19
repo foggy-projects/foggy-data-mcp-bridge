@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 测试与 CI 证据链进度
@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r29 non-freezable + r30/r31 excluded | Step 3 exit passed | r9 strict-umask remains excluded; r29 has no Git-safe closure; r30 stopped at successor-binding preflight and r31 at the Unit fixture fixed-port precondition, both with zero lane authority. Next=seal r31→new clean/pushed Cdiag→verify port free→fresh r32→new candidate/review→Cfreeze→fresh formal→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r32 non-freezable | Step 3 exit passed | r32 completed all lanes after the port precondition was restored, but aggregate branch/complexity are each one below high-water. Next=test-only Cdiag→fresh r33→new candidate/Git-safe closure/review→Cfreeze→fresh formal→post gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r9 exclusion/recovery reset do not enter Step 5; wait for fresh formal successor + final quality + coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1929,3 +1929,20 @@ Records：
 - The one fresh diagnostic authorized by f80 is consumed. The only successor is r31 exclusion record → new
   clean/pushed Cdiag → independently verify port free → fresh r32 → new candidate/Git-safe capsule/review →
   direct-child Cfreeze → fresh formal → post gates. Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r32 WatchService delete high-water rejection（2026-07-20）
+
+- fresh strict-umask `step4-coverage-20260720-diagnostic-r32` from clean `a9ec2a2f…` completed:
+  required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`, source before=after, critical
+  policy=`12/23/1 N/A/below 0`, cleanup=`0/0/0`;
+- r32 is `diagnostic-observed / public-valid / non-freezable`: line=`54624/76830`, branch=`26111/44870`,
+  complexity=`17658/35571`; branch and complexity are one below the governed high-water, so no r32
+  non-canonical material may become candidate, Cfreeze, formal, audit, or acceptance authority;
+- semantic comparison isolated line 442 of `WatchServiceFileTracer`. The existing mock-key test now drives
+  unfiltered, filtered-reject, and filtered-match deletion. Five focused JVMs restored line=`4/4` and method
+  branch/complexity=`11/12` / `6/7`; full `foggy-core`=`97/F0E0S0`; independent review=
+  `PASS / B/H/M/L=0/0/0/1`, mandatory=`0`;
+- only successor: commit/push/clean this test-only Cdiag → fresh strict-umask r33 with all lanes, source/cleanup
+  closure, line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571` → new
+  candidate/Git-safe closure/dual review → direct-child Cfreeze → fresh formal → post gates. Step 5–7,
+  9.3.5 and 9.4.0 remain closed.

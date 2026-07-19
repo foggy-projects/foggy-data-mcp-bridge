@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Acceptance Evidence Plan
@@ -672,3 +672,18 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
   Cfreeze→fresh formal 的完整替换链。
 - `acceptance_status=not-started`，且 `can_enter_cfreeze=no / can_enter_formal=no /
   can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。9.3.5 与 9.4.0 不开工。
+
+## Superseding diagnostic-r32 high-water acceptance boundary（2026-07-20）
+
+- r32 is a completed public-valid diagnostic, not an acceptance input: required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, source closure and cleanup=`0/0/0` are necessary but not
+  sufficient for freeze authority;
+- governed counters remain branch=`26111/44870` and complexity=`17658/35571`, each one below
+  `26112/44870` / `17659/35571`. Its isolated non-canonical material cannot be promoted or combined with
+  any historical evidence;
+- deterministic filtered-delete coverage is pre-diagnostic remediation only. It preserves the existing test
+  node and has focused five-JVM plus full-module evidence; it does not open final quality, coverage audit,
+  feature acceptance, Step 5, 9.3.5, or 9.4.0;
+- acceptance input must restart from this clean/pushed Cdiag → fresh r33 satisfying the governed high-water
+  → new candidate/Git-safe closure/dual review → direct-single-parent Cfreeze → fresh formal → final quality
+  → replacement coverage audit → feature acceptance.

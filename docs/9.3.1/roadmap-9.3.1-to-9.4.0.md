@@ -3,7 +3,7 @@ doc_role: root_plan_review
 doc_purpose: Record the reviewed dependency order and release gates from 9.3.1 through 9.4.0.
 status: active
 created_at: 2026-07-13
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # 9.3.1 → 9.4.0 迭代顺序评审
@@ -30,7 +30,7 @@ updated_at: 2026-07-19
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / fixed-port environment gate | [执行文档包](../9.3.4/README.md)；formal-r9、r30、r31 均 permanent excluded；r29=`non-freezable`。binding repair Cdiag `f80fadd6…` 的 r31 在 Unit fixture 固定端口前置条件 fail-closed、零 lane authority；当前主线为 seal r31→new clean/pushed Cdiag→verify port free→fresh r32 diagnostic→new review/Cfreeze→fresh formal→post gates |
+| 9.3.4 | in-progress / r32 high-water recovery | [执行文档包](../9.3.4/README.md)；formal-r9、r30、r31 均 permanent excluded；r29 与 r32=`non-freezable`。r32 已完成 all-lane diagnostic，但 branch/complexity 各低于 governed high-water 1；当前主线为 test-only Cdiag→fresh r33→new review/Cfreeze→fresh formal→post gates |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready；开工先执行 Gate 0 classification-debt migration |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,7 +85,7 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / fixed-port environment gate`；入口为
+当前状态：`in-progress / r32 high-water recovery`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。历史 Cfreeze `f97483a0…` / formal-r4 的 feature
 acceptance 与 r24/Cfreeze `439aea5e…` 的 diagnostic/review 证据保留；fresh formal-r7 正确拒绝了
 未进入 bridge Git tree 的 CALCULATE parity catalog，因而永久 `failed/excluded/non-reusable`。
@@ -110,9 +110,11 @@ final Cdiag. f420 Cdiag 的 r29 诊断已完成，但其 local capsule 递归包
 tooling Cdiag `7757aa36…` 的 r30 又在 successor binding 预检 fail-closed，零 lane authority 且永久
 excluded。binding repair Cdiag `f80fadd6…` 的 fresh r31 随后在 Unit fixture 固定端口前置条件处 fail
 closed，尚未进入 lifecycle probe、fixture、Maven Unit 或任何 lane；其派生资源和 outer cleanup 均为零，
-不得接管或复用外部 listener。当前唯一后续链为：封存 r31→new clean/pushed Cdiag→确认端口空闲→fresh
-all-lane diagnostic-r32→new candidate/capsule/dual review→direct-single-parent Cfreeze→fresh formal
-successor→post gates.
+不得接管或复用外部 listener。端口恢复后 fresh r32 完成全 lane，但 aggregate line=`54624/76830`、
+branch=`26111/44870`、complexity=`17658/35571`；后两项各低于 reviewed high-water 一，故 r32 永久
+`non-freezable`。当前唯一后续链为：test-only clean/pushed Cdiag→fresh all-lane diagnostic-r33（line >=
+`54624/76830`、branch >= `26112/44870`、complexity >= `17659/35571`）→new candidate/Git-safe closure/
+dual review→direct-single-parent Cfreeze→fresh formal successor→post gates.
 
 以下仅记录已被 replacement recovery 撤回授权的 historical formal-r4 checkpoint：当时 post-formal
 quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`；coverage audit 在补齐同一
@@ -192,3 +194,14 @@ r22 只作历史 diagnostic evidence。
   proof，再运行唯一 fresh diagnostic-r26→candidate/review→Cfreeze→formal-r8→post gates。
   9.3.4 签收后，9.3.5 只先进入
   Gate 0 classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。
+
+## 2026-07-20 diagnostic-r32 high-water checkpoint
+
+- 宿主 Docker 停止后，fresh strict-umask r32 完整通过 required=`773+59/5707/F0E0S0`、Addon=`2/6`、
+  exec/session=`23/48`、source closure 与 cleanup=`0/0/0`；这确认固定端口不再是当前阻塞项；
+- r32 的 line 已达 `54624/76830`，但 branch=`26111/44870`、complexity=`17658/35571` 各低于高水位一，
+  所以只能作为 `diagnostic-observed / non-freezable`，不得进入 candidate、Cfreeze 或 formal；
+- 唯一差异是 `WatchServiceFileTracer.java:442` 的过滤删除事件覆盖。修复仅扩展一个既有 mock-key 测试，
+  五个 focused JVM 和完整 `foggy-core=97/F0E0S0` 均恢复预期 counter；生产 API/模块边界未变；
+- 主线仍优先完成 9.3.4：先 clean/push 该 Cdiag，再 fresh r33。9.3.5 仍必须等待 version signoff 后的
+  Gate 0，9.4.0 仍必须等待 9.3.5 的公共 API 瘦身与去环结果；两者均不提前开工。

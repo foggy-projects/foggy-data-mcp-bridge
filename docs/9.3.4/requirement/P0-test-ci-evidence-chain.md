@@ -6,7 +6,7 @@ priority: P0
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-19
+updated_at: 2026-07-20
 ---
 
 # P0 测试与 CI 证据链
@@ -821,3 +821,19 @@ updated_at: 2026-07-19
   diagnostic-r29 under the same strict umask, renewed high-water review/candidate/capsule/dual review,
   direct-child Cfreeze, a new formal run, then the post-formal quality→31/31 audit→acceptance sequence.
   Step 5–7, 9.3.5, and 9.4.0 remain closed.
+
+## Superseding diagnostic-r32 WatchService delete high-water requirement boundary（2026-07-20）
+
+- r32 completed all governed lanes and remains public-valid, but branch=`26111/44870` and
+  complexity=`17658/35571` are below the reviewed high-water by one. This is a permanent
+  `diagnostic-observed / non-freezable` boundary, not a failed-excluded run and not permission to lower a
+  threshold.
+- The only approved recovery is test-only: one existing mock-key test must explicitly exercise filtered delete
+  non-match and match in addition to its unfiltered deletion path. Production behavior, POM, runner, identity
+  counts, floors, critical policy, and exclusions must not change.
+- Five focused JVMs restoring line 442=`4/4` and method branch/complexity=`11/12` / `6/7`, plus one full
+  `foggy-core` suite=`97/F0E0S0`, are Cdiag quality proof only. The reviewed Low test-hygiene debt is
+  non-blocking and cannot be used to widen scope.
+- A clean/pushed new Cdiag and fresh r33 must again prove every lane, source/cleanup closure, critical policy,
+  line >= `54624/76830`, branch >= `26112/44870`, and complexity >= `17659/35571` before new
+  candidate/Git-safe closure/review/Cfreeze authority exists. Step 5–7, 9.3.5, and 9.4.0 stay closed.
