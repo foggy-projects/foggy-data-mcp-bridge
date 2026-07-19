@@ -1,0 +1,45 @@
+{
+  "child_count": 3,
+  "children": [
+    {
+      "boot_id": "173448a2-a250-422f-9b88-7ed27675ed33",
+      "child": "unit",
+      "complete_sha256": "74be46b242d4cb72b8d59ed727595664bf44f1f2ee11f5c22761bab0d552db95",
+      "leader_pid": 3001539,
+      "leader_reaped": 1,
+      "leader_sid": 3001539,
+      "leader_starttime_ticks": 190388178,
+      "process_group_residue": 0,
+      "ready_receipt_sha256": "bd834bfc6dbe2bcfe57458c58d1d1d7746897acd98039af82a5ee3d78d7b0dc4",
+      "status": "passed"
+    },
+    {
+      "boot_id": "173448a2-a250-422f-9b88-7ed27675ed33",
+      "child": "integration",
+      "complete_sha256": "9ef6976633d70621f717937944dc0d3e6385a53d9bb4d0d09cb5009d5a442ba5",
+      "leader_pid": 3028928,
+      "leader_reaped": 1,
+      "leader_sid": 3028928,
+      "leader_starttime_ticks": 190465761,
+      "process_group_residue": 0,
+      "ready_receipt_sha256": "f1df0c0b75b5cd27fd1092878cbd69f7a1b1c3e50b7d85d736da21890ad1a049",
+      "status": "passed"
+    },
+    {
+      "boot_id": "173448a2-a250-422f-9b88-7ed27675ed33",
+      "child": "step3-required",
+      "complete_sha256": "67d86f457b9406d094ea2f5a8706f79fff44ed2872f0684d042e973ce9b7c1e4",
+      "leader_pid": 3045190,
+      "leader_reaped": 1,
+      "leader_sid": 3045190,
+      "leader_starttime_ticks": 190524257,
+      "process_group_residue": 0,
+      "ready_receipt_sha256": "5856796047762502876748457aca9b21d03137e898eb769f1fb82dc65cf92f1a",
+      "status": "passed"
+    }
+  ],
+  "kind": "v934-step4-child-lifecycle",
+  "run_id": "step4-coverage-20260719-formal-r8",
+  "schema_version": 1,
+  "status": "passed"
+}

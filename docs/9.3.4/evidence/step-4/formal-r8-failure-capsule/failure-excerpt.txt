@@ -1,0 +1,16 @@
+provenance=normalized-excerpt-from-run.log
+source_path=target/v934-step4-coverage/runs/step4-coverage-20260719-formal-r8/run.log
+source_sha256=24d906012e779b746147334d8b32fc3fcb001dc8ef41e1732544d6421b0b8e14
+source_size=58475249
+source_line=322402
+failed_phase=coverage-report
+exit_code=126
+excerpt=/tmp/v934-formal-r8.D7PWGj/repo/scripts/v934/step4/coverage_report_runner.sh: line 275: /tmp/v934-formal-r8.D7PWGj/repo/scripts/v934/step4/coverage_exec_tool.py: Permission denied
+success_only_exec_manifest=absent
+success_only_aggregate_exec=absent
+success_only_aggregate_xml=absent
+success_only_coverage_observation=absent
+success_only_coverage_gate=absent
+success_only_summary=absent
+success_only_candidate_manifest=absent
+success_only_final_manifest=absent

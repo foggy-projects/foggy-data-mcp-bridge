@@ -22,19 +22,19 @@ updated_at: 2026-07-19
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | r26 machine formalization/hash cascade 已完成；direct-child Cfreeze commit/push/topology/clean 与 fresh formal-r8 pending |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；r8 rc126 excluded；report-runner fix 后 machine=`diagnostic-ready/diagnostic-pending`，new Cdiag pending |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25 retained；r26 exact inventory/candidate reviewed；Step 5–7 execution closed |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/Cfreeze retained；formal-r8 failure capsule sealed；31st Step 4 workitem registered；Step 5–7 closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / r26 reviewed / ready-for-direct-child-Cfreeze / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r24/Cfreeze retained；formal-r7 excluded；r25 superseded/non-candidate；r26 public-valid/reviewed，formal-r8 pending |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；r26 pre-Cfreeze evidence reviewed；replacement Step 4 formal/post-gates pending；Steps 5–6 closed |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | pre-Cdiag review=`0/0/0/0`；replacement post-formal quality pending |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement Step 4 audit closed until formal-r8 + final quality |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / formal-r8 recovery / ready-for-new-Cdiag / Step 5–7 hold |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r8 completed all child/report inventory then failed coverage dispatch rc126；failure capsule sealed；replacement r27/r9 pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8 permanently excluded；replacement Step 4 diagnostic/formal/post-gates pending；Steps 5–6 closed |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | formal-r8 recovery pre-Cdiag quality/code/docs review=`PASS / 0/0/0/0`；replacement post-formal quality pending |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement denominator=`31`，execution closed，pending formal-r9 + final quality；尚未形成 `31/31` 结论 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
-| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after formal-r8/post-formal gates |
+| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after formal-r9/post-formal gates |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | `docs/9.3.4/**` 先同步 pre-Cfreeze；9.3.1 roadmap 因 Cfreeze allowlist 延后到 post-formal；9.3.5 queued |
+| roadmap/status sync | `README.md` + authoritative roadmap | current README 与 9.3.1 authoritative roadmap 已同步 formal-r8 recovery；9.3.5 queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -614,3 +614,18 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - `acceptance_status` 继续表示 9.3.4 version acceptance，故保持 `not-started`。Step 4 replacement
   acceptance 后 9.3.4 仍须完成 Steps 5–7 与 version signoff；9.3.5 仅在 version signoff 后先进入
   Gate 0 classification-debt migration，债务关闭前不得执行其 version acceptance。
+
+## Superseding formal-r8 recovery acceptance boundary（2026-07-19）
+
+- Cfreeze `7c18019e…` 与 fresh formal-r8 identity/topology/restore 已封存；r8 完成全部 required
+  test/report inventory，但 coverage reporter 因直接执行 Git `100644` Python tool 以 rc126 fail
+  closed，故永久 `failed/excluded/non-reusable/non-candidate`；
+- r8 的 exec-manifest、aggregate、observation、gate、summary、candidate/final 均 absent，不能用于
+  acceptance；raw exec 与 child summaries 也不得拼接到 replacement run；
+- 三处 interpreter 修复、runner raw/292-command-stream 双封印、四工具/七调用 binding、raw/stream/
+  semantic mutation=`44/44 / 43/43 / 33/33`、Git-mode mutation=`4/4`、nonexec smoke=`4/4`、
+  Step4/Step6 hash closure 与 machine
+  reset 已完成。当前只开放 pre-Cdiag recovery quality，不开放 post-formal quality/audit/acceptance；
+- 新增 blocker workitem 后 replacement audit denominator=`31`。唯一顺序为 new Cdiag→fresh r27→
+  reviewed candidate/capsule→direct-child Cfreeze→fresh formal-r9→final quality→coverage audit
+  `31/31`→feature acceptance；Step 5 继续关闭。

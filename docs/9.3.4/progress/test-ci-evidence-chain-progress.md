@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r26 reviewed pre-Cfreeze | Step 3 exit passed | r25 永久 superseded/non-candidate；schema 2、42/42、isolated r4、r26 reviewed candidate PASS，next=Cfreeze→formal-r8→post-formal gates |
-| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r8 + post-formal gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r8 recovery / ready-for-new-Cdiag | Step 3 exit passed | r26/Cfreeze complete；formal-r8 all child/report inventory PASS then coverage dispatch rc126；r8 excluded；三处 interpreter fix + raw/stream seal + four-tool/seven-call semantic gate + reviews PASS，next=Cdiag→r27→Cfreeze→formal-r9→post gates |
+| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until replacement formal-r9 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -1259,6 +1259,29 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - Unit MySQL classification DEBT 仍 open；Step 5 不得把 9.3.4-only fixture 例外永久化。只有
   9.3.4 version signoff 后才由 9.3.5 Gate 0 owner 接管 migration，deadline=
   `9.3.5 version acceptance`。
+
+## Execution check-in — formal-r8 report-runner fail-closed recovery（2026-07-19）
+
+- Cfreeze=`7c18019ed12d25c029de7e7e49caef77a79b2e67` direct-parent/topology/push/clean
+  PASS；fresh clone formal-r8=`failed / coverage-report / exit 126 / excluded`；
+- before failure：Unit=`681+55/4941`、Integration=`47+4/320`、database=`29/370`、external=
+  `16/76`、Step3 required=`45/446`、Addon=`2/6`、report inventory=
+  `773+59/5707/F0E0S0`，child residue=`0`；
+- success-only exec-manifest/aggregate/observation/gate/summary/candidate/final 全 absent；r8 raw exec
+  不得复用。runner cleanup=`0/0/0`，wrapper restore=`rc0`，四个 demo DB exact ID 均
+  `running/healthy`；
+- cause：report runner 三处直接执行 Git `100644` Python tools；main `core.fileMode=false` 的偶然
+  x bit 掩盖缺陷，fresh clone `0664` 正确拒绝；
+- remediation：三处统一 `python3`；runner raw/292-command-stream seal、全部四工具/七调用 logical
+  binding、raw/stream/semantic mutation=`44/44 / 43/43 / 33/33`、Git-mode mutation=`4/4`、
+  nonexec smoke=`4/4`；Step4 manifest=`6a48ab01…0782`、Step6 manifest=`d1efe031…43bd`，full diagnostic
+  contract/overlay/lifecycle/XML/authority/CI validation PASS；machine=
+  `diagnostic-ready / diagnostic-pending`；
+- code/docs reviews=`PASS / 0/0/0/0 / mandatory 0`；current：Step 4=
+  `in-progress / ready-for-new-Cdiag`；next=new Cdiag
+  commit/push/clean→fresh r27→
+  candidate/capsule/双审→direct-child Cfreeze→fresh formal-r9→post gates `31/31`。Step 5–7、9.3.5、
+  9.4.0 继续关闭。
 - remote required check、five-cell collector、branch protection、release artifact reuse 与 Docker
   embedded-JAR equality 尚无实际证据，分别属于 Steps 6/7。
 - v933 Batch 7 旧 FQCN/count 不能原样重跑；Step 5/7 必须继续使用 frozen predecessor mapping 与

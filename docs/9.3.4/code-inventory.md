@@ -994,3 +994,23 @@ code_inventory:
   quality/coverage-audit/acceptance 尚未完成，Step 5–7/9.3.5/9.4.0 closed；
 - r25 永久保持 `pre-remediation / superseded / non-candidate`。9.3.4 version signoff 后，classification-debt
   migration owner=`9.3.5 Gate 0`，deadline=`9.3.5 version acceptance`。
+
+## Superseding formal-r8 interpreter-portability recovery inventory（2026-07-19）
+
+- formal-r8 tested Cfreeze=`7c18019ed12d25c029de7e7e49caef77a79b2e67`，在 required
+  `773+59/5707/F0E0S0`、Addon=`2/6` 和 report inventory 全 PASS 后，于 coverage-report
+  首个 Python direct dispatch 以 `126 / Permission denied` fail closed；该 run 永久为
+  `failed / excluded / non-reusable / non-candidate`，success-only aggregate/candidate/final 均 absent；
+- implementation inventory 只修改 report runner 三个 command positions，使 exec verify、contract
+  validate、exec verify-aggregate 全部显式经 `python3`；runner 的四个 Python tool target 均保持 Git
+  mode=`100644`；负向工具绑定 runner raw bytes、292-command logical executable stream 与全部七个
+  top-level logical dispatch，并以 raw/stream/semantic mutation=`44/44 / 43/43 / 33/33`、Git-mode
+  mutation=`4/4` 和 non-executable smoke=`4/4` 拒绝 false-green；
+- machine inventory 重置为 `diagnostic-ready / diagnostic-pending`；Step 4 manifest=
+  `6a48ab01…0782 / 61/61`，Step 6 manifest=`d1efe031…43bd / 16/16`，只发生既有
+  Step4→Step6 hash cascade；
+- production/test/POM/selector/report cardinality/database/threshold floor/critical/exclusion/API
+  delta=`0`；failure capsule=`9003f11f…e4e5 / 16 entries / 282473 bytes / sensitive 0`；
+- independent pre-Cdiag code/docs reviews 已 `PASS / 0/0/0/0`；current inventory 只授权创建一个
+  clean/pushed new Cdiag，再运行 fresh diagnostic-r27。r26 candidate、旧 Cfreeze 与 formal-r8 均不能作为 replacement authority；
+  Step 5–7、coverage audit、acceptance、9.3.5/9.4.0 继续 closed/queued。

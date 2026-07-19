@@ -17,6 +17,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -35,6 +36,103 @@ MAVEN_NS = "http://maven.apache.org/POM/4.0.0"
 NS = {"m": MAVEN_NS}
 TOOL_PATH = Path("scripts/v934/step4/coverage_contract_negative_tool.py")
 VALIDATOR_PATH = Path("scripts/v934/step4/coverage_tool.py")
+REPORT_RUNNER_PATH = Path("scripts/v934/step4/coverage_report_runner.sh")
+PYTHON_DISPATCH_TOOLS = (
+    ("EXEC_TOOL", Path("scripts/v934/step4/coverage_exec_tool.py")),
+    ("CONTRACT_TOOL", Path("scripts/v934/step4/coverage_tool.py")),
+    (
+        "EFFECTIVE_POM_TOOL",
+        Path("scripts/v934/step4/reporter_effective_pom_tool.py"),
+    ),
+    (
+        "TOOLCHAIN_RECEIPT_TOOL",
+        Path("scripts/v934/step4/toolchain_receipt_tool.py"),
+    ),
+)
+PYTHON_DISPATCH_LOGICAL_COMMANDS = (
+    ("assign-exec-tool", 'EXEC_TOOL="$SCRIPT_DIR/coverage_exec_tool.py"'),
+    ("assign-contract-tool", 'CONTRACT_TOOL="$SCRIPT_DIR/coverage_tool.py"'),
+    (
+        "assign-effective-pom-tool",
+        'EFFECTIVE_POM_TOOL="$SCRIPT_DIR/reporter_effective_pom_tool.py"',
+    ),
+    (
+        "assign-toolchain-receipt-tool",
+        'TOOLCHAIN_RECEIPT_TOOL="$SCRIPT_DIR/toolchain_receipt_tool.py"',
+    ),
+    ("require-exec-tool", 'require_real_file "$EXEC_TOOL"'),
+    ("require-contract-tool", 'require_real_file "$CONTRACT_TOOL"'),
+    ("require-effective-pom-tool", 'require_real_file "$EFFECTIVE_POM_TOOL"'),
+    (
+        "require-toolchain-receipt-tool",
+        'require_real_file "$TOOLCHAIN_RECEIPT_TOOL"',
+    ),
+    (
+        "toolchain-replay-pre",
+        'if TOOLCHAIN_REPLAY_PRE_RESULT="$(python3 "$TOOLCHAIN_RECEIPT_TOOL" verify '
+        '--repo-root "$REPO_ROOT" --run-id "$SESSION_PREFIX" '
+        '--receipt "$TOOLCHAIN_RECEIPT")"; then',
+    ),
+    (
+        "exec-verify",
+        'python3 "$EXEC_TOOL" verify --repo-root "$REPO_ROOT" '
+        '--exec-root "$EXEC_ROOT" --run-id "$SESSION_PREFIX" '
+        '--session-prefix "$SESSION_PREFIX" --not-before-ns "$NOT_BEFORE_NS" '
+        '--run-context "$RUN_DIR/run-context.json" --output "$EXEC_MANIFEST"',
+    ),
+    (
+        "contract-validate",
+        'python3 "$CONTRACT_TOOL" validate-contract --repo-root "$REPO_ROOT"',
+    ),
+    (
+        "effective-pom-before",
+        'python3 "$EFFECTIVE_POM_TOOL" --repo-root "$REPO_ROOT" '
+        '--effective-pom "$REPORT_EFFECTIVE_BEFORE" '
+        '--output "$REPORT_EFFECTIVE_RECEIPT_BEFORE" '
+        '--negative-output "$REPORT_EFFECTIVE_NEGATIVE"',
+    ),
+    (
+        "effective-pom-after",
+        'python3 "$EFFECTIVE_POM_TOOL" --repo-root "$REPO_ROOT" '
+        '--effective-pom "$REPORT_EFFECTIVE_AFTER" '
+        '--output "$REPORT_EFFECTIVE_RECEIPT_AFTER"',
+    ),
+    (
+        "toolchain-replay-post",
+        'if TOOLCHAIN_REPLAY_POST_RESULT="$(python3 "$TOOLCHAIN_RECEIPT_TOOL" verify '
+        '--repo-root "$REPO_ROOT" --run-id "$SESSION_PREFIX" '
+        '--receipt "$TOOLCHAIN_RECEIPT")"; then',
+    ),
+    (
+        "toolchain-receipt-provenance-argument",
+        'python3 - "$RUN_REPORT_STAGE/toolchain-replay-pre.json" '
+        '"$RUN_REPORT_STAGE/toolchain-replay-post.json" '
+        '"$TOOLCHAIN_REPLAY_PRE_RESULT" "$TOOLCHAIN_REPLAY_POST_RESULT" '
+        '"$SESSION_PREFIX" "$TOOLCHAIN_RECEIPT" "$TOOLCHAIN_RECEIPT_TOOL" <<\'PY\'',
+    ),
+    (
+        "exec-verify-aggregate",
+        'python3 "$EXEC_TOOL" verify-aggregate --repo-root "$REPO_ROOT" '
+        '--exec-manifest "$EXEC_MANIFEST" '
+        '--aggregate-exec "$RUN_REPORT/jacoco-aggregate.exec" '
+        '--output "$AGGREGATE_PROVENANCE"',
+    ),
+)
+PYTHON_DISPATCH_CALL_IDS = {
+    "toolchain-replay-pre",
+    "exec-verify",
+    "contract-validate",
+    "effective-pom-before",
+    "effective-pom-after",
+    "toolchain-replay-post",
+    "exec-verify-aggregate",
+}
+PYTHON_DISPATCH_RUNNER_SHA256 = (
+    "a83ed709ccbbf152cbbeba8d25c2fffb0bd3343ba5bf86a7a0a627562bad4d12"
+)
+PYTHON_DISPATCH_EXECUTABLE_STREAM_SHA256 = (
+    "186d986fe6a13af7435190f6fbc8dcbacf614c9a53906e2ac48f18d140eb46e8"
+)
 POM_PATHS = {
     "root": Path("pom.xml"),
     "model": Path("foggy-dataset-model/pom.xml"),
@@ -100,6 +198,862 @@ def sha256_file(path: Path) -> str:
     except OSError as exc:
         raise NegativeError(f"cannot hash {path}: {exc.__class__.__name__}") from exc
     return digest.hexdigest()
+
+
+@dataclass(frozen=True)
+class LogicalShellCommand:
+    line_number: int
+    text: str
+    scope_depth: int
+
+
+HEREDOC_PATTERN = re.compile(
+    r"<<(?P<strip>-)?\s*(?:'(?P<single>[^']+)'|\"(?P<double>[^\"]+)\"|"
+    r"(?P<bare>[A-Za-z_][A-Za-z0-9_]*))"
+)
+SHELL_SCOPE_FUNCTION = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\(\)\s*\{$")
+PYTHON_DISPATCH_TARGET_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_])(?:"
+    + "|".join(
+        re.escape(value)
+        for value in (
+            *(variable for variable, _ in PYTHON_DISPATCH_TOOLS),
+            *(relative.name for _, relative in PYTHON_DISPATCH_TOOLS),
+        )
+    )
+    + r")(?![A-Za-z0-9_])"
+)
+
+
+def strip_shell_comment(line: str) -> str:
+    single = False
+    double = False
+    escaped = False
+    for index, character in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if character == "\\" and not single:
+            escaped = True
+            continue
+        if character == "'" and not double:
+            single = not single
+            continue
+        if character == '"' and not single:
+            double = not double
+            continue
+        if (
+            character == "#"
+            and not single
+            and not double
+            and (
+                index == 0
+                or line[index - 1].isspace()
+                or line[index - 1] in ";|&(){}"
+            )
+        ):
+            return line[:index]
+    return line
+
+
+def sensitive_shell_command_view(command: str) -> str:
+    """Expose quote-spliced and empty-expansion command spellings."""
+    candidate = re.sub(r"\$(?:''|\"\")", "", command)
+    candidate = re.sub(r"\$\{[A-Za-z_][A-Za-z0-9_]*:-\}", "", candidate)
+    candidate = candidate.replace("'", "").replace('"', "")
+    return re.sub(r"\\([A-Za-z])", r"\1", candidate)
+
+
+def logical_shell_commands(script: str) -> list[LogicalShellCommand]:
+    result: list[LogicalShellCommand] = []
+    parts: list[str] = []
+    start_line = 0
+    scope_depth = 0
+    queued_heredocs: list[tuple[str, bool]] = []
+    command_heredocs: list[tuple[str, bool]] = []
+
+    for line_number, raw_line in enumerate(script.splitlines(), start=1):
+        if queued_heredocs:
+            delimiter, strip_tabs = queued_heredocs[0]
+            candidate = raw_line.lstrip("\t") if strip_tabs else raw_line
+            if candidate == delimiter:
+                queued_heredocs.pop(0)
+            continue
+
+        code = strip_shell_comment(raw_line).rstrip()
+        if not code.strip():
+            continue
+        if not parts:
+            start_line = line_number
+        for match in HEREDOC_PATTERN.finditer(code):
+            delimiter = match.group("single") or match.group("double") or match.group("bare")
+            require(bool(delimiter), "E_PYTHON_DISPATCH_PARSE: empty heredoc delimiter")
+            command_heredocs.append((delimiter, bool(match.group("strip"))))
+
+        continuation = False
+        if code.endswith("\\"):
+            code = code[:-1].rstrip()
+            continuation = True
+        elif code.endswith(("&&", "||", "|")):
+            continuation = True
+        parts.append(code.strip())
+        if continuation:
+            continue
+
+        text = " ".join(parts)
+        parts = []
+        closing = text in {"}", ")", "fi", "esac"} or text.startswith("done")
+        if closing:
+            scope_depth = max(0, scope_depth - 1)
+        result.append(LogicalShellCommand(start_line, text, scope_depth))
+
+        opening = (
+            bool(SHELL_SCOPE_FUNCTION.fullmatch(text))
+            or bool(
+                re.fullmatch(
+                    r"function\s+[A-Za-z_][A-Za-z0-9_]*(?:\s*\(\))?\s*\{",
+                    text,
+                )
+            )
+            or text in {"{", "("}
+            or bool(re.match(r"^if\b", text))
+            or bool(re.match(r"^(?:for|while|until|select)\b", text))
+            or bool(re.match(r"^case\b", text))
+        )
+        if opening:
+            scope_depth += 1
+        if command_heredocs:
+            queued_heredocs.extend(command_heredocs)
+            command_heredocs = []
+
+    require(not parts, "E_PYTHON_DISPATCH_PARSE: unterminated logical command")
+    require(not queued_heredocs, "E_PYTHON_DISPATCH_PARSE: unterminated heredoc")
+    return result
+
+
+def validate_bash_syntax(script: str) -> None:
+    try:
+        completed = subprocess.run(
+            ["bash", "-n"],
+            input=script,
+            env=process_environment(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise NegativeError("E_PYTHON_DISPATCH_SYNTAX: cannot run bash -n") from exc
+    require(
+        completed.returncode == 0 and completed.stdout == "",
+        "E_PYTHON_DISPATCH_SYNTAX: runner mutation is not valid Bash",
+    )
+
+
+def tracked_git_mode(root: Path, relative: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--stage", "--", relative.as_posix()],
+            env=fixture_git_environment(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise NegativeError(
+            f"E_PYTHON_DISPATCH_GIT_MODE: cannot inspect {relative.as_posix()}"
+        ) from exc
+    require(
+        completed.returncode == 0 and completed.stderr == "",
+        f"E_PYTHON_DISPATCH_GIT_MODE: lookup failed for {relative.as_posix()}",
+    )
+    lines = completed.stdout.splitlines()
+    if len(lines) != 1:
+        disposition = (
+            "untracked" if os.path.lexists(root / relative) else "missing"
+        )
+        raise NegativeError(
+            f"E_PYTHON_DISPATCH_GIT_MODE: {disposition} path {relative.as_posix()}"
+        )
+    fields = lines[0].split(maxsplit=3)
+    require(
+        len(fields) == 4
+        and bool(re.fullmatch(r"[0-9a-f]{40,64}", fields[1]))
+        and fields[2] == "0"
+        and fields[3] == relative.as_posix(),
+        f"E_PYTHON_DISPATCH_GIT_MODE: staged identity differs for {relative.as_posix()}",
+    )
+    return fields[0]
+
+
+def validate_python_dispatch_portability(
+    root: Path,
+    runner_text: str | None = None,
+    enforce_raw_seal: bool = True,
+    enforce_stream_seal: bool = True,
+) -> dict[str, Any]:
+    runner = root / REPORT_RUNNER_PATH
+    if runner_text is None:
+        try:
+            runner_bytes = runner.read_bytes()
+            runner_text = runner_bytes.decode("utf-8", errors="strict")
+        except (OSError, UnicodeError) as exc:
+            raise NegativeError(
+                "E_PYTHON_DISPATCH_SOURCE: cannot read coverage report runner"
+            ) from exc
+    else:
+        runner_bytes = runner_text.encode("utf-8", errors="strict")
+    runner_sha256 = hashlib.sha256(runner_bytes).hexdigest()
+    if enforce_raw_seal:
+        require(
+            runner_sha256 == PYTHON_DISPATCH_RUNNER_SHA256,
+            "E_PYTHON_DISPATCH_RAW: report runner raw bytes differ",
+        )
+    validate_bash_syntax(runner_text)
+    logical_commands = logical_shell_commands(runner_text)
+    executable_stream = "".join(
+        f"{command.text}\n" for command in logical_commands
+    ).encode("utf-8")
+    executable_stream_sha256 = hashlib.sha256(executable_stream).hexdigest()
+    if enforce_stream_seal:
+        require(
+            executable_stream_sha256 == PYTHON_DISPATCH_EXECUTABLE_STREAM_SHA256,
+            "E_PYTHON_DISPATCH_STREAM: logical executable stream differs",
+        )
+    target_commands = [
+        command
+        for command in logical_commands
+        if (
+            PYTHON_DISPATCH_TARGET_PATTERN.search(
+                sensitive_shell_command_view(command.text)
+            )
+            or ".py" in sensitive_shell_command_view(command.text)
+        )
+    ]
+    expected = list(PYTHON_DISPATCH_LOGICAL_COMMANDS)
+    require(
+        len(target_commands) == len(expected),
+        "E_PYTHON_DISPATCH_COMMAND: target-reference command count differs",
+    )
+    bindings: list[dict[str, Any]] = []
+    for command, (binding_id, expected_text) in zip(target_commands, expected):
+        require(
+            command.text == expected_text,
+            f"E_PYTHON_DISPATCH_COMMAND: logical command differs for {binding_id}",
+        )
+        require(
+            command.scope_depth == 0,
+            f"E_PYTHON_DISPATCH_SCOPE: {binding_id} is not top-level executable code",
+        )
+        bindings.append(
+            {
+                "binding": binding_id,
+                "line": command.line_number,
+                "scope": "top-level",
+                "status": "bound",
+            }
+        )
+
+    git_modes = {REPORT_RUNNER_PATH.as_posix(): tracked_git_mode(root, REPORT_RUNNER_PATH)}
+    require(
+        git_modes[REPORT_RUNNER_PATH.as_posix()] == "100755",
+        "E_PYTHON_DISPATCH_GIT_MODE: report runner must be 100755",
+    )
+    tool_bindings: list[dict[str, Any]] = []
+    for variable, relative in PYTHON_DISPATCH_TOOLS:
+        git_mode = tracked_git_mode(root, relative)
+        git_modes[relative.as_posix()] = git_mode
+        require(
+            git_mode == "100644",
+            f"E_PYTHON_DISPATCH_GIT_MODE: Python tool must be 100644: {relative.as_posix()}",
+        )
+        require(
+            (root / relative).is_file() and not (root / relative).is_symlink(),
+            f"E_PYTHON_DISPATCH_GIT_MODE: Python tool is not a real file: {relative.as_posix()}",
+        )
+        tool_bindings.append(
+            {
+                "git_mode": git_mode,
+                "path": relative.as_posix(),
+                "status": "bound",
+                "variable": variable,
+            }
+        )
+
+    dispatch_bindings = [
+        binding
+        for binding in bindings
+        if binding["binding"] in PYTHON_DISPATCH_CALL_IDS
+    ]
+    require(
+        len(dispatch_bindings) == 7,
+        "E_PYTHON_DISPATCH_COMMAND: interpreter dispatch cardinality differs",
+    )
+    return {
+        "call_binding_count": len(dispatch_bindings),
+        "call_bindings": dispatch_bindings,
+        "direct_command_position_calls": 0,
+        "git_modes": git_modes,
+        "logical_executable_stream_sha256": executable_stream_sha256,
+        "logical_target_command_count": len(target_commands),
+        "raw_runner_sha256": runner_sha256,
+        "tool_binding_count": len(tool_bindings),
+        "tool_bindings": tool_bindings,
+        "status": "passed",
+    }
+
+
+def replace_occurrence(
+    text: str,
+    needle: str,
+    replacement: str,
+    occurrence: int,
+) -> str:
+    start = -1
+    for _ in range(occurrence + 1):
+        start = text.find(needle, start + 1)
+        require(start >= 0, "E_PYTHON_DISPATCH_FIXTURE: mutation target is absent")
+    return text[:start] + replacement + text[start + len(needle) :]
+
+
+def rejected_dispatch_mutation(
+    root: Path,
+    case_id: str,
+    mutated: str,
+) -> dict[str, Any]:
+    validate_bash_syntax(mutated)
+    try:
+        validate_python_dispatch_portability(root, mutated)
+    except NegativeError as exc:
+        raw_error = str(exc)
+    else:
+        raise NegativeError(
+            f"E_PYTHON_DISPATCH_FALSE_GREEN: raw seal accepted mutation: {case_id}"
+        )
+    require(
+        raw_error.startswith("E_PYTHON_DISPATCH_RAW:"),
+        f"E_PYTHON_DISPATCH_ERROR: raw seal error differs: {case_id}",
+    )
+    try:
+        validate_python_dispatch_portability(
+            root,
+            mutated,
+            enforce_raw_seal=False,
+        )
+    except NegativeError as exc:
+        stream_error = str(exc)
+    else:
+        raise NegativeError(
+            f"E_PYTHON_DISPATCH_FALSE_GREEN: stream seal accepted mutation: {case_id}"
+        )
+    require(
+        stream_error.startswith("E_PYTHON_DISPATCH_STREAM:"),
+        f"E_PYTHON_DISPATCH_ERROR: stream seal error differs: {case_id}",
+    )
+    try:
+        validate_python_dispatch_portability(
+            root,
+            mutated,
+            enforce_raw_seal=False,
+            enforce_stream_seal=False,
+        )
+    except NegativeError as exc:
+        semantic_error = str(exc)
+    else:
+        raise NegativeError(
+            f"E_PYTHON_DISPATCH_FALSE_GREEN: semantic check accepted mutation: {case_id}"
+        )
+    require(
+        semantic_error.startswith("E_PYTHON_DISPATCH_")
+        and not semantic_error.startswith("E_PYTHON_DISPATCH_RAW:")
+        and not semantic_error.startswith("E_PYTHON_DISPATCH_STREAM:"),
+        f"E_PYTHON_DISPATCH_ERROR: semantic error differs: {case_id}",
+    )
+    return {
+        "case": case_id,
+        "raw_seal_error": raw_error,
+        "semantic_error": semantic_error,
+        "status": "passed",
+        "stream_seal_error": stream_error,
+    }
+
+
+def rejected_source_seal_mutation(
+    root: Path,
+    case_id: str,
+    mutated: str,
+    stream_must_change: bool,
+) -> dict[str, Any]:
+    validate_bash_syntax(mutated)
+    try:
+        validate_python_dispatch_portability(root, mutated)
+    except NegativeError as exc:
+        raw_error = str(exc)
+    else:
+        raise NegativeError(
+            f"E_PYTHON_DISPATCH_FALSE_GREEN: raw seal accepted mutation: {case_id}"
+        )
+    require(
+        raw_error.startswith("E_PYTHON_DISPATCH_RAW:"),
+        f"E_PYTHON_DISPATCH_ERROR: raw seal error differs: {case_id}",
+    )
+
+    stream_error: str | None = None
+    try:
+        validate_python_dispatch_portability(
+            root,
+            mutated,
+            enforce_raw_seal=False,
+        )
+    except NegativeError as exc:
+        stream_error = str(exc)
+    if stream_must_change:
+        require(
+            stream_error is not None
+            and stream_error.startswith("E_PYTHON_DISPATCH_STREAM:"),
+            f"E_PYTHON_DISPATCH_FALSE_GREEN: stream seal accepted mutation: {case_id}",
+        )
+        stream_observation = "rejected"
+    else:
+        require(
+            stream_error is None,
+            f"E_PYTHON_DISPATCH_ERROR: executable stream unexpectedly changed: {case_id}",
+        )
+        stream_observation = "unchanged"
+
+    semantic_error: str | None = None
+    try:
+        validate_python_dispatch_portability(
+            root,
+            mutated,
+            enforce_raw_seal=False,
+            enforce_stream_seal=False,
+        )
+    except NegativeError as exc:
+        semantic_error = str(exc)
+    return {
+        "case": case_id,
+        "raw_seal_error": raw_error,
+        "semantic_observation": "accepted" if semantic_error is None else "rejected",
+        "semantic_observed_error": semantic_error,
+        "status": "passed",
+        "stream_observation": stream_observation,
+        "stream_observed_error": stream_error,
+    }
+
+
+def run_fixture_git(root: Path, arguments: Sequence[str]) -> None:
+    completed = subprocess.run(
+        ["git", "-C", str(root), *arguments],
+        env=fixture_git_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    require(
+        completed.returncode == 0,
+        "E_PYTHON_DISPATCH_FIXTURE: Git fixture command failed",
+    )
+
+
+def create_dispatch_git_fixture(source_root: Path, fixture_root: Path) -> None:
+    fixture_root.mkdir(mode=0o700)
+    run_fixture_git(fixture_root, ["init", "-q"])
+    for relative in (
+        REPORT_RUNNER_PATH,
+        *(path for _, path in PYTHON_DISPATCH_TOOLS),
+    ):
+        destination = fixture_root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_root / relative, destination)
+        destination.chmod(0o755 if relative == REPORT_RUNNER_PATH else 0o644)
+    run_fixture_git(
+        fixture_root,
+        [
+            "add",
+            "--",
+            REPORT_RUNNER_PATH.as_posix(),
+            *(path.as_posix() for _, path in PYTHON_DISPATCH_TOOLS),
+        ],
+    )
+
+
+def git_mode_mutation_probes(
+    root: Path,
+    temporary_root: Path,
+) -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
+    relative = PYTHON_DISPATCH_TOOLS[0][1]
+    for case_id in ("executable-100755", "symlink-120000", "untracked", "missing"):
+        fixture = temporary_root / f"python-dispatch-mode-{case_id}"
+        create_dispatch_git_fixture(root, fixture)
+        destination = fixture / relative
+        if case_id == "executable-100755":
+            run_fixture_git(
+                fixture,
+                ["update-index", "--chmod=+x", "--", relative.as_posix()],
+            )
+        elif case_id == "symlink-120000":
+            destination.unlink()
+            destination.symlink_to("non-authoritative-target.py")
+            run_fixture_git(fixture, ["add", "--", relative.as_posix()])
+        else:
+            run_fixture_git(
+                fixture,
+                ["update-index", "--force-remove", "--", relative.as_posix()],
+            )
+            if case_id == "missing":
+                destination.unlink()
+        try:
+            validate_python_dispatch_portability(fixture)
+        except NegativeError as exc:
+            observed_error = str(exc)
+        else:
+            raise NegativeError(
+                f"E_PYTHON_DISPATCH_FALSE_GREEN: Git mode mutation accepted: {case_id}"
+            )
+        require(
+            observed_error.startswith("E_PYTHON_DISPATCH_GIT_MODE:"),
+            f"E_PYTHON_DISPATCH_ERROR: Git mode mutation error differs: {case_id}",
+        )
+        cases.append(
+            {"case": case_id, "observed_error": observed_error, "status": "passed"}
+        )
+    return cases
+
+
+def python_dispatch_portability_probes(
+    root: Path,
+    temporary_root: Path,
+) -> dict[str, Any]:
+    runner = root / REPORT_RUNNER_PATH
+    try:
+        runner_text = runner.read_text(encoding="utf-8", errors="strict")
+    except (OSError, UnicodeError) as exc:
+        raise NegativeError(
+            "E_PYTHON_DISPATCH_SOURCE: cannot read coverage report runner for probes"
+        ) from exc
+
+    positive = validate_python_dispatch_portability(root, runner_text)
+    mutation_cases: list[dict[str, Any]] = []
+    direct_mutations = (
+        ("toolchain-replay-pre", 'python3 "$TOOLCHAIN_RECEIPT_TOOL"', '"$TOOLCHAIN_RECEIPT_TOOL"', 0),
+        ("exec-verify", 'python3 "$EXEC_TOOL" verify ', '"$EXEC_TOOL" verify ', 0),
+        ("contract-validate", 'python3 "$CONTRACT_TOOL"', '"$CONTRACT_TOOL"', 0),
+        ("effective-pom-before", 'python3 "$EFFECTIVE_POM_TOOL"', '"$EFFECTIVE_POM_TOOL"', 0),
+        ("effective-pom-after", 'python3 "$EFFECTIVE_POM_TOOL"', '"$EFFECTIVE_POM_TOOL"', 1),
+        ("toolchain-replay-post", 'python3 "$TOOLCHAIN_RECEIPT_TOOL"', '"$TOOLCHAIN_RECEIPT_TOOL"', 1),
+        ("exec-verify-aggregate", 'python3 "$EXEC_TOOL" verify-aggregate', '"$EXEC_TOOL" verify-aggregate', 0),
+    )
+    for call_id, needle, direct, occurrence in direct_mutations:
+        mutated = replace_occurrence(runner_text, needle, direct, occurrence)
+        mutation_cases.append(
+            rejected_dispatch_mutation(root, f"direct-command-{call_id}", mutated)
+        )
+
+    for variable, relative in PYTHON_DISPATCH_TOOLS:
+        required = f'{variable}="$SCRIPT_DIR/{relative.name}"'
+        mutated = runner_text.replace(
+            required,
+            f'{variable}="$SCRIPT_DIR/non-authoritative.py"',
+            1,
+        )
+        require(mutated != runner_text, "E_PYTHON_DISPATCH_FIXTURE: binding target absent")
+        mutation_cases.append(
+            rejected_dispatch_mutation(root, f"target-rebind-{variable.lower()}", mutated)
+        )
+
+    canonical_contract = (
+        'python3 "$CONTRACT_TOOL" validate-contract --repo-root "$REPO_ROOT"'
+    )
+    direct_contract = '"$CONTRACT_TOOL" validate-contract --repo-root "$REPO_ROOT"'
+    mutation_cases.append(
+        rejected_dispatch_mutation(
+            root,
+            "comment-decoy",
+            runner_text.replace(canonical_contract, direct_contract, 1)
+            + f"\n# {canonical_contract}\n",
+        )
+    )
+    mutation_cases.append(
+        rejected_dispatch_mutation(
+            root,
+            "operator-comment-decoy",
+            runner_text.replace(canonical_contract, direct_contract, 1)
+            + f"\n:;# {canonical_contract}\n",
+        )
+    )
+    mutation_cases.append(
+        rejected_dispatch_mutation(
+            root,
+            "heredoc-decoy",
+            runner_text.replace(canonical_contract, direct_contract, 1)
+            + "\ncat <<'V934_PYTHON_DISPATCH_DECOY' >/dev/null\n"
+            + canonical_contract
+            + "\nV934_PYTHON_DISPATCH_DECOY\n",
+        )
+    )
+    mutation_cases.append(
+        rejected_dispatch_mutation(
+            root,
+            "dead-scope-decoy",
+            runner_text.replace(
+                canonical_contract,
+                f"if false; then\n  {canonical_contract}\nfi",
+                1,
+            ),
+        )
+    )
+    mutation_cases.append(
+        rejected_dispatch_mutation(
+            root,
+            "multiline-dead-scope-decoy",
+            runner_text.replace(
+                canonical_contract,
+                f"if false\nthen\n  {canonical_contract}\nfi",
+                1,
+            ),
+        )
+    )
+    mutation_cases.append(
+        rejected_dispatch_mutation(
+            root,
+            "function-dead-scope-decoy",
+            runner_text.replace(
+                canonical_contract,
+                "v934_dispatch_decoy() {\n"
+                f"  {canonical_contract}\n"
+                "}",
+                1,
+            ),
+        )
+    )
+
+    additive_commands = (
+        ("wrapper-command", 'command "$EXEC_TOOL" --help'),
+        ("wrapper-env", 'env "$CONTRACT_TOOL" --help'),
+        ("wrapper-exec", 'exec "$EFFECTIVE_POM_TOOL" --help'),
+        ("wrapper-if", 'if "$TOOLCHAIN_RECEIPT_TOOL" --help; then :; fi'),
+        ("wrapper-negation", '! "$EXEC_TOOL" --help'),
+        ("wrapper-command-substitution", 'V934_PROBE="$("$CONTRACT_TOOL" --help)"'),
+        ("braced-variable-direct", '"${EFFECTIVE_POM_TOOL}" --help'),
+        ("unquoted-variable-direct", '$TOOLCHAIN_RECEIPT_TOOL --help'),
+    )
+    for case_id, command in additive_commands:
+        mutation_cases.append(
+            rejected_dispatch_mutation(root, case_id, runner_text + f"\n{command}\n")
+        )
+    for _, relative in PYTHON_DISPATCH_TOOLS:
+        literal = f'"$SCRIPT_DIR/{relative.name}" --help'
+        mutation_cases.append(
+            rejected_dispatch_mutation(
+                root,
+                f"literal-direct-{relative.stem}",
+                runner_text + f"\n{literal}\n",
+            )
+        )
+    spelling_mutations = (
+        (
+            "quote-spliced-exec-literal",
+            '"$SCRIPT_DIR/coverage_"exec_tool.py --help',
+        ),
+        (
+            "quote-spliced-contract-substitution",
+            'V934_PROBE="$("$SCRIPT_DIR/coverage_"tool.py --help)"',
+        ),
+        (
+            "indirect-variable-name",
+            "V934_NAME=EXEC_''TOOL\n\"${!V934_NAME}\" --help",
+        ),
+        (
+            "split-path-variable",
+            'V934_PATH="$SCRIPT_DIR/coverage_"\n"$V934_PATH"exec_tool.py --help',
+        ),
+    )
+    for case_id, commands in spelling_mutations:
+        mutation_cases.append(
+            rejected_dispatch_mutation(
+                root,
+                case_id,
+                runner_text + f"\n{commands}\n",
+            )
+        )
+
+    stream_source_mutations = (
+        (
+            "two-variable-path-concatenation",
+            'V934_DISPATCH_PATH="$SCRIPT_DIR/coverage_exec_tool."\n'
+            "V934_DISPATCH_EXTENSION=py\n"
+            '"$V934_DISPATCH_PATH$V934_DISPATCH_EXTENSION" --help',
+        ),
+        (
+            "printf-v-path-construction",
+            "printf -v V934_DISPATCH_PATH '%s%s' "
+            '"$SCRIPT_DIR/coverage_exec_tool." py\n'
+            '"$V934_DISPATCH_PATH" --help',
+        ),
+        (
+            "path-environment-construction",
+            'V934_DISPATCH_PATH="$SCRIPT_DIR/coverage_exec_tool."\n'
+            'V934_DISPATCH_PATH="${V934_DISPATCH_PATH}py"\n'
+            '"$V934_DISPATCH_PATH" --help',
+        ),
+        (
+            "empty-expansion-extension",
+            '"$SCRIPT_DIR/coverage_exec_tool.p${V934_DISPATCH_EMPTY}y" --help',
+        ),
+        (
+            "command-substitution-extension",
+            'V934_DISPATCH_EXTENSION="$(printf p)y"\n'
+            '"$SCRIPT_DIR/coverage_exec_tool.$V934_DISPATCH_EXTENSION" --help',
+        ),
+        (
+            "ansi-c-path-literal",
+            r"V934_DISPATCH_PATH=$'\x2e\x2f\x73\x63\x72\x69\x70\x74\x73\x2f"
+            r"\x76\x39\x33\x34\x2f\x73\x74\x65\x70\x34\x2f"
+            r"\x63\x6f\x76\x65\x72\x61\x67\x65\x5f\x65\x78\x65\x63"
+            r"\x5f\x74\x6f\x6f\x6c\x2e\x70\x79'"
+            "\n"
+            '"$V934_DISPATCH_PATH" --help',
+        ),
+        (
+            "dynamic-eval-command",
+            "V934_DISPATCH_E=e\n"
+            "V934_DISPATCH_VAL=val\n"
+            "V934_DISPATCH_A='$EXEC_'\n"
+            "V934_DISPATCH_B='TOOL --help'\n"
+            '"$V934_DISPATCH_E$V934_DISPATCH_VAL" '
+            '"$V934_DISPATCH_A$V934_DISPATCH_B"',
+        ),
+        (
+            "dynamic-bash-c-command",
+            "V934_DISPATCH_B=b\n"
+            "V934_DISPATCH_ASH=ash\n"
+            "V934_DISPATCH_A='$EXEC_'\n"
+            "V934_DISPATCH_C='TOOL --help'\n"
+            '"$V934_DISPATCH_B$V934_DISPATCH_ASH" -c '
+            '"$V934_DISPATCH_A$V934_DISPATCH_C"',
+        ),
+        (
+            "quoted-fake-heredoc-hides-direct-call",
+            "printf '%s\\n' \"not a heredoc <<'V934_FAKE_HEREDOC'\"\n"
+            '"$EXEC_TOOL" --help\n'
+            "V934_FAKE_HEREDOC",
+        ),
+        (
+            "multiline-command-substitution-concatenation",
+            'V934_DISPATCH_CAPTURE="$(\n'
+            '  V934_DISPATCH_PATH="$SCRIPT_DIR/coverage_exec_tool."\n'
+            "  V934_DISPATCH_EXTENSION=py\n"
+            '  "$V934_DISPATCH_PATH$V934_DISPATCH_EXTENSION" --help\n'
+            ')"',
+        ),
+    )
+    source_seal_cases: list[dict[str, Any]] = []
+    for case_id, commands in stream_source_mutations:
+        source_seal_cases.append(
+            rejected_source_seal_mutation(
+                root,
+                case_id,
+                runner_text + f"\n{commands}\n",
+                stream_must_change=True,
+            )
+        )
+
+    inline_python_marker = "import stat\nimport sys\n\n\ndef unique(pairs):"
+    inline_python_mutation = (
+        "import stat\n"
+        "import subprocess\n"
+        "import sys\n\n"
+        "subprocess.run([sys.argv[7], '--help'], check=True)\n\n"
+        "def unique(pairs):"
+    )
+    mutated_inline_python = runner_text.replace(
+        inline_python_marker,
+        inline_python_mutation,
+        1,
+    )
+    require(
+        mutated_inline_python != runner_text,
+        "E_PYTHON_DISPATCH_FIXTURE: inline Python heredoc marker is absent",
+    )
+    source_seal_cases.append(
+        rejected_source_seal_mutation(
+            root,
+            "inline-python-heredoc-direct-call",
+            mutated_inline_python,
+            stream_must_change=False,
+        )
+    )
+
+    mode_mutations = git_mode_mutation_probes(root, temporary_root)
+    smoke_root = temporary_root / "python-dispatch-nonexec-smoke"
+    smoke_root.mkdir(mode=0o700)
+    smoke_cases: list[dict[str, Any]] = []
+    for _, relative in PYTHON_DISPATCH_TOOLS:
+        source = root / relative
+        destination = smoke_root / relative.name
+        shutil.copyfile(source, destination)
+        destination.chmod(0o644)
+        file_mode = stat.S_IMODE(destination.stat().st_mode)
+        require(
+            file_mode == 0o644,
+            f"E_PYTHON_DISPATCH_SMOKE: copied mode differs: {relative.as_posix()}",
+        )
+        interpreted = subprocess.run(
+            ["python3", str(destination), "--help"],
+            env=process_environment(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        require(
+            interpreted.returncode == 0,
+            f"E_PYTHON_DISPATCH_SMOKE: interpreter failed: {relative.as_posix()}",
+        )
+        direct_rejected = False
+        try:
+            subprocess.run(
+                [str(destination), "--help"],
+                env=process_environment(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except PermissionError:
+            direct_rejected = True
+        require(
+            direct_rejected,
+            f"E_PYTHON_DISPATCH_SMOKE: direct execution succeeded: {relative.as_posix()}",
+        )
+        smoke_cases.append(
+            {
+                "direct_execution": "permission-denied",
+                "file_mode": f"{file_mode:04o}",
+                "git_mode": positive["git_modes"][relative.as_posix()],
+                "interpreter_execution": "passed",
+                "tool": relative.as_posix(),
+            }
+        )
+
+    return {
+        "positive": positive,
+        "raw_only_mutation_count": 1,
+        "raw_seal_mutation_count": len(mutation_cases) + len(source_seal_cases),
+        "semantic_mutation_count": len(mutation_cases),
+        "semantic_mutations": mutation_cases,
+        "source_seal_mutation_count": len(source_seal_cases),
+        "source_seal_mutations": source_seal_cases,
+        "stream_seal_mutation_count": len(mutation_cases)
+        + len(stream_source_mutations),
+        "git_mode_mutation_count": len(mode_mutations),
+        "git_mode_mutations": mode_mutations,
+        "nonexec_smoke_count": len(smoke_cases),
+        "nonexec_smoke": smoke_cases,
+        "status": "passed",
+    }
 
 
 def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -2212,9 +3166,11 @@ def validator_git_environment_policy(root: Path) -> dict[str, Any]:
 def build_result(root: Path) -> dict[str, Any]:
     tool = root / TOOL_PATH
     validator = root / VALIDATOR_PATH
+    report_runner = root / REPORT_RUNNER_PATH
     source_hashes = {role: sha256_file(root / relative) for role, relative in INPUT_PATHS.items()}
     tool_hash = sha256_file(tool)
     validator_hash = sha256_file(validator)
+    report_runner_hash = sha256_file(report_runner)
     with tempfile.TemporaryDirectory(prefix="v934-step4-coverage-contract-negative-") as temporary_name:
         temporary_root = Path(temporary_name)
         baselines = {
@@ -2227,12 +3183,19 @@ def build_result(root: Path) -> dict[str, Any]:
         )
         source_hash_identity = source_hash_git_identity_probes(root, temporary_root)
         git_environment_policy = validator_git_environment_policy(root)
+        python_dispatch_portability = python_dispatch_portability_probes(
+            root, temporary_root
+        )
     require(
         source_hashes == {role: sha256_file(root / relative) for role, relative in INPUT_PATHS.items()},
         "canonical input changed while running negative probes",
     )
     require(tool_hash == sha256_file(tool), "negative tool changed while running")
     require(validator_hash == sha256_file(validator), "coverage validator changed while running")
+    require(
+        report_runner_hash == sha256_file(report_runner),
+        "coverage report runner changed while running",
+    )
     return {
         "schema_version": 1,
         "kind": "v934-step4-coverage-contract-negative",
@@ -2244,11 +3207,16 @@ def build_result(root: Path) -> dict[str, Any]:
         "probe_count": len(cases),
         "probes": cases,
         "git_environment_policy": git_environment_policy,
+        "python_dispatch_portability": python_dispatch_portability,
         "source_hash_git_identity": source_hash_identity,
         "threshold_and_frozen_replay": threshold_and_frozen_replay,
         "status": "passed",
         "tool": {"path": TOOL_PATH.as_posix(), "sha256": tool_hash},
         "validator": {"path": VALIDATOR_PATH.as_posix(), "sha256": validator_hash},
+        "report_runner": {
+            "path": REPORT_RUNNER_PATH.as_posix(),
+            "sha256": report_runner_hash,
+        },
     }
 
 

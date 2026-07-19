@@ -393,3 +393,20 @@ updated_at: 2026-07-19
   `pre-remediation / superseded / non-candidate`；
 - 9.3.4 version signoff 后，classification-debt migration owner=`9.3.5 Gate 0`，实现责任仍由
   `foggy-dataset` 承担，deadline=`9.3.5 version acceptance`。
+
+## Superseding formal-r8 interpreter-portability recovery ownership（2026-07-19）
+
+- failure-evidence owner 已封存 formal-r8 capsule、raw log identity、success-only absence、cleanup、
+  sensitive 与 exact demo DB restore，并永久禁止 r8 resume/reuse/candidate promotion；
+- runner owner 只负责三个 Python command positions 的显式 interpreter dispatch；Python tool owner
+  保持 Git mode=`100644`，不得用 chmod 或主工作树 mode 作为发布前提；
+- negative-contract owner 负责 runner raw/292-command-stream seal、四 tool target、七 top-level logical
+  call、raw/stream/semantic mutation=`44/44 / 43/43 / 33/33`、Git-stage mode mutation=`4/4`、
+  non-executable smoke=`4/4` 与 runner before/after hash；machine owner
+  负责 diagnostic reset 和
+  Step4→Step6 hash closure；
+- independent code/docs quality owners 已关闭全部 finding，B/H/M/L=`0/0/0/0`、mandatory=`0`；当前
+  唯一开放责任已移交 Cdiag owner，只可提交/push 一个原子 recovery checkpoint，并把 clean fresh
+  clone 交给 diagnostic-r27 owner；
+- candidate/reviewer/Cfreeze/formal-r9/final-quality/audit/acceptance owners 必须逐门串行接管，不得复用
+  r26/r8 authority；Step 5–7、9.3.5/9.4.0 owners 继续 closed/queued。

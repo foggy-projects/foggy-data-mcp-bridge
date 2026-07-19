@@ -1121,3 +1121,33 @@ Current Step 4=`in-progress / diagnostic-r26 reviewed / ready-for-direct-child-C
 migration。记录：
 `docs/9.3.4/evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md`、
 `docs/9.3.4/workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md`。
+
+## Superseding formal-r8 interpreter-portability recovery plan（2026-07-19）
+
+1. [completed] 将 formal-r8 固定为 `failed / excluded / non-reusable / non-candidate`，封存
+   `16 entries / 282473 bytes` failure capsule、raw log hash、success-only absence、cleanup、敏感扫描与
+   四个 demo DB exact restore；
+2. [completed] 两路只读根因/同类风险审计确认：formal-r8 失败涉及两个 Git `100644` 工具和三个
+   direct command positions；runner 总计使用四个 Git `100644` Python tools / 七个 dispatch，均纳入
+   successor gate；主工作树 `core.fileMode=false` 和偶然 executable bit 掩盖历史 direct calls；
+3. [completed] 三处统一改为显式 `python3`，新增 runner raw/292-command-stream 双封印、四 target/七
+   top-level logical binding、raw/stream/semantic mutation=`44/44 / 43/43 / 33/33`、Git-mode mutation=
+   `4/4` 与 non-executable smoke=`4/4`；production/test/POM/
+   cardinality/floor/critical/exclusion delta=`0`；
+4. [completed] machine 恢复 `diagnostic-ready / diagnostic-pending`，Step 4=`6a48ab01…0782 / 61/61`、
+   Step 6=`d1efe031…43bd / 16/16`，hash closure 与 contract/XML/overlay/lifecycle/authority/CI focused
+   regressions PASS；
+5. [completed] 首轮独立 review 的 static false-green blocker 与三项状态文档 finding 已修复；
+   current-state、recovery evidence 与 pre-Cdiag implementation-quality 已同步，code/docs 复审=
+   `PASS / B/H/M/L 0/0/0/0 / mandatory 0 / broken links 0 / status drift 0`；
+6. [pending] 只创建一个 new Cdiag commit/push/clean；在 clean fresh clone 证明 Python 工具权威
+   mode=`100644`、direct denied、interpreter passed，再运行唯一 all-lane diagnostic-r27；
+7. [pending] r27 public validation 后生成全新 candidate/capsule，完成两路独立 review；旧 r26
+   candidate、Cfreeze 与 r8 raw artifacts 不得复用；
+8. [pending] 唯一 direct-child Cfreeze commit/push/topology/clean 后运行 fresh formal-r9；
+9. [pending] formal-r9 PASS 后依次完成 final quality→replacement coverage audit `31/31`→feature
+   acceptance；三门全部 PASS 后才恢复 Step 5 entry；
+10. [pending] 继续 Steps 5–7 与 9.3.4 version signoff，再进入 9.3.5 Gate 0；9.4.0 仍按主线顺序 queued。
+
+Current Step 4=`in-progress / formal-r8 failed / remediation ready-for-new-Cdiag`。
+`can_enter_cfreeze=no / can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。

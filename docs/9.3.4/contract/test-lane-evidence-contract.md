@@ -1055,3 +1055,25 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    candidate/review、direct-single-parent Cfreeze、fresh formal-r8（或下一可用 formal ID）和全部
    post gates。该 formal chain 未完成时，9.3.5 closed；9.3.4 version signoff 后，9.3.5 只允许先进入 Gate 0
    classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。
+
+## Superseding formal-r8 interpreter-dispatch contract（2026-07-19）
+
+1. formal-r8=`failed / coverage-report / exit 126 / immutable`；required/report inventory 的先行 PASS
+   不得替代缺失的 exec provenance、aggregate、coverage gate、candidate/final，r8 raw artifact 不得续跑、
+   补写或与 replacement run 拼接；
+2. runner 使用的四个 Python 工具必须保持 Git `100644` 并可由普通 fresh clone 正确物化；其中
+   exec verify、contract validate、exec verify-aggregate 三个历史错误 command positions 必须全部显式
+   使用 `python3`，不得以 chmod、worktree executable bit 或只修首个失败点替代；
+3. contract negative 必须先精确绑定 report runner raw bytes 和完整 logical executable command
+   stream，再读取 Git stage mode 并绑定四个 target assignment 与七个 top-level logical interpreter
+   dispatch；comment/heredoc/dead-scope decoy、`command/env/exec/if/!` wrapper、command substitution、
+   braced/unquoted/literal/direct/dynamic target、target rebind、inline Python heredoc direct call 与七处
+   去解释器均必须拒绝；semantic probes 必须在显式关闭两层 source seal 后独立拒绝 `33/33`；
+   `100755/120000/untracked/missing` Git-mode mutations 必须 fail closed，四个 `0644` copy 必须证明
+   direct denied/interpreter passed；report runner probe 前后 hash 必须一致；
+4. 任何 authority-tool delta 都必须撤回旧 formal-ready 状态并恢复
+   `diagnostic-ready / diagnostic-pending`，同时闭合 Step 4 manifest 和 Step4→Step6 hash bindings；不得改写
+   r26 reviewed counter、降低 floor/critical/exclusion 或复用旧 candidate；
+5. replacement 顺序固定为 new Cdiag→fresh diagnostic-r27→new candidate/capsule/双审→direct-child
+   Cfreeze→fresh formal-r9→final quality→coverage audit `31/31`→feature acceptance。三门未完成前
+   `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。

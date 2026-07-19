@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "v934-step4-formal-failure-capsule",
+  "run_id": "step4-coverage-20260719-formal-r8",
+  "tested_commit": "7c18019ed12d25c029de7e7e49caef77a79b2e67",
+  "status": "sealed-failed-excluded",
+  "failed_phase": "coverage-report",
+  "exit_code": 126,
+  "entry_count": 16,
+  "payload_bytes": 282473,
+  "source_run_log": {
+    "path": "target/v934-step4-coverage/runs/step4-coverage-20260719-formal-r8/run.log",
+    "sha256": "24d906012e779b746147334d8b32fc3fcb001dc8ef41e1732544d6421b0b8e14",
+    "size": 58475249,
+    "persisted_as": "normalized-excerpt"
+  },
+  "outer_wrapper": {
+    "sha256": "279227d693136e2034080bd56240fe422f6d07f1102747e5f53e4b0246e3f09e",
+    "log_sha256": "b24a4943c5566c261d7b662c01e62488908bc12f1a4488ff59e2a39784a2336d",
+    "runner_rc": 126,
+    "restore_rc": 0,
+    "receipt_inspect_rc": 0
+  },
+  "entries": [
+    {"path": "addon-candidate-manifest.json", "size": 4199, "sha256": "b4027a923b303103d8eba1bc1cd2d8afe2bdfd689b9f819be60dee576cd1ac75", "provenance": "byte-exact"},
+    {"path": "child-lifecycle.json", "size": 1604, "sha256": "5ff33a5e38644fea35138e61d88e43c7ecb0ea1787f9169a4e157b5884110340", "provenance": "byte-exact"},
+    {"path": "class-universe.json", "size": 2125, "sha256": "c34a5b066c27f271f1edc958bdb78dc7524f535b84aff5f6055125528f29754a", "provenance": "byte-exact"},
+    {"path": "cleanup.env", "size": 69, "sha256": "5524f0c68afb6ff1d13358f8fa3d2d19f7c1270454f2dfed1d2fe72cfe334ff1", "provenance": "byte-exact"},
+    {"path": "failure-excerpt.txt", "size": 759, "sha256": "2a66fd5f12931ea03e96d81fe1e4234096a753fa8a15d926943efa10643e65af", "provenance": "normalized-excerpt"},
+    {"path": "formalization-delta.json", "size": 4034, "sha256": "5e62e28993bf2e5e17e09db9a7eb450c1f6a0edc64acd7f740afe6637b3c99b6", "provenance": "byte-exact"},
+    {"path": "integration-summary.env", "size": 859, "sha256": "822df34a90759eb685505573773ad50b0b43aa90872629a9aa529bf1c430b96c", "provenance": "byte-exact"},
+    {"path": "outer-containers.tsv", "size": 754, "sha256": "28fb7906d7fdbb31dd88f356f558640074e506ddff5b60b6159acb8980da5b05", "provenance": "byte-exact"},
+    {"path": "outer-status.env", "size": 323, "sha256": "1aa178a328f4cb2a82fbb5cd72f807e2e7c488b11a40a896b448d03c95a66467", "provenance": "byte-exact"},
+    {"path": "report-inventory.json", "size": 216766, "sha256": "e1c8af8499e61100a3ebd7b76dd7c74b38f5382899c67e9a412f63f30efb1a7c", "provenance": "byte-exact"},
+    {"path": "root-cause.env", "size": 630, "sha256": "05fbad5be4f46f98f0ef7bdd32f5d42707d7e7e8c7f791998299fadf11802864", "provenance": "post-run-independent-observation"},
+    {"path": "run-context.json", "size": 463, "sha256": "4d5690a985dec298c3432db45ce1561a727c580c04b564f68be1dfb47f44d373", "provenance": "byte-exact"},
+    {"path": "run-status.env", "size": 527, "sha256": "874ce7183de28043f0aa5de9fb675efb6e08c0dca906a78928e44b521002f1a8", "provenance": "byte-exact"},
+    {"path": "step3-required-candidate-manifest.json", "size": 3467, "sha256": "2825df6ee380742d870228ed3e2ecd002b95e6140d0960d48a89e36a0d7847e9", "provenance": "byte-exact"},
+    {"path": "toolchain-receipt.json", "size": 44822, "sha256": "34735c49dbcd4d9056dc07058eedf58d1d46a6fdf41c28c86158823e62e5ace5", "provenance": "byte-exact"},
+    {"path": "unit-summary.env", "size": 1072, "sha256": "abce30580e5ac3ea3685f0e04c6bd7261e1b86382f648fbf6608aedcce3bc79a", "provenance": "byte-exact"}
+  ],
+  "sensitive_scan": {
+    "patterns": 5,
+    "text_extensions": "log,env,json,tsv,xml",
+    "matches": 0,
+    "scope": "raw-run-plus-outer-receipt-before-copy-and-persisted-capsule-after-copy",
+    "status": "passed"
+  }
+}

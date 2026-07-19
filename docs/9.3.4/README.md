@@ -47,10 +47,12 @@ updated_at: 2026-07-19
   但 follow-up audit 证明其 schema 1 把真实 known-consumer lower bound `7 reports / 12 nodes`
   低记为 historical `6/11`，所以 r25 永久是
   `pre-remediation / superseded / non-candidate`。修复后的 Cdiag `4fe86929…`、fresh-clone isolated
-  r4 与 fresh diagnostic-r26 已通过；r26 candidate/capsule/双审=`APPROVE / 0/0/0/0`，只授权一个
-  direct-child Cfreeze。current Step 4=`in-progress / diagnostic-r26 reviewed /
-  ready-for-direct-child-Cfreeze`；r26 reviewed candidate 不是 formal 或 acceptance，Step 5=
-  `hold / closed`。
+  r4、fresh diagnostic-r26 与 direct-child Cfreeze `7c18019e…` 已通过。fresh formal-r8 完成全部
+  child/report inventory 后在 coverage reporter 直接执行 Git `100644` Python 工具时 rc126；r8 永久
+  `failed/excluded/non-reusable/non-candidate`。三处 interpreter 修复、runner raw/逻辑命令流双封印、
+  四工具/七调用的 semantic/Git-mode negative gate 与
+  Step4→Step6 hash closure 已完成，machine=`diagnostic-ready/diagnostic-pending`。current Step 4=
+  `in-progress / formal-r8 recovery / ready-for-new-Cdiag`；Step 5=`hold / closed`。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -598,8 +600,8 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r26 reviewed / ready-for-direct-child-Cfreeze | Cdiag `4fe86929…`、isolated r4、fresh r26、candidate/capsule/双审 PASS；r25 superseded/non-candidate；next=Cfreeze→formal-r8→Step 4 post gates |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until formal-r8 + final quality + Step 4 coverage audit/feature acceptance |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r8 recovery / ready-for-new-Cdiag | r26/Cfreeze complete；formal-r8 rc126 excluded；三处 interpreter fix + `raw 44 / stream 43 / semantic 33 / mode 4 / nonexec 4` gate + code/docs reviews PASS；next=Cdiag→r27→Cfreeze→formal-r9→post gates |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal + final quality + Step 4 coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
 
@@ -736,3 +738,34 @@ Current r26 records：
 - [dual threshold review](evidence/step-4/step4-coverage-diagnostic-r26-threshold-review-20260719.md)
 - [portable capsule manifest](evidence/step-4/step4-coverage-20260719-diagnostic-r26-portable-capsule.manifest.json)
 - [pre-Cfreeze implementation quality](quality/step4-r26-cfreeze-implementation-quality.md)
+
+## Superseding formal-r8 report-runner recovery status（2026-07-19）
+
+- direct-child Cfreeze=`7c18019ed12d25c029de7e7e49caef77a79b2e67` 已 push/clean；fresh
+  formal-r8 完成 Unit `681+55/4941`、Integration `47+4/320`、database `29/370`、external
+  `16/76`、Step 3 required `45/446`、Addon `2/6` 与 report inventory
+  `773+59/5707/F0E0S0`；
+- coverage report 首个 provenance 调用直接执行 Git mode=`100644` 的 Python 工具，fresh clone
+  正确返回 rc126；r8 因而永久 `failed / excluded / non-reusable / non-candidate`，exec manifest、
+  aggregate、observation、gate、summary、candidate/final 均 absent；
+- runner cleanup=`0/0/0`，outer restore=`rc0`，四个 demo DB 原 exact ID 均恢复
+  `running/healthy`；16-entry failure capsule 与独立 sensitive scan PASS；
+- 三个错误的直接调用点已统一为 `python3`；新 negative contract 先绑定 runner exact raw bytes 与
+  `292` 条 logical executable command stream，再对全部四个 Git `100644` 工具和七个 interpreter
+  dispatch 作 target/top-level exact binding；raw/stream/semantic mutation 分别=`44/44 / 43/43 /
+  33/33`，其中 `11/11` dynamic/heredoc source mutations 包含一个 stream-unchanged inline-Python
+  direct call；Git-mode mutation=`4/4`、non-executable tool smoke=`4/4`。Step 4/6
+  manifests、CI workflow closure 与
+  `diagnostic-ready / diagnostic-pending` machine reset PASS；
+- 独立 pre-Cdiag code/docs reviews=`PASS / 0/0/0/0 / mandatory 0`；当前只授权把 failure capsule、
+  BUG、修复、machine reset 与 recovery quality 提交为一个 new Cdiag；
+  后续必须 fresh diagnostic-r27→candidate/capsule/双审→direct-child Cfreeze→fresh formal-r9→final
+  quality→coverage audit `31/31`→feature acceptance。Step 5–7、9.3.5、9.4.0 继续关闭。
+
+Current recovery records：
+
+- [formal-r8 fail-closed evidence](evidence/step-4/step4-coverage-formal-r8-report-runner-permission-fail-closed-20260719.md)
+- [failure capsule](evidence/step-4/formal-r8-failure-capsule/manifest.json)
+- [report-runner executable-bit BUG](workitems/BUG-step4-report-runner-nonauthoritative-exec-bit-dependency.md)
+- [interpreter recovery evidence](evidence/step-4/step4-coverage-report-runner-interpreter-recovery-20260719.md)
+- [pre-Cdiag recovery quality](quality/step4-formal-r8-report-runner-recovery-implementation-quality.md)

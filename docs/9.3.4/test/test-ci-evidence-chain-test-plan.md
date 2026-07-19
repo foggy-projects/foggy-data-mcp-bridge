@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / diagnostic-r26 reviewed / ready-for-direct-child-Cfreeze`
+- step4_result: `in-progress / formal-r8 recovery / ready-for-new-Cdiag`
 - step5_status: `hold / execution closed`
 - version_acceptance: `not-started`
 
@@ -1026,3 +1026,21 @@ coverage audit 与 acceptance 保持关闭。
   lifecycle 与 cleanup oracle；
 - formal-r8 PASS 后只执行 Step 4 final quality→coverage audit→feature acceptance。该 acceptance
   仅开放 Step 5；9.3.4 仍须完成 Steps 5–7 和 version signoff，9.3.5 仍保持 queued。
+
+## formal-r8 report-runner recovery test transition（2026-07-19）
+
+- fresh formal-r8 child/report oracles 全 PASS：Unit=`681+55/4941`、Integration=`47+4/320`、
+  database=`29/370`、external=`16/76`、required inventory=`773+59/5707/F0E0S0`、Addon=
+  `2/6`；
+- expected failure oracle：fresh clone Git `100644` Python tool direct `--help`=`126`，
+  `python3 … --help`=`0`；formal runner 在首个 direct call rc126，后续 success-only artifact absent；
+- recovery static oracle：runner raw bytes 与 292-command logical executable stream exact，四个 tool
+  target 与七个 top-level logical interpreter bindings exact；raw/stream/semantic mutation=
+  `44/44 / 43/43 / 33/33`，inline-Python heredoc direct mutation 在 stream unchanged 下由 raw seal 拒绝；
+  Git-mode mutation=`4/4`；四个 `0644` copied tools direct denied /
+  interpreter PASS=`4/4`；
+- machine/static oracle：Step4 manifest=`61/61`、Step6 manifest=`16/16`、diagnostic contract、
+  successor overlay、lifecycle negative、coverage XML negative、authority negative 与 CI workflow
+  validator均 PASS；
+- r8 永久 excluded。next test sequence=new Cdiag→fresh diagnostic-r27→candidate/capsule/双审→
+  direct-child Cfreeze→fresh formal-r9→final quality→coverage audit `31/31`→feature acceptance。

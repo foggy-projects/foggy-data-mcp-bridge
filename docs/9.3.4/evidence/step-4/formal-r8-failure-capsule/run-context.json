@@ -1,0 +1,11 @@
+{
+  "authority_kind": "step4-coverage",
+  "contract_sha256": "babdcd887faa766aee2283fa95d885f5b51bbc3af11720e19047085c48c0be1e",
+  "git_head": "7c18019ed12d25c029de7e7e49caef77a79b2e67",
+  "kind": "v934-step4-run-context",
+  "not_before_ns": 1784437794499412370,
+  "run_id": "step4-coverage-20260719-formal-r8",
+  "schema_version": 1,
+  "source_sha256": "c8de202a972bce878bc2715da53ed1a13ca979b57d7fc6588e09f3456e784afa",
+  "started_at": "2026-07-19T05:09:57Z"
+}

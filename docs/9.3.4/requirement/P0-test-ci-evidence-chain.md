@@ -159,12 +159,14 @@ updated_at: 2026-07-19
 ## Current Progress
 
 - version status：`in-progress`；Steps 1–3=`passed`；Step 4=
-  `in-progress / diagnostic-r26 reviewed / ready-for-direct-child-Cfreeze`；
+  `in-progress / formal-r8 recovery / ready-for-new-Cdiag`；
 - historical Step 4 authority/formal-r4/r24/Cfreeze 保留；fresh formal-r7 因仓外 CALCULATE catalog
   依赖 fail closed 并永久 excluded；r25 保持
-  `pre-remediation / superseded / non-candidate`；修复后的 Cdiag `4fe86929…`、isolated r4 与 fresh
-  diagnostic-r26 已通过，r26 candidate/capsule/双审只授权一次 direct-child Cfreeze，尚不是 formal、
-  Step 4 feature acceptance 或 version acceptance；
+  `pre-remediation / superseded / non-candidate`；修复后的 Cdiag `4fe86929…`、isolated r4、fresh
+  diagnostic-r26 与 direct-child Cfreeze 已通过。formal-r8 完成全部 child/report inventory 后因 Git
+  `100644` Python 工具被直接执行而 rc126，永久 failed/excluded；三处 interpreter 修复、runner
+  raw/逻辑命令流双封印、覆盖四工具/七调用的 semantic/Git-mode dispatch gate 与 machine reset 已完成，尚不是 replacement formal、Step 4 feature acceptance 或
+  version acceptance；
 - Step 5–7=`hold / execution closed`，version acceptance=`not-started`，9.3.5=`queued`；
 - Unit MySQL classification DEBT 继续 open，最终 9.3.4 临时放行由 Step 7 决定。
 
@@ -773,3 +775,19 @@ updated_at: 2026-07-19
   acceptance。三门均 PASS 后才可把 Step 4 标为 `passed` 并开放 Step 5；9.3.4 仍为
   `in-progress`，必须继续完成 Steps 5–7 和 version signoff。只有 9.3.4 version signoff 后，9.3.5
   才可先进入 Gate 0 classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。
+
+## Superseding formal-r8 recovery requirement boundary（2026-07-19）
+
+- formal-r8 tested exact Cfreeze=`7c18019e…`，通过 required=`773+59/5707/F0E0S0`、Addon=
+  `2/6` 与所有 child cleanup/lifecycle 后，于 `coverage-report` rc126；failure capsule、source
+  recomputation、sensitive scan 与四 DB exact restore 已封存；
+- r8 没有 exec-manifest、aggregate、coverage observation/gate、summary 或 Step 4 candidate/final，
+  永久不得复用或拼接；
+- report runner 必须以显式 `python3` 调用 Git `100644` Python tools；contract negative 必须精确绑定
+  runner raw bytes、完整 logical executable stream、四个 tool target 与七个 top-level logical
+  dispatch，拒绝 comment/heredoc/dead-scope/wrapper/literal/rebind/direct/dynamic/inline-Python 变异与
+  `100755/120000/untracked/missing` Git-mode 变异，并在四个 `0644` copy 上
+  证明 direct denied / interpreter PASS；
+- replacement workitem denominator=`31`。当前 machine 必须为
+  `diagnostic-ready / diagnostic-pending`；独立 pre-Cdiag code/docs reviews 已 PASS，唯一授权链为 new Cdiag→fresh r27→reviewed
+  candidate/capsule→direct-child Cfreeze→fresh formal-r9→post gates `31/31`。所有后续版本门继续关闭。

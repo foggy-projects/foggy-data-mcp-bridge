@@ -272,7 +272,7 @@ else
   exit "$replay_exit_code"
 fi
 
-"$EXEC_TOOL" verify \
+python3 "$EXEC_TOOL" verify \
   --repo-root "$REPO_ROOT" \
   --exec-root "$EXEC_ROOT" \
   --run-id "$SESSION_PREFIX" \
@@ -283,7 +283,7 @@ fi
 
 # Revalidate the reporter POM and all Step 4 parent links after exec provenance
 # succeeds and before any reporter-owned staging path is changed.
-"$CONTRACT_TOOL" validate-contract --repo-root "$REPO_ROOT"
+python3 "$CONTRACT_TOOL" validate-contract --repo-root "$REPO_ROOT"
 
 # Resolve the actual Maven model used by the reporter. The raw POM validator
 # alone cannot see inherited/default lifecycle executions or a profile enabled
@@ -586,7 +586,7 @@ RUN_REPORT_STAGE=""
 cleanup_effective_pom_probe
 trap - EXIT
 
-"$EXEC_TOOL" verify-aggregate \
+python3 "$EXEC_TOOL" verify-aggregate \
   --repo-root "$REPO_ROOT" \
   --exec-manifest "$EXEC_MANIFEST" \
   --aggregate-exec "$RUN_REPORT/jacoco-aggregate.exec" \
