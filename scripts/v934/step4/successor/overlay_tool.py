@@ -243,7 +243,7 @@ EXPECTED_STEP4_RUNTIME_BINDINGS = {
     "scripts/v934/step4/coverage_tool.py": "43ac484942e36c1856cd33f8b228b08f43e095ede2109ac934f2027c25f66d32",
     "scripts/v934/step4/step2-report-view-contract.json": "bf284cdd8b34b35e27137c0cfca59ad6f16bf782d38eaf523095c181f9f6f52b",
     "scripts/v934/step4/step2_report_view_tool.py": "8eae016bc5dcea03f7634d19e018c6722490632716ea72fc19fdf29888be13de",
-    "scripts/v934/step4/unit-mysql57-fixture-contract.json": "7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a",
+    "scripts/v934/step4/unit-mysql57-fixture-contract.json": "4284155dfed2b4ea1691f6a7569310ef858502fd578fe08cd8df30e492ce6ccb",
 }
 REDIS_SOURCE_ID = f"v934-src|{len(REDIS_SOURCE_PATH)}:{REDIS_SOURCE_PATH}"
 

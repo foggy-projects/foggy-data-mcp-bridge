@@ -38,15 +38,19 @@ CANONICAL_FIXTURE_SHA256 = "70b1a5d755bd781004cd35abd8d11525a997b857335165e0b0e2
 SELF_PATH = Path("scripts/v934/step4/unit_mysql_fixture_tool.py")
 PROVISIONER_PATH = Path("scripts/v934/step3/provision-database-cell.sh")
 FIXTURE_CONTRACT_PATH = Path("scripts/v934/step4/unit-mysql57-fixture-contract.json")
-FIXTURE_CONTRACT_SHA256 = "7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a"
+FIXTURE_CONTRACT_SHA256 = "4284155dfed2b4ea1691f6a7569310ef858502fd578fe08cd8df30e492ce6ccb"
 STEP2_EXECUTION_PATH = Path("scripts/v934/successor/step2/step2-required-execution.tsv")
 STEP2_EXECUTION_SHA256 = "42a9467cdbcfbed5ed54d0bdfa276d92daa7fa2c83795cd13a21df931d0fc1d0"
 STEP2_DISCOVERY_PATH = Path("scripts/v934/successor/step2/discovery-inventory.tsv")
 STEP2_DISCOVERY_SHA256 = "634a5fbc5732676114bb4203498e20c032f8b34e113243705b1306569418404e"
 MIGRATION_WORKITEM_PATH = Path("docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md")
-MIGRATION_WORKITEM_SHA256 = "f2d83006864fd59687daed8952fd0cdb4625c7e4ea95715391c30a268e006d5c"
+MIGRATION_WORKITEM_SHA256 = "96330133587a137575efa76af5b0f71cddfe58ccd1c0ded3b4866ca58a75a227"
 DATASOURCE_ADAPTER_PATH = Path("foggy-dataset/src/test/resources/application.yml")
 DATASOURCE_ADAPTER_SHA256 = "9500cd4d50930b121a36798857cd0a1cc0c8b2190b0a2fc9ad0ea464394bb256"
+DATABASE_CONSUMER_ADDITION_SOURCE_PATH = Path(
+    "foggy-dataset/src/test/java/com/foggyframework/dataset/fun/DatasetJdbcUtilsTest.java"
+)
+DATABASE_CONSUMER_ADDITION_SOURCE_SHA256 = "74159d7ab93c6638d9a7b8a849f65615e157fa0bd52db11d91073fa0148598e4"
 REACTOR_FREEZE_PATH = Path("scripts/v934/contract-freeze.json")
 REACTOR_FREEZE_SHA256 = "ff418e04f6a938a853ce7bbd0700223627f42520705530e819a53e5591e82876"
 FROZEN_REACTOR_SHA256 = "eff20373aa46e0c25747172ce1c2c59630451870335b175406ebedd361bb1809"
@@ -129,7 +133,7 @@ EXPECTED_SNAPSHOT = {
     "row_count": 0,
 }
 
-EXCEPTION_EXECUTION_KEYS = (
+HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS = (
     "v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest",
     "v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest",
     "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest",
@@ -137,7 +141,15 @@ EXCEPTION_EXECUTION_KEYS = (
     "v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest",
     "v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest",
 )
-EXCEPTION_PARENT_METADATA = {
+DATABASE_CONSUMER_ADDITION_EXECUTION_KEY = (
+    "v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest"
+)
+KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS = (
+    HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[0],
+    DATABASE_CONSUMER_ADDITION_EXECUTION_KEY,
+    *HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[1:],
+)
+PARENT_METADATA_EXPECTED = {
     "runner": "surefire",
     "lane": "unit",
     "variant_key": "unit",
@@ -147,15 +159,29 @@ EXCEPTION_PARENT_METADATA = {
     "required": "true",
     "owner": "foggy-dataset",
 }
-EXCEPTION_TESTCASE_NODES = {
-    EXCEPTION_EXECUTION_KEYS[0]: 2,
-    EXCEPTION_EXECUTION_KEYS[1]: 4,
-    EXCEPTION_EXECUTION_KEYS[2]: 1,
-    EXCEPTION_EXECUTION_KEYS[3]: 2,
-    EXCEPTION_EXECUTION_KEYS[4]: 1,
-    EXCEPTION_EXECUTION_KEYS[5]: 1,
+HISTORICAL_OBSERVED_FAILURE_TESTCASE_NODES = {
+    HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[0]: 2,
+    HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[1]: 4,
+    HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[2]: 1,
+    HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[3]: 2,
+    HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[4]: 1,
+    HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS[5]: 1,
+}
+KNOWN_DATABASE_CONSUMER_TESTCASE_NODES = {
+    KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS[0]: 2,
+    KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS[1]: 1,
+    KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS[2]: 4,
+    KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS[3]: 1,
+    KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS[4]: 2,
+    KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS[5]: 1,
+    KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS[6]: 1,
 }
 NEGATIVE_PROBE_SPECS = (
+    ("contract-historical-current-set-confusion", "E_CONTRACT"),
+    ("contract-known-seventh-key-omission", "E_CONTRACT"),
+    ("contract-seventh-node-cardinality-tamper", "E_CONTRACT"),
+    ("contract-step2-inventory-row-mutation", "E_CONTRACT"),
+    ("contract-source-catch-log-regression", "E_CONTRACT"),
     ("extra-manifest-field", "E_SCHEMA"),
     ("wrong-fixture-run", "E_IDENTITY"),
     ("wrong-project", "E_IDENTITY"),
@@ -444,6 +470,7 @@ def repo_root(value: Path) -> Path:
         STEP2_EXECUTION_PATH,
         STEP2_DISCOVERY_PATH,
         MIGRATION_WORKITEM_PATH,
+        DATABASE_CONSUMER_ADDITION_SOURCE_PATH,
         REACTOR_FREEZE_PATH,
         Path("pom.xml"),
     ):
@@ -453,7 +480,7 @@ def repo_root(value: Path) -> Path:
 
 def expected_fixture_contract() -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "v934-step4-unit-mysql57-fixture-contract",
         "status": "confirmed-remediation-exception",
         "parent_inventory": {
@@ -485,12 +512,31 @@ def expected_fixture_contract() -> dict[str, Any]:
             "lane_reports": 681,
             "lane_structural_reports": 55,
             "lane_testcase_nodes": 4941,
-            "known_hidden_dependency_reports": 6,
-            "known_hidden_dependency_testcase_nodes": 11,
         },
-        "execution_keys": list(EXCEPTION_EXECUTION_KEYS),
-        "execution_testcase_nodes": EXCEPTION_TESTCASE_NODES,
-        "parent_metadata_expected": EXCEPTION_PARENT_METADATA,
+        "historical_observed_failure": {
+            "run_id": "step4-coverage-20260716-diagnostic-r7",
+            "reports": 6,
+            "testcase_nodes": 11,
+            "semantics": "immutable-observed-failure-set-not-current-consumer-inventory",
+            "execution_keys": list(HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS),
+            "execution_testcase_nodes": HISTORICAL_OBSERVED_FAILURE_TESTCASE_NODES,
+        },
+        "known_database_consumers": {
+            "reports_minimum": 7,
+            "testcase_nodes_minimum": 12,
+            "semantics": "reviewed-lower-bound-not-exhaustive",
+            "execution_keys": list(KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS),
+            "execution_testcase_nodes": KNOWN_DATABASE_CONSUMER_TESTCASE_NODES,
+            "reviewed_addition": {
+                "execution_key": DATABASE_CONSUMER_ADDITION_EXECUTION_KEY,
+                "testcase_nodes": 1,
+                "source": {
+                    "path": DATABASE_CONSUMER_ADDITION_SOURCE_PATH.as_posix(),
+                    "raw_sha256": DATABASE_CONSUMER_ADDITION_SOURCE_SHA256,
+                },
+            },
+        },
+        "parent_metadata_expected": PARENT_METADATA_EXPECTED,
         "invariants": {
             "frozen_unit_execution_keys": "unchanged-681",
             "single_maven_invocation": True,
@@ -510,7 +556,7 @@ def expected_fixture_contract() -> dict[str, Any]:
         "supersession": {
             "parent_identity_and_cardinality": "retained-as-step2-structure",
             "parent_correctness_evidence": "replaced-by-fresh-step4-unit-for-entire-lane",
-            "parent_infra_classification": "known-six-recorded;fixture-authority-applies-to-full-unit-invocation",
+            "parent_infra_classification": "historical-observed-failure-6/11;known-consumer-lower-bound-7/12;fixture-authority-applies-to-full-unit-invocation",
             "step2_historical_green": "structure-only-not-correctness-reusable-for-unit-lane",
             "migration_followup": "docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md",
             "migration_gate": "must-close-before-9.3.5-version-acceptance",
@@ -519,53 +565,203 @@ def expected_fixture_contract() -> dict[str, Any]:
     }
 
 
-def validate_fixture_contract(root: Path) -> dict[str, Any]:
-    require(sha256_file(root / FIXTURE_CONTRACT_PATH) == FIXTURE_CONTRACT_SHA256, "E_CONTRACT", "Unit MySQL fixture contract hash differs")
-    contract = strict_json(root / FIXTURE_CONTRACT_PATH)
-    require(contract == expected_fixture_contract(), "E_CONTRACT", "Unit MySQL fixture contract differs")
+def validate_fixture_contract_payload(value: Any) -> dict[str, Any]:
+    expected = expected_fixture_contract()
+    contract = exact_keys(value, set(expected), "E_CONTRACT", "Unit MySQL fixture contract")
     require(
-        sha256_file(root / STEP2_EXECUTION_PATH) == contract["parent_inventory"]["sha256"],
+        type(contract["schema_version"]) is int and contract["schema_version"] == 2,
         "E_CONTRACT",
-        "fixture parent execution inventory hash differs",
+        "Unit MySQL fixture contract schema differs",
+    )
+
+    historical = exact_keys(
+        contract["historical_observed_failure"],
+        {"run_id", "reports", "testcase_nodes", "semantics", "execution_keys", "execution_testcase_nodes"},
+        "E_CONTRACT",
+        "historical observed failure",
+    )
+    historical_keys = historical["execution_keys"]
+    historical_nodes = historical["execution_testcase_nodes"]
+    require(
+        type(historical_keys) is list
+        and all(type(key) is str for key in historical_keys)
+        and len(set(historical_keys)) == len(historical_keys)
+        and tuple(historical_keys) == HISTORICAL_OBSERVED_FAILURE_EXECUTION_KEYS,
+        "E_CONTRACT",
+        "historical observed failure key set differs",
     )
     require(
-        sha256_file(root / STEP2_DISCOVERY_PATH) == contract["discovery_inventory"]["sha256"],
+        type(historical_nodes) is dict
+        and all(type(key) is str and type(nodes) is int and nodes > 0 for key, nodes in historical_nodes.items())
+        and historical_nodes == HISTORICAL_OBSERVED_FAILURE_TESTCASE_NODES,
         "E_CONTRACT",
-        "fixture parent discovery inventory hash differs",
+        "historical observed failure nodes differ",
     )
     require(
-        sha256_file(root / MIGRATION_WORKITEM_PATH) == contract["migration_workitem"]["sha256"],
+        historical["run_id"] == "step4-coverage-20260716-diagnostic-r7"
+        and historical["semantics"] == "immutable-observed-failure-set-not-current-consumer-inventory"
+        and type(historical["reports"]) is int
+        and historical["reports"] == len(historical_keys) == 6
+        and type(historical["testcase_nodes"]) is int
+        and historical["testcase_nodes"] == sum(historical_nodes.values()) == 11,
         "E_CONTRACT",
-        "fixture migration workitem hash differs",
+        "historical observed failure authority differs",
     )
-    validate_datasource_adapter_scope(root)
+
+    consumers = exact_keys(
+        contract["known_database_consumers"],
+        {"reports_minimum", "testcase_nodes_minimum", "semantics", "execution_keys", "execution_testcase_nodes", "reviewed_addition"},
+        "E_CONTRACT",
+        "known database consumers",
+    )
+    consumer_keys = consumers["execution_keys"]
+    consumer_nodes = consumers["execution_testcase_nodes"]
+    require(
+        type(consumer_keys) is list
+        and all(type(key) is str for key in consumer_keys)
+        and len(set(consumer_keys)) == len(consumer_keys)
+        and tuple(consumer_keys) == KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS,
+        "E_CONTRACT",
+        "known database consumer key set differs",
+    )
+    require(
+        type(consumer_nodes) is dict
+        and all(type(key) is str and type(nodes) is int and nodes > 0 for key, nodes in consumer_nodes.items())
+        and consumer_nodes == KNOWN_DATABASE_CONSUMER_TESTCASE_NODES,
+        "E_CONTRACT",
+        "known database consumer nodes differ",
+    )
+    require(
+        consumers["semantics"] == "reviewed-lower-bound-not-exhaustive"
+        and type(consumers["reports_minimum"]) is int
+        and consumers["reports_minimum"] == len(consumer_keys) == 7
+        and type(consumers["testcase_nodes_minimum"]) is int
+        and consumers["testcase_nodes_minimum"] == sum(consumer_nodes.values()) == 12,
+        "E_CONTRACT",
+        "known database consumer lower bound differs",
+    )
+
+    addition = exact_keys(
+        consumers["reviewed_addition"],
+        {"execution_key", "testcase_nodes", "source"},
+        "E_CONTRACT",
+        "reviewed database consumer addition",
+    )
+    source = exact_keys(
+        addition["source"],
+        {"path", "raw_sha256"},
+        "E_CONTRACT",
+        "reviewed database consumer source",
+    )
+    require(
+        addition["execution_key"] == DATABASE_CONSUMER_ADDITION_EXECUTION_KEY
+        and type(addition["testcase_nodes"]) is int
+        and addition["testcase_nodes"] == 1
+        and consumer_nodes.get(addition["execution_key"]) == addition["testcase_nodes"],
+        "E_CONTRACT",
+        "reviewed database consumer addition identity differs",
+    )
+    require(
+        source["path"] == DATABASE_CONSUMER_ADDITION_SOURCE_PATH.as_posix()
+        and source["raw_sha256"] == DATABASE_CONSUMER_ADDITION_SOURCE_SHA256
+        and type(source["raw_sha256"]) is str
+        and SHA256_RE.fullmatch(source["raw_sha256"]) is not None,
+        "E_CONTRACT",
+        "reviewed database consumer source binding differs",
+    )
+    historical_key_set = set(historical_keys)
+    consumer_key_set = set(consumer_keys)
+    require(
+        historical_key_set < consumer_key_set
+        and consumer_key_set - historical_key_set == {DATABASE_CONSUMER_ADDITION_EXECUTION_KEY},
+        "E_CONTRACT",
+        "historical failures must be a strict subset with exactly the reviewed addition",
+    )
+    require(
+        all(consumer_nodes.get(key) == nodes for key, nodes in historical_nodes.items()),
+        "E_CONTRACT",
+        "historical failure nodes must be an unchanged subset of known consumers",
+    )
+    require(
+        json_bytes(contract) == json_bytes(expected),
+        "E_CONTRACT",
+        "Unit MySQL fixture contract differs",
+    )
+    return contract
+
+
+def validate_database_consumer_repository_bindings(root: Path, contract: Mapping[str, Any]) -> None:
+    execution_path = root / Path(contract["parent_inventory"]["path"])
+    discovery_path = root / Path(contract["discovery_inventory"]["path"])
+    source_binding = contract["known_database_consumers"]["reviewed_addition"]["source"]
+    source_path = root / Path(source_binding["path"])
+    require(
+        sha256_file(source_path) == source_binding["raw_sha256"],
+        "E_CONTRACT",
+        "reviewed database consumer source hash differs",
+    )
     try:
-        inventory_text = stable_file_bytes(root / STEP2_EXECUTION_PATH, "E_CONTRACT").decode("utf-8", errors="strict")
+        inventory_text = stable_file_bytes(execution_path, "E_CONTRACT").decode("utf-8", errors="strict")
         rows = list(csv.DictReader(io.StringIO(inventory_text), delimiter="\t"))
     except (UnicodeError, csv.Error) as exc:
         reject("E_CONTRACT", f"cannot read fixture parent inventory: {exc.__class__.__name__}")
-    selected = {row.get("execution_key", ""): row for row in rows if row.get("execution_key", "") in EXCEPTION_EXECUTION_KEYS}
-    require(tuple(sorted(selected)) == EXCEPTION_EXECUTION_KEYS, "E_CONTRACT", "fixture execution key set differs")
-    for key in EXCEPTION_EXECUTION_KEYS:
+    selected = {
+        row.get("execution_key", ""): row
+        for row in rows
+        if row.get("execution_key", "") in KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS
+    }
+    require(
+        tuple(sorted(selected)) == KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS,
+        "E_CONTRACT",
+        "fixture execution key set differs",
+    )
+    for key in KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS:
         row = selected[key]
         require(
-            all(row.get(field) == expected for field, expected in EXCEPTION_PARENT_METADATA.items()),
+            all(row.get(field) == expected for field, expected in PARENT_METADATA_EXPECTED.items()),
             "E_CONTRACT",
             f"parent metadata differs for {key}",
         )
     try:
-        discovery_text = stable_file_bytes(root / STEP2_DISCOVERY_PATH, "E_CONTRACT").decode("utf-8", errors="strict")
+        discovery_text = stable_file_bytes(discovery_path, "E_CONTRACT").decode("utf-8", errors="strict")
         discovery_rows = list(csv.DictReader(io.StringIO(discovery_text), delimiter="\t"))
     except (UnicodeError, csv.Error) as exc:
         reject("E_CONTRACT", f"cannot read fixture discovery inventory: {exc.__class__.__name__}")
     discovery_by_fqcn = {row.get("report_fqcn", ""): row for row in discovery_rows}
     observed_nodes: dict[str, int] = {}
-    for key in EXCEPTION_EXECUTION_KEYS:
+    for key in KNOWN_DATABASE_CONSUMER_EXECUTION_KEYS:
         fqcn = selected[key].get("report_fqcn", "")
         row = discovery_by_fqcn.get(fqcn)
         require(row is not None and row.get("discovered_test_nodes", "").isdigit(), "E_CONTRACT", f"missing discovery cardinality for {key}")
         observed_nodes[key] = int(row["discovered_test_nodes"])
-    require(observed_nodes == EXCEPTION_TESTCASE_NODES and sum(observed_nodes.values()) == 11, "E_CONTRACT", "known hidden dependency cardinality differs")
+    require(
+        observed_nodes == KNOWN_DATABASE_CONSUMER_TESTCASE_NODES
+        and sum(observed_nodes.values()) == 12,
+        "E_CONTRACT",
+        "known database consumer cardinality differs",
+    )
+    require(
+        sha256_file(execution_path) == contract["parent_inventory"]["sha256"],
+        "E_CONTRACT",
+        "fixture parent execution inventory hash differs",
+    )
+    require(
+        sha256_file(discovery_path) == contract["discovery_inventory"]["sha256"],
+        "E_CONTRACT",
+        "fixture parent discovery inventory hash differs",
+    )
+
+
+def validate_fixture_contract(root: Path) -> dict[str, Any]:
+    require(sha256_file(root / FIXTURE_CONTRACT_PATH) == FIXTURE_CONTRACT_SHA256, "E_CONTRACT", "Unit MySQL fixture contract hash differs")
+    contract = validate_fixture_contract_payload(strict_json(root / FIXTURE_CONTRACT_PATH))
+    require(
+        sha256_file(root / MIGRATION_WORKITEM_PATH) == contract["migration_workitem"]["sha256"],
+        "E_CONTRACT",
+        "fixture migration workitem hash differs",
+    )
+    validate_database_consumer_repository_bindings(root, contract)
+    validate_datasource_adapter_scope(root)
     return contract
 
 
@@ -1798,6 +1994,115 @@ def command_negative(args: argparse.Namespace) -> None:
         require(actual == code, "E_NEGATIVE", f"probe {name} actual={actual} expected={code}")
         probes.append({"probe": name, "expected_error": code, "actual_error": actual, "status": "passed"})
 
+    def contract_probe(name: str, mutate: Callable[[dict[str, Any]], None]) -> None:
+        candidate = json.loads(json.dumps(expected_fixture_contract()))
+        mutate(candidate)
+        direct_probe(name, "E_CONTRACT", lambda: validate_fixture_contract_payload(candidate))
+
+    def confuse_historical_and_current_sets(payload: dict[str, Any]) -> None:
+        historical = payload["historical_observed_failure"]
+        consumers = payload["known_database_consumers"]
+        historical.update({
+            "reports": consumers["reports_minimum"],
+            "testcase_nodes": consumers["testcase_nodes_minimum"],
+            "execution_keys": list(consumers["execution_keys"]),
+            "execution_testcase_nodes": dict(consumers["execution_testcase_nodes"]),
+        })
+
+    def omit_seventh_consumer(payload: dict[str, Any]) -> None:
+        consumers = payload["known_database_consumers"]
+        consumers["execution_keys"].remove(DATABASE_CONSUMER_ADDITION_EXECUTION_KEY)
+        consumers["execution_testcase_nodes"].pop(DATABASE_CONSUMER_ADDITION_EXECUTION_KEY)
+
+    def tamper_seventh_consumer_cardinality(payload: dict[str, Any]) -> None:
+        consumers = payload["known_database_consumers"]
+        consumers["testcase_nodes_minimum"] = 13
+        consumers["execution_testcase_nodes"][DATABASE_CONSUMER_ADDITION_EXECUTION_KEY] = 2
+        consumers["reviewed_addition"]["testcase_nodes"] = 2
+
+    contract_probe(
+        "contract-historical-current-set-confusion",
+        confuse_historical_and_current_sets,
+    )
+    contract_probe(
+        "contract-known-seventh-key-omission",
+        omit_seventh_consumer,
+    )
+    contract_probe(
+        "contract-seventh-node-cardinality-tamper",
+        tamper_seventh_consumer_cardinality,
+    )
+
+    def copied_repository_binding_probe(mutate: Callable[[Path], None]) -> None:
+        source_root = Path(__file__).resolve(strict=True).parents[3]
+        with tempfile.TemporaryDirectory(prefix="v934-unit-mysql-contract-negative-") as temporary_name:
+            copied_root = Path(temporary_name).resolve(strict=True)
+            for relative in (
+                STEP2_EXECUTION_PATH,
+                STEP2_DISCOVERY_PATH,
+                DATABASE_CONSUMER_ADDITION_SOURCE_PATH,
+            ):
+                source = regular_file(source_root / relative, "E_NEGATIVE")
+                destination = copied_root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, destination, follow_symlinks=False)
+            contract = validate_fixture_contract_payload(expected_fixture_contract())
+            validate_database_consumer_repository_bindings(copied_root, contract)
+            mutate(copied_root)
+            validate_database_consumer_repository_bindings(copied_root, contract)
+
+    def mutate_step2_inventory_row(copied_root: Path) -> None:
+        path = copied_root / STEP2_EXECUTION_PATH
+        lines = stable_file_bytes(path, "E_NEGATIVE").decode("utf-8", errors="strict").splitlines(keepends=True)
+        header = lines[0].rstrip("\r\n").split("\t")
+        execution_key_index = header.index("execution_key")
+        db_kind_index = header.index("db_kind")
+        matches = 0
+        for index, line in enumerate(lines[1:], start=1):
+            body = line.rstrip("\r\n")
+            ending = line[len(body):]
+            fields = body.split("\t")
+            if fields[execution_key_index] == DATABASE_CONSUMER_ADDITION_EXECUTION_KEY:
+                if fields[db_kind_index] != "none":
+                    raise RuntimeError("unexpected DatasetJdbcUtilsTest db_kind before negative mutation")
+                fields[db_kind_index] = "mysql57"
+                lines[index] = "\t".join(fields) + ending
+                matches += 1
+        if matches != 1:
+            raise RuntimeError(f"DatasetJdbcUtilsTest Step2 row count differs: {matches}")
+        path.write_bytes("".join(lines).encode("utf-8"))
+
+    def mutate_source_to_catch_log_regression(copied_root: Path) -> None:
+        path = copied_root / DATABASE_CONSUMER_ADDITION_SOURCE_PATH
+        payload = stable_file_bytes(path, "E_NEGATIVE")
+        original = (
+            b"            Assertions.assertFalse(resultSet.next());\n"
+            b"        }\n"
+            b"    }\n"
+            b"}\n"
+        )
+        regression = (
+            b"            Assertions.assertFalse(resultSet.next());\n"
+            b"        } catch (SQLException e) {\n"
+            b"            e.printStackTrace();\n"
+            b"        }\n"
+            b"    }\n"
+            b"}\n"
+        )
+        if payload.count(original) != 1:
+            raise RuntimeError("DatasetJdbcUtilsTest fail-closed source boundary differs")
+        path.write_bytes(payload.replace(original, regression, 1))
+
+    direct_probe(
+        "contract-step2-inventory-row-mutation",
+        "E_CONTRACT",
+        lambda: copied_repository_binding_probe(mutate_step2_inventory_row),
+    )
+    direct_probe(
+        "contract-source-catch-log-regression",
+        "E_CONTRACT",
+        lambda: copied_repository_binding_probe(mutate_source_to_catch_log_regression),
+    )
     probe("extra-manifest-field", "E_SCHEMA", lambda p: p.__setitem__("forged", True))
     probe("wrong-fixture-run", "E_IDENTITY", lambda p: p.__setitem__("fixture_run_id", "unit-mysql57-forged"))
     probe("wrong-project", "E_IDENTITY", lambda p: p.__setitem__("project", "forged"))
@@ -1937,7 +2242,7 @@ def command_negative(args: argparse.Namespace) -> None:
     receipt_probe(lambda p: p.__setitem__("forged", True))
     output = args.output.expanduser().absolute()
     atomic_publish(output, json_bytes(payload))
-    print(f"{PREFIX} negative PASS probes={len(probes)}/{len(probes)} receipt-schema=4/4 connection-schema=8/8 profile-boundary=6/6 publisher=3/3 output={output}")
+    print(f"{PREFIX} negative PASS probes={len(probes)}/{len(probes)} contract-payload=5/5 receipt-schema=4/4 connection-schema=8/8 profile-boundary=6/6 publisher=3/3 output={output}")
 
 
 def validate_negative_receipt(payload: Any) -> dict[str, Any]:

@@ -968,3 +968,25 @@ code_inventory:
   execution/report identities、production/POM、exec ledger、critical set、floors、exclusions；
 - current inventory authorizes only new Cdiag/fresh diagnostic-r25；formal-r7/r24/Cfreeze are historical，
   Step 5–7/9.3.5 closed。
+
+## Unit MySQL 7/12 remediation inventory（2026-07-19）
+
+- immutable historical inventory 保留 r7=`6 reports / 11 errors`；follow-up source/runtime inventory
+  新确认 `foggy-dataset` 的
+  `DatasetJdbcUtilsTest#getOrCreateDataSource`（`1` node）也会真实连接并执行 `SELECT 1`，但旧
+  `catch SQLException + printStackTrace` 会吞掉连接失败。current known consumer lower bound 因此为
+  `7 execution reports / 12 testcase nodes`；
+- execution/discovery cardinality delta=`0`：完整 Unit 仍为
+  `681 positive + 55 structural / 4,941 testcase`，新增的是已存在节点的 failure oracle 与 consumer
+  classification，不是新增 report/testcase；
+- remediation inventory 包含该 test assertion、`7/12` fixture consumer contract/tool binding 及其
+  Step 4→Step 6 hash closure；fixture negative target 更新为 `42/42`，真实 lifecycle 保持 `5/5`。
+  r7 文档和 raw observed `6/11` 不在改写范围；
+- r25 inventory：run=`step4-coverage-20260719-diagnostic-r25`，tested HEAD=
+  `5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`，all-lane/public validation 已通过；由于 tested bytes
+  尚未包含上述 assertion/contract remediation，该 run exact classified 为
+  `pre-remediation / superseded / non-candidate`，不得转为 candidate/capsule/review/freeze input；
+- current inventory 只授权修复后的 new Cdiag→fresh diagnostic-r26→new candidate/review→
+  direct-child Cfreeze→fresh formal-r8（或下一可用 formal ID）→post gates。Unit MySQL
+  replacement 9.3.4 formal chain 完成前，Step 5–7/9.3.5 closed；9.3.4 签收后，9.3.5 只授权
+  Gate 0 classification-debt migration，债务关闭前 version acceptance closed。

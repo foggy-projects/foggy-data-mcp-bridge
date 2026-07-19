@@ -983,3 +983,25 @@ coverage audit 与 acceptance 保持关闭。
   parent/sibling catalog absent 的 isolated clone 复验 focused method与全类；
 - authority negative必须证明 repo-local missing、single-byte tamper、仅有仓外诱饵均在 Docker/tests 前拒绝；
 - full GREEN只能来自 fresh diagnostic-r25 和 fresh formal-r8；r7/r24 results 不可拼接。
+
+## Superseding Unit MySQL 7/12 regression test boundary（2026-07-19）
+
+- historical oracle 保留 r7 raw result=`6 reports / 11 errors`；另以 source/runtime consumer audit
+  验证 current lower bound=`7 reports / 12 nodes`，其中新增 positive identity 为
+  `DatasetJdbcUtilsTest#getOrCreateDataSource / 1 node`。两组数字语义不同，测试不得相互覆盖；
+- `getOrCreateDataSource` regression 必须让 datasource reuse 与真实 `SELECT 1` 连接/结果断言都成为
+  required assertion；错误 credentials、连接拒绝或查询错误必须形成 test failure，禁止
+  `catch SQLException + printStackTrace` 后继续绿色；
+- Unit fixture contract negatives 的新 exact oracle=`42/42`，至少覆盖 historical/current 字段混淆、
+  第 7 key/node 缺失或篡改、consumer inventory 漂移与假绿异常吞噬；真实 signal/exit cleanup
+  lifecycle oracle 继续为 `5/5`；
+- focused consumer regression、negative 与 lifecycle PASS 只证明 remediation quality，不替代完整
+  Unit。fresh full Unit 仍须 exact `681+55/4941/F0E0S0`，且同一 replacement run 继续满足
+  connection receipt、profile isolation、source/report/exec/provenance 和 cleanup oracles；
+- r25 在 `5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7` 上的 all-lane/public validation 结果仅作为
+  pre-remediation diagnostic evidence 保存，classification=`superseded / non-candidate`，不得与修复后
+  focused 或 formal evidence 拼接；
+- 修复后的动态测试顺序固定为 new Cdiag→fresh diagnostic-r26→candidate/review→direct-child
+  Cfreeze→fresh formal-r8（或下一可用 formal ID）→post gates。replacement formal chain 完成前，
+  Step 5/9.3.5 保持 closed；9.3.4 签收后，9.3.5 只能先运行 Gate 0 debt migration，债务关闭前
+  9.3.5 acceptance 仍不得执行。

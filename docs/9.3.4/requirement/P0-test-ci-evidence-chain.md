@@ -724,3 +724,27 @@ updated_at: 2026-07-19
 - runner seal/hash closure 属 mandatory authority input；任何漏级联均阻断 Cdiag；
 - definition of done 改为 clean/pushed Cdiag→fresh r25→review/Cfreeze→fresh formal-r8→final
   quality/audit/acceptance。此前 `can_enter_step5=no`、9.3.5 closed。
+
+## Superseding Unit MySQL 7/12 remediation requirement boundary（2026-07-19）
+
+- r7 的 `6 reports / 11 errors` 是不可变的 observed-failure fact，只描述当次 Maven error set；
+  follow-up source/runtime audit 另确认第 7 个真实消费者
+  `DatasetJdbcUtilsTest#getOrCreateDataSource`（`1` testcase node）。旧实现捕获
+  `SQLException` 后仅 `printStackTrace`，连接失败仍可让 Surefire 伪绿，因此不得把 r7 的 `6/11`
+  解释为消费者全集；
+- current known database-consumer lower bound 必须至少为 `7 execution reports / 12 testcase nodes`，
+  并与 historical observed failure=`6/11` 分字段持久化。发现更多消费者时仍须 fail closed、扩充机器
+  契约并重跑正式链，禁止通过 catch-and-log、降级断言或只重跑已知失败集制造绿色；
+- 修复不得改变 frozen Unit execution authority：完整 Unit 仍须由唯一 Maven invocation 产生
+  `681 positive + 55 structural / 4,941 testcase / F0E0S0`。Unit fixture negatives 的新验收值为
+  `42/42`，真实 lifecycle 保持 `5/5`；
+- `step4-coverage-20260719-diagnostic-r25` 在 HEAD
+  `5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7` 上虽已 full-chain public-valid，但发生于上述
+  消费者断言与 `7/12` 契约修复前，必须永久标记为
+  `pre-remediation / superseded / non-candidate`，不得生成或复用其 candidate、threshold review 或
+  freeze authority；
+- 修复后的唯一授权顺序为 new clean/pushed Cdiag→fresh diagnostic-r26→new candidate/review→
+  direct-child Cfreeze→fresh formal-r8（若该 ID 已被占用则使用下一可用 formal ID）→post gates。
+  9.3.4 replacement formal/post-gate chain 全部 PASS 前，`can_enter_step5=no`，9.3.5 保持 closed。
+  9.3.4 签收后，9.3.5 只允许先执行 Gate 0 的 classification-debt migration；该债务关闭前
+  9.3.5 version acceptance 仍保持 closed。

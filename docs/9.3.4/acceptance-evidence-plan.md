@@ -27,7 +27,7 @@ updated_at: 2026-07-19
 | reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r22 retained；NUL-token recovery inventory reviewed；Step 5–7 execution closed |
 | implementation plan | `implementation-plan.md` | ready |
 | progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Step 4 replacement Cdiag / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r24/Cfreeze retained；formal-r7 portability failure excluded；repo-contained remediation focused GREEN，Cdiag→diagnostic-r25→formal-r8 pending |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r24/Cfreeze retained；formal-r7 portability failure excluded；r25 public-valid but superseded/non-candidate；Unit MySQL 7/12 remediation→new Cdiag→diagnostic-r26→formal-r8 pending |
 | Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；historical Step 4 retained；replacement Step 4 pending；Steps 5–6 closed |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r6 recovery quality=`0/0/0/0`；replacement post-formal quality pending |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement audit closed until formal-r8 |
@@ -585,3 +585,16 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
   formal delta、cleanup 与 per-entry provenance；敏感扫描 PASS；
 - repo-local catalog、tracked blob/SHA preflight、lifecycle seal/hash closure 与 focused 14/0/0/0 只构成
   remediation input；acceptance 必须等待 Cdiag→r25→new Cfreeze→formal-r8→三后置门。
+
+## Superseding diagnostic-r25 Unit MySQL 7/12 acceptance boundary（2026-07-19）
+
+- r25 在 Cdiag `5aaffbb4…` 上完整通过并获 public `DIAGNOSTIC VALID`，但 follow-up audit 证明
+  r25-tested schema 1 将 immutable r7 failure set `6/11` 误作 current consumer set；真实 reviewed
+  lower bound 至少为 `7 reports / 12 nodes`；
+- `DatasetJdbcUtilsTest#getOrCreateDataSource` 的旧 catch-and-log 可产生假绿。测试 oracle、schema 2
+  contract、42/42 negatives、LF source binding 与 Step4→Step6 hash closure 构成新 remediation input；
+- r25 exact classified 为 `pre-remediation / superseded / non-candidate`，不得生成或复用其
+  candidate/capsule/Cfreeze；acceptance 必须等待 new Cdiag→fresh r26→candidate/review→direct-child
+  Cfreeze→fresh formal-r8→final quality→coverage audit→acceptance；
+- 9.3.4 signoff 前 9.3.5 保持 queued。signoff 后 9.3.5 只允许先执行 Gate 0 classification-debt
+  migration，债务关闭前 9.3.5 version acceptance 仍关闭。

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "v934-step4-unit-mysql57-fixture-contract",
   "status": "confirmed-remediation-exception",
   "parent_inventory": {
@@ -12,7 +12,7 @@
   },
   "migration_workitem": {
     "path": "docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md",
-    "sha256": "f2d83006864fd59687daed8952fd0cdb4625c7e4ea95715391c30a268e006d5c"
+    "sha256": "96330133587a137575efa76af5b0f71cddfe58ccd1c0ded3b4866ca58a75a227"
   },
   "datasource_adapter": {
     "path": "foggy-dataset/src/test/resources/application.yml",
@@ -34,25 +34,60 @@
     "effective_execution_step": 4,
     "lane_reports": 681,
     "lane_structural_reports": 55,
-    "lane_testcase_nodes": 4941,
-    "known_hidden_dependency_reports": 6,
-    "known_hidden_dependency_testcase_nodes": 11
+    "lane_testcase_nodes": 4941
   },
-  "execution_keys": [
-    "v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest",
-    "v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest",
-    "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest",
-    "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest",
-    "v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest",
-    "v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest"
-  ],
-  "execution_testcase_nodes": {
-    "v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest": 2,
-    "v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest": 4,
-    "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest": 1,
-    "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest": 2,
-    "v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest": 1,
-    "v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest": 1
+  "historical_observed_failure": {
+    "run_id": "step4-coverage-20260716-diagnostic-r7",
+    "reports": 6,
+    "testcase_nodes": 11,
+    "semantics": "immutable-observed-failure-set-not-current-consumer-inventory",
+    "execution_keys": [
+      "v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest",
+      "v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest",
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest",
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest",
+      "v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest",
+      "v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest"
+    ],
+    "execution_testcase_nodes": {
+      "v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest": 2,
+      "v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest": 4,
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest": 1,
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest": 2,
+      "v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest": 1,
+      "v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest": 1
+    }
+  },
+  "known_database_consumers": {
+    "reports_minimum": 7,
+    "testcase_nodes_minimum": 12,
+    "semantics": "reviewed-lower-bound-not-exhaustive",
+    "execution_keys": [
+      "v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest",
+      "v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest",
+      "v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest",
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest",
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest",
+      "v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest",
+      "v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest"
+    ],
+    "execution_testcase_nodes": {
+      "v934|8:surefire|4:unit|4:unit|50:com.foggyframework.dataset.db.dialect.FDialectTest": 2,
+      "v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest": 1,
+      "v934|8:surefire|4:unit|4:unit|54:com.foggyframework.dataset.db.utils.JdbcTableUtilsTest": 4,
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.fsscript.SyncSqlTableTest": 1,
+      "v934|8:surefire|4:unit|4:unit|55:com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest": 2,
+      "v934|8:surefire|4:unit|4:unit|60:com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest": 1,
+      "v934|8:surefire|4:unit|4:unit|63:com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest": 1
+    },
+    "reviewed_addition": {
+      "execution_key": "v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest",
+      "testcase_nodes": 1,
+      "source": {
+        "path": "foggy-dataset/src/test/java/com/foggyframework/dataset/fun/DatasetJdbcUtilsTest.java",
+        "raw_sha256": "74159d7ab93c6638d9a7b8a849f65615e157fa0bd52db11d91073fa0148598e4"
+      }
+    }
   },
   "parent_metadata_expected": {
     "runner": "surefire",
@@ -83,7 +118,7 @@
   "supersession": {
     "parent_identity_and_cardinality": "retained-as-step2-structure",
     "parent_correctness_evidence": "replaced-by-fresh-step4-unit-for-entire-lane",
-    "parent_infra_classification": "known-six-recorded;fixture-authority-applies-to-full-unit-invocation",
+    "parent_infra_classification": "historical-observed-failure-6/11;known-consumer-lower-bound-7/12;fixture-authority-applies-to-full-unit-invocation",
     "step2_historical_green": "structure-only-not-correctness-reusable-for-unit-lane",
     "migration_followup": "docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md",
     "migration_gate": "must-close-before-9.3.5-version-acceptance",

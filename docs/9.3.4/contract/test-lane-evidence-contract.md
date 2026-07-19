@@ -1033,3 +1033,25 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 3. runner bytes变化必须同步 raw source seal、executable-stream seal、Step4 manifest 与 Step6 bindings；
 4. r7 永久 failed/excluded；下一链路改为 Cdiag→fresh diagnostic-r25→candidate/capsule/双审→
    direct-child Cfreeze→fresh formal-r8→post-gates。
+
+## Superseding Unit MySQL consumer-authority contract（2026-07-19）
+
+1. historical r7 observed failure 必须永久保持 `6 reports / 11 errors`，不得回写为 `7/12`；该字段
+   只表示 r7 实际进入 Maven error set 的节点，不表示所有真实数据库消费者；
+2. current known consumer contract 必须至少列出 `7 execution reports / 12 testcase nodes`。新增的
+   第 7 个 key 为 `DatasetJdbcUtilsTest#getOrCreateDataSource`、node=`1`；其旧
+   `catch (SQLException) { printStackTrace(); }` 路径属于可伪绿行为，修复后连接/查询失败必须传播为
+   test failure；
+3. fixture validator 必须同时验证 historical=`6/11` 与 known lower bound=`7/12` 的不同语义、exact
+   key/node inventory、缺失/篡改/新增消费者拒绝以及假绿回归；negative suite 必须达到 `42/42`，
+   lifecycle suite 仍须 exact `5/5`；
+4. consumer 修复与契约扩展不得新增、删除或重命名 test node。full Unit authority 保持唯一 Maven
+   invocation=`681+55/4941/F0E0S0`，并继续绑定 run-owned MySQL identity、restricted non-super
+   connection、publisher、profile isolation、cleanup 与 report inventory；
+5. r25（HEAD=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`）虽 full-chain public-valid，仍因
+   运行在本 contract 生效前而 exact classified 为 `pre-remediation / superseded / non-candidate`；
+   不得据其 counters/artifacts 进入 candidate、review 或 Cfreeze；
+6. replacement authority 必须从修复后的 new Cdiag 开始，经 fresh diagnostic-r26、new
+   candidate/review、direct-single-parent Cfreeze、fresh formal-r8（或下一可用 formal ID）和全部
+   post gates。该 formal chain 未完成时，9.3.5 closed；9.3.4 签收后，9.3.5 只允许先进入 Gate 0
+   classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。

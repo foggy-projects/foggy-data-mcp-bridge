@@ -370,3 +370,23 @@ updated_at: 2026-07-19
 - authority owner 维护 tracked blob/SHA preflight、raw/executable lifecycle seals 与 Step4→Step6 hash closure；
 - diagnostic owner 仅在 clean/pushed Cdiag 和 isolated proof 后运行 fresh r25；
 - quality/audit/acceptance、Step 5–7、9.3.5/9.4.0 owners 在 formal-r8 + post-gates PASS 前不得接管。
+
+## Superseding Unit MySQL 7/12 remediation ownership（2026-07-19）
+
+- failure-evidence owner 必须原样保留 r7 observed=`6 reports / 11 errors`；consumer-inventory owner
+  另行维护 current known lower bound=`7 reports / 12 testcase nodes`，并纳入第 7 个
+  `DatasetJdbcUtilsTest#getOrCreateDataSource / 1 node`。两个 owner 不得互相改写历史与当前字段；
+- `foggy-dataset` test owner 负责移除该节点吞掉 `SQLException` 的假绿路径，使 datasource reuse、
+  真实连接和 `SELECT 1` 结果均由 required assertions 约束；不得改变 `@Test` identity/cardinality、
+  production datasource API 或把 fixture credentials 写死进测试；
+- fixture-contract owner 负责把 consumer authority 升级到 lower-bound `7/12`，并把 negatives 扩为
+  `42/42`；lifecycle owner 保持真实 probes=`5/5`，不得以 static/focused PASS 替代完整 Unit；
+- Unit authority owner 仍须证明唯一 Maven invocation=`681+55/4941/F0E0S0` 及既有 identity、
+  receipt、profile isolation、publisher、report inventory 与 cleanup contract；
+- evidence owner 将 r25（HEAD=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`）永久登记为
+  `full-chain public-valid / pre-remediation / superseded / non-candidate`，candidate/review/Cfreeze owner
+  对其均无开工授权；
+- machine/Cdiag owner 完成修复和 hash closure 后，diagnostic owner 才可运行 fresh r26；随后依次由
+  candidate/review、direct-child Cfreeze、fresh formal-r8（或下一可用 formal ID）与 post-gate owners
+  接手。replacement formal/post gates 完成前，Step 5–7、9.3.5/9.4.0 owners 继续 closed/queued；
+  9.3.4 签收后，9.3.5 owner 只先接管 Gate 0 debt migration，债务关闭前 acceptance owner 无权限。

@@ -30,8 +30,8 @@ updated_at: 2026-07-19
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Step 4 formal-r7 portability recovery | [执行文档包](../9.3.4/README.md)；r24/Cfreeze 已完成，但 fresh formal-r7 正确暴露 CALCULATE catalog 仓外依赖并 fail closed；最小 repo-contained catalog + authority preflight 已完成，待 Cdiag→r25→Cfreeze→formal-r8；Steps 5–7/9.3.5 closed |
-| 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready |
+| 9.3.4 | in-progress / Step 4 Unit MySQL 7/12 authority remediation | [执行文档包](../9.3.4/README.md)；CALCULATE remediation 后的 r25 已 public-valid，但 follow-up audit 发现 known MySQL consumer contract 低记为 6/11；r25 superseded/non-candidate，schema 2/42 negatives 已修复，待 new Cdiag→r26→Cfreeze→formal-r8 |
+| 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready；开工先执行 Gate 0 classification-debt migration |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
 ## 版本边界与完成门
@@ -85,13 +85,16 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Step 4 formal-r7 portability recovery`；入口为
+当前状态：`in-progress / Step 4 Unit MySQL 7/12 authority remediation`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。历史 Cfreeze `f97483a0…` / formal-r4 的 feature
 acceptance 与 r24/Cfreeze `439aea5e…` 的 diagnostic/review 证据保留；fresh formal-r7 正确拒绝了
 未进入 bridge Git tree 的 CALCULATE parity catalog，因而永久 `failed/excluded/non-reusable`。
 repo-contained exact catalog、pre-test tracked blob/SHA gate、lifecycle seals 与 Step4→Step6 hash
-closure 已完成并把 machine 重置为 `diagnostic-ready / diagnostic-pending`。当前必须建立新的
-Cdiag，再由 fresh diagnostic-r25 重新产生可冻结 observation，随后才允许 Cfreeze 与 formal-r8。
+closure 已完成；其后的 fresh r25 在 Cdiag `5aaffbb4…` 上 public-valid，但只验证了 r25-tested
+schema 1 的 MySQL consumer set。follow-up audit 确认 `DatasetJdbcUtilsTest` 是第 7 个 consumer / 第
+12 个 node 且旧测试吞掉 `SQLException`，所以 r25 永久是
+`pre-remediation / superseded / non-candidate`。当前必须从 schema 2 / 42-negative 修复后的 new Cdiag
+运行 fresh diagnostic-r26，随后才允许 candidate/review、Cfreeze 与 formal-r8。
 
 post-formal quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`；coverage audit 在补齐同一
 tested HEAD 的 Pivot legacy companion `1/F0E0S0` 后得到 25/25 workitem covered、
@@ -153,3 +156,18 @@ Step 4 workitem 已关闭，Unit MySQL classification DEBT 继续由 9.3.5 versi
 - 下一动作是提交/push replacement Cdiag，完成 isolated positive/negative proof，并执行唯一 fresh
   diagnostic-r25；之后依次为 review/Cfreeze→fresh formal-r8。主线优先不变，安全工作仅限维持
   fail-closed gate。
+
+## 2026-07-19 diagnostic-r25 Unit MySQL 7/12 checkpoint
+
+- replacement Cdiag=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7` 与 fresh r25 已完成；public
+  observation=`01487f7e…e42a`，required=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=
+  `23/48`，source/cleanup/exact demo DB restore PASS；
+- follow-up audit 证明 r7 `6 reports / 11 errors` 只是 immutable historical failure set，current
+  known-consumer lower bound 是 `7 reports / 12 nodes`；r25 因 tested schema 1 不完整而
+  `superseded / non-candidate`，不得生成 candidate/capsule 或 freeze；
+- 测试 oracle 已改为异常传播和资源安全的 `SELECT 1` 精确断言；schema 2 分离 historical 6/11 与
+  current lower-bound 7/12，contract negatives 扩为 42/42，并固定该 Java source 为 LF；
+- pre-Cdiag machine/quality closure 已完成；下一动作是提交并 push new Cdiag，完成 isolated durable
+  proof，再运行唯一 fresh diagnostic-r26→candidate/review→Cfreeze→formal-r8→post gates。
+  9.3.4 签收后，9.3.5 只先进入
+  Gate 0 classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。

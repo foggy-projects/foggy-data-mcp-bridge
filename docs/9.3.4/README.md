@@ -43,11 +43,14 @@ updated_at: 2026-07-19
   或可复用的 reviewed aggregate baseline。
 - Step 4 historical formal-r4、final quality、coverage audit 与 feature acceptance 已按序关闭；
   decision=`accepted`，25/25 workitem closed。后续 release-authority delta 触发 replacement
-  coverage authority；r24 candidate/capsule 双审与 Cfreeze `439aea5e…` 已完成，但 fresh
-  formal-r7 因仓外 CALCULATE catalog 依赖 fail closed。current Step 4=`in-progress / formal-r7
-  portability recovery`，machine=`diagnostic-ready / diagnostic-pending`，下一链路是
-  Cdiag→fresh diagnostic-r25→Cfreeze→formal-r8；Step 5=`hold / closed`，historical acceptance
-  不构成当前 downstream 授权。
+  coverage authority；formal-r7 CALCULATE portability remediation 后的 fresh r25 已在 Cdiag
+  `5aaffbb4…` 上完整通过并获 public `DIAGNOSTIC VALID`，但 follow-up consumer audit 证明
+  Unit MySQL 已知消费者机器契约把真实 lower bound `7 reports / 12 nodes` 低记为 `6/11`。
+  r25 因而是 `pre-remediation / superseded / non-candidate`；schema 2、测试 oracle、42/42、
+  Step4/6 closure 与 pre-Cdiag quality 已完成。current Step 4=`in-progress / Unit MySQL 7/12
+  authority remediation`，下一链路是 new Cdiag push/clean→isolated durable proof→fresh
+  diagnostic-r26→Cfreeze→formal-r8。Step 5=`hold / closed`，historical
+  acceptance 和 r25 绿色观测均不构成当前 downstream 授权。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -595,7 +598,7 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r7 portability recovery | r24/Cfreeze frozen historical；fresh formal-r7 在 Integration 因仓外 CALCULATE catalog 依赖 fail closed；catalog/preflight 已最小修复，machine=`diagnostic-ready/diagnostic-pending`，pending Cdiag→r25→Cfreeze→formal-r8 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / Unit MySQL 7/12 authority remediation | r25 在 Cdiag `5aaffbb4…` 上 public-valid，但 tested schema 1 低记 consumer；schema 2、42/42、Step4/6 hash closure 与 pre-Cdiag quality 已 PASS，r25 superseded/non-candidate，pending new Cdiag→isolated proof→r26→Cfreeze→formal-r8 |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal-r8 + quality/audit/acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
@@ -677,3 +680,31 @@ Current recovery records：
 - [formal-r7 failure capsule](evidence/step-4/formal-r7-failure-capsule/manifest.json)
 - [portability blocker workitem](workitems/BUG-calculate-mvp-parity-catalog-fresh-clone-portability.md)
 - [portability recovery implementation quality](quality/step4-formal-r7-portability-recovery-implementation-quality.md)
+
+## Superseding diagnostic-r25 Unit MySQL 7/12 remediation（2026-07-19）
+
+- Cdiag=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`；fresh r25=
+  `completed / diagnostic-observed / exit 0`，public validator=`DIAGNOSTIC VALID`，observation=
+  `01487f7efd930406ffa05af9408012aa1fb215d94ba9c36c261f72c1aec7e42a`；required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`、production universe=
+  `24/2098`，source before=after、cleanup 和 exact demo DB restore 均通过；
+- follow-up consumer audit 发现第 7 个真实 MySQL consumer：
+  `DatasetJdbcUtilsTest#getOrCreateDataSource` 建立 JDBC connection 并执行 `SELECT 1`，却捕获
+  `SQLException` 后只打印 stack trace；无 listener 时它可产生伪绿；
+- r7 的 `6 reports / 11 errors` 是不可改写的历史失败观测；当前 reviewed known-consumer
+  lower bound 是 `7 reports / 12 nodes`。r25 tested schema 1 contract 的 `6/11` 因而不足以授权
+  candidate；r25 保持有效诊断观测，但被标记为 `pre-remediation / superseded / non-candidate`；
+- remediation machine closure 已完成：测试改为 `throws SQLException` + try-with-resources +
+  `SELECT 1` 精确断言；schema 2 分离 historical `6/11` 与 known lower bound `7/12`；
+  fixture negatives=`42/42`、lifecycle=`5/5`、overlay=`20/20`、Step4=`61/61`、
+  Step6=`16/16`，pre-Cdiag quality=`APPROVE / 0/0/0/0`。disposable MySQL 正/负结果仅是
+  未封存的 local observation；new Cdiag 后仍须 isolated durable proof，随后才可 fresh r26；
+- 当前不得生成 r25 candidate/capsule、不得 Cfreeze，也不得进入 Step 5、9.3.5 或 9.4.0。
+  唯一合法链路是完成修复与机器闭包→new Cdiag/push/clean→isolated proof→fresh r26→
+  candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8→后置质量/audit/acceptance。
+
+Current 7/12 remediation records：
+
+- [r25 superseded diagnostic evidence](evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md)
+- [known-consumer understatement BUG](workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md)
+- [pre-Cdiag implementation quality](quality/step4-unit-mysql712-remediation-implementation-quality.md)

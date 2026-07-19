@@ -1063,3 +1063,53 @@ r24 checkpoint：Cdiag=`414c8b12…`，r24 public-valid，aggregate=`54624/76830
 pre-Cfreeze quality 均=`PASS / 0/0/0/0`，machine=`confirmed/formal-ready`。第 8 步已完成；
 第 9 步 formal-r7 已按 fail-closed 规则终止并封存。当前只进入第 10–11 步；不得续跑 r7 或复用
 r24 evidence。
+
+## Superseding diagnostic-r25 Unit MySQL 7/12 recovery plan（2026-07-19）
+
+本节只 supersede 上方 formal-r6 recovery plan 的当前 next gate；r7 的 `6 reports / 11
+errors` 继续作为不可改写的历史观测。r25 的 all-lane 运行结果同样保持原样，但不得提升为
+candidate authority。
+
+1. [completed] portability remediation Cdiag=
+   `5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7` 已 commit/push/clean，isolated catalog
+   focused/negative proof 通过；
+2. [completed / diagnostic-only] fresh
+   `step4-coverage-20260719-diagnostic-r25` 完整退出并获 public `DIAGNOSTIC VALID`；observation=
+   `01487f7efd930406ffa05af9408012aa1fb215d94ba9c36c261f72c1aec7e42a`，required=
+   `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`、production universe=
+   `24/2098`、cleanup=`0/0/0`；
+3. [completed] follow-up read-only consumer audit 证明
+   `DatasetJdbcUtilsTest#getOrCreateDataSource` 是第 7 个真实 MySQL consumer / 第 12 个 node；
+   旧测试捕获 `SQLException` 并仅 `printStackTrace`，所以 r7 无 listener 时的 Maven error
+   集合只能观察到 `6/11`。r25-tested schema 1 contract 错误地把历史错误集合当成完整
+   known-consumer 集合；
+4. [completed] 将 r25 定性为
+   `pre-remediation / superseded / non-candidate`；禁止生成 threshold candidate、portable
+   capsule 或 Cfreeze，禁止复用其 XML/exec 与后续 run 拼接为 authority；
+5. [completed / local observation] 最小测试 oracle 修复：方法声明 `throws SQLException`，保留 datasource
+   identity 断言，并用 try-with-resources 管理 `Connection`、`PreparedStatement`、`ResultSet`；
+   对 `SELECT 1` 的列数、唯一行和值作精确断言，删除 catch/printStackTrace；同一 disposable
+   MySQL 随机端口下正向 Maven rc=`0`、XML=`1/F0E0S0`，错误密码负向 Maven rc=`1`、
+   XML=`1 test / 1 error`，一次性容器自动删除且四个 demo DB exact ID 保持 healthy。正向 XML
+   随 deliberate negative 被覆盖，故本项不作为 portable authority，isolated durable proof 仍 pending；
+6. [completed] Unit fixture machine contract 升级到 schema 2：分离 immutable
+   `historical_observed_failure=6/11` 与 reviewed
+   `known_database_consumers.reports_minimum/testcase_nodes_minimum=7/12`，纳入
+   `v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest`；
+   同步 validator、Step 4 manifest、Step4→Step6 hash closure 与必要 successor binding；
+   fixture negative=`42/42`、lifecycle=`5/5`；
+7. [completed] contract/negative/manifest/overlay/coverage/CI 全部机器校验与 pre-Cdiag
+   implementation-quality review PASS；Step4=`61/61 / 4805dd3e…`、Step6=
+   `16/16 / 84407570…`、review=`APPROVE / 0/0/0/0`；
+8. [pending] 只创建一个 new Cdiag，commit/push/clean 后运行 isolated focused/negative proof 与
+   唯一 fresh all-lane diagnostic-r26；不得复用 r25 运行产物；
+9. [pending] 仅 r26 all-lane/public validation PASS 且 7/12 contract exact 后，才可生成
+   candidate/capsule 并双审，再创建 direct-child Cfreeze、运行 fresh formal-r8；
+10. [pending] formal-r8 PASS 后按顺序运行 final quality→coverage audit→acceptance；仅全部 PASS
+    才恢复 Step 5 entry。
+
+Current Step 4=`in-progress / r25 public-valid but superseded / Unit MySQL 7/12 remediation`。
+`can_enter_cfreeze=no`、`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5–7、
+9.3.5 与 9.4.0 保持关闭。记录：
+`docs/9.3.4/evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md`、
+`docs/9.3.4/workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md`。

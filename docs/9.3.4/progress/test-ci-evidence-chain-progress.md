@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r7 portability recovery | Step 3 exit passed | formal-r7 Unit PASS 后在 Integration 因仓外 catalog fail closed；machine reset diagnostic，pending Cdiag→r25→Cfreeze→formal-r8 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / Unit MySQL 7/12 authority remediation | Step 3 exit passed | r25 public-valid but superseded/non-candidate；schema 2、42/42、Step4/6 closure、pre-Cdiag quality PASS，next=new Cdiag→isolated durable proof→r26→Cfreeze→formal-r8 |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r8 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1788,3 +1788,34 @@ formal-r6 recovery 重新关闭。
   seals与 Step4/6 hash closure同步；focused=`14/F0E0S0`；machine=`diagnostic-ready/diagnostic-pending`；
 - current：只授权 Cdiag commit/push、isolated focused/negative proof 和 fresh diagnostic-r25；Step 5–7、
   post-formal gates、9.3.5/9.4.0 closed。
+
+## Execution check-in — diagnostic-r25 public-valid / Unit MySQL 7/12 remediation（2026-07-19）
+
+- tested Cdiag=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`；run=
+  `step4-coverage-20260719-diagnostic-r25`，status=
+  `diagnostic-observed / completed / exit 0`；public validator=`DIAGNOSTIC VALID`，observation=
+  `01487f7efd930406ffa05af9408012aa1fb215d94ba9c36c261f72c1aec7e42a`；
+- lanes=`773+59/5707/F0E0S0 + Addon 2/6`，exec/session=`23/48`，production class universe=
+  `24 modules / 2098 classes`，class-universe SHA-256=
+  `e53103549fc7f4f460ca36847c82d441000c433b5619030d688a3c54d046f9b8`；source
+  before=after=`2f41810585ade813671740218a2c303b1306a14236337712ef71d3e4aa5b1677`；
+- wrapper=`runner_rc=0 / restore_rc=0 / wrapper_outcome_rc=0`；四个开跑前 demo DB container
+  original ID 均 exact 恢复为 `running/healthy`；runner cleanup=`container/volume/network 0/0/0`；
+- post-run consumer audit 发现
+  `v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest`
+  的 `getOrCreateDataSource` 会建立连接并执行 `SELECT 1`，但旧实现捕获 `SQLException` 后只
+  `printStackTrace`。因此 r7 的 `6 reports / 11 errors` 仍是 immutable historical
+  observation，而真实 known-consumer lower bound 是 `7 reports / 12 nodes`；
+- decision：r25 的 diagnostic observation 有效，但它发生在 7/12 修复前，状态=
+  `superseded / non-candidate`；candidate/capsule/Cfreeze 均不授权。schema 2 fixture contract、
+  negative=`42/42`、lifecycle=`5/5`、Step4=`61/61`、Step6=`16/16` 与 pre-Cdiag
+  quality=`APPROVE / 0/0/0/0` 已 PASS；disposable MySQL 正向/错误密码结果仅为未封存 local
+  observation，不能替代 new Cdiag 后的 isolated durable proof；
+- next=new Cdiag commit/push/clean→isolated durable positive/negative proof→
+  fresh diagnostic-r26→candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8→final
+  quality/audit/acceptance。Step 5–7、9.3.5、9.4.0 保持关闭。
+
+Records：
+
+- `docs/9.3.4/evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md`
