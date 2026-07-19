@@ -1,0 +1,23 @@
+{
+  "entry_count": 1,
+  "entries": [
+    {
+      "path": "failure-summary.json",
+      "provenance": "normalized-identity-free-summary",
+      "sha256": "9a771a2866ea375df9db5552483fea9d79ca8fa199917a8b7562b7f0a10d9d4a",
+      "size_bytes": 3066
+    }
+  ],
+  "kind": "v934-step4-formal-r9-strict-umask-failure-capsule",
+  "run_id": "step4-coverage-20260719-formal-r9",
+  "safety": {
+    "container_identity_material": "excluded",
+    "container_tsv": "excluded",
+    "outer_restore_receipt": "excluded",
+    "raw_logs": "excluded"
+  },
+  "schema_version": 1,
+  "status": "sealed-failed",
+  "tested_commit": "34cd2452c1bbe793c0567ebe23179b290227ae3d",
+  "total_size_bytes": 3066
+}

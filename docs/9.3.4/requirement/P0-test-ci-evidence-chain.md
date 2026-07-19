@@ -803,3 +803,21 @@ updated_at: 2026-07-19
 - Five fresh JVM/JaCoCo proofs must be treated only as Cdiag quality input. A clean/pushed new Cdiag and
   fresh diagnostic-r28 must reach branch >= `26112/44870` and complexity >= `17659/35571` before new
   candidate/capsule/review/Cfreeze authority exists.
+
+## Superseding formal-r9 strict-umask receipt requirement boundary（2026-07-19）
+
+- formal-r9 on Cfreeze=`34cd2452…` completed every child/report-inventory/exec prerequisite but stopped
+  fail-closed in `coverage-report` with `E_OUTPUT: unexpected output mode: 0600`; outer restore and receipt
+  succeeded. It is permanently `failed / excluded / non-reusable / non-candidate`; absent aggregate/XML/
+  observation/gate/summary/candidate/final artifacts must never be synthesized or combined with a successor.
+- The public effective-POM receipt contract remains exact `0644` under a strict `umask 077`. The publisher
+  must keep its staging inode private while writing, then descriptor-bind `0644` and fsync before no-replace
+  publication. Accepting `0600` or weakening the outer environment is forbidden.
+- The recovery is itself a governed authority-tool delta, so its changed tools cannot be added to r9's
+  formalization child. Machine state must return exactly to `diagnostic-ready / diagnostic-pending`, with
+  pending threshold bytes=`0df17a…`; r28 observations remain historical high-water only, not successor
+  evidence.
+- The only authorized successor is a clean/pushed Cdiag containing the recovery records, followed by fresh
+  diagnostic-r29 under the same strict umask, renewed high-water review/candidate/capsule/dual review,
+  direct-child Cfreeze, a new formal run, then the post-formal quality→31/31 audit→acceptance sequence.
+  Step 5–7, 9.3.5, and 9.4.0 remain closed.

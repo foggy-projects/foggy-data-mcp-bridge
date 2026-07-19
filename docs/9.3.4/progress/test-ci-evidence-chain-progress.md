@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r27 high-water recovery / Cdiag→r28 | Step 3 exit passed | r26/Cfreeze complete；formal-r8 rc126 excluded；r27 public-valid but aggregate `-1` rejected；ordered-fixture proof `5/5` PASS，next=Cdiag→r28→Cfreeze→formal-r9→post gates |
-| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until replacement formal-r9 + post-formal gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r9 strict-umask excluded / pending Cdiag | Step 3 exit passed | r9 on `34cd2452…` failed at coverage-report with `E_OUTPUT` mode `0600`; `39032229…` reset machine to `diagnostic-ready/diagnostic-pending` but is recovery baseline only; next=new clean/pushed Cdiag→fresh r29→candidate/capsule/dual review→direct-child Cfreeze→fresh formal successor→post gates |
+| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r9 exclusion/recovery reset do not enter Step 5; wait for fresh formal successor + final quality + coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -1870,4 +1870,26 @@ Records：
   high-water is branch=`26112/44870`、complexity=`17659/35571`, so r27 is `non-freezable`;
 - sole delta=`ExportWithChartTool.java:248` due to unordered test fixture. Candidate/capsule were isolated
   and are non-canonical. Ordered-test remediation and five fresh-JVM exact probe proofs are complete;
-  next=clean/pushed Cdiag -> fresh diagnostic-r28.
+  next at that checkpoint=clean/pushed Cdiag -> fresh diagnostic-r28; the formal-r9 check-in below supersedes
+  this next gate.
+
+## Execution check-in — formal-r9 strict-umask fail-closed / recovery baseline（2026-07-19）
+
+- tested Cfreeze=`34cd2452c1bbe793c0567ebe23179b290227ae3d`; fresh
+  `step4-coverage-20260719-formal-r9` ended `failed / coverage-report / exit 2`. The failure occurred after
+  report-inventory/exec validation when a strict caller umask yielded effective-POM public output mode=`0600`;
+  the reporter emitted `E_OUTPUT: unexpected output mode: 0600`.
+- r9 is immutable `failed / excluded / non-reusable / non-candidate`. Its formalization-delta and child-lane
+  observations remain failure records, while success summary/candidate/final authority is absent. Neither r28
+  reviewed material nor any r9 partial XML/exec/report output may be combined with a replacement run.
+- runner cleanup recorded `container/volume/network=0/0/0`; outer restoration recorded `restore_rc=0`.
+  These are environment-boundary observations only and do not alter Step 4, Step 5 or acceptance status.
+- recovery baseline=`390322295e1efce34399468f98076edf7fcc6f73`: explicit public receipt mode plus a strict-umask
+  negative probe, followed by reset to `coverage-contract=diagnostic-ready` and
+  `coverage-thresholds=diagnostic-pending`. This commit is not the final Cdiag; its
+  [implementation-quality record](../quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md)
+  is `ready-for-new-Cdiag` only.
+- next=one new clean/pushed Cdiag successor→fresh all-lane diagnostic-r29→new candidate/capsule/dual review→
+  direct-single-parent Cfreeze→fresh formal successor→final quality→replacement coverage audit `31/31`→
+  Step 4 feature acceptance. `can_enter_cfreeze=no / can_enter_step5=no /
+  can_enter_coverage_audit=no / can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.

@@ -1,0 +1,115 @@
+{
+  "capsule_safety": {
+    "container_identity_material": "excluded",
+    "container_tsv": "excluded",
+    "identity_fields": "excluded",
+    "raw_logs": "excluded"
+  },
+  "completed_boundary": {
+    "addon_companion": {
+      "failures": 0,
+      "reports": 2,
+      "testcase_nodes": 6,
+      "variants": 2
+    },
+    "database_matrix": {
+      "cells": 5,
+      "failures": 0,
+      "reports": 29,
+      "testcase_nodes": 370
+    },
+    "exec_inventory": {
+      "exec_files": 23,
+      "sessions": 48,
+      "status": "verified"
+    },
+    "external_matrix": {
+      "failures": 0,
+      "reports": 16,
+      "testcase_nodes": 76,
+      "variants": 7
+    },
+    "integration": {
+      "errors": 0,
+      "execution_reports": 47,
+      "failures": 0,
+      "structural_reports": 4,
+      "testcase_nodes": 320,
+      "variants": 6
+    },
+    "report_inventory": {
+      "addon_reports": 2,
+      "required_execution_reports": 773,
+      "required_structural_reports": 59,
+      "required_testcase_nodes": 5707,
+      "status": "passed"
+    },
+    "step3_required": {
+      "errors": 0,
+      "failures": 0,
+      "reports": 45,
+      "testcase_nodes": 446
+    },
+    "unit": {
+      "errors": 0,
+      "execution_reports": 681,
+      "failures": 0,
+      "structural_reports": 55,
+      "testcase_nodes": 4941
+    }
+  },
+  "failure": {
+    "code": "E_OUTPUT",
+    "failed_phase": "coverage-report",
+    "message_normalized": "unexpected output mode: 0600",
+    "observed_public_output_mode": "0600",
+    "required_public_output_mode": "0644",
+    "role": "effective-POM public receipt"
+  },
+  "kind": "v934-step4-formal-r9-strict-umask-failure-summary",
+  "run_id": "step4-coverage-20260719-formal-r9",
+  "schema_version": 1,
+  "source_artifact_digests": [
+    {
+      "role": "run-status",
+      "sha256": "797bd871da6429512790187058f1cae3b42c1239f75be186e052e025b3523e1e",
+      "size_bytes": 525,
+      "stored_in_capsule": false
+    },
+    {
+      "role": "formalization-delta",
+      "sha256": "7893f8a986fc9fc7400931de3332d3fc2eaf11f8193b2d0294677c2cbcb52f1b",
+      "size_bytes": 3176,
+      "stored_in_capsule": false
+    },
+    {
+      "role": "exec-manifest",
+      "sha256": "e1d36317f75c60a007bf2fe85a4aa1e11be408f35abd48add260ed04d0e80c5a",
+      "size_bytes": 19222,
+      "stored_in_capsule": false
+    },
+    {
+      "role": "report-inventory",
+      "sha256": "7603bcaa61420edbbeb2f2b6b53158d0197bb5ba2b8852d826ffd6547c411e71",
+      "size_bytes": 216766,
+      "stored_in_capsule": false
+    },
+    {
+      "role": "outer-wrapper-status",
+      "sha256": "728c197b10280141c68e83db5c63be8e0a4ff0b5b58a76a572a227ddcef8b5b2",
+      "size_bytes": 319,
+      "stored_in_capsule": false
+    }
+  ],
+  "status": "sealed-failed",
+  "success_artifacts": {
+    "aggregate_exec": "absent",
+    "aggregate_provenance": "absent",
+    "aggregate_xml_html": "absent",
+    "candidate_manifest": "absent",
+    "coverage_gate": "absent",
+    "final_manifest": "absent",
+    "summary": "absent"
+  },
+  "tested_commit": "34cd2452c1bbe793c0567ebe23179b290227ae3d"
+}

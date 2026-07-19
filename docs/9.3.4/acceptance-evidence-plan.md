@@ -22,19 +22,19 @@ updated_at: 2026-07-19
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；r8 rc126 excluded；report-runner fix 后 machine=`diagnostic-ready/diagnostic-pending`，new Cdiag pending |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；formal-r9 strict-umask exit=`2` excluded；recovery baseline has reset machine=`diagnostic-ready/diagnostic-pending`，new Cdiag pending |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/Cfreeze retained；formal-r8 failure capsule sealed；31st Step 4 workitem registered；Step 5–7 closed |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/r28/Cfreeze retained；formal-r8/r9 failure boundaries sealed；31st Step 4 workitem registered；Step 5–7 closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / formal-r8 recovery / ready-for-new-Cdiag / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r8 completed all child/report inventory then failed coverage dispatch rc126；failure capsule sealed；replacement r27/r9 pending |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8 permanently excluded；replacement Step 4 diagnostic/formal/post-gates pending；Steps 5–6 closed |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | formal-r8 recovery pre-Cdiag quality/code/docs review=`PASS / 0/0/0/0`；replacement post-formal quality pending |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement denominator=`31`，execution closed，pending formal-r9 + final quality；尚未形成 `31/31` 结论 |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / formal-r9 strict-umask excluded / pending new Cdiag / Step 5–7 hold |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9 stopped at coverage-report with `E_OUTPUT` mode `0600`；failure boundary sealed；replacement diagnostic-r29/formal successor pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8/r9 permanently excluded；replacement Step 4 diagnostic/formal/post-gates pending；Steps 5–6 closed |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md` | formal-r9 recovery quality is `ready-for-new-Cdiag` only, not post-formal quality; new Cdiag and replacement post-formal quality pending |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement denominator=`31`，execution closed，pending fresh formal successor + final quality；尚未形成 `31/31` 结论 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
-| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after formal-r9/post-formal gates |
+| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after fresh formal successor/post-formal gates |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | current README 与 9.3.1 authoritative roadmap 已同步 formal-r8 recovery；9.3.5 queued |
+| roadmap/status sync | `README.md` + authoritative roadmap | current README 与 9.3.1 authoritative roadmap 已同步 formal-r9 exclusion and diagnostic reset；9.3.5 queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -636,5 +636,25 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
   its non-canonical candidate/capsule cannot be promoted.
 - Test-only deterministic map ordering is pre-diagnostic remediation, proven by five fresh JVMs, but does not
   reopen quality/audit/acceptance.
-- Replacement acceptance chain begins only after new Cdiag -> fresh r28 -> new reviewed Cfreeze -> fresh
-  formal-r9. Step 5 and later versions remain closed.
+- At the r27 boundary, the replacement acceptance chain began only after new Cdiag -> fresh r28 -> new
+  reviewed Cfreeze -> fresh formal-r9. That boundary is superseded below; Step 5 and later versions remain
+  closed.
+
+## Superseding formal-r9 strict-umask acceptance boundary（2026-07-19）
+
+- formal-r9 on Cfreeze `34cd2452…` failed at `coverage-report / exit 2`: a strict caller umask published the
+  contractually public effective-POM receipt as mode `0600`, and the authoritative reporter rejected it with
+  `E_OUTPUT`. The failure is `failed / excluded / non-reusable / non-candidate`, not a conditional formal
+  result.
+- Its formalization delta, child-lane observations, cleanup and outer restoration are failure-boundary records
+  only. There is no r9 success summary/candidate/final input; r28 reviewed material and every r9 partial output
+  are forbidden from replacement acceptance composition.
+- `39032229…` is solely the recovery baseline: it makes the public receipt mode independent of caller umask,
+  adds a strict-umask negative probe and resets contract/threshold state to
+  `diagnostic-ready/diagnostic-pending`. It is not the new Cdiag, a reviewed candidate, Cfreeze or formal
+  authority.
+- Acceptance input must restart from one new clean/pushed Cdiag successor → fresh all-lane diagnostic-r29 →
+  new candidate/capsule/dual review → direct-single-parent Cfreeze → fresh formal successor → final quality →
+  coverage audit `31/31` → feature acceptance. `acceptance_status=not-started` and
+  `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no` remain in force; 9.3.5 and
+  9.4.0 are not opened.

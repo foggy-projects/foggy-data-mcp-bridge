@@ -416,7 +416,7 @@ def atomic_json(output: Path, payload: dict[str, Any]) -> None:
         descriptor = os.open(
             temporary,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o644,
+            0o600,
         )
         try:
             with os.fdopen(descriptor, "wb") as stream:

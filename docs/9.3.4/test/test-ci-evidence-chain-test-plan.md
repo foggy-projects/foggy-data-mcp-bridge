@@ -1054,3 +1054,18 @@ coverage audit 与 acceptance 保持关闭。
   Maven/Surefire/JaCoCo JVMs produced `16/F0E0S0`, line 248=`mb0/cb2`, and one identical target bitmap.
 - Next full-run test sequence is new Cdiag -> fresh diagnostic-r28 (at least r26 aggregate high-water) ->
   new candidate/capsule/dual review -> direct-child Cfreeze -> fresh formal-r9.
+
+## formal-r9 strict-umask receipt regression test boundary（2026-07-19）
+
+- reproduce the original environment with `umask 077`: an effective POM input may remain `0600`, but both
+  public effective-POM JSON receipts must be regular non-symlink files at exact `0644`; a `0600` public
+  receipt remains a fail-closed error, not an accepted variant;
+- the no-container contract-negative suite must import the real publication function under that umask, verify
+  byte-exact payload and `0644`, and fail the whole static gate on any mismatch;
+- static recovery validation must continue to prove Step4=`61/61`, Step6=`16/16`, diagnostic contract,
+  overlay, and CI workflow closure before the new Cdiag is eligible;
+- formal-r9 remains excluded even though Unit/Integration/Step3/DB/external/inventory/exec prerequisites
+  passed. Fresh diagnostic-r29 must rebuild every lane and all later artifacts; no r9 partial output is a
+  test substitute;
+- r29 must additionally meet or exceed reviewed high-water line=`54624/76830`, branch=`26112/44870`, and
+  complexity=`17659/35571` before candidate/review/Cfreeze authority can resume.

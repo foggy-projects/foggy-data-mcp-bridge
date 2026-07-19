@@ -1149,8 +1149,9 @@ migration。记录：
    acceptance；三门全部 PASS 后才恢复 Step 5 entry；
 10. [pending] 继续 Steps 5–7 与 9.3.4 version signoff，再进入 9.3.5 Gate 0；9.4.0 仍按主线顺序 queued。
 
-Current Step 4=`in-progress / formal-r8 failed + r27 high-water remediation / Cdiag→fresh-r28`。
-`can_enter_cfreeze=no / can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+At the diagnostic-r27 checkpoint, Step 4 was=`in-progress / formal-r8 failed + r27 high-water remediation /
+Cdiag→fresh-r28`；`can_enter_cfreeze=no / can_enter_step5=no / can_enter_coverage_audit=no /
+can_enter_acceptance=no`。This checkpoint is superseded by the formal-r9 boundary below.
 
 ## diagnostic-r27 ExportWithChart order remediation addendum（2026-07-19）
 
@@ -1164,3 +1165,29 @@ Current Step 4=`in-progress / formal-r8 failed + r27 high-water remediation / Cd
    bitmap identity.
 5. [pending] commit/push/clean this Cdiag, then execute one fresh diagnostic-r28. Do not create candidate,
    Cfreeze or formal authority until r28 reaches r26 high-water.
+
+## Superseding formal-r9 strict-umask recovery addendum（2026-07-19）
+
+1. [completed / historical] r28 produced reviewed material and its exact direct-child Cfreeze
+   `34cd2452c1bbe793c0567ebe23179b290227ae3d`; these are preserved only as the predecessor of formal-r9.
+2. [failed / excluded] fresh `step4-coverage-20260719-formal-r9` ended at `coverage-report / exit 2` after a
+   strict umask caused the contractually public effective-POM receipt to be published mode=`0600`; the reporter
+   emitted `E_OUTPUT: unexpected output mode: 0600`. Do not rerun, amend or reuse r9 partial output as formal
+   authority.
+3. [completed / recovery baseline] `390322295e1efce34399468f98076edf7fcc6f73` explicitly publishes the
+   receipt mode and adds a strict-umask negative probe, clears reviewed r28 observations and restores
+   `coverage-contract=diagnostic-ready` / `coverage-thresholds=diagnostic-pending`. It is expressly not the
+   final Cdiag and does not authorize a candidate, Cfreeze, formal result or post-formal gate. The corresponding
+   [implementation-quality record](quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md)
+   authorizes only the next Cdiag.
+4. [pending] create one new clean/pushed Cdiag successor containing the recovered authority documentation,
+   then run one fresh all-lane diagnostic-r29. The successor must not import r28 candidate/capsule/Cfreeze or
+   r9 child/exec/report output.
+5. [pending] only after diagnostic-r29 is independently validated may a new candidate/capsule and dual review
+   be created; only that Cdiag's direct-single-parent Cfreeze may start a fresh formal successor.
+6. [pending] only after that fresh formal successor may final implementation quality → replacement coverage
+   audit `31/31` → Step 4 feature acceptance be evaluated. Steps 5–7, version signoff, 9.3.5 and 9.4.0 stay
+   closed throughout this chain.
+
+Current Step 4=`in-progress / formal-r9 strict-umask excluded / diagnostic-ready→pending Cdiag successor`。
+`can_enter_cfreeze=no / can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。

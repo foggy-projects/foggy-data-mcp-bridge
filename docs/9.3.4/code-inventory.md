@@ -1023,3 +1023,17 @@ code_inventory:
   `LinkedHashMap` items. production/POM/runner/workflow/test-node/report cardinality/floor/critical/API delta=`0`;
 - five fresh JVM execs share target class id `eefbab946aa40203`, `182` probes, `134` covered and bitmap
   `f37_3_Pq__l_e68z_z8AKhy__U___zE`; new Cdiag then r28 are the only authorized successors.
+
+## formal-r9 strict-umask recovery inventory（2026-07-19）
+
+- failed formal inventory is bounded: Cfreeze=`34cd2452…`, phase=`coverage-report`, exit=`2`; children,
+  required inventory, and exec manifest completed, while report/aggregate/XML/observation/gate/summary/
+  candidate/final are absent and non-authoritative;
+- implementation delta is limited to `reporter_effective_pom_tool.py` and its existing
+  `coverage_contract_negative_tool.py` regression harness. No production Java, Java test, POM, selector,
+  report/testcase cardinality, coverage floor, critical set, exclusion, database matrix, or public API changed;
+- Step 4 manifest is `77c9ad05f8c39624e55a57057f4661fa598c2aa0403852ce6c33cd1c5ed89ff8 / 61/61`; Step 6
+  manifest is `effa63a2f5281517bf6896502b8323b5950f8aec3dab22ec219a8183f09d0e1a / 16/16`; machine state is
+  `diagnostic-ready / diagnostic-pending` with pending threshold predecessor `0df17a…`;
+- inventory authorization is limited to a clean/pushed Cdiag successor and fresh diagnostic-r29. r9/r28
+  partial artifacts cannot cross that boundary; Step 5–7, 9.3.5, and 9.4.0 remain closed.

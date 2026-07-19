@@ -30,7 +30,7 @@ updated_at: 2026-07-19
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Step 4 formal-r8+r27 recovery | [执行文档包](../9.3.4/README.md)；r26 与 direct-child Cfreeze 已完成；formal-r8 rc126 已修复并形成 Cdiag；r27 虽 public-valid 但 aggregate high-water 少 1，已 fail-closed 拒绝 candidate/Cfreeze；ExportWithChart ordered-fixture recovery 已经 5 fresh JVM proof，当前 Cdiag→fresh r28→Cfreeze→formal-r9 |
+| 9.3.4 | in-progress / Step 4 formal-r9 strict-umask recovery | [执行文档包](../9.3.4/README.md)；r28 reviewed material 的 Cfreeze `34cd2452…` 已触发 fresh formal-r9，但公开 receipt 在 strict umask 下为 mode `0600` 并以 `E_OUTPUT` fail closed；r9 permanent excluded。`39032229…` 仅重置 machine=`diagnostic-ready/diagnostic-pending`，不是 Cdiag；当前只允许 new clean/pushed Cdiag→fresh diagnostic-r29→new review/Cfreeze→fresh formal successor→post gates |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready；开工先执行 Gate 0 classification-debt migration |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,7 +85,7 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Step 4 formal-r8 report-runner portability recovery`；入口为
+当前状态：`in-progress / Step 4 formal-r9 strict-umask recovery`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。历史 Cfreeze `f97483a0…` / formal-r4 的 feature
 acceptance 与 r24/Cfreeze `439aea5e…` 的 diagnostic/review 证据保留；fresh formal-r7 正确拒绝了
 未进入 bridge Git tree 的 CALCULATE parity catalog，因而永久 `failed/excluded/non-reusable`。
@@ -99,9 +99,14 @@ reporter 直接执行 Git `100644` Python 工具时以 rc126 fail closed。r8 �
 显式 `python3`，runner raw bytes/292-command stream 双封印、四工具/七调用 semantic gate、Git-mode
 mutation 与 non-executable smoke 已通过，machine 重置为
 `diagnostic-ready / diagnostic-pending`。r27 随后虽 public-valid 但 aggregate high-water 各少一，永久
-`non-freezable`，其 candidate/capsule 均 non-canonical。独立 recovery review 已 PASS；当前只允许 new
-Cdiag→fresh diagnostic-r28（先达到 r26 high-water）→new candidate/capsule/双审→direct-child Cfreeze→
-fresh formal-r9→post gates。
+`non-freezable`，其 candidate/capsule 均 non-canonical。r28 reviewed material was frozen into
+direct-child Cfreeze `34cd2452…`, but fresh formal-r9 then failed at coverage-report/exit=`2`: strict umask
+published the contractually public effective-POM receipt as mode=`0600`, so the reporter emitted `E_OUTPUT`.
+r9 is permanently `failed/excluded/non-reusable/non-candidate`; r28 material and r9 partial output cannot be
+combined into replacement authority. Recovery baseline `39032229…` makes public receipt mode explicit, adds a
+strict-umask negative probe and resets machine state to `diagnostic-ready / diagnostic-pending`; it is not the
+final Cdiag. The only next chain is one new clean/pushed Cdiag successor→fresh all-lane diagnostic-r29→new
+candidate/capsule/dual review→direct-single-parent Cfreeze→fresh formal successor→post gates.
 
 以下仅记录已被 replacement recovery 撤回授权的 historical formal-r4 checkpoint：当时 post-formal
 quality=`ready-for-coverage-audit / B/H/M/L 0/0/0/1`；coverage audit 在补齐同一
@@ -110,8 +115,9 @@ critical/major gap=`0/0`；feature acceptance=`signed-off / accepted / blocking 
 Step 4 workitem 当时已关闭，Unit MySQL classification DEBT 继续由 9.3.5 version acceptance 收口；
 这些历史结论不授权当前 Step 5。
 
-因此当前只允许完成 Step 4 replacement authority；Step 5–7、9.3.4 version signoff、9.3.5 与
-9.4.0 仍不得提前。formal-r6 永久 failed/excluded，r22 只作历史 diagnostic evidence。
+因此当前只允许完成 Step 4 replacement authority；`can_enter_step5=no`、coverage audit/acceptance 均未
+开放。Step 5–7、9.3.4 version signoff、9.3.5 与 9.4.0 仍不得提前。formal-r6 永久 failed/excluded，
+r22 只作历史 diagnostic evidence。
 
 - Surefire 只跑 unit，Failsafe 只跑 integration/E2E，禁止同一测试重复或漏跑。
 - required matrix：SQLite、MySQL 5.7、MySQL 8、PostgreSQL、SQL Server。

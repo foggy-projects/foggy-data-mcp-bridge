@@ -419,3 +419,15 @@ updated_at: 2026-07-19
   owner must not change `inferFields` for coverage;
 - Cdiag owner must commit/push/clean the recovery, then diagnostic owner runs fresh r28. Candidate/Cfreeze/
   formal owners remain closed until r28 meets the r26 aggregate high-water.
+
+## Superseding formal-r9 strict-umask recovery ownership（2026-07-19）
+
+- failure-evidence owner seals formal-r9 as `failed / excluded` and keeps raw logs, raw exec, container
+  identities, and success-only artifacts outside Git authority;
+- effective-POM tool owner owns descriptor-bound final-mode publication: private staging, write/fsync,
+  explicit `0644`, fsync, then no-replace link. It must not weaken the outer `umask 077` test condition;
+- negative-contract owner owns the direct strict-umask real-publisher regression and the Step4→Step6 hash
+  closure; machine owner owns exact reset to `diagnostic-ready / diagnostic-pending`;
+- Cdiag owner may only hand off one clean/pushed successor to diagnostic-r29. Candidate, Cfreeze, formal,
+  quality/audit/acceptance, Step 5–7, 9.3.5, and 9.4.0 owners remain closed until the replacement sequence
+  completes in order.

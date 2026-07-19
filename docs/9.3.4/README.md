@@ -47,12 +47,16 @@ updated_at: 2026-07-19
   但 follow-up audit 证明其 schema 1 把真实 known-consumer lower bound `7 reports / 12 nodes`
   低记为 historical `6/11`，所以 r25 永久是
   `pre-remediation / superseded / non-candidate`。修复后的 Cdiag `4fe86929…`、fresh-clone isolated
-  r4、fresh diagnostic-r26 与 direct-child Cfreeze `7c18019e…` 已通过。fresh formal-r8 完成全部
-  child/report inventory 后在 coverage reporter 直接执行 Git `100644` Python 工具时 rc126；r8 永久
-  `failed/excluded/non-reusable/non-candidate`。三处 interpreter 修复、runner raw/逻辑命令流双封印、
-  四工具/七调用的 semantic/Git-mode negative gate 与
-  Step4→Step6 hash closure 已完成，machine=`diagnostic-ready/diagnostic-pending`。r27 随后因 aggregate
-  high-water 少一而被拒绝，current Step 4=`in-progress / r27 map-order recovery / Cdiag→fresh-r28`；
+  r4、fresh diagnostic-r26 与 direct-child Cfreeze `7c18019e…` 已作为历史链封存。fresh formal-r8
+  在 coverage reporter 直接执行 Git `100644` Python 工具时 rc126，永久
+  `failed/excluded/non-reusable/non-candidate`；其 interpreter recovery 后，r27 又因 aggregate
+  high-water 少一而被拒绝。r28 的 reviewed threshold 被 direct-child Cfreeze `34cd2452…` 冻结，
+  但 fresh formal-r9 在 coverage-report 以 exit=`2` fail closed：strict umask 令公开
+  effective-POM receipt 成为 mode=`0600`，违反 `E_OUTPUT` public-output contract。r9 永久
+  `failed/excluded/non-reusable/non-candidate`，不得拼接 child output、exec 或 r28 material。
+  修复基线 `39032229…` 已将 machine 回退到
+  `diagnostic-ready/diagnostic-pending`，但它不是 final Cdiag；current Step 4=`in-progress /
+  formal-r9 strict-umask excluded / pending clean Cdiag successor→fresh diagnostic-r29`；
   Step 5=`hold / closed`。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
@@ -601,8 +605,8 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r27 high-water recovery / Cdiag→r28 | r26/Cfreeze complete；formal-r8 rc126 excluded；r27 public-valid but `-1` aggregate outcome was rejected; ordered-fixture proof `5/5` PASS；next=Cdiag→r28→Cfreeze→formal-r9→post gates |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal + final quality + Step 4 coverage audit/feature acceptance |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r9 strict-umask excluded / pending Cdiag | r9 on `34cd2452…` failed at coverage-report with `E_OUTPUT` mode `0600`; `39032229…` is recovery baseline only and machine is `diagnostic-ready/diagnostic-pending`; next=new clean/pushed Cdiag→fresh r29→new candidate/capsule/dual review→direct-child Cfreeze→fresh formal successor→post gates |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | r9 exclusion and recovery reset do not open entry; wait for replacement formal successor + final quality + Step 4 coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
 
@@ -780,9 +784,35 @@ Current recovery records：
   short-circuit numeric-field search. The test-only `LinkedHashMap(category -> amount)` stabilization is
   independently reviewed PASS and reproduced `mb=0/cb=2` with an identical target probe bitmap in five
   fresh JVMs.
-- Current authority is new Cdiag -> fresh diagnostic-r28 -> candidate/capsule/dual review -> direct-child
-  Cfreeze -> fresh formal-r9. Step 5–7, 9.3.5 and 9.4.0 remain closed.
+- At the r27 checkpoint, authority was new Cdiag -> fresh diagnostic-r28 -> candidate/capsule/dual review ->
+  direct-child Cfreeze -> fresh formal-r9. That checkpoint is superseded by the formal-r9 boundary below;
+  Step 5–7, 9.3.5 and 9.4.0 remain closed.
 
 - [r27 rejection and controlled recovery evidence](evidence/step-4/step4-coverage-diagnostic-r27-export-chart-order-high-water-fail-closed-20260719.md)
 - [recovery implementation quality](quality/step4-diagnostic-r27-export-chart-order-recovery-implementation-quality.md)
 - [map-order coverage workitem](workitems/BUG-step4-export-chart-inference-map-order-coverage.md)
+
+## Superseding formal-r9 strict-umask recovery boundary（2026-07-19）
+
+- r28 reviewed material was frozen by direct-child Cfreeze `34cd2452c1bbe793c0567ebe23179b290227ae3d`;
+  fresh `step4-coverage-20260719-formal-r9` reached `coverage-report` but terminated exit=`2` when the
+  effective-POM public receipt inherited strict umask and was published as mode=`0600`. The reporter rejected
+  it with `E_OUTPUT: unexpected output mode: 0600`.
+- formal-r9 is immutable `failed / excluded / non-reusable / non-candidate`. Although its failure root retains
+  formalization-delta and child-lane observations, it has no success summary/candidate/final authority; none of
+  r28 candidate/capsule/Cfreeze or r9 partial output may be promoted or combined with a successor run.
+- Outer restoration completed after the failed run (`restore_rc=0` and runner cleanup had no container, volume
+  or network residue). This only preserves the environment boundary; it is not a Step 4 exit or formal result.
+- Recovery baseline `390322295e1efce34399468f98076edf7fcc6f73` makes public receipt mode explicit and adds the
+  strict-umask negative probe, then clears frozen observations/review to
+  `diagnostic-ready / diagnostic-pending`. It is a machine-recovery baseline, **not** the final Cdiag and not a
+  formal-ready state.
+- The only authorized successor is one new clean/pushed Cdiag (including the recovered authority documents)
+  → one fresh all-lane diagnostic-r29 → new candidate/capsule with dual independent review → that Cdiag's
+  direct-single-parent Cfreeze → fresh formal successor → final implementation quality → replacement coverage
+  audit `31/31` → Step 4 feature acceptance. Until every gate is separately recorded, `can_enter_cfreeze=no`,
+  `can_enter_step5=no`, `can_enter_coverage_audit=no`, and `can_enter_acceptance=no`; Steps 5–7, 9.3.5 and
+  9.4.0 remain closed.
+
+- [formal-r9 strict-umask recovery implementation quality](quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md)
+  records the recovery decision as `ready-for-new-Cdiag` only; it is not a post-formal or downstream-gate record.

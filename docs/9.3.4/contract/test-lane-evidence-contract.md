@@ -1087,3 +1087,19 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 3. The controlled `LinkedHashMap` fixture only stabilizes the existing `ExportWithChartTool` test path. Five
    fresh JVM exact probe proofs authorize a new Cdiag, not a threshold exception.
 4. Fresh r28 must meet or exceed r26 aggregate high-water before candidate/capsule/review/Cfreeze may start.
+
+## Superseding formal-r9 strict-umask effective-POM publication contract（2026-07-19）
+
+1. `reporter_effective_pom_tool.py` public JSON receipts are exact `0644` artifacts regardless of caller
+   umask. Their staging inode is `0600` while content is written and fsynced; the same descriptor must set
+   `0644` and fsync before the no-replace link becomes visible. A final mode other than `0644` is an error.
+2. Contract-negative evidence must directly invoke the real publisher under `umask 077` and reject a
+   non-regular, symlinked, content-different, or non-`0644` result. This probe is no-container and mandatory
+   before any Cdiag or formal authority run.
+3. formal-r9=`coverage-report / exit 2 / failed` is an immutable failed-run boundary. Its all-lane counts and
+   `23/48` exec receipt describe completed prerequisites only; they cannot supply aggregate, threshold,
+   candidate, final, audit, or acceptance authority.
+4. An authority-tool change outside a prior Cfreeze exact allowlist must reset the successor tuple to
+   `diagnostic-ready / diagnostic-pending` and exact pending threshold predecessor bytes. The sole recovery
+   sequence is new Cdiag→fresh diagnostic-r29→new candidate/capsule/dual review→direct-child Cfreeze→fresh
+   formal→quality→coverage audit→acceptance; downstream execution remains closed before all gates pass.
