@@ -43,14 +43,14 @@ updated_at: 2026-07-19
   或可复用的 reviewed aggregate baseline。
 - Step 4 historical formal-r4、final quality、coverage audit 与 feature acceptance 已按序关闭；
   decision=`accepted`，25/25 workitem closed。后续 release-authority delta 触发 replacement
-  coverage authority；formal-r7 CALCULATE portability remediation 后的 fresh r25 已在 Cdiag
-  `5aaffbb4…` 上完整通过并获 public `DIAGNOSTIC VALID`，但 follow-up consumer audit 证明
-  Unit MySQL 已知消费者机器契约把真实 lower bound `7 reports / 12 nodes` 低记为 `6/11`。
-  r25 因而是 `pre-remediation / superseded / non-candidate`；schema 2、测试 oracle、42/42、
-  Step4/6 closure 与 pre-Cdiag quality 已完成。current Step 4=`in-progress / Unit MySQL 7/12
-  authority remediation`，下一链路是 new Cdiag push/clean→isolated durable proof→fresh
-  diagnostic-r26→Cfreeze→formal-r8。Step 5=`hold / closed`，historical
-  acceptance 和 r25 绿色观测均不构成当前 downstream 授权。
+  coverage authority；formal-r7 CALCULATE portability remediation 后的 fresh r25 虽 public-valid，
+  但 follow-up audit 证明其 schema 1 把真实 known-consumer lower bound `7 reports / 12 nodes`
+  低记为 historical `6/11`，所以 r25 永久是
+  `pre-remediation / superseded / non-candidate`。修复后的 Cdiag `4fe86929…`、fresh-clone isolated
+  r4 与 fresh diagnostic-r26 已通过；r26 candidate/capsule/双审=`APPROVE / 0/0/0/0`，只授权一个
+  direct-child Cfreeze。current Step 4=`in-progress / diagnostic-r26 reviewed /
+  ready-for-direct-child-Cfreeze`；r26 reviewed candidate 不是 formal 或 acceptance，Step 5=
+  `hold / closed`。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -598,8 +598,8 @@ updated_at: 2026-07-19
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / Unit MySQL 7/12 authority remediation | r25 在 Cdiag `5aaffbb4…` 上 public-valid，但 tested schema 1 低记 consumer；schema 2、42/42、Step4/6 hash closure 与 pre-Cdiag quality 已 PASS，r25 superseded/non-candidate，pending new Cdiag→isolated proof→r26→Cfreeze→formal-r8 |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until replacement formal-r8 + quality/audit/acceptance |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r26 reviewed / ready-for-direct-child-Cfreeze | Cdiag `4fe86929…`、isolated r4、fresh r26、candidate/capsule/双审 PASS；r25 superseded/non-candidate；next=Cfreeze→formal-r8→Step 4 post gates |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | implementation preserved；entry reclosed until formal-r8 + final quality + Step 4 coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
 | 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
 
@@ -660,7 +660,7 @@ Current r24 records：
 - [portable capsule manifest](evidence/step-4/step4-coverage-20260719-diagnostic-r24-portable-capsule.manifest.json)
 - [pre-Cfreeze implementation quality](quality/step4-r24-cfreeze-implementation-quality.md)
 
-## Superseding formal-r7 portability recovery（2026-07-19）
+## Superseding formal-r7 portability recovery（historical；2026-07-19）
 
 - Cfreeze=`439aea5e…` 已 clean/pushed；fresh formal-r7 的 Unit 完整通过
   `681+55/4941/F0E0S0`，Integration 前两变体通过，`sqlite-broad` 在
@@ -671,8 +671,9 @@ Current r24 records：
   `100644` blob + SHA-256，raw/executable lifecycle 双层 seal 与 Step4→Step6 hash cascade 已同步；
 - focused `CalculateMvpIT=14/F0E0S0`，test source SHA/node count 不变；machine 已回到
   `diagnostic-ready/diagnostic-pending`；
-- 下一合法状态只允许 Cdiag commit/push/isolated proof→fresh diagnostic-r25→candidate/capsule/双审→
-  direct-child Cfreeze→fresh formal-r8。Step 5–7、9.3.5、9.4.0 继续关闭。
+- 该 checkpoint 当时的下一合法状态只允许 Cdiag commit/push/isolated proof→fresh diagnostic-r25→
+  candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8；随后已被下方 r25/r26 状态
+  supersede。Step 5–7、9.3.5、9.4.0 在该 checkpoint 继续关闭。
 
 Current recovery records：
 
@@ -681,7 +682,7 @@ Current recovery records：
 - [portability blocker workitem](workitems/BUG-calculate-mvp-parity-catalog-fresh-clone-portability.md)
 - [portability recovery implementation quality](quality/step4-formal-r7-portability-recovery-implementation-quality.md)
 
-## Superseding diagnostic-r25 Unit MySQL 7/12 remediation（2026-07-19）
+## Superseding diagnostic-r25 Unit MySQL 7/12 remediation（historical；2026-07-19）
 
 - Cdiag=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`；fresh r25=
   `completed / diagnostic-observed / exit 0`，public validator=`DIAGNOSTIC VALID`，observation=
@@ -699,8 +700,9 @@ Current recovery records：
   fixture negatives=`42/42`、lifecycle=`5/5`、overlay=`20/20`、Step4=`61/61`、
   Step6=`16/16`，pre-Cdiag quality=`APPROVE / 0/0/0/0`。disposable MySQL 正/负结果仅是
   未封存的 local observation；new Cdiag 后仍须 isolated durable proof，随后才可 fresh r26；
-- 当前不得生成 r25 candidate/capsule、不得 Cfreeze，也不得进入 Step 5、9.3.5 或 9.4.0。
-  唯一合法链路是完成修复与机器闭包→new Cdiag/push/clean→isolated proof→fresh r26→
+- 该 checkpoint 不得生成 r25 candidate/capsule、不得 Cfreeze，也不得进入 Step 5、9.3.5 或
+  9.4.0；随后已被下方 r26 reviewed-Cfreeze 状态 supersede。当时唯一合法链路是完成修复与机器
+  闭包→new Cdiag/push/clean→isolated proof→fresh r26→
   candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8→后置质量/audit/acceptance。
 
 Current 7/12 remediation records：
@@ -708,3 +710,29 @@ Current 7/12 remediation records：
 - [r25 superseded diagnostic evidence](evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md)
 - [known-consumer understatement BUG](workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md)
 - [pre-Cdiag implementation quality](quality/step4-unit-mysql712-remediation-implementation-quality.md)
+
+## Superseding diagnostic-r26 reviewed-Cfreeze status（2026-07-19）
+
+- repaired Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 clean/pushed；fresh-clone isolated
+  r4 保存 positive=`Maven rc 0 / 1/F0E0S0` 与 wrong-password=`Maven rc 1 / 1/F0E1S0` 双
+  XML，并证明 disposable container absent、random port released；
+- fresh r26=`diagnostic-observed / completed / exit 0 / public-valid`，required=
+  `773+59/5707/F0E0S0`、Addon=`2/6/F0E0S0`、exec/session=`23/48`、source exact、cleanup 与
+  四个 demo DB exact restore PASS；Unit fixture historical/current=`6/11 + 7/12`、negative/lifecycle=
+  `42/42 + 5/5`；
+- aggregate=`54624/76830 line + 26112/44870 branch`；candidate=
+  `b8bd24113223e9a9c79280b248582ff34ad7a29013c2f93c4c7f4ebea682797a`，portable capsule
+  deterministic rebuild/materialize 与两路 review 均 PASS，B/H/M/L=`0/0/0/0`；
+- 当前只授权一个以 `4fe86929…` 为 direct parent 的 Cfreeze，随后必须 fresh formal-r8。r26
+  reviewed candidate 不是 formal、coverage audit、Step 4 feature acceptance 或 9.3.4 version signoff；
+- formal-r8 PASS 后按序执行 final quality→Step 4 coverage audit→Step 4 feature acceptance，三门
+  PASS 后只开放 Step 5。9.3.4 仍须完成 Steps 5–7 和 version signoff；9.3.5 保持 queued，version
+  signoff 后也只能先进入 Gate 0 classification-debt migration。
+
+Current r26 records：
+
+- [diagnostic PASS and portable evidence](evidence/step-4/step4-coverage-diagnostic-r26-pass-20260719.md)
+- [immutable threshold candidate](evidence/step-4/step4-coverage-diagnostic-r26-threshold-candidate-20260719.json)
+- [dual threshold review](evidence/step-4/step4-coverage-diagnostic-r26-threshold-review-20260719.md)
+- [portable capsule manifest](evidence/step-4/step4-coverage-20260719-diagnostic-r26-portable-capsule.manifest.json)
+- [pre-Cfreeze implementation quality](quality/step4-r26-cfreeze-implementation-quality.md)

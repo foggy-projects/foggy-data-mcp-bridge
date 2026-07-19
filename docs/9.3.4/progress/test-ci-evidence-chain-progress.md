@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / Unit MySQL 7/12 authority remediation | Step 3 exit passed | r25 public-valid but superseded/non-candidate；schema 2、42/42、Step4/6 closure、pre-Cdiag quality PASS，next=new Cdiag→isolated durable proof→r26→Cfreeze→formal-r8 |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r26 reviewed pre-Cfreeze | Step 3 exit passed | r25 永久 superseded/non-candidate；schema 2、42/42、isolated r4、r26 reviewed candidate PASS，next=Cfreeze→formal-r8→post-formal gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | implementation preserved；entry reclosed until formal-r8 + post-formal gates |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1248,22 +1248,24 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   diagnostic。threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、formal、
   coverage audit 与 acceptance 保持关闭。
 
-## Current Risks / Stop Conditions
+## Historical formal-r4 checkpoint risks / stop conditions（superseded）
 
-- Step 4 已 accepted；r1–r19 failed/diagnostic history 永久 immutable/excluded，Step 5 不得选择、
-  拼接或重标这些产物，只能消费 `f97483a0…` formal-r4 与已登记 companion。
-- Step 5 当前风险是 single-authority orchestration、portable raw archive、candidate two-layer digest
+- 在 formal-r4 checkpoint，Step 4 曾 accepted；r1–r19 failed/diagnostic history 永久
+  immutable/excluded，当时 Step 5 不得选择、拼接或重标这些产物，只能消费 `f97483a0…`
+  formal-r4 与已登记 companion。后续 replacement chain 已重新关闭 Step 5。
+- Step 5 当时的风险是 single-authority orchestration、portable raw archive、candidate two-layer digest
   与 live lifecycle/durable replay 入口混淆；任一 identity/hash/replay 不一致必须 fail closed，
   final authority pointer 保持不变。
-- Unit MySQL classification DEBT 仍 open；Step 5 不得把 9.3.4-only fixture 例外永久化，最终
-  9.3.4 临时放行由 Step 7 version acceptance 决定，债务须在 9.3.5 acceptance 前关闭。
+- Unit MySQL classification DEBT 仍 open；Step 5 不得把 9.3.4-only fixture 例外永久化。只有
+  9.3.4 version signoff 后才由 9.3.5 Gate 0 owner 接管 migration，deadline=
+  `9.3.5 version acceptance`。
 - remote required check、five-cell collector、branch protection、release artifact reuse 与 Docker
   embedded-JAR equality 尚无实际证据，分别属于 Steps 6/7。
 - v933 Batch 7 旧 FQCN/count 不能原样重跑；Step 5/7 必须继续使用 frozen predecessor mapping 与
   v934 successor regression。
 
-上述是 Step 5 及后续步骤的当前风险。触发 stop condition 时保持当前 Step 未通过并记录 blocker，
-不得回退 Step 4 accepted 状态或跳到 Step 6/7。
+上述是 formal-r4 checkpoint 的历史风险，不是当前状态；当前 authority 以文末 r26 check-in 为准。
+历史 checkpoint 触发 stop condition 时保持当时 Step 未通过并记录 blocker，不得跳到 Step 6/7。
 
 ## Planning Reviews
 
@@ -1776,7 +1778,7 @@ formal-r6 recovery 重新关闭。
   `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；next=Cfreeze commit/push/topology/clean，
   then one fresh-clone formal-r7。
 
-## Execution check-in — formal-r7 CALCULATE catalog portability recovery（2026-07-19）
+## Execution check-in — formal-r7 CALCULATE catalog portability recovery（historical；2026-07-19）
 
 - Cfreeze=`439aea5e…`；fresh formal-r7=`failed / child-integration / exit 1`；Unit=
   `681+55/4941/F0E0S0`，Integration `caffeine-sqlite=2`、`hermetic=3` PASS，`sqlite-broad=307/F1`；
@@ -1786,8 +1788,9 @@ formal-r6 recovery 重新关闭。
   sensitive scan、四 DB exact restore 均已复核；r7 永久 excluded；
 - remediation：repo-local catalog exact blob/SHA + pre-test Git ownership/hash gate；lifecycle raw/executable
   seals与 Step4/6 hash closure同步；focused=`14/F0E0S0`；machine=`diagnostic-ready/diagnostic-pending`；
-- current：只授权 Cdiag commit/push、isolated focused/negative proof 和 fresh diagnostic-r25；Step 5–7、
-  post-formal gates、9.3.5/9.4.0 closed。
+- checkpoint state at that time：只授权 Cdiag commit/push、isolated focused/negative proof 和 fresh
+  diagnostic-r25；该状态已被下方 r25/r26 check-in supersede。Step 5–7、post-formal gates、
+  9.3.5/9.4.0 当时均 closed。
 
 ## Execution check-in — diagnostic-r25 public-valid / Unit MySQL 7/12 remediation（2026-07-19）
 
@@ -1819,3 +1822,19 @@ Records：
 
 - `docs/9.3.4/evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md`
 - `docs/9.3.4/workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md`
+
+## Execution check-in — diagnostic-r26 reviewed candidate / pre-Cfreeze（2026-07-19）
+
+- replacement Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 push/clean；isolated r4
+  durable proof 已完成：positive=`Maven rc0 / XML 1/F0E0S0`、wrong-password=
+  `Maven rc1 / XML 1/F0E1S0`，disposable container absent、random port released；
+- fresh r26=`step4-coverage-20260719-diagnostic-r26` public-valid，observation=
+  `15e1ed76eaa624c0899b980472689e34e1b272ddda58b2bc5cf27994abffe705`；required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`，source before=after=
+  `6acfad24cc3d43c3bf550c904aa61c7e01f5b7829d4e2f204d489ab6cc40a8f5`；
+- candidate/capsule 与两路独立 review 已完成，decision=`confirm-observed-thresholds`、
+  B/H/M/L=`0/0/0/0`、mandatory=`0`，当前只授权唯一 direct-single-parent Cfreeze；
+- r25 永久保持 `pre-remediation / superseded / non-candidate`，不得拼接或提升。Cfreeze、fresh
+  formal-r8、post-formal quality/coverage audit/acceptance 均尚未完成；Step 5–7、9.3.5、9.4.0
+  继续关闭；9.3.4 version signoff 后 classification debt 交 9.3.5 Gate 0 owner，deadline=
+  `9.3.5 version acceptance`。

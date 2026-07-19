@@ -162,7 +162,7 @@ code_inventory:
     path: scripts/v934/step4/{unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py}; scripts/verify-v934-unit.sh
     role: replace the complete Step 4 Unit lane with one run-owned pinned MySQL 5.7 fixture while retaining the frozen Unit execution identities and cardinality
     expected_change: create
-    notes: known hidden dependency inventory is 6 reports / 11 testcase nodes, not proof that other Unit tests are DB-free; Step 2 identity/cardinality remains structural only and its Unit correctness green is not reused; temporary classification exception is tracked by docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md
+    notes: historical observed failure is 6 reports / 11 testcase nodes; reviewed current known-consumer lower bound is 7 reports / 12 nodes; neither is exhaustive proof that other Unit tests are DB-free; Step 2 identity/cardinality remains structural only and its Unit correctness green is not reused; temporary classification exception is tracked by docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md
   - module: v934-step4-run-log-lifecycle
     path: scripts/v934/step4/{run_log_lifecycle_lib.sh,run_log_lifecycle_negative_test.sh}
     role: owned FIFO logger close/reap protocol and process-group residue regression authority
@@ -959,15 +959,15 @@ code_inventory:
   `docs/9.3.4/**`。production/test/POM/runner/workflow/floor/critical/exclusion inventory delta=`0`；
 - current inventory authorizes one direct-child Cfreeze and fresh formal-r7 only；Step 5–7/9.3.5 closed。
 
-## formal-r7 portability recovery inventory（2026-07-19）
+## formal-r7 portability recovery inventory（historical；2026-07-19）
 
 - new tracked input=`docs/v1.5.1/P1-CALCULATE-restricted-mvp-parity-catalog.json`，mode/blob/raw=
   `100644 / d7879a6a… / f52eba37…`；
 - changed authority bytes=`verify-v934-step4-coverage.sh` + lifecycle seal test + Step4/Step6 hash closure；
 - unchanged inventory=`CalculateMvpIT.java 21d8d817… / 14 nodes`、all successor source/discovery/
   execution/report identities、production/POM、exec ledger、critical set、floors、exclusions；
-- current inventory authorizes only new Cdiag/fresh diagnostic-r25；formal-r7/r24/Cfreeze are historical，
-  Step 5–7/9.3.5 closed。
+- checkpoint inventory at that time authorized only new Cdiag/fresh diagnostic-r25；该授权已被下方
+  Unit MySQL 7/12/r26 inventory supersede。formal-r7/r24/Cfreeze are historical，Step 5–7/9.3.5 closed。
 
 ## Unit MySQL 7/12 remediation inventory（2026-07-19）
 
@@ -986,7 +986,11 @@ code_inventory:
   `5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`，all-lane/public validation 已通过；由于 tested bytes
   尚未包含上述 assertion/contract remediation，该 run exact classified 为
   `pre-remediation / superseded / non-candidate`，不得转为 candidate/capsule/review/freeze input；
-- current inventory 只授权修复后的 new Cdiag→fresh diagnostic-r26→new candidate/review→
-  direct-child Cfreeze→fresh formal-r8（或下一可用 formal ID）→post gates。Unit MySQL
-  replacement 9.3.4 formal chain 完成前，Step 5–7/9.3.5 closed；9.3.4 签收后，9.3.5 只授权
-  Gate 0 classification-debt migration，债务关闭前 version acceptance closed。
+- replacement Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 push/clean；isolated r4 durable
+  positive/wrong-password proof 与 cleanup 已完成；fresh r26 public-valid，required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`，source before=after=`6acfad24…`；
+- r26 candidate/capsule 与两路独立 review 已完成，review findings=`0/0/0/0`，当前 inventory
+  只授权唯一 direct-single-parent Cfreeze。Cfreeze、fresh formal-r8 与 post-formal
+  quality/coverage-audit/acceptance 尚未完成，Step 5–7/9.3.5/9.4.0 closed；
+- r25 永久保持 `pre-remediation / superseded / non-candidate`。9.3.4 version signoff 后，classification-debt
+  migration owner=`9.3.5 Gate 0`，deadline=`9.3.5 version acceptance`。

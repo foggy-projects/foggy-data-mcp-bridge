@@ -6,9 +6,9 @@ run_id: step4-coverage-20260719-diagnostic-r25
 tested_commit: 5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7
 status: in-progress
 run_status: diagnostic-observed-superseded
-remediation_status: machine-closure-passed-new-cdiag-pending
+remediation_status: r26-reviewed-cfreeze-pending
 decision: remediation-required-non-candidate
-candidate_status: forbidden-not-generated
+candidate_status: r25-forbidden-r26-reviewed
 recorded_at: 2026-07-19
 ---
 
@@ -121,9 +121,10 @@ catch (SQLException e) { e.printStackTrace(); }
    `14/14`、overlay=`20/20`、Step 6=`16/16 / 84407570…`，hash closure 完整；
 4. [completed] machine validators 与 pre-Cdiag implementation quality=
    `APPROVE / B/H/M/L 0/0/0/0 / mandatory fixes 0`；
-5. new Cdiag commit/push/clean→isolated proof→fresh all-lane r26；不得复用 r25 artifacts；
-6. 仅 r26 public-valid 且 7/12 exact 后，进入 candidate/capsule/双审→direct-child Cfreeze→
-   fresh formal-r8→final quality/audit/acceptance。
+5. [completed] replacement Cdiag commit/push/clean→isolated r4 proof→fresh all-lane r26；未复用
+   r25 artifacts；
+6. [completed through review] r26 public-valid、7/12 exact、candidate/capsule/双审均 PASS；
+   direct-child Cfreeze→fresh formal-r8→final quality/audit/acceptance 仍 pending。
 
 Local pre-Cdiag oracle observation（non-authority）：
 
@@ -134,13 +135,23 @@ Local pre-Cdiag oracle observation（non-authority）：
   `71aeab932af1cc0beb2228eaab93199c7b990d1fd33ff2a47b4680e78a2d6454`；
 - disposable container 自动删除；四个 demo DB original ID 未改变且保持 healthy；
 - positive XML 后被 deliberate negative 覆盖，未保存 portable standalone receipt；因此这些数据
-  只作 local observation。new Cdiag 后必须以 isolated checkout 持久化双 XML、Maven rc、fixture
-  identity 与 cleanup receipt，才能升级为 focused proof。
+  继续只作 local observation，不与后续 authority 拼接。
 
-测试 oracle、schema 2、`42/42`、hash closure 与 pre-Cdiag quality 已完成；new Cdiag、isolated
-durable proof 与 r26 尚未完成，BUG/evidence 保持 `in-progress`。
-`can_enter_cfreeze=no`、`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5–7、
-9.3.5 与 9.4.0 均保持关闭。
+Replacement evidence：
+
+- Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 push/clean；isolated r4 durable proof=
+  positive `Maven rc0 / XML 1/F0E0S0`、wrong-password `Maven rc1 / XML 1/F0E1S0`，cleanup=
+  container absent、port released；
+- r26=`step4-coverage-20260719-diagnostic-r26` public-valid，observation=
+  `15e1ed76eaa624c0899b980472689e34e1b272ddda58b2bc5cf27994abffe705`，source before=after=
+  `6acfad24cc3d43c3bf550c904aa61c7e01f5b7829d4e2f204d489ab6cc40a8f5`；
+- r26 candidate/capsule 与两路 independent review 已完成，B/H/M/L=`0/0/0/0`、mandatory=`0`；
+  r25 永久保持 `pre-remediation / superseded / non-candidate`。
+
+BUG/evidence 保持 `in-progress / pre-Cfreeze`。`can_enter_cfreeze=yes`、
+`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Cfreeze、fresh formal-r8 与 post-formal
+gates 尚未完成，Step 5–7、9.3.5、9.4.0 均保持关闭。9.3.4 version signoff 后 classification-debt migration
+owner=`9.3.5 Gate 0`，deadline=`9.3.5 version acceptance`。
 
 ## References
 

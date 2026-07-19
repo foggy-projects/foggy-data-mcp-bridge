@@ -1053,5 +1053,5 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
    不得据其 counters/artifacts 进入 candidate、review 或 Cfreeze；
 6. replacement authority 必须从修复后的 new Cdiag 开始，经 fresh diagnostic-r26、new
    candidate/review、direct-single-parent Cfreeze、fresh formal-r8（或下一可用 formal ID）和全部
-   post gates。该 formal chain 未完成时，9.3.5 closed；9.3.4 签收后，9.3.5 只允许先进入 Gate 0
+   post gates。该 formal chain 未完成时，9.3.5 closed；9.3.4 version signoff 后，9.3.5 只允许先进入 Gate 0
    classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。

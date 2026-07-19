@@ -106,7 +106,8 @@ focused lifecycle control 5/5 通过只说明竞态非必现，不能覆盖 RED 
 
 本 BUG 在 fresh formal 前保持 `in-progress`；后续 clean/pushed replacement、完整 Unit、formal-r4、
 coverage audit 与 feature acceptance 已全部通过，因此关闭。r17 永久保留为 failed/excluded
-evidence；threshold 不得降低、coverage exclusion 不得扩大。Step 5 现为 `ready / not-started`。
+evidence；threshold 不得降低、coverage exclusion 不得扩大。Step 5 在该历史 checkpoint 曾为
+`ready / not-started`，之后被 replacement chain 重新关闭。
 
 ## References
 

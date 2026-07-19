@@ -22,19 +22,19 @@ updated_at: 2026-07-19
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | current machine=`diagnostic-pending/diagnostic-ready`；formal-r6 immutable failed，replacement formal pending |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | r26 machine formalization/hash cascade 已完成；direct-child Cfreeze commit/push/topology/clean 与 fresh formal-r8 pending |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r22 retained；NUL-token recovery inventory reviewed；Step 5–7 execution closed |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25 retained；r26 exact inventory/candidate reviewed；Step 5–7 execution closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Step 4 replacement Cdiag / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r24/Cfreeze retained；formal-r7 portability failure excluded；r25 public-valid but superseded/non-candidate；Unit MySQL 7/12 remediation→new Cdiag→diagnostic-r26→formal-r8 pending |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；historical Step 4 retained；replacement Step 4 pending；Steps 5–6 closed |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | r6 recovery quality=`0/0/0/0`；replacement post-formal quality pending |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement audit closed until formal-r8 |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / r26 reviewed / ready-for-direct-child-Cfreeze / Step 5–7 hold |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | r24/Cfreeze retained；formal-r7 excluded；r25 superseded/non-candidate；r26 public-valid/reviewed，formal-r8 pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；r26 pre-Cfreeze evidence reviewed；replacement Step 4 formal/post-gates pending；Steps 5–6 closed |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | pre-Cdiag review=`0/0/0/0`；replacement post-formal quality pending |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement Step 4 audit closed until formal-r8 + final quality |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
-| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement acceptance pending |
+| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after formal-r8/post-formal gates |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | Step 4 replacement in-progress；Step 5–7 closed；9.3.5 queued |
+| roadmap/status sync | `README.md` + authoritative roadmap | `docs/9.3.4/**` 先同步 pre-Cfreeze；9.3.1 roadmap 因 Cfreeze allowlist 延后到 post-formal；9.3.5 queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -584,7 +584,8 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - persistent capsule 包含可解码为 byte-exact raw Failsafe failure 的 Base64 封装、outer/integration status、Unit summary、
   formal delta、cleanup 与 per-entry provenance；敏感扫描 PASS；
 - repo-local catalog、tracked blob/SHA preflight、lifecycle seal/hash closure 与 focused 14/0/0/0 只构成
-  remediation input；acceptance 必须等待 Cdiag→r25→new Cfreeze→formal-r8→三后置门。
+  当时的 portability remediation input；后续 7/12 审计已将 r25 永久降级为
+  `superseded / non-candidate`，当前 acceptance 链以本文件后续 r26 boundary 为准。
 
 ## Superseding diagnostic-r25 Unit MySQL 7/12 acceptance boundary（2026-07-19）
 
@@ -596,5 +597,20 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - r25 exact classified 为 `pre-remediation / superseded / non-candidate`，不得生成或复用其
   candidate/capsule/Cfreeze；acceptance 必须等待 new Cdiag→fresh r26→candidate/review→direct-child
   Cfreeze→fresh formal-r8→final quality→coverage audit→acceptance；
-- 9.3.4 signoff 前 9.3.5 保持 queued。signoff 后 9.3.5 只允许先执行 Gate 0 classification-debt
+- 9.3.4 version signoff 前 9.3.5 保持 queued。version signoff 后 9.3.5 只允许先执行 Gate 0 classification-debt
   migration，债务关闭前 9.3.5 version acceptance 仍关闭。
+
+## Superseding diagnostic-r26 pre-Cfreeze acceptance boundary（2026-07-19）
+
+- Cdiag `4fe86929…`、fresh-clone isolated r4 与 fresh diagnostic-r26 已完整通过；r26 public
+  observation=`15e1ed76…fe705`，required=`773+59/5707/F0E0S0`、Addon=`2/6/F0E0S0`、
+  exec/session=`23/48`、aggregate=`54624/76830 line + 26112/44870 branch`；
+- immutable candidate=`b8bd2411…2797a`、portable capsule 与两路 independent review PASS，review
+  decision=`confirm-observed-thresholds / 0/0/0/0`。这些材料只满足 Cfreeze entry，不是 formal、
+  post-formal quality、coverage audit、Step 4 feature acceptance 或 version signoff；
+- acceptance 当前仍关闭。唯一后续顺序是 direct-child Cfreeze→fresh formal-r8→final implementation
+  quality→Step 4 coverage audit→Step 4 feature acceptance；只有该 feature acceptance PASS 才恢复
+  Step 5 entry；
+- `acceptance_status` 继续表示 9.3.4 version acceptance，故保持 `not-started`。Step 4 replacement
+  acceptance 后 9.3.4 仍须完成 Steps 5–7 与 version signoff；9.3.5 仅在 version signoff 后先进入
+  Gate 0 classification-debt migration，债务关闭前不得执行其 version acceptance。

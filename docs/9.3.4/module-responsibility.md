@@ -35,7 +35,7 @@ updated_at: 2026-07-19
 | Runtime/MCP/fsscript/cache/addons | module integration ownership and 9.3.1–9.3.3 successor regressions | model/fsscript/runtime ports | correctly named IT, hermetic/external lane ownership, exact reports, Step 4 exec provenance | new lifecycle/API design | 2/3/4/5 |
 | `foggy-dataset-demo/docker` | deterministic five-DB images/init/sentinel fixture | Docker Compose | pinned image identity, automated init, before/after | production deployment redesign | 3 |
 | Step 4 Unit MySQL replacement authority | enforce the 9.3.4-only full Unit lane replacement and machine-readable fixture contract | frozen Step 2 execution/discovery inventory, Step 3 provisioner, Docker, `scripts/v934/step4/unit-mysql57-fixture-contract.json` | `681 positive + 55 structural / 4,941 testcase` in one Maven invocation, pinned/run-owned MySQL 5.7, restricted non-super exclusive connection receipt, typed schema/publisher/profile-boundary/lifecycle/cleanup evidence | permanent DB-in-Unit classification or unreviewed execution-key expansion | 4 |
-| `foggy-dataset` classification-debt and datasource-adapter owner | find, migrate and reclassify every real DB consumer represented by or discovered beyond the r7 known set；scope fixture credentials only to its test resource | fixture contract + `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholders + `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` | known 6 execution keys / 11 testcase nodes, profile-boundary isolation, discovery expansion, debt closure evidence | global Spring datasource/profile override, treating 6/11 as exhaustive proof or carrying the debt through 9.3.5 acceptance | 4 / 9.3.5 acceptance |
+| `foggy-dataset` classification-debt and datasource-adapter owner | find, migrate and reclassify every real DB consumer represented by or discovered beyond the r7 historical set；scope fixture credentials only to its test resource | fixture contract + `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholders + `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` | current reviewed lower bound 7 execution keys / 12 testcase nodes, profile-boundary isolation, discovery expansion, debt closure evidence | global Spring datasource/profile override, treating historical 6/11 or current 7/12 as exhaustive proof, or carrying the debt through 9.3.5 version acceptance | 4 / 9.3.5 Gate 0 |
 | build-only coverage reporter | merge/report reactor UT/IT exec | root/modules | aggregate XML/HTML only | empty-project `jacoco:check`, production classes, Launcher packaging | 4 |
 | coverage verifier | fail-closed aggregate XML/package/class counter checks and model merged-exec gate | reporter + reviewed thresholds | aggregate/critical/module threshold authority | runtime-discovered threshold acceptance | 4 |
 | `.github/workflows` | reusable jobs, exact five-cell collector, stable required aggregator, artifact upload/download verification | authority scripts | PR/main/release wiring, cardinality and result-state checks | branch protection claim without evidence | 6 |
@@ -386,7 +386,10 @@ updated_at: 2026-07-19
 - evidence owner 将 r25（HEAD=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`）永久登记为
   `full-chain public-valid / pre-remediation / superseded / non-candidate`，candidate/review/Cfreeze owner
   对其均无开工授权；
-- machine/Cdiag owner 完成修复和 hash closure 后，diagnostic owner 才可运行 fresh r26；随后依次由
-  candidate/review、direct-child Cfreeze、fresh formal-r8（或下一可用 formal ID）与 post-gate owners
-  接手。replacement formal/post gates 完成前，Step 5–7、9.3.5/9.4.0 owners 继续 closed/queued；
-  9.3.4 签收后，9.3.5 owner 只先接管 Gate 0 debt migration，债务关闭前 acceptance owner 无权限。
+- machine/Cdiag owner 已关闭 `4fe86929…` push/clean、isolated r4 durable proof 和 fresh r26；
+  candidate/capsule reviewers 已以 `0/0/0/0` 关闭 review，并只向 direct-child Cfreeze owner 交接；
+- Cfreeze、fresh formal-r8 与 post-formal quality/coverage-audit/acceptance owners 尚未完成各自 gate。
+  在这些 gate 完成前，Step 5–7、9.3.5/9.4.0 owners 继续 closed/queued；r25 永久保持
+  `pre-remediation / superseded / non-candidate`；
+- 9.3.4 version signoff 后，classification-debt migration owner=`9.3.5 Gate 0`，实现责任仍由
+  `foggy-dataset` 承担，deadline=`9.3.5 version acceptance`。

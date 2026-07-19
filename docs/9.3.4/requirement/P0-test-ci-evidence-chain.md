@@ -158,10 +158,13 @@ updated_at: 2026-07-19
 
 ## Current Progress
 
-- version status：`in-progress`；Steps 1–3=`passed`；Step 4=`in-progress / replacement Cdiag`；
+- version status：`in-progress`；Steps 1–3=`passed`；Step 4=
+  `in-progress / diagnostic-r26 reviewed / ready-for-direct-child-Cfreeze`；
 - historical Step 4 authority/formal-r4/r24/Cfreeze 保留；fresh formal-r7 因仓外 CALCULATE catalog
-  依赖 fail closed 并永久 excluded；current machine=`diagnostic-ready / diagnostic-pending`，
-  repo-contained remediation 后 Cdiag→diagnostic-r25→Cfreeze→formal-r8 pending；
+  依赖 fail closed 并永久 excluded；r25 保持
+  `pre-remediation / superseded / non-candidate`；修复后的 Cdiag `4fe86929…`、isolated r4 与 fresh
+  diagnostic-r26 已通过，r26 candidate/capsule/双审只授权一次 direct-child Cfreeze，尚不是 formal、
+  Step 4 feature acceptance 或 version acceptance；
 - Step 5–7=`hold / execution closed`，version acceptance=`not-started`，9.3.5=`queued`；
 - Unit MySQL classification DEBT 继续 open，最终 9.3.4 临时放行由 Step 7 决定。
 
@@ -722,8 +725,10 @@ updated_at: 2026-07-19
 - formal-r7 正确拒绝仓外 test input；完整 Unit 不足以替代未完成的 Integration/Step3/aggregate；
 - repo-contained catalog identity必须在 authority 启动测试前由 Git blob + raw SHA双重绑定，外部诱饵无效；
 - runner seal/hash closure 属 mandatory authority input；任何漏级联均阻断 Cdiag；
-- definition of done 改为 clean/pushed Cdiag→fresh r25→review/Cfreeze→fresh formal-r8→final
-  quality/audit/acceptance。此前 `can_enter_step5=no`、9.3.5 closed。
+- 该历史 portability checkpoint 当时把 definition of done 更新为 clean/pushed Cdiag→fresh
+  r25→review/Cfreeze→fresh formal-r8→final quality/audit/acceptance；后续 7/12 审计已永久将 r25
+  降级为 `superseded / non-candidate`，当前 definition of done 以本文件后续 r26 boundary 为准。
+  此前 `can_enter_step5=no`、9.3.5 closed。
 
 ## Superseding Unit MySQL 7/12 remediation requirement boundary（2026-07-19）
 
@@ -746,5 +751,25 @@ updated_at: 2026-07-19
 - 修复后的唯一授权顺序为 new clean/pushed Cdiag→fresh diagnostic-r26→new candidate/review→
   direct-child Cfreeze→fresh formal-r8（若该 ID 已被占用则使用下一可用 formal ID）→post gates。
   9.3.4 replacement formal/post-gate chain 全部 PASS 前，`can_enter_step5=no`，9.3.5 保持 closed。
-  9.3.4 签收后，9.3.5 只允许先执行 Gate 0 的 classification-debt migration；该债务关闭前
+  9.3.4 version signoff 后，9.3.5 只允许先执行 Gate 0 的 classification-debt migration；该债务关闭前
   9.3.5 version acceptance 仍保持 closed。
+
+## Superseding diagnostic-r26 reviewed-Cfreeze requirement boundary（2026-07-19）
+
+- 修复后的 Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 commit/push/clean；fresh-clone
+  isolated r4 在 digest-pinned random-port MySQL 上得到 positive Maven=`0`、XML=`1/F0E0S0`，
+  wrong-password Maven=`1`、XML=`1/F0E1S0`，并证明 container absent、port released；
+- fresh `step4-coverage-20260719-diagnostic-r26`=`diagnostic-observed / completed / exit 0`，public
+  validation PASS。required=`773+59/5707/F0E0S0`、Addon=`2/6/F0E0S0`、exec/session=`23/48`、
+  source before=after、cleanup 与四个 demo DB exact restore 均满足 requirement；Unit fixture schema 2
+  保持 historical=`6/11` 与 current lower bound=`7/12`，negative/lifecycle=`42/42 + 5/5`；
+- aggregate exact line=`54624/76830`、branch=`26112/44870`；candidate SHA-256=
+  `b8bd24113223e9a9c79280b248582ff34ad7a29013c2f93c4c7f4ebea682797a`，portable capsule 与两路
+  independent review 均 PASS，B/H/M/L=`0/0/0/0`；r26 是 reviewed candidate source，但不是 formal、
+  coverage audit、Step 4 feature acceptance 或 9.3.4 version acceptance；
+- 当前只授权以 `4fe86929…` 为唯一 direct parent、且仅包含六个 machine formalization path 与
+  `docs/9.3.4/**` 的 Cfreeze。Cfreeze commit/push/topology/clean 后必须运行 fresh formal-r8；
+- formal-r8 PASS 后只开放 final implementation quality→Step 4 coverage audit→Step 4 feature
+  acceptance。三门均 PASS 后才可把 Step 4 标为 `passed` 并开放 Step 5；9.3.4 仍为
+  `in-progress`，必须继续完成 Steps 5–7 和 version signoff。只有 9.3.4 version signoff 后，9.3.5
+  才可先进入 Gate 0 classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。

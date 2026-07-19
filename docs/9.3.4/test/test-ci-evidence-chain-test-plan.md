@@ -401,7 +401,7 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `in-progress / formal-r6 recovery / replacement Cdiag pending`
+- step4_result: `in-progress / diagnostic-r26 reviewed / ready-for-direct-child-Cfreeze`
 - step5_status: `hold / execution closed`
 - version_acceptance: `not-started`
 
@@ -982,7 +982,9 @@ coverage audit 与 acceptance 保持关闭。
 - remediation positive=`CalculateMvpIT 14/F0E0S0`，test source SHA/node count不变；提交后还必须在
   parent/sibling catalog absent 的 isolated clone 复验 focused method与全类；
 - authority negative必须证明 repo-local missing、single-byte tamper、仅有仓外诱饵均在 Docker/tests 前拒绝；
-- full GREEN只能来自 fresh diagnostic-r25 和 fresh formal-r8；r7/r24 results 不可拼接。
+- 该历史 portability checkpoint 当时只允许下一次 full GREEN 来自 fresh diagnostic-r25 和 fresh
+  formal-r8；r7/r24 results 不可拼接。后续 7/12 审计已永久将 r25 降级为
+  `superseded / non-candidate`，当前 authority 以本文件后续 r26 boundary 为准。
 
 ## Superseding Unit MySQL 7/12 regression test boundary（2026-07-19）
 
@@ -1003,5 +1005,24 @@ coverage audit 与 acceptance 保持关闭。
   focused 或 formal evidence 拼接；
 - 修复后的动态测试顺序固定为 new Cdiag→fresh diagnostic-r26→candidate/review→direct-child
   Cfreeze→fresh formal-r8（或下一可用 formal ID）→post gates。replacement formal chain 完成前，
-  Step 5/9.3.5 保持 closed；9.3.4 签收后，9.3.5 只能先运行 Gate 0 debt migration，债务关闭前
+  Step 5/9.3.5 保持 closed；9.3.4 version signoff 后，9.3.5 只能先运行 Gate 0 debt migration，债务关闭前
   9.3.5 acceptance 仍不得执行。
+
+## diagnostic-r26 reviewed-Cfreeze test transition（2026-07-19）
+
+- Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 clean/pushed。fresh-clone isolated r4
+  positive oracle=`Maven rc 0 + 1/F0E0S0`，wrong-password oracle=
+  `Maven rc 1 + 1/F0E1S0`；双 XML、exact source/contract/manifest identity 与 cleanup receipt 均
+  持久化，disposable container absent、random port released；
+- fresh r26 all-lane/public oracle PASS：Unit=`681+55/4941/F0E0S0`、Integration=
+  `47+4/320/F0E0S0`、database=`29/370/F0E0S0`、external=`16/76/F0E0S0`、required=
+  `773+59/5707/F0E0S0`、Addon=`2/6/F0E0S0`、exec/session=`23/48`；source exact、cleanup 与
+  external restore PASS；
+- aggregate oracle=`54624/76830 line + 26112/44870 branch`；schema 2 historical/current=
+  `6/11 + 7/12`，fixture negatives/lifecycle=`42/42 + 5/5`；candidate public verification、capsule
+  deterministic rebuild/materialize 与两路 review 均 PASS；
+- r26 reviewed candidate 只打开 direct-single-parent Cfreeze transition，不是 formal 或 acceptance
+  test result。Cfreeze 后必须 fresh formal-r8 完整复现全部 lane、threshold、source/provenance、negative、
+  lifecycle 与 cleanup oracle；
+- formal-r8 PASS 后只执行 Step 4 final quality→coverage audit→feature acceptance。该 acceptance
+  仅开放 Step 5；9.3.4 仍须完成 Steps 5–7 和 version signoff，9.3.5 仍保持 queued。

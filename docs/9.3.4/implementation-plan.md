@@ -1037,7 +1037,7 @@ current Step 4=`in-progress`、Step 5–7=`hold/closed`、9.3.5=`queued`。
 - 下一动作严格进入 Step 5 rehearsal，不启动 Step 6/7，不创建 version signoff，不建立
   `docs/9.3.5` 实施目录。
 
-## Superseding formal-r6 recovery plan（2026-07-19）
+## Superseding formal-r6 recovery plan（historical；superseded below；2026-07-19）
 
 1. [completed] 封存 formal-r6 bootstrap-negative failure 与 success-only absence boundary；
 2. [completed] 两路独立根因审计，确认 malformed v2 newline token 和 real index 无漂移；
@@ -1101,15 +1101,23 @@ candidate authority。
 7. [completed] contract/negative/manifest/overlay/coverage/CI 全部机器校验与 pre-Cdiag
    implementation-quality review PASS；Step4=`61/61 / 4805dd3e…`、Step6=
    `16/16 / 84407570…`、review=`APPROVE / 0/0/0/0`；
-8. [pending] 只创建一个 new Cdiag，commit/push/clean 后运行 isolated focused/negative proof 与
-   唯一 fresh all-lane diagnostic-r26；不得复用 r25 运行产物；
-9. [pending] 仅 r26 all-lane/public validation PASS 且 7/12 contract exact 后，才可生成
-   candidate/capsule 并双审，再创建 direct-child Cfreeze、运行 fresh formal-r8；
-10. [pending] formal-r8 PASS 后按顺序运行 final quality→coverage audit→acceptance；仅全部 PASS
-    才恢复 Step 5 entry。
+8. [completed] 只创建一个 new Cdiag `4fe86929de6206aa3e514c974635e90395c28b2e` 并
+   commit/push/clean；fresh-clone isolated r4 保存 positive/wrong-password 双 XML、Maven rc 与 cleanup
+   receipt，随后唯一 fresh all-lane diagnostic-r26 public validation PASS；未复用 r25 运行产物；
+9. [completed] r26 exact 7/12 contract、candidate public verification、deterministic capsule 与两路
+   independent review PASS；candidate=`b8bd2411…2797a`，review=`APPROVE / 0/0/0/0`，只授权
+   direct-child Cfreeze；
+10. [in-progress] reviewed exact projection 已写入六个 machine formalization path，Step 4→Step 6
+    hash cascade 与 pre-Cfreeze validators 均 PASS；当前只将这些路径连同 `docs/9.3.4/**` 形成
+    Cdiag 的唯一 direct-single-parent Cfreeze，完成 commit/push/topology/clean proof 后运行 fresh
+    formal-r8；
+11. [pending] formal-r8 PASS 后按顺序运行 final implementation quality→Step 4 coverage audit→
+    Step 4 feature acceptance；仅三门全部 PASS 才把 Step 4 标为 `passed` 并恢复 Step 5 entry；
+12. [pending] 继续完成 Steps 5–7 和 9.3.4 version signoff；Step 4 feature acceptance 不等于版本签收。
 
-Current Step 4=`in-progress / r25 public-valid but superseded / Unit MySQL 7/12 remediation`。
-`can_enter_cfreeze=no`、`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5–7、
-9.3.5 与 9.4.0 保持关闭。记录：
+Current Step 4=`in-progress / diagnostic-r26 reviewed / ready-for-direct-child-Cfreeze`。
+`can_enter_cfreeze=yes`、`can_enter_coverage_audit=no`、`can_enter_acceptance=no`；Step 5–7、
+9.3.5 与 9.4.0 保持关闭。9.3.5 只能在 9.3.4 version signoff 后先进入 Gate 0 classification-debt
+migration。记录：
 `docs/9.3.4/evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md`、
 `docs/9.3.4/workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md`。

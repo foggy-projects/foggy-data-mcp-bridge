@@ -80,8 +80,8 @@ candidate SHA-256=
 `8bb47382444fd66893d250a8787416c9ce73f9590be4c66308fb7a2e3e014d00`。
 
 这补齐了 checklist 中最后一项 fresh authority evidence；BUG 保持 `status=closed`。该记录时点
-Cfreeze/formal/audit 尚未开放；后续 formal-r4、coverage audit 与 feature acceptance 已完成，
-Step 5 现为 `ready / not-started`。
+Cfreeze/formal/audit 尚未开放；后续 formal-r4、coverage audit 与 feature acceptance 在历史
+checkpoint 已完成，Step 5 曾为 `ready / not-started`，之后被 replacement chain 重新关闭。
 
 ## References
 

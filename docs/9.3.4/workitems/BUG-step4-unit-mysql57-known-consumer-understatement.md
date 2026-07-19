@@ -93,11 +93,14 @@ candidate 或 Cfreeze parent evidence。
   container 已自动删除，四个 demo DB original ID 均保持 exact healthy；
 - r25 decision=`pre-remediation / superseded / non-candidate`；
 - r7 historical `6/11` 不修改、不重新解释成 7/12；7/12 来自后续 consumer audit；
-- 上述 positive XML 随 deliberate negative 被覆盖，未形成 portable standalone receipt；两项只作
-  local observation，必须在 new Cdiag 后以 isolated durable receipt 重跑；
-- machine validation 与 pre-Cdiag quality 已 PASS；本 BUG 保持 `in-progress`，直到 new Cdiag、
-  isolated proof 与 r26 建立；
-- Step 5、Cfreeze、formal-r8、9.3.5 和 9.4.0 当前均未授权。
+- 上述 pre-Cdiag XML 随 deliberate negative 被覆盖，仍只作 local observation；replacement Cdiag
+  后的 isolated r4 已持久化 positive=`rc0 / 1/F0E0S0` 与 wrong-password=
+  `rc1 / 1/F0E1S0`，并证明 disposable cleanup/port release；
+- replacement Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 push/clean；fresh r26
+  all-lane/public validation、candidate/capsule 与两路独立 review 已 PASS，findings=`0/0/0/0`；
+- 本 BUG 保持 `in-progress`，直到 Cfreeze、fresh formal-r8 与 post-formal gates 完成；当前只授权
+  direct-single-parent Cfreeze，Step 5–7、9.3.5、9.4.0 均未授权；
+- classification-debt migration owner=`9.3.5 Gate 0`，deadline=`9.3.5 version acceptance`。
 
 ## Verification Checklist
 
@@ -109,9 +112,10 @@ candidate 或 Cfreeze parent evidence。
 - [x] schema 2 精确表达 historical `6/11` 与 known lower bound `7/12`。
 - [x] fixture negatives=`42/42`，全部 manifest/hash/overlay/CI validators PASS。
 - [x] pre-Cdiag implementation-quality review PASS，mandatory fixes=0。
-- [ ] new Cdiag 后保存 isolated 双 XML、Maven rc、fixture identity 与 cleanup 的 durable receipt。
-- [ ] new Cdiag commit/push/clean，fresh r26 all-lane/public validation PASS。
-- [ ] candidate/capsule/双审、Cfreeze、fresh formal-r8 与后置 gates 全部 PASS 后关闭。
+- [x] new Cdiag 后保存 isolated r4 双 XML、Maven rc、fixture identity 与 cleanup durable receipt。
+- [x] new Cdiag commit/push/clean，fresh r26 all-lane/public validation PASS。
+- [x] r26 candidate/capsule/双审 PASS，Cfreeze 获得唯一 direct-single-parent 授权。
+- [ ] Cfreeze、fresh formal-r8 与后置 gates 全部 PASS 后关闭。
 
 ## References
 
