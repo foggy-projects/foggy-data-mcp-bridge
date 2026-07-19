@@ -1208,14 +1208,19 @@ Current Step 4=`in-progress / formal-r9 strict-umask excluded / diagnostic-ready
 5. [failed / excluded] fresh `step4-coverage-20260719-diagnostic-r30` started from that Cdiag under outer
    `umask 077` but stopped in `contract-validate` when the successor overlay retained stale dual
    coverage-contract and coverage-tool bindings. It executed zero lanes and has no candidate/Cfreeze authority.
-6. [completed locally; not yet Cdiag] synchronize both successor binding sources, successor/Step 4/Step 6
+6. [completed] Cdiag `f80fadd62ca00d3ba56f1be04e92113ba1145019` synchronized both successor binding sources, successor/Step 4/Step 6
    integrity manifests, and add a canonical overlay positive control to the contract-negative suite. The original
    `21 / 28 / 128 / 86` static counts remain intact; the new overlay binding control is separate.
-7. [pending] submit/push that binding repair as a new Cdiag, then run one fresh strict-umask diagnostic-r31 in a
-   fresh clone. Only its new candidate and independently reviewed Git-safe closure may be considered for Cfreeze.
-8. [pending] after a valid successor Cfreeze, run one fresh formal successor, then final implementation
+7. [failed / excluded] fresh `step4-coverage-20260719-diagnostic-r31` completed preflight/source-seal/class-universe
+   but stopped before lifecycle probes, fixture provision or Maven Unit execution because the fixed-port
+   environment precondition was occupied outside its derived project. It has zero lane/candidate/Cfreeze authority;
+   the `0/0/0` cleanup result does not permit taking over or reusing the listener.
+8. [pending] seal r31, form/push one new Cdiag, independently verify the fixed port is free, then run one fresh
+   strict-umask diagnostic-r32 in a fresh clone. Only its new candidate and independently reviewed Git-safe closure
+   may be considered for Cfreeze.
+9. [pending] after a valid successor Cfreeze, run one fresh formal successor, then final implementation
    quality → replacement coverage audit `31/31` → Step 4 feature acceptance.
 
-Current Step 4=`in-progress / r29 non-freezable + r30 binding exclusion / replacement Cdiag pending`。
+Current Step 4=`in-progress / r29 non-freezable + r30 binding exclusion + r31 environment exclusion / replacement Cdiag pending`。
 `can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
 can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。

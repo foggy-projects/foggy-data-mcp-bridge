@@ -22,13 +22,13 @@ updated_at: 2026-07-19
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；formal-r9/r30 excluded；r29 capsule 无 Git-safe closure；r30 binding repair 本地验证完成，new Cdiag pending |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；formal-r9/r30/r31 excluded；r29 capsule 无 Git-safe closure；r31 fixed-port precondition requires a new Cdiag and fresh r32 |
 | module responsibility | `module-responsibility.md` | ready |
 | reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/r28/Cfreeze retained；formal-r8/r9 failure boundaries sealed；31st Step 4 workitem registered；Step 5–7 closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / r29 non-freezable + r30 successor-binding exclusion / new Cdiag pending / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9 and r30 failure boundaries sealed；r29 facts cannot enter freeze without a Git-safe closure；binding repair/new chain pending |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8/r9/r30 excluded；r29 non-freezable; fresh r31 diagnostic/formal/post-gates pending；Steps 5–6 closed |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / r29 non-freezable + r30/r31 exclusions / seal r31→new Cdiag→fresh r32 pending / Step 5–7 hold |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9, r30 and r31 failure boundaries sealed；r29 facts cannot enter freeze without a Git-safe closure；fixed-port precondition/new chain pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8/r9/r30/r31 excluded；r29 non-freezable; fresh r32 diagnostic/formal/post-gates pending；Steps 5–6 closed |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md` | formal-r9 recovery quality is `ready-for-new-Cdiag` only, not post-formal quality; new Cdiag and replacement post-formal quality pending |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement denominator=`31`，execution closed，pending fresh formal successor + final quality；尚未形成 `31/31` 结论 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
@@ -666,7 +666,9 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - 不得在 Git 中绑定、引用或重打包该本地 capsule；r29 candidate、review 与任何历史材料均不能拼接成
   freeze、formal 或 acceptance 输入。
 - Git-safe capsule/replay 的 Cdiag `7757aa36…` 曾启动 fresh r30，但 r30 在 successor binding 预检
-  fail-closed、未执行 lane。同步 dual digest/tool binding、完整性清单以及同一预检的静态正向控制后，仍
-  必须先形成新的 Cdiag→fresh r31 diagnostic→new candidate/review→Cfreeze→fresh formal 的完整替换链。
+  fail-closed、未执行 lane。binding repair Cdiag `f80fadd6…` 的 fresh r31 又在 Unit fixture 固定端口
+  前置条件处 fail-closed，同样未执行 lane；r31 派生资源与 outer cleanup 均为零，不得接管或复用外部
+  listener。必须先封存 r31→new Cdiag→确认端口空闲→fresh r32 diagnostic→new candidate/review→
+  Cfreeze→fresh formal 的完整替换链。
 - `acceptance_status=not-started`，且 `can_enter_cfreeze=no / can_enter_formal=no /
   can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。9.3.5 与 9.4.0 不开工。

@@ -826,15 +826,17 @@ Current recovery records：
 - r29 的候选事实只保留为本地诊断观察。审计发现其 local capsule 包含 Git 排除的原始运行内容，
   因而不存在可入库的安全 closure；r29=`non-freezable / no-cfreeze-authority`；
 - 不得为 r29 补录、重打包或引用 capsule identity，也不得将其 candidate/review 与任何历史运行拼接；
-- Git-safe tooling 已作为 Cdiag `7757aa36…` 推送；其 fresh r30 在 successor overlay binding 预检
-  fail-closed，未启动任何 lane。该 run 永久 excluded，不能补跑或复用。binding closure 与防回归已完成
-  本地验证，仍须新的 clean/pushed Cdiag→fresh strict-umask diagnostic-r31。Cfreeze、formal、coverage
-  audit、acceptance、Step 5–7、9.3.5 与 9.4.0 继续关闭。
+- Git-safe tooling Cdiag `7757aa36…` 的 r30 在 successor overlay binding 预检 fail-closed；binding
+  closure Cdiag `f80fadd6…` 随后的 fresh r31 则在 Unit fixture 的固定端口前置条件处 fail-closed，未
+  启动 lifecycle probe、fixture 或测试 lane。r31 永久 excluded，不能补跑或复用；当前只允许封存该环境
+  边界、形成新的 clean/pushed Cdiag、确认端口空闲后运行 fresh r32。Cfreeze、formal、coverage audit、
+  acceptance、Step 5–7、9.3.5 与 9.4.0 继续关闭。
 
 - [r29 diagnostic evidence](evidence/step-4/step4-coverage-diagnostic-r29-pass-20260719.md)
 - [r29 candidate review](quality/step4-diagnostic-r29-candidate-review.md)
 - [r29 capsule review](quality/step4-diagnostic-r29-capsule-review.md)
 - [Git-safe capsule blocker](workitems/BUG-step4-frozen-capsule-git-safe-content-boundary.md)
+- [r31 environment fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r31-environment-port-precondition-fail-closed-20260719.md)
 
 ## Superseding diagnostic-r30 successor-binding failure（2026-07-19）
 
@@ -849,3 +851,15 @@ Current recovery records：
   before one fresh strict-umask diagnostic-r31.
 
 - [r30 fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r30-successor-binding-fail-closed-20260719.md)
+
+## Superseding diagnostic-r31 fixed-port environment failure（2026-07-19）
+
+- Cdiag `f80fadd62ca00d3ba56f1be04e92113ba1145019` sealed the successor-binding correction; its fresh
+  strict-umask `step4-coverage-20260719-diagnostic-r31` passed preflight/source-seal/class-universe then stopped
+  before any lifecycle probe, fixture provision or Maven Unit execution.
+- r31=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. Its derived resource and outer
+  cleanup counts are zero, while a fixed-port precondition remained occupied outside the derived project; no
+  external listener is taken over, reused or recorded as runtime evidence.
+- The authorized path is now: seal r31 → new clean/pushed Cdiag → independently confirm the port is free → fresh
+  r32 → new candidate/review → direct-child Cfreeze → fresh formal → post gates. Step 5–7, 9.3.5 and 9.4.0 remain
+  closed.

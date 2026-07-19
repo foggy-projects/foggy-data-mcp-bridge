@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r29 non-freezable + r30 binding excluded | Step 3 exit passed | r9 strict-umask remains excluded; r29 has no Git-safe closure; Git-safe Cdiag `7757aa36…` r30 stopped at successor binding preflight with zero lanes. Binding repair is locally verified; Next=new clean/pushed Cdiag→fresh r31→new candidate/review→Cfreeze→fresh formal→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r29 non-freezable + r30/r31 excluded | Step 3 exit passed | r9 strict-umask remains excluded; r29 has no Git-safe closure; r30 stopped at successor-binding preflight and r31 at the Unit fixture fixed-port precondition, both with zero lane authority. Next=seal r31→new clean/pushed Cdiag→verify port free→fresh r32→new candidate/review→Cfreeze→fresh formal→post gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r9 exclusion/recovery reset do not enter Step 5; wait for fresh formal successor + final quality + coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1917,3 +1917,15 @@ Records：
 - Remediation synchronizes the two binding sources and Step 4/6 manifest chain, then exercises canonical overlay
   validation from the contract-negative suite. A new Cdiag and fresh r31 are required before any review/Cfreeze/
   formal transition; Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r31 fixed-port environment fail-closed（2026-07-19）
+
+- Cdiag=`f80fadd62ca00d3ba56f1be04e92113ba1145019`; fresh strict-umask
+  `step4-coverage-20260719-diagnostic-r31` completed preflight/source-seal/class-universe and stopped in
+  `child-unit` before lifecycle probes, fixture provision or Maven Unit execution.
+- r31=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. Derived Docker resource and outer
+  cleanup counts are `0/0/0`; only the fixed-port-free precondition was false, from outside the derived project.
+  No external listener is reused, changed or entered as tracked runtime evidence.
+- The one fresh diagnostic authorized by f80 is consumed. The only successor is r31 exclusion record → new
+  clean/pushed Cdiag → independently verify port free → fresh r32 → new candidate/Git-safe capsule/review →
+  direct-child Cfreeze → fresh formal → post gates. Step 5–7, 9.3.5 and 9.4.0 remain closed.
