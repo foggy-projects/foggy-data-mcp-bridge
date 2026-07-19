@@ -1251,3 +1251,20 @@ can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。
 Current Step 4=`in-progress / r32 non-freezable / r33 excluded / docs-only Cdiag and fresh r34 pending`.
 `can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
 can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。
+
+## Superseding formal-r10 report-stage repair plan（2026-07-20）
+
+1. [completed / fail-closed] r34 completed as diagnostic-only observation and formal-r10 mechanically
+   completed, but r10's final public report effective-POM receipt was `0600` instead of exact `0644`.
+   r10 is immutable `mechanically-passed / contract-invalid / excluded` and cannot be reused.
+2. [completed] Repair the separate report-stage boundary: enforce `0644` after copy and before publish,
+   bind exact mode into provenance, add strict-umask real-copy proof and mutation/`0600` negatives, then
+   reset the machine exactly to `diagnostic-ready / diagnostic-pending` with Step 4→Step 6 hash closure.
+3. [pending] Commit/push a clean Cdiag, independently preflight the project fixture environment, and run
+   fresh strict-umask diagnostic-r35. Its all-lane/high-water result must be entirely new authority.
+4. [pending] From r35 only, create candidate/Git-safe closure/capsule/dual review, direct-child Cfreeze,
+   and fresh formal; then complete final quality, `legacy 31 + supplemental 4` audit, and Step 4 acceptance.
+
+Current Step 4=`in-progress / formal-r10 contract-invalid / replacement Cdiag pending`.
+`can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
+can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.

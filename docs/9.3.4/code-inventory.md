@@ -1054,3 +1054,14 @@ code_inventory:
   cleanup debt, not expanded by this Cdiag. r33 consumed the one fresh-run authorization but is excluded before
   canonical Unit authority; current inventory authorizes only docs-only Cdiag → governed readiness preflight →
   fresh r34. candidate/Cfreeze/formal/Step 5–7/9.3.5/9.4.0 remain closed.
+
+## formal-r10 report-stage receipt recovery inventory（2026-07-20）
+
+- active implementation surface: `coverage_report_runner.sh` owns post-copy and pre-publication public-mode
+  enforcement; `coverage_xml_tool.py` owns exact mode consumption in report provenance; the contract and
+  both negative tools own the immutable requirement and regressions;
+- active validation surface: strict-umask real report-stage copy proof, mode-omission/weakening mutations,
+  `0600` provenance negative, and Step 4/successor/Step 6 hash closure;
+- machine state is `diagnostic-ready / diagnostic-pending`. formal-r10 and all its upstream r34/Cfreeze
+  material are historical observation only. Inventory authorization is limited to clean/pushed Cdiag then
+  fresh r35; candidate/Cfreeze/formal/audit/acceptance/Step 5–7/9.3.5/9.4.0 remain closed.

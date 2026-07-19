@@ -32,6 +32,17 @@ require_nonempty_file() {
   [[ -s "$path" ]] || fail "empty output file: $path"
 }
 
+require_public_receipt_mode() {
+  local path="$1"
+  local observed_mode
+  require_nonempty_file "$path"
+  chmod 0644 -- "$path" || fail "cannot set public receipt mode: $path"
+  observed_mode="$(stat -c '%a' -- "$path")" ||
+    fail "cannot inspect public receipt mode: $path"
+  [[ "$observed_mode" == "644" ]] ||
+    fail "public receipt mode must be 0644: $path"
+}
+
 remove_reporter_output() {
   local path="$1"
   case "$path" in
@@ -406,6 +417,7 @@ cp -- "$REPORTER_EXEC" "$RUN_REPORT_STAGE/jacoco-aggregate.exec"
 cp -R -- "$REPORTER_SITE" "$RUN_REPORT_STAGE/jacoco-aggregate"
 cp -- "$REPORT_EFFECTIVE_BEFORE" "$RUN_REPORT_STAGE/effective-reporter-pom.xml"
 cp -- "$REPORT_EFFECTIVE_RECEIPT_BEFORE" "$RUN_REPORT_STAGE/effective-reporter-pom-receipt.json"
+require_public_receipt_mode "$RUN_REPORT_STAGE/effective-reporter-pom-receipt.json"
 python3 - \
   "$RUN_REPORT_STAGE/toolchain-replay-pre.json" \
   "$RUN_REPORT_STAGE/toolchain-replay-post.json" \
@@ -512,7 +524,7 @@ require_nonempty_file "$RUN_REPORT_STAGE/jacoco-aggregate.exec"
 require_nonempty_file "$RUN_REPORT_STAGE/jacoco-aggregate/jacoco.xml"
 require_nonempty_file "$RUN_REPORT_STAGE/jacoco-aggregate/index.html"
 require_nonempty_file "$RUN_REPORT_STAGE/effective-reporter-pom.xml"
-require_nonempty_file "$RUN_REPORT_STAGE/effective-reporter-pom-receipt.json"
+require_public_receipt_mode "$RUN_REPORT_STAGE/effective-reporter-pom-receipt.json"
 require_nonempty_file "$RUN_REPORT_STAGE/toolchain-replay-pre.json"
 require_nonempty_file "$RUN_REPORT_STAGE/toolchain-replay-post.json"
 [[ -z "$(find "$RUN_REPORT_STAGE" -type l -print -quit)" ]] || fail "run-owned report stage contains a symlink"
@@ -679,6 +691,25 @@ if (
 def identity(path_text: str) -> dict[str, object]:
     return evidence(path_text)[1]
 
+
+def public_receipt_identity(path_text: str) -> dict[str, object]:
+    path = Path(path_text)
+    _, identity_value = evidence(path_text)
+    try:
+        observed = path.lstat()
+    except OSError as exc:
+        raise SystemExit(
+            f"cannot inspect public receipt mode: {exc.__class__.__name__}"
+        ) from exc
+    if (
+        stat.S_ISLNK(observed.st_mode)
+        or not stat.S_ISREG(observed.st_mode)
+        or observed.st_size != identity_value["size"]
+        or stat.S_IMODE(observed.st_mode) != 0o644
+    ):
+        raise SystemExit("public receipt must be a nonempty regular 0644 file")
+    return {**identity_value, "mode": "0644"}
+
 def unique(pairs):
     result = {}
     for key, value in pairs:
@@ -739,7 +770,7 @@ payload = {
     "aggregate_xml": identity(xml_text),
     "aggregate_html_entry": identity(html_text),
     "effective_reporter_pom": identity(effective_pom_text),
-    "effective_reporter_pom_receipt": identity(effective_receipt_text),
+    "effective_reporter_pom_receipt": public_receipt_identity(effective_receipt_text),
     "jacoco": {
         "version": "0.8.12",
         "maven_plugin_sha256": "b305a57535247cff2b7450c4dc1db505c7c246c838cec48c10e52fa71aa423bd",

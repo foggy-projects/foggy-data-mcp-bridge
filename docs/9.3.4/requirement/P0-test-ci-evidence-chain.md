@@ -840,3 +840,17 @@ updated_at: 2026-07-20
   lane, source/cleanup closure, critical policy, line >= `54624/76830`, branch >= `26112/44870`, and complexity
   >= `17659/35571` before new candidate/Git-safe closure/review/Cfreeze authority exists. Step 5–7, 9.3.5, and
   9.4.0 stay closed.
+
+## Superseding formal-r10 report-stage public-receipt requirement boundary（2026-07-20）
+
+- A formal evidence receipt is public only when it is regular, non-link, non-empty, byte/provenance exact,
+  and mode exact `0644`. The mode is mandatory provenance, not an ambient filesystem assumption.
+- formal-r10 mechanically passed but is contract-invalid because its final report-stage effective-POM receipt
+  was `0600`; its prior provenance omitted the mode. It is immutable historical evidence only and is
+  excluded from audit and acceptance.
+- The required implementation enforces and asserts `0644` after report-stage copy and before publication,
+  and requires the provenance consumer to verify the recorded exact mode. Strict-umask real-copy and
+  mutation/negative coverage are mandatory Cdiag static gates.
+- Only a fresh Cdiag → fresh r35 → fresh candidate/review → direct-child Cfreeze → fresh formal → final
+  quality → `legacy 31 + supplemental 4` audit → feature acceptance can reopen Step 4. Step 5–7, 9.3.5,
+  and 9.4.0 remain closed until then.

@@ -3,7 +3,7 @@ workitem_type: BUG
 version: 9.3.4
 step: 4
 severity: blocker
-status: implemented-awaiting-cdiag-successor
+status: reopened-awaiting-replacement-authority
 owner: Step 4 coverage authority
 discovered_by: step4-coverage-20260719-formal-r9
 ---
@@ -72,3 +72,21 @@ formalization delta, it cannot be patched into that run or represented as a Cfre
 The checked-in recovery baseline is not diagnostic authority. Until the new clean, pushed Cdiag successor
 and fresh "diagnostic-r29" complete, "can_enter_step5=no", "can_enter_coverage_audit=no", and
 "can_enter_acceptance=no".
+
+## formal-r10 report-stage false-green supersession（2026-07-20）
+
+The publisher repair above was necessary but insufficient. formal-r10 mechanically completed after the
+original publisher produced `0644`; a later report-stage copy under strict `umask 077` recreated the
+public receipt as `0600`. Because final report provenance then bound only content SHA-256 and size, the
+wrong mode was not detected in the mechanical formal path.
+
+formal-r10 is consequently `mechanically-passed / contract-invalid / non-authoritative /
+excluded-from-audit-and-acceptance`. Its run-status remains immutable and must not be rewritten, but it
+cannot be used for candidate, Cfreeze, formal, audit, or feature-acceptance authority. The separate repair
+is tracked by
+[BUG-step4-report-stage-public-receipt-mode-binding.md](BUG-step4-report-stage-public-receipt-mode-binding.md).
+
+The active recovery sequence supersedes the old r29 wording: clean/pushed replacement Cdiag → fresh
+diagnostic-r35 → new candidate/Git-safe closure/capsule/dual review → direct-child Cfreeze → fresh formal
+→ replacement final quality → `legacy 31 + supplemental 4` audit → Step 4 feature acceptance. No r34,
+r10, or prior Cfreeze material may be reused.

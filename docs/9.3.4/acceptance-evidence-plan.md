@@ -697,3 +697,14 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
   coverage-audit, Step 5, 9.3.5 or 9.4.0 transition.
 - The replacement acceptance chain resumes only after r33 is sealed, a clean/pushed docs-only Cdiag and an
   independent governed readiness preflight allow fresh r34 to complete the original all-lane/high-water gate.
+
+## Superseding formal-r10 report-stage acceptance boundary（2026-07-20）
+
+- formal-r10 is excluded from acceptance even though it mechanically reported success: its final public
+  report effective-POM receipt was `0600`, not contract-required `0644`, and the old provenance did not
+  bind the mode.
+- No r10 output, r34 observation, candidate, review, Cfreeze, or companion may be joined to a replacement
+  acceptance packet. The immutable r10 status is retained only as a fail-closed historical record.
+- Acceptance remains `not-started`. It may reopen only after a new clean/pushed Cdiag, fresh r35,
+  fresh candidate/reviews, direct-child Cfreeze, fresh formal, final quality, and a separately recorded
+  `legacy 31 + supplemental 4` audit with critical/major gaps `0/0`.

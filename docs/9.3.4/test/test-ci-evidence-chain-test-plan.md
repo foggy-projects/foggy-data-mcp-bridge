@@ -1085,3 +1085,14 @@ coverage audit 与 acceptance 保持关闭。
   fresh r34 satisfying line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571` → new
   candidate/Git-safe closure/dual review → direct-child Cfreeze → fresh formal. No r32 or r33 material
   substitutes for any stage.
+
+## formal-r10 report-stage public-receipt regression boundary（2026-07-20）
+
+- The final report-stage effective-POM receipt is a public artifact and must be a regular, non-link,
+  non-empty file at exact mode `0644`. SHA-256 and byte size alone are insufficient identity.
+- Under outer `umask 077`, the real report-stage copy path must finish at `0644`; the runner must enforce
+  it after the copy and before publication, and final provenance must carry and verify `mode=0644`.
+- Positive coverage must reject a report-stage `0600` receipt. Mutation probes must fail when either
+  enforcement call site, the explicit normalization, or the exact-mode assertion is removed or weakened.
+- formal-r10 is permanently excluded as a contract-invalid mechanical result. The end-to-end authority test
+  starts from a new Cdiag and fresh r35; no r10/r34/Cfreeze artifact substitutes for it.

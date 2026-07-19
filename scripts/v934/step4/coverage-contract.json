@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "kind": "v934-step4-coverage-contract",
-  "status": "formal-ready",
+  "status": "diagnostic-ready",
   "tooling_manifest": {
     "path": "scripts/v934/step4/SHA256SUMS",
     "path_semantics": "repository-relative-posix",
     "required_entries": 61,
-    "publication_status": "formal-ready"
+    "publication_status": "diagnostic-ready"
   },
   "parent_links": {
     "step1_coverage_policy": {
@@ -112,7 +112,8 @@
     "production_dependencies_on_reporter": 0,
     "standard_jacoco_check_allowed": false,
     "versioned_xml_verifier_required": true,
-    "effective_model_receipt_required": true
+    "effective_model_receipt_required": true,
+    "effective_model_receipt_public_mode": "0644"
   },
   "threshold_successor": {
     "path": "scripts/v934/step4/coverage-thresholds.json",

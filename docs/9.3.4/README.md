@@ -897,3 +897,19 @@ Current recovery records：
   fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
 
 - [r33 Unit pre-marker fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r33-unit-pre-marker-fallback-cleanup-fail-closed-20260720.md)
+
+## Superseding formal-r10 report-stage receipt boundary（2026-07-20）
+
+- formal-r10 remains mechanically recorded as `formal-passed`, but its final public effective-POM report
+  receipt was mode `0600` rather than the exact governed public mode `0644`. The result is therefore
+  `contract-invalid / non-authoritative / excluded-from-audit-and-acceptance`; it must not be retroactively
+  edited or used as Step 4, Step 5, audit, or acceptance authority.
+- The initial publisher correction was sound. The remaining defect was the later report-stage copy under
+  strict `umask 077`, combined with provenance that omitted the mode. The successor binds exact mode into
+  both runner enforcement and final provenance and proves it with strict-umask/mutation regressions.
+- The authority sequence restarts at a new clean/pushed Cdiag and fresh diagnostic-r35. Only that new run
+  may create candidate/review/Cfreeze/formal successors, followed by final quality, `legacy 31 +
+  supplemental 4` audit, and feature acceptance. 9.3.5 and 9.4.0 remain closed.
+
+- [formal-r10 report-stage fail-closed evidence](evidence/step-4/step4-coverage-formal-r10-report-stage-public-receipt-fail-closed-20260720.md)
+- [formal-r10 implementation-quality rejection](quality/step4-formal-r10-report-stage-receipt-fail-closed-implementation-quality.md)

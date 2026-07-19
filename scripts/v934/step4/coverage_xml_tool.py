@@ -364,7 +364,13 @@ def unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def regular_file(path: Path, missing_code: str, *, nonempty: bool = True) -> os.stat_result:
+def regular_file(
+    path: Path,
+    missing_code: str,
+    *,
+    nonempty: bool = True,
+    expected_mode: int | None = None,
+) -> os.stat_result:
     try:
         file_stat = path.lstat()
     except FileNotFoundError:
@@ -377,6 +383,11 @@ def regular_file(path: Path, missing_code: str, *, nonempty: bool = True) -> os.
         reject("E_FILE_TYPE", f"evidence is not a regular file: {path}")
     if nonempty and file_stat.st_size <= 0:
         reject("E_FILE_EMPTY", f"evidence is empty: {path}")
+    if expected_mode is not None and stat.S_IMODE(file_stat.st_mode) != expected_mode:
+        reject(
+            missing_code,
+            f"evidence mode must be {expected_mode:04o}: {path}",
+        )
     return file_stat
 
 
@@ -1993,14 +2004,26 @@ def validate_report_provenance(
     json_sha256(report["run_context_sha256"], "E_REPORT_PROVENANCE", "run context SHA")
     json_sha256(report["source_sha256"], "E_REPORT_PROVENANCE", "source SHA")
 
-    def require_identity(label: str, path: Path) -> None:
+    def require_identity(
+        label: str,
+        path: Path,
+        *,
+        expected_mode: int | None = None,
+    ) -> None:
+        expected_keys = ("sha256", "size")
+        if expected_mode is not None:
+            expected_keys = (*expected_keys, "mode")
         identity = exact_keys(
             report[label],
-            ("sha256", "size"),
+            expected_keys,
             "E_REPORT_PROVENANCE",
             f"report provenance {label}",
         )
-        file_stat = regular_file(path, "E_REPORT_PROVENANCE")
+        file_stat = regular_file(
+            path,
+            "E_REPORT_PROVENANCE",
+            expected_mode=expected_mode,
+        )
         require(
             json_sha256(identity["sha256"], "E_REPORT_PROVENANCE", f"{label} SHA")
             == sha256_file(path, "E_REPORT_PROVENANCE")
@@ -2010,6 +2033,12 @@ def validate_report_provenance(
             "E_REPORT_PROVENANCE",
             f"report provenance {label} identity differs",
         )
+        if expected_mode is not None:
+            require(
+                identity["mode"] == f"{expected_mode:04o}",
+                "E_REPORT_PROVENANCE",
+                f"report provenance {label} mode differs",
+            )
 
     require_identity("exec_manifest", exec_manifest_path)
     toolchain_receipt_path = (
@@ -2065,7 +2094,11 @@ def validate_report_provenance(
         aggregate_exec_path.parent / "effective-reporter-pom-receipt.json"
     )
     require_identity("effective_reporter_pom", effective_pom_path)
-    require_identity("effective_reporter_pom_receipt", effective_receipt_path)
+    require_identity(
+        "effective_reporter_pom_receipt",
+        effective_receipt_path,
+        expected_mode=0o644,
+    )
     effective_receipt = load_json(
         effective_receipt_path,
         "E_REPORT_PROVENANCE",

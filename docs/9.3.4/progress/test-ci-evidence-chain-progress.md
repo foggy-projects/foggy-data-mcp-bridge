@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded | Step 3 exit passed | r32 remains non-freezable; r33 stopped before canonical Unit authority and its cleanup closure is unproven. Next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/review→Cfreeze→fresh formal→post gates |
-| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r9 exclusion/recovery reset do not enter Step 5; wait for fresh formal successor + final quality + coverage audit/feature acceptance |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r10 contract-invalid | Step 3 exit passed | r34 remains diagnostic-only; r10 mechanically passed but its final public report receipt was `0600`, not governed `0644`. Next=new Cdiag→fresh r35→new candidate/Git-safe closure/review→Cfreeze→fresh formal→post gates |
+| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r10 exclusion/recovery reset does not enter Step 5; wait for a fresh formal successor + final quality + scoped coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -1961,3 +1961,18 @@ Records：
 - The authorized path is r33 exclusion record → clean/pushed docs-only Cdiag → independent governed readiness
   preflight → fresh r34 meeting every all-lane/high-water gate → candidate/Git-safe closure/review →
   direct-child Cfreeze → fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — formal-r10 report-stage contract invalidation（2026-07-20）
+
+- r34 completed as a diagnostic observation and led to a direct-child Cfreeze. formal-r10 retained its
+  immutable mechanical `formal-passed` status, but independent post-formal review found its final public
+  effective-POM report receipt was mode `0600`, not the exact governed public mode `0644`.
+- The original publisher was correct; a later report-stage copy under strict `umask 077` recreated the
+  receipt with the wrong mode. Provenance bound SHA-256 and size but omitted mode, so r10 is a false-green
+  mechanical result. It is now `contract-invalid / non-authoritative / excluded-from-audit-and-acceptance`.
+- The repair explicitly enforces `0644` at the report-stage copy and pre-publication boundaries, binds mode
+  into provenance, and adds strict-umask and mutation regressions. Its machine state is
+  `diagnostic-ready / diagnostic-pending`.
+- The only continuation is a clean/pushed Cdiag → fresh r35 → fresh candidate/Git-safe closure/capsule/dual
+  review → direct-child Cfreeze → fresh formal → replacement final quality → `legacy 31 + supplemental 4`
+  audit → Step 4 acceptance. No r34/r10/Cfreeze output may be reused; Step 5–7, 9.3.5 and 9.4.0 remain closed.

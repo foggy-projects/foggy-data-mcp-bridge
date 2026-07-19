@@ -671,6 +671,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
             "standard_jacoco_check_allowed",
             "versioned_xml_verifier_required",
             "effective_model_receipt_required",
+            "effective_model_receipt_public_mode",
         ),
         "coverage contract.reporter",
     )
@@ -681,6 +682,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
     require(type(reporter["standard_jacoco_check_allowed"]) is bool and reporter["standard_jacoco_check_allowed"] is False, "coverage contract.reporter.standard_jacoco_check_allowed: expected boolean false")
     require(type(reporter["versioned_xml_verifier_required"]) is bool and reporter["versioned_xml_verifier_required"] is True, "coverage contract.reporter.versioned_xml_verifier_required: expected boolean true")
     require(type(reporter["effective_model_receipt_required"]) is bool and reporter["effective_model_receipt_required"] is True, "coverage contract.reporter.effective_model_receipt_required: expected boolean true")
+    require(reporter["effective_model_receipt_public_mode"] == "0644", "coverage contract.reporter.effective_model_receipt_public_mode: expected string 0644")
 
     successor = require_exact_keys(
         contract["threshold_successor"],

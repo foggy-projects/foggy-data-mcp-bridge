@@ -447,3 +447,15 @@ updated_at: 2026-07-20
   Docker reachability, fixed port and run-owned scope before fresh r34. Candidate/Git-safe closure/reviewer/
   Cfreeze/formal owners remain closed until r34 meets the governed high-water. Step 5–7, 9.3.5, and 9.4.0
   owners remain closed.
+
+## Superseding formal-r10 report-stage receipt recovery ownership（2026-07-20）
+
+- report-runner owner owns exact `0644` enforcement after report-stage copy and immediately before final
+  publication; it must preserve private staging and reject regular-file, link, emptiness, or mode failures;
+- provenance owner owns recording and verifying the exact public mode alongside content SHA-256 and size;
+  content identity alone must never certify a public receipt;
+- negative-test owner owns strict-umask real-copy coverage, `0600` rejection, and mutation probes for both
+  enforcement calls, normalization, and assertion;
+- Cdiag owner owns the clean/pushed reset. diagnostic owner may then run fresh r35 only. r10 is immutable
+  and excluded; candidate, Cfreeze, formal, final quality, audit, acceptance, Step 5–7, 9.3.5, and 9.4.0
+  owners remain closed until the replacement chain completes.

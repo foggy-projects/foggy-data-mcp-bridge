@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -307,6 +308,30 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     repo_root = args.repo_root.resolve()
     tool.real_directory(repo_root, "E_REPO_ROOT")
     cases: dict[str, dict[str, str]] = {}
+
+    with tempfile.TemporaryDirectory(prefix="v934-public-receipt-mode-") as temporary_name:
+        receipt = Path(temporary_name) / "effective-reporter-pom-receipt.json"
+        receipt.write_text('{"status":"verified"}\n', encoding="utf-8")
+        receipt.chmod(0o644)
+        observed = tool.regular_file(
+            receipt,
+            "E_REPORT_PROVENANCE",
+            expected_mode=0o644,
+        )
+        if not stat.S_ISREG(observed.st_mode):
+            raise RuntimeError("public receipt positive fixture is not regular")
+        record_positive(cases, "public-effective-receipt-mode-positive")
+        receipt.chmod(0o600)
+        expect_failure(
+            cases,
+            "public-effective-receipt-mode-0600",
+            "E_REPORT_PROVENANCE",
+            lambda: tool.regular_file(
+                receipt,
+                "E_REPORT_PROVENANCE",
+                expected_mode=0o644,
+            ),
+        )
 
     capsule_self_test = tool.diagnostic_capsule.run_self_test()
     required_capsule_cases = {

@@ -132,10 +132,13 @@ PYTHON_DISPATCH_CALL_IDS = {
     "exec-verify-aggregate",
 }
 PYTHON_DISPATCH_RUNNER_SHA256 = (
-    "a83ed709ccbbf152cbbeba8d25c2fffb0bd3343ba5bf86a7a0a627562bad4d12"
+    "c42e29752a226626c337660eac3f67c3670c3f82d1514fa33cbef7c9727a8834"
 )
 PYTHON_DISPATCH_EXECUTABLE_STREAM_SHA256 = (
-    "186d986fe6a13af7435190f6fbc8dcbacf614c9a53906e2ac48f18d140eb46e8"
+    "1b21ad363aa71619e0a64ac5e283c2f5613aec4bb2e49ae841d77e4877928b55"
+)
+PUBLIC_RECEIPT_MODE_CALL = (
+    'require_public_receipt_mode "$RUN_REPORT_STAGE/effective-reporter-pom-receipt.json"'
 )
 POM_PATHS = {
     "root": Path("pom.xml"),
@@ -391,6 +394,40 @@ def tracked_git_mode(root: Path, relative: Path) -> str:
     return fields[0]
 
 
+def validate_public_receipt_mode_binding(
+    logical_commands: Sequence["LogicalCommand"],
+) -> None:
+    required_function_commands = (
+        (0, "require_public_receipt_mode() {"),
+        (1, 'require_nonempty_file "$path"'),
+        (1, 'chmod 0644 -- "$path" || fail "cannot set public receipt mode: $path"'),
+        (
+            1,
+            'observed_mode="$(stat -c \'%a\' -- "$path")" || '
+            'fail "cannot inspect public receipt mode: $path"',
+        ),
+        (1, '[[ "$observed_mode" == "644" ]] || fail "public receipt mode must be 0644: $path"'),
+    )
+    for scope_depth, text in required_function_commands:
+        require(
+            sum(
+                command.scope_depth == scope_depth and command.text == text
+                for command in logical_commands
+            )
+            == 1,
+            "E_PUBLIC_RECEIPT_MODE: public receipt mode function differs",
+        )
+    calls = [
+        command
+        for command in logical_commands
+        if command.text == PUBLIC_RECEIPT_MODE_CALL
+    ]
+    require(
+        len(calls) == 2 and all(command.scope_depth == 0 for command in calls),
+        "E_PUBLIC_RECEIPT_MODE: staged receipt mode checks differ",
+    )
+
+
 def validate_python_dispatch_portability(
     root: Path,
     runner_text: str | None = None,
@@ -413,7 +450,7 @@ def validate_python_dispatch_portability(
         require(
             runner_sha256 == PYTHON_DISPATCH_RUNNER_SHA256,
             "E_PYTHON_DISPATCH_RAW: report runner raw bytes differ",
-        )
+    )
     validate_bash_syntax(runner_text)
     logical_commands = logical_shell_commands(runner_text)
     executable_stream = "".join(
@@ -425,6 +462,7 @@ def validate_python_dispatch_portability(
             executable_stream_sha256 == PYTHON_DISPATCH_EXECUTABLE_STREAM_SHA256,
             "E_PYTHON_DISPATCH_STREAM: logical executable stream differs",
         )
+    validate_public_receipt_mode_binding(logical_commands)
     target_commands = [
         command
         for command in logical_commands
@@ -992,6 +1030,48 @@ def python_dispatch_portability_probes(
         )
     )
 
+    public_receipt_mode_mutations = (
+        (
+            "public-receipt-stage-copy-mode-call",
+            replace_occurrence(
+                runner_text,
+                PUBLIC_RECEIPT_MODE_CALL,
+                'require_nonempty_file "$RUN_REPORT_STAGE/effective-reporter-pom-receipt.json"',
+                0,
+            ),
+        ),
+        (
+            "public-receipt-stage-prepublish-mode-call",
+            replace_occurrence(
+                runner_text,
+                PUBLIC_RECEIPT_MODE_CALL,
+                'require_nonempty_file "$RUN_REPORT_STAGE/effective-reporter-pom-receipt.json"',
+                1,
+            ),
+        ),
+        (
+            "public-receipt-mode-chmod",
+            runner_text.replace('chmod 0644 -- "$path"', 'chmod 0600 -- "$path"', 1),
+        ),
+        (
+            "public-receipt-mode-assertion",
+            runner_text.replace('[[ "$observed_mode" == "644" ]]', '[[ "$observed_mode" == "600" ]]', 1),
+        ),
+    )
+    for case_id, mutated in public_receipt_mode_mutations:
+        require(
+            mutated != runner_text,
+            f"E_PUBLIC_RECEIPT_MODE: mutation target is absent: {case_id}",
+        )
+        source_seal_cases.append(
+            rejected_source_seal_mutation(
+                root,
+                case_id,
+                mutated,
+                stream_must_change=True,
+            )
+        )
+
     mode_mutations = git_mode_mutation_probes(root, temporary_root)
     smoke_root = temporary_root / "python-dispatch-nonexec-smoke"
     smoke_root.mkdir(mode=0o700)
@@ -1101,6 +1181,63 @@ def reporter_effective_pom_umask_077_probe(
         and stat.S_IMODE(observed.st_mode) == 0o644
         and decoded == payload,
         "E_EFFECTIVE_POM_UMASK: strict umask receipt contract differs",
+    )
+
+
+def report_stage_public_receipt_umask_077_probe(
+    root: Path,
+    temporary_root: Path,
+) -> None:
+    runner_path = root / REPORT_RUNNER_PATH
+    try:
+        runner_text = runner_path.read_text(encoding="utf-8", errors="strict")
+    except (OSError, UnicodeError) as exc:
+        raise NegativeError(
+            "E_REPORT_STAGE_RECEIPT_UMASK: cannot read coverage report runner"
+        ) from exc
+    preamble, marker, _ = runner_text.partition('\nRUN_DIR=""\n')
+    require(
+        marker == '\nRUN_DIR=""\n',
+        "E_REPORT_STAGE_RECEIPT_UMASK: runner setup boundary differs",
+    )
+    source = temporary_root / "public-receipt-source.json"
+    destination = temporary_root / "public-receipt-stage.json"
+    payload = b'{"status":"verified"}\n'
+    source.write_bytes(payload)
+    source.chmod(0o644)
+    probe = preamble + """
+umask 077
+cp -- "$1" "$2"
+require_public_receipt_mode "$2"
+[[ -f "$2" && ! -L "$2" ]] || exit 64
+[[ "$(stat -c '%a' -- "$2")" == "644" ]] || exit 65
+"""
+    completed = subprocess.run(
+        ["bash", "-s", "--", str(source), str(destination)],
+        input=probe,
+        env=process_environment(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+    )
+    require(
+        completed.returncode == 0,
+        "E_REPORT_STAGE_RECEIPT_UMASK: strict-umask stage publication differs",
+    )
+    try:
+        observed = destination.lstat()
+        output = destination.read_bytes()
+    except OSError as exc:
+        raise NegativeError(
+            "E_REPORT_STAGE_RECEIPT_UMASK: cannot inspect staged receipt"
+        ) from exc
+    require(
+        stat.S_ISREG(observed.st_mode)
+        and not destination.is_symlink()
+        and stat.S_IMODE(observed.st_mode) == 0o644
+        and output == payload,
+        "E_REPORT_STAGE_RECEIPT_UMASK: strict-umask stage receipt contract differs",
     )
 
 
@@ -3311,6 +3448,7 @@ def build_result(root: Path) -> dict[str, Any]:
             root, temporary_root
         )
         reporter_effective_pom_umask_077_probe(root, temporary_root)
+        report_stage_public_receipt_umask_077_probe(root, temporary_root)
         successor_overlay_binding = verify_successor_overlay_binding(root)
     require(
         source_hashes == {role: sha256_file(root / relative) for role, relative in INPUT_PATHS.items()},
@@ -3334,6 +3472,10 @@ def build_result(root: Path) -> dict[str, Any]:
         "probes": cases,
         "git_environment_policy": git_environment_policy,
         "python_dispatch_portability": python_dispatch_portability,
+        "report_stage_public_receipt_umask_077": {
+            "final_mode": "0644",
+            "status": "passed",
+        },
         "successor_overlay_binding": successor_overlay_binding,
         "source_hash_git_identity": source_hash_identity,
         "threshold_and_frozen_replay": threshold_and_frozen_replay,
