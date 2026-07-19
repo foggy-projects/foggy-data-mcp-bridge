@@ -1191,3 +1191,25 @@ can_enter_acceptance=no`。This checkpoint is superseded by the formal-r9 bounda
 
 Current Step 4=`in-progress / formal-r9 strict-umask excluded / diagnostic-ready→pending Cdiag successor`。
 `can_enter_cfreeze=no / can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+
+## Superseding diagnostic-r29 Git-safety remediation addendum（2026-07-19）
+
+1. [completed] clean/pushed Cdiag `f420a4eaa3cf9bed0d7027b656ea71af6d0b03ca` contains the strict-umask
+   recovery, permanent r9 exclusion, documentation, and diagnostic-ready machine reset.
+2. [completed] one fresh all-lane diagnostic-r29 ran under outer `umask 077`; durable replay preserved its
+   diagnostic facts and candidate calculation.
+3. [completed] Git-safety review found that the local capsule recursively captured Git-excluded raw runtime
+   content. r29 is permanently `non-freezable`; its candidate, local capsule and reviews grant no Cfreeze
+   authority and may not be repaired or reused in place.
+4. [completed locally; not yet Cdiag] replace recursive capsule closure and raw-exec-only frozen replay with an
+   explicit two-file Git-safe allowlist, source-validated hash-only diagnostic attestation, and XML-only semantic
+   recomputation boundary. The capsule rejects raw execution/log/process/container content, unsafe XML/tar framing
+   and TOCTOU; static evidence is `21` capsule probes, `28` contract probes, `128` XML probes and `86` CI probes.
+5. [pending] submit/push that tooling as a new Cdiag, then run one fresh strict-umask diagnostic in a fresh
+   clone. Only its new candidate and independently reviewed Git-safe closure may be considered for Cfreeze.
+6. [pending] after a valid successor Cfreeze, run one fresh formal successor, then final implementation
+   quality → replacement coverage audit `31/31` → Step 4 feature acceptance.
+
+Current Step 4=`in-progress / r29 non-freezable safety hold / Git-safe capsule Cdiag pending`。
+`can_enter_cfreeze=no / can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no /
+can_enter_acceptance=no`；Steps 5–7、9.3.5 与 9.4.0 保持关闭。

@@ -154,6 +154,20 @@
         ]
       }
     },
+    "frozen_diagnostic_capsule": {
+      "schema_version": 2,
+      "profile": "git-safe-sanitized-attested-v1",
+      "archive_members": [
+        "evidence/diagnostic-attestation.json",
+        "evidence/jacoco.xml"
+      ],
+      "retention": {
+        "runtime_closure": "forbidden",
+        "execution_bytes": "forbidden",
+        "unstructured_output": "forbidden"
+      },
+      "replay_scope": "sanitized-attested-semantic-replay"
+    },
     "formalization_delta": {
       "parent_git_head_source": "aggregate_observed.evidence.git_head",
       "diagnostic_threshold_sha256": "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96",

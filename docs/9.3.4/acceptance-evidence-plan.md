@@ -22,19 +22,19 @@ updated_at: 2026-07-19
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；formal-r9 strict-umask exit=`2` excluded；recovery baseline has reset machine=`diagnostic-ready/diagnostic-pending`，new Cdiag pending |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；formal-r9 excluded；f420 Cdiag/r29 diagnostic facts recorded，但 r29 capsule 无 Git-safe closure；tool repair 本地验证完成，new Cdiag pending |
 | module responsibility | `module-responsibility.md` | ready |
 | reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/r28/Cfreeze retained；formal-r8/r9 failure boundaries sealed；31st Step 4 workitem registered；Step 5–7 closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / formal-r9 strict-umask excluded / pending new Cdiag / Step 5–7 hold |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9 stopped at coverage-report with `E_OUTPUT` mode `0600`；failure boundary sealed；replacement diagnostic-r29/formal successor pending |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8/r9 permanently excluded；replacement Step 4 diagnostic/formal/post-gates pending；Steps 5–6 closed |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / r29 non-freezable Git-safety hold / Git-safe capsule tooling locally verified, Cdiag pending / Step 5–7 hold |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9 failure boundary sealed；r29 facts are valid local diagnostic observation but cannot enter freeze without a Git-safe closure；tool repair/new chain pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8/r9 excluded；r29 non-freezable; new Step 4 diagnostic/formal/post-gates pending；Steps 5–6 closed |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md` | formal-r9 recovery quality is `ready-for-new-Cdiag` only, not post-formal quality; new Cdiag and replacement post-formal quality pending |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement denominator=`31`，execution closed，pending fresh formal successor + final quality；尚未形成 `31/31` 结论 |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after fresh formal successor/post-formal gates |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | current README 与 9.3.1 authoritative roadmap 已同步 formal-r9 exclusion and diagnostic reset；9.3.5 queued |
+| roadmap/status sync | `README.md` + authoritative roadmap | current README records r29 Git-safety hold; Step 5–7, 9.3.5 and 9.4.0 remain closed/queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -658,3 +658,14 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
   coverage audit `31/31` → feature acceptance. `acceptance_status=not-started` and
   `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no` remain in force; 9.3.5 and
   9.4.0 are not opened.
+
+## Superseding diagnostic-r29 Git-safety acceptance boundary（2026-07-19）
+
+- f420 Cdiag 的 r29 全 lane diagnostic 事实保留为非权威观察；其本地 capsule 经审计不满足 Git-safe
+  内容边界，因而 r29=`non-freezable / no-cfreeze-authority`。
+- 不得在 Git 中绑定、引用或重打包该本地 capsule；r29 candidate、review 与任何历史材料均不能拼接成
+  freeze、formal 或 acceptance 输入。
+- 带显式 allowlist、脱敏 attestation 和语义重算的 Git-safe capsule/replay 已完成本地验证；仍必须先以该
+  工具形成新 Cdiag→fresh diagnostic→new candidate/review→Cfreeze→fresh formal 的完整替换链。
+- `acceptance_status=not-started`，且 `can_enter_cfreeze=no / can_enter_formal=no /
+  can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。9.3.5 与 9.4.0 不开工。

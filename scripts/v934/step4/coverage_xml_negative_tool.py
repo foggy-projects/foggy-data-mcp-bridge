@@ -309,13 +309,140 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     cases: dict[str, dict[str, str]] = {}
 
     capsule_self_test = tool.diagnostic_capsule.run_self_test()
+    required_capsule_cases = {
+        "deterministic-build",
+        "materialize-exact-members",
+        "unrelated-run-content-ignored",
+        "archive-tamper",
+        "schema-v1-rejected",
+        "extra-member-rejected",
+        "tar-trailing-payload-rejected",
+        "tar-extra-member-rejected",
+        "raw-exec-attestation-rejected",
+        "raw-log-attestation-rejected",
+        "container-identity-rejected",
+        "process-identity-rejected",
+        "sensitive-attestation-rejected",
+        "untrusted-doctype-rejected",
+        "raw-exec-xml-rejected",
+        "raw-log-xml-rejected",
+        "container-identity-xml-rejected",
+        "process-identity-xml-rejected",
+        "encoded-sensitive-xml-rejected",
+        "nonempty-destination",
+    }
+    observed_capsule_cases = {
+        item.get("name")
+        for item in capsule_self_test.get("cases", [])
+        if isinstance(item, dict)
+    }
     if (
         capsule_self_test.get("status") != "passed"
-        or capsule_self_test.get("case_count") != 8
-        or len(capsule_self_test.get("cases", [])) != 8
+        or not required_capsule_cases.issubset(observed_capsule_cases)
+        or capsule_self_test.get("case_count") != len(capsule_self_test.get("cases", []))
     ):
         raise RuntimeError("portable diagnostic capsule self-test differs")
-    record_positive(cases, "frozen-diagnostic-capsule-self-test", "8-cases")
+    record_positive(
+        cases,
+        "frozen-diagnostic-capsule-self-test",
+        f"{capsule_self_test['case_count']}-cases",
+    )
+
+    frozen_validation_fixture, _frozen_step1_fixture = synthetic_freeze_validation()
+    frozen_source_evidence = frozen_validation_fixture["evidence"]
+    confirmed_evidence = tool.validate_threshold_evidence(
+        {
+            "run_id": frozen_source_evidence["run_id"],
+            "git_head": frozen_source_evidence["git_head"],
+            "source_sha256": frozen_source_evidence["source_sha256"],
+            "run_status_sha256": frozen_source_evidence["run_status_sha256"],
+            "summary_sha256": frozen_source_evidence["summary_sha256"],
+            "observation_sha256": frozen_source_evidence["observation_sha256"],
+            "coverage_contract_sha256": frozen_source_evidence[
+                "coverage_contract_sha256"
+            ],
+            "threshold_predecessor_sha256": frozen_source_evidence[
+                "threshold_sha256"
+            ],
+            "exec_manifest_sha256": frozen_source_evidence["exec_manifest_sha256"],
+            "aggregate_exec_sha256": frozen_source_evidence[
+                "aggregate_exec_sha256"
+            ],
+            "aggregate_xml_sha256": frozen_source_evidence["aggregate_xml_sha256"],
+            "workspace_class_tree_sha256": frozen_source_evidence[
+                "workspace_class_tree_sha256"
+            ],
+        },
+        "E_NEGATIVE_FIXTURE",
+    )
+    frozen_attestation = {
+        "identity": {
+            "run_id": confirmed_evidence["run_id"],
+            "git_head": confirmed_evidence["git_head"],
+            "source_sha256": confirmed_evidence["source_sha256"],
+            "run_context_sha256": "1" * 64,
+            "run_status_sha256": confirmed_evidence["run_status_sha256"],
+            "summary_sha256": confirmed_evidence["summary_sha256"],
+            "coverage_contract_sha256": confirmed_evidence[
+                "coverage_contract_sha256"
+            ],
+            "threshold_predecessor_sha256": confirmed_evidence[
+                "threshold_predecessor_sha256"
+            ],
+            "observation_sha256": confirmed_evidence["observation_sha256"],
+        },
+        "execution_attestation": {
+            "mode": "source-validated-hash-only",
+            "retention": "no-execution-bytes",
+            "exec_count": 23,
+            "session_count": 48,
+            "byte_tree_sha256": "2" * 64,
+            "aggregate_exec_sha256": confirmed_evidence["aggregate_exec_sha256"],
+            "merge_semantics": tool.EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+            "status": "verified",
+        },
+        "xml": {
+            "sha256": confirmed_evidence["aggregate_xml_sha256"],
+            "size": 1,
+            "deterministic_report_replay_count": 2,
+        },
+        "source_attestation": {
+            "class_universe_sha256": "3" * 64,
+            "workspace_class_tree_sha256": confirmed_evidence[
+                "workspace_class_tree_sha256"
+            ],
+            "workspace_bytecode_class_count": 1,
+            "toolchain_receipt_sha256": "4" * 64,
+            "coverage_ledger_sha256": tool.EXPECTED_LEDGER_SHA256,
+        },
+    }
+    tool.validate_frozen_git_safe_attestation(
+        frozen_attestation,
+        confirmed_evidence,
+        confirmed_evidence["git_head"],
+    )
+    record_positive(cases, "git-safe-frozen-attestation-binding-positive")
+    tampered_frozen_attestation = copy.deepcopy(frozen_attestation)
+    tampered_frozen_attestation["execution_attestation"][
+        "aggregate_exec_sha256"
+    ] = "5" * 64
+    expect_failure(
+        cases,
+        "git-safe-frozen-attestation-aggregate-tamper",
+        "E_FROZEN_ATTESTATION",
+        lambda: tool.validate_frozen_git_safe_attestation(
+            tampered_frozen_attestation,
+            confirmed_evidence,
+            confirmed_evidence["git_head"],
+        ),
+    )
+    frozen_sessions = tool.expected_sessions_from_ledger(
+        confirmed_evidence["run_id"],
+        tool.load_ledger(repo_root),
+    )
+    if len(frozen_sessions) != 48 or len(set(frozen_sessions)) != 48:
+        raise RuntimeError("Git-safe frozen session derivation differs")
+    record_positive(cases, "git-safe-frozen-session-derivation-positive")
 
     identity_manifest = {
         "class_id_consistency_scope": tool.EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,
@@ -416,6 +543,21 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         for node in tool_source.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
+    frozen_replay_calls = {
+        node.func.id
+        for node in ast.walk(functions["validate_frozen_diagnostic_data"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+    }
+    if "validate_run_data" in frozen_replay_calls:
+        raise RuntimeError(
+            "Git-safe frozen replay must not revalidate a retained runtime closure"
+        )
+    if "recompute_sanitized_attested_observation" not in frozen_replay_calls:
+        raise RuntimeError(
+            "Git-safe frozen replay must recompute retained XML semantics"
+        )
+    record_positive(cases, "git-safe-frozen-replay-semantic-scope")
     expected_size_calls = {
         "validate_aggregate_provenance": 2,
         "validate_report_provenance": 1,

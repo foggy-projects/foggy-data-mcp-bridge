@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""Build and replay a deterministic, portable Step 4 diagnostic capsule."""
+"""Build and verify a Git-safe, portable Step 4 diagnostic capsule.
+
+The capsule deliberately contains only a validated diagnostic attestation and
+the JaCoCo XML needed for semantic recomputation.  It never copies a run tree,
+raw execution files, logs, host metadata, or process/resource identities.
+"""
 
 from __future__ import annotations
 
 import argparse
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -15,30 +21,169 @@ import stat
 import tarfile
 import tempfile
 from typing import Any, Iterable
+import xml.etree.ElementTree as ET
 import zlib
 
 
-HERE = Path(__file__).resolve().parent
+PROFILE = "git-safe-sanitized-attested-v1"
 RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 HEX40 = re.compile(r"[0-9a-f]{40}")
 HEX64 = re.compile(r"[0-9a-f]{64}")
 OCTAL_MODE = re.compile(r"0[0-7]{3}")
-MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
-MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024
-MAX_ENTRIES = 200_000
+MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
+MAX_EXTRACTED_BYTES = 512 * 1024 * 1024
+MAX_ATTESTATION_BYTES = 2 * 1024 * 1024
+MAX_XML_BYTES = 256 * 1024 * 1024
+JACOCO_DOCTYPE = b'<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">'
+TAR_BLOCK_SIZE = tarfile.BLOCKSIZE
+TAR_RECORD_SIZE = tarfile.RECORDSIZE
+USTAR_MAGIC = b"ustar\x0000"
 
-SUPPORT_FILES = (
-    "scripts/v934/contract-freeze.json",
-    "scripts/v934/coverage-thresholds.json",
-    "scripts/v934/step4/coverage-exec-ledger.tsv",
-    "scripts/v934/step4/coverage_xml_tool.py",
-    "scripts/v934/step4/reporter_effective_pom_tool.py",
-    "scripts/v934/step4/toolchain_receipt_tool.py",
-)
-FORBIDDEN_NEGATIVE_FIXTURE_LINKS = {
-    "negative/coverage-exec/symlink.exec": "report/jacoco-aggregate.exec",
-    "negative/coverage-xml/symlink.xml": "report/jacoco-aggregate/jacoco.xml",
+RETENTION = {
+    "runtime_closure": "forbidden",
+    "execution_bytes": "forbidden",
+    "unstructured_output": "forbidden",
 }
+ENTRY_LAYOUT = (
+    ("evidence", "directory", "0755"),
+    ("evidence/diagnostic-attestation.json", "file", "0644"),
+    ("evidence/jacoco.xml", "file", "0644"),
+)
+MANIFEST_KEYS = (
+    "schema_version",
+    "kind",
+    "profile",
+    "status",
+    "run_id",
+    "git_head",
+    "source_sha256",
+    "retention",
+    "archive",
+    "entry_count",
+    "entries",
+)
+ATTESTATION_KEYS = (
+    "schema_version",
+    "kind",
+    "profile",
+    "status",
+    "identity",
+    "execution_attestation",
+    "xml",
+    "source_attestation",
+    "semantic_observation",
+)
+IDENTITY_KEYS = (
+    "run_id",
+    "git_head",
+    "source_sha256",
+    "run_context_sha256",
+    "run_status_sha256",
+    "summary_sha256",
+    "coverage_contract_sha256",
+    "threshold_predecessor_sha256",
+    "observation_sha256",
+)
+EXECUTION_ATTESTATION_KEYS = (
+    "mode",
+    "retention",
+    "exec_count",
+    "session_count",
+    "byte_tree_sha256",
+    "aggregate_exec_sha256",
+    "merge_semantics",
+    "status",
+)
+XML_KEYS = ("sha256", "size", "deterministic_report_replay_count")
+SOURCE_ATTESTATION_KEYS = (
+    "class_universe_sha256",
+    "workspace_class_tree_sha256",
+    "workspace_bytecode_class_count",
+    "toolchain_receipt_sha256",
+    "coverage_ledger_sha256",
+)
+FORBIDDEN_KEYS = {
+    "container",
+    "containers",
+    "container_id",
+    "container_name",
+    "container_identity",
+    "container_ids",
+    "container_names",
+    "pid",
+    "ppid",
+    "pgid",
+    "sid",
+    "process",
+    "process_id",
+    "process_identity",
+    "processes",
+    "process_tree",
+    "process_list",
+    "command",
+    "command_line",
+    "argv",
+    "boot_id",
+    "hostname",
+    "host",
+    "platform",
+    "run_log",
+    "raw_log",
+    "raw_logs",
+    "log",
+    "log_file",
+    "log_path",
+    "logs",
+    "exec",
+    "raw_exec",
+    "exec_path",
+    "exec_file",
+    "exec_files",
+    "mtime_ns",
+    "not_before_ns",
+    "path",
+    "paths",
+}
+FORBIDDEN_VALUE_TOKENS = (
+    ".exec",
+    ".log",
+    "containers.tsv",
+    "container_id",
+    "container-id",
+    "containerid",
+    "container_name",
+    "container-name",
+    "containername",
+    "container identity",
+    "container_identity",
+    "containeridentity",
+    "process_id",
+    "process-id",
+    "processid",
+    "process identity",
+    "process_identity",
+    "processidentity",
+    "pid=",
+    "pid:",
+    "ppid=",
+    "ppid:",
+    "pgid=",
+    "pgid:",
+    "raw exec",
+    "raw_exec",
+    "execution_bytes",
+    "/proc/",
+    "\\proc\\",
+    "child-ready",
+    "child-lifecycle",
+    "docker inspect",
+    "docker ps",
+)
+SENSITIVE_PATTERNS = (
+    re.compile(r"(?i)(?:password|secret|token|api[-_]?key)\s*(?:=|:)\s*[^\s<]{4,}"),
+    re.compile(r"(?i)\bbearer\s+[a-z0-9._~+/-]{8,}"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+)
 
 
 class CapsuleError(RuntimeError):
@@ -67,7 +212,7 @@ def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            reject("E_JSON_DUPLICATE", f"duplicate JSON key: {key}")
+            reject("E_JSON_DUPLICATE", "duplicate JSON key")
         result[key] = value
     return result
 
@@ -78,25 +223,22 @@ def parse_json_bytes(payload: bytes, label: str) -> dict[str, Any]:
             payload.decode("utf-8"),
             object_pairs_hook=unique_object,
             parse_constant=lambda token: reject(
-                "E_JSON", f"{label} contains non-finite number: {token}"
+                "E_JSON", f"{label} contains non-finite JSON"
             ),
         )
     except CapsuleError:
         raise
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise CapsuleError("E_JSON", f"cannot parse {label}: {error}") from error
+        raise CapsuleError("E_JSON", f"cannot parse {label}") from error
     require(type(value) is dict, "E_JSON", f"{label} must be an object")
     return value
 
 
-def exact_keys(value: dict[str, Any], expected: Iterable[str], code: str, label: str) -> None:
+def exact_keys(value: Any, expected: Iterable[str], code: str, label: str) -> dict[str, Any]:
+    require(type(value) is dict, code, f"{label} must be an object")
     wanted = set(expected)
-    require(
-        set(value) == wanted,
-        code,
-        f"{label} keys differ: missing={sorted(wanted - set(value))} "
-        f"extra={sorted(set(value) - wanted)}",
-    )
+    require(set(value) == wanted, code, f"{label} keys differ")
+    return value
 
 
 def absolute(path: Path) -> Path:
@@ -108,16 +250,16 @@ def real_directory(path: Path, label: str) -> Path:
     try:
         metadata = os.lstat(candidate)
     except OSError as error:
-        raise CapsuleError("E_DIRECTORY", f"cannot inspect {label}: {error}") from error
+        raise CapsuleError("E_DIRECTORY", f"cannot inspect {label}") from error
     require(
         stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode),
         "E_DIRECTORY",
-        f"{label} is not a real directory: {candidate}",
+        f"{label} is not a real directory",
     )
     require(
         candidate.resolve(strict=True) == candidate,
         "E_SYMLINK",
-        f"{label} has symlinked components: {candidate}",
+        f"{label} has symlinked components",
     )
     return candidate
 
@@ -127,16 +269,16 @@ def regular_file(path: Path, label: str, maximum: int | None = None) -> Path:
     try:
         metadata = os.lstat(candidate)
     except OSError as error:
-        raise CapsuleError("E_FILE", f"cannot inspect {label}: {error}") from error
+        raise CapsuleError("E_FILE", f"cannot inspect {label}") from error
     require(
         stat.S_ISREG(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode),
         "E_SPECIAL",
-        f"{label} is not a regular file: {candidate}",
+        f"{label} is not a regular file",
     )
     require(
         candidate.resolve(strict=True) == candidate,
         "E_SYMLINK",
-        f"{label} has symlinked components: {candidate}",
+        f"{label} has symlinked components",
     )
     if maximum is not None:
         require(metadata.st_size <= maximum, "E_SIZE", f"{label} exceeds size limit")
@@ -148,10 +290,13 @@ def sha256_file(path: Path, label: str, maximum: int | None = None) -> tuple[str
     before = candidate.stat()
     digest = hashlib.sha256()
     size = 0
-    with candidate.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-            size += len(chunk)
+    try:
+        with candidate.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+                size += len(chunk)
+    except OSError as error:
+        raise CapsuleError("E_FILE", f"cannot hash {label}") from error
     after = candidate.stat()
     require(
         (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
@@ -167,7 +312,7 @@ def safe_relative(value: str, code: str = "E_PATH") -> PurePosixPath:
     require(
         type(value) is str and value and "\\" not in value and "\x00" not in value,
         code,
-        f"invalid capsule path: {value!r}",
+        "invalid capsule path",
     )
     pure = PurePosixPath(value)
     require(
@@ -175,152 +320,263 @@ def safe_relative(value: str, code: str = "E_PATH") -> PurePosixPath:
         and pure.as_posix() == value
         and all(part not in ("", ".", "..") for part in pure.parts),
         code,
-        f"unsafe capsule path: {value!r}",
+        "unsafe capsule path",
     )
     return pure
 
 
-def load_json_file(path: Path, label: str, maximum: int = 16 * 1024 * 1024) -> dict[str, Any]:
-    candidate = regular_file(path, label, maximum)
-    return parse_json_bytes(candidate.read_bytes(), label)
+def normalized_key(value: str) -> str:
+    split_camel = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", value)
+    return re.sub(r"[^a-z0-9]+", "_", split_camel.casefold()).strip("_")
 
 
-def frozen_modules(repo_root: Path) -> list[str]:
-    freeze = load_json_file(
-        repo_root / "scripts/v934/contract-freeze.json", "Step 1 contract freeze"
-    )
-    reactor = freeze.get("reactor")
-    require(type(reactor) is dict, "E_FREEZE", "Step 1 reactor is missing")
-    modules = reactor.get("modules")
+def scan_text(value: str, *, code: str, label: str) -> None:
+    lowered = value.casefold()
     require(
-        reactor.get("module_count") == 24
-        and type(reactor.get("module_count")) is int
-        and isinstance(modules, list)
-        and len(modules) == 24
-        and len(set(modules)) == 24
-        and modules == sorted(modules),
-        "E_FREEZE",
-        "Step 1 reactor must contain exact 24 sorted modules",
+        not any(token in lowered for token in FORBIDDEN_VALUE_TOKENS),
+        code,
+        f"{label} contains forbidden runtime content",
     )
-    result: list[str] = []
-    for module in modules:
-        require(type(module) is str, "E_FREEZE", "module path is not a string")
-        safe_relative(module, "E_FREEZE")
-        result.append(module)
-    return result
+    for pattern in SENSITIVE_PATTERNS:
+        require(
+            pattern.search(value) is None,
+            "E_CAPSULE_SENSITIVE",
+            f"{label} contains sensitive content",
+        )
 
 
-def mode_text(metadata: os.stat_result) -> str:
-    mode = stat.S_IMODE(metadata.st_mode)
-    require(mode & 0o7000 == 0, "E_MODE", "special permission bits are forbidden")
-    return f"0{mode:03o}"
-
-
-def add_ancestors(paths: set[str], relative: PurePosixPath) -> None:
-    parent = relative.parent
-    while parent != PurePosixPath("."):
-        paths.add(parent.as_posix())
-        parent = parent.parent
-
-
-def scan_root(
-    repo_root: Path,
-    relative_value: str,
-    collected: set[str],
+def validate_no_runtime_metadata(
+    value: Any,
+    *,
+    code: str = "E_ATTESTATION_FORBIDDEN",
+    label: str = "attestation",
+    depth: int = 0,
 ) -> None:
-    relative = safe_relative(relative_value)
-    candidate = repo_root.joinpath(*relative.parts)
-    try:
-        metadata = os.lstat(candidate)
-    except OSError as error:
-        raise CapsuleError("E_CLOSURE", f"missing capsule input {relative_value}: {error}") from error
-    require(not stat.S_ISLNK(metadata.st_mode), "E_SYMLINK", f"capsule input is symlinked: {relative_value}")
-    add_ancestors(collected, relative)
-    if stat.S_ISREG(metadata.st_mode):
-        collected.add(relative.as_posix())
-        return
-    require(stat.S_ISDIR(metadata.st_mode), "E_SPECIAL", f"capsule input is special: {relative_value}")
-    for current, directories, files in os.walk(candidate, topdown=True, followlinks=False):
-        directories.sort(key=lambda item: item.encode("utf-8"))
-        files.sort(key=lambda item: item.encode("utf-8"))
-        current_path = Path(current)
-        current_relative = current_path.relative_to(repo_root).as_posix()
-        collected.add(current_relative)
-        for name in [*directories, *files]:
-            child = current_path / name
-            child_relative = child.relative_to(repo_root).as_posix()
-            child_stat = os.lstat(child)
-            if stat.S_ISLNK(child_stat.st_mode):
-                reject("E_SYMLINK", f"capsule closure contains symlink: {child_relative}")
+    require(depth <= 64, "E_ATTESTATION", f"{label} nesting exceeds limit")
+    if type(value) is dict:
+        for key, child in value.items():
+            require(type(key) is str, "E_ATTESTATION", f"{label} key is invalid")
+            scan_text(key, code=code, label=label)
             require(
-                stat.S_ISDIR(child_stat.st_mode) or stat.S_ISREG(child_stat.st_mode),
-                "E_SPECIAL",
-                f"capsule closure contains special file: {child_relative}",
+                normalized_key(key) not in FORBIDDEN_KEYS,
+                code,
+                f"{label} contains forbidden runtime metadata",
             )
-            collected.add(child_relative)
+            validate_no_runtime_metadata(child, code=code, label=label, depth=depth + 1)
+        return
+    if type(value) is list:
+        for child in value:
+            validate_no_runtime_metadata(child, code=code, label=label, depth=depth + 1)
+        return
+    if type(value) is str:
+        scan_text(value, code=code, label=label)
+        return
+    require(
+        value is None or type(value) in (bool, int, float),
+        "E_ATTESTATION",
+        f"{label} contains an unsupported value",
+    )
 
 
-def closure_paths(repo_root: Path, run_id: str) -> list[str]:
-    require(RUN_ID.fullmatch(run_id) is not None, "E_RUN_ID", "unsafe diagnostic run id")
-    roots = [
-        f"target/v934-step4-coverage/runs/{run_id}",
-        *SUPPORT_FILES,
-    ]
-    for module in frozen_modules(repo_root):
-        roots.extend((f"{module}/pom.xml", f"{module}/target/classes"))
-    collected: set[str] = set()
-    for relative in roots:
-        scan_root(repo_root, relative, collected)
-    result = sorted(collected, key=lambda item: item.encode("utf-8"))
-    require(0 < len(result) <= MAX_ENTRIES, "E_ENTRY_COUNT", "capsule entry count differs")
-    return result
+def require_hex(value: Any, code: str, label: str, *, commit: bool = False) -> str:
+    pattern = HEX40 if commit else HEX64
+    require(type(value) is str and pattern.fullmatch(value) is not None, code, f"{label} differs")
+    return value
 
 
-def entry_record(repo_root: Path, relative: str) -> dict[str, Any]:
-    pure = safe_relative(relative)
-    path = repo_root.joinpath(*pure.parts)
-    metadata = os.lstat(path)
-    mode = mode_text(metadata)
-    if stat.S_ISDIR(metadata.st_mode):
-        return {
-            "path": relative,
-            "kind": "directory",
-            "mode": mode,
-            "mtime_ns": metadata.st_mtime_ns,
-            "size": 0,
-            "sha256": None,
-        }
-    require(stat.S_ISREG(metadata.st_mode), "E_SPECIAL", f"unsupported capsule entry: {relative}")
-    digest, size = sha256_file(path, f"capsule input {relative}")
-    return {
-        "path": relative,
-        "kind": "file",
-        "mode": mode,
-        "mtime_ns": metadata.st_mtime_ns,
-        "size": size,
-        "sha256": digest,
+def load_attestation(path: Path) -> tuple[dict[str, Any], bytes]:
+    candidate = regular_file(path, "diagnostic attestation", MAX_ATTESTATION_BYTES)
+    try:
+        raw = candidate.read_bytes()
+    except OSError as error:
+        raise CapsuleError("E_FILE", "cannot read diagnostic attestation") from error
+    value = parse_json_bytes(raw, "diagnostic attestation")
+    require(raw == canonical_json(value), "E_ATTESTATION_CANONICAL", "attestation is not canonical JSON")
+    exact_keys(value, ATTESTATION_KEYS, "E_ATTESTATION", "diagnostic attestation")
+    require(
+        value["schema_version"] == 1
+        and type(value["schema_version"]) is int
+        and value["kind"] == "v934-step4-git-safe-diagnostic-attestation"
+        and value["profile"] == PROFILE
+        and value["status"] == "verified",
+        "E_ATTESTATION",
+        "attestation identity/status differs",
+    )
+    identity = exact_keys(value["identity"], IDENTITY_KEYS, "E_ATTESTATION", "attestation identity")
+    require(
+        type(identity["run_id"]) is str and RUN_ID.fullmatch(identity["run_id"]) is not None,
+        "E_ATTESTATION",
+        "attestation run id differs",
+    )
+    require_hex(identity["git_head"], "E_ATTESTATION", "attestation Git head", commit=True)
+    for key in IDENTITY_KEYS:
+        if key not in ("run_id", "git_head"):
+            require_hex(identity[key], "E_ATTESTATION", f"attestation {key}")
+    execution = exact_keys(
+        value["execution_attestation"],
+        EXECUTION_ATTESTATION_KEYS,
+        "E_ATTESTATION",
+        "execution attestation",
+    )
+    require(
+        execution["mode"] == "source-validated-hash-only"
+        and execution["retention"] == "no-execution-bytes"
+        and type(execution["exec_count"]) is int
+        and execution["exec_count"] == 23
+        and type(execution["session_count"]) is int
+        and execution["session_count"] == 48
+        and execution["merge_semantics"]
+        == "exact-session-and-jacoco-class-id-probe-bitmap-union"
+        and execution["status"] == "verified",
+        "E_ATTESTATION",
+        "execution attestation differs",
+    )
+    require_hex(execution["byte_tree_sha256"], "E_ATTESTATION", "execution tree SHA")
+    require_hex(execution["aggregate_exec_sha256"], "E_ATTESTATION", "aggregate exec SHA")
+    xml = exact_keys(value["xml"], XML_KEYS, "E_ATTESTATION", "XML attestation")
+    require_hex(xml["sha256"], "E_ATTESTATION", "XML SHA")
+    require(
+        type(xml["size"]) is int
+        and 0 < xml["size"] <= MAX_XML_BYTES
+        and type(xml["deterministic_report_replay_count"]) is int
+        and xml["deterministic_report_replay_count"] == 2,
+        "E_ATTESTATION",
+        "XML attestation differs",
+    )
+    source = exact_keys(
+        value["source_attestation"],
+        SOURCE_ATTESTATION_KEYS,
+        "E_ATTESTATION",
+        "source attestation",
+    )
+    for key in (
+        "class_universe_sha256",
+        "workspace_class_tree_sha256",
+        "toolchain_receipt_sha256",
+        "coverage_ledger_sha256",
+    ):
+        require_hex(source[key], "E_ATTESTATION", f"source attestation {key}")
+    require(
+        type(source["workspace_bytecode_class_count"]) is int
+        and source["workspace_bytecode_class_count"] > 0
+        and type(value["semantic_observation"]) is dict,
+        "E_ATTESTATION",
+        "attestation semantic observation differs",
+    )
+    validate_no_runtime_metadata(value)
+    return value, raw
+
+
+def validate_xml(path: Path) -> tuple[bytes, str, int]:
+    candidate = regular_file(path, "JaCoCo XML", MAX_XML_BYTES)
+    try:
+        payload = candidate.read_bytes()
+    except OSError as error:
+        raise CapsuleError("E_FILE", "cannot read JaCoCo XML") from error
+    prolog = payload
+    if prolog.startswith(b"\xef\xbb\xbf"):
+        prolog = prolog[3:]
+    prolog = prolog.lstrip(b" \t\r\n")
+    if prolog.startswith(b"<?xml"):
+        require(
+            len(prolog) > 5 and prolog[5:6] in (b" ", b"\t", b"\r", b"\n"),
+            "E_XML",
+            "JaCoCo XML declaration differs",
+        )
+        declaration_end = prolog.find(b"?>")
+        require(declaration_end >= 0, "E_XML", "JaCoCo XML declaration is incomplete")
+        prolog = prolog[declaration_end + 2 :].lstrip(b" \t\r\n")
+    require(
+        prolog.startswith(JACOCO_DOCTYPE)
+        and payload.count(JACOCO_DOCTYPE) == 1,
+        "E_XML",
+        "JaCoCo XML doctype differs",
+    )
+    after_doctype = prolog[len(JACOCO_DOCTYPE) :].lstrip(b" \t\r\n")
+    require(
+        after_doctype.startswith(b"<report")
+        and b"<!" not in after_doctype
+        and b"<?" not in after_doctype
+        and b"<!ENTITY" not in payload.upper(),
+        "E_XML",
+        "JaCoCo XML contains an untrusted declaration",
+    )
+    try:
+        text = payload.decode("utf-8")
+        root = ET.fromstring(payload)
+    except (UnicodeDecodeError, ET.ParseError) as error:
+        raise CapsuleError("E_XML", "JaCoCo XML is invalid") from error
+    require(root.tag == "report", "E_XML", "JaCoCo XML root differs")
+    scan_text(text, code="E_CAPSULE_FORBIDDEN", label="JaCoCo XML")
+    for element in root.iter():
+        require(type(element.tag) is str, "E_XML", "JaCoCo XML element is invalid")
+        scan_text(element.tag, code="E_CAPSULE_FORBIDDEN", label="JaCoCo XML")
+        for key, value in element.attrib.items():
+            scan_text(key, code="E_CAPSULE_FORBIDDEN", label="JaCoCo XML")
+            scan_text(value, code="E_CAPSULE_FORBIDDEN", label="JaCoCo XML")
+        if element.text is not None:
+            scan_text(element.text, code="E_CAPSULE_FORBIDDEN", label="JaCoCo XML")
+        if element.tail is not None:
+            scan_text(element.tail, code="E_CAPSULE_FORBIDDEN", label="JaCoCo XML")
+    return payload, hashlib.sha256(payload).hexdigest(), len(payload)
+
+
+def build_records(attestation_path: Path, jacoco_xml_path: Path) -> tuple[list[dict[str, Any]], dict[str, Path], dict[str, Any]]:
+    attestation, _raw = load_attestation(attestation_path)
+    _xml_payload, xml_sha, xml_size = validate_xml(jacoco_xml_path)
+    require(
+        attestation["xml"] == {
+            "sha256": xml_sha,
+            "size": xml_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "E_ATTESTATION_XML",
+        "attestation/XML binding differs",
+    )
+    source_paths = {
+        "evidence/diagnostic-attestation.json": regular_file(
+            attestation_path, "diagnostic attestation", MAX_ATTESTATION_BYTES
+        ),
+        "evidence/jacoco.xml": regular_file(
+            jacoco_xml_path, "JaCoCo XML", MAX_XML_BYTES
+        ),
     }
+    records: list[dict[str, Any]] = []
+    for relative, kind, mode in ENTRY_LAYOUT:
+        if kind == "directory":
+            records.append(
+                {
+                    "path": relative,
+                    "kind": kind,
+                    "mode": mode,
+                    "size": 0,
+                    "sha256": None,
+                }
+            )
+            continue
+        digest, size = sha256_file(source_paths[relative], f"capsule {relative}")
+        records.append(
+            {
+                "path": relative,
+                "kind": kind,
+                "mode": mode,
+                "size": size,
+                "sha256": digest,
+            }
+        )
+    return records, source_paths, attestation
 
 
-def run_identity(repo_root: Path, run_id: str) -> tuple[str, str]:
-    context_path = repo_root / "target/v934-step4-coverage/runs" / run_id / "run-context.json"
-    context = load_json_file(context_path, "diagnostic run context", 64 * 1024)
-    require(context.get("run_id") == run_id, "E_IDENTITY", "run context run id differs")
-    git_head = context.get("git_head")
-    source_sha = context.get("source_sha256")
-    require(type(git_head) is str and HEX40.fullmatch(git_head) is not None, "E_IDENTITY", "run Git HEAD differs")
-    require(type(source_sha) is str and HEX64.fullmatch(source_sha) is not None, "E_IDENTITY", "run source SHA differs")
-    return git_head, source_sha
-
-
-def write_deterministic_archive(repo_root: Path, records: list[dict[str, Any]], output: Path) -> None:
+def write_deterministic_archive(
+    records: list[dict[str, Any]],
+    source_paths: dict[str, Path],
+    output: Path,
+) -> None:
     with output.open("xb") as raw:
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
-            with tarfile.open(fileobj=compressed, mode="w", format=tarfile.GNU_FORMAT) as archive:
+            with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
                 for record in records:
-                    relative = record["path"]
-                    source = repo_root.joinpath(*PurePosixPath(relative).parts)
-                    info = tarfile.TarInfo(relative)
+                    info = tarfile.TarInfo(record["path"])
                     info.uid = 0
                     info.gid = 0
                     info.uname = ""
@@ -334,7 +590,7 @@ def write_deterministic_archive(repo_root: Path, records: list[dict[str, Any]], 
                     else:
                         info.type = tarfile.REGTYPE
                         info.size = record["size"]
-                        with source.open("rb") as stream:
+                        with source_paths[record["path"]].open("rb") as stream:
                             archive.addfile(info, stream)
         raw.flush()
         os.fsync(raw.fileno())
@@ -344,10 +600,10 @@ def publish_pair(archive_temp: Path, archive: Path, manifest_temp: Path, manifes
     archive = absolute(archive)
     manifest = absolute(manifest)
     require(archive != manifest, "E_OUTPUT", "archive and manifest paths must differ")
-    require(archive.parent == manifest.parent, "E_OUTPUT", "archive and manifest must share one output directory")
+    require(archive.parent == manifest.parent, "E_OUTPUT", "outputs must share a directory")
     parent = real_directory(archive.parent, "capsule output directory")
-    require(not archive.exists() and not archive.is_symlink(), "E_OUTPUT_EXISTS", f"output exists: {archive}")
-    require(not manifest.exists() and not manifest.is_symlink(), "E_OUTPUT_EXISTS", f"output exists: {manifest}")
+    require(not archive.exists() and not archive.is_symlink(), "E_OUTPUT_EXISTS", "archive output exists")
+    require(not manifest.exists() and not manifest.is_symlink(), "E_OUTPUT_EXISTS", "manifest output exists")
     archive_published = False
     manifest_published = False
     try:
@@ -364,51 +620,44 @@ def publish_pair(archive_temp: Path, archive: Path, manifest_temp: Path, manifes
             os.close(descriptor)
     except OSError as error:
         if manifest_published:
-            try:
-                manifest.unlink()
-            except OSError:
-                pass
+            manifest.unlink(missing_ok=True)
         if archive_published:
-            try:
-                archive.unlink()
-            except OSError:
-                pass
-        raise CapsuleError("E_OUTPUT", f"cannot publish capsule outputs: {error}") from error
+            archive.unlink(missing_ok=True)
+        raise CapsuleError("E_OUTPUT", "cannot publish capsule outputs") from error
 
 
 def build_capsule(
-    repo_root: Path,
-    run_id: str,
+    attestation_path: Path,
+    jacoco_xml_path: Path,
     archive_path: Path,
     manifest_path: Path,
 ) -> dict[str, Any]:
-    root = real_directory(repo_root, "capsule repository root")
     archive = absolute(archive_path)
     manifest = absolute(manifest_path)
-    require(archive.parent == manifest.parent, "E_OUTPUT", "capsule outputs must share a directory")
+    require(archive.parent == manifest.parent, "E_OUTPUT", "outputs must share a directory")
     output_parent = real_directory(archive.parent, "capsule output directory")
-    require(not archive.exists() and not archive.is_symlink(), "E_OUTPUT_EXISTS", f"output exists: {archive}")
-    require(not manifest.exists() and not manifest.is_symlink(), "E_OUTPUT_EXISTS", f"output exists: {manifest}")
-    git_head, source_sha = run_identity(root, run_id)
-    relative_paths = closure_paths(root, run_id)
-    records = [entry_record(root, relative) for relative in relative_paths]
+    require(not archive.exists() and not archive.is_symlink(), "E_OUTPUT_EXISTS", "archive output exists")
+    require(not manifest.exists() and not manifest.is_symlink(), "E_OUTPUT_EXISTS", "manifest output exists")
+    records, source_paths, attestation = build_records(attestation_path, jacoco_xml_path)
+    identity = attestation["identity"]
     with tempfile.TemporaryDirectory(prefix=".v934-capsule-build-", dir=output_parent) as temporary_name:
         temporary = Path(temporary_name)
         archive_temp = temporary / "capsule.tar.gz"
         manifest_temp = temporary / "capsule.manifest.json"
-        write_deterministic_archive(root, records, archive_temp)
+        write_deterministic_archive(records, source_paths, archive_temp)
         archive_sha, archive_size = sha256_file(
             archive_temp, "staged capsule archive", MAX_ARCHIVE_BYTES
         )
         value = {
-            "schema_version": 1,
+            "schema_version": 2,
             "kind": "v934-step4-frozen-diagnostic-capsule",
+            "profile": PROFILE,
             "status": "sealed",
-            "run_id": run_id,
-            "git_head": git_head,
-            "source_sha256": source_sha,
+            "run_id": identity["run_id"],
+            "git_head": identity["git_head"],
+            "source_sha256": identity["source_sha256"],
+            "retention": RETENTION,
             "archive": {"sha256": archive_sha, "size": archive_size},
-            "omitted_negative_fixture_symlinks": [],
             "entry_count": len(records),
             "entries": records,
         }
@@ -419,102 +668,82 @@ def build_capsule(
         verify_capsule(
             archive_temp,
             manifest_temp,
-            expected_run_id=run_id,
-            expected_git_head=git_head,
-            expected_source_sha256=source_sha,
+            expected_run_id=identity["run_id"],
+            expected_git_head=identity["git_head"],
+            expected_source_sha256=identity["source_sha256"],
         )
         publish_pair(archive_temp, archive, manifest_temp, manifest)
-    verify_capsule(
+    verified = verify_capsule(
         archive,
         manifest,
-        expected_run_id=run_id,
-        expected_git_head=git_head,
-        expected_source_sha256=source_sha,
+        expected_run_id=identity["run_id"],
+        expected_git_head=identity["git_head"],
+        expected_source_sha256=identity["source_sha256"],
     )
-    return {
-        "command": "build",
-        "run_id": run_id,
-        "git_head": git_head,
-        "source_sha256": source_sha,
-        "archive_sha256": archive_sha,
-        "archive_size": archive_size,
-        "entries": len(records),
-        "status": "passed",
-    }
+    return {"command": "build", **verified}
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
-    candidate = regular_file(path, "capsule manifest", 64 * 1024 * 1024)
-    raw = candidate.read_bytes()
+    candidate = regular_file(path, "capsule manifest", 2 * 1024 * 1024)
+    try:
+        raw = candidate.read_bytes()
+    except OSError as error:
+        raise CapsuleError("E_FILE", "cannot read capsule manifest") from error
     value = parse_json_bytes(raw, "capsule manifest")
-    require(raw == canonical_json(value), "E_MANIFEST_CANONICAL", "capsule manifest is not canonical JSON")
-    exact_keys(
-        value,
-        (
-            "schema_version", "kind", "status", "run_id", "git_head",
-            "source_sha256", "archive", "entry_count", "entries",
-            "omitted_negative_fixture_symlinks",
-        ),
-        "E_MANIFEST",
-        "capsule manifest",
-    )
+    require(raw == canonical_json(value), "E_MANIFEST_CANONICAL", "manifest is not canonical JSON")
+    exact_keys(value, MANIFEST_KEYS, "E_MANIFEST", "capsule manifest")
     require(
-        value["schema_version"] == 1
+        value["schema_version"] == 2
         and type(value["schema_version"]) is int
         and value["kind"] == "v934-step4-frozen-diagnostic-capsule"
-        and value["status"] == "sealed",
+        and value["profile"] == PROFILE
+        and value["status"] == "sealed"
+        and value["retention"] == RETENTION,
         "E_MANIFEST",
         "capsule manifest identity/status differs",
     )
-    require(type(value["run_id"]) is str and RUN_ID.fullmatch(value["run_id"]) is not None, "E_MANIFEST", "capsule run id differs")
-    require(type(value["git_head"]) is str and HEX40.fullmatch(value["git_head"]) is not None, "E_MANIFEST", "capsule Git HEAD differs")
-    require(type(value["source_sha256"]) is str and HEX64.fullmatch(value["source_sha256"]) is not None, "E_MANIFEST", "capsule source SHA differs")
     require(
-        value["omitted_negative_fixture_symlinks"] == [],
+        type(value["run_id"]) is str and RUN_ID.fullmatch(value["run_id"]) is not None,
         "E_MANIFEST",
-        "portable diagnostic capsule must omit no symlinks",
+        "capsule manifest run id differs",
     )
-    archive = value["archive"]
-    require(type(archive) is dict, "E_MANIFEST", "capsule archive binding is absent")
-    exact_keys(archive, ("sha256", "size"), "E_MANIFEST", "capsule archive binding")
-    require(type(archive["sha256"]) is str and HEX64.fullmatch(archive["sha256"]) is not None, "E_MANIFEST", "capsule archive SHA differs")
-    require(type(archive["size"]) is int and 0 < archive["size"] <= MAX_ARCHIVE_BYTES, "E_MANIFEST", "capsule archive size differs")
+    require_hex(value["git_head"], "E_MANIFEST", "capsule manifest Git head", commit=True)
+    require_hex(value["source_sha256"], "E_MANIFEST", "capsule manifest source SHA")
+    archive = exact_keys(value["archive"], ("sha256", "size"), "E_MANIFEST", "archive binding")
+    require_hex(archive["sha256"], "E_MANIFEST", "archive SHA")
+    require(
+        type(archive["size"]) is int and 0 < archive["size"] <= MAX_ARCHIVE_BYTES,
+        "E_MANIFEST",
+        "archive size differs",
+    )
     entries = value["entries"]
     require(
-        isinstance(entries, list)
-        and type(value["entry_count"]) is int
-        and value["entry_count"] == len(entries)
-        and 0 < len(entries) <= MAX_ENTRIES,
+        type(value["entry_count"]) is int
+        and value["entry_count"] == len(ENTRY_LAYOUT)
+        and type(entries) is list
+        and len(entries) == len(ENTRY_LAYOUT),
         "E_MANIFEST",
         "capsule entry count differs",
     )
-    paths: list[str] = []
-    total = 0
-    for number, record in enumerate(entries, 1):
-        require(type(record) is dict, "E_MANIFEST", f"capsule entry {number} is not an object")
-        exact_keys(
-            record,
-            ("path", "kind", "mode", "mtime_ns", "size", "sha256"),
-            "E_MANIFEST",
-            f"capsule entry {number}",
-        )
+    for record, (expected_path, expected_kind, expected_mode) in zip(entries, ENTRY_LAYOUT):
+        exact_keys(record, ("path", "kind", "mode", "size", "sha256"), "E_MANIFEST", "capsule entry")
         safe_relative(record["path"], "E_MANIFEST")
-        require(record["kind"] in ("directory", "file"), "E_MANIFEST", f"capsule entry kind differs: {number}")
-        require(type(record["mode"]) is str and OCTAL_MODE.fullmatch(record["mode"]) is not None and int(record["mode"], 8) & 0o7000 == 0, "E_MANIFEST", f"capsule entry mode differs: {number}")
         require(
-            type(record["mtime_ns"]) is int and record["mtime_ns"] > 0,
+            record["path"] == expected_path
+            and record["kind"] == expected_kind
+            and record["mode"] == expected_mode,
             "E_MANIFEST",
-            f"capsule entry mtime differs: {number}",
+            "capsule member is not allowlisted",
         )
-        require(type(record["size"]) is int and record["size"] >= 0, "E_MANIFEST", f"capsule entry size differs: {number}")
-        if record["kind"] == "directory":
-            require(record["size"] == 0 and record["sha256"] is None, "E_MANIFEST", f"directory binding differs: {record['path']}")
+        require(
+            type(record["size"]) is int and record["size"] >= 0,
+            "E_MANIFEST",
+            "capsule entry size differs",
+        )
+        if expected_kind == "directory":
+            require(record["size"] == 0 and record["sha256"] is None, "E_MANIFEST", "directory binding differs")
         else:
-            require(type(record["sha256"]) is str and HEX64.fullmatch(record["sha256"]) is not None, "E_MANIFEST", f"file SHA differs: {record['path']}")
-            total += record["size"]
-        paths.append(record["path"])
-    require(paths == sorted(set(paths), key=lambda item: item.encode("utf-8")), "E_MANIFEST", "capsule paths are not sorted unique")
-    require(total <= MAX_EXTRACTED_BYTES, "E_MANIFEST", "capsule extracted size exceeds limit")
+            require_hex(record["sha256"], "E_MANIFEST", "capsule entry SHA")
     return value
 
 
@@ -539,47 +768,120 @@ def verify_gzip_framing(path: Path) -> int:
             try:
                 output = decompressor.decompress(chunk)
             except zlib.error as error:
-                raise CapsuleError("E_GZIP", f"capsule gzip stream is invalid: {error}") from error
+                raise CapsuleError("E_GZIP", "capsule gzip stream is invalid") from error
             total += len(output)
-            require(total <= MAX_EXTRACTED_BYTES, "E_GZIP_SIZE", "capsule gzip payload exceeds limit")
-            require(not decompressor.unused_data, "E_GZIP_FRAMING", "capsule has concatenated/trailing gzip data")
+            require(total <= MAX_EXTRACTED_BYTES, "E_GZIP_SIZE", "capsule is too large")
+            require(not decompressor.unused_data, "E_GZIP_FRAMING", "capsule has trailing gzip data")
             if decompressor.eof:
-                require(stream.read(1) == b"", "E_GZIP_FRAMING", "capsule has a concatenated gzip member")
+                require(stream.read(1) == b"", "E_GZIP_FRAMING", "capsule has multiple gzip members")
                 break
-    require(decompressor.eof and not decompressor.unconsumed_tail, "E_GZIP_FRAMING", "capsule gzip member is incomplete")
-    try:
-        tail = decompressor.flush()
-    except zlib.error as error:
-        raise CapsuleError("E_GZIP", f"cannot finalize capsule gzip stream: {error}") from error
-    total += len(tail)
-    require(total <= MAX_EXTRACTED_BYTES, "E_GZIP_SIZE", "capsule gzip payload exceeds limit")
+    require(decompressor.eof and not decompressor.unconsumed_tail, "E_GZIP_FRAMING", "capsule gzip is incomplete")
     return total
 
 
-def verify_tar_framing(path: Path, members: list[tarfile.TarInfo], payload_size: int) -> None:
-    require(bool(members), "E_TAR_FRAMING", "capsule tar has no members")
-    logical_end = max(
-        member.offset_data + ((member.size + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE) * tarfile.BLOCKSIZE
-        for member in members
-    )
-    minimum = logical_end + 2 * tarfile.BLOCKSIZE
-    expected_size = (
-        (minimum + tarfile.RECORDSIZE - 1) // tarfile.RECORDSIZE
-    ) * tarfile.RECORDSIZE
+def tar_octal(value: int, width: int) -> bytes:
+    require(value >= 0, "E_TAR_HEADER", "tar numeric field is negative")
+    encoded = f"{value:0{width - 1}o}".encode("ascii")
+    require(len(encoded) == width - 1, "E_TAR_HEADER", "tar numeric field overflows")
+    return encoded + b"\x00"
+
+
+def tar_name(name: str, width: int = 100) -> bytes:
+    encoded = name.encode("ascii")
+    require(len(encoded) < width, "E_TAR_HEADER", "tar name is too long")
+    return encoded + (b"\x00" * (width - len(encoded)))
+
+
+def read_exact(stream: Any, size: int, code: str, label: str) -> bytes:
+    result = bytearray()
+    while len(result) < size:
+        chunk = stream.read(size - len(result))
+        require(bool(chunk), code, f"{label} is truncated")
+        result.extend(chunk)
+    return bytes(result)
+
+
+def discard_exact(stream: Any, size: int, code: str, label: str) -> None:
+    remaining = size
+    while remaining:
+        chunk = stream.read(min(1024 * 1024, remaining))
+        require(bool(chunk), code, f"{label} is truncated")
+        remaining -= len(chunk)
+
+
+def verify_tar_header(header: bytes, record: dict[str, Any]) -> None:
+    require(len(header) == TAR_BLOCK_SIZE and any(header), "E_TAR_HEADER", "tar header differs")
+    expected_name = record["path"] + ("/" if record["kind"] == "directory" else "")
+    expected_type = b"5" if record["kind"] == "directory" else b"0"
     require(
-        payload_size == expected_size,
-        "E_TAR_FRAMING",
-        "capsule tar record framing/trailer size differs",
+        header[:100] == tar_name(expected_name)
+        and header[100:108] == tar_octal(int(record["mode"], 8), 8)
+        and header[108:116] == tar_octal(0, 8)
+        and header[116:124] == tar_octal(0, 8)
+        and header[124:136] == tar_octal(record["size"], 12)
+        and header[136:148] == tar_octal(0, 12)
+        and header[156:157] == expected_type
+        and header[157:257] == (b"\x00" * 100)
+        and header[257:265] == USTAR_MAGIC
+        and header[265:500] == (b"\x00" * 235)
+        and header[500:512] == (b"\x00" * 12),
+        "E_TAR_HEADER",
+        "tar header is not the fixed capsule layout",
     )
-    with gzip.open(regular_file(path, "capsule archive"), mode="rb") as stream:
-        stream.seek(logical_end)
-        remaining = payload_size - logical_end
-        while remaining:
-            chunk = stream.read(min(1024 * 1024, remaining))
-            require(bool(chunk), "E_TAR_FRAMING", "capsule tar trailer is truncated")
-            require(not any(chunk), "E_TAR_FRAMING", "capsule tar trailer contains non-zero data")
-            remaining -= len(chunk)
-        require(stream.read(1) == b"", "E_TAR_FRAMING", "capsule tar has trailing payload")
+    checksum = header[148:156]
+    require(
+        checksum[6:] == b"\x00 "
+        and all(byte in b"01234567" for byte in checksum[:6]),
+        "E_TAR_HEADER",
+        "tar checksum field differs",
+    )
+    expected_checksum = sum(header[:148] + (b" " * 8) + header[156:])
+    require(
+        int(checksum[:6], 8) == expected_checksum,
+        "E_TAR_HEADER",
+        "tar checksum differs",
+    )
+
+
+def verify_tar_framing(path: Path, records: list[dict[str, Any]], payload_size: int) -> None:
+    require(
+        payload_size % TAR_RECORD_SIZE == 0,
+        "E_TAR_FRAMING",
+        "tar payload does not use deterministic record framing",
+    )
+    consumed = 0
+    try:
+        with gzip.open(regular_file(path, "capsule archive"), mode="rb") as stream:
+            for record in records:
+                header = read_exact(stream, TAR_BLOCK_SIZE, "E_TAR_FRAMING", "tar header")
+                consumed += TAR_BLOCK_SIZE
+                verify_tar_header(header, record)
+                discard_exact(stream, record["size"], "E_TAR_FRAMING", "tar member")
+                consumed += record["size"]
+                padding = (-record["size"]) % TAR_BLOCK_SIZE
+                if padding:
+                    padding_bytes = read_exact(stream, padding, "E_TAR_FRAMING", "tar padding")
+                    require(not any(padding_bytes), "E_TAR_FRAMING", "tar padding contains data")
+                    consumed += padding
+            trailer = read_exact(stream, TAR_BLOCK_SIZE * 2, "E_TAR_FRAMING", "tar trailer")
+            consumed += len(trailer)
+            require(not any(trailer), "E_TAR_FRAMING", "tar trailer contains data")
+            require(consumed <= payload_size, "E_TAR_FRAMING", "tar payload is too short")
+            remaining = payload_size - consumed
+            while remaining:
+                block = read_exact(
+                    stream,
+                    min(TAR_BLOCK_SIZE, remaining),
+                    "E_TAR_FRAMING",
+                    "tar record padding",
+                )
+                require(not any(block), "E_TAR_FRAMING", "tar record padding contains data")
+                remaining -= len(block)
+            require(stream.read(1) == b"", "E_TAR_FRAMING", "tar payload has trailing data")
+    except CapsuleError:
+        raise
+    except (OSError, EOFError, gzip.BadGzipFile) as error:
+        raise CapsuleError("E_TAR_FRAMING", "cannot read tar payload") from error
 
 
 def verify_capsule(
@@ -593,54 +895,95 @@ def verify_capsule(
     archive = regular_file(archive_path, "capsule archive", MAX_ARCHIVE_BYTES)
     manifest = load_manifest(manifest_path)
     if expected_run_id is not None:
-        require(manifest["run_id"] == expected_run_id, "E_IDENTITY", "capsule run id differs from expected")
+        require(manifest["run_id"] == expected_run_id, "E_IDENTITY", "capsule run id differs")
     if expected_git_head is not None:
-        require(manifest["git_head"] == expected_git_head, "E_IDENTITY", "capsule Git HEAD differs from expected")
+        require(manifest["git_head"] == expected_git_head, "E_IDENTITY", "capsule Git head differs")
     if expected_source_sha256 is not None:
-        require(manifest["source_sha256"] == expected_source_sha256, "E_IDENTITY", "capsule source SHA differs from expected")
+        require(manifest["source_sha256"] == expected_source_sha256, "E_IDENTITY", "capsule source SHA differs")
     archive_sha, archive_size = sha256_file(archive, "capsule archive", MAX_ARCHIVE_BYTES)
     require(
         manifest["archive"] == {"sha256": archive_sha, "size": archive_size},
         "E_ARCHIVE_BINDING",
-        "capsule archive hash/size differs",
+        "capsule archive binding differs",
     )
     gzip_payload_size = verify_gzip_framing(archive)
     expected = manifest["entries"]
-    observed_paths: list[str] = []
+    verify_tar_framing(archive, expected, gzip_payload_size)
+    observed: list[str] = []
     extracted_size = 0
+    member_payloads: dict[str, bytes] = {}
     try:
         with tarfile.open(archive, mode="r:gz") as bundle:
             members = bundle.getmembers()
-            require(len(members) == len(expected), "E_ARCHIVE_SET", "capsule archive entry count differs")
-            for number, (member, record) in enumerate(zip(members, expected), 1):
+            require(len(members) == len(expected), "E_ARCHIVE_SET", "capsule member count differs")
+            for member, record in zip(members, expected):
                 path = member.name.rstrip("/") if member.isdir() else member.name
                 safe_relative(path, "E_ARCHIVE_PATH")
-                observed_paths.append(path)
-                require(path == record["path"], "E_ARCHIVE_SET", f"capsule archive order/path differs at {number}")
-                require(member.uid == 0 and member.gid == 0 and member.uname == "" and member.gname == "" and member.mtime == 0 and member.linkname == "" and not member.pax_headers, "E_ARCHIVE_META", f"capsule archive metadata differs: {path}")
-                require((member.mode & 0o7777) == int(record["mode"], 8), "E_ARCHIVE_MODE", f"capsule archive mode differs: {path}")
+                observed.append(path)
+                require(
+                    path == record["path"]
+                    and member.uid == 0
+                    and member.gid == 0
+                    and member.uname == ""
+                    and member.gname == ""
+                    and member.mtime == 0
+                    and member.linkname == ""
+                    and not member.pax_headers
+                    and (member.mode & 0o7777) == int(record["mode"], 8),
+                    "E_ARCHIVE_META",
+                    "capsule member metadata differs",
+                )
                 if record["kind"] == "directory":
-                    require(member.isdir() and member.size == 0, "E_ARCHIVE_TYPE", f"capsule directory entry differs: {path}")
+                    require(member.isdir() and member.size == 0, "E_ARCHIVE_TYPE", "capsule directory differs")
                     continue
-                require(member.isreg() and member.size == record["size"], "E_ARCHIVE_TYPE", f"capsule file entry differs: {path}")
+                require(member.isreg() and member.size == record["size"], "E_ARCHIVE_TYPE", "capsule file differs")
                 extracted_size += member.size
                 require(extracted_size <= MAX_EXTRACTED_BYTES, "E_ARCHIVE_SIZE", "capsule extracted size exceeds limit")
                 stream = bundle.extractfile(member)
-                require(stream is not None, "E_ARCHIVE_READ", f"cannot read capsule entry: {path}")
-                digest = hashlib.sha256()
-                size = 0
-                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                    digest.update(chunk)
-                    size += len(chunk)
-                require(size == record["size"] and digest.hexdigest() == record["sha256"], "E_ARCHIVE_DIGEST", f"capsule entry digest differs: {path}")
+                require(stream is not None, "E_ARCHIVE_READ", "cannot read capsule member")
+                payload = stream.read()
+                require(
+                    len(payload) == record["size"]
+                    and hashlib.sha256(payload).hexdigest() == record["sha256"],
+                    "E_ARCHIVE_DIGEST",
+                    "capsule member digest differs",
+                )
+                member_payloads[path] = payload
     except CapsuleError:
         raise
     except (OSError, EOFError, tarfile.TarError, gzip.BadGzipFile) as error:
-        raise CapsuleError("E_ARCHIVE", f"cannot read capsule archive: {error}") from error
-    verify_tar_framing(archive, members, gzip_payload_size)
-    require(observed_paths == [record["path"] for record in expected], "E_ARCHIVE_SET", "capsule archive set differs")
+        raise CapsuleError("E_ARCHIVE", "cannot read capsule archive") from error
+    require(observed == [item[0] for item in ENTRY_LAYOUT], "E_ARCHIVE_SET", "capsule members are not allowlisted")
+    attestation = parse_json_bytes(
+        member_payloads["evidence/diagnostic-attestation.json"], "archived attestation"
+    )
+    require(
+        member_payloads["evidence/diagnostic-attestation.json"] == canonical_json(attestation),
+        "E_ATTESTATION_CANONICAL",
+        "archived attestation is not canonical",
+    )
+    with tempfile.TemporaryDirectory(prefix="v934-capsule-verify-") as temporary_name:
+        temporary = Path(temporary_name)
+        attestation_path = temporary / "diagnostic-attestation.json"
+        xml_path = temporary / "jacoco.xml"
+        attestation_path.write_bytes(member_payloads["evidence/diagnostic-attestation.json"])
+        xml_path.write_bytes(member_payloads["evidence/jacoco.xml"])
+        checked_attestation, _ = load_attestation(attestation_path)
+        _xml_payload, xml_sha, xml_size = validate_xml(xml_path)
+    require(
+        checked_attestation["identity"]["run_id"] == manifest["run_id"]
+        and checked_attestation["identity"]["git_head"] == manifest["git_head"]
+        and checked_attestation["identity"]["source_sha256"] == manifest["source_sha256"]
+        and checked_attestation["xml"]
+        == {
+            "sha256": xml_sha,
+            "size": xml_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "E_ATTESTATION_XML",
+        "capsule identity/attestation/XML binding differs",
+    )
     return {
-        "command": "verify",
         "run_id": manifest["run_id"],
         "git_head": manifest["git_head"],
         "source_sha256": manifest["source_sha256"],
@@ -661,9 +1004,72 @@ def empty_destination(path: Path) -> Path:
     try:
         destination.mkdir(mode=0o700)
     except OSError as error:
-        raise CapsuleError("E_DESTINATION", f"cannot create capsule destination: {error}") from error
+        raise CapsuleError("E_DESTINATION", "cannot create capsule destination") from error
     require(destination.parent == parent, "E_DESTINATION", "capsule destination parent changed")
     return real_directory(destination, "capsule destination")
+
+
+def stat_identity(metadata: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def snapshot_regular_file(source_path: Path, destination: Path, label: str, maximum: int) -> Path:
+    source = regular_file(source_path, label, maximum)
+    before = os.lstat(source)
+    source_descriptor = -1
+    destination_descriptor = -1
+    copied = 0
+    try:
+        source_descriptor = os.open(
+            source,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+        )
+        opened = os.fstat(source_descriptor)
+        require(
+            stat_identity(opened) == stat_identity(before),
+            "E_FILE_RACE",
+            f"{label} changed before snapshot",
+        )
+        destination_descriptor = os.open(
+            destination,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        with os.fdopen(source_descriptor, "rb", closefd=False) as source_stream:
+            with os.fdopen(destination_descriptor, "wb", closefd=False) as destination_stream:
+                while True:
+                    chunk = source_stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    copied += len(chunk)
+                    require(copied <= maximum, "E_SIZE", f"{label} exceeds size limit")
+                    destination_stream.write(chunk)
+                destination_stream.flush()
+                os.fsync(destination_stream.fileno())
+        os.fchmod(destination_descriptor, 0o600)
+        after = os.lstat(source)
+        require(
+            stat_identity(before) == stat_identity(opened) == stat_identity(after)
+            and copied == before.st_size,
+            "E_FILE_RACE",
+            f"{label} changed during snapshot",
+        )
+    except CapsuleError:
+        raise
+    except OSError as error:
+        raise CapsuleError("E_FILE", f"cannot snapshot {label}") from error
+    finally:
+        if destination_descriptor >= 0:
+            os.close(destination_descriptor)
+        if source_descriptor >= 0:
+            os.close(source_descriptor)
+    return regular_file(destination, f"snapshotted {label}", maximum)
 
 
 def materialize_capsule(
@@ -675,103 +1081,157 @@ def materialize_capsule(
     expected_git_head: str | None = None,
     expected_source_sha256: str | None = None,
 ) -> dict[str, Any]:
-    verified = verify_capsule(
-        archive_path,
-        manifest_path,
-        expected_run_id=expected_run_id,
-        expected_git_head=expected_git_head,
-        expected_source_sha256=expected_source_sha256,
+    requested_destination = absolute(destination_root)
+    snapshot_parent = real_directory(
+        requested_destination.parent,
+        "capsule destination parent",
     )
-    manifest = load_manifest(manifest_path)
-    destination = empty_destination(destination_root)
-    records = manifest["entries"]
-    try:
-        with tarfile.open(regular_file(archive_path, "capsule archive"), mode="r:gz") as bundle:
-            members = bundle.getmembers()
-            for member, record in zip(members, records):
-                pure = safe_relative(record["path"], "E_MATERIALIZE_PATH")
-                target = destination.joinpath(*pure.parts)
-                require(target.resolve(strict=False).is_relative_to(destination), "E_MATERIALIZE_PATH", f"materialized path escapes: {record['path']}")
-                if record["kind"] == "directory":
-                    target.mkdir(mode=int(record["mode"], 8), parents=False, exist_ok=False)
-                    os.chmod(target, int(record["mode"], 8), follow_symlinks=False)
-                    continue
-                require(target.parent.is_dir() and not target.parent.is_symlink(), "E_MATERIALIZE_PARENT", f"materialized parent differs: {record['path']}")
-                stream = bundle.extractfile(member)
-                require(stream is not None, "E_MATERIALIZE_READ", f"cannot read materialized entry: {record['path']}")
-                descriptor = os.open(
-                    target,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-                    int(record["mode"], 8),
+    with tempfile.TemporaryDirectory(
+        prefix=".v934-capsule-materialize-",
+        dir=snapshot_parent,
+    ) as temporary_name:
+        temporary = Path(temporary_name)
+        archive_snapshot = snapshot_regular_file(
+            archive_path,
+            temporary / "archive.tar.gz",
+            "capsule archive",
+            MAX_ARCHIVE_BYTES,
+        )
+        manifest_snapshot = snapshot_regular_file(
+            manifest_path,
+            temporary / "manifest.json",
+            "capsule manifest",
+            2 * 1024 * 1024,
+        )
+        verified = verify_capsule(
+            archive_snapshot,
+            manifest_snapshot,
+            expected_run_id=expected_run_id,
+            expected_git_head=expected_git_head,
+            expected_source_sha256=expected_source_sha256,
+        )
+        manifest = load_manifest(manifest_snapshot)
+        destination = empty_destination(destination_root)
+        try:
+            with tarfile.open(archive_snapshot, mode="r:gz") as bundle:
+                members = bundle.getmembers()
+                require(
+                    len(members) == len(manifest["entries"]),
+                    "E_MATERIALIZE_SET",
+                    "materialized archive member count differs",
                 )
-                try:
-                    with os.fdopen(descriptor, "wb", closefd=False) as output:
-                        shutil.copyfileobj(stream, output, length=1024 * 1024)
-                        output.flush()
-                        os.fsync(output.fileno())
-                    os.fchmod(descriptor, int(record["mode"], 8))
-                finally:
-                    os.close(descriptor)
-                digest, size = sha256_file(target, f"materialized {record['path']}")
-                require(digest == record["sha256"] and size == record["size"], "E_MATERIALIZE_DIGEST", f"materialized entry differs: {record['path']}")
-                os.utime(
-                    target,
-                    ns=(record["mtime_ns"], record["mtime_ns"]),
-                    follow_symlinks=False,
-                )
-            for record in sorted(
-                (row for row in records if row["kind"] == "directory"),
-                key=lambda row: len(PurePosixPath(row["path"]).parts),
-                reverse=True,
-            ):
-                target = destination.joinpath(*PurePosixPath(record["path"]).parts)
-                os.chmod(target, int(record["mode"], 8), follow_symlinks=False)
-                os.utime(
-                    target,
-                    ns=(record["mtime_ns"], record["mtime_ns"]),
-                    follow_symlinks=False,
-                )
-    except CapsuleError:
-        raise
-    except (OSError, EOFError, tarfile.TarError) as error:
-        raise CapsuleError("E_MATERIALIZE", f"cannot materialize capsule: {error}") from error
+                for member, record in zip(members, manifest["entries"]):
+                    path = member.name.rstrip("/") if member.isdir() else member.name
+                    require(
+                        path == record["path"]
+                        and member.uid == 0
+                        and member.gid == 0
+                        and member.uname == ""
+                        and member.gname == ""
+                        and member.mtime == 0
+                        and member.linkname == ""
+                        and not member.pax_headers
+                        and (member.mode & 0o7777) == int(record["mode"], 8),
+                        "E_MATERIALIZE_SET",
+                        "materialized archive metadata differs",
+                    )
+                    target = destination.joinpath(*safe_relative(record["path"], "E_MATERIALIZE_PATH").parts)
+                    require(
+                        target.resolve(strict=False).is_relative_to(destination),
+                        "E_MATERIALIZE_PATH",
+                        "materialized path escapes destination",
+                    )
+                    if record["kind"] == "directory":
+                        require(member.isdir() and member.size == 0, "E_MATERIALIZE_SET", "materialized directory differs")
+                        target.mkdir(mode=int(record["mode"], 8), parents=False, exist_ok=False)
+                        os.chmod(target, int(record["mode"], 8), follow_symlinks=False)
+                        continue
+                    require(
+                        member.isreg() and member.size == record["size"],
+                        "E_MATERIALIZE_SET",
+                        "materialized file differs",
+                    )
+                    require(target.parent.is_dir() and not target.parent.is_symlink(), "E_MATERIALIZE_PARENT", "materialized parent differs")
+                    stream = bundle.extractfile(member)
+                    require(stream is not None, "E_MATERIALIZE_READ", "cannot read materialized member")
+                    descriptor = os.open(
+                        target,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                        int(record["mode"], 8),
+                    )
+                    try:
+                        with os.fdopen(descriptor, "wb", closefd=False) as output:
+                            shutil.copyfileobj(stream, output, length=1024 * 1024)
+                            output.flush()
+                            os.fsync(output.fileno())
+                        os.fchmod(descriptor, int(record["mode"], 8))
+                    finally:
+                        os.close(descriptor)
+                    digest, size = sha256_file(target, "materialized capsule member")
+                    require(
+                        digest == record["sha256"] and size == record["size"],
+                        "E_MATERIALIZE_DIGEST",
+                        "materialized capsule member differs",
+                    )
+        except CapsuleError:
+            raise
+        except (OSError, EOFError, tarfile.TarError) as error:
+            raise CapsuleError("E_MATERIALIZE", "cannot materialize capsule") from error
+    return {"command": "materialize", **verified, "status": "passed"}
+
+
+def fixture_attestation(run_id: str, git_head: str, source_sha: str, xml_payload: bytes) -> dict[str, Any]:
+    xml_sha = hashlib.sha256(xml_payload).hexdigest()
     return {
-        **verified,
-        "command": "materialize",
-        "destination_root": os.fspath(destination),
-        "status": "passed",
+        "schema_version": 1,
+        "kind": "v934-step4-git-safe-diagnostic-attestation",
+        "profile": PROFILE,
+        "status": "verified",
+        "identity": {
+            "run_id": run_id,
+            "git_head": git_head,
+            "source_sha256": source_sha,
+            "run_context_sha256": "3" * 64,
+            "run_status_sha256": "4" * 64,
+            "summary_sha256": "5" * 64,
+            "coverage_contract_sha256": "6" * 64,
+            "threshold_predecessor_sha256": "7" * 64,
+            "observation_sha256": "8" * 64,
+        },
+        "execution_attestation": {
+            "mode": "source-validated-hash-only",
+            "retention": "no-execution-bytes",
+            "exec_count": 23,
+            "session_count": 48,
+            "byte_tree_sha256": "9" * 64,
+            "aggregate_exec_sha256": "a" * 64,
+            "merge_semantics": "exact-session-and-jacoco-class-id-probe-bitmap-union",
+            "status": "verified",
+        },
+        "xml": {
+            "sha256": xml_sha,
+            "size": len(xml_payload),
+            "deterministic_report_replay_count": 2,
+        },
+        "source_attestation": {
+            "class_universe_sha256": "b" * 64,
+            "workspace_class_tree_sha256": "c" * 64,
+            "workspace_bytecode_class_count": 1,
+            "toolchain_receipt_sha256": "d" * 64,
+            "coverage_ledger_sha256": "e" * 64,
+        },
+        "semantic_observation": {
+            "report_inventory": {"group_count": 24, "session_count": 48},
+            "aggregate_observed": {"line": {"covered": 1, "total": 1, "fraction": "1/1"}},
+        },
     }
 
 
-def fixture_repo(root: Path, run_id: str, git_head: str, source_sha: str) -> None:
-    modules = [f"module-{number:02d}" for number in range(24)]
-    support = [*SUPPORT_FILES]
-    for relative in support:
-        path = root / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("fixture\n", encoding="utf-8")
-    freeze = {"reactor": {"module_count": 24, "modules": modules}}
-    (root / "scripts/v934/contract-freeze.json").write_bytes(canonical_json(freeze))
-    for module in modules:
-        module_root = root / module
-        classes = module_root / "target/classes/example"
-        classes.mkdir(parents=True)
-        (module_root / "pom.xml").write_text(f"<project><artifactId>{module}</artifactId></project>\n", encoding="utf-8")
-        (classes / "Fixture.class").write_bytes(f"{module}\n".encode("ascii"))
-    run = root / "target/v934-step4-coverage/runs" / run_id
-    (run / "report").mkdir(parents=True)
-    (run / "run-context.json").write_bytes(
-        canonical_json({"run_id": run_id, "git_head": git_head, "source_sha256": source_sha})
-    )
-    (run / "report/evidence.bin").write_bytes(b"diagnostic-evidence\n")
-    (run / "report/jacoco-aggregate.exec").write_bytes(b"exec\n")
-    (run / "report/jacoco-aggregate").mkdir()
-    (run / "report/jacoco-aggregate/jacoco.xml").write_bytes(b"<report/>\n")
 def expect_failure(cases: list[dict[str, str]], name: str, code: str, action: Any) -> None:
     try:
         action()
     except CapsuleError as error:
-        require(error.code == code, "E_SELF_TEST", f"{name} expected {code}, got {error.code}")
+        require(error.code == code, "E_SELF_TEST", f"{name} returned an unexpected code")
         cases.append({"name": name, "code": code, "status": "passed"})
         return
     reject("E_SELF_TEST", f"negative case unexpectedly passed: {name}")
@@ -781,22 +1241,31 @@ def run_self_test() -> dict[str, Any]:
     run_id = "step4-capsule-self-test"
     git_head = "1" * 40
     source_sha = "2" * 64
+    xml_payload = (
+        JACOCO_DOCTYPE
+        + b'\n<report name="fixture"><counter type="LINE" missed="0" covered="1"/></report>\n'
+    )
     cases: list[dict[str, str]] = []
     with tempfile.TemporaryDirectory(prefix="v934-capsule-self-test-") as temporary_name:
         temporary = Path(temporary_name)
-        repo = temporary / "repo"
-        repo.mkdir()
-        fixture_repo(repo, run_id, git_head, source_sha)
+        input_root = temporary / "input"
         output = temporary / "output"
+        input_root.mkdir()
         output.mkdir()
+        attestation = fixture_attestation(run_id, git_head, source_sha, xml_payload)
+        attestation_path = input_root / "attestation.json"
+        xml_path = input_root / "jacoco.xml"
+        attestation_path.write_bytes(canonical_json(attestation))
+        xml_path.write_bytes(xml_payload)
+        (input_root / "run.log").write_text("ignored\n", encoding="utf-8")
         first_archive = output / "first.tar.gz"
         first_manifest = output / "first.json"
         second_archive = output / "second.tar.gz"
         second_manifest = output / "second.json"
-        build_capsule(repo, run_id, first_archive, first_manifest)
-        build_capsule(repo, run_id, second_archive, second_manifest)
-        require(first_archive.read_bytes() == second_archive.read_bytes(), "E_SELF_TEST", "capsule archive is not deterministic")
-        require(first_manifest.read_bytes() == second_manifest.read_bytes(), "E_SELF_TEST", "capsule manifest is not deterministic")
+        build_capsule(attestation_path, xml_path, first_archive, first_manifest)
+        build_capsule(attestation_path, xml_path, second_archive, second_manifest)
+        require(first_archive.read_bytes() == second_archive.read_bytes(), "E_SELF_TEST", "archive is not deterministic")
+        require(first_manifest.read_bytes() == second_manifest.read_bytes(), "E_SELF_TEST", "manifest is not deterministic")
         cases.append({"name": "deterministic-build", "code": "passed", "status": "passed"})
         destination = temporary / "materialized"
         materialize_capsule(
@@ -807,69 +1276,237 @@ def run_self_test() -> dict[str, Any]:
             expected_git_head=git_head,
             expected_source_sha256=source_sha,
         )
-        require((destination / f"target/v934-step4-coverage/runs/{run_id}/report/evidence.bin").read_bytes() == b"diagnostic-evidence\n", "E_SELF_TEST", "materialized fixture differs")
-        cases.append({"name": "materialize", "code": "passed", "status": "passed"})
+        require(
+            sorted(path.relative_to(destination).as_posix() for path in destination.rglob("*"))
+            == ["evidence", "evidence/diagnostic-attestation.json", "evidence/jacoco.xml"],
+            "E_SELF_TEST",
+            "materialized member set differs",
+        )
+        cases.append({"name": "materialize-exact-members", "code": "passed", "status": "passed"})
+        cases.append({"name": "unrelated-run-content-ignored", "code": "passed", "status": "passed"})
+
         tampered_archive = output / "tampered.tar.gz"
         payload = bytearray(first_archive.read_bytes())
         payload[-9] ^= 1
         tampered_archive.write_bytes(payload)
         expect_failure(cases, "archive-tamper", "E_ARCHIVE_BINDING", lambda: verify_capsule(tampered_archive, first_manifest))
-        concatenated_archive = output / "concatenated.tar.gz"
-        concatenated_archive.write_bytes(first_archive.read_bytes() * 2)
-        concatenated_manifest = output / "concatenated.json"
-        concatenated_value = load_manifest(first_manifest)
-        concatenated_sha, concatenated_size = sha256_file(
-            concatenated_archive,
-            "concatenated negative archive",
+
+        manifest_value = load_manifest(first_manifest)
+        manifest_value["schema_version"] = 1
+        v1_manifest = output / "v1.json"
+        v1_manifest.write_bytes(canonical_json(manifest_value))
+        expect_failure(cases, "schema-v1-rejected", "E_MANIFEST", lambda: verify_capsule(first_archive, v1_manifest))
+
+        manifest_value = load_manifest(first_manifest)
+        manifest_value["entries"][1]["path"] = "evidence/extra.json"
+        extra_manifest = output / "extra.json"
+        extra_manifest.write_bytes(canonical_json(manifest_value))
+        expect_failure(cases, "extra-member-rejected", "E_MANIFEST", lambda: verify_capsule(first_archive, extra_manifest))
+
+        with gzip.open(first_archive, mode="rb") as stream:
+            original_tar = stream.read()
+        trailing_archive = output / "trailing.tar.gz"
+        trailing_tar = original_tar + b"X" + (b"\x00" * (TAR_RECORD_SIZE - 1))
+        with trailing_archive.open("xb") as raw:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+                compressed.write(trailing_tar)
+        trailing_sha, trailing_size = sha256_file(
+            trailing_archive,
+            "trailing negative archive",
             MAX_ARCHIVE_BYTES,
         )
-        concatenated_value["archive"] = {
-            "sha256": concatenated_sha,
-            "size": concatenated_size,
-        }
-        concatenated_manifest.write_bytes(canonical_json(concatenated_value))
+        trailing_manifest_value = load_manifest(first_manifest)
+        trailing_manifest_value["archive"] = {"sha256": trailing_sha, "size": trailing_size}
+        trailing_manifest = output / "trailing.json"
+        trailing_manifest.write_bytes(canonical_json(trailing_manifest_value))
         expect_failure(
             cases,
-            "gzip-concatenation",
-            "E_GZIP_FRAMING",
-            lambda: verify_capsule(concatenated_archive, concatenated_manifest),
+            "tar-trailing-payload-rejected",
+            "E_TAR_FRAMING",
+            lambda: verify_capsule(trailing_archive, trailing_manifest),
         )
-        bad_manifest = output / "bad.json"
-        value = load_manifest(first_manifest)
-        value["entries"][0]["path"] = "../escape"
-        bad_manifest.write_bytes(canonical_json(value))
-        expect_failure(cases, "path-traversal", "E_MANIFEST", lambda: verify_capsule(first_archive, bad_manifest))
+
+        with tarfile.open(first_archive, mode="r:gz") as bundle:
+            last_member = bundle.getmembers()[-1]
+            logical_end = last_member.offset_data + (
+                (last_member.size + TAR_BLOCK_SIZE - 1) // TAR_BLOCK_SIZE
+            ) * TAR_BLOCK_SIZE
+        extra_member_bytes = io.BytesIO()
+        with tarfile.open(fileobj=extra_member_bytes, mode="w", format=tarfile.USTAR_FORMAT) as bundle:
+            extra_payload = b"extra\n"
+            extra_member = tarfile.TarInfo("evidence/extra.txt")
+            extra_member.uid = 0
+            extra_member.gid = 0
+            extra_member.uname = ""
+            extra_member.gname = ""
+            extra_member.mtime = 0
+            extra_member.mode = 0o644
+            extra_member.size = len(extra_payload)
+            bundle.addfile(extra_member, io.BytesIO(extra_payload))
+        extra_raw_size = TAR_BLOCK_SIZE + (
+            (len(extra_payload) + TAR_BLOCK_SIZE - 1) // TAR_BLOCK_SIZE
+        ) * TAR_BLOCK_SIZE
+        extra_tar = original_tar[:logical_end] + extra_member_bytes.getvalue()[:extra_raw_size]
+        extra_tar += b"\x00" * (TAR_BLOCK_SIZE * 2)
+        extra_tar += b"\x00" * ((-len(extra_tar)) % TAR_RECORD_SIZE)
+        extra_archive = output / "extra-member.tar.gz"
+        with extra_archive.open("xb") as raw:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+                compressed.write(extra_tar)
+        extra_archive_sha, extra_archive_size = sha256_file(
+            extra_archive,
+            "extra member negative archive",
+            MAX_ARCHIVE_BYTES,
+        )
+        extra_archive_manifest_value = load_manifest(first_manifest)
+        extra_archive_manifest_value["archive"] = {
+            "sha256": extra_archive_sha,
+            "size": extra_archive_size,
+        }
+        extra_archive_manifest = output / "extra-member.json"
+        extra_archive_manifest.write_bytes(canonical_json(extra_archive_manifest_value))
+        expect_failure(
+            cases,
+            "tar-extra-member-rejected",
+            "E_TAR_FRAMING",
+            lambda: verify_capsule(extra_archive, extra_archive_manifest),
+        )
+
+        bad_attestation = fixture_attestation(run_id, git_head, source_sha, xml_payload)
+        bad_attestation["identity"]["pid"] = 1
+        bad_attestation_path = input_root / "bad-attestation.json"
+        bad_attestation_path.write_bytes(canonical_json(bad_attestation))
+        expect_failure(
+            cases,
+            "identity-extra-key-rejected",
+            "E_ATTESTATION",
+            lambda: build_capsule(bad_attestation_path, xml_path, output / "bad.tar.gz", output / "bad.json"),
+        )
+
+        for name, key, value, expected_code in (
+            ("raw-exec-attestation-rejected", "note", "aggregate.exec", "E_ATTESTATION_FORBIDDEN"),
+            ("raw-log-attestation-rejected", "note", "run.log", "E_ATTESTATION_FORBIDDEN"),
+            ("container-identity-rejected", "containerIdentity", "opaque", "E_ATTESTATION_FORBIDDEN"),
+            ("process-identity-rejected", "processIdentity", "opaque", "E_ATTESTATION_FORBIDDEN"),
+            ("sensitive-attestation-rejected", "note", "token=very-secret-value", "E_CAPSULE_SENSITIVE"),
+        ):
+            forbidden_attestation = fixture_attestation(run_id, git_head, source_sha, xml_payload)
+            forbidden_attestation["semantic_observation"][key] = value
+            forbidden_attestation_path = input_root / f"{name}.json"
+            forbidden_attestation_path.write_bytes(canonical_json(forbidden_attestation))
+            expect_failure(
+                cases,
+                name,
+                expected_code,
+                lambda path=forbidden_attestation_path, suffix=name: build_capsule(
+                    path,
+                    xml_path,
+                    output / f"{suffix}.tar.gz",
+                    output / f"{suffix}.json",
+                ),
+            )
+
+        untrusted_doctype_xml = input_root / "untrusted-doctype.xml"
+        untrusted_doctype_payload = (
+            b"<!-- "
+            + JACOCO_DOCTYPE
+            + b" -->\n<!DOCTYPE report SYSTEM \"untrusted.dtd\">\n<report name=\"fixture\"/>\n"
+        )
+        untrusted_doctype_xml.write_bytes(untrusted_doctype_payload)
+        untrusted_doctype_attestation = input_root / "untrusted-doctype.json"
+        untrusted_doctype_attestation.write_bytes(
+            canonical_json(
+                fixture_attestation(run_id, git_head, source_sha, untrusted_doctype_payload)
+            )
+        )
+        expect_failure(
+            cases,
+            "untrusted-doctype-rejected",
+            "E_XML",
+            lambda: build_capsule(
+                untrusted_doctype_attestation,
+                untrusted_doctype_xml,
+                output / "untrusted-doctype.tar.gz",
+                output / "untrusted-doctype.json",
+            ),
+        )
+
+        raw_exec_xml = input_root / "raw-exec.xml"
+        raw_exec_payload = (
+            JACOCO_DOCTYPE
+            + b'\n<report name="aggregate.exec"><counter type="LINE" missed="0" covered="1"/></report>\n'
+        )
+        raw_exec_xml.write_bytes(raw_exec_payload)
+        raw_exec_attestation = input_root / "raw-exec.json"
+        raw_exec_attestation.write_bytes(
+            canonical_json(fixture_attestation(run_id, git_head, source_sha, raw_exec_payload))
+        )
+        expect_failure(
+            cases,
+            "raw-exec-xml-rejected",
+            "E_CAPSULE_FORBIDDEN",
+            lambda: build_capsule(
+                raw_exec_attestation,
+                raw_exec_xml,
+                output / "raw-exec.tar.gz",
+                output / "raw-exec.json",
+            ),
+        )
+
+        for name, marker in (
+            ("raw-log-xml-rejected", "report.log"),
+            ("container-identity-xml-rejected", "containerId=opaque"),
+            ("process-identity-xml-rejected", "processIdentity=opaque"),
+        ):
+            forbidden_xml_payload = (
+                JACOCO_DOCTYPE
+                + f'\n<report name="{marker}"><counter type="LINE" missed="0" covered="1"/></report>\n'.encode("ascii")
+            )
+            forbidden_xml_path = input_root / f"{name}.xml"
+            forbidden_xml_path.write_bytes(forbidden_xml_payload)
+            forbidden_xml_attestation = input_root / f"{name}.json"
+            forbidden_xml_attestation.write_bytes(
+                canonical_json(
+                    fixture_attestation(run_id, git_head, source_sha, forbidden_xml_payload)
+                )
+            )
+            expect_failure(
+                cases,
+                name,
+                "E_CAPSULE_FORBIDDEN",
+                lambda attestation_file=forbidden_xml_attestation, xml_file=forbidden_xml_path, suffix=name: build_capsule(
+                    attestation_file,
+                    xml_file,
+                    output / f"{suffix}.tar.gz",
+                    output / f"{suffix}.json",
+                ),
+            )
+
+        sensitive_xml = input_root / "sensitive.xml"
+        sensitive_payload = (
+            JACOCO_DOCTYPE
+            + b'\n<report name="pass&#119;ord=very-secret-value"><counter type="LINE" missed="0" covered="1"/></report>\n'
+        )
+        sensitive_xml.write_bytes(
+            sensitive_payload
+        )
+        sensitive_attestation = input_root / "sensitive.json"
+        sensitive_attestation.write_bytes(
+            canonical_json(fixture_attestation(run_id, git_head, source_sha, sensitive_payload))
+        )
+        expect_failure(
+            cases,
+            "encoded-sensitive-xml-rejected",
+            "E_CAPSULE_SENSITIVE",
+            lambda: build_capsule(sensitive_attestation, sensitive_xml, output / "sensitive.tar.gz", output / "sensitive.json"),
+        )
+
         nonempty = temporary / "nonempty"
         nonempty.mkdir()
         (nonempty / "keep").write_text("keep", encoding="utf-8")
         expect_failure(cases, "nonempty-destination", "E_DESTINATION", lambda: materialize_capsule(first_archive, first_manifest, nonempty))
-        negative_link_repo = temporary / "negative-link-repo"
-        shutil.copytree(repo, negative_link_repo)
-        relative, target = next(iter(FORBIDDEN_NEGATIVE_FIXTURE_LINKS.items()))
-        negative_link = negative_link_repo / "target/v934-step4-coverage/runs" / run_id / relative
-        negative_link.parent.mkdir(parents=True, exist_ok=True)
-        negative_link.symlink_to(
-            negative_link_repo / "target/v934-step4-coverage/runs" / run_id / target
-        )
-        expect_failure(
-            cases,
-            "negative-fixture-symlink",
-            "E_SYMLINK",
-            lambda: build_capsule(
-                negative_link_repo,
-                run_id,
-                output / "negative-link.tar.gz",
-                output / "negative-link.json",
-            ),
-        )
-        link_repo = temporary / "link-repo"
-        shutil.copytree(repo, link_repo)
-        link_target = link_repo / "module-00/target/classes/example/Fixture.class"
-        link_target.unlink()
-        link_target.symlink_to(repo / "module-00/target/classes/example/Fixture.class")
-        expect_failure(cases, "source-symlink", "E_SYMLINK", lambda: build_capsule(link_repo, run_id, output / "link.tar.gz", output / "link.json"))
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "v934-step4-frozen-diagnostic-capsule-self-test",
         "case_count": len(cases),
         "cases": cases,
@@ -881,8 +1518,8 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
     build = commands.add_parser("build")
-    build.add_argument("--repo-root", type=Path, required=True)
-    build.add_argument("--run-id", required=True)
+    build.add_argument("--attestation", type=Path, required=True)
+    build.add_argument("--jacoco-xml", type=Path, required=True)
     build.add_argument("--archive", type=Path, required=True)
     build.add_argument("--manifest", type=Path, required=True)
     verify = commands.add_parser("verify")
@@ -897,7 +1534,6 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("--expected-git-head")
         command.add_argument("--expected-source-sha256")
     commands.add_parser("self-test")
-    commands.add_parser("negative")
     return root
 
 
@@ -905,7 +1541,7 @@ def main() -> int:
     args = parser().parse_args()
     try:
         if args.command == "build":
-            result = build_capsule(args.repo_root, args.run_id, args.archive, args.manifest)
+            result = build_capsule(args.attestation, args.jacoco_xml, args.archive, args.manifest)
         elif args.command == "verify":
             result = verify_capsule(
                 args.archive,
@@ -925,11 +1561,11 @@ def main() -> int:
             )
         else:
             result = run_self_test()
-        print(json.dumps(result, ensure_ascii=True, sort_keys=True))
-        return 0
     except CapsuleError as error:
         print(f"[v934-frozen-diagnostic-capsule] {error.code}: {error}", file=os.sys.stderr)
-        return 1
+        return 2
+    print(json.dumps(result, ensure_ascii=True, sort_keys=True, separators=(",", ":")))
+    return 0
 
 
 if __name__ == "__main__":

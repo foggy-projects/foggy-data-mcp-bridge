@@ -125,6 +125,20 @@ REVIEWED_THRESHOLD_POLICY = {
         "exceptions": list(CRITICAL_NOT_APPLICABLE_METRICS),
     },
 }
+FROZEN_DIAGNOSTIC_CAPSULE_POLICY = {
+    "schema_version": 2,
+    "profile": "git-safe-sanitized-attested-v1",
+    "archive_members": [
+        "evidence/diagnostic-attestation.json",
+        "evidence/jacoco.xml",
+    ],
+    "retention": {
+        "runtime_closure": "forbidden",
+        "execution_bytes": "forbidden",
+        "unstructured_output": "forbidden",
+    },
+    "replay_scope": "sanitized-attested-semantic-replay",
+}
 INDEX_FLAGS_IDENTITY_POLICY = "ordinary-H-only-no-fsmonitor-valid"
 HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
     "head-index-exact-path-gitmode-blob+worktree-canonical-euid-egid-private-"
@@ -676,6 +690,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
             "required_status_for_exit",
             "workflow_states",
             "reviewed_threshold_policy",
+            "frozen_diagnostic_capsule",
             "formalization_delta",
         ),
         "coverage contract.threshold_successor",
@@ -688,6 +703,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
             "required_status_for_exit": "confirmed",
             "workflow_states": WORKFLOW_STATES,
             "reviewed_threshold_policy": REVIEWED_THRESHOLD_POLICY,
+            "frozen_diagnostic_capsule": FROZEN_DIAGNOSTIC_CAPSULE_POLICY,
             "formalization_delta": FORMALIZATION_DELTA,
         },
         "coverage contract.threshold_successor: frozen values changed",
@@ -3203,50 +3219,58 @@ def validate_frozen_diagnostic_receipt(
     replay = require_exact_keys(
         receipt["replay_receipt"],
         (
-            "run_context_sha256",
-            "source_sha256",
-            "not_before_ns",
-            "git_head",
-            "raw_exec_replay",
+            "profile",
+            "capsule_manifest_sha256",
+            "attestation_sha256",
+            "aggregate_xml_sha256",
+            "execution_attestation",
             "scope",
             "status",
         ),
         "frozen diagnostic validator receipt.replay_receipt",
     )
-    raw_exec_replay = require_exact_keys(
-        replay["raw_exec_replay"],
+    execution_attestation = require_exact_keys(
+        replay["execution_attestation"],
         (
             "mode",
-            "identity_policy",
-            "freshness_policy",
+            "retention",
             "exec_count",
+            "session_count",
             "byte_tree_sha256",
+            "aggregate_exec_sha256",
+            "merge_semantics",
             "status",
         ),
-        "frozen diagnostic validator receipt.replay_receipt.raw_exec_replay",
+        "frozen diagnostic validator receipt.replay_receipt.execution_attestation",
     )
     require(
-        type(replay["run_context_sha256"]) is str
-        and re.fullmatch(r"[0-9a-f]{64}", replay["run_context_sha256"]) is not None
-        and type(replay["source_sha256"]) is str
-        and re.fullmatch(r"[0-9a-f]{64}", replay["source_sha256"]) is not None
-        and type(replay["not_before_ns"]) is int
-        and replay["not_before_ns"] > 0
-        and type(replay["git_head"]) is str
-        and re.fullmatch(r"[0-9a-f]{40}", replay["git_head"]) is not None
-        and replay["scope"] == "exact-retained-diagnostic-run-bytes"
-        and replay["status"] == "verified"
-        and raw_exec_replay["mode"] == "exact-retained-raw-exec-byte-replay"
-        and raw_exec_replay["identity_policy"]
-        == "canonical-dirfd-nofollow-stable-inode"
-        and raw_exec_replay["freshness_policy"]
-        == "exact-manifest-mtime-at-or-after-not-before"
-        and type(raw_exec_replay["exec_count"]) is int
-        and raw_exec_replay["exec_count"] == 23
-        and type(raw_exec_replay["byte_tree_sha256"]) is str
-        and re.fullmatch(r"[0-9a-f]{64}", raw_exec_replay["byte_tree_sha256"])
+        replay["profile"] == FROZEN_DIAGNOSTIC_CAPSULE_POLICY["profile"]
+        and type(replay["capsule_manifest_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["capsule_manifest_sha256"])
         is not None
-        and raw_exec_replay["status"] == "verified",
+        and type(replay["attestation_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["attestation_sha256"]) is not None
+        and type(replay["aggregate_xml_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["aggregate_xml_sha256"])
+        is not None
+        and replay["scope"]
+        == FROZEN_DIAGNOSTIC_CAPSULE_POLICY["replay_scope"]
+        and replay["status"] == "verified"
+        and execution_attestation["mode"] == "source-validated-hash-only"
+        and execution_attestation["retention"] == "no-execution-bytes"
+        and type(execution_attestation["exec_count"]) is int
+        and execution_attestation["exec_count"] == 23
+        and type(execution_attestation["session_count"]) is int
+        and execution_attestation["session_count"] == 48
+        and type(execution_attestation["byte_tree_sha256"]) is str
+        and re.fullmatch(
+            r"[0-9a-f]{64}", execution_attestation["byte_tree_sha256"]
+        )
+        is not None
+        and execution_attestation["aggregate_exec_sha256"] == evidence["aggregate_exec_sha256"]
+        and execution_attestation["merge_semantics"]
+        == "exact-session-and-jacoco-class-id-probe-bitmap-union"
+        and execution_attestation["status"] == "verified",
         "frozen diagnostic validator: replay receipt differs",
     )
     require(
@@ -3255,8 +3279,7 @@ def validate_frozen_diagnostic_receipt(
         and receipt["current_git_head"] == git_commit(repo_root, "frozen diagnostic validator")
         and receipt["confirmed_threshold_sha256"]
         == sha256_file(thresholds_path, "confirmed coverage thresholds")
-        and replay["git_head"] == evidence["git_head"]
-        and replay["source_sha256"] == evidence["source_sha256"]
+        and replay["aggregate_xml_sha256"] == evidence["aggregate_xml_sha256"]
         and strict_json_equal(receipt["evidence"], evidence)
         and strict_json_equal(receipt["aggregate_observed"], aggregate)
         and strict_json_equal(

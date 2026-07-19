@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r9 strict-umask excluded / pending Cdiag | Step 3 exit passed | r9 on `34cd2452…` failed at coverage-report with `E_OUTPUT` mode `0600`; `39032229…` reset machine to `diagnostic-ready/diagnostic-pending` but is recovery baseline only; next=new clean/pushed Cdiag→fresh r29→candidate/capsule/dual review→direct-child Cfreeze→fresh formal successor→post gates |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r29 non-freezable safety hold | Step 3 exit passed | r9 strict-umask remains excluded; f420 Cdiag's r29 diagnostic facts are preserved but its recursive local capsule is not Git-safe. Git-safe tooling local validation passed; Next=new clean/pushed Cdiag→fresh diagnostic→new candidate/review→Cfreeze→fresh formal→post gates |
 | 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r9 exclusion/recovery reset do not enter Step 5; wait for fresh formal successor + final quality + coverage audit/feature acceptance |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -1893,3 +1893,15 @@ Records：
   direct-single-parent Cfreeze→fresh formal successor→final quality→replacement coverage audit `31/31`→
   Step 4 feature acceptance. `can_enter_cfreeze=no / can_enter_step5=no /
   can_enter_coverage_audit=no / can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r29 Git-safety hold（2026-07-19）
+
+- Cdiag=`f420a4eaa3cf9bed0d7027b656ea71af6d0b03ca`; fresh r29 completed under `umask 077` and its
+  diagnostic replay/candidate facts remain recorded as non-authoritative observation.
+- Git-safety review identified that the recursive local capsule captures excluded raw runtime content and
+  process/runtime metadata. The r29 closure is therefore not a Git-safe publication artifact.
+- r29=`non-freezable / no-cfreeze-authority`: its local candidate, capsule and reviews must not be reused,
+  repackaged, linked as tracked evidence, or combined with historical material.
+- The fail-closed tooling repair is locally validated: explicit allowlist, de-identified attestation, safe frozen
+  recomputation, and persistent rejection tests. It still requires a new Cdiag and a fresh diagnostic before any
+  candidate, Cfreeze or formal decision. Step 5–7, coverage audit, acceptance, 9.3.5 and 9.4.0 remain closed.

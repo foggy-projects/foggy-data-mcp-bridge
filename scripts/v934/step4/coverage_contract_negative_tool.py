@@ -1376,6 +1376,14 @@ def mutate_contract_expand_not_applicable(path: Path) -> None:
     write_json(path, value)
 
 
+def mutate_contract_capsule_retention(path: Path) -> None:
+    value = read_json(path)
+    value["threshold_successor"]["frozen_diagnostic_capsule"]["retention"][
+        "execution_bytes"
+    ] = "allowed"
+    write_json(path, value)
+
+
 def mutate_formal_aggregate_lowering(path: Path) -> None:
     value = read_json(path)
     value["aggregate_reviewed_thresholds"]["line"] = {
@@ -1623,6 +1631,13 @@ PROBES = (
         "expand the exact structural not-applicable exception set",
         "coverage contract.threshold_successor: frozen values changed",
         mutate_contract_expand_not_applicable,
+    ),
+    Probe(
+        "git-safe-capsule-retention-weakening",
+        "contract",
+        "allow execution bytes in the frozen diagnostic capsule",
+        "coverage contract.threshold_successor: frozen values changed",
+        mutate_contract_capsule_retention,
     ),
     Probe(
         "formal-aggregate-lowering",
@@ -2574,19 +2589,21 @@ def frozen_receipt_payload(
             },
         },
         "replay_receipt": {
-            "run_context_sha256": "2" * 64,
-            "source_sha256": evidence["source_sha256"],
-            "not_before_ns": 1,
-            "git_head": evidence["git_head"],
-            "raw_exec_replay": {
-                "mode": "exact-retained-raw-exec-byte-replay",
-                "identity_policy": "canonical-dirfd-nofollow-stable-inode",
-                "freshness_policy": "exact-manifest-mtime-at-or-after-not-before",
+            "profile": "git-safe-sanitized-attested-v1",
+            "capsule_manifest_sha256": "2" * 64,
+            "attestation_sha256": "3" * 64,
+            "aggregate_xml_sha256": evidence["aggregate_xml_sha256"],
+            "execution_attestation": {
+                "mode": "source-validated-hash-only",
+                "retention": "no-execution-bytes",
                 "exec_count": 23,
-                "byte_tree_sha256": "3" * 64,
+                "session_count": 48,
+                "byte_tree_sha256": "4" * 64,
+                "aggregate_exec_sha256": evidence["aggregate_exec_sha256"],
+                "merge_semantics": "exact-session-and-jacoco-class-id-probe-bitmap-union",
                 "status": "verified",
             },
-            "scope": "exact-retained-diagnostic-run-bytes",
+            "scope": "sanitized-attested-semantic-replay",
             "status": "verified",
         },
         "evidence": copy.deepcopy(evidence),
@@ -2816,7 +2833,7 @@ def threshold_and_frozen_replay_probes(
     )
 
     bad_replay_shape = copy.deepcopy(receipt)
-    bad_replay_shape["replay_receipt"]["raw_exec_replay"]["exec_count"] = True
+    bad_replay_shape["replay_receipt"]["execution_attestation"]["exec_count"] = True
     expect_receipt_failure(
         "frozen-replay-bool-exec-count",
         copy.deepcopy(thresholds),

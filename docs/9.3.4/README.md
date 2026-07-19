@@ -55,8 +55,10 @@ updated_at: 2026-07-19
   effective-POM receipt 成为 mode=`0600`，违反 `E_OUTPUT` public-output contract。r9 永久
   `failed/excluded/non-reusable/non-candidate`，不得拼接 child output、exec 或 r28 material。
   修复基线 `39032229…` 已将 machine 回退到
-  `diagnostic-ready/diagnostic-pending`，但它不是 final Cdiag；current Step 4=`in-progress /
-  formal-r9 strict-umask excluded / pending clean Cdiag successor→fresh diagnostic-r29`；
+  `diagnostic-ready/diagnostic-pending`，但它不是 final Cdiag。其后 clean/pushed Cdiag
+  `f420a4e…` 的 fresh diagnostic-r29 保留为有效诊断观察；审计发现其 local capsule 不满足
+  Git-safe 内容边界，故 r29=`non-freezable`，不得进入 Cfreeze。Git-safe capsule / frozen-replay 工具
+  的本地静态与负向验证已完成，但尚未形成 Cdiag；当前唯一后续是 new Cdiag→fresh diagnostic；
   Step 5=`hold / closed`。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
@@ -816,3 +818,19 @@ Current recovery records：
 
 - [formal-r9 strict-umask recovery implementation quality](quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md)
   records the recovery decision as `ready-for-new-Cdiag` only; it is not a post-formal or downstream-gate record.
+
+## Superseding diagnostic-r29 Git-safety hold（2026-07-19）
+
+- clean/pushed Cdiag=`f420a4eaa3cf9bed0d7027b656ea71af6d0b03ca`；fresh diagnostic-r29 在
+  outer `umask 077` 下完成，durable diagnostic replay 验证其计数与全 lane 状态；
+- r29 的候选事实只保留为本地诊断观察。审计发现其 local capsule 包含 Git 排除的原始运行内容，
+  因而不存在可入库的安全 closure；r29=`non-freezable / no-cfreeze-authority`；
+- 不得为 r29 补录、重打包或引用 capsule identity，也不得将其 candidate/review 与任何历史运行拼接；
+- 当前唯一授权是：提交并推送已完成本地验证的显式 Git-safe 内容白名单、脱敏 attestation 与可重算
+  frozen replay → 在 fresh clone 运行新的 strict-umask diagnostic。Cfreeze、formal、coverage audit、
+  acceptance、Step 5–7、9.3.5 与 9.4.0 继续关闭。
+
+- [r29 diagnostic evidence](evidence/step-4/step4-coverage-diagnostic-r29-pass-20260719.md)
+- [r29 candidate review](quality/step4-diagnostic-r29-candidate-review.md)
+- [r29 capsule review](quality/step4-diagnostic-r29-capsule-review.md)
+- [Git-safe capsule blocker](workitems/BUG-step4-frozen-capsule-git-safe-content-boundary.md)

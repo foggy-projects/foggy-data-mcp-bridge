@@ -30,7 +30,7 @@ updated_at: 2026-07-19
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / Step 4 formal-r9 strict-umask recovery | [执行文档包](../9.3.4/README.md)；r28 reviewed material 的 Cfreeze `34cd2452…` 已触发 fresh formal-r9，但公开 receipt 在 strict umask 下为 mode `0600` 并以 `E_OUTPUT` fail closed；r9 permanent excluded。`39032229…` 仅重置 machine=`diagnostic-ready/diagnostic-pending`，不是 Cdiag；当前只允许 new clean/pushed Cdiag→fresh diagnostic-r29→new review/Cfreeze→fresh formal successor→post gates |
+| 9.3.4 | in-progress / Git-safe capsule remediation | [执行文档包](../9.3.4/README.md)；formal-r9 permanent excluded；f420 Cdiag 的 r29 诊断事实已保留，但其递归 local capsule 不满足 Git-safe 内容边界，r29=`non-freezable`。capsule/replay tooling 已本地验证，当前主线为 new clean/pushed Cdiag→fresh diagnostic→new review/Cfreeze→fresh formal→post gates |
 | 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready；开工先执行 Gate 0 classification-debt migration |
 | 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
 
@@ -85,7 +85,7 @@ acceptance=`signed-off / accepted-with-risks`。签收记录见
 
 ### 9.3.4 测试与 CI 证据链
 
-当前状态：`in-progress / Step 4 formal-r9 strict-umask recovery`；入口为
+当前状态：`in-progress / Git-safe capsule remediation`；入口为
 [`docs/9.3.4/README.md`](../9.3.4/README.md)。历史 Cfreeze `f97483a0…` / formal-r4 的 feature
 acceptance 与 r24/Cfreeze `439aea5e…` 的 diagnostic/review 证据保留；fresh formal-r7 正确拒绝了
 未进入 bridge Git tree 的 CALCULATE parity catalog，因而永久 `failed/excluded/non-reusable`。
@@ -105,7 +105,9 @@ published the contractually public effective-POM receipt as mode=`0600`, so the 
 r9 is permanently `failed/excluded/non-reusable/non-candidate`; r28 material and r9 partial output cannot be
 combined into replacement authority. Recovery baseline `39032229…` makes public receipt mode explicit, adds a
 strict-umask negative probe and resets machine state to `diagnostic-ready / diagnostic-pending`; it is not the
-final Cdiag. The only next chain is one new clean/pushed Cdiag successor→fresh all-lane diagnostic-r29→new
+final Cdiag. f420 Cdiag 的 r29 诊断已完成，但其 local capsule 递归包含不应进入 Git 的运行期内容，
+因此永久 `non-freezable / no-cfreeze-authority`；不得补录、重打包或将其与历史材料拼接。当前唯一
+后续链为：已本地验证的 Git-safe capsule/replay tooling→new clean/pushed Cdiag→fresh all-lane diagnostic→new
 candidate/capsule/dual review→direct-single-parent Cfreeze→fresh formal successor→post gates.
 
 以下仅记录已被 replacement recovery 撤回授权的 historical formal-r4 checkpoint：当时 post-formal

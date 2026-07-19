@@ -54,6 +54,29 @@ EXPECTED_CLASS_ID_CONSISTENCY_SCOPE = "frozen-24-module-production-class-univers
 EXPECTED_AGGREGATE_MERGE_SEMANTICS = (
     "exact-session-and-jacoco-class-id-probe-bitmap-union"
 )
+GIT_SAFE_DIAGNOSTIC_PROFILE = "git-safe-sanitized-attested-v1"
+GIT_SAFE_DIAGNOSTIC_REPLAY_SCOPE = "sanitized-attested-semantic-replay"
+GIT_SAFE_DIAGNOSTIC_CAPSULE_POLICY = {
+    "schema_version": 2,
+    "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+    "archive_members": [
+        "evidence/diagnostic-attestation.json",
+        "evidence/jacoco.xml",
+    ],
+    "retention": {
+        "runtime_closure": "forbidden",
+        "execution_bytes": "forbidden",
+        "unstructured_output": "forbidden",
+    },
+    "replay_scope": GIT_SAFE_DIAGNOSTIC_REPLAY_SCOPE,
+}
+GIT_SAFE_SEMANTIC_OBSERVATION_KEYS = (
+    "report_inventory",
+    "aggregate_observed",
+    "group_counters",
+    "critical_candidate_floor",
+    "critical_classes",
+)
 EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256 = (
     "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96"
 )
@@ -2348,6 +2371,8 @@ def validate_class(
     module: str,
     repo_root: Path,
     source_names: set[str],
+    *,
+    require_compiled_class_files: bool = True,
 ) -> tuple[str, CounterVector]:
     require_attributes(class_element, ("name", "sourcefilename"), "E_XML_SCHEMA", f"class in {artifact}")
     class_name = class_element.attrib["name"]
@@ -2370,19 +2395,20 @@ def validate_class(
             expected = method_sum.get(counter_type, (0, 0))
             require(actual == expected, "E_COUNTER_SUM", f"class {class_name} {counter_type} does not equal method sum")
 
-    classes_root = repo_root / module / "target/classes"
-    class_file = classes_root.joinpath(*parts[:-1], f"{parts[-1]}.class")
-    try:
-        class_file.resolve(strict=False).relative_to(classes_root.resolve())
-    except (OSError, ValueError) as exc:
-        reject("E_XML_CLASS_EXTRA", f"class path escapes module {module}: {class_name} ({exc.__class__.__name__})")
-    try:
-        class_stat = class_file.lstat()
-    except FileNotFoundError:
-        reject("E_XML_CLASS_EXTRA", f"XML class is absent from {module}/target/classes: {class_name}")
-    except OSError as exc:
-        reject("E_XML_CLASS_EXTRA", f"cannot inspect compiled class {class_name}: {exc.__class__.__name__}")
-    require(stat.S_ISREG(class_stat.st_mode) and not stat.S_ISLNK(class_stat.st_mode) and class_stat.st_size > 0, "E_XML_CLASS_EXTRA", f"compiled class is not a real nonempty file: {class_name}")
+    if require_compiled_class_files:
+        classes_root = repo_root / module / "target/classes"
+        class_file = classes_root.joinpath(*parts[:-1], f"{parts[-1]}.class")
+        try:
+            class_file.resolve(strict=False).relative_to(classes_root.resolve())
+        except (OSError, ValueError) as exc:
+            reject("E_XML_CLASS_EXTRA", f"class path escapes module {module}: {class_name} ({exc.__class__.__name__})")
+        try:
+            class_stat = class_file.lstat()
+        except FileNotFoundError:
+            reject("E_XML_CLASS_EXTRA", f"XML class is absent from {module}/target/classes: {class_name}")
+        except OSError as exc:
+            reject("E_XML_CLASS_EXTRA", f"cannot inspect compiled class {class_name}: {exc.__class__.__name__}")
+        require(stat.S_ISREG(class_stat.st_mode) and not stat.S_ISLNK(class_stat.st_mode) and class_stat.st_size > 0, "E_XML_CLASS_EXTRA", f"compiled class is not a real nonempty file: {class_name}")
     return class_name, class_counters
 
 
@@ -2431,6 +2457,8 @@ def validate_xml_structure(
     artifact_to_module: dict[str, str],
     critical_rows: list[dict[str, str]],
     repo_root: Path,
+    *,
+    require_compiled_class_files: bool = True,
 ) -> tuple[
     CounterVector,
     dict[str, CounterVector],
@@ -2464,8 +2492,9 @@ def validate_xml_structure(
     require(len(group_names) == len(set(group_names)), "E_GROUP_IDENTITY", "duplicate JaCoCo group identity")
     require(group_names == expected_artifacts, "E_GROUP_SET", f"JaCoCo groups differ from exact frozen production artifacts: expected={expected_artifacts} actual={group_names}")
 
-    for module in module_order:
-        real_directory(repo_root / module / "target/classes", "E_CLASS_TREE")
+    if require_compiled_class_files:
+        for module in module_order:
+            real_directory(repo_root / module / "target/classes", "E_CLASS_TREE")
 
     # Critical presence is an independent fail-closed identity contract.  Check
     # it before hierarchy arithmetic so deleting a critical node reports the
@@ -2519,6 +2548,7 @@ def validate_xml_structure(
                     module,
                     repo_root,
                     set(source_names),
+                    require_compiled_class_files=require_compiled_class_files,
                 )
                 require(class_name not in all_class_names, "E_CLASS_IDENTITY", f"duplicate XML class identity: {class_name}")
                 all_class_names.add(class_name)
@@ -3366,6 +3396,15 @@ def validate_workflow_contract(
     tooling = contract.get("tooling_manifest")
     successor = contract.get("threshold_successor")
     require(type(tooling) is dict and type(successor) is dict, "E_CONTRACT", "coverage workflow contract is incomplete")
+    require(
+        diagnostic_capsule.PROFILE == GIT_SAFE_DIAGNOSTIC_PROFILE
+        and exact_json_identity(
+            successor.get("frozen_diagnostic_capsule"),
+            GIT_SAFE_DIAGNOSTIC_CAPSULE_POLICY,
+        ),
+        "E_CONTRACT_WORKFLOW",
+        "coverage contract Git-safe frozen diagnostic capsule policy differs",
+    )
     require(
         contract.get("schema_version") == 1
         and type(contract.get("schema_version")) is int
@@ -4437,6 +4476,307 @@ def validate_run_data(
     }
 
 
+def canonical_git_safe_diagnostic_attestation_path(
+    repo_root: Path,
+    run_id: str,
+) -> Path:
+    return canonical_run_root(repo_root.resolve(), run_id) / "git-safe-diagnostic-attestation.json"
+
+
+def git_safe_semantic_observation(
+    observation: dict[str, Any],
+    *,
+    code: str,
+) -> dict[str, Any]:
+    require(
+        all(key in observation for key in GIT_SAFE_SEMANTIC_OBSERVATION_KEYS),
+        code,
+        "coverage observation lacks a required Git-safe semantic field",
+    )
+    value = {
+        key: observation.get(key)
+        for key in GIT_SAFE_SEMANTIC_OBSERVATION_KEYS
+    }
+    exact_keys(value, GIT_SAFE_SEMANTIC_OBSERVATION_KEYS, code, "Git-safe semantic observation")
+    try:
+        diagnostic_capsule.validate_no_runtime_metadata(value)
+    except diagnostic_capsule.CapsuleError as exc:
+        reject(code, f"Git-safe semantic observation is unsafe ({exc.code})")
+    return value
+
+
+def build_git_safe_diagnostic_attestation_data(
+    repo_root: Path,
+    run_id: str,
+) -> dict[str, Any]:
+    """Project a fully validated source run into retention-safe capsule data.
+
+    This function intentionally invokes the normal source-side diagnostic
+    validator first.  The resulting attestation contains only hash bindings
+    for raw execution evidence; it never serializes execution bytes, runtime
+    closure, unstructured output, or process/host metadata.
+    """
+
+    validation = validate_run_data(
+        repo_root,
+        run_id,
+        mode="diagnostic",
+        require_run_status=True,
+    )
+    evidence = validation["evidence"]
+    source_context = validation["source_context"]
+    observation = validation["observation"]
+    provenance = observation.get("provenance")
+    require(type(provenance) is dict, "E_GIT_SAFE_ATTESTATION", "coverage observation provenance is missing")
+    raw_execution = validation["raw_exec_validation"]
+    exact_keys(
+        raw_execution,
+        (
+            "mode",
+            "identity_policy",
+            "freshness_policy",
+            "exec_count",
+            "byte_tree_sha256",
+            "status",
+        ),
+        "E_GIT_SAFE_ATTESTATION",
+        "source raw execution validation",
+    )
+    require(
+        raw_execution["mode"] == "exact-retained-raw-exec-byte-replay"
+        and raw_execution["exec_count"] == 23
+        and type(raw_execution["exec_count"]) is int
+        and raw_execution["status"] == "verified",
+        "E_GIT_SAFE_ATTESTATION",
+        "source raw execution validation is not verified",
+    )
+    aggregate_provenance = provenance.get("aggregate_provenance")
+    aggregate_xml = provenance.get("aggregate_xml")
+    report_inventory = observation.get("report_inventory")
+    require(
+        type(aggregate_provenance) is dict
+        and type(aggregate_xml) is dict
+        and type(report_inventory) is dict,
+        "E_GIT_SAFE_ATTESTATION",
+        "coverage observation lacks capsule-safe provenance",
+    )
+    require(
+        aggregate_provenance.get("merge_semantics")
+        == EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "E_GIT_SAFE_ATTESTATION",
+        "aggregate merge semantics differs",
+    )
+    workspace_class_count = json_integer(
+        report_inventory.get("workspace_bytecode_class_count"),
+        "E_GIT_SAFE_ATTESTATION",
+        "workspace bytecode class count",
+        positive=True,
+    )
+    xml_size = json_integer(
+        aggregate_xml.get("size"),
+        "E_GIT_SAFE_ATTESTATION",
+        "aggregate XML size",
+        positive=True,
+    )
+    identity = {
+        "run_id": evidence["run_id"],
+        "git_head": evidence["git_head"],
+        "source_sha256": evidence["source_sha256"],
+        "run_context_sha256": source_context["run_context_sha256"],
+        "run_status_sha256": evidence.get("run_status_sha256"),
+        "summary_sha256": evidence["summary_sha256"],
+        "coverage_contract_sha256": evidence["coverage_contract_sha256"],
+        "threshold_predecessor_sha256": evidence["threshold_sha256"],
+        "observation_sha256": evidence["observation_sha256"],
+    }
+    require(
+        identity["run_id"] == run_id
+        and identity["threshold_predecessor_sha256"]
+        == EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256,
+        "E_GIT_SAFE_ATTESTATION",
+        "diagnostic attestation identity differs",
+    )
+    json_git_head(identity["git_head"], "E_GIT_SAFE_ATTESTATION", "diagnostic Git head")
+    for field, value in identity.items():
+        if field not in ("run_id", "git_head"):
+            json_sha256(value, "E_GIT_SAFE_ATTESTATION", f"diagnostic identity {field}")
+    execution_attestation = {
+        "mode": "source-validated-hash-only",
+        "retention": "no-execution-bytes",
+        "exec_count": 23,
+        "session_count": 48,
+        "byte_tree_sha256": raw_execution["byte_tree_sha256"],
+        "aggregate_exec_sha256": evidence["aggregate_exec_sha256"],
+        "merge_semantics": EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "status": "verified",
+    }
+    json_sha256(
+        execution_attestation["byte_tree_sha256"],
+        "E_GIT_SAFE_ATTESTATION",
+        "source execution byte tree SHA",
+    )
+    source_attestation = {
+        "class_universe_sha256": provenance.get("fresh_class_universe_sha256"),
+        "workspace_class_tree_sha256": evidence["workspace_class_tree_sha256"],
+        "workspace_bytecode_class_count": workspace_class_count,
+        "toolchain_receipt_sha256": provenance.get("toolchain_receipt_sha256"),
+        "coverage_ledger_sha256": provenance.get("coverage_ledger_sha256"),
+    }
+    for field, value in source_attestation.items():
+        if field != "workspace_bytecode_class_count":
+            json_sha256(value, "E_GIT_SAFE_ATTESTATION", f"source attestation {field}")
+    require(
+        source_attestation["coverage_ledger_sha256"] == EXPECTED_LEDGER_SHA256,
+        "E_GIT_SAFE_ATTESTATION",
+        "source attestation ledger differs",
+    )
+    result = {
+        "schema_version": 1,
+        "kind": "v934-step4-git-safe-diagnostic-attestation",
+        "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+        "status": "verified",
+        "identity": identity,
+        "execution_attestation": execution_attestation,
+        "xml": {
+            "sha256": evidence["aggregate_xml_sha256"],
+            "size": xml_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "source_attestation": source_attestation,
+        "semantic_observation": git_safe_semantic_observation(
+            observation,
+            code="E_GIT_SAFE_ATTESTATION",
+        ),
+    }
+    return result
+
+
+def load_git_safe_diagnostic_attestation(
+    path: Path,
+    *,
+    code: str,
+) -> tuple[dict[str, Any], bytes]:
+    try:
+        attestation, payload = diagnostic_capsule.load_attestation(path)
+    except diagnostic_capsule.CapsuleError as exc:
+        reject(code, f"Git-safe diagnostic attestation rejected ({exc.code})")
+    semantic = attestation.get("semantic_observation")
+    require(type(semantic) is dict, code, "Git-safe semantic observation is missing")
+    exact_keys(
+        semantic,
+        GIT_SAFE_SEMANTIC_OBSERVATION_KEYS,
+        code,
+        "Git-safe semantic observation",
+    )
+    return attestation, payload
+
+
+def ensure_git_safe_diagnostic_attestation(
+    repo_root: Path,
+    run_id: str,
+) -> tuple[Path, dict[str, Any], str]:
+    repo_root = repo_root.resolve()
+    expected = build_git_safe_diagnostic_attestation_data(repo_root, run_id)
+    path = canonical_git_safe_diagnostic_attestation_path(repo_root, run_id)
+    expected_payload = diagnostic_capsule.canonical_json(expected)
+    if path.exists() or path.is_symlink():
+        actual, payload = load_git_safe_diagnostic_attestation(
+            path,
+            code="E_GIT_SAFE_ATTESTATION",
+        )
+        require(
+            payload == expected_payload and exact_json_identity(actual, expected),
+            "E_GIT_SAFE_ATTESTATION",
+            "existing Git-safe diagnostic attestation differs from source recomputation",
+        )
+    else:
+        atomic_bytes(path, expected_payload, mode=0o644)
+        actual, payload = load_git_safe_diagnostic_attestation(
+            path,
+            code="E_GIT_SAFE_ATTESTATION",
+        )
+        require(
+            payload == expected_payload and exact_json_identity(actual, expected),
+            "E_GIT_SAFE_ATTESTATION",
+            "published Git-safe diagnostic attestation differs",
+        )
+    return path, actual, hashlib.sha256(payload).hexdigest()
+
+
+def attest_git_safe_diagnostic_command(args: argparse.Namespace) -> None:
+    _path, attestation, digest = ensure_git_safe_diagnostic_attestation(
+        args.repo_root,
+        args.run_id,
+    )
+    print(
+        json.dumps(
+            {
+                "kind": "v934-step4-git-safe-diagnostic-attestation-result",
+                "profile": attestation["profile"],
+                "run_id": attestation["identity"]["run_id"],
+                "attestation_sha256": digest,
+                "status": "passed",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+def build_git_safe_diagnostic_capsule_data(
+    repo_root: Path,
+    run_id: str,
+    archive: Path,
+    manifest: Path,
+) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    attestation_path, attestation, attestation_sha = ensure_git_safe_diagnostic_attestation(
+        repo_root,
+        run_id,
+    )
+    xml_path = canonical_run_root(repo_root, run_id) / "report/jacoco-aggregate/jacoco.xml"
+    xml_stat = regular_file(xml_path, "E_GIT_SAFE_CAPSULE")
+    xml_sha = sha256_file(xml_path, "E_GIT_SAFE_CAPSULE")
+    require(
+        attestation["xml"]
+        == {
+            "sha256": xml_sha,
+            "size": xml_stat.st_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "E_GIT_SAFE_CAPSULE",
+        "Git-safe attestation/XML binding differs before capsule build",
+    )
+    try:
+        capsule = diagnostic_capsule.build_capsule(
+            attestation_path,
+            xml_path,
+            archive,
+            manifest,
+        )
+    except diagnostic_capsule.CapsuleError as exc:
+        reject("E_GIT_SAFE_CAPSULE", f"Git-safe diagnostic capsule rejected ({exc.code})")
+    return {
+        "schema_version": 2,
+        "kind": "v934-step4-git-safe-diagnostic-capsule-build",
+        "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+        "run_id": attestation["identity"]["run_id"],
+        "attestation_sha256": attestation_sha,
+        "archive_sha256": capsule["archive_sha256"],
+        "status": "passed",
+    }
+
+
+def build_git_safe_diagnostic_capsule_command(args: argparse.Namespace) -> None:
+    result = build_git_safe_diagnostic_capsule_data(
+        args.repo_root,
+        args.run_id,
+        args.archive,
+        args.manifest,
+    )
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+
+
 def validate_diagnostic_command(args: argparse.Namespace) -> None:
     validation = validate_run_data(
         args.repo_root,
@@ -5303,6 +5643,178 @@ def threshold_candidate_from_frozen_result(result: dict[str, Any]) -> dict[str, 
     }
 
 
+def expected_sessions_from_ledger(
+    run_id: str,
+    ledger: list[dict[str, str]],
+) -> list[str]:
+    require(
+        isinstance(run_id, str)
+        and SESSION_PREFIX_PATTERN.fullmatch(run_id) is not None
+        and len(run_id) <= 128,
+        "E_FROZEN_SESSIONS",
+        "frozen diagnostic run id is unsafe",
+    )
+    sessions = sorted(
+        f"{run_id}-{row['variant_key']}-{owner}"
+        for row in ledger
+        for owner in row["expected_session_owners"].split(",")
+    )
+    require(
+        len(sessions) == 48 and len(set(sessions)) == 48,
+        "E_FROZEN_SESSIONS",
+        "frozen diagnostic session derivation differs",
+    )
+    return sessions
+
+
+def recompute_sanitized_attested_observation(
+    repo_root: Path,
+    xml_path: Path,
+    run_id: str,
+    step1: dict[str, Any],
+    diagnostic_threshold: dict[str, Any],
+    attestation: dict[str, Any],
+) -> dict[str, Any]:
+    """Recompute only the retained XML semantics of a Git-safe capsule."""
+
+    modules, artifact_to_module, freeze_sha = load_frozen_modules(repo_root)
+    ledger = load_ledger(repo_root)
+    expected_sessions = expected_sessions_from_ledger(run_id, ledger)
+    root, xml_stat, xml_sha = read_xml(xml_path)
+    require(
+        attestation["xml"]
+        == {
+            "sha256": xml_sha,
+            "size": xml_stat.st_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "E_FROZEN_XML",
+        "frozen capsule XML binding differs",
+    )
+    root_counters, group_counters, class_index, xml_class_names = validate_xml_structure(
+        root,
+        expected_sessions,
+        modules,
+        artifact_to_module,
+        step1["critical_classes"],
+        repo_root,
+        require_compiled_class_files=False,
+    )
+    line_floor = decimal_ratio(
+        diagnostic_threshold["critical_candidate_floor"]["line"],
+        "E_FROZEN_THRESHOLD",
+        "critical line floor",
+    )
+    branch_floor = decimal_ratio(
+        diagnostic_threshold["critical_candidate_floor"]["branch"],
+        "E_FROZEN_THRESHOLD",
+        "critical branch floor",
+    )
+    critical_results, below_floor_count, not_applicable_count = critical_observations(
+        step1["critical_classes"],
+        class_index,
+        artifact_to_module,
+        line_floor,
+        branch_floor,
+    )
+    source_attestation = attestation["source_attestation"]
+    require(
+        source_attestation["coverage_ledger_sha256"] == EXPECTED_LEDGER_SHA256
+        and source_attestation["workspace_bytecode_class_count"] > 0,
+        "E_FROZEN_ATTESTATION",
+        "frozen source attestation ledger/class count differs",
+    )
+    value = {
+        "report_inventory": {
+            "group_count": len(group_counters),
+            "session_count": 48,
+            "critical_class_count": len(critical_results),
+            "reportable_class_count": len(xml_class_names),
+            "workspace_bytecode_class_count": source_attestation[
+                "workspace_bytecode_class_count"
+            ],
+            "class_universe_binding": "exact-reporter-config-and-deterministic-replay",
+            "frozen_modules": modules,
+        },
+        "aggregate_observed": {
+            "line": counter_json(root_counters["LINE"]),
+            "branch": counter_json(root_counters["BRANCH"]),
+            "counters": all_counters_json(root_counters),
+        },
+        "group_counters": {
+            artifact: {
+                "module": artifact_to_module[artifact],
+                "counters": all_counters_json(group_counters[artifact]),
+            }
+            for artifact in artifact_to_module
+        },
+        "critical_candidate_floor": {
+            "line": float(line_floor),
+            "branch": float(branch_floor),
+            "outcome": "below-floor-gaps-recorded"
+            if below_floor_count
+            else "at-or-above-floor",
+            "below_floor_class_count": below_floor_count,
+            "not_applicable_metric_count": not_applicable_count,
+            "thresholds_frozen_by_observe": False,
+        },
+        "critical_classes": critical_results,
+    }
+    require(
+        freeze_sha == EXPECTED_STEP1_FREEZE_SHA256,
+        "E_FROZEN_RECOMPUTE",
+        "frozen module mapping freeze differs",
+    )
+    return value
+
+
+def validate_frozen_git_safe_attestation(
+    attestation: dict[str, Any],
+    confirmed_evidence: dict[str, Any],
+    diagnostic_head: str,
+) -> dict[str, Any]:
+    identity = attestation["identity"]
+    expected_identity = {
+        "run_id": confirmed_evidence["run_id"],
+        "git_head": diagnostic_head,
+        "source_sha256": confirmed_evidence["source_sha256"],
+        "run_status_sha256": confirmed_evidence["run_status_sha256"],
+        "summary_sha256": confirmed_evidence["summary_sha256"],
+        "coverage_contract_sha256": confirmed_evidence["coverage_contract_sha256"],
+        "threshold_predecessor_sha256": confirmed_evidence[
+            "threshold_predecessor_sha256"
+        ],
+        "observation_sha256": confirmed_evidence["observation_sha256"],
+    }
+    require(
+        all(identity[field] == expected for field, expected in expected_identity.items()),
+        "E_FROZEN_ATTESTATION",
+        "frozen attestation identity differs from confirmed threshold evidence",
+    )
+    execution = attestation["execution_attestation"]
+    require(
+        execution["aggregate_exec_sha256"]
+        == confirmed_evidence["aggregate_exec_sha256"]
+        and execution["merge_semantics"] == EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "E_FROZEN_ATTESTATION",
+        "frozen execution attestation differs from confirmed evidence",
+    )
+    require(
+        attestation["xml"]["sha256"] == confirmed_evidence["aggregate_xml_sha256"],
+        "E_FROZEN_ATTESTATION",
+        "frozen XML attestation differs from confirmed evidence",
+    )
+    source = attestation["source_attestation"]
+    require(
+        source["workspace_class_tree_sha256"]
+        == confirmed_evidence["workspace_class_tree_sha256"]
+        and source["coverage_ledger_sha256"] == EXPECTED_LEDGER_SHA256,
+        "E_FROZEN_ATTESTATION",
+        "frozen source attestation differs from confirmed evidence",
+    )
+    return execution
+
+
 def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     real_directory(repo_root, "E_REPO_ROOT")
@@ -5334,7 +5846,6 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
         confirmed_evidence["coverage_contract_sha256"],
         "diagnostic coverage contract",
     )
-
     capsule_stem = (
         repo_root
         / "docs/9.3.4/evidence/step-4"
@@ -5347,21 +5858,7 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
         temporary_root = Path(temporary_name)
         override_root = temporary_root / "overrides"
         override_root.mkdir(mode=0o700)
-        sandbox_root = temporary_root / "repo"
-        try:
-            diagnostic_capsule.materialize_capsule(
-                capsule_archive,
-                capsule_manifest,
-                sandbox_root,
-                expected_run_id=confirmed_evidence["run_id"],
-                expected_git_head=diagnostic_head,
-                expected_source_sha256=confirmed_evidence["source_sha256"],
-            )
-        except diagnostic_capsule.CapsuleError as exc:
-            reject(
-                "E_FROZEN_CAPSULE",
-                f"portable diagnostic capsule rejected ({exc.code}): {exc}",
-            )
+        evidence_root = temporary_root / "evidence"
         threshold_path = write_private_blob(
             override_root,
             "coverage-thresholds.json",
@@ -5373,10 +5870,14 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             contract_blob,
         )
         old_step1, old_threshold, old_hashes = load_thresholds(
-            sandbox_root,
+            repo_root,
             _step4_path_override=threshold_path,
         )
-        require(old_step1 == step1, "E_FROZEN_RECOMPUTE", "Step 1 policy changed during replay")
+        require(
+            old_step1 == step1,
+            "E_FROZEN_RECOMPUTE",
+            "Step 1 policy changed during semantic replay",
+        )
         require(
             old_threshold["status"] == "diagnostic-pending"
             and old_hashes["step4_successor_sha256"] == threshold_blob_sha,
@@ -5384,7 +5885,7 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             "frozen threshold blob is not the exact diagnostic-pending predecessor",
         )
         _contract_path, validated_contract_sha = validate_workflow_contract(
-            sandbox_root,
+            repo_root,
             "diagnostic",
             _contract_path_override=contract_path,
         )
@@ -5393,16 +5894,76 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             "E_FROZEN_BLOB",
             "frozen contract blob is not the exact diagnostic-ready contract",
         )
-        validation = validate_run_data(
-            sandbox_root,
-            confirmed_evidence["run_id"],
-            mode="diagnostic",
-            require_run_status=True,
-            _threshold_path_override=threshold_path,
-            _contract_path_override=contract_path,
-            _expected_git_head=diagnostic_head,
+        try:
+            diagnostic_capsule.materialize_capsule(
+                capsule_archive,
+                capsule_manifest,
+                evidence_root,
+                expected_run_id=confirmed_evidence["run_id"],
+                expected_git_head=diagnostic_head,
+                expected_source_sha256=confirmed_evidence["source_sha256"],
+            )
+        except diagnostic_capsule.CapsuleError as exc:
+            reject(
+                "E_FROZEN_CAPSULE",
+                f"Git-safe diagnostic capsule rejected ({exc.code})",
+            )
+        attestation_path = evidence_root / "evidence/diagnostic-attestation.json"
+        xml_path = evidence_root / "evidence/jacoco.xml"
+        attestation, attestation_payload = load_git_safe_diagnostic_attestation(
+            attestation_path,
+            code="E_FROZEN_ATTESTATION",
         )
-        candidate = threshold_candidate_data(validation, old_step1)
+        execution_attestation = validate_frozen_git_safe_attestation(
+            attestation,
+            confirmed_evidence,
+            diagnostic_head,
+        )
+        recomputed_semantic = recompute_sanitized_attested_observation(
+            repo_root,
+            xml_path,
+            confirmed_evidence["run_id"],
+            old_step1,
+            old_threshold,
+            attestation,
+        )
+        require(
+            exact_json_identity(
+                attestation["semantic_observation"], recomputed_semantic
+            ),
+            "E_FROZEN_RECOMPUTE",
+            "retained semantic observation differs from XML recomputation",
+        )
+        frozen_evidence = {
+            "run_id": attestation["identity"]["run_id"],
+            "git_head": attestation["identity"]["git_head"],
+            "source_sha256": attestation["identity"]["source_sha256"],
+            "run_status_sha256": attestation["identity"]["run_status_sha256"],
+            "summary_sha256": attestation["identity"]["summary_sha256"],
+            "observation_sha256": attestation["identity"]["observation_sha256"],
+            "coverage_contract_sha256": attestation["identity"][
+                "coverage_contract_sha256"
+            ],
+            "threshold_sha256": attestation["identity"][
+                "threshold_predecessor_sha256"
+            ],
+            "exec_manifest_sha256": confirmed_evidence["exec_manifest_sha256"],
+            "aggregate_exec_sha256": execution_attestation["aggregate_exec_sha256"],
+            "aggregate_xml_sha256": attestation["xml"]["sha256"],
+            "workspace_class_tree_sha256": attestation["source_attestation"][
+                "workspace_class_tree_sha256"
+            ],
+        }
+        candidate = threshold_candidate_data(
+            {
+                "observation": {
+                    "aggregate_observed": recomputed_semantic["aggregate_observed"],
+                    "critical_classes": recomputed_semantic["critical_classes"],
+                },
+                "evidence": frozen_evidence,
+            },
+            old_step1,
+        )
 
     validate_frozen_candidate_equivalence(confirmed, candidate)
     return {
@@ -5427,14 +5988,15 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             },
         },
         "replay_receipt": {
-            "run_context_sha256": validation["source_context"][
-                "run_context_sha256"
-            ],
-            "source_sha256": validation["source_context"]["source_sha256"],
-            "not_before_ns": validation["source_context"]["not_before_ns"],
-            "git_head": validation["source_context"]["git_head"],
-            "raw_exec_replay": validation["raw_exec_validation"],
-            "scope": "exact-retained-diagnostic-run-bytes",
+            "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+            "capsule_manifest_sha256": sha256_file(
+                capsule_manifest,
+                "E_FROZEN_CAPSULE",
+            ),
+            "attestation_sha256": hashlib.sha256(attestation_payload).hexdigest(),
+            "aggregate_xml_sha256": attestation["xml"]["sha256"],
+            "execution_attestation": execution_attestation,
+            "scope": GIT_SAFE_DIAGNOSTIC_REPLAY_SCOPE,
             "status": "verified",
         },
         "evidence": confirmed_evidence,
@@ -6278,6 +6840,24 @@ def build_parser() -> argparse.ArgumentParser:
     validate_diagnostic.add_argument("--repo-root", type=Path, required=True)
     validate_diagnostic.add_argument("--run-id", required=True)
     validate_diagnostic.set_defaults(function=validate_diagnostic_command)
+
+    attest_diagnostic = commands.add_parser(
+        "attest-git-safe-diagnostic",
+        help="validate a sealed diagnostic source run and publish its safe hash-only attestation",
+    )
+    attest_diagnostic.add_argument("--repo-root", type=Path, required=True)
+    attest_diagnostic.add_argument("--run-id", required=True)
+    attest_diagnostic.set_defaults(function=attest_git_safe_diagnostic_command)
+
+    build_capsule = commands.add_parser(
+        "build-git-safe-diagnostic-capsule",
+        help="build the two-member Git-safe capsule from a sealed diagnostic source run",
+    )
+    build_capsule.add_argument("--repo-root", type=Path, required=True)
+    build_capsule.add_argument("--run-id", required=True)
+    build_capsule.add_argument("--archive", type=Path, required=True)
+    build_capsule.add_argument("--manifest", type=Path, required=True)
+    build_capsule.set_defaults(function=build_git_safe_diagnostic_capsule_command)
 
     freeze = commands.add_parser(
         "freeze-thresholds",
