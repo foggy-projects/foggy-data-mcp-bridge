@@ -15,7 +15,7 @@ recorded_at: 2026-07-20
 
 ## 当前模块与泄漏面
 
-- 根 POM 当前声明 26 个 reactor modules；目标 `model-api`、`model-core`、`model-jdbc`、
+- 根 POM 当前声明 25 个 active reactor modules；目标 `model-api`、`model-core`、`model-jdbc`、
   `model-starter`、`model-web` 目前均不存在。
 - 当前 `foggy-dataset-model` 内 `com.foggyframework.dataset.db.model.spi` 有 52 个 main Java
   types；模型模块外有 44 个 main-source importer，分布在 `addons`、`foggy-dataset-mcp`、
@@ -63,7 +63,7 @@ find foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi -
 find foggy-mcp-spi/src/main/java -type f -name '*.java' | wc -l
 find foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/spi -type f -name '*.java' | wc -l
 rg -l --glob '*.java' --glob '!foggy-dataset-model/**' --glob '!**/src/test/**' 'com\.foggyframework\.dataset\.db\.model\.spi' .
-rg -n '<module>' pom.xml
+rg -n '^[[:space:]]*<module>[^<]+</module>' pom.xml
 ```
 
 Recompute these baselines on the exact implementation start commit; changed counts or paths require an updated

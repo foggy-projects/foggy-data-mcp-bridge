@@ -2,7 +2,8 @@
 doc_role: version_preexecution_index
 version: 9.3.5
 status: queued / planning-baseline-only
-entry_gate: 9.3.4-version-signoff then Gate-0-classification-debt-closure
+entry_gate: 9.3.4-version-signoff
+first_execution_gate: Gate-0-classification-debt-migration
 baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
 recorded_at: 2026-07-20
 ---
@@ -12,8 +13,8 @@ recorded_at: 2026-07-20
 ## 当前决定
 
 本目录只记录只读代码基线和未来验收边界，**不**授权修改生产代码、测试 lane、POM、执行库存或模块边界。
-9.3.5 仍为 `queued`：必须先完成 9.3.4 version signoff，随后关闭 Gate 0 的 Unit MySQL fixture
-classification debt，才可进入实现。
+9.3.5 仍为 `queued`：必须先完成 9.3.4 version signoff。届时 Gate 0 的 Unit MySQL fixture
+classification-debt migration 是 9.3.5 的第一项执行工作；其 closure 是 version acceptance 前的硬门。
 
 ## 已确认目标
 
@@ -27,10 +28,11 @@ classification debt，才可进入实现。
 ## 硬门与禁止项
 
 1. Step 4 feature signoff 只是 9.3.4 的前置；9.3.5 开工仍须等待 **9.3.4 version signoff**。
-2. Gate 0 必须在 9.3.5 version acceptance 前完成：将已知 DB consumers 迁入受治理 DB lane，或去除
-   它们的外部 DB 依赖，并删除临时例外。
-3. 在这些门完成前，不得改动 QueryFacade 签名、迁移调用路径、引入 phase/stage、改变测试执行库存，或
-   把任何结果宣称为 9.3.5 实现完成。
+2. Gate 0 是开工后的首个强制执行门，必须在 9.3.5 version acceptance 前完成：将已知 DB consumers
+   迁入受治理 DB lane，或去除它们的外部 DB 依赖，并删除临时例外。
+3. 在 9.3.4 version signoff 前，不得改动 QueryFacade 签名、迁移调用路径、引入 phase/stage、改变测试
+   执行库存，或把任何结果宣称为 9.3.5 实现完成；进入 9.3.5 后，Gate 0 之外的更广 API 工作仍须等待
+   Gate 0 的受治理证据和批准的实现契约。
 
 ## 基线材料
 
