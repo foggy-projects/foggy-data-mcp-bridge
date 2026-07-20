@@ -903,3 +903,22 @@ updated_at: 2026-07-20
 - The canonical BUG is ACCEPTED by foggy-projects. formal-r11 and its acceptance remain historical for the
   changed runner bytes. The r38 acceptance changes Step 5 to ready/not-started for a fresh rehearsal only;
   Steps 6-7, 9.3.5, and 9.4.0 remain closed.
+
+## Superseding Step 5 Pivot TTL clock-oracle boundary（2026-07-20）
+
+- Fresh Step 5 rehearsal `step5-rehearsal-20260720-r3` stopped fail-closed at the SQLite broad integration
+  variant. Its structured aggregate is `307/F1E0S0` with one failed `PivotIT#testOuterCacheTtlExpiryFlatPivotE1b`;
+  release/Step 4/integration status stops at `step4-release-successor` / `child-integration` /
+  `variant-sqlite-broad`. Raw logs/XML are not evidence inputs.
+- The failure is a test-only correctness-oracle defect: the test combines TTL=1ms and a fixed sleep while
+  `PivotPipeline` passes independent wall-clock values to `PivotOuterResponseCache` lookup/store. The only
+  accepted repair is a private test-only controlled-time wrapper that delegates to the real local provider,
+  explicitly advances from 100 to 102, and preserves the existing expiry/miss/re-execution/store assertions.
+  No production API/SPI/POM/runner/floor/critical/exclusion/testcase-cardinality change is allowed.
+- Focused fresh forks=`5 x 1/F0E0S0`, full `PivotIT=55/F0E0S0`, real provider contract=`8/F0E0S0`, and
+  independent implementation audit=`ACCEPT / B/H/M/L=0/0/0/0` are implementation prerequisites only.
+  They do not replace replacement authority.
+- r38 acceptance is historical for its exact source and cannot be spliced with this new test source. The only
+  authorized continuation is clean/pushed Cdiag → fresh diagnostic/candidate/review → direct-child Cfreeze
+  → fresh formal → final quality/audit → new Step 5 rehearsal and portable replay. Until all pass,
+  `can_enter_step5=no`; Steps 6–7, 9.3.5 and 9.4.0 remain closed.

@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-934-STEP5-PIVOT-OUTER-CACHE-TTL-CLOCK-ORACLE
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects (continuation authority)
@@ -121,13 +121,20 @@ open_questions: []
 
 > 由 Ultra 执行会话填写。
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
+- implementation_summary: `PivotIT` 的 TTL expiry case 改用 test-only `ControlledTimeOuterCacheProvider`；它委托真实 `PivotOuterResponseCache`，仅在 `lookup/store` 时使用测试显式推进的时间。首轮在 100 store，第二轮推进至 102（TTL=1），因此真实 local provider deterministic 地报告 expired，Pipeline 仍执行原有 evict/miss/re-execution/store diagnostics。
+- changed_paths:
+  - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIT.java`
+  - `docs/9.3.4/workitems/BUG-step5-pivot-outer-cache-ttl-clock-oracle.md`
+- tests_and_results:
+  - 5 个独立 fresh Maven/JVM Failsafe focused forks：`PivotIT#testOuterCacheTtlExpiryFlatPivotE1b` 均为 `1/F0E0S0`。
+  - 完整 SQLite/Caffeine `PivotIT=55/F0E0S0`。
+  - 真实 local provider suite `PivotOuterResponseCacheTest=8/F0E0S0`，其中 `ttlExpiryReportsExpiredThenMisses` 通过。
+  - static: diff check 通过；`@Test` 节点 `56 -> 56`；production/POM/runner 路径变更数为 0；目标 method 不含 `Thread.sleep` 或直接 wall-clock 读取。
 - manual_or_experience_evidence: N/A
 - deviations: none
-- residual_risks: pending
-- readiness: pending
+- residual_risks: `PivotIT` 的 flat raw list equality 仍是既有、非本次 failure 的潜在顺序语义风险；本轮未观察到失败，按 scope 保留，不改变生产排序语义。
+- independent_implementation_review: `ACCEPT / B-H-M-L=0/0/0/0`；review 确认 wrapper 委托真实 local provider、TTL expiry/re-execution diagnostics 被实际覆盖、无 production/POM/runner/SPI/API 扩面。
+- readiness: ULTRA_EXECUTING — test-only implementation 已通过独立审计；新源码的 Cdiag、fresh diagnostic/review、direct-child Cfreeze、fresh formal、quality/audit 及 Step 5 rehearsal/portable replay 仍是未完成的版本 authority。
 
 ## References
 

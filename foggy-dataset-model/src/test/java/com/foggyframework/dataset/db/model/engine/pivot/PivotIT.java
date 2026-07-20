@@ -283,11 +283,12 @@ class PivotIT extends EcommerceTestSupport {
 
     @Test
     @DisplayName("v9.2: E1b outer cache TTL 过期后重新执行并写入")
-    void testOuterCacheTtlExpiryFlatPivotE1b() throws InterruptedException {
+    void testOuterCacheTtlExpiryFlatPivotE1b() {
         SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
         PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
         try {
-            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(1L));
+            ControlledTimeOuterCacheProvider outerCache = new ControlledTimeOuterCacheProvider(1L, 100L);
+            ReflectionTestUtils.setField(impl, "pivotPipeline", outerCachePipeline(outerCache));
 
             SemanticQueryRequest request = new SemanticQueryRequest();
             request.setPivot(basicSalesPivot());
@@ -295,7 +296,7 @@ class PivotIT extends EcommerceTestSupport {
             SemanticQueryResponse first = execute(request);
             assertDiagnosticEvent(pivotDiagnostics(first), "pivot.cache.store");
 
-            Thread.sleep(20L);
+            outerCache.advanceTo(102L);
 
             SemanticQueryResponse second = execute(request);
             assertEquals(first.getItems(), second.getItems(), "TTL refresh should preserve query result payload");
@@ -2339,6 +2340,64 @@ class PivotIT extends EcommerceTestSupport {
         @Override
         public int estimatePayloadBytes(SemanticQueryResponse response) {
             throw new IllegalStateException("redis unavailable");
+        }
+    }
+
+    private static final class ControlledTimeOuterCacheProvider implements PivotOuterCacheProvider {
+
+        private final PivotOuterResponseCache delegate;
+        private long nowMillis;
+
+        private ControlledTimeOuterCacheProvider(long ttlMillis, long initialNowMillis) {
+            this.delegate = new PivotOuterResponseCache(
+                    new PivotPipeline.OuterCacheOptions(true, ttlMillis, 16));
+            this.nowMillis = initialNowMillis;
+        }
+
+        private void advanceTo(long nextNowMillis) {
+            if (nextNowMillis < nowMillis) {
+                throw new IllegalArgumentException("controlled time must not move backwards");
+            }
+            nowMillis = nextNowMillis;
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return delegate.isEnabled();
+        }
+
+        @Override
+        public long ttlMillis() {
+            return delegate.ttlMillis();
+        }
+
+        @Override
+        public LookupResult lookup(String keyHash, long ignoredNowMillis) {
+            return delegate.lookup(keyHash, nowMillis);
+        }
+
+        @Override
+        public void store(String keyHash,
+                          SemanticQueryResponse response,
+                          long ignoredNowMillis,
+                          String namespace,
+                          String model) {
+            delegate.store(keyHash, response, nowMillis, namespace, model);
+        }
+
+        @Override
+        public int evict(String namespace, String model) {
+            return delegate.evict(namespace, model);
+        }
+
+        @Override
+        public int estimatePayloadBytes(SemanticQueryResponse response) {
+            return delegate.estimatePayloadBytes(response);
         }
     }
 }

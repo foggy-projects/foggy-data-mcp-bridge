@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / r38 revalidation accepted | Step 3 exit passed | formal-r38 and BUG acceptance bind Cfreeze 62361688…; r11 remains historical for changed runner bytes |
-| 5 | authority runner rehearsal / immutable candidate | ready / not-started | r38 revalidation accepted | execute a fresh rehearsal only; no Step 6/7 or version signoff implication |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
+| 5 | authority runner rehearsal / immutable candidate | failed-closed / r3 superseded | r38 revalidation accepted | r3 stopped at sqlite-broad on one TTL oracle failure; retry only after the new Step 4 chain; no Step 6/7 or version signoff implication |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -90,6 +90,22 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 - Independent final signoff review is accepted with B/H/M/L=0/0/0/0; foggy-projects explicitly accepted the
   canonical Addon remediation. Current decision: can_enter_step5=yes for a fresh rehearsal only. Steps 6-7,
   9.3.5, and 9.4.0 remain closed.
+
+## Execution Check-in — Step 5 r3 Pivot TTL oracle fail-closed（2026-07-20）
+
+- Fresh `step5-rehearsal-20260720-r3` is immutable failed evidence. Structured release/Step 4/integration
+  status stops at `step4-release-successor` / `child-integration` / `variant-sqlite-broad`; aggregate result
+  is `307/F1E0S0`, with only `PivotIT#testOuterCacheTtlExpiryFlatPivotE1b` failing. No raw log/XML is used
+  as authority.
+- The source diagnosis is a 1ms local-cache TTL combined with `Thread.sleep(20)` while Pipeline supplies
+  independent wall-clock values to local-cache lookup/store. The accepted implementation repair is test-only:
+  private controlled time delegates to real `PivotOuterResponseCache`; focused fresh forks=`5 x 1/F0E0S0`,
+  full `PivotIT=55/F0E0S0`, provider contract=`8/F0E0S0`, and independent implementation audit=`ACCEPT /
+  B/H/M/L=0/0/0/0`.
+- Current decision: `can_enter_step5=no`; r38 remains historical for its exact source but cannot be spliced
+  with the new test source. Only clean/pushed Cdiag → fresh diagnostic/review → direct-child Cfreeze →
+  fresh formal → quality/audit → Step 5 rehearsal/portable replay may reopen downstream authority. Steps
+  6–7, 9.3.5, and 9.4.0 remain closed.
 
 ## Execution Check-in — Step 1（passed）
 

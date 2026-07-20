@@ -19,6 +19,12 @@ updated_at: 2026-07-20
 
 ## Entry Decision
 
+- Fresh Step 5 rehearsal `step5-rehearsal-20260720-r3` stopped fail-closed in the SQLite broad integration
+  variant on one Pivot outer-cache TTL testcase. The failure is a test-only wall-clock oracle defect, not an
+  r38 Addon regression: a controlled-time wrapper over the real local provider has passed focused, class and
+  provider-contract checks plus independent implementation review. Because test source changed, r38 is
+  historical for the new bytes and a new Cdiag → diagnostic → Cfreeze → formal chain is mandatory before
+  Step 5 can be retried. See [TTL clock-oracle BUG](workitems/BUG-step5-pivot-outer-cache-ttl-clock-oracle.md).
 - 2026-07-20 Step 5 rehearsal exposed a WSL child-context publication-order inversion. The strict
   cross-run-splice guard remains unchanged. The bounded Addon successor repair has completed its fresh
   Cdiag → diagnostic → Cfreeze → formal chain as r38; formal-r11/feature acceptance remain historical for the
@@ -970,3 +976,19 @@ Current recovery records：
 - [formal-r38 result](evidence/step-4/step4-coverage-formal-r38-pass-20260720.md)
 - [r38 Pivot companion](evidence/step-4/step4-pivot-legacy-companion-r38-20260720.md)
 - [r38 acceptance](acceptance/step4-addon-context-revalidation-acceptance-20260720.md)
+
+## Step 5 Pivot TTL clock-oracle remediation / new Cdiag pending（2026-07-20）
+
+- The fresh r3 rehearsal itself is immutable failed evidence: the release/Step 4/integration structured
+  statuses stop at `step4-release-successor` / `child-integration` / `variant-sqlite-broad`; its structured
+  aggregate has exactly one failed case, `PivotIT#testOuterCacheTtlExpiryFlatPivotE1b`.
+- The bounded remediation changes only `PivotIT`: a private controlled-time provider delegates to real
+  `PivotOuterResponseCache`, stores at time 100, advances to 102 for TTL=1, and proves the existing
+  evicted/miss/re-execution/store contract without `Thread.sleep` or wall-clock sampling. Five fresh focused
+  forks, full `PivotIT=55/F0E0S0`, and `PivotOuterResponseCacheTest=8/F0E0S0` passed; independent code audit
+  is `ACCEPT / B/H/M/L=0/0/0/0`.
+- This is implementation evidence only. The next authority is a clean/pushed Cdiag followed by fresh
+  diagnostic/review, direct-child Cfreeze, formal, quality/audit and a new Step 5 rehearsal/portable replay.
+  Steps 6–7, 9.3.5 and 9.4.0 remain closed.
+
+- [TTL clock-oracle BUG](workitems/BUG-step5-pivot-outer-cache-ttl-clock-oracle.md)
