@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: step4-replacement-coverage-gate-signoff
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -72,8 +72,8 @@ open_questions: []
   passes the report-stage receipt gate.
 - [x] AC-5: project owner approves this Step 4-scoped delivery contract and names or delegates the
   independent signoff owner (`foggy-projects`).
-- [ ] AC-6: independent signoff confirms the sole-authority boundary, issues an accepted/rejected decision,
-  and updates the Step 4/Step 5 entry state without opening later version scope prematurely.
+- [x] AC-6: independent signoff confirms the sole-authority boundary, issues an `accepted` decision, and
+  updates the Step 4/Step 5 entry state without opening later version scope prematurely.
 
 ## Contract / Data / Security Constraints
 
@@ -135,12 +135,22 @@ N/A. This is a bounded feature-signoff contract for already completed evidence, 
 - tests_and_results: canonical final-artifact verification passed at the tested Cfreeze; contract,
   frozen-diagnostic, successor-overlay and CI-workflow static replays passed in a fresh detached clone;
   Pivot source/report identity, implementation quality and the 35-row-plus-one-gate audit were independently
-  cross-checked. AC-1 through AC-5 are complete; AC-6 remains pending independent signoff.
+  cross-checked. AC-1 through AC-6 are complete; independent signoff accepted the bounded feature.
 - manual_or_experience_evidence: N/A; this is a backend evidence/signoff feature with no UI scope.
 - deviations: none
 - residual_risks: `DEBT-unit-mysql57-fixture-classification-migration` remains explicitly open for 9.3.5
   version acceptance and does not expand this Step 4 feature scope.
-- readiness: READY_FOR_SIGNOFF
+- readiness: ACCEPTED
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: foggy-projects
+- signed_off_at: 2026-07-20
+- acceptance_record: `docs/9.3.4/acceptance/step4-coverage-gate-replacement-acceptance-20260720.md`
+- blocking_items: none
+- follow_up_required: yes
 
 ## References
 

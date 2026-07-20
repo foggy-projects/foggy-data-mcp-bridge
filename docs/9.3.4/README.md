@@ -935,6 +935,6 @@ Current recovery records：
   cleanup, high-water, same-Cfreeze Pivot companion, independent quality and replacement audit all pass.
 - The audit is `35/35` (`legacy31 + supplemental4`) with a separate report-stage receipt gate passed; it does
   not reuse r10/r34/prior-Cfreeze authority.
-- Official Step 4 feature acceptance is not yet issued because its canonical candidate is now
-  [`READY_FOR_SIGNOFF`](workitems/FEATURE-step4-replacement-coverage-gate-signoff.md), but the designated
-  `foggy-projects` signoff decision is still pending. Step 5, 9.3.5 and 9.4.0 remain closed.
+- Step 4 replacement feature acceptance is issued by `foggy-projects`; the canonical spec is
+  [`ACCEPTED`](workitems/FEATURE-step4-replacement-coverage-gate-signoff.md). Step 5 is
+  `ready / not-started`; Steps 6–7 remain pending, and 9.3.5/9.4.0 remain closed until 9.3.4 version signoff.

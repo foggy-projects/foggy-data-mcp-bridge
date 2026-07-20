@@ -213,8 +213,8 @@ r22 只作历史 diagnostic evidence。
 ## 2026-07-20 Step 4 evidence-ready / downstream static-baseline checkpoint
 
 - fresh formal-r11、same-Cfreeze Pivot companion、final quality 与 35-row replacement audit 已完成；
-  Step 4 feature signoff 仍等待其 DRAFT canonical delivery spec 获 owner approval 并达到
-  `READY_FOR_SIGNOFF`，因此 Step 5–7 和 version signoff 仍未开放。
+  Step 4 replacement feature signoff 已由 `foggy-projects` accepted，Step 5=`ready / not-started`，但
+  Steps 6–7 和 version signoff 仍未开放。
 - 为避免下游在实际开工时依赖猜测，新增了 planning-only 的
   [9.3.5 code baseline](../9.3.5/code-inventory.md) 与
   [9.4.0 module/SPI baseline](../9.4.0/code-inventory.md)。这些记录没有改变生产代码、POM、测试

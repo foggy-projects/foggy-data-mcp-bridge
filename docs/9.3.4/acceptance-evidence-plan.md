@@ -32,7 +32,7 @@ updated_at: 2026-07-20
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md` | formal-r9 recovery quality is `ready-for-new-Cdiag` only, not post-formal quality; new Cdiag and replacement post-formal quality pending |
 | coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` + `coverage/step4-replacement-coverage-audit-20260720.md` | historical Step 4 audit retained；replacement audit=`35/35` plus separate report-stage gate=`passed`; official feature acceptance remains blocked on a Step 4-scoped `READY_FOR_SIGNOFF` canonical delivery spec |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
-| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after fresh formal successor/post-formal gates |
+| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` + `acceptance/step4-coverage-gate-replacement-acceptance-20260720.md` | historical signed-off retained；replacement feature acceptance=`accepted`; Step 5=`ready / not-started` only |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
 | roadmap/status sync | `README.md` + authoritative roadmap | current README records r29 Git-safety hold; Step 5–7, 9.3.5 and 9.4.0 remain closed/queued |
 
@@ -723,8 +723,7 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 
 - The fresh formal, final replay, same-Cfreeze Pivot companion, independent quality, 35-row replacement audit,
   and separately mandatory report-stage receipt gate are complete and passed.
-- This makes the evidence package ready but not accepted: the Step 4 canonical candidate is
-  `READY_FOR_SIGNOFF`, pending the designated `foggy-projects` signoff decision. The separate canonical 9.3.4
-  spec remains `ULTRA_EXECUTING` for Steps 5–7.
+- The Step 4 canonical candidate is accepted by `foggy-projects`; its feature acceptance opens Step 5 only to
+  `ready / not-started`. The separate canonical 9.3.4 spec remains `ULTRA_EXECUTING` for Steps 5–7.
 - The formal acceptance decision and Step 5 entry remain blocked only on that canonical-signoff input, as
   recorded in `acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.

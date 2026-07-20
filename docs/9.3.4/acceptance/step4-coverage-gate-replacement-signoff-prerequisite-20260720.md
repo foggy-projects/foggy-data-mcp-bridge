@@ -2,7 +2,7 @@
 doc_role: signoff_prerequisite_record
 version: 9.3.4
 scope: step4-feature-replacement-authority
-status: ready-for-signoff
+status: satisfied-by-feature-acceptance
 recorded_at: 2026-07-20
 ---
 
@@ -28,10 +28,11 @@ is the named signoff owner. The separate canonical 9.3.4 delivery spec
 `docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md` remains `ULTRA_EXECUTING` and explicitly
 scoped to Steps 5–7, not this completed Step 4 feature boundary.
 
-Therefore this record does **not** mark Step 4 accepted, does not change Step 5 to ready, and does not open
-9.3.5 or 9.4.0. It preserves the completed evidence and names the one missing authority input.
+This prerequisite is satisfied by the accepted Step 4 feature decision at
+`acceptance/step4-coverage-gate-replacement-acceptance-20260720.md`. Step 5 is now `ready / not-started`;
+9.3.5 and 9.4.0 remain closed until 9.3.4 version signoff.
 
 ## Required handoff
 
-`foggy-projects` may now apply the feature-signoff template against the evidence package without rerunning
-formal-r11. This record still does not itself accept Step 4 or open Step 5.
+The designated owner applied the feature-signoff template without rerunning formal-r11. This record remains a
+precondition/history record; the acceptance record above is the authoritative decision.
