@@ -30,7 +30,7 @@ updated_at: 2026-07-20
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9, r30 and r31 failure boundaries sealed；r29 facts cannot enter freeze without a Git-safe closure；fixed-port precondition/new chain pending |
 | Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8/r9/r30/r31 excluded；r29 non-freezable; fresh r32 diagnostic/formal/post-gates pending；Steps 5–6 closed |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md` | formal-r9 recovery quality is `ready-for-new-Cdiag` only, not post-formal quality; new Cdiag and replacement post-formal quality pending |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | historical Step 4 audit retained；replacement denominator=`31`，execution closed，pending fresh formal successor + final quality；尚未形成 `31/31` 结论 |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` + `coverage/step4-replacement-coverage-audit-20260720.md` | historical Step 4 audit retained；replacement audit=`35/35` plus separate report-stage gate=`passed`; official feature acceptance remains blocked on a Step 4-scoped `READY_FOR_SIGNOFF` canonical delivery spec |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
 | Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | historical signed-off retained；does not authorize current Step 5；replacement feature acceptance pending after fresh formal successor/post-formal gates |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
@@ -718,3 +718,13 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - Future acceptance input must originate from a clean-clone formal-r11 on that Cfreeze, its independently
   verified public final artifact, a same-Cfreeze Pivot supplemental companion, final implementation quality,
   and a replacement audit whose critical/major gaps are `0/0`.
+
+## formal-r11 evidence-ready signoff prerequisite（2026-07-20）
+
+- The fresh formal, final replay, same-Cfreeze Pivot companion, independent quality, 35-row replacement audit,
+  and separately mandatory report-stage receipt gate are complete and passed.
+- This makes the evidence package ready but not accepted: the delivery-signoff procedure requires a unique
+  Step 4 canonical delivery spec at `READY_FOR_SIGNOFF`; none currently exists. The canonical 9.3.4 spec is
+  still `ULTRA_EXECUTING` for Steps 5–7.
+- The formal acceptance decision and Step 5 entry remain blocked only on that canonical-signoff input, as
+  recorded in `acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.

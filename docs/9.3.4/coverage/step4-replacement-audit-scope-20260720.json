@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "v934-step4-replacement-coverage-audit-scope",
+  "status": "audit-passed",
+  "tested_cfreeze": "4b17dbe34ae17168d44377c19ea6637b4c37a200",
+  "cdiag_parent": "93b3993e41d285300cb6968865da229319dad26d",
+  "formal_run_id": "step4-coverage-20260720-formal-r11",
+  "audit_row_count": 35,
+  "additional_blocking_acceptance_gate_count": 1,
+  "governed_acceptance_check_count": 36,
+  "audit_result": {
+    "covered": 35,
+    "partial": 0,
+    "not_covered": 0,
+    "additional_blocking_acceptance_gate": "passed",
+    "critical_evidence_gaps": 0,
+    "major_evidence_gaps": 0
+  },
+  "legacy_31": [
+    "workitems/BLOCKER-step4-r6-mysql57-port-occupation.md",
+    "workitems/BUG-step4-bean2map-cache-timing-oracle.md",
+    "workitems/BUG-step4-child-run-log-tee-residue-race.md",
+    "workitems/BUG-step4-database-state-successor-authority-manifest.md",
+    "workitems/BUG-step4-evidence-json-numeric-type-alias-bypass.md",
+    "workitems/BUG-step4-exec-class-id-scope-drift.md",
+    "workitems/BUG-step4-git-environment-override-bypass.md",
+    "workitems/BUG-step4-legacy-coverage-argline-fail-open.md",
+    "workitems/BUG-step4-lifecycle-semantic-validator-bypass.md",
+    "workitems/BUG-step4-list-preset-files-find-coverage-order.md",
+    "workitems/BUG-step4-outer-runner-source-seal-binding-drift.md",
+    "workitems/BUG-step4-pivot-legacy-hybrid-fixture-drift.md",
+    "workitems/BUG-step4-pivot-null-axis-coverage-oracle.md",
+    "workitems/BUG-step4-preagg-l2-hybrid-fixture-drift.md",
+    "workitems/BUG-step4-preagg-unit-order-isolation.md",
+    "workitems/BUG-step4-preagg-validation-wrong-table.md",
+    "workitems/BUG-step4-query-model-join-graph-double-check-coverage-race.md",
+    "workitems/BUG-step4-sensitive-scan-authorization-context-false-positive.md",
+    "workitems/BUG-step4-source-context-crosslink-gap.md",
+    "workitems/BUG-step4-source-inventory-filemode-false.md",
+    "workitems/BUG-step4-threshold-freeze-observation-applicability-gap.md",
+    "workitems/BUG-step4-unit-hidden-mysql-environment-dependency.md",
+    "workitems/BUG-step4-unit-lifecycle-static-contract-drift.md",
+    "workitems/BUG-step4-unit-mysql57-final-mysqld-handoff-readiness-race.md",
+    "workitems/BUG-step4-watchservice-shutdown-hook-coverage-race.md",
+    "workitems/BUG-step4-snapshot-producer-cross-repository-write.md",
+    "workitems/BUG-step4-fsmonitor-valid-negative-fixture-nondeterminism.md",
+    "workitems/BUG-step4-map-bean-info-double-check-coverage-race.md",
+    "workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md",
+    "workitems/BUG-step4-report-runner-nonauthoritative-exec-bit-dependency.md",
+    "workitems/BUG-calculate-mvp-parity-catalog-fresh-clone-portability.md"
+  ],
+  "supplemental_4": [
+    "workitems/BUG-step4-export-chart-inference-map-order-coverage.md",
+    "workitems/BUG-step4-effective-pom-public-output-mode-portability.md",
+    "workitems/BUG-step4-frozen-capsule-git-safe-content-boundary.md",
+    "workitems/BUG-step4-watchservice-delete-event-coverage-determinism.md"
+  ],
+  "additional_blocking_acceptance_gate": [
+    "workitems/BUG-step4-report-stage-public-receipt-mode-binding.md"
+  ],
+  "excluded_debt": [
+    {
+      "path": "workitems/DEBT-unit-mysql57-fixture-classification-migration.md",
+      "reason": "accepted-for-9.3.4-only and due before 9.3.5 version acceptance; it is not a Step 4 BUG/BLOCKER audit row"
+    }
+  ],
+  "rules": [
+    "The replacement coverage-audit denominator is exactly 35: legacy_31 plus supplemental_4.",
+    "The post-r10 report-stage receipt binding is a separately enumerated additional blocking formal acceptance gate. It must pass, but it is not silently added to the 35-row coverage-audit denominator.",
+    "The historical 25-row r4 coverage audit is retained as history and cannot substitute for this replacement audit.",
+    "Each audit row requires an explicit covered, partial, or not-covered conclusion bound to the tested Cfreeze and fresh formal evidence where applicable.",
+    "The Pivot companion is required supplemental evidence for the Pivot legacy row but is not a fifth supplemental workitem and does not change formal totals.",
+    "No r34, r10, prior Cfreeze, diagnostic raw runtime material, or historical formal artifact may be used as replacement formal authority."
+  ]
+}

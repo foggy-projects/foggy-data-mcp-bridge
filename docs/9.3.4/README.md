@@ -928,3 +928,12 @@ Current recovery records：
 
 - [r35 diagnostic pass](evidence/step-4/step4-coverage-diagnostic-r35-pass-20260720.md)
 - [r35 threshold review](evidence/step-4/step4-coverage-diagnostic-r35-threshold-review-20260720.md)
+
+## formal-r11 evidence completion / signoff prerequisite（2026-07-20）
+
+- Cfreeze `4b17dbe…` produced fresh formal-r11=`formal-passed`; final replay, exact public receipt=`0644`,
+  cleanup, high-water, same-Cfreeze Pivot companion, independent quality and replacement audit all pass.
+- The audit is `35/35` (`legacy31 + supplemental4`) with a separate report-stage receipt gate passed; it does
+  not reuse r10/r34/prior-Cfreeze authority.
+- Official Step 4 feature acceptance is not yet issued because no Step 4-scoped canonical delivery spec is at
+  `READY_FOR_SIGNOFF`. Step 5, 9.3.5 and 9.4.0 remain closed pending that input.

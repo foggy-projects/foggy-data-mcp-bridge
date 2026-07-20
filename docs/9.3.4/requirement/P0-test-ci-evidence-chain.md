@@ -864,3 +864,11 @@ updated_at: 2026-07-20
 - formal-r11 must independently reproduce all authority checks under strict umask, including regular/non-link
   exact-`0644` final report receipt. Post-formal quality, same-Cfreeze Pivot supplemental coverage,
   replacement audit and feature acceptance remain mandatory; Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## formal-r11 evidence-complete signoff requirement boundary（2026-07-20）
+
+- formal-r11, final replay, Pivot companion, quality and the 35-row replacement audit plus separate
+  report-stage gate have passed. These are evidence prerequisites, not a substitute for official acceptance.
+- Feature acceptance requires a Step 4-scoped canonical delivery spec in `READY_FOR_SIGNOFF`; the current
+  canonical 9.3.4 spec is `ULTRA_EXECUTING` for later Steps 5–7. Until that governance input is supplied,
+  Step 5–7, 9.3.5 and 9.4.0 remain closed.

@@ -1293,3 +1293,16 @@ can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.
 Current Step 4=`in-progress / r35 Cfreeze-authorized`; `can_enter_cfreeze=yes`, while
 `can_enter_formal=no / can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no` until
 the ordered successors complete. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## formal-r11 post-formal completion / signoff prerequisite（2026-07-20）
+
+1. [completed] Direct-child Cfreeze `4b17dbe…` was pushed; fresh formal-r11 passed, final artifact replay,
+   receipt=`0644`, cleanup, thresholds and all static contracts passed.
+2. [completed] Same-Cfreeze Pivot companion, final quality (`APPROVE / 0/0/0/0`) and replacement coverage
+   audit (`35/35`, separate report-stage gate passed, critical/major=`0/0`) are recorded.
+3. [blocked / governance] Do not issue feature acceptance or begin Step 5 until a Step 4-scoped canonical
+   delivery spec is at `READY_FOR_SIGNOFF`. The existing canonical spec is `ULTRA_EXECUTING` and scoped to
+   Steps 5–7, so it cannot be repurposed for this feature signoff.
+
+Current Step 4=`in-progress / evidence-complete / signoff-prerequisite-blocked`; Steps 5–7, 9.3.5 and 9.4.0
+remain closed.

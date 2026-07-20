@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r35 Cfreeze-authorized | Step 3 exit passed | Cdiag `93b3993e…` and fresh r35=`diagnostic-observed / public-valid`; all lanes/high-water, exact public receipt `0644`, Git-safe candidate/capsule and dual review pass. Next=one direct-child Cfreeze→fresh formal→post gates |
-| 5 | authority runner rehearsal / immutable candidate | hold / execution closed | replacement Step 4 exit | r10 exclusion/recovery reset does not enter Step 5; wait for a fresh formal successor + final quality + scoped coverage audit/feature acceptance |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r11 evidence-complete / signoff-prerequisite-blocked | Step 3 exit passed | fresh formal-r11, quality and 35-row audit all pass; official feature signoff awaits a Step 4-scoped canonical delivery spec at `READY_FOR_SIGNOFF` |
+| 5 | authority runner rehearsal / immutable candidate | hold / signoff-prerequisite-blocked | replacement Step 4 signed-off | formal/audit evidence exists but Step 4 is not yet officially accepted; do not start Step 5 before canonical signoff input exists |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -1997,3 +1997,18 @@ Records：
 - Current decision: `can_enter_cfreeze=yes`; `can_enter_formal=no` until that Cfreeze is pushed and cloned
   clean; `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`. Steps 5–7, 9.3.5
   and 9.4.0 remain closed.
+
+## Execution check-in — formal-r11 evidence complete / signoff prerequisite blocked（2026-07-20）
+
+- Cfreeze `4b17dbe…` is the single child of Cdiag `93b3993e…`; clean non-shallow formal-r11 completed
+  `formal-passed / exit=0`. Required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`,
+  line/branch/complexity=`54624/76830` / `26112/44870` / `17659/35571`, public receipt=`0644` regular/non-link,
+  cleanup=`0/0/0`, and independent final artifact replay all passed.
+- Same-Cfreeze Pivot companion=`1/F0E0S0`; independent final quality and coverage-audit reviews are both
+  `APPROVE / B/H/M/L=0/0/0/0`. The audit is exactly 35 rows (`legacy31 + supplemental4`) plus the separate
+  post-r10 report-stage receipt gate; critical/major evidence gaps=`0/0`.
+- The evidence package is ready, but official Step 4 feature acceptance is blocked by a governance prerequisite:
+  no Step 4-scoped canonical delivery spec is `READY_FOR_SIGNOFF`. The only canonical 9.3.4 spec is
+  `ULTRA_EXECUTING` for Steps 5–7. See
+  `docs/9.3.4/acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.
+- Current decision: `can_enter_step5=no / can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.
