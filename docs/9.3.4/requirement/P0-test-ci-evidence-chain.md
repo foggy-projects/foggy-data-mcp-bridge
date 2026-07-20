@@ -869,6 +869,6 @@ updated_at: 2026-07-20
 
 - formal-r11, final replay, Pivot companion, quality and the 35-row replacement audit plus separate
   report-stage gate have passed. These are evidence prerequisites, not a substitute for official acceptance.
-- Feature acceptance requires the Step 4-scoped canonical candidate to reach `READY_FOR_SIGNOFF`; it is
-  currently `APPROVED`, while the separate canonical 9.3.4 spec is `ULTRA_EXECUTING` for later Steps 5–7.
+- Feature acceptance requires the Step 4-scoped canonical candidate to reach `READY_FOR_SIGNOFF`; it is now
+  `READY_FOR_SIGNOFF`, while the separate canonical 9.3.4 spec is `ULTRA_EXECUTING` for later Steps 5–7.
   Until that governance input is supplied, Step 5–7, 9.3.5 and 9.4.0 remain closed.

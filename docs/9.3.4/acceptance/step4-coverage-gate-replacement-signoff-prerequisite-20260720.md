@@ -2,7 +2,7 @@
 doc_role: signoff_prerequisite_record
 version: 9.3.4
 scope: step4-feature-replacement-authority
-status: approved-contract-evidence-replay-in-progress
+status: ready-for-signoff
 recorded_at: 2026-07-20
 ---
 
@@ -22,9 +22,9 @@ The replacement evidence package is complete:
 
 The delivery-signoff procedure requires a Step 4-scoped canonical delivery spec at `READY_FOR_SIGNOFF` before
 an official feature acceptance decision can be made. The Step 4 candidate at
-`docs/9.3.4/workitems/FEATURE-step4-replacement-coverage-gate-signoff.md` is now `APPROVED` via direct
-project-owner request, with `foggy-projects` as the named signoff owner. It still needs the approved-contract
-evidence replay and `Implementation Result` required to reach `READY_FOR_SIGNOFF`. The separate canonical 9.3.4 delivery spec
+`docs/9.3.4/workitems/FEATURE-step4-replacement-coverage-gate-signoff.md` was approved via direct
+project-owner request, completed its bounded evidence replay, and is now `READY_FOR_SIGNOFF`; `foggy-projects`
+is the named signoff owner. The separate canonical 9.3.4 delivery spec
 `docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md` remains `ULTRA_EXECUTING` and explicitly
 scoped to Steps 5–7, not this completed Step 4 feature boundary.
 
@@ -33,6 +33,5 @@ Therefore this record does **not** mark Step 4 accepted, does not change Step 5 
 
 ## Required handoff
 
-The approved Step 4-scoped canonical delivery spec now requires its bounded implementation/evidence replay.
-Only after it reaches `READY_FOR_SIGNOFF` may `foggy-projects` apply the feature-signoff template against the
-evidence package without rerunning formal-r11.
+`foggy-projects` may now apply the feature-signoff template against the evidence package without rerunning
+formal-r11. This record still does not itself accept Step 4 or open Step 5.

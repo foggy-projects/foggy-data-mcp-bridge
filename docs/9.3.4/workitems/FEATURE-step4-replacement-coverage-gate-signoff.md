@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: step4-replacement-coverage-gate-signoff
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -128,15 +128,19 @@ N/A. This is a bounded feature-signoff contract for already completed evidence, 
 
 ## Implementation Result
 
-- implementation_summary: approved-contract evidence replay is in progress for the already completed
-  formal-r11 and post-formal evidence package.
-- changed_paths: evidence/governance records only; no production code change is authorized.
-- tests_and_results: AC-1 through AC-4 are being independently replayed under this approved contract;
-  AC-5 is approved and AC-6 remains pending independent signoff.
+- implementation_summary: independent approved-contract replay confirms formal-r11, the same-Cfreeze Pivot
+  companion, final quality and the replacement audit/gate exactly match the bounded Step 4 authority.
+- changed_paths: evidence/governance records only; the replay made no production code, POM, runner, threshold,
+  inventory or module-boundary change.
+- tests_and_results: canonical final-artifact verification passed at the tested Cfreeze; contract,
+  frozen-diagnostic, successor-overlay and CI-workflow static replays passed in a fresh detached clone;
+  Pivot source/report identity, implementation quality and the 35-row-plus-one-gate audit were independently
+  cross-checked. AC-1 through AC-5 are complete; AC-6 remains pending independent signoff.
 - manual_or_experience_evidence: N/A; this is a backend evidence/signoff feature with no UI scope.
 - deviations: none
-- residual_risks: evidence inconsistency found during approved-contract replay would require `NEEDS_REPLAN`.
-- readiness: ULTRA_EXECUTING
+- residual_risks: `DEBT-unit-mysql57-fixture-classification-migration` remains explicitly open for 9.3.5
+  version acceptance and does not expand this Step 4 feature scope.
+- readiness: READY_FOR_SIGNOFF
 
 ## References
 
