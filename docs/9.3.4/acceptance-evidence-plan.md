@@ -727,3 +727,15 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
   `ready / not-started`. The separate canonical 9.3.4 spec remains `ULTRA_EXECUTING` for Steps 5–7.
 - The formal acceptance decision and Step 5 entry remain blocked only on that canonical-signoff input, as
   recorded in `acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.
+
+## r38 Addon-context revalidation signoff prerequisite（2026-07-20）
+
+- The original r11 acceptance is retained as history, but the declared Addon successor runner changed to
+  safely publish a child context no earlier than its authenticated Step 3 parent. It therefore cannot restore
+  Step 5 authority for the new bytes.
+- Direct-child Cfreeze 62361688… and fresh formal-r38 now provide the sole formal authority. The formal
+  result, same-Cfreeze Pivot companion, independent final quality, and new r38 35+1 audit are complete;
+  critical/major evidence gaps are 0/0.
+- The canonical Addon remediation is READY_FOR_SIGNOFF. Acceptance remains pending an explicit
+  foggy-projects re-signoff, after which only Step 5 rehearsal may become ready/not-started. Steps 6-7,
+  9.3.5, and 9.4.0 remain closed.

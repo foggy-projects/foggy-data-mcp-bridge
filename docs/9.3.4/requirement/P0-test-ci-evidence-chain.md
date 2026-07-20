@@ -891,3 +891,15 @@ updated_at: 2026-07-20
   boundary; r37 is reviewed, not yet formal authority.
 - Only one direct-single-parent Cfreeze may project the r37 candidate into `confirmed/formal-ready` state. A
   new formal run and Step 5 rehearsal remain required before any downstream authority resumes.
+
+## r38 Addon-context formal revalidation boundary（2026-07-20）
+
+- Direct-child Cfreeze 62361688d838ba0a73348900502924decfbeeb68 has consumed the authorized r37 candidate.
+  Fresh formal-r38 is formal-passed with the unchanged governed required union, Addon companion, execution
+  counts, high-water coverage, public receipt, source seal, and cleanup closure.
+- Same-Cfreeze Pivot supplemental evidence, independent final implementation quality, and a newly scoped
+  35-row-plus-one-gate r38 audit all pass. The authenticated parent/child mtime remedy is a separately
+  governed BUG control and is not silently counted as an audit row.
+- The canonical BUG is READY_FOR_SIGNOFF, not accepted. formal-r11 and its acceptance remain historical for
+  the changed runner bytes. Only an explicit foggy-projects r38 decision may change Step 5 from hold to
+  ready/not-started; Steps 6-7, 9.3.5, and 9.4.0 remain closed.

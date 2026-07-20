@@ -2,9 +2,11 @@
 doc_type: bug-remediation
 version: 9.3.4
 ticket: step4-addon-context-mtime-publication-order
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 parent_feature: step4-replacement-coverage-gate-signoff
 authorization: ongoing approved 9.3.4 release-authority scope
+canonical: true
+revalidation_status: ready-for-owner-signoff
 opened_at: 2026-07-20
 ---
 
@@ -47,3 +49,51 @@ authority。
 
 - no historical runtime artifact reuse or cross-run evidence splice;
 - no Step 5–7, 9.3.5, or 9.4.0 production implementation advancement until revalidation closes.
+
+## Implementation Result
+
+- implementation_summary: the declared Addon successor runner now authenticates a canonical inherited parent,
+  clamps only the temporary child timestamp to the authenticated parent lower bound, fsyncs, atomically
+  publishes, rereads the child, and rechecks the parent identity/digest. The frozen Step 3 consumer and
+  E_CROSS_RUN_SPLICE rule are unchanged.
+- changed_surface: Cdiag 9743f97d9d935d5e26311b78c158755bca51f17a changes the declared
+  scripts/verify-v934-preagg-addon-lifecycle.sh successor amendment and its governed hash closure. Cfreeze
+  62361688d838ba0a73348900502924decfbeeb68 freezes the r37 thresholds/contracts and is its sole direct child.
+- tested_authority: fresh formal-r38 on that Cfreeze is formal-passed / completed / exit=0. It preserves
+  required=773+59/5707/F0E0S0, Addon=2/6/F0E0S0, 23 exec / 48 sessions, high-water
+  line/branch/complexity=54624/76830 / 26112/44870 / 17659/35571, public receipt mode 0644, and cleanup 0/0/0.
+- evidence: formal result, same-Cfreeze Pivot companion, independent final quality, and the r38 35+1
+  replacement audit are linked in the Signoff Readiness section below. They contain only safe summaries and
+  reproducible digests.
+- deviations: none. r11 formal and its acceptance remain immutable historical evidence, not authority for the
+  changed runner bytes.
+- residual_risks: a fresh Step 5 rehearsal and portable replay remain required after a new owner decision;
+  the unrelated Unit MySQL classification debt remains due before 9.3.5 version acceptance.
+
+## Verification Evidence
+
+| Obligation | Current evidence | Result |
+|---|---|---|
+| normal inherited parent/child publication | formal-r38 structured parent/child binding and final artifact | passed |
+| parent-later mtime clamp preserves child_mtime >= parent_mtime | reviewed clamp branch plus r38 structured mtime invariant | passed |
+| malformed, hash-mismatched, symlinked, or publication-raced parent fails closed | independent implementation-quality review of authenticated-parent and post-publication recheck paths | passed |
+| stale-report and downstream cross-run-splice negatives remain rejecting | frozen Step 3 consumer unchanged; formal static closure and successor validation | passed |
+| successor, Step 4, and Step 6 hash closures validate | formal post-run overlay, manifest, contract, and CI workflow replay | passed |
+
+## Signoff Readiness
+
+- readiness: READY_FOR_SIGNOFF
+- owner_decision: pending explicit foggy-projects re-signoff for Cfreeze
+  62361688d838ba0a73348900502924decfbeeb68.
+- formal_evidence:
+  [formal-r38](../evidence/step-4/step4-coverage-formal-r38-pass-20260720.md)
+- supplemental_evidence:
+  [Pivot r38](../evidence/step-4/step4-pivot-legacy-companion-r38-20260720.md)
+- quality_evidence:
+  [r38 implementation quality](../quality/step4-formal-r38-addon-context-final-implementation-quality-20260720.md)
+- coverage_evidence:
+  [r38 replacement audit](../coverage/step4-replacement-coverage-audit-r38-20260720.md)
+- prerequisite:
+  [owner-signoff prerequisite](../acceptance/step4-addon-context-revalidation-signoff-prerequisite-20260720.md)
+- acceptance_status: pending-owner-decision
+- downstream_authority: suspended pending owner signoff; Step 5, Steps 6-7, 9.3.5, and 9.4.0 remain closed.

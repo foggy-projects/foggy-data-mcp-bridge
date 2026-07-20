@@ -5,7 +5,8 @@ version: 9.3.4
 ticket: step4-replacement-coverage-gate-signoff
 status: ACCEPTED
 revalidation_required: true
-downstream_authority: suspended-pending-step4-addon-context-mtime-revalidation
+revalidation_status: ready-for-owner-signoff
+downstream_authority: suspended-pending-r38-foggy-projects-reacceptance
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -118,7 +119,21 @@ remediation is `BUG-step4-addon-context-mtime-publication-order.md`.
 - Candidate and Git-safe capsule are independently reviewed `PASS / B/H/M/L=0/0/0/0`; the review is
   `evidence/step-4/step4-coverage-diagnostic-r37-threshold-review-20260720.md`.
 - This historical accepted record is not reactivated yet. A direct-child Cfreeze, fresh formal, and Step 5
-  rehearsal are still required before `foggy-projects` may re-confirm downstream feature authority.
+  rehearsal were required before `foggy-projects` may re-confirm downstream feature authority.
+
+## r38 Revalidation Evidence Complete
+
+- The authorized direct-child Cfreeze is
+  62361688d838ba0a73348900502924decfbeeb68; fresh
+  step4-coverage-20260720-formal-r38 is formal-passed / completed / exit=0. It retains the governed
+  773+59/5707/F0E0S0 required union, Addon=2/6/F0E0S0, 23/48 execution inputs, high-water coverage,
+  public receipt=0644, stable source seal, and cleanup=0/0/0.
+- New same-Cfreeze Pivot, independent final-quality, and r38 35+1 revalidation-audit records are complete.
+  The canonical remediation BUG is READY_FOR_SIGNOFF; see
+  BUG-step4-addon-context-mtime-publication-order.md.
+- This document's original r11 ACCEPTED marker is retained as history. It cannot authorize the changed runner;
+  downstream authority remains suspended until foggy-projects explicitly records a new r38 reacceptance.
+  Step 5 is hold, and Steps 6-7, 9.3.5, and 9.4.0 remain closed.
 
 ## Risks and Open Questions
 

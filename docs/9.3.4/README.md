@@ -20,10 +20,10 @@ updated_at: 2026-07-20
 ## Entry Decision
 
 - 2026-07-20 Step 5 rehearsal exposed a WSL child-context publication-order inversion. The strict
-  cross-run-splice guard remains unchanged; the declared Addon successor runner is under bounded repair and
-  requires a fresh Cdiag → diagnostic → Cfreeze → formal → rehearsal chain. formal-r11/feature acceptance
-  remain historical only for the new runner, and Step 5–7 are suspended pending this revalidation. See
-  `workitems/BUG-step4-addon-context-mtime-publication-order.md`.
+  cross-run-splice guard remains unchanged. The bounded Addon successor repair has completed its fresh
+  Cdiag → diagnostic → Cfreeze → formal chain as r38; formal-r11/feature acceptance remain historical for the
+  new runner. Step 5–7 are suspended pending foggy-projects re-signoff. See
+  workitems/BUG-step4-addon-context-mtime-publication-order.md.
 - 9.3.3 已 `signed-off / accepted-with-risks`；replacement authority
   `20260714T084351Z-3271604`=`3824 tests / 519 reports / F0/E0/S3`，满足本版本
   predecessor。
@@ -956,3 +956,17 @@ Current recovery records：
   remain mandatory; formal-r11 and its feature acceptance remain historical for the changed successor runner.
 
 - [r37 threshold review](evidence/step-4/step4-coverage-diagnostic-r37-threshold-review-20260720.md)
+
+## r38 formal revalidation / owner signoff pending（2026-07-20）
+
+- Direct-child Cfreeze 62361688… produced fresh formal-r38=formal-passed / completed / exit=0 with
+  required=773+59/5707/F0E0S0, Addon=2/6/F0E0S0, exec/session=23/48, source before=after,
+  cleanup=0/0/0, line=54624/76830, branch=26112/44870, and complexity=17659/35571.
+- Same-Cfreeze Pivot companion is 1/F0E0S0; independent implementation quality is APPROVE with
+  B/H/M/L=0/0/0/0; the newly bound r38 35+1 audit has no critical/major evidence gap.
+- The canonical Addon remediation is READY_FOR_SIGNOFF. r11 acceptance is historical only: until a new
+  foggy-projects decision, Step 5 is hold and Steps 6-7, 9.3.5, and 9.4.0 remain closed.
+
+- [formal-r38 result](evidence/step-4/step4-coverage-formal-r38-pass-20260720.md)
+- [r38 Pivot companion](evidence/step-4/step4-pivot-legacy-companion-r38-20260720.md)
+- [r38 owner-signoff prerequisite](acceptance/step4-addon-context-revalidation-signoff-prerequisite-20260720.md)
