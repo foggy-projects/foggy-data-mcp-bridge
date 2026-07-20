@@ -99,6 +99,7 @@ EXPECTED_AMENDMENT_PATHS = (
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIT.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStoreTest.java",
     "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",

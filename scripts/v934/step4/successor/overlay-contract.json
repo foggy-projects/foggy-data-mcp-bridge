@@ -29,6 +29,7 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIT.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStoreTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",
@@ -44,7 +45,7 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaSemanticScaleSnapshotTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/TimeWindowParitySnapshotTest.java"
     ],
-    "sha256": "dd5cf5c86a78c09d338f5be6bb1e92210bb8f9874d16da3aeda4831f3a225389"
+    "sha256": "d02a65d5f2953cc0739cefb4a7176faa7588d8d934538242d8ad1b9e5233c406"
   },
   "frozen_semantics": {
     "addon": {

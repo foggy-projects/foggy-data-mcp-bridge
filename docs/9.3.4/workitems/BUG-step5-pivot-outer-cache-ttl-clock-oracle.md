@@ -6,7 +6,7 @@ ticket: BUG-934-STEP5-PIVOT-OUTER-CACHE-TTL-CLOCK-ORACLE
 status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
-approved_by: foggy-projects (continuation authority)
+approved_by: foggy-projects (continuation authority; governance-closure replan approved)
 approved_at: 2026-07-20
 open_questions: []
 ---
@@ -30,6 +30,7 @@ open_questions: []
   - `foggy-dataset-model` 的 `PivotIT` TTL expiry testcase 及其 test-only helper。
   - 受控时间的 test-only `PivotOuterCacheProvider` 包装器：委托真实 `PivotOuterResponseCache`，但把 Pipeline 传入的墙钟替换为由测试显式推进的时间。
   - 保留既有 testcase 名称和节点数；第一轮 query/store 后推进受控时间，再验证真实本地 provider 过期、Pipeline miss/re-execution/store diagnostics 与 payload correctness。
+  - 仅为这一个既有 `PivotIT` test-only source delta 补齐 Step 4 successor source-amendment、database binding 与 Step 4/6 hash closure，使 fresh `source-hash` / overlay preflight 能验证该变更而非绕过它。
   - 新 Cdiag 后按 Step 4 冻结流程重新形成 diagnostic、Cfreeze、formal、quality/audit 与 Step 5 evidence；r38 只保留为其原始 source 的历史签收证据。
 - affected_modules:
   - `foggy-dataset-model`
@@ -43,9 +44,16 @@ open_questions: []
   - 修改 Maven POM、Step 4/5 runner、coverage floor、critical set、exclusion、r38 历史证据或 Addon context 修复。
   - 提前进入 9.3.5 Gate 0、QueryFacade 公共 API 或 9.4.0 SPI v2/module 拆分。
 - do_not_touch:
-  - `scripts/verify-v934-*`、`scripts/v934/step4/**`、coverage contract/freeze threshold。
+  - 除以下精确治理文件外的 `scripts/verify-v934-*`、`scripts/v934/step4/**`、`scripts/v934/step6/**`：`step4/{coverage-contract.json,coverage-thresholds.json,SHA256SUMS}`、`step4/successor/{SHA256SUMS,database-matrix-contract.json,database-matrix-protected-trees.tsv,database-matrix-source-amendment.tsv,declared-amendments.tsv,overlay-contract.json,overlay_tool.py,step3-required-contract.json}`、`step6/{ci-contract.json,ci_contract_tool.py,SHA256SUMS}`。
   - 任何 Docker/宿主数据库配置。
   - `PivotIT` 的 flat row-order 语义；若原始 list equality 另行暴露顺序问题，必须新建事项或 `NEEDS_REPLAN`，不得在本 BUG 中静默扩展。
+
+## Approved Governance Closure
+
+- approval: `foggy-projects` 于 2026-07-20 明确要求开始执行，批准本最小 replan。
+- discovery: Step 4 的 runner 在 coverage contract 校验前还会执行 source-hash / successor overlay preflight。该 preflight 正确拒绝已修改的 `PivotIT.java`，原因是它属于受保护的 database source，但不在当前冻结的 declared-amendment 集合中。
+- approved_scope: 仅为这一既有 `PivotIT` test-only change 增补 declared/database source-amendment、protected-tree、database/required successor binding、Step 4/6 hash-manifest closure 和 diagnostic-state reset；`overlay_tool.py` / `ci_contract_tool.py` 只可更新精确路径/摘要约束，不得改变 runner、selector、阈值、exclusion 或 fail-closed 语义。
+- required_preflight: 在 clean/pushed Cdiag 的 fresh non-shallow clone 中，`source-hash`、coverage contract、successor overlay、Step 4/6 checksum 与 Step 6 workflow validation 均须通过，才可启动 full diagnostic。
 
 ## Confirmed Decisions
 
@@ -61,6 +69,8 @@ open_questions: []
 - [ ] AC-1: `PivotIT#testOuterCacheTtlExpiryFlatPivotE1b` 不再使用 `Thread.sleep`、固定等待或直接墙钟采样来决定 TTL expiry。
 - [ ] AC-2: 该 test 使用真实 `PivotOuterResponseCache` 的委托实现；初始受控时间 store 后显式推进至 TTL 外，第二次 lookup 必须 deterministic 地产生 `pivot.cache.evicted` 与 `pivot.cache.miss(reason=ttl_expired)`，并继续产生 execution/store diagnostics。
 - [ ] AC-3: 不改生产源码、public API、SPI、POM、runner、coverage thresholds/critical/exclusion，且不新增或删除 JUnit testcase。
+- [ ] AC-3a: `PivotIT` 的唯一 source delta 由 successor declared-amendment 和 database source-amendment 双重声明，并通过对应 binding/manifest checksum；任何额外 protected drift 必须 fail closed。
+- [ ] AC-3b: database matrix 的 `PivotIT` 仍精确为 `mysql8-targeted,postgres15-targeted / 55` nodes；静态 `@Test` inventory 保持 `56`，两种计数不得混用。
 - [ ] AC-4: focused fresh Failsafe forks、完整 `PivotIT`、真实 local-provider contract coverage 与完整 Step 4 replacement authority 均实际通过；任一失败保持 fail-closed。
 - [ ] AC-5: 新鲜 Step 5 rehearsal 和 portable replay 通过后，才恢复 Step 6/7 与后续版本入口；不得把本 BUG 的实现完成表述成 9.3.4 version signoff。
 
@@ -76,7 +86,7 @@ open_questions: []
 | Item | Risk | Required Validation | Required Evidence |
 |---|---|---|---|
 | AC-1/AC-2 | major | 至少 5 个独立 fresh Maven/JVM Failsafe focused forks；完整 `PivotIT`；`PivotOuterResponseCacheTest`/provider contract 实测 | 结构化 testcase aggregate、run status、命令与结果摘要；不得导出原始日志/XML |
-| AC-3 | major | source diff、testcase inventory、Maven reactor/runner static checks | diff/check summary，证明生产/POM/runner/floor 未变 |
+| AC-3/AC-3a/AC-3b | major | source diff、testcase inventory、database contract、successor overlay positive/negative、Step 4/6 manifest/workflow static checks | diff/check summary、精确 matrix tuple、clean Cdiag preflight；证明生产/POM/runner/floor 未变 |
 | AC-4 | blocker | 新 Cdiag → fresh diagnostic → review → direct-child Cfreeze → fresh formal → quality/audit | 新 source seal、manifest/status、独立 review 结论 |
 | AC-5 | blocker | 新鲜 Step 5 rehearsal 与 portable replay | Step 5 structured status/receipt；失败时不发布下游成功声明 |
 
@@ -125,13 +135,14 @@ open_questions: []
 - changed_paths:
   - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIT.java`
   - `docs/9.3.4/workitems/BUG-step5-pivot-outer-cache-ttl-clock-oracle.md`
+  - approved Step 4 successor declaration/binding/protected-tree/hash closure and Step 6 bound-manifest closure only
 - tests_and_results:
   - 5 个独立 fresh Maven/JVM Failsafe focused forks：`PivotIT#testOuterCacheTtlExpiryFlatPivotE1b` 均为 `1/F0E0S0`。
   - 完整 SQLite/Caffeine `PivotIT=55/F0E0S0`。
   - 真实 local provider suite `PivotOuterResponseCacheTest=8/F0E0S0`，其中 `ttlExpiryReportsExpiredThenMisses` 通过。
   - static: diff check 通过；`@Test` 节点 `56 -> 56`；production/POM/runner 路径变更数为 0；目标 method 不含 `Thread.sleep` 或直接 wall-clock 读取。
 - manual_or_experience_evidence: N/A
-- deviations: none
+- deviations: approved governance closure is required by the existing fail-closed preflight; it does not alter runtime semantics or authority thresholds.
 - residual_risks: `PivotIT` 的 flat raw list equality 仍是既有、非本次 failure 的潜在顺序语义风险；本轮未观察到失败，按 scope 保留，不改变生产排序语义。
 - independent_implementation_review: `ACCEPT / B-H-M-L=0/0/0/0`；review 确认 wrapper 委托真实 local provider、TTL expiry/re-execution diagnostics 被实际覆盖、无 production/POM/runner/SPI/API 扩面。
 - readiness: ULTRA_EXECUTING — test-only implementation 已通过独立审计；新源码的 Cdiag、fresh diagnostic/review、direct-child Cfreeze、fresh formal、quality/audit 及 Step 5 rehearsal/portable replay 仍是未完成的版本 authority。
