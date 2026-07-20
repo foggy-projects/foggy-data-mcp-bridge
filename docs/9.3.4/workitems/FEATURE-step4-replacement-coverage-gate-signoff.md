@@ -4,6 +4,8 @@ delivery_type: cross-module
 version: 9.3.4
 ticket: step4-replacement-coverage-gate-signoff
 status: ACCEPTED
+revalidation_required: true
+downstream_authority: suspended-pending-step4-addon-context-mtime-revalidation
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -99,6 +101,15 @@ open_questions: []
 ## Bug Context
 
 N/A. This is a bounded feature-signoff contract for already completed evidence, not a new bug remediation.
+
+## Post-signoff Revalidation Amendment（2026-07-20）
+
+Step 5 rehearsal exposed a WSL `mtime_ns` inversion between a canonical Step 3 parent marker and the
+published Addon child context. The strict `E_CROSS_RUN_SPLICE` rule remains correct and unchanged; the
+successor runner is being repaired to publish a child receipt no earlier than its authenticated parent.
+Because this changes runner bytes, this accepted record remains historical but cannot authorize downstream
+work until the replacement Cdiag → diagnostic → Cfreeze → formal → rehearsal chain completes. The bounded
+remediation is `BUG-step4-addon-context-mtime-publication-order.md`.
 
 ## Risks and Open Questions
 

@@ -872,3 +872,14 @@ updated_at: 2026-07-20
 - Feature acceptance is issued: the Step 4-scoped canonical candidate is `ACCEPTED`, while the separate
   canonical 9.3.4 spec is `ULTRA_EXECUTING` for later Steps 5–7. Step 5 is `ready / not-started`; Steps 6–7,
   9.3.5 and 9.4.0 remain closed until their own gates complete.
+
+## Superseding post-signoff Addon context-publication boundary（2026-07-20）
+
+- A Step 5 rehearsal exposed a WSL `mtime_ns` inversion between the authenticated Step 3 parent marker and
+  the Addon child context. This is a successor publication-order defect, not permission to weaken the
+  `E_CROSS_RUN_SPLICE` consumer guard.
+- The only remediation is authenticated parent-bound child timestamp publication in the declared Addon
+  successor runner; frozen Step 3 artifacts, thresholds and report totals remain immutable.
+- Since runner bytes change, formal-r11 and the accepted feature record are historical for the new bytes.
+  A new Cdiag → diagnostic → candidate/review → direct-child Cfreeze → formal → Step 5 rehearsal chain is
+  mandatory before downstream authority resumes.

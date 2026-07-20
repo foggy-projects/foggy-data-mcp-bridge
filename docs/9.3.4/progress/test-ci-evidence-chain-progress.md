@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / feature accepted | Step 3 exit passed | formal-r11, quality, 35-row audit and designated `foggy-projects` signoff all pass; Step 5 may enter `ready / not-started` |
-| 5 | authority runner rehearsal / immutable candidate | ready / not-started | replacement Step 4 accepted | start only under the separate Steps 5–7 canonical delivery spec; no Step 6/7 or version signoff implication |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | revalidation in progress | Step 3 exit passed | formal-r11 and `foggy-projects` signoff remain historical; the Addon successor runner changed for authenticated WSL context ordering, so a fresh Cdiag→diagnostic→Cfreeze→formal chain is required |
+| 5 | authority runner rehearsal / immutable candidate | hold | replacement Step 4 revalidation | resume only after the fresh Step 4 chain closes; no Step 6/7 or version signoff implication |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 

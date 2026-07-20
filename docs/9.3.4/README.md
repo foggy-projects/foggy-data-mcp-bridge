@@ -19,6 +19,11 @@ updated_at: 2026-07-20
 
 ## Entry Decision
 
+- 2026-07-20 Step 5 rehearsal exposed a WSL child-context publication-order inversion. The strict
+  cross-run-splice guard remains unchanged; the declared Addon successor runner is under bounded repair and
+  requires a fresh Cdiag → diagnostic → Cfreeze → formal → rehearsal chain. formal-r11/feature acceptance
+  remain historical only for the new runner, and Step 5–7 are suspended pending this revalidation. See
+  `workitems/BUG-step4-addon-context-mtime-publication-order.md`.
 - 9.3.3 已 `signed-off / accepted-with-risks`；replacement authority
   `20260714T084351Z-3271604`=`3824 tests / 519 reports / F0/E0/S3`，满足本版本
   predecessor。

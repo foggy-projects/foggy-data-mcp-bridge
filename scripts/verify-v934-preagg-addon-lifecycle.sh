@@ -244,19 +244,23 @@ parent_value() {
 python3 - "$RUN_ROOT/run-context.json" "$RUN_ID" "$GIT_HEAD" "$CONTRACT_SHA256" "$SOURCE_SHA256" "$STARTED_AT" "$AUTHORITY_MODE" \
   "$(parent_value V934_PARENT_AUTHORITY_KIND)" "$(parent_value V934_PARENT_RUN_ID)" \
   "$(parent_value V934_PARENT_GIT_HEAD)" "$(parent_value V934_PARENT_CONTRACT_SHA256)" \
-  "$(parent_value V934_PARENT_SOURCE_SHA256)" "$(parent_value V934_PARENT_OUTER_MARKER_SHA256)" <<'PY'
+  "$(parent_value V934_PARENT_SOURCE_SHA256)" "$(parent_value V934_PARENT_OUTER_MARKER_SHA256)" \
+  "${EXPECTED_PARENT_MARKER:-}" <<'PY'
+import hashlib
 import json
 import os
+import stat
 import sys
 from pathlib import Path
 
 target = Path(sys.argv[1])
+parent_marker = Path(sys.argv[14]) if sys.argv[14] else None
 keys = [
     "run_id", "git_head", "contract_sha256", "source_sha256", "started_at",
     "authority_mode", "parent_authority_kind", "parent_run_id", "parent_git_head",
     "parent_contract_sha256", "parent_source_sha256", "parent_outer_marker_sha256",
 ]
-values = dict(zip(keys, sys.argv[2:]))
+values = dict(zip(keys, sys.argv[2:14]))
 payload = {
     "schema_version": 1,
     "kind": "v934-step3-preagg-addon-lifecycle-run",
@@ -265,9 +269,127 @@ payload = {
     "status": "started",
     **values,
 }
+
+
+def identity(record):
+    return (
+        record.st_dev,
+        record.st_ino,
+        record.st_size,
+        record.st_mtime_ns,
+        record.st_ctime_ns,
+    )
+
+
+def regular_bytes(path, label):
+    before = os.lstat(path)
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+        raise SystemExit(f"{label} is not a regular file")
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or identity(before) != identity(opened):
+            raise SystemExit(f"{label} changed before read")
+        remaining = opened.st_size
+        chunks = []
+        while remaining:
+            chunk = os.read(descriptor, min(65536, remaining))
+            if not chunk:
+                raise SystemExit(f"{label} ended before its recorded size")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(descriptor, 1):
+            raise SystemExit(f"{label} grew while read")
+        after = os.fstat(descriptor)
+        current = os.lstat(path)
+        if identity(opened) != identity(after) or identity(after) != identity(current):
+            raise SystemExit(f"{label} changed while read")
+        return b"".join(chunks), current
+    finally:
+        os.close(descriptor)
+
+
+def parent_snapshot():
+    raw, parent_stat = regular_bytes(parent_marker, "canonical parent marker")
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != values["parent_outer_marker_sha256"]:
+        raise SystemExit("canonical parent marker digest differs")
+    try:
+        marker = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise SystemExit("canonical parent marker is not valid JSON") from error
+    expected_fields = {
+        "schema_version", "kind", "run_id", "lane", "runner", "git_head",
+        "contract_sha256", "source_sha256", "started_at", "status",
+        "child_order", "child_contracts",
+    }
+    if not isinstance(marker, dict) or set(marker) != expected_fields:
+        raise SystemExit("canonical parent marker schema differs")
+    expected = {
+        "schema_version": 1,
+        "kind": "v934-step3-required-matrix-run",
+        "run_id": values["parent_run_id"],
+        "lane": "step3-required-matrix",
+        "runner": "orchestrator",
+        "git_head": values["parent_git_head"],
+        "contract_sha256": values["parent_contract_sha256"],
+        "source_sha256": values["parent_source_sha256"],
+        "status": "started",
+        "child_order": ["addon-companion", "database-matrix", "external-matrix"],
+    }
+    if any(marker[key] != value for key, value in expected.items()):
+        raise SystemExit("canonical parent marker context differs")
+    if (
+        not isinstance(marker["started_at"], str)
+        or not marker["started_at"]
+        or not isinstance(marker["child_contracts"], dict)
+        or marker["child_contracts"].get("addon-companion") != values["contract_sha256"]
+    ):
+        raise SystemExit("canonical parent marker child binding differs")
+    return parent_stat, digest
+
+
+parent_stat = None
+parent_digest = None
+if parent_marker is not None:
+    parent_stat, parent_digest = parent_snapshot()
 temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
-temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+serialized = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+with temporary.open("xb") as stream:
+    stream.write(serialized)
+    stream.flush()
+    temporary_stat = os.fstat(stream.fileno())
+    if parent_stat is not None and temporary_stat.st_mtime_ns < parent_stat.st_mtime_ns:
+        os.utime(
+            stream.fileno(),
+            ns=(temporary_stat.st_atime_ns, parent_stat.st_mtime_ns),
+        )
+        temporary_stat = os.fstat(stream.fileno())
+    os.fsync(stream.fileno())
+if parent_stat is not None and temporary_stat.st_mtime_ns < parent_stat.st_mtime_ns:
+    raise SystemExit("child context temporary receipt predates canonical parent marker")
 os.replace(temporary, target)
+# WSL can expose a short wall-clock regression across independently published
+# files.  Preserve the consumer's anti-splice mtime guard by publishing this
+# child receipt no earlier than the already-validated canonical parent marker.
+directory_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_DIRECTORY", 0)
+directory = os.open(target.parent, directory_flags)
+try:
+    os.fsync(directory)
+finally:
+    os.close(directory)
+published_raw, published = regular_bytes(target, "published child context")
+if published_raw != serialized:
+    raise SystemExit("published child context bytes differ")
+if parent_stat is not None:
+    current_parent_stat, current_parent_digest = parent_snapshot()
+    if identity(parent_stat) != identity(current_parent_stat) or parent_digest != current_parent_digest:
+        raise SystemExit("canonical parent marker changed during child publication")
+    if published.st_mtime_ns < current_parent_stat.st_mtime_ns:
+        raise SystemExit("published child context predates canonical parent marker")
+if parent_stat is not None and published.st_mtime_ns < parent_stat.st_mtime_ns:
+    raise SystemExit("published child context predates canonical parent marker")
 PY
 
 run_variant() {

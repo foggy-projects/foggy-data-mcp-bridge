@@ -44,7 +44,7 @@
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaSemanticScaleSnapshotTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/TimeWindowParitySnapshotTest.java"
     ],
-    "sha256": "045c43ae87040be8482cebddcbb6174774f9e2028823862a3063db74b45bdfb9"
+    "sha256": "dd5cf5c86a78c09d338f5be6bb1e92210bb8f9874d16da3aeda4831f3a225389"
   },
   "frozen_semantics": {
     "addon": {

@@ -15,7 +15,7 @@
   "bindings": {
     "addon_contract": {
       "path": "scripts/v934/step4/successor/preagg-addon-lifecycle-contract.json",
-      "sha256": "9315e41a1d0dda37f7efa88fdc6a75960d9e0866acd89bb8eb75197d15c9d045"
+      "sha256": "1aa87d4ff12d94b8dcaafd3b4bc56e3815c2cd0ecd3756f7cf98bd7b3a271c81"
     },
     "addon_report_tool": {
       "path": "scripts/v934/step3/preagg_addon_lifecycle_report_tool.py",
@@ -23,7 +23,7 @@
     },
     "addon_runner": {
       "path": "scripts/verify-v934-preagg-addon-lifecycle.sh",
-      "sha256": "5ac2bd692ab0faf4e514a188f4074b81538bbe3014da779f7e4351ac8fa3befb"
+      "sha256": "7c5020dc8af9328a0b70cc7933df3b01b7574bbfd21ecb9458c20c99ac2c9ac8"
     },
     "authority_runner_lib": {
       "path": "scripts/v934/authority_runner_lib.sh",
