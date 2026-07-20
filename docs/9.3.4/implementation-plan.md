@@ -1300,9 +1300,9 @@ the ordered successors complete. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
    receipt=`0644`, cleanup, thresholds and all static contracts passed.
 2. [completed] Same-Cfreeze Pivot companion, final quality (`APPROVE / 0/0/0/0`) and replacement coverage
    audit (`35/35`, separate report-stage gate passed, critical/major=`0/0`) are recorded.
-3. [blocked / governance] Do not issue feature acceptance or begin Step 5 until the Step 4-scoped canonical
-   candidate advances from `DRAFT` to `READY_FOR_SIGNOFF`. The separate canonical spec is
+3. [in progress / governance] Do not issue feature acceptance or begin Step 5 until the Step 4-scoped canonical
+   candidate advances from `APPROVED` to `READY_FOR_SIGNOFF`. The separate canonical spec is
    `ULTRA_EXECUTING` and scoped to Steps 5–7, so it cannot be repurposed for this feature signoff.
 
-Current Step 4=`in-progress / evidence-complete / signoff-prerequisite-blocked`; Steps 5–7, 9.3.5 and 9.4.0
-remain closed.
+Current Step 4=`in-progress / approved / approved-contract-evidence-replay`; Steps 5–7, 9.3.5 and 9.4.0 remain
+closed.

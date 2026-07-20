@@ -723,7 +723,7 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 
 - The fresh formal, final replay, same-Cfreeze Pivot companion, independent quality, 35-row replacement audit,
   and separately mandatory report-stage receipt gate are complete and passed.
-- This makes the evidence package ready but not accepted: the Step 4 canonical candidate is still `DRAFT`,
-  not `READY_FOR_SIGNOFF`. The separate canonical 9.3.4 spec remains `ULTRA_EXECUTING` for Steps 5–7.
+- This makes the evidence package ready but not accepted: the Step 4 canonical candidate is `APPROVED`,
+  but not yet `READY_FOR_SIGNOFF`. The separate canonical 9.3.4 spec remains `ULTRA_EXECUTING` for Steps 5–7.
 - The formal acceptance decision and Step 5 entry remain blocked only on that canonical-signoff input, as
   recorded in `acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.

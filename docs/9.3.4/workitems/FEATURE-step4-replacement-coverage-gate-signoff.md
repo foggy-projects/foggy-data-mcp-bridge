@@ -3,13 +3,12 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: step4-replacement-coverage-gate-signoff
-status: DRAFT
+status: APPROVED
 canonical: true
 execution_mode: ultra
-approved_by: pending-project-owner-authorization
-approved_at: pending
-open_questions:
-  - "是否批准本 Step 4 replacement-signoff scope，并指定签收 owner？"
+approved_by: repository-owner-via-user-request
+approved_at: 2026-07-20
+open_questions: []
 ---
 
 # Delivery Spec: 9.3.4 Step 4 Replacement Coverage Gate Signoff
@@ -71,8 +70,8 @@ open_questions:
 - [x] AC-3: final implementation quality is `APPROVE / B/H/M/L=0/0/0/0`.
 - [x] AC-4: replacement coverage audit covers 35 rows, reports zero critical/major gaps, and separately
   passes the report-stage receipt gate.
-- [ ] AC-5: project owner approves this Step 4-scoped delivery contract and names or delegates the
-  independent signoff owner.
+- [x] AC-5: project owner approves this Step 4-scoped delivery contract and names or delegates the
+  independent signoff owner (`foggy-projects`).
 - [ ] AC-6: independent signoff confirms the sole-authority boundary, issues an accepted/rejected decision,
   and updates the Step 4/Step 5 entry state without opening later version scope prematurely.
 
@@ -105,13 +104,22 @@ N/A. This is a bounded feature-signoff contract for already completed evidence, 
 
 - known_risks: approving or signing off against the existing Steps 5–7 canonical spec would conflate scopes
   and could incorrectly open downstream work.
-- open_questions: project-owner authorization and signoff-owner designation remain required.
+- open_questions: none
+
+## Approval Record
+
+- approval_authority: direct project-owner authorization
+- approved_by: `repository-owner-via-user-request`
+- approved_at: 2026-07-20
+- signoff_owner: `foggy-projects`
+- approved_scope: this Step 4 replacement feature signoff only; Steps 5–7, 9.3.5 and 9.4.0 remain out of scope.
 
 ## Ultra Execution Contract
 
-- Before approval, do not change this document to `APPROVED`, `ULTRA_EXECUTING`, or `READY_FOR_SIGNOFF`.
-- After approval, read this document, the linked evidence, the project rules, and the delivery-signoff
-  procedure before making an acceptance decision.
+- Approval is recorded above. The implementation session must independently replay the scoped evidence and
+  populate `Implementation Result` before changing this document to `READY_FOR_SIGNOFF`.
+- Read this document, the linked evidence, the project rules, and the delivery-signoff procedure before making
+  an acceptance decision.
 - If an authority mismatch, missing evidence, changed scope, or new blocking risk appears, set
   `NEEDS_REPLAN` and stop downstream opening.
 - Do not modify production code or begin Step 5–7 while executing this signoff scope.
@@ -120,14 +128,15 @@ N/A. This is a bounded feature-signoff contract for already completed evidence, 
 
 ## Implementation Result
 
-- implementation_summary: formal-r11 and all defined post-formal evidence gates are complete; this DRAFT
-  records the missing owner-authorization boundary only.
-- changed_paths: evidence and governance records listed in References.
-- tests_and_results: AC-1 through AC-4 are evidenced; AC-5 and AC-6 are intentionally pending.
+- implementation_summary: pending an independent approved-contract replay of the already completed formal-r11
+  and post-formal evidence package.
+- changed_paths: pending approved-contract evidence review; no production code change is authorized.
+- tests_and_results: AC-1 through AC-4 require independent replay under this approved contract; AC-5 is
+  approved and AC-6 remains pending independent signoff.
 - manual_or_experience_evidence: N/A; this is a backend evidence/signoff feature with no UI scope.
 - deviations: none
-- residual_risks: absent project-owner authorization would make any acceptance assertion invalid.
-- readiness: BLOCKED
+- residual_risks: evidence inconsistency found during approved-contract replay would require `NEEDS_REPLAN`.
+- readiness: pending-approved-evidence-review
 
 ## References
 

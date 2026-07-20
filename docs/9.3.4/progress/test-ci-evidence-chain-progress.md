@@ -60,7 +60,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r11 evidence-complete / signoff-prerequisite-blocked | Step 3 exit passed | fresh formal-r11, quality and 35-row audit all pass; official feature signoff awaits a Step 4-scoped canonical delivery spec at `READY_FOR_SIGNOFF` |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / formal-r11 evidence-complete / approved-contract-evidence-replay | Step 3 exit passed | fresh formal-r11, quality and 35-row audit all pass; the Step 4 canonical spec is approved and must reach `READY_FOR_SIGNOFF` before official feature signoff |
 | 5 | authority runner rehearsal / immutable candidate | hold / signoff-prerequisite-blocked | replacement Step 4 signed-off | formal/audit evidence exists but Step 4 is not yet officially accepted; do not start Step 5 before canonical signoff input exists |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
@@ -2007,8 +2007,8 @@ Records：
 - Same-Cfreeze Pivot companion=`1/F0E0S0`; independent final quality and coverage-audit reviews are both
   `APPROVE / B/H/M/L=0/0/0/0`. The audit is exactly 35 rows (`legacy31 + supplemental4`) plus the separate
   post-r10 report-stage receipt gate; critical/major evidence gaps=`0/0`.
-- The evidence package is ready, but official Step 4 feature acceptance is blocked by a governance prerequisite:
-  its Step 4-scoped canonical candidate is `DRAFT`, not `READY_FOR_SIGNOFF`; the separate canonical spec is
-  `ULTRA_EXECUTING` for Steps 5–7. See
+- The evidence package is ready, and its Step 4-scoped canonical candidate is now `APPROVED`; the approved
+  contract evidence replay must still produce `READY_FOR_SIGNOFF` before official feature acceptance. The
+  separate canonical spec remains `ULTRA_EXECUTING` for Steps 5–7. See
   `docs/9.3.4/acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.
 - Current decision: `can_enter_step5=no / can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.
