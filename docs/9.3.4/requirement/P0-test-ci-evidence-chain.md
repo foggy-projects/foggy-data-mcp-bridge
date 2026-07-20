@@ -883,3 +883,11 @@ updated_at: 2026-07-20
 - Since runner bytes change, formal-r11 and the accepted feature record are historical for the new bytes.
   A new Cdiag → diagnostic → candidate/review → direct-child Cfreeze → formal → Step 5 rehearsal chain is
   mandatory before downstream authority resumes.
+
+## r37 Addon-context revalidation boundary（2026-07-20）
+
+- The authenticated-parent mtime publication repair changes declared successor-runner bytes but leaves the
+  strict anti-splice consumer rule unchanged. Cdiag `9743f97d…` and fresh r37 re-prove the all-lane diagnostic
+  boundary; r37 is reviewed, not yet formal authority.
+- Only one direct-single-parent Cfreeze may project the r37 candidate into `confirmed/formal-ready` state. A
+  new formal run and Step 5 rehearsal remain required before any downstream authority resumes.

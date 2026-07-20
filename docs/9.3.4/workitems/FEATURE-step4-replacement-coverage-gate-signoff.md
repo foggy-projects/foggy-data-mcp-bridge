@@ -111,6 +111,15 @@ Because this changes runner bytes, this accepted record remains historical but c
 work until the replacement Cdiag → diagnostic → Cfreeze → formal → rehearsal chain completes. The bounded
 remediation is `BUG-step4-addon-context-mtime-publication-order.md`.
 
+## r37 Revalidation Status
+
+- fresh Cdiag: `9743f97d9d935d5e26311b78c158755bca51f17a`;
+  diagnostic: `step4-coverage-20260720-diagnostic-r37=diagnostic-observed / exit 0`.
+- Candidate and Git-safe capsule are independently reviewed `PASS / B/H/M/L=0/0/0/0`; the review is
+  `evidence/step-4/step4-coverage-diagnostic-r37-threshold-review-20260720.md`.
+- This historical accepted record is not reactivated yet. A direct-child Cfreeze, fresh formal, and Step 5
+  rehearsal are still required before `foggy-projects` may re-confirm downstream feature authority.
+
 ## Risks and Open Questions
 
 - known_risks: approving or signing off against the existing Steps 5–7 canonical spec would conflate scopes

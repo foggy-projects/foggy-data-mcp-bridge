@@ -943,3 +943,16 @@ Current recovery records：
 - Step 4 replacement feature acceptance is issued by `foggy-projects`; the canonical spec is
   [`ACCEPTED`](workitems/FEATURE-step4-replacement-coverage-gate-signoff.md). Step 5 is
   `ready / not-started`; Steps 6–7 remain pending, and 9.3.5/9.4.0 remain closed until 9.3.4 version signoff.
+
+## r37 reviewed Cfreeze boundary（2026-07-20）
+
+- Clean/pushed Cdiag `9743f97d…` produced fresh
+  `step4-coverage-20260720-diagnostic-r37=diagnostic-observed / completed / exit 0` with
+  required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`, source before=after,
+  cleanup=`0/0/0`, line=`54624/76830`, branch=`26112/44870`, and complexity=`17659/35571`.
+- The r37 candidate and Git-safe capsule were independently recomputed/rebuilt/materialized. Both reviews are
+  `PASS / B/H/M/L=0/0/0/0`; only the attestation and aggregate XML are retained in the capsule.
+- This authorizes exactly one direct-child Cfreeze from `9743f97d…`. A fresh formal run and Step 5 rehearsal
+  remain mandatory; formal-r11 and its feature acceptance remain historical for the changed successor runner.
+
+- [r37 threshold review](evidence/step-4/step4-coverage-diagnostic-r37-threshold-review-20260720.md)
