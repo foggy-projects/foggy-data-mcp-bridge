@@ -2,7 +2,7 @@
 doc_role: signoff_prerequisite_record
 version: 9.3.4
 scope: step4-feature-replacement-authority
-status: approved-awaiting-ready-for-signoff
+status: approved-contract-evidence-replay-in-progress
 recorded_at: 2026-07-20
 ---
 

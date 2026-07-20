@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: step4-replacement-coverage-gate-signoff
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -128,15 +128,15 @@ N/A. This is a bounded feature-signoff contract for already completed evidence, 
 
 ## Implementation Result
 
-- implementation_summary: pending an independent approved-contract replay of the already completed formal-r11
-  and post-formal evidence package.
-- changed_paths: pending approved-contract evidence review; no production code change is authorized.
-- tests_and_results: AC-1 through AC-4 require independent replay under this approved contract; AC-5 is
-  approved and AC-6 remains pending independent signoff.
+- implementation_summary: approved-contract evidence replay is in progress for the already completed
+  formal-r11 and post-formal evidence package.
+- changed_paths: evidence/governance records only; no production code change is authorized.
+- tests_and_results: AC-1 through AC-4 are being independently replayed under this approved contract;
+  AC-5 is approved and AC-6 remains pending independent signoff.
 - manual_or_experience_evidence: N/A; this is a backend evidence/signoff feature with no UI scope.
 - deviations: none
 - residual_risks: evidence inconsistency found during approved-contract replay would require `NEEDS_REPLAN`.
-- readiness: pending-approved-evidence-review
+- readiness: ULTRA_EXECUTING
 
 ## References
 
