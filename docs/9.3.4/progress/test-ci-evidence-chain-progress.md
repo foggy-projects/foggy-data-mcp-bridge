@@ -2008,7 +2008,7 @@ Records：
   `APPROVE / B/H/M/L=0/0/0/0`. The audit is exactly 35 rows (`legacy31 + supplemental4`) plus the separate
   post-r10 report-stage receipt gate; critical/major evidence gaps=`0/0`.
 - The evidence package is ready, but official Step 4 feature acceptance is blocked by a governance prerequisite:
-  no Step 4-scoped canonical delivery spec is `READY_FOR_SIGNOFF`. The only canonical 9.3.4 spec is
+  its Step 4-scoped canonical candidate is `DRAFT`, not `READY_FOR_SIGNOFF`; the separate canonical spec is
   `ULTRA_EXECUTING` for Steps 5–7. See
   `docs/9.3.4/acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.
 - Current decision: `can_enter_step5=no / can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.

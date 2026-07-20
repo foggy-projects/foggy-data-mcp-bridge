@@ -20,9 +20,11 @@ The replacement evidence package is complete:
 
 ## Governance blocker
 
-The delivery-signoff procedure requires a unique canonical delivery spec at `READY_FOR_SIGNOFF` before an
-official feature acceptance decision can be made. The only canonical 9.3.4 delivery spec currently found is
-`docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md`; it is `ULTRA_EXECUTING` and explicitly
+The delivery-signoff procedure requires a Step 4-scoped canonical delivery spec at `READY_FOR_SIGNOFF` before
+an official feature acceptance decision can be made. The Step 4 candidate is presently a `DRAFT` at
+`docs/9.3.4/workitems/FEATURE-step4-replacement-coverage-gate-signoff.md`; it has not received owner
+approval. The separate canonical 9.3.4 delivery spec
+`docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md` remains `ULTRA_EXECUTING` and explicitly
 scoped to Steps 5–7, not this completed Step 4 feature boundary.
 
 Therefore this record does **not** mark Step 4 accepted, does not change Step 5 to ready, and does not open
@@ -30,6 +32,8 @@ Therefore this record does **not** mark Step 4 accepted, does not change Step 5 
 
 ## Required handoff
 
-The project owner must provide a Step 4-scoped canonical delivery spec in `READY_FOR_SIGNOFF` state, or
-explicitly designate an existing Step 4-scoped canonical spec at that state. A signoff owner can then apply the
+The Step 4-scoped canonical delivery-spec draft is now available at
+`docs/9.3.4/workitems/FEATURE-step4-replacement-coverage-gate-signoff.md`. The project owner must approve
+that bounded scope (or explicitly designate an equivalent Step 4-scoped canonical spec) and name/delegate the
+signoff owner. Only after the contract reaches `READY_FOR_SIGNOFF` may the signoff owner apply the
 feature-signoff template against the evidence package without rerunning formal-r11.
