@@ -900,6 +900,6 @@ updated_at: 2026-07-20
 - Same-Cfreeze Pivot supplemental evidence, independent final implementation quality, and a newly scoped
   35-row-plus-one-gate r38 audit all pass. The authenticated parent/child mtime remedy is a separately
   governed BUG control and is not silently counted as an audit row.
-- The canonical BUG is READY_FOR_SIGNOFF, not accepted. formal-r11 and its acceptance remain historical for
-  the changed runner bytes. Only an explicit foggy-projects r38 decision may change Step 5 from hold to
-  ready/not-started; Steps 6-7, 9.3.5, and 9.4.0 remain closed.
+- The canonical BUG is ACCEPTED by foggy-projects. formal-r11 and its acceptance remain historical for the
+  changed runner bytes. The r38 acceptance changes Step 5 to ready/not-started for a fresh rehearsal only;
+  Steps 6-7, 9.3.5, and 9.4.0 remain closed.

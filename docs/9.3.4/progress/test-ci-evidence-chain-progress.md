@@ -60,8 +60,8 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | formal/quality/audit passed; owner re-signoff pending | Step 3 exit passed | r38 formal passed from Cfreeze 62361688…; r11 remains historical for changed runner bytes; BUG is READY_FOR_SIGNOFF |
-| 5 | authority runner rehearsal / immutable candidate | hold | explicit foggy-projects r38 re-signoff | resume only after the new owner decision; no Step 6/7 or version signoff implication |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / r38 revalidation accepted | Step 3 exit passed | formal-r38 and BUG acceptance bind Cfreeze 62361688…; r11 remains historical for changed runner bytes |
+| 5 | authority runner rehearsal / immutable candidate | ready / not-started | r38 revalidation accepted | execute a fresh rehearsal only; no Step 6/7 or version signoff implication |
 | 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
 | 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
 
@@ -77,7 +77,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 - Current decision: `can_enter_cfreeze=yes`; `can_enter_formal=no` until one direct-single-parent Cfreeze is
   committed and pushed. Step 5–7, 9.3.5 and 9.4.0 remain closed.
 
-## Execution Check-in — formal-r38 revalidation evidence complete（2026-07-20）
+## Execution Check-in — formal-r38 revalidation accepted（2026-07-20）
 
 - Cfreeze=62361688d838ba0a73348900502924decfbeeb68 is the sole direct child of
   Cdiag=9743f97d9d935d5e26311b78c158755bca51f17a. Fresh
@@ -87,8 +87,9 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 - Formal final artifact replay, contract/frozen-diagnostic, successor overlay, Step 4/6 hash closure and CI
   workflow validation passed. Same-Cfreeze Pivot companion=1/F0E0S0; independent quality=APPROVE /
   B/H/M/L=0/0/0/0; r38 scope/audit=35/35 plus one receipt gate, critical/major gaps=0/0.
-- Current decision: can_enter_step5=no pending an explicit foggy-projects re-signoff of the canonical
-  READY_FOR_SIGNOFF Addon remediation. Steps 6-7, 9.3.5, and 9.4.0 remain closed.
+- Independent final signoff review is accepted with B/H/M/L=0/0/0/0; foggy-projects explicitly accepted the
+  canonical Addon remediation. Current decision: can_enter_step5=yes for a fresh rehearsal only. Steps 6-7,
+  9.3.5, and 9.4.0 remain closed.
 
 ## Execution Check-in — Step 1（passed）
 

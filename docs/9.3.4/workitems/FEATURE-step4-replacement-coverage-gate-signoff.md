@@ -5,8 +5,8 @@ version: 9.3.4
 ticket: step4-replacement-coverage-gate-signoff
 status: ACCEPTED
 revalidation_required: true
-revalidation_status: ready-for-owner-signoff
-downstream_authority: suspended-pending-r38-foggy-projects-reacceptance
+revalidation_status: accepted-for-step5-rehearsal
+downstream_authority: restored-for-step5-rehearsal-only
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -121,7 +121,7 @@ remediation is `BUG-step4-addon-context-mtime-publication-order.md`.
 - This historical accepted record is not reactivated yet. A direct-child Cfreeze, fresh formal, and Step 5
   rehearsal were required before `foggy-projects` may re-confirm downstream feature authority.
 
-## r38 Revalidation Evidence Complete
+## r38 Revalidation Owner Acceptance
 
 - The authorized direct-child Cfreeze is
   62361688d838ba0a73348900502924decfbeeb68; fresh
@@ -129,11 +129,12 @@ remediation is `BUG-step4-addon-context-mtime-publication-order.md`.
   773+59/5707/F0E0S0 required union, Addon=2/6/F0E0S0, 23/48 execution inputs, high-water coverage,
   public receipt=0644, stable source seal, and cleanup=0/0/0.
 - New same-Cfreeze Pivot, independent final-quality, and r38 35+1 revalidation-audit records are complete.
-  The canonical remediation BUG is READY_FOR_SIGNOFF; see
+  The canonical remediation BUG is ACCEPTED; see
   BUG-step4-addon-context-mtime-publication-order.md.
-- This document's original r11 ACCEPTED marker is retained as history. It cannot authorize the changed runner;
-  downstream authority remains suspended until foggy-projects explicitly records a new r38 reacceptance.
-  Step 5 is hold, and Steps 6-7, 9.3.5, and 9.4.0 remain closed.
+- foggy-projects explicitly accepted the new r38 scope in
+  acceptance/step4-addon-context-revalidation-acceptance-20260720.md. This document's original r11 ACCEPTED
+  marker remains historical; the new record is the only restored authority for fresh Step 5 rehearsal.
+  Steps 6-7, 9.3.5, and 9.4.0 remain closed.
 
 ## Risks and Open Questions
 
@@ -197,4 +198,5 @@ remediation is `BUG-step4-addon-context-mtime-publication-order.md`.
   - `docs/9.3.4/evidence/step-4/step4-pivot-legacy-companion-r11-20260720.md`
   - `docs/9.3.4/quality/step4-formal-r11-final-implementation-quality-20260720.md`
   - `docs/9.3.4/coverage/step4-replacement-coverage-audit-20260720.md`
+  - `docs/9.3.4/acceptance/step4-addon-context-revalidation-acceptance-20260720.md`
   - `docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md`

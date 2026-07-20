@@ -2,11 +2,11 @@
 doc_type: bug-remediation
 version: 9.3.4
 ticket: step4-addon-context-mtime-publication-order
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 parent_feature: step4-replacement-coverage-gate-signoff
 authorization: ongoing approved 9.3.4 release-authority scope
 canonical: true
-revalidation_status: ready-for-owner-signoff
+revalidation_status: accepted-for-step5-rehearsal
 opened_at: 2026-07-20
 ---
 
@@ -34,8 +34,9 @@ opened_at: 2026-07-20
 
 该修复改变了正式 runner bytes，故 formal-r11 与其 feature acceptance 仅保留为历史证据，不能
 覆盖新 runner。必须完成新的 clean Cdiag → fresh diagnostic → candidate/independent review →
-direct-single-parent Cfreeze → fresh formal → Step 5 rehearsal 链路后，才可恢复 Step 4 downstream
-authority。
+direct-single-parent Cfreeze → fresh formal → owner reacceptance → fresh Step 5 rehearsal/portable replay
+链路后，才可恢复完整 downstream authority。r38 owner acceptance 只恢复 Step 5 的 fresh-entry
+authority，不预先打开 Step 6、Step 7、9.3.5 或 9.4.0。
 
 ## Verification Obligations
 
@@ -82,8 +83,8 @@ authority。
 
 ## Signoff Readiness
 
-- readiness: READY_FOR_SIGNOFF
-- owner_decision: pending explicit foggy-projects re-signoff for Cfreeze
+- readiness: ACCEPTED
+- owner_decision: explicit foggy-projects re-signoff accepted for Cfreeze
   62361688d838ba0a73348900502924decfbeeb68.
 - formal_evidence:
   [formal-r38](../evidence/step-4/step4-coverage-formal-r38-pass-20260720.md)
@@ -95,5 +96,10 @@ authority。
   [r38 replacement audit](../coverage/step4-replacement-coverage-audit-r38-20260720.md)
 - prerequisite:
   [owner-signoff prerequisite](../acceptance/step4-addon-context-revalidation-signoff-prerequisite-20260720.md)
-- acceptance_status: pending-owner-decision
-- downstream_authority: suspended pending owner signoff; Step 5, Steps 6-7, 9.3.5, and 9.4.0 remain closed.
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: foggy-projects
+- signed_off_at: 2026-07-20
+- acceptance_record:
+  ../acceptance/step4-addon-context-revalidation-acceptance-20260720.md
+- downstream_authority: restored for fresh Step 5 rehearsal only; Steps 6-7, 9.3.5, and 9.4.0 remain closed.

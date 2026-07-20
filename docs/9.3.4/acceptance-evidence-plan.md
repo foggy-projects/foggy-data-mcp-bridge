@@ -24,17 +24,17 @@ updated_at: 2026-07-20
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
 | confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；formal-r9/r30/r31 excluded；r29 capsule 无 Git-safe closure；r31 fixed-port precondition requires a new Cdiag and fresh r32 |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/r28/Cfreeze retained；formal-r8/r9 failure boundaries sealed；31st Step 4 workitem registered；Step 5–7 closed |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/r28/Cfreeze retained；formal-r8/r9 failure boundaries sealed；r38 revalidation accepted; Step 5 ready, Steps 6–7 closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / r29 non-freezable + r30/r31 exclusions / seal r31→new Cdiag→fresh r32 pending / Step 5–7 hold |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress; r38 revalidation accepted; Step 5 ready/not-started, Steps 6–7 closed |
 | test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9, r30 and r31 failure boundaries sealed；r29 facts cannot enter freeze without a Git-safe closure；fixed-port precondition/new chain pending |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–3 passed；formal-r8/r9/r30/r31 excluded；r29 non-freezable; fresh r32 diagnostic/formal/post-gates pending；Steps 5–6 closed |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–4 passed through r38 acceptance; historical failures remain excluded; Step 5 ready/not-started, Step 6 closed |
 | implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md` | formal-r9 recovery quality is `ready-for-new-Cdiag` only, not post-formal quality; new Cdiag and replacement post-formal quality pending |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` + `coverage/step4-replacement-coverage-audit-20260720.md` | historical Step 4 audit retained；replacement audit=`35/35` plus separate report-stage gate=`passed`; official feature acceptance remains blocked on a Step 4-scoped `READY_FOR_SIGNOFF` canonical delivery spec |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-replacement-coverage-audit-r38-20260720.md` | historical Step 4 audit retained；r38 audit=`35/35` plus separate report-stage gate=`passed`; canonical BUG acceptance is signed-off for Step 5 rehearsal only |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
-| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` + `acceptance/step4-coverage-gate-replacement-acceptance-20260720.md` | historical signed-off retained；replacement feature acceptance=`accepted`; Step 5=`ready / not-started` only |
+| Step 4 feature acceptance | `acceptance/step4-addon-context-revalidation-acceptance-20260720.md` + historical records | r38 BUG revalidation=`accepted`; r11 accepted records retained as history; Step 5=`ready / not-started` only |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | current README records r29 Git-safety hold; Step 5–7, 9.3.5 and 9.4.0 remain closed/queued |
+| roadmap/status sync | `README.md` + authoritative roadmap | current README records r38 accepted; Step 5 ready/not-started, Steps 6–7 and 9.3.5/9.4.0 remain closed/queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -728,7 +728,7 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - The formal acceptance decision and Step 5 entry remain blocked only on that canonical-signoff input, as
   recorded in `acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.
 
-## r38 Addon-context revalidation signoff prerequisite（2026-07-20）
+## r38 Addon-context revalidation accepted（2026-07-20）
 
 - The original r11 acceptance is retained as history, but the declared Addon successor runner changed to
   safely publish a child context no earlier than its authenticated Step 3 parent. It therefore cannot restore
@@ -736,6 +736,5 @@ quality→coverage audit→acceptance 顺序恢复 downstream entry。
 - Direct-child Cfreeze 62361688… and fresh formal-r38 now provide the sole formal authority. The formal
   result, same-Cfreeze Pivot companion, independent final quality, and new r38 35+1 audit are complete;
   critical/major evidence gaps are 0/0.
-- The canonical Addon remediation is READY_FOR_SIGNOFF. Acceptance remains pending an explicit
-  foggy-projects re-signoff, after which only Step 5 rehearsal may become ready/not-started. Steps 6-7,
-  9.3.5, and 9.4.0 remain closed.
+- The canonical Addon remediation is ACCEPTED by foggy-projects. The acceptance opens only fresh Step 5
+  rehearsal readiness; Steps 6-7, 9.3.5, and 9.4.0 remain closed.
