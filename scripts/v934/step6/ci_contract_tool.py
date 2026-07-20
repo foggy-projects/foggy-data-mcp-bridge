@@ -37,7 +37,7 @@ STEP4_DATABASE_AUTHORITY_MANIFEST = Path(
 )
 STEP5_TOOLING_MANIFEST = Path("scripts/v934/step5/SHA256SUMS")
 STEP5_TOOLING_MANIFEST_SHA256 = (
-    "ab06ad058ddfe226ada5250e0efcd731c39be71dd5c8e08c298c6e4ac9b2bc49"
+    "4f67d77a82e12bf5a4a36a2ae6e6b9802582faca10105e7c49207177f31c076b"
 )
 DATABASE_AUTHORITY_TOOL = Path(
     "scripts/v934/step4/successor/database_matrix_report_tool.py"

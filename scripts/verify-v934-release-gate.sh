@@ -465,7 +465,10 @@ require_env "$STEP4_STATUS" mode release
 require_env "$STEP4_STATUS" exit_code 0
 require_env "$STEP4_STATUS" status release-passed
 python3 "$STEP4_ARTIFACT_TOOL" verify-artifact \
-  --repo-root "$ROOT_DIR" --artifact "$STEP4_ROOT/final-manifest.json" \
+  --mode release \
+  --repo-root "$ROOT_DIR" \
+  --artifact "$STEP4_ROOT/final-manifest.json" \
+  --run-status "$STEP4_STATUS" \
   > "$RUN_ROOT/step4-final-verify.json"
 
 PHASE=package-tested-tree
