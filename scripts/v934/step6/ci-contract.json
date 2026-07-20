@@ -23,7 +23,7 @@
     ],
     "cardinality": 16,
     "step4_manifest": "scripts/v934/step4/SHA256SUMS",
-    "step4_manifest_sha256": "da4fd70a9547f0d89d7371a417f0910f0a57dd704f2951c391a04b97429fdd99",
+    "step4_manifest_sha256": "1dc3697d87a028ee9fc9c8a75f099cae6f81726b081bfef884cb5e20e9141d86",
     "step5_manifest": "scripts/v934/step5/SHA256SUMS",
     "step5_manifest_sha256": "fc7bebee572bbeac561054e6430b091f04b96a4c2b3d0193c325edfa4a421917",
     "policy": "exact-path-order-and-byte-digest"
