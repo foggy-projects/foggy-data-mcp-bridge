@@ -90,6 +90,117 @@ PACKAGE_OUTPUT_NAMES = (
     PACKAGE_MANIFEST_NAME,
     VALIDATOR_LOG_NAME,
 )
+FAILURE_RECEIPT_NAME = "package-tested-tree-failure.env"
+FAILURE_RECEIPT_FIELDS = (
+    "schema_version",
+    "kind",
+    "run_id",
+    "gate_phase",
+    "operation",
+    "subphase",
+    "error_code",
+    "tool_exit_code",
+    "status",
+)
+FAILURE_RECEIPT_KIND = "v934-package-subphase-failure"
+FAILURE_RECEIPT_GATE_PHASE = "package-tested-tree"
+FAILURE_RECEIPT_OPERATIONS = ("package", "verify")
+PACKAGE_FAILURE_SUBPHASES = (
+    "package-preflight",
+    "package-maven-reactor",
+    "package-maven-launcher-jar",
+    "package-image",
+    "package-postconditions",
+    "package-manifest",
+    "package-internal-verify",
+)
+VERIFY_FAILURE_SUBPHASES = ("verify-package",)
+FAILURE_RECEIPT_ERROR_CODES = frozenset(
+    {
+        "E_BASE_CONFIG_DIGEST",
+        "E_BASE_FROM",
+        "E_BASE_IMAGE",
+        "E_BASE_INDEX_DIGEST",
+        "E_BASE_INDEX_REFERENCE",
+        "E_BASE_MANIFEST_DIGEST",
+        "E_BASE_PINNED_REFERENCE",
+        "E_BASE_PLATFORM",
+        "E_BASE_TAG_REFERENCE",
+        "E_CLASS_TREE",
+        "E_COMMAND",
+        "E_CONTEXT_CLEANUP",
+        "E_CONTEXT_POLICY",
+        "E_DIRECTORY",
+        "E_DOCKERFILE",
+        "E_FAILURE_RECEIPT",
+        "E_FILE",
+        "E_FILE_MISSING",
+        "E_FILE_RACE",
+        "E_FILE_SIZE",
+        "E_FREEZE",
+        "E_GIT",
+        "E_IMAGE",
+        "E_IMAGE_CLEANUP",
+        "E_IMAGE_DRIFT",
+        "E_IMAGE_MANIFEST",
+        "E_INTERNAL",
+        "E_JAR_CARDINALITY",
+        "E_JAR_CLASS_TREE",
+        "E_JAR_DRIFT",
+        "E_JAR_ENTRY",
+        "E_JAR_LIBRARY",
+        "E_JAR_MANIFEST",
+        "E_JAR_ZIP",
+        "E_JSON",
+        "E_JSON_DUPLICATE",
+        "E_MANIFEST",
+        "E_MANIFEST_NAME",
+        "E_MAVEN_CONFIG",
+        "E_MAVEN_ENV",
+        "E_MAVEN_GOAL",
+        "E_MAVEN_POLICY",
+        "E_MAVEN_SELECTOR",
+        "E_MAVEN_SKIP",
+        "E_MAVEN_TOOLCHAIN",
+        "E_NEGATIVE",
+        "E_OUTPUT",
+        "E_OUTPUT_CONTRACT",
+        "E_OUTPUT_EXISTS",
+        "E_OUTPUT_NAMES",
+        "E_OUTPUT_RACE",
+        "E_PATH",
+        "E_POM",
+        "E_QUARANTINE",
+        "E_REACTOR_MODULES",
+        "E_RECEIPT_DRIFT",
+        "E_REPORT_DRIFT",
+        "E_REPORT_INVENTORY",
+        "E_REPORT_TREE",
+        "E_RUN_ID",
+        "E_SIGNAL",
+        "E_SOURCE_DRIFT",
+        "E_SOURCE_SEAL",
+        "E_SPECIAL",
+        "E_STEP4",
+        "E_STEP4_BINDING",
+        "E_STEP4_CONTEXT",
+        "E_STEP4_DRIFT",
+        "E_STEP4_FINAL",
+        "E_STEP4_IDENTITY",
+        "E_STEP4_RELEASE_VERIFY",
+        "E_STEP4_ROOT",
+        "E_STEP4_STATUS",
+        "E_STEP4_SUMMARY",
+        "E_SUCCESSOR_MARKER",
+        "E_SYMLINK",
+        "E_TESTED_TREE",
+        "E_TESTED_TREE_DRIFT",
+        "E_TOOL",
+        "E_TREE",
+        "E_VERIFY_PATH",
+        "E_XML_TOOL",
+    }
+)
 
 
 class PackageError(RuntimeError):
@@ -97,6 +208,23 @@ class PackageError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+@dataclass
+class FailureReceiptContext:
+    path: Path
+    run_id: str
+    operation: str
+    subphase: str
+
+    def set_subphase(self, value: str) -> None:
+        allowed = (
+            PACKAGE_FAILURE_SUBPHASES
+            if self.operation == "package"
+            else VERIFY_FAILURE_SUBPHASES
+        )
+        require(value in allowed, "E_FAILURE_RECEIPT", "failure receipt subphase differs")
+        self.subphase = value
 
 
 def reject(code: str, message: str) -> None:
@@ -362,6 +490,273 @@ def write_new(path: Path, data: bytes, mode: int = 0o644) -> None:
             temporary.unlink()
 
 
+def failure_receipt_target(path: Path, *, package_root: Path | None = None) -> Path:
+    absolute = Path(os.path.abspath(path))
+    require(
+        absolute.name == FAILURE_RECEIPT_NAME,
+        "E_FAILURE_RECEIPT",
+        "failure receipt name differs",
+    )
+    if package_root is not None:
+        output = Path(os.path.abspath(package_root))
+        try:
+            absolute.relative_to(output)
+        except ValueError:
+            pass
+        else:
+            reject(
+                "E_FAILURE_RECEIPT",
+                "failure receipt must be outside the durable package directory",
+            )
+        require(
+            absolute.parent == output.parent,
+            "E_FAILURE_RECEIPT",
+            "failure receipt is not in the package run root",
+        )
+    real_directory(absolute.parent, "failure receipt parent")
+    return absolute
+
+
+def failure_receipt_subphases(operation: str) -> tuple[str, ...]:
+    require(
+        operation in FAILURE_RECEIPT_OPERATIONS,
+        "E_FAILURE_RECEIPT",
+        "failure receipt operation differs",
+    )
+    return (
+        PACKAGE_FAILURE_SUBPHASES
+        if operation == "package"
+        else VERIFY_FAILURE_SUBPHASES
+    )
+
+
+def failure_receipt_bytes(
+    *,
+    run_id: str,
+    operation: str,
+    subphase: str,
+    error_code: str,
+    tool_exit_code: int,
+) -> bytes:
+    safe_run_id(run_id)
+    require(
+        operation in FAILURE_RECEIPT_OPERATIONS,
+        "E_FAILURE_RECEIPT",
+        "failure receipt operation differs",
+    )
+    require(
+        subphase in failure_receipt_subphases(operation),
+        "E_FAILURE_RECEIPT",
+        "failure receipt subphase differs",
+    )
+    require(
+        error_code in FAILURE_RECEIPT_ERROR_CODES,
+        "E_FAILURE_RECEIPT",
+        "failure receipt error code differs",
+    )
+    require(
+        type(tool_exit_code) is int and 1 <= tool_exit_code <= 255,
+        "E_FAILURE_RECEIPT",
+        "failure receipt exit code differs",
+    )
+    values = (
+        ("schema_version", "1"),
+        ("kind", FAILURE_RECEIPT_KIND),
+        ("run_id", run_id),
+        ("gate_phase", FAILURE_RECEIPT_GATE_PHASE),
+        ("operation", operation),
+        ("subphase", subphase),
+        ("error_code", error_code),
+        ("tool_exit_code", str(tool_exit_code)),
+        ("status", "failed"),
+    )
+    require(
+        tuple(key for key, _ in values) == FAILURE_RECEIPT_FIELDS,
+        "E_FAILURE_RECEIPT",
+        "failure receipt field order differs",
+    )
+    return ("".join(f"{key}={value}\n" for key, value in values)).encode("ascii")
+
+
+def publish_failure_receipt(
+    context: FailureReceiptContext,
+    *,
+    error_code: str,
+    tool_exit_code: int,
+) -> None:
+    write_new(
+        context.path,
+        failure_receipt_bytes(
+            run_id=context.run_id,
+            operation=context.operation,
+            subphase=context.subphase,
+            error_code=error_code,
+            tool_exit_code=tool_exit_code,
+        ),
+    )
+
+
+def read_failure_receipt(
+    path: Path,
+    *,
+    run_id: str,
+    operation: str,
+    tool_exit_code: int | None = None,
+    package_root: Path | None = None,
+) -> dict[str, str]:
+    try:
+        receipt = failure_receipt_target(path, package_root=package_root)
+        raw = secure_bytes(receipt, "package failure receipt", 4096)
+        require(raw.endswith(b"\n") and b"\r" not in raw, "E_FAILURE_RECEIPT", "failure receipt line ending differs")
+        text = raw.decode("ascii")
+        lines = text[:-1].split("\n")
+        require(
+            len(lines) == len(FAILURE_RECEIPT_FIELDS),
+            "E_FAILURE_RECEIPT",
+            "failure receipt field count differs",
+        )
+        values: dict[str, str] = {}
+        for key, line in zip(FAILURE_RECEIPT_FIELDS, lines, strict=True):
+            require(line.count("=") == 1, "E_FAILURE_RECEIPT", "failure receipt line differs")
+            actual_key, value = line.split("=", 1)
+            require(actual_key == key and key not in values, "E_FAILURE_RECEIPT", "failure receipt field order differs")
+            values[key] = value
+        require(values["schema_version"] == "1", "E_FAILURE_RECEIPT", "failure receipt schema differs")
+        require(values["kind"] == FAILURE_RECEIPT_KIND, "E_FAILURE_RECEIPT", "failure receipt kind differs")
+        require(values["run_id"] == safe_run_id(run_id), "E_FAILURE_RECEIPT", "failure receipt run id differs")
+        require(values["gate_phase"] == FAILURE_RECEIPT_GATE_PHASE, "E_FAILURE_RECEIPT", "failure receipt gate phase differs")
+        require(values["operation"] == operation, "E_FAILURE_RECEIPT", "failure receipt operation differs")
+        require(
+            values["subphase"] in failure_receipt_subphases(operation),
+            "E_FAILURE_RECEIPT",
+            "failure receipt subphase differs",
+        )
+        require(
+            values["error_code"] in FAILURE_RECEIPT_ERROR_CODES,
+            "E_FAILURE_RECEIPT",
+            "failure receipt error code differs",
+        )
+        exit_code = values["tool_exit_code"]
+        require(
+            re.fullmatch(r"[1-9][0-9]{0,2}", exit_code) is not None
+            and 1 <= int(exit_code) <= 255,
+            "E_FAILURE_RECEIPT",
+            "failure receipt exit code differs",
+        )
+        if tool_exit_code is not None:
+            require(
+                type(tool_exit_code) is int
+                and 1 <= tool_exit_code <= 255
+                and int(exit_code) == tool_exit_code,
+                "E_FAILURE_RECEIPT",
+                "failure receipt exit code differs",
+            )
+        require(values["status"] == "failed", "E_FAILURE_RECEIPT", "failure receipt status differs")
+        return values
+    except PackageError as exc:
+        if exc.code == "E_FAILURE_RECEIPT":
+            raise
+        reject("E_FAILURE_RECEIPT", "failure receipt is invalid")
+    except (UnicodeDecodeError, ValueError):
+        reject("E_FAILURE_RECEIPT", "failure receipt is invalid")
+
+
+def failure_receipt_error_code(exc: PackageError) -> str:
+    return (
+        exc.code
+        if exc.code in FAILURE_RECEIPT_ERROR_CODES and exc.code != "E_SIGNAL"
+        else "E_INTERNAL"
+    )
+
+
+def failure_receipt_context(args: argparse.Namespace) -> FailureReceiptContext | None:
+    value = getattr(args, "failure_receipt", None)
+    if value is None:
+        return None
+    operation = getattr(args, "command", "")
+    require(
+        operation in FAILURE_RECEIPT_OPERATIONS,
+        "E_FAILURE_RECEIPT",
+        "failure receipt command differs",
+    )
+    run_id = getattr(args, "run_id", None)
+    require(type(run_id) is str, "E_FAILURE_RECEIPT", "failure receipt run id is absent")
+    safe_run_id(run_id)
+    path = failure_receipt_target(
+        value,
+        package_root=(
+            args.output_dir
+            if operation == "package"
+            else args.manifest.parent
+        ),
+    )
+    return FailureReceiptContext(
+        path=path,
+        run_id=run_id,
+        operation=operation,
+        subphase=("package-preflight" if operation == "package" else "verify-package"),
+    )
+
+
+def execute_with_failure_receipt(
+    context: FailureReceiptContext,
+    action: Callable[[], dict[str, Any]],
+) -> tuple[dict[str, Any] | None, int]:
+    try:
+        return action(), 0
+    except PackageError as exc:
+        try:
+            publish_failure_receipt(
+                context,
+                error_code=failure_receipt_error_code(exc),
+                tool_exit_code=1,
+            )
+        except BaseException:
+            pass
+        return None, 1
+    except KeyboardInterrupt:
+        try:
+            publish_failure_receipt(
+                context,
+                error_code="E_SIGNAL",
+                tool_exit_code=130,
+            )
+        except BaseException:
+            pass
+        return None, 130
+    except BaseException:
+        try:
+            publish_failure_receipt(
+                context,
+                error_code="E_INTERNAL",
+                tool_exit_code=1,
+            )
+        except BaseException:
+            pass
+        return None, 1
+
+
+def verify_failure_receipt_command(args: argparse.Namespace) -> dict[str, Any]:
+    values = read_failure_receipt(
+        args.failure_receipt,
+        run_id=args.run_id,
+        operation=args.operation,
+        tool_exit_code=args.tool_exit_code,
+        package_root=args.package_root,
+    )
+    return {
+        "command": "verify-failure-receipt",
+        "error_code": values["error_code"],
+        "gate_phase": values["gate_phase"],
+        "operation": values["operation"],
+        "receipt": "valid",
+        "run_id": values["run_id"],
+        "status": values["status"],
+        "subphase": values["subphase"],
+        "tool_exit_code": int(values["tool_exit_code"]),
+    }
+
+
 def create_output(path: Path) -> Path:
     absolute = Path(os.path.abspath(path))
     require(not absolute.exists() and not absolute.is_symlink(), "E_OUTPUT_EXISTS", f"output exists: {absolute}")
@@ -372,6 +767,122 @@ def create_output(path: Path) -> Path:
         reject("E_OUTPUT", f"cannot create output directory: {exc}")
     fsync_directory(absolute.parent, "output directory parent after creation")
     return real_directory(absolute, "output directory")
+
+
+def cleanup_flat_directory(path: Path, label: str) -> None:
+    directory = real_directory(path, label)
+    parent = real_directory(directory.parent, f"{label} parent")
+    try:
+        children = sorted(os.scandir(directory), key=lambda child: child.name.encode("utf-8"))
+    except OSError as exc:
+        reject("E_OUTPUT", f"cannot scan {label}: {exc}")
+    for child in children:
+        try:
+            observed = child.stat(follow_symlinks=False)
+        except OSError as exc:
+            reject("E_OUTPUT", f"cannot stat {label} entry: {exc}")
+        require(
+            not stat.S_ISDIR(observed.st_mode),
+            "E_OUTPUT",
+            f"{label} contains an unexpected directory",
+        )
+        try:
+            os.unlink(child.path)
+        except OSError as exc:
+            reject("E_OUTPUT", f"cannot remove {label} entry: {exc}")
+    fsync_directory(directory, f"{label} before removal")
+    try:
+        directory.rmdir()
+    except OSError as exc:
+        reject("E_OUTPUT", f"cannot remove {label}: {exc}")
+    fsync_directory(parent, f"{label} parent after removal")
+
+
+def link_regular_no_replace(source: Path, destination: Path, label: str) -> None:
+    require(
+        not destination.exists() and not destination.is_symlink(),
+        "E_OUTPUT_EXISTS",
+        f"output exists: {destination}",
+    )
+    descriptor, before = secure_open(source, label)
+    try:
+        try:
+            os.link(source, destination, follow_symlinks=False)
+        except FileExistsError:
+            reject("E_OUTPUT_EXISTS", f"output appeared before publication: {destination}")
+        except OSError as exc:
+            reject("E_OUTPUT", f"cannot publish {label}: {exc}")
+        after = os.fstat(descriptor)
+        current = os.lstat(Path(os.path.abspath(source)))
+        published = os.lstat(destination)
+        require(
+            (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            == (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns),
+            "E_FILE_RACE",
+            f"{label} changed while published",
+        )
+        require(
+            after.st_nlink == before.st_nlink + 1
+            and current.st_nlink == after.st_nlink
+            and stat.S_ISREG(published.st_mode)
+            and (published.st_dev, published.st_ino, published.st_size, published.st_mtime_ns)
+            == (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            and published.st_nlink == after.st_nlink,
+            "E_OUTPUT",
+            f"published {label} identity differs",
+        )
+        fsync_directory(destination.parent, "durable package directory after file publication")
+    finally:
+        os.close(descriptor)
+
+
+def create_receipt_package_staging(final_output: Path) -> Path:
+    final = Path(os.path.abspath(final_output))
+    require(
+        not final.exists() and not final.is_symlink(),
+        "E_OUTPUT_EXISTS",
+        f"output exists: {final}",
+    )
+    run_root = real_directory(final.parent, "receipt package run root")
+    staging_parent = real_directory(run_root.parent, "receipt package staging parent")
+    try:
+        name = tempfile.mkdtemp(prefix=f".{final.name}-receipt-staging-", dir=staging_parent)
+    except OSError as exc:
+        reject("E_OUTPUT", f"cannot create receipt package staging directory: {exc}")
+    return real_directory(Path(name), "receipt package staging directory")
+
+
+def publish_staged_package(staging: Path, final_output: Path) -> Path:
+    source = real_directory(staging, "receipt package staging directory")
+    validate_package_output(source)
+    destination: Path | None = None
+    try:
+        destination = create_output(final_output)
+        for name in PACKAGE_OUTPUT_NAMES:
+            link_regular_no_replace(
+                source / name,
+                destination / name,
+                f"staged durable package file {name}",
+            )
+        validate_package_output(destination)
+        cleanup_flat_directory(source, "receipt package staging directory")
+        return destination
+    except BaseException as primary_error:
+        cleanup_error: BaseException | None = None
+        if destination is not None and (destination.exists() or destination.is_symlink()):
+            try:
+                cleanup_flat_directory(destination, "partial durable package directory")
+            except BaseException as exc:
+                cleanup_error = exc
+        if cleanup_error is not None:
+            if isinstance(primary_error, KeyboardInterrupt):
+                raise primary_error
+            raise PackageError(
+                "E_OUTPUT",
+                "partial durable package cleanup failed",
+            ) from cleanup_error
+        raise primary_error
 
 
 def validate_package_output(directory: Path) -> dict[str, Any]:
@@ -1112,12 +1623,35 @@ def maven_commands(modules: Sequence[str]) -> list[list[str]]:
     return [all_modules, launcher]
 
 
-def run_logged(command: Sequence[str], root: Path, stream: Any, label: str) -> None:
+def run_logged(
+    command: Sequence[str],
+    root: Path,
+    stream: Any,
+    label: str,
+    *,
+    receipt_safe: bool = False,
+) -> None:
     validate_maven_environment(os.environ)
-    stream.write((json.dumps({"label": label, "argv": list(command)}, separators=(",", ":")) + "\n").encode())
+    if receipt_safe:
+        stream.write(
+            (
+                json.dumps(
+                    {"label": label, "terminal_output": "suppressed"},
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode()
+        )
+    else:
+        stream.write((json.dumps({"label": label, "argv": list(command)}, separators=(",", ":")) + "\n").encode())
     stream.flush()
     try:
-        process = subprocess.run(list(command), cwd=root, stdout=stream, stderr=subprocess.STDOUT)
+        process = subprocess.run(
+            list(command),
+            cwd=root,
+            stdout=subprocess.DEVNULL if receipt_safe else stream,
+            stderr=subprocess.DEVNULL if receipt_safe else subprocess.STDOUT,
+        )
     except OSError as exc:
         reject("E_COMMAND", f"cannot start {label}: {exc}")
     stream.write((json.dumps({"label": label, "exit_code": process.returncode}, separators=(",", ":")) + "\n").encode())
@@ -1902,7 +2436,14 @@ def inspect_runtime_base_image(root: Path) -> dict[str, Any]:
     return runtime_base_identity()
 
 
-def docker_image(root: Path, output: Path, run_id: str, jar: dict[str, Any]) -> dict[str, Any]:
+def docker_image(
+    root: Path,
+    output: Path,
+    run_id: str,
+    jar: dict[str, Any],
+    *,
+    receipt_safe: bool = False,
+) -> dict[str, Any]:
     dockerfile = validate_dockerfile(root)
     slug = re.sub(r"[^a-z0-9_.-]+", "-", run_id.lower()).strip("-.")[:50] or "run"
     token = secrets.token_hex(6)
@@ -1952,6 +2493,7 @@ def docker_image(root: Path, output: Path, run_id: str, jar: dict[str, Any]) -> 
                     root,
                     log,
                     "runtime-only Docker image build",
+                    receipt_safe=receipt_safe,
                 )
                 build_completed = True
                 base_image = inspect_runtime_base_image(root)
@@ -1967,6 +2509,7 @@ def docker_image(root: Path, output: Path, run_id: str, jar: dict[str, Any]) -> 
                     root,
                     log,
                     "Docker readback container create",
+                    receipt_safe=receipt_safe,
                 )
                 created = True
                 require(
@@ -1979,6 +2522,7 @@ def docker_image(root: Path, output: Path, run_id: str, jar: dict[str, Any]) -> 
                     root,
                     log,
                     "Docker embedded JAR readback",
+                    receipt_safe=receipt_safe,
                 )
                 embedded = file_identity(readback, "image embedded /app/app.jar")
                 readback.unlink()
@@ -2004,9 +2548,13 @@ def docker_image(root: Path, output: Path, run_id: str, jar: dict[str, Any]) -> 
                         process = subprocess.run(
                             ["docker", "rm", "--force", container],
                             cwd=root,
-                            stdout=log,
-                            stderr=subprocess.STDOUT,
+                            stdout=subprocess.DEVNULL if receipt_safe else log,
+                            stderr=subprocess.DEVNULL if receipt_safe else subprocess.STDOUT,
                         )
+                        if receipt_safe:
+                            log.write(
+                                (json.dumps({"label": "Docker readback container cleanup", "exit_code": process.returncode}, separators=(",", ":")) + "\n").encode()
+                            )
                         if process.returncode != 0:
                             cleanup_errors.append("container-remove")
                     except OSError:
@@ -2015,9 +2563,13 @@ def docker_image(root: Path, output: Path, run_id: str, jar: dict[str, Any]) -> 
                     process = subprocess.run(
                         ["docker", "image", "rm", "--force", tag],
                         cwd=root,
-                        stdout=log,
-                        stderr=subprocess.STDOUT,
+                        stdout=subprocess.DEVNULL if receipt_safe else log,
+                        stderr=subprocess.DEVNULL if receipt_safe else subprocess.STDOUT,
                     )
+                    if receipt_safe:
+                        log.write(
+                            (json.dumps({"label": "Docker image cleanup", "exit_code": process.returncode}, separators=(",", ":")) + "\n").encode()
+                        )
                     if (build_completed or image_id) and process.returncode != 0:
                         cleanup_errors.append("image-remove")
                 except OSError:
@@ -2094,7 +2646,13 @@ def docker_image(root: Path, output: Path, run_id: str, jar: dict[str, Any]) -> 
     return result
 
 
-def package_command(args: argparse.Namespace) -> dict[str, Any]:
+def package_command_impl(
+    args: argparse.Namespace,
+    failure_context: FailureReceiptContext | None = None,
+    *,
+    output_dir: Path | None = None,
+    output_is_precreated: bool = False,
+) -> dict[str, Any]:
     validate_maven_environment(os.environ)
     root = repo_root(args.repo_root)
     run_id = safe_run_id(args.run_id)
@@ -2107,7 +2665,12 @@ def package_command(args: argparse.Namespace) -> dict[str, Any]:
     report_validation_before = validate_report_inventory(root, authority)
     tested_tree_before = tested_tree_snapshot(root, modules)
     reports_before = report_snapshot(root, modules)
-    output = create_output(args.output_dir)
+    requested_output = args.output_dir if output_dir is None else output_dir
+    output = (
+        real_directory(requested_output, "receipt package staging directory")
+        if output_is_precreated
+        else create_output(requested_output)
+    )
     write_new(
         output / VALIDATOR_LOG_NAME,
         (class_validation_before + report_validation_before).encode("utf-8"),
@@ -2128,11 +2691,27 @@ def package_command(args: argparse.Namespace) -> dict[str, Any]:
         launcher_quarantine = LauncherQuarantine.create(root / LAUNCHER / "target")
         try:
             with open(output / MAVEN_LOG_NAME, "xb") as log:
-                run_logged(commands[0], root, log, "all frozen modules jar/install")
+                if failure_context is not None:
+                    failure_context.set_subphase("package-maven-reactor")
+                run_logged(
+                    commands[0],
+                    root,
+                    log,
+                    "all frozen modules jar/install",
+                    receipt_safe=failure_context is not None,
+                )
                 reactor_artifacts = capture_reactor_artifacts(
                     root, runtime_descriptors, tested_tree_before
                 )
-                run_logged(commands[1], root, log, "Launcher jar/repackage")
+                if failure_context is not None:
+                    failure_context.set_subphase("package-maven-launcher-jar")
+                run_logged(
+                    commands[1],
+                    root,
+                    log,
+                    "Launcher jar/repackage",
+                    receipt_safe=failure_context is not None,
+                )
                 reactor_artifacts_after = capture_reactor_artifacts(
                     root, runtime_descriptors, tested_tree_before
                 )
@@ -2159,7 +2738,17 @@ def package_command(args: argparse.Namespace) -> dict[str, Any]:
     finally:
         reactor_cleanup = reactor_quarantine.restore()
     assert jar_audit is not None and launcher_cleanup is not None and reactor_cleanup is not None
-    image = docker_image(root, output, run_id, jar_audit)
+    if failure_context is not None:
+        failure_context.set_subphase("package-image")
+    image = docker_image(
+        root,
+        output,
+        run_id,
+        jar_audit,
+        receipt_safe=failure_context is not None,
+    )
+    if failure_context is not None:
+        failure_context.set_subphase("package-postconditions")
     maven_log_binding = binding(
         output / MAVEN_LOG_NAME,
         relative_to=output,
@@ -2256,8 +2845,17 @@ def package_command(args: argparse.Namespace) -> dict[str, Any]:
             "status": "exact",
         },
     }
+    if failure_context is not None:
+        failure_context.set_subphase("package-manifest")
     write_new(output / PACKAGE_MANIFEST_NAME, canonical_json(manifest))
-    verified = verify_package(root, output / PACKAGE_MANIFEST_NAME, output / APP_JAR_NAME)
+    if failure_context is not None:
+        failure_context.set_subphase("package-internal-verify")
+    verified = verify_package(
+        root,
+        output / PACKAGE_MANIFEST_NAME,
+        output / APP_JAR_NAME,
+        expected_run_id=run_id,
+    )
     return {
         "command": "package",
         "status": "passed",
@@ -2271,6 +2869,46 @@ def package_command(args: argparse.Namespace) -> dict[str, Any]:
         "image_manifest_sha256": image_manifest_binding["sha256"],
         "verified": verified["status"] == "passed",
     }
+
+
+def package_command(
+    args: argparse.Namespace,
+    failure_context: FailureReceiptContext | None = None,
+) -> dict[str, Any]:
+    if failure_context is None:
+        return package_command_impl(args)
+    staging = create_receipt_package_staging(args.output_dir)
+    primary_error: BaseException | None = None
+    try:
+        result = package_command_impl(
+            args,
+            failure_context,
+            output_dir=staging,
+            output_is_precreated=True,
+        )
+        # Final publication is the durable package-manifest boundary.  Keep the
+        # receipt inside the approved enum even though all construction and
+        # internal verification completed in the isolated staging directory.
+        failure_context.set_subphase("package-manifest")
+        published = publish_staged_package(staging, args.output_dir)
+        result["output_dir"] = str(published)
+        return result
+    except BaseException as exc:
+        primary_error = exc
+        raise
+    finally:
+        if staging.exists() or staging.is_symlink():
+            try:
+                cleanup_flat_directory(staging, "receipt package staging directory")
+            except BaseException as cleanup_error:
+                if primary_error is None:
+                    raise
+                if isinstance(primary_error, KeyboardInterrupt):
+                    raise primary_error
+                raise PackageError(
+                    "E_OUTPUT",
+                    "receipt package staging cleanup failed",
+                ) from cleanup_error
 
 
 def validate_manifest_binding_shape(value: Any, path: str, label: str) -> dict[str, Any]:
@@ -2551,7 +3189,28 @@ def validate_source_seal_shape(value: Any, label: str) -> dict[str, Any]:
     return row
 
 
-def verify_package(root: Path, manifest_path: Path, jar_path: Path) -> dict[str, Any]:
+def validate_package_run_id(
+    value: Any,
+    expected_run_id: str | None = None,
+) -> str:
+    require(type(value) is str, "E_MANIFEST", "package run id is not a string")
+    observed = safe_run_id(value)
+    if expected_run_id is not None:
+        require(
+            observed == safe_run_id(expected_run_id),
+            "E_RUN_ID",
+            "package run id differs from the expected gate run",
+        )
+    return observed
+
+
+def verify_package(
+    root: Path,
+    manifest_path: Path,
+    jar_path: Path,
+    *,
+    expected_run_id: str | None = None,
+) -> dict[str, Any]:
     manifest_file = Path(os.path.abspath(manifest_path))
     jar_file = Path(os.path.abspath(jar_path))
     require(manifest_file.name == PACKAGE_MANIFEST_NAME and jar_file.name == APP_JAR_NAME, "E_VERIFY_PATH", "durable package file names differ")
@@ -2573,8 +3232,7 @@ def verify_package(root: Path, manifest_path: Path, jar_path: Path) -> dict[str,
     )
     require(manifest["schema_version"] == 4 and type(manifest["schema_version"]) is int, "E_MANIFEST", "package schema differs")
     require(manifest["kind"] == "v934-tested-output-tree-package" and manifest["status"] == "passed", "E_MANIFEST", "package identity/status differs")
-    require(type(manifest["run_id"]) is str, "E_MANIFEST", "package run id is not a string")
-    safe_run_id(manifest["run_id"])
+    validate_package_run_id(manifest["run_id"], expected_run_id)
     require(type(manifest["git_head"]) is str and HEX40.fullmatch(manifest["git_head"]), "E_MANIFEST", "package HEAD differs")
     modules, freeze = frozen_modules(root)
     reactor = exact_keys(manifest["reactor"], ("module_count", "modules", "contract_freeze"), "E_MANIFEST", "reactor")
@@ -2834,6 +3492,19 @@ def expect_failure(name: str, code: str, action: Callable[[], None]) -> dict[str
     reject("E_NEGATIVE", f"negative {name} unexpectedly passed")
 
 
+def expect_signal(name: str, action: Callable[[], None]) -> dict[str, str]:
+    try:
+        action()
+    except KeyboardInterrupt:
+        return {
+            "case": name,
+            "expected": "E_SIGNAL",
+            "actual": "E_SIGNAL",
+            "status": "passed",
+        }
+    reject("E_NEGATIVE", f"negative {name} unexpectedly passed")
+
+
 def negative_command(args: argparse.Namespace) -> dict[str, Any]:
     root = repo_root(args.repo_root)
     frozen_modules(root)
@@ -2957,6 +3628,661 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
     )
     with tempfile.TemporaryDirectory(prefix="v934-package-negative-") as temporary_name:
         temporary = Path(temporary_name)
+        receipt_root = temporary / "failure-receipts"
+        receipt_root.mkdir()
+        receipt_path = receipt_root / FAILURE_RECEIPT_NAME
+        receipt_context = FailureReceiptContext(
+            path=receipt_path,
+            run_id="synthetic-receipt",
+            operation="package",
+            subphase="package-preflight",
+        )
+        cases.append(
+            expect_failure(
+                "missing-failure-receipt",
+                "E_FAILURE_RECEIPT",
+                lambda: read_failure_receipt(
+                    receipt_path,
+                    run_id="synthetic-receipt",
+                    operation="package",
+                ),
+            )
+        )
+        for operation, subphases in (
+            ("package", PACKAGE_FAILURE_SUBPHASES),
+            ("verify", VERIFY_FAILURE_SUBPHASES),
+        ):
+            for subphase in subphases:
+                payload = failure_receipt_bytes(
+                    run_id="synthetic-receipt",
+                    operation=operation,
+                    subphase=subphase,
+                    error_code="E_COMMAND",
+                    tool_exit_code=1,
+                )
+                require(
+                    b"fixture-only-raw-message-sentinel" not in payload,
+                    "E_NEGATIVE",
+                    "failure receipt payload exposed synthetic raw detail",
+                )
+        cases.append(
+            {
+                "case": "failure-receipt-subphase-enums",
+                "expected": "all-allowed",
+                "actual": "all-allowed",
+                "status": "passed",
+            }
+        )
+        publish_failure_receipt(
+            receipt_context,
+            error_code="E_COMMAND",
+            tool_exit_code=1,
+        )
+        valid_failure_receipt = read_failure_receipt(
+            receipt_path,
+            run_id="synthetic-receipt",
+            operation="package",
+            tool_exit_code=1,
+        )
+        require(
+            valid_failure_receipt["subphase"] == "package-preflight",
+            "E_NEGATIVE",
+            "synthetic failure receipt subphase differs",
+        )
+        cases.append(
+            expect_failure(
+                "failure-receipt-process-exit-mismatch",
+                "E_FAILURE_RECEIPT",
+                lambda: read_failure_receipt(
+                    receipt_path,
+                    run_id="synthetic-receipt",
+                    operation="package",
+                    tool_exit_code=2,
+                ),
+            )
+        )
+        require(
+            validate_package_run_id("synthetic-receipt", "synthetic-receipt")
+            == "synthetic-receipt",
+            "E_NEGATIVE",
+            "synthetic verify run-id binding did not accept an exact match",
+        )
+        cases.append(
+            expect_failure(
+                "verify-manifest-run-id-mismatch",
+                "E_RUN_ID",
+                lambda: validate_package_run_id(
+                    "synthetic-receipt",
+                    "other-synthetic-receipt",
+                ),
+            )
+        )
+        safe_failure_result = verify_failure_receipt_command(
+            argparse.Namespace(
+                failure_receipt=receipt_path,
+                run_id="synthetic-receipt",
+                operation="package",
+                tool_exit_code=1,
+                package_root=receipt_root / "package",
+            )
+        )
+        require(
+            set(safe_failure_result)
+            == {
+                "command",
+                "error_code",
+                "gate_phase",
+                "operation",
+                "receipt",
+                "run_id",
+                "status",
+                "subphase",
+                "tool_exit_code",
+            },
+            "E_NEGATIVE",
+            "safe failure receipt result fields differ",
+        )
+        malformed_receipt = receipt_root / "malformed" / FAILURE_RECEIPT_NAME
+        malformed_receipt.parent.mkdir()
+        malformed_receipt.write_bytes(
+            failure_receipt_bytes(
+                run_id="synthetic-receipt",
+                operation="package",
+                subphase="package-preflight",
+                error_code="E_COMMAND",
+                tool_exit_code=1,
+            ).replace(b"kind=" + FAILURE_RECEIPT_KIND.encode("ascii"), b"gate_phase=forged", 1)
+        )
+        cases.append(
+            expect_failure(
+                "malformed-failure-receipt-order",
+                "E_FAILURE_RECEIPT",
+                lambda: read_failure_receipt(
+                    malformed_receipt,
+                    run_id="synthetic-receipt",
+                    operation="package",
+                ),
+            )
+        )
+        duplicate_receipt = receipt_root / "duplicate" / FAILURE_RECEIPT_NAME
+        duplicate_receipt.parent.mkdir()
+        duplicate_receipt.write_bytes(
+            failure_receipt_bytes(
+                run_id="synthetic-receipt",
+                operation="package",
+                subphase="package-preflight",
+                error_code="E_COMMAND",
+                tool_exit_code=1,
+            ).replace(b"tool_exit_code=1", b"error_code=E_COMMAND", 1)
+        )
+        cases.append(
+            expect_failure(
+                "duplicate-failure-receipt-key",
+                "E_FAILURE_RECEIPT",
+                lambda: read_failure_receipt(
+                    duplicate_receipt,
+                    run_id="synthetic-receipt",
+                    operation="package",
+                ),
+            )
+        )
+        for case_name, original, expected_code in (
+            ("failure-receipt-run-id-mismatch", b"run_id=synthetic-receipt", b"run_id=other-run"),
+            ("failure-receipt-gate-phase-mismatch", b"gate_phase=package-tested-tree", b"gate_phase=other-phase"),
+            ("failure-receipt-subphase-mismatch", b"subphase=package-preflight", b"subphase=forged"),
+            ("failure-receipt-exit-mismatch", b"tool_exit_code=1", b"tool_exit_code=0"),
+        ):
+            mutated_receipt = receipt_root / case_name / FAILURE_RECEIPT_NAME
+            mutated_receipt.parent.mkdir()
+            mutated_receipt.write_bytes(receipt_path.read_bytes().replace(original, expected_code, 1))
+            cases.append(
+                expect_failure(
+                    case_name,
+                    "E_FAILURE_RECEIPT",
+                    lambda mutated_receipt=mutated_receipt: read_failure_receipt(
+                        mutated_receipt,
+                        run_id="synthetic-receipt",
+                        operation="package",
+                    ),
+                )
+            )
+        symlink_receipt = receipt_root / "symlink" / FAILURE_RECEIPT_NAME
+        symlink_receipt.parent.mkdir()
+        symlink_receipt.symlink_to(receipt_path)
+        cases.append(
+            expect_failure(
+                "symlink-failure-receipt",
+                "E_FAILURE_RECEIPT",
+                lambda: read_failure_receipt(
+                    symlink_receipt,
+                    run_id="synthetic-receipt",
+                    operation="package",
+                ),
+            )
+        )
+        preexisting_receipt = receipt_root / "preexisting" / FAILURE_RECEIPT_NAME
+        preexisting_receipt.parent.mkdir()
+        preexisting_receipt.write_bytes(b"preserved\n")
+        cases.append(
+            expect_failure(
+                "preexisting-failure-receipt-preserved",
+                "E_OUTPUT_EXISTS",
+                lambda: publish_failure_receipt(
+                    FailureReceiptContext(
+                        path=preexisting_receipt,
+                        run_id="synthetic-receipt",
+                        operation="package",
+                        subphase="package-preflight",
+                    ),
+                    error_code="E_COMMAND",
+                    tool_exit_code=1,
+                ),
+            )
+        )
+        require(
+            preexisting_receipt.read_bytes() == b"preserved\n",
+            "E_NEGATIVE",
+            "failure receipt writer changed a preexisting target",
+        )
+        symlink_writer_receipt = receipt_root / "symlink-writer" / FAILURE_RECEIPT_NAME
+        symlink_writer_receipt.parent.mkdir()
+        symlink_writer_receipt.symlink_to(receipt_path)
+        cases.append(
+            expect_failure(
+                "symlink-failure-receipt-writer",
+                "E_OUTPUT_EXISTS",
+                lambda: publish_failure_receipt(
+                    FailureReceiptContext(
+                        path=symlink_writer_receipt,
+                        run_id="synthetic-receipt",
+                        operation="package",
+                        subphase="package-preflight",
+                    ),
+                    error_code="E_COMMAND",
+                    tool_exit_code=1,
+                ),
+            )
+        )
+        package_output_root = temporary / "receipt-package-output"
+        cases.append(
+            expect_failure(
+                "failure-receipt-inside-package-output",
+                "E_FAILURE_RECEIPT",
+                lambda: failure_receipt_target(
+                    package_output_root / FAILURE_RECEIPT_NAME,
+                    package_root=package_output_root,
+                ),
+            )
+        )
+        cases.append(
+            expect_failure(
+                "failure-receipt-wrong-run-root",
+                "E_FAILURE_RECEIPT",
+                lambda: read_failure_receipt(
+                    receipt_path,
+                    run_id="synthetic-receipt",
+                    operation="package",
+                    package_root=temporary / "other-run" / "package",
+                ),
+            )
+        )
+        cases.append(
+            expect_failure(
+                "failure-receipt-unknown-error-code",
+                "E_FAILURE_RECEIPT",
+                lambda: failure_receipt_bytes(
+                    run_id="synthetic-receipt",
+                    operation="package",
+                    subphase="package-preflight",
+                    error_code="E_FORGED",
+                    tool_exit_code=1,
+                ),
+            )
+        )
+        raw_marker = "fixture-only-raw-message-sentinel"
+        contained_receipt = receipt_root / "contained" / FAILURE_RECEIPT_NAME
+        contained_receipt.parent.mkdir()
+        contained_context = FailureReceiptContext(
+            path=contained_receipt,
+            run_id="synthetic-receipt",
+            operation="package",
+            subphase="package-maven-reactor",
+        )
+        contained_result, contained_exit = execute_with_failure_receipt(
+            contained_context,
+            lambda: (_ for _ in ()).throw(PackageError("E_COMMAND", raw_marker)),
+        )
+        require(
+            contained_result is None and contained_exit == 1,
+            "E_NEGATIVE",
+            "synthetic receipted failure did not return a bounded failure",
+        )
+        require(
+            raw_marker.encode("ascii") not in contained_receipt.read_bytes(),
+            "E_NEGATIVE",
+            "failure receipt exposed a raw exception message",
+        )
+        read_failure_receipt(
+            contained_receipt,
+            run_id="synthetic-receipt",
+            operation="package",
+        )
+        signal_receipt = receipt_root / "signal" / FAILURE_RECEIPT_NAME
+        signal_receipt.parent.mkdir()
+        signal_result, signal_exit = execute_with_failure_receipt(
+            FailureReceiptContext(
+                path=signal_receipt,
+                run_id="synthetic-receipt",
+                operation="verify",
+                subphase="verify-package",
+            ),
+            lambda: (_ for _ in ()).throw(KeyboardInterrupt()),
+        )
+        require(
+            signal_result is None and signal_exit == 130,
+            "E_NEGATIVE",
+            "synthetic interrupted command did not return a bounded signal failure",
+        )
+        signal_values = read_failure_receipt(
+            signal_receipt,
+            run_id="synthetic-receipt",
+            operation="verify",
+            tool_exit_code=130,
+        )
+        require(
+            signal_values["error_code"] == "E_SIGNAL",
+            "E_NEGATIVE",
+            "synthetic interrupted command did not publish E_SIGNAL",
+        )
+        internal_receipt = receipt_root / "internal" / FAILURE_RECEIPT_NAME
+        internal_receipt.parent.mkdir()
+        internal_result, internal_exit = execute_with_failure_receipt(
+            FailureReceiptContext(
+                path=internal_receipt,
+                run_id="synthetic-receipt",
+                operation="verify",
+                subphase="verify-package",
+            ),
+            lambda: (_ for _ in ()).throw(SystemExit(7)),
+        )
+        require(
+            internal_result is None and internal_exit == 1,
+            "E_NEGATIVE",
+            "synthetic BaseException did not return a bounded internal failure",
+        )
+        internal_values = read_failure_receipt(
+            internal_receipt,
+            run_id="synthetic-receipt",
+            operation="verify",
+            tool_exit_code=1,
+        )
+        require(
+            internal_values["error_code"] == "E_INTERNAL",
+            "E_NEGATIVE",
+            "synthetic BaseException did not publish E_INTERNAL",
+        )
+        successful_receipt = receipt_root / "success" / FAILURE_RECEIPT_NAME
+        successful_receipt.parent.mkdir()
+        successful_result, successful_exit = execute_with_failure_receipt(
+            FailureReceiptContext(
+                path=successful_receipt,
+                run_id="synthetic-receipt",
+                operation="verify",
+                subphase="verify-package",
+            ),
+            lambda: {"command": "synthetic", "status": "passed"},
+        )
+        require(
+            successful_result == {"command": "synthetic", "status": "passed"}
+            and successful_exit == 0
+            and not successful_receipt.exists(),
+            "E_NEGATIVE",
+            "successful receipted command published a failure receipt",
+        )
+        cli_root = temporary / "receipt-cli"
+        cli_root.mkdir()
+        cli_run_root = cli_root / "package-run"
+        cli_run_root.mkdir()
+        cli_package_root = cli_run_root / "package"
+        cli_receipt = cli_run_root / FAILURE_RECEIPT_NAME
+        cli_command = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "package",
+            "--repo-root",
+            str(cli_root / "not-a-repository"),
+            "--run-id",
+            "synthetic-cli-package",
+            "--step4-run-root",
+            str(cli_root / "step4"),
+            "--output-dir",
+            str(cli_package_root),
+            "--failure-receipt",
+            str(cli_receipt),
+        ]
+        cli_package = subprocess.run(
+            cli_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        require(
+            cli_package.returncode == 1
+            and cli_package.stdout == b""
+            and cli_package.stderr == b""
+            and not cli_package_root.exists()
+            and not cli_package_root.is_symlink(),
+            "E_NEGATIVE",
+            "receipt package CLI exposed output or left a partial package directory",
+        )
+        cli_package_values = read_failure_receipt(
+            cli_receipt,
+            run_id="synthetic-cli-package",
+            operation="package",
+            tool_exit_code=1,
+            package_root=cli_package_root,
+        )
+        require(
+            cli_package_values["subphase"] == "package-preflight",
+            "E_NEGATIVE",
+            "receipt package CLI subphase differs",
+        )
+        cli_verify_receipt = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "verify-failure-receipt",
+                "--failure-receipt",
+                str(cli_receipt),
+                "--run-id",
+                "synthetic-cli-package",
+                "--operation",
+                "package",
+                "--tool-exit-code",
+                "1",
+                "--package-root",
+                str(cli_package_root),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        cli_verify_value = parse_json(
+            cli_verify_receipt.stdout,
+            "synthetic receipt CLI verification result",
+        )
+        require(
+            cli_verify_receipt.returncode == 0
+            and cli_verify_receipt.stderr == b""
+            and exact_keys(
+                cli_verify_value,
+                (
+                    "command",
+                    "error_code",
+                    "gate_phase",
+                    "operation",
+                    "receipt",
+                    "run_id",
+                    "status",
+                    "subphase",
+                    "tool_exit_code",
+                ),
+                "E_NEGATIVE",
+                "synthetic receipt CLI verification result",
+            )
+            == cli_verify_value,
+            "E_NEGATIVE",
+            "receipt CLI verification result differs",
+        )
+        cli_wrong_root = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "verify-failure-receipt",
+                "--failure-receipt",
+                str(cli_receipt),
+                "--run-id",
+                "synthetic-cli-package",
+                "--operation",
+                "package",
+                "--tool-exit-code",
+                "1",
+                "--package-root",
+                str(cli_root / "other-run" / "package"),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        require(
+            cli_wrong_root.returncode == 1
+            and cli_wrong_root.stdout == b""
+            and cli_wrong_root.stderr == b"",
+            "E_NEGATIVE",
+            "receipt CLI accepted a non-sibling package root",
+        )
+        cli_verify_run_root = cli_root / "verify-run"
+        cli_verify_run_root.mkdir()
+        cli_verify_package_root = cli_verify_run_root / "package"
+        cli_verify_package_root.mkdir()
+        cli_verify_sidecar = cli_verify_run_root / FAILURE_RECEIPT_NAME
+        cli_verify = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "verify",
+                "--repo-root",
+                str(cli_root / "not-a-repository"),
+                "--manifest",
+                str(cli_verify_package_root / PACKAGE_MANIFEST_NAME),
+                "--jar",
+                str(cli_verify_package_root / APP_JAR_NAME),
+                "--run-id",
+                "synthetic-cli-verify",
+                "--failure-receipt",
+                str(cli_verify_sidecar),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        require(
+            cli_verify.returncode == 1
+            and cli_verify.stdout == b""
+            and cli_verify.stderr == b"",
+            "E_NEGATIVE",
+            "receipt verify CLI exposed output",
+        )
+        cli_verify_values = read_failure_receipt(
+            cli_verify_sidecar,
+            run_id="synthetic-cli-verify",
+            operation="verify",
+            tool_exit_code=1,
+            package_root=cli_verify_package_root,
+        )
+        require(
+            cli_verify_values["subphase"] == "verify-package",
+            "E_NEGATIVE",
+            "receipt verify CLI subphase differs",
+        )
+        cases.append(
+            {
+                "case": "receipt-cli-suppression-and-sibling-binding",
+                "expected": "bounded",
+                "actual": "bounded",
+                "status": "passed",
+            }
+        )
+        staging_runs = temporary / "receipt-package-runs"
+        staging_runs.mkdir()
+        staging_run_root = staging_runs / "success-run"
+        staging_run_root.mkdir()
+        final_package = staging_run_root / "package"
+        staging_package = create_receipt_package_staging(final_package)
+        for name in PACKAGE_OUTPUT_NAMES:
+            (staging_package / name).write_bytes(
+                f"synthetic staged package:{name}\n".encode("ascii")
+            )
+        published_package = publish_staged_package(staging_package, final_package)
+        require(
+            published_package == final_package
+            and not staging_package.exists()
+            and validate_package_output(final_package)["file_count"] == 6,
+            "E_NEGATIVE",
+            "synthetic receipt package staging publication differs",
+        )
+        cleanup_flat_directory(final_package, "synthetic published receipt package")
+        failed_run_root = staging_runs / "failed-run"
+        failed_run_root.mkdir()
+        failed_final = failed_run_root / "package"
+        failed_staging = create_receipt_package_staging(failed_final)
+        raw_staging_marker = b"fixture-only-staging-raw-marker\n"
+        for name in PACKAGE_OUTPUT_NAMES:
+            (failed_staging / name).write_bytes(
+                raw_staging_marker if name == VALIDATOR_LOG_NAME else b"synthetic-safe\n"
+            )
+        original_link = os.link
+
+        def failed_staged_link(
+            source: Any, destination: Any, *link_args: Any, **link_kwargs: Any
+        ) -> None:
+            if Path(destination).name == PACKAGE_MANIFEST_NAME:
+                raise OSError("synthetic staged publication failure")
+            original_link(source, destination, *link_args, **link_kwargs)
+
+        def failed_staged_publication_probe() -> None:
+            from unittest import mock
+
+            with mock.patch.object(os, "link", side_effect=failed_staged_link):
+                publish_staged_package(failed_staging, failed_final)
+
+        cases.append(
+            expect_failure(
+                "receipt-package-staged-publication-cleanup",
+                "E_OUTPUT",
+                failed_staged_publication_probe,
+            )
+        )
+        require(
+            not failed_final.exists() and not failed_final.is_symlink(),
+            "E_NEGATIVE",
+            "failed staged publication left a durable package directory",
+        )
+        cleanup_flat_directory(failed_staging, "synthetic failed receipt package staging")
+        signal_run_root = staging_runs / "signal-run"
+        signal_run_root.mkdir()
+        signal_final = signal_run_root / "package"
+        signal_staging = create_receipt_package_staging(signal_final)
+        for name in PACKAGE_OUTPUT_NAMES:
+            (signal_staging / name).write_bytes(b"synthetic-safe\n")
+
+        def interrupted_staged_link(
+            _source: Any, _destination: Any, *link_args: Any, **link_kwargs: Any
+        ) -> None:
+            raise KeyboardInterrupt()
+
+        original_cleanup_flat_directory = cleanup_flat_directory
+
+        def failed_partial_cleanup(path: Path, label: str) -> None:
+            if label == "partial durable package directory":
+                raise PackageError("E_OUTPUT", "synthetic cleanup failure")
+            original_cleanup_flat_directory(path, label)
+
+        def interrupted_staged_publication_probe() -> None:
+            from unittest import mock
+
+            with mock.patch.object(os, "link", side_effect=interrupted_staged_link):
+                with mock.patch.object(
+                    sys.modules[__name__],
+                    "cleanup_flat_directory",
+                    side_effect=failed_partial_cleanup,
+                ):
+                    publish_staged_package(signal_staging, signal_final)
+
+        cases.append(
+            expect_signal(
+                "receipt-package-signal-preserves-signal-receipt",
+                interrupted_staged_publication_probe,
+            )
+        )
+        cleanup_flat_directory(signal_staging, "synthetic signal receipt package staging")
+        cleanup_flat_directory(signal_final, "synthetic signal partial durable package")
+        cleanup_probe_run_root = staging_runs / "cleanup-probe-run"
+        cleanup_probe_run_root.mkdir()
+        cleanup_probe_final = cleanup_probe_run_root / "package"
+        cleanup_probe_staging = create_receipt_package_staging(cleanup_probe_final)
+        (cleanup_probe_staging / "unexpected-directory").mkdir()
+        cases.append(
+            expect_failure(
+                "receipt-package-staging-cleanup-directory",
+                "E_OUTPUT",
+                lambda: cleanup_flat_directory(
+                    cleanup_probe_staging,
+                    "synthetic malformed receipt package staging",
+                ),
+            )
+        )
+        (cleanup_probe_staging / "unexpected-directory").rmdir()
+        cleanup_flat_directory(
+            cleanup_probe_staging,
+            "synthetic repaired receipt package staging",
+        )
         concurrent_target = temporary / "concurrent-publication.txt"
         original_link = os.link
 
@@ -3467,10 +4793,22 @@ def parser() -> argparse.ArgumentParser:
     package.add_argument("--run-id", required=True)
     package.add_argument("--step4-run-root", type=Path, required=True)
     package.add_argument("--output-dir", type=Path, required=True)
+    package.add_argument("--failure-receipt", type=Path)
     verify = commands.add_parser("verify", help="durably verify package-manifest.json and app.jar")
     verify.add_argument("--repo-root", type=Path, required=True)
     verify.add_argument("--manifest", type=Path, required=True)
     verify.add_argument("--jar", type=Path, required=True)
+    verify.add_argument("--run-id")
+    verify.add_argument("--failure-receipt", type=Path)
+    verify_failure_receipt = commands.add_parser(
+        "verify-failure-receipt",
+        help="validate a bounded package failure receipt without exposing raw failure detail",
+    )
+    verify_failure_receipt.add_argument("--failure-receipt", type=Path, required=True)
+    verify_failure_receipt.add_argument("--run-id", required=True)
+    verify_failure_receipt.add_argument("--operation", choices=FAILURE_RECEIPT_OPERATIONS, required=True)
+    verify_failure_receipt.add_argument("--tool-exit-code", type=int, required=True)
+    verify_failure_receipt.add_argument("--package-root", type=Path, required=True)
     negative = commands.add_parser("negative", help="run synthetic fail-closed package mutations")
     negative.add_argument("--repo-root", type=Path, required=True)
     negative.add_argument("--output-dir", type=Path, required=True)
@@ -3479,6 +4817,38 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.command == "verify-failure-receipt":
+        try:
+            result = verify_failure_receipt_command(args)
+        except BaseException:
+            return 1
+        print(json.dumps(result, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
+        return 0
+    if getattr(args, "failure_receipt", None) is not None:
+        try:
+            context = failure_receipt_context(args)
+        except BaseException:
+            return 1
+        assert context is not None
+        if args.command == "package":
+            result, exit_code = execute_with_failure_receipt(
+                context,
+                lambda: package_command(args, context),
+            )
+        else:
+            result, exit_code = execute_with_failure_receipt(
+                context,
+                lambda: verify_package(
+                    repo_root(args.repo_root),
+                    args.manifest,
+                    args.jar,
+                    expected_run_id=args.run_id,
+                ),
+            )
+        if result is None:
+            return exit_code
+        print(json.dumps(result, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
+        return 0
     try:
         if args.command == "package":
             result = package_command(args)

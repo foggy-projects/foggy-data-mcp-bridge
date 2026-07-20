@@ -84,6 +84,23 @@ require_env() {
     fail "$key=$actual, expected=$expected in $file"
 }
 
+require_absent_package_failure_receipt() {
+  [[ ! -e "$PACKAGE_FAILURE_RECEIPT" && ! -L "$PACKAGE_FAILURE_RECEIPT" ]] || \
+    fail "unexpected package failure receipt"
+}
+
+validate_package_failure_receipt() {
+  local operation="$1" tool_exit_code="$2"
+  python3 "$PACKAGE_TOOL" verify-failure-receipt \
+    --failure-receipt "$PACKAGE_FAILURE_RECEIPT" \
+    --run-id "$RUN_ID" \
+    --operation "$operation" \
+    --tool-exit-code "$tool_exit_code" \
+    --package-root "$PACKAGE_ROOT" \
+    > /dev/null 2> /dev/null || \
+    fail "package failure receipt is missing or invalid"
+}
+
 require_clean_build_environment() {
   local variable_name value
   for variable_name in \
@@ -473,15 +490,38 @@ python3 "$STEP4_ARTIFACT_TOOL" verify-artifact \
 
 PHASE=package-tested-tree
 PACKAGE_ROOT="$RUN_ROOT/package"
+PACKAGE_FAILURE_RECEIPT="$RUN_ROOT/package-tested-tree-failure.env"
+require_absent_package_failure_receipt
+set +e
 python3 "$PACKAGE_TOOL" package \
   --repo-root "$ROOT_DIR" \
   --run-id "$RUN_ID" \
   --step4-run-root "$STEP4_ROOT" \
-  --output-dir "$PACKAGE_ROOT" > "$RUN_ROOT/package-result.json"
+  --output-dir "$PACKAGE_ROOT" \
+  --failure-receipt "$PACKAGE_FAILURE_RECEIPT" \
+  > "$RUN_ROOT/package-result.json" 2> /dev/null
+PACKAGE_TOOL_EXIT_CODE=$?
+set -e
+if [[ "$PACKAGE_TOOL_EXIT_CODE" -ne 0 ]]; then
+  validate_package_failure_receipt package "$PACKAGE_TOOL_EXIT_CODE"
+  exit "$PACKAGE_TOOL_EXIT_CODE"
+fi
+require_absent_package_failure_receipt
+set +e
 python3 "$PACKAGE_TOOL" verify \
   --repo-root "$ROOT_DIR" \
   --manifest "$PACKAGE_ROOT/package-manifest.json" \
-  --jar "$PACKAGE_ROOT/app.jar" > "$RUN_ROOT/package-verify.json"
+  --jar "$PACKAGE_ROOT/app.jar" \
+  --run-id "$RUN_ID" \
+  --failure-receipt "$PACKAGE_FAILURE_RECEIPT" \
+  > "$RUN_ROOT/package-verify.json" 2> /dev/null
+VERIFY_TOOL_EXIT_CODE=$?
+set -e
+if [[ "$VERIFY_TOOL_EXIT_CODE" -ne 0 ]]; then
+  validate_package_failure_receipt verify "$VERIFY_TOOL_EXIT_CODE"
+  exit "$VERIFY_TOOL_EXIT_CODE"
+fi
+require_absent_package_failure_receipt
 
 PHASE=source-after
 python3 "$STEP4_TOOL" source-hash --repo-root "$ROOT_DIR" \
