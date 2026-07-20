@@ -37,6 +37,7 @@ classification-debt migration 是 9.3.5 的第一项执行工作；其 closure �
 ## 基线材料
 
 - [只读代码与 API 基线](code-inventory.md)
+- [Gate 0 分类债务决策包](gate-0-classification-decision-record.md)
 - 版本路线图：[9.3.1 → 9.4.0 迭代顺序评审](../9.3.1/roadmap-9.3.1-to-9.4.0.md)
 - Gate 0 债务：[Unit MySQL 5.7 fixture 分类迁移](../9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md)
 
