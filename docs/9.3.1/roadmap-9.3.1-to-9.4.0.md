@@ -209,3 +209,13 @@ r22 只作历史 diagnostic evidence。
   Cdiag→Docker/control-plane、固定端口与 run-owned scope 的独立预检→fresh r34。
 - 主线仍优先完成 9.3.4。9.3.5 仍必须等待 version signoff 后的 Gate 0，9.4.0 仍必须等待 9.3.5 的公共
   API 瘦身与去环结果；两者均不提前开工。
+
+## 2026-07-20 Step 4 evidence-ready / downstream static-baseline checkpoint
+
+- fresh formal-r11、same-Cfreeze Pivot companion、final quality 与 35-row replacement audit 已完成；
+  Step 4 feature signoff 仍等待其 DRAFT canonical delivery spec 获 owner approval 并达到
+  `READY_FOR_SIGNOFF`，因此 Step 5–7 和 version signoff 仍未开放。
+- 为避免下游在实际开工时依赖猜测，新增了 planning-only 的
+  [9.3.5 code baseline](../9.3.5/code-inventory.md) 与
+  [9.4.0 module/SPI baseline](../9.4.0/code-inventory.md)。这些记录没有改变生产代码、POM、测试
+  inventory 或模块边界，也不使 9.3.5/9.4.0 变为 ready。
