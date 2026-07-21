@@ -23,7 +23,7 @@
     ],
     "cardinality": 16,
     "step4_manifest": "scripts/v934/step4/SHA256SUMS",
-    "step4_manifest_sha256": "515011a3e52759da92e76498e7eed34df22d14bc8c86fa2f86ae9bebda5a66e9",
+    "step4_manifest_sha256": "902fd2c32eb38394997bfb819fc6e38c4439857fb80165a308bf8e8921893c35",
     "step5_manifest": "scripts/v934/step5/SHA256SUMS",
     "step5_manifest_sha256": "58bcae81c39c5d5ebb54bf49f6b8fa48959460332e7bd6391b16ca6f7390ee75",
     "policy": "exact-path-order-and-byte-digest"
@@ -54,13 +54,55 @@
         "main"
       ],
       "jobs": [
-        {"id": "inventory-unit", "needs": []},
-        {"id": "sqlite-integration", "needs": ["inventory-unit"]},
-        {"id": "database-matrix", "needs": ["inventory-unit", "sqlite-integration", "external-integration", "coverage", "package-evidence"]},
-        {"id": "external-integration", "needs": ["inventory-unit"]},
-        {"id": "coverage", "needs": ["inventory-unit"]},
-        {"id": "package-evidence", "needs": ["inventory-unit"]},
-        {"id": "required-aggregator", "needs": ["inventory-unit", "sqlite-integration", "database-matrix", "external-integration", "coverage", "package-evidence"]}
+        {
+          "id": "inventory-unit",
+          "needs": []
+        },
+        {
+          "id": "sqlite-integration",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "database-matrix",
+          "needs": [
+            "inventory-unit",
+            "sqlite-integration",
+            "external-integration",
+            "coverage",
+            "package-evidence"
+          ]
+        },
+        {
+          "id": "external-integration",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "coverage",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "package-evidence",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "required-aggregator",
+          "needs": [
+            "inventory-unit",
+            "sqlite-integration",
+            "database-matrix",
+            "external-integration",
+            "coverage",
+            "package-evidence"
+          ]
+        }
       ]
     },
     "release": {
@@ -72,9 +114,23 @@
         "v9.3.4"
       ],
       "jobs": [
-        {"id": "release-dry-run", "needs": []},
-        {"id": "docker-publish", "needs": ["release-dry-run"]},
-        {"id": "github-release", "needs": ["release-dry-run", "docker-publish"]}
+        {
+          "id": "release-dry-run",
+          "needs": []
+        },
+        {
+          "id": "docker-publish",
+          "needs": [
+            "release-dry-run"
+          ]
+        },
+        {
+          "id": "github-release",
+          "needs": [
+            "release-dry-run",
+            "docker-publish"
+          ]
+        }
       ]
     },
     "tooling_closure": {
@@ -106,11 +162,48 @@
       "selection": "outer-marker+merged-manifest+metrics+exact-cell+exact-variants"
     },
     "cell_expectations": [
-      {"db_kind": "sqlite", "reports": 5, "testcase_nodes": 50, "variant_keys": ["db-sqlite"]},
-      {"db_kind": "mysql57", "reports": 5, "testcase_nodes": 50, "variant_keys": ["db-mysql57"]},
-      {"db_kind": "mysql8", "reports": 6, "testcase_nodes": 105, "variant_keys": ["db-mysql8", "mysql8-targeted"]},
-      {"db_kind": "postgres15", "reports": 8, "testcase_nodes": 115, "variant_keys": ["db-postgres15", "postgres15-targeted"]},
-      {"db_kind": "sqlserver2022", "reports": 5, "testcase_nodes": 50, "variant_keys": ["db-sqlserver2022"]}
+      {
+        "db_kind": "sqlite",
+        "reports": 5,
+        "testcase_nodes": 50,
+        "variant_keys": [
+          "db-sqlite"
+        ]
+      },
+      {
+        "db_kind": "mysql57",
+        "reports": 5,
+        "testcase_nodes": 50,
+        "variant_keys": [
+          "db-mysql57"
+        ]
+      },
+      {
+        "db_kind": "mysql8",
+        "reports": 6,
+        "testcase_nodes": 105,
+        "variant_keys": [
+          "db-mysql8",
+          "mysql8-targeted"
+        ]
+      },
+      {
+        "db_kind": "postgres15",
+        "reports": 8,
+        "testcase_nodes": 115,
+        "variant_keys": [
+          "db-postgres15",
+          "postgres15-targeted"
+        ]
+      },
+      {
+        "db_kind": "sqlserver2022",
+        "reports": 5,
+        "testcase_nodes": 50,
+        "variant_keys": [
+          "db-sqlserver2022"
+        ]
+      }
     ]
   },
   "identity": {
