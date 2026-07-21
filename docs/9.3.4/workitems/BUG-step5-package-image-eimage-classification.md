@@ -3,13 +3,12 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: NEEDS_REPLAN
+status: APPROVED
 canonical: true
 execution_mode: ultra
-approved_by: foggy-projects-via-user-direction (prior scope only)
+approved_by: foggy-projects-via-user-direction (successor-overlay replan approved)
 approved_at: 2026-07-21
-open_questions:
-  - owner approval for the minimal successor-overlay binding closure listed in Replan Trigger
+open_questions: []
 ---
 
 # Delivery Spec: Step 5 package-image `E_IMAGE` classification
@@ -59,6 +58,9 @@ open_questions:
   - `scripts/v934/step4/coverage_tool.py`
   - `scripts/v934/step4/coverage_xml_tool.py`
   - `scripts/v934/step4/SHA256SUMS`
+  - `scripts/v934/step4/successor/overlay_tool.py`
+  - `scripts/v934/step4/successor/overlay-contract.json`
+  - `scripts/v934/step4/successor/SHA256SUMS`
   - governed `docs/9.3.4` workitems and evidence.
 - external_dependencies: Existing Docker/Maven evidence environments are used
   only by the approved controlled Cdiag and mandated revalidation; no separate
@@ -91,7 +93,7 @@ open_questions:
 | Historical `package-image` remains readable | r44/r45 evidence must remain verifiable | only new writes use new subphases |
 | New Cdiag is mandatory | Cfreeze bytes cannot be modified | full authority chain restarts |
 
-## Previously Approved Design
+## Approved Design
 
 Use the three bounded subphases in Scope rather than a new diagnostic sidecar
 or new error codes. Static control-flow review maps the current broad
@@ -107,9 +109,9 @@ raw runtime payload.
   allowlisted subphase; unknown paths remain fail-closed.
 - [ ] AC-3: Receipt writer/reader and synthetic negatives reject malformed,
   preexisting, symlinked, mismatched, or raw-detail-bearing data.
-- [ ] AC-4: Step 4 coverage-contract/threshold/path-allowlist closure and
-  Step 4/5/6 hash and CI-contract closure validate, with no workflow,
-  Dockerfile, POM, API, SPI, package-layout, or pointer drift.
+- [ ] AC-4: Step 4 coverage-contract/threshold/path-allowlist and successor
+  overlay closure, plus Step 4/5/6 hash and CI-contract closure, validate with
+  no workflow, Dockerfile, POM, API, SPI, package-layout, or pointer drift.
 - [ ] AC-5: A clean Cdiag and complete fresh required revalidation chain pass;
   no historical run artifacts are reused.
 
@@ -157,8 +159,7 @@ raw runtime payload.
 
 - known_risks: An enum/refinement mistake could reject valid historical
   receipts, leak raw detail, or drift the hash closure; each must fail closed.
-- open_questions: owner approval for the minimal successor-overlay binding
-  closure listed below.
+- open_questions: none
 
 ## Replan Trigger
 
@@ -183,7 +184,7 @@ overlay still binds the prior diagnostic/formal projections of the changed
 coverage contract and the prior coverage-tool bytes. A commit cannot repair
 those stale bindings.
 
-The exact pending owner addition is limited to:
+The exact owner-approved addition is limited to:
 
 - content changes:
   - `scripts/v934/step4/successor/overlay_tool.py`
@@ -208,8 +209,9 @@ bytes and its manifest need no further change.
 its path set is frozen and does not cover these Step 4 runtime bindings.
 `scripts/v934/step4/coverage_xml_tool.py` must likewise retain a formalization
 allowlist that excludes the overlay paths, because this is a Cdiag repair and
-not a Cdiag-to-Cfreeze delta. No implementation, manifest update, Docker/Maven
-run, gate, or runtime evidence may proceed until the owner signs this addition.
+not a Cdiag-to-Cfreeze delta. The owner signed this exact three-path addition
+on 2026-07-21; Docker/Maven and governed runtime evidence remain limited to
+the subsequently required Cdiag chain.
 
 ## Approval Record
 
@@ -226,30 +228,32 @@ run, gate, or runtime evidence may proceed until the owner signs this addition.
 - prior_replan_scope: `coverage-contract.json`, `coverage-thresholds.json`,
   `coverage_tool.py`, `coverage_xml_tool.py`, and root Step 4 `SHA256SUMS`,
   with the already listed Step 6 transitive closure.
-- scope_status: superseded by the pending successor-overlay replan above; the
-  prior approval does not authorize those three newly named paths.
+- successor_overlay_replan_approval:
+  `BUG-step5-package-image-eimage-classification-replan-successor-overlay-closure`
+- successor_overlay_replan_owner: `foggy-projects`
+- successor_overlay_replan_scope: only `overlay_tool.py`,
+  `overlay-contract.json`, and successor `SHA256SUMS`; root Step 4 and Step 6
+  files remain their already-authorized transitive hash closure.
+- scope_status: approved; no other paths are authorized.
 
 ## Ultra Execution Contract
 
-- Status is `NEEDS_REPLAN`: pause all implementation and hash closure. The
-  owner must explicitly authorize only the three successor-overlay paths in
-  Replan Trigger before status may return to `APPROVED`.
-- After approval, implement only the resulting full affected-module list in a
-  clean Cdiag. Any further sidecar, error-code, workflow, Dockerfile,
-  Maven/POM, API/SPI, release/pointer, environment-remediation, or scope
-  addition must return here as `NEEDS_REPLAN`.
+- Status is `APPROVED`: implement only the full affected-module list in a
+  clean Cdiag, including the three owner-approved successor-overlay paths.
+  Any further sidecar, error-code, workflow, Dockerfile, Maven/POM, API/SPI,
+  release/pointer, environment-remediation, or scope addition must return here
+  as `NEEDS_REPLAN`.
 - Complete the stated validation and append implementation summary, changed
   paths, tests, deviations, and residual risks. Set only `READY_FOR_SIGNOFF`
   after the approved implementation and evidence actually complete.
 
 ## Implementation Result
 
-> The approved Cdiag implementation remains isolated and uncommitted. Static
-> source/hash checks reached the successor-overlay positive control, which
-> stopped fail-closed at the stale binding. No Docker/Maven run, gate, or
-> runtime validation was started after that stop.
+> Owner approval now covers the isolated Cdiag implementation and the minimal
+> successor-overlay closure. The earlier static stop remains historical; no
+> Docker/Maven run, gate, or runtime validation has started after it.
 
-- readiness: NEEDS_REPLAN
+- readiness: APPROVED
 
 ## References
 
