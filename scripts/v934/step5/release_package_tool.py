@@ -329,6 +329,34 @@ def real_directory(path: Path, label: str) -> Path:
     return absolute
 
 
+def directory_identity(path: Path, label: str) -> tuple[int, int]:
+    directory = real_directory(path, label)
+    try:
+        observed = os.lstat(directory)
+    except OSError as exc:
+        reject("E_DIRECTORY", f"cannot stat {label}: {exc}")
+    require(
+        stat.S_ISDIR(observed.st_mode) and not stat.S_ISLNK(observed.st_mode),
+        "E_DIRECTORY",
+        f"{label} identity is not a real directory",
+    )
+    return (observed.st_dev, observed.st_ino)
+
+
+def require_directory_identity(
+    path: Path,
+    expected: tuple[int, int],
+    label: str,
+) -> Path:
+    directory = real_directory(path, label)
+    require(
+        directory_identity(directory, label) == expected,
+        "E_FILE_RACE",
+        f"{label} identity changed",
+    )
+    return directory
+
+
 def fsync_directory(path: Path, label: str) -> None:
     directory = real_directory(path, label)
     flags = (
@@ -840,33 +868,134 @@ def create_output(path: Path) -> Path:
     return real_directory(absolute, "output directory")
 
 
-def cleanup_flat_directory(path: Path, label: str) -> None:
+def _open_directory_descriptor(
+    path: Path,
+    label: str,
+) -> tuple[Path, int, os.stat_result]:
     directory = real_directory(path, label)
-    parent = real_directory(directory.parent, f"{label} parent")
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
     try:
-        children = sorted(os.scandir(directory), key=lambda child: child.name.encode("utf-8"))
+        descriptor = os.open(directory, flags)
     except OSError as exc:
-        reject("E_OUTPUT", f"cannot scan {label}: {exc}")
-    for child in children:
-        try:
-            observed = child.stat(follow_symlinks=False)
-        except OSError as exc:
-            reject("E_OUTPUT", f"cannot stat {label} entry: {exc}")
+        reject("E_OUTPUT", f"cannot open {label}: {exc}")
+    try:
+        observed = os.fstat(descriptor)
         require(
-            not stat.S_ISDIR(observed.st_mode),
-            "E_OUTPUT",
-            f"{label} contains an unexpected directory",
+            stat.S_ISDIR(observed.st_mode),
+            "E_DIRECTORY",
+            f"{label} is not a real directory",
+        )
+        current = os.lstat(directory)
+        require(
+            (current.st_dev, current.st_ino) == (observed.st_dev, observed.st_ino),
+            "E_FILE_RACE",
+            f"{label} changed while opened",
+        )
+        return directory, descriptor, observed
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def cleanup_flat_directory(
+    path: Path,
+    label: str,
+    *,
+    expected_identity: tuple[int, int] | None = None,
+) -> None:
+    directory_descriptor: int | None = None
+    parent_descriptor: int | None = None
+    try:
+        directory = Path(os.path.abspath(path))
+        parent, parent_descriptor, _parent_observed = _open_directory_descriptor(
+            directory.parent,
+            f"{label} parent",
+        )
+        directory, directory_descriptor, observed = _open_directory_descriptor(
+            directory,
+            label,
+        )
+        identity = (observed.st_dev, observed.st_ino)
+        if expected_identity is not None:
+            require(
+                identity == expected_identity,
+                "E_FILE_RACE",
+                f"{label} identity changed",
+            )
+        try:
+            parent_entry = os.stat(
+                directory.name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+        except OSError as exc:
+            reject("E_OUTPUT", f"cannot stat {label} parent entry: {exc}")
+        require(
+            (parent_entry.st_dev, parent_entry.st_ino) == identity,
+            "E_FILE_RACE",
+            f"{label} changed while opened",
         )
         try:
-            os.unlink(child.path)
+            with os.scandir(directory_descriptor) as stream:
+                children = sorted(
+                    stream,
+                    key=lambda child: child.name.encode("utf-8"),
+                )
         except OSError as exc:
-            reject("E_OUTPUT", f"cannot remove {label} entry: {exc}")
-    fsync_directory(directory, f"{label} before removal")
-    try:
-        directory.rmdir()
-    except OSError as exc:
-        reject("E_OUTPUT", f"cannot remove {label}: {exc}")
-    fsync_directory(parent, f"{label} parent after removal")
+            reject("E_OUTPUT", f"cannot scan {label}: {exc}")
+        for child in children:
+            try:
+                child_observed = os.stat(
+                    child.name,
+                    dir_fd=directory_descriptor,
+                    follow_symlinks=False,
+                )
+            except OSError as exc:
+                reject("E_OUTPUT", f"cannot stat {label} entry: {exc}")
+            require(
+                not stat.S_ISDIR(child_observed.st_mode),
+                "E_OUTPUT",
+                f"{label} contains an unexpected directory",
+            )
+            try:
+                os.unlink(child.name, dir_fd=directory_descriptor)
+            except OSError as exc:
+                reject("E_OUTPUT", f"cannot remove {label} entry: {exc}")
+        try:
+            os.fsync(directory_descriptor)
+        except OSError as exc:
+            reject("E_OUTPUT", f"cannot durably sync {label}: {exc}")
+        try:
+            current_entry = os.stat(
+                directory.name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+        except OSError as exc:
+            reject("E_FILE_RACE", f"cannot recheck {label} parent entry: {exc}")
+        require(
+            (current_entry.st_dev, current_entry.st_ino) == identity,
+            "E_FILE_RACE",
+            f"{label} identity changed before removal",
+        )
+        try:
+            os.rmdir(directory.name, dir_fd=parent_descriptor)
+        except OSError as exc:
+            reject("E_OUTPUT", f"cannot remove {label}: {exc}")
+        try:
+            os.fsync(parent_descriptor)
+        except OSError as exc:
+            reject("E_OUTPUT", f"cannot durably sync {label} parent: {exc}")
+    finally:
+        if directory_descriptor is not None:
+            os.close(directory_descriptor)
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
 
 
 def link_regular_no_replace(source: Path, destination: Path, label: str) -> None:
@@ -924,12 +1053,33 @@ def create_receipt_package_staging(final_output: Path) -> Path:
     return real_directory(Path(name), "receipt package staging directory")
 
 
-def publish_staged_package(staging: Path, final_output: Path) -> Path:
-    source = real_directory(staging, "receipt package staging directory")
+def publish_staged_package(
+    staging: Path,
+    final_output: Path,
+    *,
+    expected_staging_identity: tuple[int, int] | None = None,
+    on_destination_created: Callable[[Path, tuple[int, int]], None] | None = None,
+) -> Path:
+    source = (
+        require_directory_identity(
+            staging,
+            expected_staging_identity,
+            "receipt package staging directory",
+        )
+        if expected_staging_identity is not None
+        else real_directory(staging, "receipt package staging directory")
+    )
     validate_package_output(source)
     destination: Path | None = None
+    destination_identity: tuple[int, int] | None = None
     try:
         destination = create_output(final_output)
+        destination_identity = directory_identity(
+            destination,
+            "durable package directory",
+        )
+        if on_destination_created is not None:
+            on_destination_created(destination, destination_identity)
         for name in PACKAGE_OUTPUT_NAMES:
             link_regular_no_replace(
                 source / name,
@@ -937,13 +1087,26 @@ def publish_staged_package(staging: Path, final_output: Path) -> Path:
                 f"staged durable package file {name}",
             )
         validate_package_output(destination)
-        cleanup_flat_directory(source, "receipt package staging directory")
+        cleanup_flat_directory(
+            source,
+            "receipt package staging directory",
+            expected_identity=expected_staging_identity,
+        )
         return destination
     except BaseException as primary_error:
         cleanup_error: BaseException | None = None
         if destination is not None and (destination.exists() or destination.is_symlink()):
             try:
-                cleanup_flat_directory(destination, "partial durable package directory")
+                require(
+                    destination_identity is not None,
+                    "E_INTERNAL",
+                    "partial durable package identity is absent",
+                )
+                cleanup_flat_directory(
+                    destination,
+                    "partial durable package directory",
+                    expected_identity=destination_identity,
+                )
             except BaseException as exc:
                 cleanup_error = exc
         if cleanup_error is not None:
@@ -1073,6 +1236,124 @@ class Step4Authority:
     final_manifest: Path
     receipts: dict[str, Any]
     maven_authority: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class TerminalIntegritySnapshot:
+    root: Path
+    run_id: str
+    authority: Step4Authority
+    modules: tuple[str, ...]
+    source_before: dict[str, Any]
+    tested_tree_before: dict[str, Any]
+    reports_before: dict[str, Any]
+
+
+@dataclass
+class TerminalIntegrityState:
+    snapshot: TerminalIntegritySnapshot | None = None
+    output: Path | None = None
+    output_identity: tuple[int, int] | None = None
+    staging: Path | None = None
+    staging_identity: tuple[int, int] | None = None
+    publication_target: Path | None = None
+    publication_target_identity: tuple[int, int] | None = None
+    published: Path | None = None
+    published_identity: tuple[int, int] | None = None
+
+    def arm(self, snapshot: TerminalIntegritySnapshot) -> None:
+        require(
+            self.snapshot is None,
+            "E_INTERNAL",
+            "terminal integrity latch is already armed",
+        )
+        self.snapshot = snapshot
+
+    def set_output(self, output: Path) -> None:
+        require(
+            self.snapshot is not None
+            and self.output is None
+            and self.output_identity is None,
+            "E_INTERNAL",
+            "terminal integrity output state differs",
+        )
+        absolute = Path(os.path.abspath(output))
+        self.output = absolute
+        self.output_identity = directory_identity(absolute, "package output directory")
+
+    def set_staging(self, staging: Path) -> None:
+        require(
+            self.snapshot is not None
+            and self.staging is None
+            and self.staging_identity is None
+            and self.output is not None
+            and self.output_identity is not None,
+            "E_INTERNAL",
+            "terminal integrity staging state differs",
+        )
+        absolute = Path(os.path.abspath(staging))
+        require(
+            absolute == self.output,
+            "E_INTERNAL",
+            "terminal integrity staging/output paths differ",
+        )
+        self.staging = absolute
+        self.staging_identity = self.output_identity
+
+    def set_publication_target(
+        self,
+        target: Path,
+        identity: tuple[int, int],
+    ) -> None:
+        require(
+            self.snapshot is not None
+            and self.publication_target is None
+            and self.publication_target_identity is None,
+            "E_INTERNAL",
+            "terminal integrity publication target differs",
+        )
+        absolute = Path(os.path.abspath(target))
+        require_directory_identity(
+            absolute,
+            identity,
+            "durable package directory",
+        )
+        self.publication_target = absolute
+        self.publication_target_identity = identity
+
+    def set_published(self, published: Path) -> None:
+        require(
+            self.snapshot is not None
+            and self.published is None
+            and self.published_identity is None
+            and self.publication_target is not None
+            and self.publication_target_identity is not None,
+            "E_INTERNAL",
+            "terminal integrity publication state differs",
+        )
+        absolute = Path(os.path.abspath(published))
+        require(
+            absolute == self.publication_target,
+            "E_INTERNAL",
+            "terminal integrity publication path differs",
+        )
+        require_directory_identity(
+            absolute,
+            self.publication_target_identity,
+            "durable package directory",
+        )
+        self.published = absolute
+        self.published_identity = self.publication_target_identity
+
+
+@dataclass(frozen=True)
+class TerminalIntegrityResult:
+    class_validation_after: str
+    report_validation_after: str
+    tested_tree_after: dict[str, Any]
+    reports_after: dict[str, Any]
+    source_after: dict[str, Any]
+    authority_after: Step4Authority
 
 
 def validate_step4_release_contract(
@@ -1255,6 +1536,31 @@ def validate_maven_toolchain_receipt(
     }
 
 
+def _validate_step4_release_artifact(
+    root: Path,
+    final_path: Path,
+    status_path: Path,
+) -> None:
+    run_capture(
+        [
+            sys.executable,
+            str(root / COVERAGE_XML_TOOL),
+            "verify-artifact",
+            "--mode",
+            "release",
+            "--repo-root",
+            str(root),
+            "--artifact",
+            str(final_path),
+            "--run-status",
+            str(status_path),
+        ],
+        root,
+        "E_STEP4_RELEASE_VERIFY",
+        "Step 4 canonical release artifact verification",
+    )
+
+
 def validate_step4(root: Path, run_id: str, supplied: Path) -> Step4Authority:
     expected = root / "target/v934-step4-coverage/runs" / run_id
     candidate = supplied if supplied.is_absolute() else root / supplied
@@ -1333,23 +1639,10 @@ def validate_step4(root: Path, run_id: str, supplied: Path) -> Step4Authority:
         "E_STEP4_BINDING",
         "Step 4 toolchain receipt path differs",
     )
-    run_capture(
-        [
-            sys.executable,
-            str(root / COVERAGE_XML_TOOL),
-            "verify-artifact",
-            "--mode",
-            "release",
-            "--repo-root",
-            str(root),
-            "--artifact",
-            str(final_path),
-            "--run-status",
-            str(actual / "run-status.env"),
-        ],
+    _validate_step4_release_artifact(
         root,
-        "E_STEP4_RELEASE_VERIFY",
-        "Step 4 canonical release artifact verification",
+        final_path,
+        actual / "run-status.env",
     )
     maven_authority = validate_maven_toolchain_receipt(
         root, toolchain_receipt, run_id, head
@@ -1621,6 +1914,84 @@ def report_snapshot(root: Path, modules: Sequence[str]) -> dict[str, Any]:
 
 def require_unchanged(label: str, before: dict[str, Any], after: dict[str, Any], code: str) -> None:
     require(before == after, code, f"{label} changed during release packaging")
+
+
+def verify_terminal_integrity(
+    state: TerminalIntegrityState,
+    *,
+    validator_log: Path | None = None,
+) -> TerminalIntegrityResult:
+    snapshot = state.snapshot
+    require(
+        snapshot is not None,
+        "E_INTERNAL",
+        "terminal integrity closure is not armed",
+    )
+    if state.published is not None or state.published_identity is not None:
+        require(
+            state.published is not None and state.published_identity is not None,
+            "E_INTERNAL",
+            "terminal durable package identity state differs",
+        )
+        require_directory_identity(
+            state.published,
+            state.published_identity,
+            "durable package directory",
+        )
+    class_validation_after = validate_class_universe(
+        snapshot.root,
+        snapshot.authority,
+    )
+    report_validation_after = validate_report_inventory(
+        snapshot.root,
+        snapshot.authority,
+    )
+    if validator_log is not None:
+        with open(validator_log, "ab") as stream:
+            stream.write(
+                (class_validation_after + report_validation_after).encode("utf-8")
+            )
+            stream.flush()
+            os.fsync(stream.fileno())
+    tested_tree_after = tested_tree_snapshot(snapshot.root, snapshot.modules)
+    reports_after = report_snapshot(snapshot.root, snapshot.modules)
+    source_after = source_seal(snapshot.root)
+    require_unchanged(
+        "tracked source/HEAD",
+        snapshot.source_before,
+        source_after,
+        "E_SOURCE_DRIFT",
+    )
+    require_unchanged(
+        "tested production output trees",
+        snapshot.tested_tree_before,
+        tested_tree_after,
+        "E_TESTED_TREE_DRIFT",
+    )
+    require_unchanged(
+        "TEST XML reports",
+        snapshot.reports_before,
+        reports_after,
+        "E_REPORT_DRIFT",
+    )
+    authority_after = validate_step4(
+        snapshot.root,
+        snapshot.run_id,
+        snapshot.authority.root,
+    )
+    require(
+        snapshot.authority.receipts == authority_after.receipts,
+        "E_STEP4_DRIFT",
+        "Step 4 authority files changed during packaging",
+    )
+    return TerminalIntegrityResult(
+        class_validation_after=class_validation_after,
+        report_validation_after=report_validation_after,
+        tested_tree_after=tested_tree_after,
+        reports_after=reports_after,
+        source_after=source_after,
+        authority_after=authority_after,
+    )
 
 
 def pom_coordinates(root: Path, module: str) -> tuple[str, str]:
@@ -2739,8 +3110,7 @@ def package_command_impl(
     args: argparse.Namespace,
     failure_context: FailureReceiptContext | None = None,
     *,
-    output_dir: Path | None = None,
-    output_is_precreated: bool = False,
+    terminal_state: TerminalIntegrityState,
 ) -> dict[str, Any]:
     validate_maven_environment(os.environ)
     root = repo_root(args.repo_root)
@@ -2754,12 +3124,25 @@ def package_command_impl(
     report_validation_before = validate_report_inventory(root, authority)
     tested_tree_before = tested_tree_snapshot(root, modules)
     reports_before = report_snapshot(root, modules)
-    requested_output = args.output_dir if output_dir is None else output_dir
-    output = (
-        real_directory(requested_output, "receipt package staging directory")
-        if output_is_precreated
-        else create_output(requested_output)
+    terminal_state.arm(
+        TerminalIntegritySnapshot(
+            root=root,
+            run_id=run_id,
+            authority=authority,
+            modules=tuple(modules),
+            source_before=source_before,
+            tested_tree_before=tested_tree_before,
+            reports_before=reports_before,
+        )
     )
+    output = (
+        create_receipt_package_staging(args.output_dir)
+        if failure_context is not None
+        else create_output(args.output_dir)
+    )
+    terminal_state.set_output(output)
+    if failure_context is not None:
+        terminal_state.set_staging(output)
     write_new(
         output / VALIDATOR_LOG_NAME,
         (class_validation_before + report_validation_before).encode("utf-8"),
@@ -2855,30 +3238,15 @@ def package_command_impl(
         "Docker log changed after image receipt publication",
     )
     image_manifest_binding = binding(output / IMAGE_MANIFEST_NAME, relative_to=output, label="image manifest")
-    class_validation_after = validate_class_universe(root, authority)
-    report_validation_after = validate_report_inventory(root, authority)
-    with open(output / VALIDATOR_LOG_NAME, "ab") as validator_log:
-        validator_log.write((class_validation_after + report_validation_after).encode("utf-8"))
-        validator_log.flush()
-        os.fsync(validator_log.fileno())
+    terminal_integrity = verify_terminal_integrity(
+        terminal_state,
+        validator_log=output / VALIDATOR_LOG_NAME,
+    )
     validator_log_binding = binding(
         output / VALIDATOR_LOG_NAME,
         relative_to=output,
         label="tested-tree validation log",
     )
-    tested_tree_after = tested_tree_snapshot(root, modules)
-    reports_after = report_snapshot(root, modules)
-    source_after = source_seal(root)
-    require_unchanged("tracked source/HEAD", source_before, source_after, "E_SOURCE_DRIFT")
-    require_unchanged(
-        "tested production output trees",
-        tested_tree_before,
-        tested_tree_after,
-        "E_TESTED_TREE_DRIFT",
-    )
-    require_unchanged("TEST XML reports", reports_before, reports_after, "E_REPORT_DRIFT")
-    authority_after = validate_step4(root, run_id, authority.root)
-    require(authority.receipts == authority_after.receipts, "E_STEP4_DRIFT", "Step 4 authority files changed during packaging")
     manifest = {
         "schema_version": 4,
         "kind": "v934-tested-output-tree-package",
@@ -2902,11 +3270,11 @@ def package_command_impl(
         },
         "seals": {
             "tested_tree_before": tested_tree_before,
-            "tested_tree_after": tested_tree_after,
+            "tested_tree_after": terminal_integrity.tested_tree_after,
             "reports_before": reports_before,
-            "reports_after": reports_after,
+            "reports_after": terminal_integrity.reports_after,
             "source_before": source_before,
-            "source_after": source_after,
+            "source_after": terminal_integrity.source_after,
         },
         "maven": {
             "policy": "direct plugin goals only; no lifecycle, test/external skip, or test selectors",
@@ -2961,44 +3329,154 @@ def package_command_impl(
     }
 
 
+def resolve_terminal_integrity_outcome(
+    primary_error: BaseException | None,
+    cleanup_error: BaseException | None,
+    *,
+    terminal_closure: Callable[[], Any] | None,
+    failure_context: FailureReceiptContext | None,
+) -> BaseException | None:
+    if terminal_closure is not None:
+        try:
+            terminal_closure()
+        except BaseException as exc:
+            if failure_context is not None:
+                failure_context.set_subphase("package-postconditions")
+            # An interrupt inside the closure leaves terminal integrity
+            # unknown. It is therefore a bounded fail-closed E_INTERNAL,
+            # rather than a successful E_SIGNAL classification.
+            error_code = (
+                exc.code
+                if isinstance(exc, PackageError)
+                and exc.code in FAILURE_RECEIPT_ERROR_CODES
+                else "E_INTERNAL"
+            )
+            return PackageError(
+                error_code,
+                "terminal Step 4 integrity closure failed",
+            )
+    return cleanup_error if cleanup_error is not None else primary_error
+
+
+def cleanup_terminal_package_outputs(
+    state: TerminalIntegrityState,
+) -> BaseException | None:
+    """Remove package paths owned after the mutable-work latch was armed.
+
+    This is deliberately best-effort and bounded: a cleanup failure is itself
+    an E_OUTPUT outcome, but it never supplies raw filesystem detail and never
+    bypasses the terminal Step 4 closure.
+    """
+
+    seen: set[tuple[str, tuple[int, int]]] = set()
+    cleanup_error: BaseException | None = None
+    for path, expected_identity, label in (
+        (
+            state.staging,
+            state.staging_identity,
+            "receipt package staging directory",
+        ),
+        (state.output, state.output_identity, "package output directory"),
+        (
+            state.publication_target,
+            state.publication_target_identity,
+            "durable package directory",
+        ),
+        (state.published, state.published_identity, "durable package directory"),
+    ):
+        if path is None or expected_identity is None:
+            continue
+        target = Path(os.path.abspath(path))
+        marker = (str(target), expected_identity)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        if not target.exists() and not target.is_symlink():
+            continue
+        try:
+            cleanup_flat_directory(
+                target,
+                label,
+                expected_identity=expected_identity,
+            )
+        except BaseException:
+            cleanup_error = PackageError(
+                "E_OUTPUT",
+                "owned package output cleanup failed",
+            )
+    return cleanup_error
+
+
 def package_command(
     args: argparse.Namespace,
     failure_context: FailureReceiptContext | None = None,
 ) -> dict[str, Any]:
-    if failure_context is None:
-        return package_command_impl(args)
-    staging = create_receipt_package_staging(args.output_dir)
+    terminal_state = TerminalIntegrityState()
+    result: dict[str, Any] | None = None
     primary_error: BaseException | None = None
+    cleanup_error: BaseException | None = None
     try:
         result = package_command_impl(
             args,
             failure_context,
-            output_dir=staging,
-            output_is_precreated=True,
+            terminal_state=terminal_state,
         )
-        # Final publication is the durable package-manifest boundary.  Keep the
-        # receipt inside the approved enum even though all construction and
-        # internal verification completed in the isolated staging directory.
-        failure_context.set_subphase("package-manifest")
-        published = publish_staged_package(staging, args.output_dir)
-        result["output_dir"] = str(published)
-        return result
+        if failure_context is not None:
+            staging = terminal_state.staging
+            require(
+                staging is not None,
+                "E_INTERNAL",
+                "receipt package staging state is absent",
+            )
+            staging_identity = terminal_state.staging_identity
+            require(
+                staging_identity is not None,
+                "E_INTERNAL",
+                "receipt package staging identity is absent",
+            )
+            # Final publication is the durable package-manifest boundary. Keep
+            # the receipt inside the approved enum even though construction and
+            # internal verification completed in isolated staging.
+            failure_context.set_subphase("package-manifest")
+            published = publish_staged_package(
+                staging,
+                args.output_dir,
+                expected_staging_identity=staging_identity,
+                on_destination_created=terminal_state.set_publication_target,
+            )
+            terminal_state.set_published(published)
     except BaseException as exc:
         primary_error = exc
-        raise
-    finally:
-        if staging.exists() or staging.is_symlink():
-            try:
-                cleanup_flat_directory(staging, "receipt package staging directory")
-            except BaseException as cleanup_error:
-                if primary_error is None:
-                    raise
-                if isinstance(primary_error, KeyboardInterrupt):
-                    raise primary_error
-                raise PackageError(
-                    "E_OUTPUT",
-                    "receipt package staging cleanup failed",
-                ) from cleanup_error
+
+    if primary_error is not None:
+        cleanup_error = cleanup_terminal_package_outputs(terminal_state)
+
+    terminal_error = resolve_terminal_integrity_outcome(
+        primary_error,
+        cleanup_error,
+        terminal_closure=(
+            (lambda: verify_terminal_integrity(terminal_state))
+            if terminal_state.snapshot is not None
+            else None
+        ),
+        failure_context=failure_context,
+    )
+    if terminal_error is not None:
+        # A post-publication closure failure must not leave a usable durable
+        # package behind. If this best-effort cleanup also fails, the closure
+        # outcome remains dominant and the outer receipt remains fail-closed.
+        cleanup_terminal_package_outputs(terminal_state)
+        raise terminal_error
+    require(result is not None, "E_INTERNAL", "package result is absent")
+    if failure_context is not None:
+        published = terminal_state.published
+        require(
+            published is not None,
+            "E_INTERNAL",
+            "receipt package publication state is absent",
+        )
+        result["output_dir"] = str(published)
+    return result
 
 
 def validate_manifest_binding_shape(value: Any, path: str, label: str) -> dict[str, Any]:
@@ -3718,6 +4196,31 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
     )
     with tempfile.TemporaryDirectory(prefix="v934-package-negative-") as temporary_name:
         temporary = Path(temporary_name)
+        fixed_sidecar_fields = (
+            "schema_version",
+            "kind",
+            "run_id",
+            "gate_phase",
+            "operation",
+            "subphase",
+            "error_code",
+            "tool_exit_code",
+            "status",
+        )
+        require(
+            FAILURE_RECEIPT_FIELDS == fixed_sidecar_fields
+            and len(FAILURE_RECEIPT_FIELDS) == 9,
+            "E_NEGATIVE",
+            "package failure sidecar schema is no longer the fixed nine fields",
+        )
+        cases.append(
+            {
+                "case": "failure-receipt-fixed-nine-field-schema",
+                "expected": "fixed-nine-fields",
+                "actual": "fixed-nine-fields",
+                "status": "passed",
+            }
+        )
         receipt_root = temporary / "failure-receipts"
         receipt_root.mkdir()
         receipt_path = receipt_root / FAILURE_RECEIPT_NAME
@@ -4337,6 +4840,1405 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
                 "status": "passed",
             }
         )
+
+        def terminal_eimage_action(
+            image_context: FailureReceiptContext,
+            *,
+            closure_error: str | None = None,
+            cleanup_error: BaseException | None = None,
+        ) -> None:
+            closure_seen = False
+
+            def terminal_closure() -> None:
+                nonlocal closure_seen
+                require(
+                    not image_context.path.exists()
+                    and not image_context.path.is_symlink(),
+                    "E_NEGATIVE",
+                    "terminal closure ran after failure receipt publication",
+                )
+                require(
+                    not (image_context.path.parent / "package").exists()
+                    and not (image_context.path.parent / "package").is_symlink(),
+                    "E_NEGATIVE",
+                    "terminal closure observed a partial package directory",
+                )
+                closure_seen = True
+                if closure_error is not None:
+                    reject(closure_error, raw_marker)
+
+            try:
+                guarded_eimage_boundary(
+                    image_context,
+                    "package-image-runtime-inspect",
+                    lambda: reject("E_IMAGE", raw_marker),
+                )
+            except PackageError as primary_error:
+                terminal_error = resolve_terminal_integrity_outcome(
+                    primary_error,
+                    cleanup_error,
+                    terminal_closure=terminal_closure,
+                    failure_context=image_context,
+                )
+                require(
+                    closure_seen and terminal_error is not None,
+                    "E_NEGATIVE",
+                    "terminal closure did not resolve the controlled image failure",
+                )
+                raise terminal_error
+
+        assert_receipted_image_subphase(
+            "terminal-closure-preserves-refined-eimage",
+            lambda image_context: terminal_eimage_action(image_context),
+            "E_IMAGE",
+            "package-image-runtime-inspect",
+        )
+        assert_receipted_image_subphase(
+            "terminal-closure-step4-failure-dominates-eimage",
+            lambda image_context: terminal_eimage_action(
+                image_context,
+                closure_error="E_STEP4_RELEASE_VERIFY",
+            ),
+            "E_STEP4_RELEASE_VERIFY",
+            "package-postconditions",
+        )
+        assert_receipted_image_subphase(
+            "terminal-closure-report-failure-dominates-cleanup",
+            lambda image_context: terminal_eimage_action(
+                image_context,
+                closure_error="E_REPORT_DRIFT",
+                cleanup_error=PackageError("E_OUTPUT", raw_marker),
+            ),
+            "E_REPORT_DRIFT",
+            "package-postconditions",
+        )
+        cases.append(
+            {
+                "case": "terminal-closure-receipt-order-and-no-package-output",
+                "expected": "closure-before-sidecar",
+                "actual": "closure-before-sidecar",
+                "status": "passed",
+            }
+        )
+        terminal_signal_receipt = (
+            receipt_root / "terminal-signal" / FAILURE_RECEIPT_NAME
+        )
+        terminal_signal_receipt.parent.mkdir()
+        terminal_signal_context = FailureReceiptContext(
+            path=terminal_signal_receipt,
+            run_id="synthetic-receipt",
+            operation="package",
+            subphase="package-image",
+        )
+        terminal_signal_seen = False
+
+        def terminal_signal_closure() -> None:
+            nonlocal terminal_signal_seen
+            require(
+                not terminal_signal_receipt.exists()
+                and not terminal_signal_receipt.is_symlink(),
+                "E_NEGATIVE",
+                "terminal signal closure ran after receipt publication",
+            )
+            terminal_signal_seen = True
+
+        def terminal_signal_action() -> dict[str, Any]:
+            terminal_error = resolve_terminal_integrity_outcome(
+                KeyboardInterrupt(),
+                None,
+                terminal_closure=terminal_signal_closure,
+                failure_context=terminal_signal_context,
+            )
+            require(
+                terminal_signal_seen
+                and isinstance(terminal_error, KeyboardInterrupt),
+                "E_NEGATIVE",
+                "terminal signal closure did not preserve the primary signal",
+            )
+            raise terminal_error
+
+        terminal_signal_result, terminal_signal_exit = execute_with_failure_receipt(
+            terminal_signal_context,
+            terminal_signal_action,
+        )
+        require(
+            terminal_signal_result is None
+            and terminal_signal_exit == 130
+            and read_failure_receipt(
+                terminal_signal_receipt,
+                run_id="synthetic-receipt",
+                operation="package",
+                tool_exit_code=130,
+            )["error_code"]
+            == "E_SIGNAL",
+            "E_NEGATIVE",
+            "terminal signal closure did not preserve E_SIGNAL",
+        )
+        terminal_signal_failure_receipt = (
+            receipt_root / "terminal-signal-closure-failure" / FAILURE_RECEIPT_NAME
+        )
+        terminal_signal_failure_receipt.parent.mkdir()
+        terminal_signal_failure_context = FailureReceiptContext(
+            path=terminal_signal_failure_receipt,
+            run_id="synthetic-receipt",
+            operation="package",
+            subphase="package-image",
+        )
+
+        def terminal_signal_failure_action() -> dict[str, Any]:
+            terminal_error = resolve_terminal_integrity_outcome(
+                KeyboardInterrupt(),
+                None,
+                terminal_closure=lambda: reject(
+                    "E_STEP4_RELEASE_VERIFY",
+                    raw_marker,
+                ),
+                failure_context=terminal_signal_failure_context,
+            )
+            require(
+                isinstance(terminal_error, PackageError)
+                and terminal_error.code == "E_STEP4_RELEASE_VERIFY",
+                "E_NEGATIVE",
+                "terminal closure failure did not produce the bounded error",
+            )
+            raise terminal_error
+
+        terminal_signal_failure_result, terminal_signal_failure_exit = (
+            execute_with_failure_receipt(
+                terminal_signal_failure_context,
+                terminal_signal_failure_action,
+            )
+        )
+        terminal_signal_failure_values = read_failure_receipt(
+            terminal_signal_failure_receipt,
+            run_id="synthetic-receipt",
+            operation="package",
+            tool_exit_code=1,
+        )
+        require(
+            terminal_signal_failure_result is None
+            and terminal_signal_failure_exit == 1
+            and terminal_signal_failure_values["error_code"]
+            == "E_STEP4_RELEASE_VERIFY"
+            and terminal_signal_failure_values["subphase"]
+            == "package-postconditions"
+            and raw_marker.encode("ascii")
+            not in terminal_signal_failure_receipt.read_bytes(),
+            "E_NEGATIVE",
+            "terminal closure failure did not dominate E_SIGNAL",
+        )
+        cases.append(
+            {
+                "case": "terminal-closure-signal-precedence",
+                "expected": "signal-pass-or-step4-fail",
+                "actual": "signal-pass-or-step4-fail",
+                "status": "passed",
+            }
+        )
+
+        # Exercise the real package coordinator from its actual mutable-work
+        # latch. The injected terminal events occur at the first owned write,
+        # before Maven or Docker can be reached; the real wrapper and real
+        # after-integrity helper then resolve the outcome.
+        from contextlib import ExitStack
+        from unittest import mock
+
+        terminal_root = temporary / "postlatch-terminal"
+        terminal_root.mkdir()
+        module_self = sys.modules[__name__]
+
+        def run_postlatch_terminal_case(
+            name: str,
+            *,
+            primary: str,
+            closure_fault: str | None,
+            cleanup_fault: str | None,
+            expected_error: str,
+            expected_subphase: str,
+            expected_exit: int,
+        ) -> None:
+            case_root = terminal_root / name
+            case_root.mkdir()
+            final_output = case_root / "package"
+            receipt = case_root / FAILURE_RECEIPT_NAME
+            context = FailureReceiptContext(
+                path=receipt,
+                run_id="synthetic-terminal",
+                operation="package",
+                subphase="package-preflight",
+            )
+            case_args = argparse.Namespace(
+                repo_root=case_root,
+                run_id="synthetic-terminal",
+                step4_run_root=case_root,
+                output_dir=final_output,
+            )
+            authority = Step4Authority(
+                root=case_root,
+                run_id="synthetic-terminal",
+                git_head="a" * 40,
+                source_sha256="b" * 64,
+                not_before_ns=1,
+                context=case_root / "run-context.json",
+                class_universe=case_root / "class-universe.json",
+                final_manifest=case_root / "final-manifest.json",
+                receipts={},
+                maven_authority={},
+            )
+            source_before = {
+                "file_count": 1,
+                "git_head": authority.git_head,
+                "sha256": authority.source_sha256,
+            }
+            tested_before = {
+                "entries": [],
+                "files": 1,
+                "module_counts": {"synthetic-module": 1},
+                "sha256": "c" * 64,
+            }
+            reports_before = {
+                "files": 1,
+                "module_counts": {"synthetic-module": 1},
+                "sha256": "d" * 64,
+            }
+            source_after = (
+                {**source_before, "sha256": "e" * 64}
+                if closure_fault == "source"
+                else source_before
+            )
+            tested_after = (
+                {**tested_before, "sha256": "f" * 64}
+                if closure_fault == "tree"
+                else tested_before
+            )
+            reports_after = (
+                {**reports_before, "sha256": "0" * 64}
+                if closure_fault == "report"
+                else reports_before
+            )
+            armed = False
+            arm_calls = 0
+            staging: Path | None = None
+            class_calls = 0
+            report_validation_calls = 0
+            source_calls = 0
+            tree_calls = 0
+            report_calls = 0
+            artifact_calls = 0
+            cleanup_injected = False
+            original_arm = TerminalIntegrityState.arm
+            original_create_staging = create_receipt_package_staging
+            original_write_new = write_new
+            original_cleanup = cleanup_flat_directory
+
+            def observed_arm(
+                state: TerminalIntegrityState,
+                snapshot: TerminalIntegritySnapshot,
+            ) -> None:
+                nonlocal armed, arm_calls
+                require(not armed, "E_NEGATIVE", "synthetic terminal latch armed twice")
+                armed = True
+                arm_calls += 1
+                original_arm(state, snapshot)
+
+            def observed_staging(output_dir: Path) -> Path:
+                nonlocal staging
+                require(armed, "E_NEGATIVE", "synthetic staging preceded terminal latch")
+                staging = original_create_staging(output_dir)
+                return staging
+
+            def injected_write(path: Path, payload: bytes) -> None:
+                if staging is not None and path == staging / VALIDATOR_LOG_NAME:
+                    require(
+                        armed and arm_calls == 1,
+                        "E_NEGATIVE",
+                        "synthetic first owned write did not follow one terminal latch",
+                    )
+                    if primary == "eimage":
+                        context.set_subphase("package-image")
+                        guarded_eimage_boundary(
+                            context,
+                            "package-image-runtime-inspect",
+                            lambda: reject("E_IMAGE", raw_marker),
+                        )
+                    context.set_subphase("package-image")
+                    raise KeyboardInterrupt()
+                original_write_new(path, payload)
+
+            def checked_class_validation(
+                _root: Path,
+                _authority: Step4Authority,
+            ) -> str:
+                nonlocal class_calls
+                class_calls += 1
+                if class_calls == 2:
+                    require(
+                        staging is not None
+                        and (
+                            (
+                                cleanup_fault == "before"
+                                and cleanup_injected
+                                and staging.exists()
+                                and not staging.is_symlink()
+                            )
+                            or (
+                                cleanup_fault != "before"
+                                and not staging.exists()
+                                and not staging.is_symlink()
+                            )
+                        )
+                        and not final_output.exists()
+                        and not final_output.is_symlink()
+                        and not receipt.exists()
+                        and not receipt.is_symlink(),
+                        "E_NEGATIVE",
+                        "terminal closure did not follow cleanup or preceded sidecar publication",
+                    )
+                    if closure_fault == "interrupt":
+                        raise KeyboardInterrupt()
+                return "synthetic-class-validation\n"
+
+            def synthetic_source_seal(_root: Path) -> dict[str, Any]:
+                nonlocal source_calls
+                source_calls += 1
+                return source_before if source_calls == 1 else source_after
+
+            def checked_report_validation(
+                _root: Path,
+                _authority: Step4Authority,
+            ) -> str:
+                nonlocal report_validation_calls
+                report_validation_calls += 1
+                return "synthetic-report-validation\n"
+
+            def synthetic_tested_tree(
+                _root: Path,
+                _modules: Sequence[str],
+            ) -> dict[str, Any]:
+                nonlocal tree_calls
+                tree_calls += 1
+                return tested_before if tree_calls == 1 else tested_after
+
+            def synthetic_reports(
+                _root: Path,
+                _modules: Sequence[str],
+            ) -> dict[str, Any]:
+                nonlocal report_calls
+                report_calls += 1
+                return reports_before if report_calls == 1 else reports_after
+
+            def synthetic_artifact_capture(
+                _command: Sequence[str],
+                _root: Path,
+                code: str,
+                label: str,
+            ) -> str:
+                nonlocal artifact_calls
+                require(
+                    code == "E_STEP4_RELEASE_VERIFY"
+                    and label == "Step 4 canonical release artifact verification",
+                    "E_NEGATIVE",
+                    "synthetic Step 4 verifier helper contract differs",
+                )
+                artifact_calls += 1
+                if artifact_calls == 2 and closure_fault == "step4":
+                    reject("E_STEP4_RELEASE_VERIFY", raw_marker)
+                return ""
+
+            def synthetic_validate_step4(
+                root_arg: Path,
+                _run_id: str,
+                _supplied: Path,
+            ) -> Step4Authority:
+                _validate_step4_release_artifact(
+                    root_arg,
+                    authority.final_manifest,
+                    case_root / "run-status.env",
+                )
+                if artifact_calls == 2 and closure_fault == "authority":
+                    return Step4Authority(
+                        root=authority.root,
+                        run_id=authority.run_id,
+                        git_head=authority.git_head,
+                        source_sha256=authority.source_sha256,
+                        not_before_ns=authority.not_before_ns,
+                        context=authority.context,
+                        class_universe=authority.class_universe,
+                        final_manifest=authority.final_manifest,
+                        receipts={"synthetic": "drift"},
+                        maven_authority=authority.maven_authority,
+                    )
+                return authority
+
+            def controlled_cleanup(
+                path: Path,
+                label: str,
+                *,
+                expected_identity: tuple[int, int] | None = None,
+            ) -> None:
+                nonlocal cleanup_injected
+                if (
+                    cleanup_fault == "before"
+                    and label == "receipt package staging directory"
+                    and not cleanup_injected
+                ):
+                    cleanup_injected = True
+                    reject("E_OUTPUT", raw_marker)
+                original_cleanup(
+                    path,
+                    label,
+                    expected_identity=expected_identity,
+                )
+                if (
+                    cleanup_fault == "after"
+                    and label == "receipt package staging directory"
+                    and not cleanup_injected
+                ):
+                    cleanup_injected = True
+                    reject("E_OUTPUT", raw_marker)
+
+            def unexpected_external(*_args: Any, **_kwargs: Any) -> None:
+                reject("E_NEGATIVE", "synthetic terminal case reached an external command")
+
+            with ExitStack() as stack:
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "validate_maven_environment",
+                        return_value=None,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "repo_root", return_value=case_root)
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "frozen_modules",
+                        return_value=(
+                            ["synthetic-module"],
+                            {"sha256": "1" * 64, "size": 1},
+                        ),
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "validate_step4", synthetic_validate_step4)
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "current_head",
+                        return_value=authority.git_head,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "source_seal", synthetic_source_seal)
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "validate_class_universe",
+                        side_effect=checked_class_validation,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "validate_report_inventory",
+                        side_effect=checked_report_validation,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "tested_tree_snapshot", synthetic_tested_tree)
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "report_snapshot", synthetic_reports)
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "run_capture", synthetic_artifact_capture)
+                )
+                stack.enter_context(
+                    mock.patch.object(TerminalIntegrityState, "arm", observed_arm)
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "create_receipt_package_staging",
+                        observed_staging,
+                    )
+                )
+                stack.enter_context(mock.patch.object(module_self, "write_new", injected_write))
+                stack.enter_context(
+                    mock.patch.object(module_self, "cleanup_flat_directory", controlled_cleanup)
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "run_logged", unexpected_external)
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "docker_image", unexpected_external)
+                )
+                result, exit_code = execute_with_failure_receipt(
+                    context,
+                    lambda: package_command(case_args, context),
+                )
+
+            values = read_failure_receipt(
+                receipt,
+                run_id="synthetic-terminal",
+                operation="package",
+                tool_exit_code=expected_exit,
+                package_root=final_output,
+            )
+            receipt_bytes = receipt.read_bytes()
+            require(
+                result is None
+                and exit_code == expected_exit
+                and armed
+                and arm_calls == 1
+                and class_calls == 2
+                and report_validation_calls
+                == (1 if closure_fault == "interrupt" else 2)
+                and staging is not None
+                and not staging.exists()
+                and not staging.is_symlink()
+                and not final_output.exists()
+                and not final_output.is_symlink()
+                and tuple(values) == fixed_sidecar_fields
+                and values["error_code"] == expected_error
+                and values["subphase"] == expected_subphase
+                and context.pending_eimage_subphase is None
+                and raw_marker.encode("ascii") not in receipt_bytes,
+                "E_NEGATIVE",
+                f"synthetic postlatch terminal case {name} differs",
+            )
+            if cleanup_fault is not None:
+                require(
+                    cleanup_injected,
+                    "E_NEGATIVE",
+                    f"synthetic postlatch cleanup was not exercised for {name}",
+                )
+            if closure_fault == "step4":
+                require(
+                    artifact_calls == 2,
+                    "E_NEGATIVE",
+                    "synthetic terminal Step 4 verifier did not run before and after latch",
+                )
+            cases.append(
+                {
+                    "case": name,
+                    "expected": f"{expected_error}/{expected_subphase}",
+                    "actual": f"{values['error_code']}/{values['subphase']}",
+                    "status": "passed",
+                }
+            )
+
+        run_postlatch_terminal_case(
+            "postlatch-eimage-closure-pass",
+            primary="eimage",
+            closure_fault=None,
+            cleanup_fault=None,
+            expected_error="E_IMAGE",
+            expected_subphase="package-image-runtime-inspect",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-eimage-cleanup-failure-failclosed",
+            primary="eimage",
+            closure_fault=None,
+            cleanup_fault="after",
+            expected_error="E_OUTPUT",
+            expected_subphase="package-image",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-eimage-unremoved-cleanup-failclosed",
+            primary="eimage",
+            closure_fault=None,
+            cleanup_fault="before",
+            expected_error="E_OUTPUT",
+            expected_subphase="package-image",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-eimage-step4-dominates",
+            primary="eimage",
+            closure_fault="step4",
+            cleanup_fault=None,
+            expected_error="E_STEP4_RELEASE_VERIFY",
+            expected_subphase="package-postconditions",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-eimage-tree-dominates",
+            primary="eimage",
+            closure_fault="tree",
+            cleanup_fault=None,
+            expected_error="E_TESTED_TREE_DRIFT",
+            expected_subphase="package-postconditions",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-eimage-report-cleanup-dominates",
+            primary="eimage",
+            closure_fault="report",
+            cleanup_fault="before",
+            expected_error="E_REPORT_DRIFT",
+            expected_subphase="package-postconditions",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-eimage-source-dominates",
+            primary="eimage",
+            closure_fault="source",
+            cleanup_fault=None,
+            expected_error="E_SOURCE_DRIFT",
+            expected_subphase="package-postconditions",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-eimage-authority-dominates",
+            primary="eimage",
+            closure_fault="authority",
+            cleanup_fault=None,
+            expected_error="E_STEP4_DRIFT",
+            expected_subphase="package-postconditions",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-signal-closure-pass",
+            primary="signal",
+            closure_fault=None,
+            cleanup_fault=None,
+            expected_error="E_SIGNAL",
+            expected_subphase="package-image",
+            expected_exit=130,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-signal-cleanup-failure-failclosed",
+            primary="signal",
+            closure_fault=None,
+            cleanup_fault="after",
+            expected_error="E_OUTPUT",
+            expected_subphase="package-image",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-signal-cleanup-closure-dominates",
+            primary="signal",
+            closure_fault="source",
+            cleanup_fault="before",
+            expected_error="E_SOURCE_DRIFT",
+            expected_subphase="package-postconditions",
+            expected_exit=1,
+        )
+        run_postlatch_terminal_case(
+            "postlatch-signal-closure-interrupted",
+            primary="signal",
+            closure_fault="interrupt",
+            cleanup_fault=None,
+            expected_error="E_INTERNAL",
+            expected_subphase="package-postconditions",
+            expected_exit=1,
+        )
+
+        # The terminal wrapper must also close direct/no-receipt success. This
+        # deliberately uses a minimal in-process package implementation so it
+        # can validate wrapper control flow without Maven or Docker.
+        def run_direct_terminal_success_case(name: str, *, source_drift: bool) -> None:
+            case_root = terminal_root / name
+            case_root.mkdir()
+            direct_output = case_root / "package"
+            authority = Step4Authority(
+                root=case_root,
+                run_id="synthetic-direct-terminal",
+                git_head="a" * 40,
+                source_sha256="b" * 64,
+                not_before_ns=1,
+                context=case_root / "run-context.json",
+                class_universe=case_root / "class-universe.json",
+                final_manifest=case_root / "final-manifest.json",
+                receipts={},
+                maven_authority={},
+            )
+            source_before = {
+                "file_count": 1,
+                "git_head": authority.git_head,
+                "sha256": authority.source_sha256,
+            }
+            source_after = (
+                {**source_before, "sha256": "c" * 64}
+                if source_drift
+                else source_before
+            )
+            tested = {
+                "entries": [],
+                "files": 1,
+                "module_counts": {"synthetic-module": 1},
+                "sha256": "d" * 64,
+            }
+            reports = {
+                "files": 1,
+                "module_counts": {"synthetic-module": 1},
+                "sha256": "e" * 64,
+            }
+            observed_state: TerminalIntegrityState | None = None
+            closure_calls = 0
+
+            def direct_impl(
+                package_args: argparse.Namespace,
+                _failure_context: FailureReceiptContext | None = None,
+                *,
+                terminal_state: TerminalIntegrityState,
+            ) -> dict[str, Any]:
+                nonlocal observed_state
+                terminal_state.arm(
+                    TerminalIntegritySnapshot(
+                        root=case_root,
+                        run_id=authority.run_id,
+                        authority=authority,
+                        modules=("synthetic-module",),
+                        source_before=source_before,
+                        tested_tree_before=tested,
+                        reports_before=reports,
+                    )
+                )
+                output_dir = create_output(package_args.output_dir)
+                terminal_state.set_output(output_dir)
+                write_new(output_dir / "synthetic-output", b"synthetic-safe\n")
+                observed_state = terminal_state
+                return {
+                    "command": "package",
+                    "output_dir": str(output_dir),
+                    "status": "passed",
+                }
+
+            def direct_class_validation(
+                _root: Path,
+                _authority: Step4Authority,
+            ) -> str:
+                nonlocal closure_calls
+                closure_calls += 1
+                require(
+                    observed_state is not None
+                    and observed_state.snapshot is not None
+                    and direct_output.exists()
+                    and not direct_output.is_symlink(),
+                    "E_NEGATIVE",
+                    "direct successful package did not reach terminal closure",
+                )
+                return "synthetic-direct-class-validation\n"
+
+            direct_args = argparse.Namespace(output_dir=direct_output)
+            result: dict[str, Any] | None = None
+            terminal_error: PackageError | None = None
+            with ExitStack() as stack:
+                stack.enter_context(
+                    mock.patch.object(module_self, "package_command_impl", direct_impl)
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "validate_class_universe",
+                        side_effect=direct_class_validation,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        module_self,
+                        "validate_report_inventory",
+                        return_value="synthetic-direct-report-validation\n",
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "source_seal", return_value=source_after)
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "tested_tree_snapshot", return_value=tested)
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "report_snapshot", return_value=reports)
+                )
+                stack.enter_context(
+                    mock.patch.object(module_self, "validate_step4", return_value=authority)
+                )
+                try:
+                    result = package_command(direct_args)
+                except PackageError as exc:
+                    terminal_error = exc
+
+            require(
+                closure_calls == 1
+                and (
+                    (
+                        not source_drift
+                        and result is not None
+                        and terminal_error is None
+                        and result["output_dir"] == str(direct_output)
+                        and direct_output.exists()
+                        and not direct_output.is_symlink()
+                    )
+                    or (
+                        source_drift
+                        and result is None
+                        and terminal_error is not None
+                        and terminal_error.code == "E_SOURCE_DRIFT"
+                        and not direct_output.exists()
+                        and not direct_output.is_symlink()
+                    )
+                ),
+                "E_NEGATIVE",
+                f"direct terminal success case {name} differs",
+            )
+            if not source_drift:
+                cleanup_flat_directory(direct_output, "synthetic direct package")
+            cases.append(
+                {
+                    "case": name,
+                    "expected": "success" if not source_drift else "E_SOURCE_DRIFT",
+                    "actual": "success" if result is not None else "E_SOURCE_DRIFT",
+                    "status": "passed",
+                }
+            )
+
+        run_direct_terminal_success_case(
+            "direct-success-runs-final-closure",
+            source_drift=False,
+        )
+        run_direct_terminal_success_case(
+            "direct-success-closure-failure-cleans-output",
+            source_drift=True,
+        )
+
+        # Receipt publication is another mutable boundary. If its final
+        # terminal closure fails, remove the durable package before the fixed
+        # sidecar can be written.
+        publication_case_root = terminal_root / "receipt-postpublication-closure"
+        publication_case_root.mkdir()
+        publication_output = publication_case_root / "package"
+        publication_receipt = publication_case_root / FAILURE_RECEIPT_NAME
+        publication_context = FailureReceiptContext(
+            path=publication_receipt,
+            run_id="synthetic-publication-terminal",
+            operation="package",
+            subphase="package-preflight",
+        )
+        publication_authority = Step4Authority(
+            root=publication_case_root,
+            run_id="synthetic-publication-terminal",
+            git_head="a" * 40,
+            source_sha256="b" * 64,
+            not_before_ns=1,
+            context=publication_case_root / "run-context.json",
+            class_universe=publication_case_root / "class-universe.json",
+            final_manifest=publication_case_root / "final-manifest.json",
+            receipts={},
+            maven_authority={},
+        )
+        publication_source = {
+            "file_count": 1,
+            "git_head": publication_authority.git_head,
+            "sha256": publication_authority.source_sha256,
+        }
+        publication_tree = {
+            "entries": [],
+            "files": 1,
+            "module_counts": {"synthetic-module": 1},
+            "sha256": "c" * 64,
+        }
+        publication_reports = {
+            "files": 1,
+            "module_counts": {"synthetic-module": 1},
+            "sha256": "d" * 64,
+        }
+        publication_state: TerminalIntegrityState | None = None
+        publication_staging: Path | None = None
+        sidecar_after_cleanup = False
+        original_publish_failure_receipt = publish_failure_receipt
+
+        def receipt_publication_impl(
+            package_args: argparse.Namespace,
+            failure_context: FailureReceiptContext | None = None,
+            *,
+            terminal_state: TerminalIntegrityState,
+        ) -> dict[str, Any]:
+            nonlocal publication_state, publication_staging
+            require(
+                failure_context is publication_context,
+                "E_NEGATIVE",
+                "synthetic receipt publication lost its failure context",
+            )
+            terminal_state.arm(
+                TerminalIntegritySnapshot(
+                    root=publication_case_root,
+                    run_id=publication_authority.run_id,
+                    authority=publication_authority,
+                    modules=("synthetic-module",),
+                    source_before=publication_source,
+                    tested_tree_before=publication_tree,
+                    reports_before=publication_reports,
+                )
+            )
+            publication_staging = create_receipt_package_staging(package_args.output_dir)
+            terminal_state.set_output(publication_staging)
+            terminal_state.set_staging(publication_staging)
+            for output_name in PACKAGE_OUTPUT_NAMES:
+                write_new(
+                    publication_staging / output_name,
+                    f"synthetic package output:{output_name}\n".encode("ascii"),
+                )
+            publication_state = terminal_state
+            return {
+                "command": "package",
+                "output_dir": str(publication_staging),
+                "status": "passed",
+            }
+
+        def publication_class_validation(
+            _root: Path,
+            _authority: Step4Authority,
+        ) -> str:
+            require(
+                publication_state is not None
+                and publication_state.published == publication_output
+                and publication_state.publication_target_identity is not None
+                and publication_state.published_identity
+                == publication_state.publication_target_identity
+                and publication_staging is not None
+                and not publication_staging.exists()
+                and not publication_staging.is_symlink()
+                and publication_output.exists()
+                and not publication_output.is_symlink()
+                and not publication_receipt.exists()
+                and not publication_receipt.is_symlink(),
+                "E_NEGATIVE",
+                "post-publication terminal closure ordering differs",
+            )
+            return "synthetic-publication-class-validation\n"
+
+        def publication_step4_failure(
+            _root: Path,
+            _run_id: str,
+            _supplied: Path,
+        ) -> Step4Authority:
+            reject("E_STEP4_RELEASE_VERIFY", raw_marker)
+
+        def assert_sidecar_after_cleanup(
+            context_arg: FailureReceiptContext,
+            *,
+            error_code: str,
+            tool_exit_code: int,
+        ) -> None:
+            nonlocal sidecar_after_cleanup
+            require(
+                context_arg is publication_context
+                and error_code == "E_STEP4_RELEASE_VERIFY"
+                and tool_exit_code == 1
+                and not publication_output.exists()
+                and not publication_output.is_symlink()
+                and publication_staging is not None
+                and not publication_staging.exists()
+                and not publication_staging.is_symlink(),
+                "E_NEGATIVE",
+                "failure sidecar preceded durable package cleanup",
+            )
+            sidecar_after_cleanup = True
+            original_publish_failure_receipt(
+                context_arg,
+                error_code=error_code,
+                tool_exit_code=tool_exit_code,
+            )
+
+        publication_args = argparse.Namespace(output_dir=publication_output)
+        with ExitStack() as stack:
+            stack.enter_context(
+                mock.patch.object(
+                    module_self,
+                    "package_command_impl",
+                    receipt_publication_impl,
+                )
+            )
+            stack.enter_context(
+                mock.patch.object(
+                    module_self,
+                    "validate_class_universe",
+                    side_effect=publication_class_validation,
+                )
+            )
+            stack.enter_context(
+                mock.patch.object(
+                    module_self,
+                    "validate_report_inventory",
+                    return_value="synthetic-publication-report-validation\n",
+                )
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "source_seal", return_value=publication_source)
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "tested_tree_snapshot", return_value=publication_tree)
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "report_snapshot", return_value=publication_reports)
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "validate_step4", publication_step4_failure)
+            )
+            stack.enter_context(
+                mock.patch.object(
+                    module_self,
+                    "publish_failure_receipt",
+                    assert_sidecar_after_cleanup,
+                )
+            )
+            publication_result, publication_exit = execute_with_failure_receipt(
+                publication_context,
+                lambda: package_command(publication_args, publication_context),
+            )
+        publication_values = read_failure_receipt(
+            publication_receipt,
+            run_id="synthetic-publication-terminal",
+            operation="package",
+            tool_exit_code=1,
+            package_root=publication_output,
+        )
+        require(
+            publication_result is None
+            and publication_exit == 1
+            and sidecar_after_cleanup
+            and publication_staging is not None
+            and not publication_staging.exists()
+            and not publication_staging.is_symlink()
+            and not publication_output.exists()
+            and not publication_output.is_symlink()
+            and tuple(publication_values) == fixed_sidecar_fields
+            and publication_values["error_code"] == "E_STEP4_RELEASE_VERIFY"
+            and publication_values["subphase"] == "package-postconditions"
+            and raw_marker.encode("ascii")
+            not in publication_receipt.read_bytes(),
+            "E_NEGATIVE",
+            "post-publication terminal closure cleanup differs",
+        )
+        cases.append(
+            {
+                "case": "receipt-postpublication-closure-cleans-output",
+                "expected": "E_STEP4_RELEASE_VERIFY/package-postconditions",
+                "actual": f"{publication_values['error_code']}/{publication_values['subphase']}",
+                "status": "passed",
+            }
+        )
+
+        # A target that appears after staging creation is not owned by this
+        # invocation. Publication must fail closed without letting outer
+        # cleanup remove the concurrent directory.
+        concurrent_case_root = terminal_root / "receipt-concurrent-publication"
+        concurrent_case_root.mkdir()
+        concurrent_output = concurrent_case_root / "package"
+        concurrent_receipt = concurrent_case_root / FAILURE_RECEIPT_NAME
+        concurrent_context = FailureReceiptContext(
+            path=concurrent_receipt,
+            run_id="synthetic-concurrent-terminal",
+            operation="package",
+            subphase="package-preflight",
+        )
+        concurrent_authority = Step4Authority(
+            root=concurrent_case_root,
+            run_id="synthetic-concurrent-terminal",
+            git_head="a" * 40,
+            source_sha256="b" * 64,
+            not_before_ns=1,
+            context=concurrent_case_root / "run-context.json",
+            class_universe=concurrent_case_root / "class-universe.json",
+            final_manifest=concurrent_case_root / "final-manifest.json",
+            receipts={},
+            maven_authority={},
+        )
+        concurrent_source = {
+            "file_count": 1,
+            "git_head": concurrent_authority.git_head,
+            "sha256": concurrent_authority.source_sha256,
+        }
+        concurrent_tree = {
+            "entries": [],
+            "files": 1,
+            "module_counts": {"synthetic-module": 1},
+            "sha256": "c" * 64,
+        }
+        concurrent_reports = {
+            "files": 1,
+            "module_counts": {"synthetic-module": 1},
+            "sha256": "d" * 64,
+        }
+        concurrent_state: TerminalIntegrityState | None = None
+        concurrent_staging: Path | None = None
+        concurrent_foreign = concurrent_output / "foreign-owned"
+
+        def concurrent_publication_impl(
+            package_args: argparse.Namespace,
+            failure_context: FailureReceiptContext | None = None,
+            *,
+            terminal_state: TerminalIntegrityState,
+        ) -> dict[str, Any]:
+            nonlocal concurrent_state, concurrent_staging
+            require(
+                failure_context is concurrent_context,
+                "E_NEGATIVE",
+                "synthetic concurrent publication lost its failure context",
+            )
+            terminal_state.arm(
+                TerminalIntegritySnapshot(
+                    root=concurrent_case_root,
+                    run_id=concurrent_authority.run_id,
+                    authority=concurrent_authority,
+                    modules=("synthetic-module",),
+                    source_before=concurrent_source,
+                    tested_tree_before=concurrent_tree,
+                    reports_before=concurrent_reports,
+                )
+            )
+            concurrent_staging = create_receipt_package_staging(package_args.output_dir)
+            terminal_state.set_output(concurrent_staging)
+            terminal_state.set_staging(concurrent_staging)
+            for output_name in PACKAGE_OUTPUT_NAMES:
+                write_new(
+                    concurrent_staging / output_name,
+                    f"synthetic staged output:{output_name}\n".encode("ascii"),
+                )
+            concurrent_output.mkdir()
+            write_new(concurrent_foreign, b"concurrent-owner\n")
+            concurrent_state = terminal_state
+            return {
+                "command": "package",
+                "output_dir": str(concurrent_staging),
+                "status": "passed",
+            }
+
+        def concurrent_class_validation(
+            _root: Path,
+            _authority: Step4Authority,
+        ) -> str:
+            require(
+                concurrent_state is not None
+                and concurrent_state.publication_target is None
+                and concurrent_state.published is None
+                and concurrent_staging is not None
+                and not concurrent_staging.exists()
+                and not concurrent_staging.is_symlink()
+                and concurrent_output.exists()
+                and not concurrent_output.is_symlink()
+                and concurrent_foreign.read_bytes() == b"concurrent-owner\n"
+                and not concurrent_receipt.exists()
+                and not concurrent_receipt.is_symlink(),
+                "E_NEGATIVE",
+                "concurrent durable package ownership boundary differs",
+            )
+            return "synthetic-concurrent-class-validation\n"
+
+        concurrent_args = argparse.Namespace(output_dir=concurrent_output)
+        with ExitStack() as stack:
+            stack.enter_context(
+                mock.patch.object(
+                    module_self,
+                    "package_command_impl",
+                    concurrent_publication_impl,
+                )
+            )
+            stack.enter_context(
+                mock.patch.object(
+                    module_self,
+                    "validate_class_universe",
+                    side_effect=concurrent_class_validation,
+                )
+            )
+            stack.enter_context(
+                mock.patch.object(
+                    module_self,
+                    "validate_report_inventory",
+                    return_value="synthetic-concurrent-report-validation\n",
+                )
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "source_seal", return_value=concurrent_source)
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "tested_tree_snapshot", return_value=concurrent_tree)
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "report_snapshot", return_value=concurrent_reports)
+            )
+            stack.enter_context(
+                mock.patch.object(module_self, "validate_step4", return_value=concurrent_authority)
+            )
+            concurrent_result, concurrent_exit = execute_with_failure_receipt(
+                concurrent_context,
+                lambda: package_command(concurrent_args, concurrent_context),
+            )
+        concurrent_values = read_failure_receipt(
+            concurrent_receipt,
+            run_id="synthetic-concurrent-terminal",
+            operation="package",
+            tool_exit_code=1,
+            package_root=concurrent_output,
+        )
+        require(
+            concurrent_result is None
+            and concurrent_exit == 1
+            and concurrent_state is not None
+            and concurrent_state.publication_target is None
+            and concurrent_state.published is None
+            and concurrent_staging is not None
+            and not concurrent_staging.exists()
+            and not concurrent_staging.is_symlink()
+            and concurrent_output.exists()
+            and not concurrent_output.is_symlink()
+            and concurrent_foreign.read_bytes() == b"concurrent-owner\n"
+            and tuple(concurrent_values) == fixed_sidecar_fields
+            and concurrent_values["error_code"] == "E_OUTPUT_EXISTS"
+            and concurrent_values["subphase"] == "package-manifest",
+            "E_NEGATIVE",
+            "concurrent durable package directory was not preserved",
+        )
+        cases.append(
+            {
+                "case": "receipt-concurrent-publication-preserved",
+                "expected": "E_OUTPUT_EXISTS/package-manifest",
+                "actual": f"{concurrent_values['error_code']}/{concurrent_values['subphase']}",
+                "status": "passed",
+            }
+        )
+
+        # An opened owned directory keeps a replacement's contents out of the
+        # cleanup scan. An observed replacement remains a bounded fail-closed
+        # outcome rather than being mistaken for package-owned output.
+        identity_case_root = terminal_root / "owned-directory-replacement"
+        identity_case_root.mkdir()
+        identity_output = create_output(identity_case_root / "package")
+        identity_authority = Step4Authority(
+            root=identity_case_root,
+            run_id="synthetic-identity-terminal",
+            git_head="a" * 40,
+            source_sha256="b" * 64,
+            not_before_ns=1,
+            context=identity_case_root / "run-context.json",
+            class_universe=identity_case_root / "class-universe.json",
+            final_manifest=identity_case_root / "final-manifest.json",
+            receipts={},
+            maven_authority={},
+        )
+        identity_source = {
+            "file_count": 1,
+            "git_head": identity_authority.git_head,
+            "sha256": identity_authority.source_sha256,
+        }
+        identity_tree = {
+            "entries": [],
+            "files": 1,
+            "module_counts": {"synthetic-module": 1},
+            "sha256": "c" * 64,
+        }
+        identity_reports = {
+            "files": 1,
+            "module_counts": {"synthetic-module": 1},
+            "sha256": "d" * 64,
+        }
+        identity_state = TerminalIntegrityState()
+        identity_state.arm(
+            TerminalIntegritySnapshot(
+                root=identity_case_root,
+                run_id=identity_authority.run_id,
+                authority=identity_authority,
+                modules=("synthetic-module",),
+                source_before=identity_source,
+                tested_tree_before=identity_tree,
+                reports_before=identity_reports,
+            )
+        )
+        identity_state.set_output(identity_output)
+        assert identity_state.output_identity is not None
+        identity_state.set_publication_target(
+            identity_output,
+            identity_state.output_identity,
+        )
+        identity_state.set_published(identity_output)
+        foreign_directory = identity_case_root / "foreign-owner"
+        foreign_directory.mkdir()
+        foreign_marker = foreign_directory / "foreign-owned"
+        write_new(foreign_marker, b"foreign-owner\n")
+        original_scandir = os.scandir
+        identity_swap = {"completed": False}
+
+        def replace_at_owned_scan(value: Any) -> Any:
+            if not identity_swap["completed"]:
+                os.rmdir(identity_output)
+                os.rename(foreign_directory, identity_output)
+                identity_swap["completed"] = True
+            return original_scandir(value)
+
+        with mock.patch.object(os, "scandir", side_effect=replace_at_owned_scan):
+            identity_cleanup_error = cleanup_terminal_package_outputs(identity_state)
+        require(
+            isinstance(identity_cleanup_error, PackageError)
+            and identity_cleanup_error.code == "E_OUTPUT"
+            and identity_swap["completed"]
+            and identity_output.exists()
+            and not identity_output.is_symlink()
+            and (identity_output / "foreign-owned").read_bytes()
+            == b"foreign-owner\n",
+            "E_NEGATIVE",
+            "owned cleanup removed an interleaved replacement directory",
+        )
+        cases.append(
+            {
+                "case": "owned-directory-scan-time-interleaving-preserved",
+                "expected": "E_OUTPUT/foreign-preserved",
+                "actual": "E_OUTPUT/foreign-preserved",
+                "status": "passed",
+            }
+        )
+        cases.append(
+            expect_failure(
+                "published-directory-identity-rechecked-at-closure",
+                "E_FILE_RACE",
+                lambda: verify_terminal_integrity(identity_state),
+            )
+        )
+
+        staging_identity_case_root = terminal_root / "staging-identity-replacement"
+        staging_identity_case_root.mkdir()
+        staging_identity_output = staging_identity_case_root / "package"
+        staging_identity_path = create_receipt_package_staging(staging_identity_output)
+        staging_identity_before = directory_identity(
+            staging_identity_path,
+            "synthetic receipt package staging",
+        )
+        staging_foreign = staging_identity_path.parent / "foreign-staging-owner"
+        staging_foreign.mkdir()
+        staging_foreign_marker = staging_foreign / "foreign-owned"
+        write_new(staging_foreign_marker, b"foreign-staging-owner\n")
+        cleanup_flat_directory(
+            staging_identity_path,
+            "synthetic receipt package staging",
+        )
+        os.rename(staging_foreign, staging_identity_path)
+        cases.append(
+            expect_failure(
+                "receipt-staging-identity-replacement-rejected",
+                "E_FILE_RACE",
+                lambda: publish_staged_package(
+                    staging_identity_path,
+                    staging_identity_output,
+                    expected_staging_identity=staging_identity_before,
+                ),
+            )
+        )
+        require(
+            not staging_identity_output.exists()
+            and not staging_identity_output.is_symlink()
+            and (staging_identity_path / "foreign-owned").read_bytes()
+            == b"foreign-staging-owner\n",
+            "E_NEGATIVE",
+            "receipt staging identity replacement was modified",
+        )
+
         successful_pending_receipt = receipt_root / "successful-pending" / FAILURE_RECEIPT_NAME
         successful_pending_receipt.parent.mkdir()
         successful_pending_context = FailureReceiptContext(
@@ -4680,10 +6582,19 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
 
         original_cleanup_flat_directory = cleanup_flat_directory
 
-        def failed_partial_cleanup(path: Path, label: str) -> None:
+        def failed_partial_cleanup(
+            path: Path,
+            label: str,
+            *,
+            expected_identity: tuple[int, int] | None = None,
+        ) -> None:
             if label == "partial durable package directory":
                 raise PackageError("E_OUTPUT", "synthetic cleanup failure")
-            original_cleanup_flat_directory(path, label)
+            original_cleanup_flat_directory(
+                path,
+                label,
+                expected_identity=expected_identity,
+            )
 
         def interrupted_staged_publication_probe() -> None:
             from unittest import mock
