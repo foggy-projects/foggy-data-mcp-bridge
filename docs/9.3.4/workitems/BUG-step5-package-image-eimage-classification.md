@@ -3,13 +3,22 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-direction (successor-overlay replan approved)
 approved_at: 2026-07-21
 open_questions: []
 ---
+
+## Post-formal readiness — 2026-07-21
+
+- fresh formal `step4-coverage-20260721-formal-eimage-r2` passed with exit 0;
+  frozen/candidate/final/inventory/Step4/overlay/Step6 independent replays pass;
+- final implementation quality and replacement coverage audit: P0/P1/P2=0/0/1;
+- P2 is the existing fail-closed filesystem-cleanup residual risk only;
+- scope remains closed to Step5 rehearsal, release authority, 9.3.5 and 9.4.0
+  until owner signoff and a separately approved fresh rehearsal.
 
 # Delivery Spec: Step 5 package-image `E_IMAGE` classification
 
