@@ -3,12 +3,14 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: APPROVED
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-direction
 approved_at: 2026-07-21
-open_questions: []
+open_questions:
+  - Owner confirmation is required for the mandatory Step 4 machine-state,
+    path-allowlist, and manifest closure discovered during Cdiag preflight.
 ---
 
 # Delivery Spec: Step 5 package-image `E_IMAGE` classification
@@ -150,7 +152,25 @@ raw runtime payload.
 
 - known_risks: An enum/refinement mistake could reject valid historical
   receipts, leak raw detail, or drift the hash closure; each must fail closed.
-- open_questions: none
+- open_questions:
+  - The approved affected-module list omitted the Step 4 Cdiag machine-state
+    and path-allowlist closure now required by the changed Step 5 manifest.
+    Confirm whether the listed Step 4 files may be included before
+    implementation continues.
+
+## Replan Trigger
+
+Implementation preflight established that a clean Cdiag for this changed Step
+5 tool also requires the existing Step 4 machine-state and path-allowlist
+closure:
+`scripts/v934/step4/coverage-contract.json`,
+`scripts/v934/step4/coverage-thresholds.json`, and
+`scripts/v934/step4/coverage_tool.py`,
+`scripts/v934/step4/coverage_xml_tool.py`, and
+`scripts/v934/step4/SHA256SUMS`. Step 6 must then bind their new manifest hash
+alongside the changed Step 5 manifest. These paths were not in the approved
+`affected_modules` list. No tool code, hash manifest, Docker/Maven run, gate,
+or runtime evidence was changed before this replan marker.
 
 ## Approval Record
 
@@ -163,18 +183,18 @@ raw runtime payload.
 
 ## Ultra Execution Contract
 
-- Status is `APPROVED`: implement only this scope in a new clean Cdiag and set
-  `NEEDS_REPLAN` for any added sidecar, error-code, workflow, Dockerfile,
-  API/SPI, release/pointer, or environment-remediation requirement.
+- Status is `NEEDS_REPLAN`: do not modify tooling, hashes, machine state, or
+  run Cdiag/diagnostic work until the owner resolves the Step 4 closure scope.
 - Complete the stated validation and append implementation summary, changed
   paths, tests, deviations, and residual risks. Set only `READY_FOR_SIGNOFF`
   after the approved implementation and evidence actually complete.
 
 ## Implementation Result
 
-> Owner approval is recorded; implementation and new runs have not yet started.
+> Owner approval is recorded, but preflight found a required path outside the
+> approved module list. No implementation or runtime validation has started.
 
-- readiness: APPROVED
+- readiness: NEEDS_REPLAN
 
 ## References
 
