@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-POSTRUN-STEP4-WORKFLOW-STATE-RESET
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects
@@ -199,15 +199,24 @@ open_questions: []
 
 ## Implementation Result
 
-> To be completed by the Ultra implementation session.
-
-- implementation_summary:
-- changed_paths:
-- tests_and_results:
+- implementation_summary: restored the current frozen diagnostic predecessor's exact Step 4 contract and
+  threshold state, then refreshed only the Step 4 manifest and the transitive Step 6 CI binding/manifest.
+  No Step 4 validator, overlay, XML tool, Step 5 tool, runner, policy, workflow semantics or artifact
+  authority rule changed.
+- changed_paths: the declared two Step 4 state files, Step 4 manifest, Step 6 CI binding tool/contract/
+  manifest, this work item and one safe static checkpoint only.
+- tests_and_results: exact predecessor/state and allowed-path booleans, Step 4/5/6 manifest checks,
+  contract/overlay positive validation, isolated status-only and stale-formal-review rejection, existing
+  contract/XML/overlay/CI negative suites, package synthetic negative, Python/Bash syntax and whitespace
+  checks passed. No Maven, Docker, outer runner or Step 5 runtime action ran.
 - manual_or_experience_evidence:
+  `docs/9.3.4/evidence/step-4/step4-postrun-integrity-workflow-state-reset-cdiag-static-20260722.md`
+  and `docs/9.3.4/evidence/step-4/step4-postrun-integrity-workflow-state-reset-cdiag-review-20260722.md`
 - deviations: none
-- residual_risks:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+- residual_risks: this is static Cdiag evidence only. It neither creates a diagnostic/candidate/capsule/
+  Cfreeze/formal result nor reuses historical authority. The fresh runtime chain remains mandatory.
+- readiness: ULTRA_EXECUTING — static Cdiag and independent review are complete; the fresh diagnostic and
+  every later authority gate remain pending.
 
 ## References
 
