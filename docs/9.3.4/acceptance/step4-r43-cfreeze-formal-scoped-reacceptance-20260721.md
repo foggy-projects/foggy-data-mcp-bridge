@@ -53,6 +53,16 @@ a candidate or success after cleanup failure.
 - follow-up: successful rehearsal still requires its own independent replay
   and later authority/main/version gates before 9.3.5 can begin.
 
+## r44 Authorized Attempt Outcome
+
+The one authorized attempt was
+[`step5-rehearsal-20260721-r44`](../evidence/step-5/step5-r44-package-image-fail-closed-20260721.md).
+It ended fail-closed at `package-tested-tree` with the verified bounded
+classification `package-image / E_IMAGE`; it created no candidate or final
+authority pointer. This consumes the single rehearsal opening in this record.
+No image-cache remediation, retry, new rehearsal, release, or pointer action
+is authorized by this acceptance after r44.
+
 ## Signoff Marker
 
 - acceptance_status: signed-off

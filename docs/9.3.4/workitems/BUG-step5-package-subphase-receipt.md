@@ -13,7 +13,7 @@ predecessors:
   - STEP5-R41-RECEIPTED-NONAUTHORITATIVE-PACKAGE-CLASSIFICATION
 cdiag_branch: codex/v934-step5-package-receipt-cdiag
 cdiag_base: b05dd0ec659c283b1a59a82c1c67710f4c10368e
-revalidation_status: accepted-for-step5-rehearsal
+revalidation_status: r44-failed-package-image-e-image-no-retry-authorized
 acceptance_record: docs/9.3.4/acceptance/step4-r43-cfreeze-formal-scoped-reacceptance-20260721.md
 open_questions: []
 ---
@@ -194,8 +194,10 @@ open_questions: []
   paths remain fail-closed and cannot become a success/candidate state.
 - acceptance_record:
   `docs/9.3.4/acceptance/step4-r43-cfreeze-formal-scoped-reacceptance-20260721.md`
-- downstream_authority: one fresh isolated Step 5 rehearsal from exact Cfreeze
-  `f7da93c1ad79be2dede5494b99990092ba110071` only.
+- r44_rehearsal_result:
+  `docs/9.3.4/evidence/step-5/step5-r44-package-image-fail-closed-20260721.md`
+- downstream_authority: none. The one authorized r44 rehearsal ended fail-closed;
+  image remediation or another rehearsal requires a new explicit owner direction.
 - readiness: ACCEPTED
 
 ## References
