@@ -13,8 +13,9 @@ predecessors:
   - STEP5-R41-RECEIPTED-NONAUTHORITATIVE-PACKAGE-CLASSIFICATION
 cdiag_branch: codex/v934-step5-package-receipt-cdiag
 cdiag_base: b05dd0ec659c283b1a59a82c1c67710f4c10368e
-revalidation_status: r44-failed-package-image-e-image-no-retry-authorized
+revalidation_status: r45-failed-package-image-e-image-after-authorized-cache-preparation-no-retry-authorized
 acceptance_record: docs/9.3.4/acceptance/step4-r43-cfreeze-formal-scoped-reacceptance-20260721.md
+r45_authorization_record: docs/9.3.4/acceptance/step5-r45-pinned-base-image-remediation-and-rehearsal-with-nonfinal-candidate-pointer-20260721.md
 open_questions: []
 ---
 
@@ -196,8 +197,17 @@ open_questions: []
   `docs/9.3.4/acceptance/step4-r43-cfreeze-formal-scoped-reacceptance-20260721.md`
 - r44_rehearsal_result:
   `docs/9.3.4/evidence/step-5/step5-r44-package-image-fail-closed-20260721.md`
-- downstream_authority: none. The one authorized r44 rehearsal ended fail-closed;
-  image remediation or another rehearsal requires a new explicit owner direction.
+- r45_authorization_and_result:
+  `docs/9.3.4/acceptance/step5-r45-pinned-base-image-remediation-and-rehearsal-with-nonfinal-candidate-pointer-20260721.md`
+  and `docs/9.3.4/evidence/step-5/step5-r45-fail-closed-20260721.md`.
+- r45_rehearsal_result: a fresh canonical Cfreeze rehearsal, after the limited
+  authorized frozen-base-image cache preparation, remained fail-closed at the
+  same bounded `package-image / E_IMAGE` classification. This does not assign
+  an `E_IMAGE` root cause.
+- downstream_authority: none. r45 consumed its independent single-attempt
+  authorization without a candidate or final authority pointer. Any retry,
+  remediation, diagnostic redesign, runner/Cfreeze change, release, or later
+  roadmap work requires a new explicit owner direction.
 - readiness: ACCEPTED
 
 ## References
