@@ -105,11 +105,17 @@ FAILURE_RECEIPT_FIELDS = (
 FAILURE_RECEIPT_KIND = "v934-package-subphase-failure"
 FAILURE_RECEIPT_GATE_PHASE = "package-tested-tree"
 FAILURE_RECEIPT_OPERATIONS = ("package", "verify")
+PACKAGE_IMAGE_EIMAGE_SUBPHASES = (
+    "package-image-runtime-inspect",
+    "package-image-readback-precondition",
+    "package-image-receipt-completeness",
+)
 PACKAGE_FAILURE_SUBPHASES = (
     "package-preflight",
     "package-maven-reactor",
     "package-maven-launcher-jar",
     "package-image",
+    *PACKAGE_IMAGE_EIMAGE_SUBPHASES,
     "package-postconditions",
     "package-manifest",
     "package-internal-verify",
@@ -216,6 +222,7 @@ class FailureReceiptContext:
     run_id: str
     operation: str
     subphase: str
+    pending_eimage_subphase: str | None = None
 
     def set_subphase(self, value: str) -> None:
         allowed = (
@@ -225,6 +232,26 @@ class FailureReceiptContext:
         )
         require(value in allowed, "E_FAILURE_RECEIPT", "failure receipt subphase differs")
         self.subphase = value
+        self.pending_eimage_subphase = None
+
+    def defer_eimage_subphase(self, value: str) -> None:
+        require(
+            self.operation == "package"
+            and self.subphase == "package-image"
+            and value in PACKAGE_IMAGE_EIMAGE_SUBPHASES,
+            "E_FAILURE_RECEIPT",
+            "pending image failure subphase differs",
+        )
+        self.pending_eimage_subphase = value
+
+    def commit_pending_eimage_subphase(self, error_code: str) -> None:
+        pending = self.pending_eimage_subphase
+        self.pending_eimage_subphase = None
+        if error_code == "E_IMAGE" and pending is not None:
+            self.set_subphase(pending)
+
+    def clear_pending_eimage_subphase(self) -> None:
+        self.pending_eimage_subphase = None
 
 
 def reject(code: str, message: str) -> None:
@@ -530,6 +557,22 @@ def failure_receipt_subphases(operation: str) -> tuple[str, ...]:
     )
 
 
+def require_failure_receipt_subphase_error_code(
+    operation: str,
+    subphase: str,
+    error_code: str,
+) -> None:
+    if (
+        operation == "package"
+        and subphase in PACKAGE_IMAGE_EIMAGE_SUBPHASES
+    ):
+        require(
+            error_code == "E_IMAGE",
+            "E_FAILURE_RECEIPT",
+            "refined image failure subphase requires E_IMAGE",
+        )
+
+
 def failure_receipt_bytes(
     *,
     run_id: str,
@@ -554,6 +597,7 @@ def failure_receipt_bytes(
         "E_FAILURE_RECEIPT",
         "failure receipt error code differs",
     )
+    require_failure_receipt_subphase_error_code(operation, subphase, error_code)
     require(
         type(tool_exit_code) is int and 1 <= tool_exit_code <= 255,
         "E_FAILURE_RECEIPT",
@@ -636,6 +680,11 @@ def read_failure_receipt(
             "E_FAILURE_RECEIPT",
             "failure receipt error code differs",
         )
+        require_failure_receipt_subphase_error_code(
+            operation,
+            values["subphase"],
+            values["error_code"],
+        )
         exit_code = values["tool_exit_code"]
         require(
             re.fullmatch(r"[1-9][0-9]{0,2}", exit_code) is not None
@@ -698,23 +747,44 @@ def failure_receipt_context(args: argparse.Namespace) -> FailureReceiptContext |
     )
 
 
+def guarded_eimage_boundary(
+    failure_context: FailureReceiptContext | None,
+    subphase: str,
+    action: Callable[[], Any],
+) -> Any:
+    try:
+        return action()
+    except PackageError as exc:
+        if failure_context is not None and exc.code == "E_IMAGE":
+            failure_context.defer_eimage_subphase(subphase)
+        raise
+
+
 def execute_with_failure_receipt(
     context: FailureReceiptContext,
     action: Callable[[], dict[str, Any]],
 ) -> tuple[dict[str, Any] | None, int]:
     try:
-        return action(), 0
+        result = action()
+        context.clear_pending_eimage_subphase()
+        return result, 0
     except PackageError as exc:
+        error_code = failure_receipt_error_code(exc)
+        try:
+            context.commit_pending_eimage_subphase(error_code)
+        except BaseException:
+            context.clear_pending_eimage_subphase()
         try:
             publish_failure_receipt(
                 context,
-                error_code=failure_receipt_error_code(exc),
+                error_code=error_code,
                 tool_exit_code=1,
             )
         except BaseException:
             pass
         return None, 1
     except KeyboardInterrupt:
+        context.clear_pending_eimage_subphase()
         try:
             publish_failure_receipt(
                 context,
@@ -725,6 +795,7 @@ def execute_with_failure_receipt(
             pass
         return None, 130
     except BaseException:
+        context.clear_pending_eimage_subphase()
         try:
             publish_failure_receipt(
                 context,
@@ -2443,6 +2514,7 @@ def docker_image(
     jar: dict[str, Any],
     *,
     receipt_safe: bool = False,
+    failure_context: FailureReceiptContext | None = None,
 ) -> dict[str, Any]:
     dockerfile = validate_dockerfile(root)
     slug = re.sub(r"[^a-z0-9_.-]+", "-", run_id.lower()).strip("-.")[:50] or "run"
@@ -2497,11 +2569,20 @@ def docker_image(
                 )
                 build_completed = True
                 base_image = inspect_runtime_base_image(root)
-                inspect = docker_inspect_identity(root, tag, "runtime image")
-                require(
-                    inspect["platform"] == RUNTIME_BASE_PLATFORM,
-                    "E_IMAGE",
-                    "runtime image platform differs from the frozen base platform",
+
+                def inspect_runtime_image() -> dict[str, Any]:
+                    inspect = docker_inspect_identity(root, tag, "runtime image")
+                    require(
+                        inspect["platform"] == RUNTIME_BASE_PLATFORM,
+                        "E_IMAGE",
+                        "runtime image platform differs from the frozen base platform",
+                    )
+                    return inspect
+
+                inspect = guarded_eimage_boundary(
+                    failure_context,
+                    "package-image-runtime-inspect",
+                    inspect_runtime_image,
                 )
                 image_id = inspect["engine_image_id"]
                 run_logged(
@@ -2512,10 +2593,14 @@ def docker_image(
                     receipt_safe=receipt_safe,
                 )
                 created = True
-                require(
-                    not readback.exists() and not readback.is_symlink(),
-                    "E_IMAGE",
-                    "image readback path exists",
+                guarded_eimage_boundary(
+                    failure_context,
+                    "package-image-readback-precondition",
+                    lambda: require(
+                        not readback.exists() and not readback.is_symlink(),
+                        "E_IMAGE",
+                        "image readback path exists",
+                    ),
                 )
                 run_logged(
                     ["docker", "cp", f"{container}:/app/app.jar", str(readback)],
@@ -2615,13 +2700,17 @@ def docker_image(
         "E_CONTEXT_CLEANUP",
         "isolated Docker build context survived cleanup",
     )
-    require(
-        embedded is not None
-        and image_id
-        and context_receipt is not None
-        and base_image is not None,
-        "E_IMAGE",
-        "Docker image receipt is incomplete",
+    guarded_eimage_boundary(
+        failure_context,
+        "package-image-receipt-completeness",
+        lambda: require(
+            embedded is not None
+            and image_id
+            and context_receipt is not None
+            and base_image is not None,
+            "E_IMAGE",
+            "Docker image receipt is incomplete",
+        ),
     )
     result = {
         "schema_version": 2,
@@ -2746,6 +2835,7 @@ def package_command_impl(
         run_id,
         jar_audit,
         receipt_safe=failure_context is not None,
+        failure_context=failure_context,
     )
     if failure_context is not None:
         failure_context.set_subphase("package-postconditions")
@@ -3653,11 +3743,19 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
             ("verify", VERIFY_FAILURE_SUBPHASES),
         ):
             for subphase in subphases:
+                error_code = (
+                    "E_IMAGE"
+                    if (
+                        operation == "package"
+                        and subphase in PACKAGE_IMAGE_EIMAGE_SUBPHASES
+                    )
+                    else "E_COMMAND"
+                )
                 payload = failure_receipt_bytes(
                     run_id="synthetic-receipt",
                     operation=operation,
                     subphase=subphase,
-                    error_code="E_COMMAND",
+                    error_code=error_code,
                     tool_exit_code=1,
                 )
                 require(
@@ -3900,6 +3998,84 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
             )
         )
         raw_marker = "fixture-only-raw-message-sentinel"
+        cases.append(
+            expect_failure(
+                "failure-receipt-refined-subphase-raw-suffix",
+                "E_FAILURE_RECEIPT",
+                lambda: failure_receipt_bytes(
+                    run_id="synthetic-receipt",
+                    operation="package",
+                    subphase="package-image-runtime-inspect-raw-suffix",
+                    error_code="E_IMAGE",
+                    tool_exit_code=1,
+                ),
+            )
+        )
+        extra_field_receipt = receipt_root / "extra-field" / FAILURE_RECEIPT_NAME
+        extra_field_receipt.parent.mkdir()
+        extra_field_receipt.write_bytes(
+            failure_receipt_bytes(
+                run_id="synthetic-receipt",
+                operation="package",
+                subphase="package-image-runtime-inspect",
+                error_code="E_IMAGE",
+                tool_exit_code=1,
+            )
+            + f"detail={raw_marker}\n".encode("ascii")
+        )
+        cases.append(
+            expect_failure(
+                "failure-receipt-extra-field",
+                "E_FAILURE_RECEIPT",
+                lambda: read_failure_receipt(
+                    extra_field_receipt,
+                    run_id="synthetic-receipt",
+                    operation="package",
+                ),
+            )
+        )
+        for subphase in PACKAGE_IMAGE_EIMAGE_SUBPHASES:
+            cases.append(
+                expect_failure(
+                    f"failure-receipt-{subphase}-requires-eimage",
+                    "E_FAILURE_RECEIPT",
+                    lambda subphase=subphase: failure_receipt_bytes(
+                        run_id="synthetic-receipt",
+                        operation="package",
+                        subphase=subphase,
+                        error_code="E_COMMAND",
+                        tool_exit_code=1,
+                    ),
+                )
+            )
+            mismatched_refined_receipt = (
+                receipt_root / f"{subphase}-wrong-code" / FAILURE_RECEIPT_NAME
+            )
+            mismatched_refined_receipt.parent.mkdir()
+            mismatched_refined_receipt.write_bytes(
+                failure_receipt_bytes(
+                    run_id="synthetic-receipt",
+                    operation="package",
+                    subphase="package-image",
+                    error_code="E_COMMAND",
+                    tool_exit_code=1,
+                ).replace(
+                    b"subphase=package-image\n",
+                    f"subphase={subphase}\n".encode("ascii"),
+                    1,
+                )
+            )
+            cases.append(
+                expect_failure(
+                    f"failure-receipt-{subphase}-reader-requires-eimage",
+                    "E_FAILURE_RECEIPT",
+                    lambda mismatched_refined_receipt=mismatched_refined_receipt: read_failure_receipt(
+                        mismatched_refined_receipt,
+                        run_id="synthetic-receipt",
+                        operation="package",
+                    ),
+                )
+            )
         contained_receipt = receipt_root / "contained" / FAILURE_RECEIPT_NAME
         contained_receipt.parent.mkdir()
         contained_context = FailureReceiptContext(
@@ -3926,6 +4102,271 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
             contained_receipt,
             run_id="synthetic-receipt",
             operation="package",
+        )
+
+        def assert_receipted_image_subphase(
+            case_name: str,
+            action: Callable[[FailureReceiptContext], Any],
+            expected_error: str,
+            expected_subphase: str,
+        ) -> None:
+            image_receipt = receipt_root / case_name / FAILURE_RECEIPT_NAME
+            image_receipt.parent.mkdir()
+            image_context = FailureReceiptContext(
+                path=image_receipt,
+                run_id="synthetic-receipt",
+                operation="package",
+                subphase="package-image",
+            )
+            image_result, image_exit = execute_with_failure_receipt(
+                image_context,
+                lambda: action(image_context),
+            )
+            require(
+                image_result is None and image_exit == 1,
+                "E_NEGATIVE",
+                f"synthetic {case_name} did not fail closed",
+            )
+            image_values = read_failure_receipt(
+                image_receipt,
+                run_id="synthetic-receipt",
+                operation="package",
+                tool_exit_code=1,
+            )
+            require(
+                image_values["error_code"] == expected_error
+                and image_values["subphase"] == expected_subphase,
+                "E_NEGATIVE",
+                f"synthetic {case_name} receipt classification differs",
+            )
+            require(
+                image_context.pending_eimage_subphase is None,
+                "E_NEGATIVE",
+                f"synthetic {case_name} retained a pending image subphase",
+            )
+            require(
+                raw_marker.encode("ascii") not in image_receipt.read_bytes(),
+                "E_NEGATIVE",
+                f"synthetic {case_name} receipt exposed raw detail",
+            )
+            image_cli = subprocess.run(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "verify-failure-receipt",
+                    "--failure-receipt",
+                    str(image_receipt),
+                    "--run-id",
+                    "synthetic-receipt",
+                    "--operation",
+                    "package",
+                    "--tool-exit-code",
+                    "1",
+                    "--package-root",
+                    str(image_receipt.parent / "package"),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            image_cli_value = parse_json(
+                image_cli.stdout,
+                f"synthetic {case_name} receipt CLI result",
+            )
+            require(
+                image_cli.returncode == 0
+                and image_cli.stderr == b""
+                and exact_keys(
+                    image_cli_value,
+                    (
+                        "command",
+                        "error_code",
+                        "gate_phase",
+                        "operation",
+                        "receipt",
+                        "run_id",
+                        "status",
+                        "subphase",
+                        "tool_exit_code",
+                    ),
+                    "E_NEGATIVE",
+                    f"synthetic {case_name} receipt CLI fields differ",
+                )
+                == image_cli_value
+                and image_cli_value["command"] == "verify-failure-receipt"
+                and image_cli_value["error_code"] == expected_error
+                and image_cli_value["gate_phase"] == FAILURE_RECEIPT_GATE_PHASE
+                and image_cli_value["operation"] == "package"
+                and image_cli_value["receipt"] == "valid"
+                and image_cli_value["run_id"] == "synthetic-receipt"
+                and image_cli_value["status"] == "failed"
+                and image_cli_value["subphase"] == expected_subphase
+                and image_cli_value["tool_exit_code"] == 1
+                and raw_marker.encode("ascii") not in image_cli.stdout
+                and raw_marker.encode("ascii") not in image_cli.stderr,
+                "E_NEGATIVE",
+                f"synthetic {case_name} receipt CLI result differs",
+            )
+            cases.append(
+                {
+                    "case": case_name,
+                    "expected": f"{expected_error}/{expected_subphase}",
+                    "actual": f"{image_values['error_code']}/{image_values['subphase']}",
+                    "status": "passed",
+                }
+            )
+
+        legacy_image_receipt = receipt_root / "legacy-package-image" / FAILURE_RECEIPT_NAME
+        legacy_image_receipt.parent.mkdir()
+        write_new(
+            legacy_image_receipt,
+            b"schema_version=1\n"
+            b"kind=v934-package-subphase-failure\n"
+            b"run_id=synthetic-receipt\n"
+            b"gate_phase=package-tested-tree\n"
+            b"operation=package\n"
+            b"subphase=package-image\n"
+            b"error_code=E_IMAGE\n"
+            b"tool_exit_code=1\n"
+            b"status=failed\n",
+        )
+        legacy_image_values = read_failure_receipt(
+            legacy_image_receipt,
+            run_id="synthetic-receipt",
+            operation="package",
+            tool_exit_code=1,
+        )
+        require(
+            legacy_image_values["error_code"] == "E_IMAGE"
+            and legacy_image_values["subphase"] == "package-image",
+            "E_NEGATIVE",
+            "legacy package-image receipt is no longer readable",
+        )
+        cases.append(
+            {
+                "case": "legacy-package-image-reader",
+                "expected": "E_IMAGE/package-image",
+                "actual": "E_IMAGE/package-image",
+                "status": "passed",
+            }
+        )
+        for subphase in PACKAGE_IMAGE_EIMAGE_SUBPHASES:
+            assert_receipted_image_subphase(
+                f"controlled-{subphase}",
+                lambda image_context, subphase=subphase: guarded_eimage_boundary(
+                    image_context,
+                    subphase,
+                    lambda: reject("E_IMAGE", raw_marker),
+                ),
+                "E_IMAGE",
+                subphase,
+            )
+        assert_receipted_image_subphase(
+            "unknown-eimage-remains-legacy",
+            lambda _image_context: reject("E_IMAGE", raw_marker),
+            "E_IMAGE",
+            "package-image",
+        )
+        for error_code in ("E_COMMAND", "E_BASE_IMAGE"):
+            assert_receipted_image_subphase(
+                f"{error_code.lower()}-remains-legacy",
+                lambda image_context, error_code=error_code: guarded_eimage_boundary(
+                    image_context,
+                    "package-image-runtime-inspect",
+                    lambda: reject(error_code, raw_marker),
+                ),
+                error_code,
+                "package-image",
+            )
+
+        def pending_then_terminal_error(
+            image_context: FailureReceiptContext,
+            terminal_error: str,
+        ) -> None:
+            try:
+                guarded_eimage_boundary(
+                    image_context,
+                    "package-image-runtime-inspect",
+                    lambda: reject("E_IMAGE", raw_marker),
+                )
+            except PackageError:
+                reject(terminal_error, raw_marker)
+
+        for error_code in ("E_IMAGE_CLEANUP", "E_OUTPUT"):
+            assert_receipted_image_subphase(
+                f"pending-{error_code.lower()}-remains-legacy",
+                lambda image_context, error_code=error_code: pending_then_terminal_error(
+                    image_context,
+                    error_code,
+                ),
+                error_code,
+                "package-image",
+            )
+        wrong_phase_context = FailureReceiptContext(
+            path=receipt_root / "wrong-phase" / FAILURE_RECEIPT_NAME,
+            run_id="synthetic-receipt",
+            operation="package",
+            subphase="package-postconditions",
+        )
+        cases.append(
+            expect_failure(
+                "pending-eimage-requires-package-image-phase",
+                "E_FAILURE_RECEIPT",
+                lambda: wrong_phase_context.defer_eimage_subphase(
+                    "package-image-runtime-inspect"
+                ),
+            )
+        )
+        phase_switch_context = FailureReceiptContext(
+            path=receipt_root / "phase-switch" / FAILURE_RECEIPT_NAME,
+            run_id="synthetic-receipt",
+            operation="package",
+            subphase="package-image",
+        )
+        phase_switch_context.defer_eimage_subphase("package-image-runtime-inspect")
+        phase_switch_context.set_subphase("package-postconditions")
+        require(
+            phase_switch_context.pending_eimage_subphase is None,
+            "E_NEGATIVE",
+            "package phase transition retained pending image state",
+        )
+        cases.append(
+            {
+                "case": "pending-eimage-phase-transition-clear",
+                "expected": "cleared",
+                "actual": "cleared",
+                "status": "passed",
+            }
+        )
+        successful_pending_receipt = receipt_root / "successful-pending" / FAILURE_RECEIPT_NAME
+        successful_pending_receipt.parent.mkdir()
+        successful_pending_context = FailureReceiptContext(
+            path=successful_pending_receipt,
+            run_id="synthetic-receipt",
+            operation="package",
+            subphase="package-image",
+        )
+        successful_pending_context.defer_eimage_subphase(
+            "package-image-runtime-inspect"
+        )
+        successful_pending_result, successful_pending_exit = execute_with_failure_receipt(
+            successful_pending_context,
+            lambda: {"command": "synthetic", "status": "passed"},
+        )
+        require(
+            successful_pending_result == {"command": "synthetic", "status": "passed"}
+            and successful_pending_exit == 0
+            and successful_pending_context.pending_eimage_subphase is None
+            and not successful_pending_receipt.exists(),
+            "E_NEGATIVE",
+            "successful action retained pending image state or published a receipt",
+        )
+        cases.append(
+            {
+                "case": "pending-eimage-success-clear",
+                "expected": "cleared",
+                "actual": "cleared",
+                "status": "passed",
+            }
         )
         signal_receipt = receipt_root / "signal" / FAILURE_RECEIPT_NAME
         signal_receipt.parent.mkdir()

@@ -178,6 +178,10 @@ FORMALIZATION_DELTA = {
     "allowed_path_prefixes": ["docs/9.3.4/"],
     "other_changes": "forbidden-requires-new-diagnostic",
 }
+CDIAG_ONLY_STEP5_TOOLING_PATHS = (
+    "scripts/v934/step5/SHA256SUMS",
+    "scripts/v934/step5/release_package_tool.py",
+)
 EXPECTED_STEP4_MANIFEST_PATHS = (
     "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java",
     "build-support/foggy-coverage-report/pom.xml",
@@ -229,6 +233,7 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "scripts/v934/step4/toolchain_receipt_tool.py",
     "scripts/v934/step4/unit-mysql57-fixture-contract.json",
     "scripts/v934/step4/unit_mysql_fixture_tool.py",
+    *CDIAG_ONLY_STEP5_TOOLING_PATHS,
     "scripts/verify-v934-database-matrix.sh",
     "scripts/verify-v934-external-matrix.sh",
     "scripts/verify-v934-external-mongo.sh",
