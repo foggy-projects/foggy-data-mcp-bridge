@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-SUBPHASE-RECEIPT
-status: ULTRA_EXECUTING
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-direction
@@ -13,6 +13,8 @@ predecessors:
   - STEP5-R41-RECEIPTED-NONAUTHORITATIVE-PACKAGE-CLASSIFICATION
 cdiag_branch: codex/v934-step5-package-receipt-cdiag
 cdiag_base: b05dd0ec659c283b1a59a82c1c67710f4c10368e
+revalidation_status: accepted-for-step5-rehearsal
+acceptance_record: docs/9.3.4/acceptance/step4-r43-cfreeze-formal-scoped-reacceptance-20260721.md
 open_questions: []
 ---
 
@@ -91,20 +93,20 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: package and verify receipt modes publish only a valid atomic nine-field sidecar on controlled
+- [x] AC-1: package and verify receipt modes publish only a valid atomic nine-field sidecar on controlled
   failure, with correct operation/subphase/error/exit binding; success leaves no sidecar.
-- [ ] AC-2: the gate accepts only a canonical safe sidecar under its exact run root and otherwise fails closed,
+- [x] AC-2: the gate accepts only a canonical safe sidecar under its exact run root and otherwise fails closed,
   while preserving the unchanged outer five-field failure.env schema.
-- [ ] AC-3: synthetic negative matrix proves missing, malformed, duplicate-key, symlink, preexisting,
+- [x] AC-3: synthetic negative matrix proves missing, malformed, duplicate-key, symlink, preexisting,
   mismatched run/phase/enum/exit and raw-message-leak cases reject; failed paths publish no success/candidate
   state.
-- [ ] AC-4: package output remains exactly six files; runner/package default CLI behavior and existing negative
+- [x] AC-4: package output remains exactly six files; runner/package default CLI behavior and existing negative
   matrix do not regress.
-- [ ] AC-5: Step 5/Step 6 hashes, CI contract/tool and static closure validate with no workflow/API/SPI/POM or
+- [x] AC-5: Step 5/Step 6 hashes, CI contract/tool and static closure validate with no workflow/API/SPI/POM or
   coverage-policy drift.
-- [ ] AC-6: a clean/pushed Cdiag resets Step 4 to diagnostic-ready/pending, a fresh full diagnostic is
+- [x] AC-6: a clean/pushed Cdiag resets Step 4 to diagnostic-ready/pending, a fresh full diagnostic is
   independently reviewed, and Cfreeze is its sole direct child.
-- [ ] AC-7: fresh formal, final quality, replacement coverage audit and `foggy-projects` scoped reacceptance
+- [x] AC-7: fresh formal, final quality, replacement coverage audit and `foggy-projects` scoped reacceptance
   complete before a new Step 5 rehearsal; r40/r41 remain non-candidate throughout.
 
 ## Contract / Data / Security Constraints
@@ -138,8 +140,8 @@ open_questions: []
 - expected_behavior: controlled failures expose only the bounded internal receipt; all unknown/malformed paths
   remain generic outer failures.
 - reproduction_steps: run synthetic receipt negatives and a new Cdiag validation chain; do not retry r40/r41.
-- reproduction_status: confirmed at the historical outer boundary; durable in-tool classification is implemented
-  and statically validated, while the required fresh diagnostic chain remains pending.
+- reproduction_status: durable in-tool classification is implemented and fully revalidated through fresh
+  Cdiag, r42 diagnostic, direct-child Cfreeze, r43 formal, independent reviews, and owner scoped acceptance.
 - existing_evidence: r40/r41 failure records and two `unverifiable` classifier records; none is authority.
 - existing_tests: existing package negative/self-test, runner gate contracts and Step 6 CI closure.
 - regression_protection: required
@@ -172,8 +174,9 @@ open_questions: []
 
 ## Implementation Result
 
-> New clean Cdiag worktree remains based directly on b05. Durable receipt implementation and static/negative
-> validation are complete; no diagnostic, formal, candidate, pointer, or release claim is made here.
+> The new clean Cdiag remains based directly on b05. Durable receipt implementation, r42 diagnostic,
+> direct-child Cfreeze, r43 formal, independent reviews, and owner scoped reacceptance are complete.
+> This does not claim Step 5 rehearsal, release, pointer, or version success.
 
 - implementation_summary: package/verify receipt mode now emits only the bounded sidecar on failure, keeps
   default CLI behavior outside receipt mode, uses sibling staging so a failed controlled package does not retain
@@ -181,14 +184,19 @@ open_questions: []
 - changed_paths: declared Step 4/5/6 tooling/hash closure, release gate, governed Cdiag workitem, and one
   safe static checkpoint only.
 - tests_and_results: Python/Bash syntax, whitespace, full package synthetic negative matrix, package/verify
-  receipt CLI silence/binding probes, Step 4/5/6 manifests, Step 4 contract/overlay validation, and Step 6
-  workflow-contract validation passed without Maven or Docker.
+  receipt CLI silence/binding probes, Step 4/5/6 manifests, Step 4 contract/overlay validation, Step 6
+  workflow-contract validation, fresh r42 diagnostic, r43 formal artifact/frozen replay, independent quality,
+  and replacement coverage audit all passed.
 - manual_or_experience_evidence:
   `docs/9.3.4/evidence/step-5/step5-package-subphase-receipt-cdiag-static-20260720.md`
 - deviations: none.
 - residual_risks: P2 filesystem-fault cleanup boundary recorded in the static checkpoint; all such observed
   paths remain fail-closed and cannot become a success/candidate state.
-- readiness: ULTRA_EXECUTING
+- acceptance_record:
+  `docs/9.3.4/acceptance/step4-r43-cfreeze-formal-scoped-reacceptance-20260721.md`
+- downstream_authority: one fresh isolated Step 5 rehearsal from exact Cfreeze
+  `f7da93c1ad79be2dede5494b99990092ba110071` only.
+- readiness: ACCEPTED
 
 ## References
 
