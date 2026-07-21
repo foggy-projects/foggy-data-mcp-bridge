@@ -3,13 +3,12 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: DRAFT
+status: APPROVED
 canonical: true
 execution_mode: ultra
-approved_by: pending
-approved_at: pending
-open_questions:
-  - Owner approval is required before a new Cdiag, tooling change, diagnostic, or rehearsal.
+approved_by: foggy-projects-via-user-direction
+approved_at: 2026-07-21
+open_questions: []
 ---
 
 # Delivery Spec: Step 5 package-image `E_IMAGE` classification
@@ -56,7 +55,9 @@ open_questions:
   - `scripts/v934/step6/SHA256SUMS`
   - governed `docs/9.3.4` workitems and evidence.
 - external_dependencies: Existing Docker/Maven evidence environments are used
-  only by later governed runs; this DRAFT authorizes no environment mutation.
+  only by the approved controlled Cdiag and mandated revalidation; no separate
+  image replacement, pull, cleanup, or ambient-environment remediation is
+  authorized.
 
 ## Non-Goals
 
@@ -84,7 +85,7 @@ open_questions:
 | Historical `package-image` remains readable | r44/r45 evidence must remain verifiable | only new writes use new subphases |
 | New Cdiag is mandatory | Cfreeze bytes cannot be modified | full authority chain restarts |
 
-## Proposed Decision Pending Owner Approval
+## Approved Design
 
 Use the three bounded subphases in Scope rather than a new diagnostic sidecar
 or new error codes. Static control-flow review maps the current broad
@@ -122,7 +123,7 @@ raw runtime payload.
 | AC-1/AC-3 | critical | synthetic writer/reader and negative matrix | safe enum/status/count summary |
 | AC-2 | critical | deterministic mapping probes for each new boundary | run-bound safe subphase result |
 | AC-4 | critical | Step 5/6 manifests and CI contract validation | closure pass record |
-| AC-5 | blocker | fresh Cdiag through formal and later owner-gated rehearsal | new run-owned evidence only |
+| AC-5 | blocker | fresh Cdiag through formal; a later rehearsal is excluded and separately owner-gated | new run-owned evidence only |
 
 ## Bug Context
 
@@ -149,26 +150,31 @@ raw runtime payload.
 
 - known_risks: An enum/refinement mistake could reject valid historical
   receipts, leak raw detail, or drift the hash closure; each must fail closed.
-- open_questions:
-  - Owner approval of this bounded Cdiag scope and its full revalidation chain.
+- open_questions: none
+
+## Approval Record
+
+- approval_authority: direct project-owner continuation direction
+- approved_by: `foggy-projects-via-user-direction`
+- approved_at: 2026-07-21
+- approved_scope: the bounded subphase Cdiag, its Step 5/6 static closure, and
+  the required fresh Cdiag → diagnostic → reviews → Cfreeze → formal chain.
+  A later Step 5 rehearsal remains a separately owner-gated action.
 
 ## Ultra Execution Contract
 
-- Status is `DRAFT`: do not modify tooling, run Cdiag, Docker, Maven, or any
-  revalidation until the owner approves this exact scope and `open_questions`
-  is empty.
-- After approval, read this workitem and project rules, keep implementation
-  within Scope, and set `NEEDS_REPLAN` for any added sidecar, error-code,
-  workflow, Dockerfile, API/SPI, or release/pointer requirement.
+- Status is `APPROVED`: implement only this scope in a new clean Cdiag and set
+  `NEEDS_REPLAN` for any added sidecar, error-code, workflow, Dockerfile,
+  API/SPI, release/pointer, or environment-remediation requirement.
 - Complete the stated validation and append implementation summary, changed
   paths, tests, deviations, and residual risks. Set only `READY_FOR_SIGNOFF`
   after the approved implementation and evidence actually complete.
 
 ## Implementation Result
 
-> Pending owner approval; no implementation or new run has started.
+> Owner approval is recorded; implementation and new runs have not yet started.
 
-- readiness: BLOCKED
+- readiness: APPROVED
 
 ## References
 
