@@ -3,14 +3,12 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: NEEDS_REPLAN
+status: APPROVED
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-direction
 approved_at: 2026-07-21
-open_questions:
-  - Owner confirmation is required for the mandatory Step 4 machine-state,
-    path-allowlist, and manifest closure discovered during Cdiag preflight.
+open_questions: []
 ---
 
 # Delivery Spec: Step 5 package-image `E_IMAGE` classification
@@ -55,6 +53,11 @@ open_questions:
   - `scripts/v934/step6/ci_contract_tool.py`
   - `scripts/v934/step6/ci-contract.json`
   - `scripts/v934/step6/SHA256SUMS`
+  - `scripts/v934/step4/coverage-contract.json`
+  - `scripts/v934/step4/coverage-thresholds.json`
+  - `scripts/v934/step4/coverage_tool.py`
+  - `scripts/v934/step4/coverage_xml_tool.py`
+  - `scripts/v934/step4/SHA256SUMS`
   - governed `docs/9.3.4` workitems and evidence.
 - external_dependencies: Existing Docker/Maven evidence environments are used
   only by the approved controlled Cdiag and mandated revalidation; no separate
@@ -103,7 +106,8 @@ raw runtime payload.
   allowlisted subphase; unknown paths remain fail-closed.
 - [ ] AC-3: Receipt writer/reader and synthetic negatives reject malformed,
   preexisting, symlinked, mismatched, or raw-detail-bearing data.
-- [ ] AC-4: Step 5/6 hash and CI-contract closure validate, with no workflow,
+- [ ] AC-4: Step 4 coverage-contract/threshold/path-allowlist closure and
+  Step 4/5/6 hash and CI-contract closure validate, with no workflow,
   Dockerfile, POM, API, SPI, package-layout, or pointer drift.
 - [ ] AC-5: A clean Cdiag and complete fresh required revalidation chain pass;
   no historical run artifacts are reused.
@@ -124,7 +128,7 @@ raw runtime payload.
 |---|---|---|---|
 | AC-1/AC-3 | critical | synthetic writer/reader and negative matrix | safe enum/status/count summary |
 | AC-2 | critical | deterministic mapping probes for each new boundary | run-bound safe subphase result |
-| AC-4 | critical | Step 5/6 manifests and CI contract validation | closure pass record |
+| AC-4 | critical | Step 4 contract/threshold/path-allowlist validation, Step 4/5/6 manifests, and CI contract validation | closure pass record |
 | AC-5 | blocker | fresh Cdiag through formal; a later rehearsal is excluded and separately owner-gated | new run-owned evidence only |
 
 ## Bug Context
@@ -152,11 +156,7 @@ raw runtime payload.
 
 - known_risks: An enum/refinement mistake could reject valid historical
   receipts, leak raw detail, or drift the hash closure; each must fail closed.
-- open_questions:
-  - The approved affected-module list omitted the Step 4 Cdiag machine-state
-    and path-allowlist closure now required by the changed Step 5 manifest.
-    Confirm whether the listed Step 4 files may be included before
-    implementation continues.
+- open_questions: none
 
 ## Replan Trigger
 
@@ -169,8 +169,9 @@ closure:
 `scripts/v934/step4/coverage_xml_tool.py`, and
 `scripts/v934/step4/SHA256SUMS`. Step 6 must then bind their new manifest hash
 alongside the changed Step 5 manifest. These paths were not in the approved
-`affected_modules` list. No tool code, hash manifest, Docker/Maven run, gate,
-or runtime evidence was changed before this replan marker.
+`affected_modules` list. `foggy-projects` approved this exact Step 4 closure
+expansion on 2026-07-21. No tool code, hash manifest, Docker/Maven run, gate,
+or runtime evidence was changed before the resolved replan marker.
 
 ## Approval Record
 
@@ -178,23 +179,26 @@ or runtime evidence was changed before this replan marker.
 - approved_by: `foggy-projects-via-user-direction`
 - approved_at: 2026-07-21
 - approved_scope: the bounded subphase Cdiag, its Step 5/6 static closure, and
-  the required fresh Cdiag → diagnostic → reviews → Cfreeze → formal chain.
+  the approved Step 4 machine-state/path-allowlist closure, plus the required
+  fresh Cdiag → diagnostic → reviews → Cfreeze → formal chain.
   A later Step 5 rehearsal remains a separately owner-gated action.
 
 ## Ultra Execution Contract
 
-- Status is `NEEDS_REPLAN`: do not modify tooling, hashes, machine state, or
-  run Cdiag/diagnostic work until the owner resolves the Step 4 closure scope.
+- Status is `APPROVED`: implement only the expanded affected-module list in a
+  new clean Cdiag. Set `NEEDS_REPLAN` for any added sidecar, error-code,
+  workflow, Dockerfile, API/SPI, release/pointer, or environment-remediation
+  requirement.
 - Complete the stated validation and append implementation summary, changed
   paths, tests, deviations, and residual risks. Set only `READY_FOR_SIGNOFF`
   after the approved implementation and evidence actually complete.
 
 ## Implementation Result
 
-> Owner approval is recorded, but preflight found a required path outside the
-> approved module list. No implementation or runtime validation has started.
+> Owner approval is recorded, including the resolved Step 4 closure scope.
+> No implementation or runtime validation has started.
 
-- readiness: NEEDS_REPLAN
+- readiness: APPROVED
 
 ## References
 
