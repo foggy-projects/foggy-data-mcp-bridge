@@ -1,0 +1,180 @@
+---
+doc_type: delivery-spec
+delivery_type: bug
+version: 9.3.4
+ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
+status: DRAFT
+canonical: true
+execution_mode: ultra
+approved_by: pending
+approved_at: pending
+open_questions:
+  - Owner approval is required before a new Cdiag, tooling change, diagnostic, or rehearsal.
+---
+
+# Delivery Spec: Step 5 package-image `E_IMAGE` classification
+
+## Document Purpose
+
+- intended_for: normal-analysis / ultra-implementation / independent-signoff
+- purpose: Freeze the proposed compatibility-preserving diagnostic refinement
+  for repeated safe `package-image / E_IMAGE` failures.
+- canonical_path:
+  `docs/9.3.4/workitems/BUG-step5-package-image-eimage-classification.md`
+
+## Goal
+
+- version_goal: Make a future Step 5 failure distinguish its safe runtime-image
+  boundary without exposing raw execution data or weakening fail-closed behavior.
+- target_outcome: New runs retain the existing nine-field receipt and `E_IMAGE`
+  code, while emitting one bounded, verifiable subphase that identifies the
+  checkpoint category.
+
+## Scope
+
+- in_scope:
+  - retain the outer five-field failure receipt, the nine-field receipt schema,
+    and `error_code=E_IMAGE` compatibility;
+  - retain historical `package-image` receipt reading, and add only these
+    newly-emitted package subphases: `package-image-runtime-inspect`,
+    `package-image-readback-precondition`, and
+    `package-image-receipt-completeness`;
+  - map the existing controlled runtime-inspect, readback-precondition, and
+    receipt-completeness boundaries to the new allowlisted subphases without
+    publishing raw command text, paths, output, image/container/OCI identity,
+    or logs;
+  - add synthetic negative/round-trip coverage and update the Step 5/Step 6
+    hash and CI-contract closure required by the changed tool bytes;
+  - reset authority through a clean Cdiag and perform the mandated fresh
+    diagnostic → reviews → direct-child Cfreeze → formal chain before any later
+    Step 5 rehearsal is considered.
+- affected_modules:
+  - `scripts/v934/step5/release_package_tool.py`
+  - `scripts/v934/step5/SHA256SUMS`
+  - `scripts/v934/step6/ci_contract_tool.py`
+  - `scripts/v934/step6/ci-contract.json`
+  - `scripts/v934/step6/SHA256SUMS`
+  - governed `docs/9.3.4` workitems and evidence.
+- external_dependencies: Existing Docker/Maven evidence environments are used
+  only by later governed runs; this DRAFT authorizes no environment mutation.
+
+## Non-Goals
+
+- out_of_scope:
+  - changing Dockerfile, frozen base-image identity, Maven/POM, public API/SPI,
+    package layout, outer receipt schema, pointer format, CI workflow graph, or
+    coverage policy;
+  - adding a second diagnostic sidecar, raw command/log transport, hashes of
+    raw logs, or any free-form failure detail;
+  - modifying existing Cfreeze `f7da93c1ad79be2dede5494b99990092ba110071`,
+    retrying r44/r45, or treating either as a success/candidate;
+  - authority/final promotion, release publication, and Step 6/7 execution or
+    authority runs; the static Step 6 hash/CI-contract closure required by a
+    changed Step 5 tool remains in scope. 9.3.5 and 9.4.0 remain closed.
+- do_not_touch:
+  - historical r43/r44/r45 evidence and approvals;
+  - fixed outer failure semantics and final-authority publication rules.
+
+## Confirmed Decisions
+
+| Decision | Rationale | Compatibility / Constraint |
+|---|---|---|
+| Existing outer and nine-field schemas stay fixed | Consumers and safe receipt proof remain valid | no fields or raw payload added |
+| `E_IMAGE` remains the error code | Existing error-code consumers retain compatibility | precision moves only to bounded `subphase` |
+| Historical `package-image` remains readable | r44/r45 evidence must remain verifiable | only new writes use new subphases |
+| New Cdiag is mandatory | Cfreeze bytes cannot be modified | full authority chain restarts |
+
+## Proposed Decision Pending Owner Approval
+
+Use the three bounded subphases in Scope rather than a new diagnostic sidecar
+or new error codes. Static control-flow review maps the current broad
+`E_IMAGE` only to runtime-inspect, readback-precondition, or
+receipt-completeness boundaries; build and frozen-base validation already use
+other bounded codes. This is the smallest compatible refinement and carries no
+raw runtime payload.
+
+## Acceptance Criteria
+
+- [ ] AC-1: Legacy `package-image / E_IMAGE` receipts continue to verify.
+- [ ] AC-2: Each new controlled `E_IMAGE` source maps to exactly one proposed
+  allowlisted subphase; unknown paths remain fail-closed.
+- [ ] AC-3: Receipt writer/reader and synthetic negatives reject malformed,
+  preexisting, symlinked, mismatched, or raw-detail-bearing data.
+- [ ] AC-4: Step 5/6 hash and CI-contract closure validate, with no workflow,
+  Dockerfile, POM, API, SPI, package-layout, or pointer drift.
+- [ ] AC-5: A clean Cdiag and complete fresh required revalidation chain pass;
+  no historical run artifacts are reused.
+
+## Contract / Data / Security Constraints
+
+- API or event contract: no public API/SPI or event change.
+- data and migration: no migration or persistent business-data change.
+- compatibility and rollback: old receipts remain accepted; absence, malformed
+  data, or an unknown boundary remains fail-closed.
+- permissions and secrets: no command text, paths, stdout/stderr, logs,
+  image/container/OCI identity, credentials, endpoint, or raw hash payload may
+  enter a receipt or evidence record.
+
+## Test and Evidence Obligations
+
+| Item | Risk | Required Validation | Required Evidence |
+|---|---|---|---|
+| AC-1/AC-3 | critical | synthetic writer/reader and negative matrix | safe enum/status/count summary |
+| AC-2 | critical | deterministic mapping probes for each new boundary | run-bound safe subphase result |
+| AC-4 | critical | Step 5/6 manifests and CI contract validation | closure pass record |
+| AC-5 | blocker | fresh Cdiag through formal and later owner-gated rehearsal | new run-owned evidence only |
+
+## Bug Context
+
+- bug_source: acceptance-found
+- severity: critical
+- environment: WSL isolated Step 5 rehearsals r44 and r45 on exact Cfreeze.
+- current_behavior: Both rehearsals correctly fail closed at
+  `package-image / E_IMAGE`, but the current bounded classification cannot
+  distinguish the remaining safe runtime-image boundaries.
+- expected_behavior: A future controlled failure exposes exactly one new
+  bounded subphase while preserving all current fail-closed and confidentiality
+  rules.
+- reproduction_steps: Do not rerun r44/r45. Reproduce only after a separately
+  approved Cdiag and fresh governed chain.
+- reproduction_status: confirmed
+- existing_evidence:
+  `step5-r44-package-image-fail-closed-20260721.md` and
+  `step5-r45-fail-closed-20260721.md`.
+- existing_tests: receipt reader/writer, package negatives, Step 5/6 closure.
+- regression_protection: required
+- waiver_reason_and_risk: N/A
+
+## Risks and Open Questions
+
+- known_risks: An enum/refinement mistake could reject valid historical
+  receipts, leak raw detail, or drift the hash closure; each must fail closed.
+- open_questions:
+  - Owner approval of this bounded Cdiag scope and its full revalidation chain.
+
+## Ultra Execution Contract
+
+- Status is `DRAFT`: do not modify tooling, run Cdiag, Docker, Maven, or any
+  revalidation until the owner approves this exact scope and `open_questions`
+  is empty.
+- After approval, read this workitem and project rules, keep implementation
+  within Scope, and set `NEEDS_REPLAN` for any added sidecar, error-code,
+  workflow, Dockerfile, API/SPI, or release/pointer requirement.
+- Complete the stated validation and append implementation summary, changed
+  paths, tests, deviations, and residual risks. Set only `READY_FOR_SIGNOFF`
+  after the approved implementation and evidence actually complete.
+
+## Implementation Result
+
+> Pending owner approval; no implementation or new run has started.
+
+- readiness: BLOCKED
+
+## References
+
+- related work item:
+  `docs/9.3.4/workitems/BUG-step5-package-subphase-receipt.md`
+- r44 evidence:
+  `docs/9.3.4/evidence/step-5/step5-r44-package-image-fail-closed-20260721.md`
+- r45 evidence:
+  `docs/9.3.4/evidence/step-5/step5-r45-fail-closed-20260721.md`
