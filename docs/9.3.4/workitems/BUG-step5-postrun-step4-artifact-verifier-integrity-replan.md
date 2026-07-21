@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-POSTRUN-STEP4-ARTIFACT-VERIFIER-INTEGRITY-REPLAN
-status: APPROVED
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects
@@ -12,6 +12,7 @@ controlling_step5_item: FEATURE-V934-RELEASE-AUTHORITY-AND-CI
 predecessors:
   - BUG-STEP5-PACKAGE-IMAGE-RUNTIME-INSPECT-R3-ENVIRONMENT-DIAGNOSIS
 open_questions: []
+successor_replan: BUG-STEP5-POSTRUN-STEP4-WORKFLOW-STATE-RESET
 ---
 
 # Delivery Spec: Step 5 post-run Step 4 integrity-closure repair
@@ -230,6 +231,18 @@ open_questions: []
   run. Keep all diagnostic/verifier command output out of evidence.
 - Complete all AC-1 through AC-7 before setting READY_FOR_SIGNOFF. Do not
   self-accept and do not start a Step 5 retry without a separate owner decision.
+
+## Replan Dependency（2026-07-22）
+
+- The declared terminal-integrity code/hash/docs Cdiag is complete and independently reviewed, but it
+  inherits `formal-ready / confirmed`. A fresh diagnostic correctly stopped at the runner state gate; no
+  Maven, test/container workload, Step 5 or authority action occurred. This makes no negative claim about
+  an outer availability preflight probe.
+- This work item's `do_not_touch` boundary forbids the only required contract/threshold machine-state
+  reset. Continuing AC-7 under this scope would either be impossible or silently expand the contract.
+- `BUG-step5-postrun-step4-workflow-state-reset.md` is the approved minimal successor. It alone authorizes
+  the complete diagnostic-pending reset and its Step 4→Step 6 closure. Historic r3/r4/Cfreeze/formal
+  material remains immutable and non-reusable.
 
 ## Implementation Result
 
