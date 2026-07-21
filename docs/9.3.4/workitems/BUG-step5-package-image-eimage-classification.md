@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-direction (successor-overlay replan approved)
@@ -250,10 +250,11 @@ the subsequently required Cdiag chain.
 ## Implementation Result
 
 > Owner approval now covers the isolated Cdiag implementation and the minimal
-> successor-overlay closure. The earlier static stop remains historical; no
-> Docker/Maven run, gate, or runtime validation has started after it.
+> successor-overlay closure. Static implementation is in progress in this clean
+> Cdiag; no Docker/Maven run, gate, or runtime validation has started after the
+> historical static stop.
 
-- readiness: APPROVED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
