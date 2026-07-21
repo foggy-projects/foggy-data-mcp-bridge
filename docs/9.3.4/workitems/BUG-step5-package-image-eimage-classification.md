@@ -3,12 +3,13 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: APPROVED
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
-approved_by: foggy-projects-via-user-direction
+approved_by: foggy-projects-via-user-direction (prior scope only)
 approved_at: 2026-07-21
-open_questions: []
+open_questions:
+  - owner approval for the minimal successor-overlay binding closure listed in Replan Trigger
 ---
 
 # Delivery Spec: Step 5 package-image `E_IMAGE` classification
@@ -90,7 +91,7 @@ open_questions: []
 | Historical `package-image` remains readable | r44/r45 evidence must remain verifiable | only new writes use new subphases |
 | New Cdiag is mandatory | Cfreeze bytes cannot be modified | full authority chain restarts |
 
-## Approved Design
+## Previously Approved Design
 
 Use the three bounded subphases in Scope rather than a new diagnostic sidecar
 or new error codes. Static control-flow review maps the current broad
@@ -156,7 +157,8 @@ raw runtime payload.
 
 - known_risks: An enum/refinement mistake could reject valid historical
   receipts, leak raw detail, or drift the hash closure; each must fail closed.
-- open_questions: none
+- open_questions: owner approval for the minimal successor-overlay binding
+  closure listed below.
 
 ## Replan Trigger
 
@@ -169,9 +171,45 @@ closure:
 `scripts/v934/step4/coverage_xml_tool.py`, and
 `scripts/v934/step4/SHA256SUMS`. Step 6 must then bind their new manifest hash
 alongside the changed Step 5 manifest. These paths were not in the approved
-`affected_modules` list. `foggy-projects` approved this exact Step 4 closure
-expansion on 2026-07-21. No tool code, hash manifest, Docker/Maven run, gate,
-or runtime evidence was changed before the resolved replan marker.
+`affected_modules` list. The exact prior owner approval was
+`BUG-step5-package-image-eimage-classification-replan-step4-closure`, signed
+by `foggy-projects` on 2026-07-21. No tool code, hash manifest, Docker/Maven
+run, gate, or runtime evidence was changed before the resolved replan marker.
+
+The approved Cdiag static closure then reached the canonical Step 4 successor
+overlay positive control and correctly stopped with
+`E_SUCCESSOR_OVERLAY_BINDING`. This is a new, smaller scope expansion: the
+overlay still binds the prior diagnostic/formal projections of the changed
+coverage contract and the prior coverage-tool bytes. A commit cannot repair
+those stale bindings.
+
+The exact pending owner addition is limited to:
+
+- content changes:
+  - `scripts/v934/step4/successor/overlay_tool.py`
+  - `scripts/v934/step4/successor/overlay-contract.json`
+- hash-only closure:
+  - `scripts/v934/step4/successor/SHA256SUMS`
+
+The only semantic update is the synchronized existing Step 4 runtime-binding
+identity for the coverage contract's diagnostic/formal projections and the
+coverage tool. It adds no runtime-binding path, error code, sidecar, raw
+payload, workflow, Dockerfile, Maven/POM, API/SPI, package-layout, release,
+or pointer behavior.
+
+The existing approved root Step 4 manifest and Step 6 files remain the
+transitive closure only: root `scripts/v934/step4/SHA256SUMS` updates the
+successor manifest and the two overlay entries; `scripts/v934/step6/ci_contract_tool.py`
+and `scripts/v934/step6/ci-contract.json` bind the resulting Step 4 manifest;
+`scripts/v934/step6/SHA256SUMS` then updates those exact entries. Step 5
+bytes and its manifest need no further change.
+
+`scripts/v934/step4/successor/declared-amendments.tsv` is explicitly excluded:
+its path set is frozen and does not cover these Step 4 runtime bindings.
+`scripts/v934/step4/coverage_xml_tool.py` must likewise retain a formalization
+allowlist that excludes the overlay paths, because this is a Cdiag repair and
+not a Cdiag-to-Cfreeze delta. No implementation, manifest update, Docker/Maven
+run, gate, or runtime evidence may proceed until the owner signs this addition.
 
 ## Approval Record
 
@@ -182,23 +220,36 @@ or runtime evidence was changed before the resolved replan marker.
   the approved Step 4 machine-state/path-allowlist closure, plus the required
   fresh Cdiag → diagnostic → reviews → Cfreeze → formal chain.
   A later Step 5 rehearsal remains a separately owner-gated action.
+- prior_replan_approval:
+  `BUG-step5-package-image-eimage-classification-replan-step4-closure`
+- prior_replan_owner: `foggy-projects`
+- prior_replan_scope: `coverage-contract.json`, `coverage-thresholds.json`,
+  `coverage_tool.py`, `coverage_xml_tool.py`, and root Step 4 `SHA256SUMS`,
+  with the already listed Step 6 transitive closure.
+- scope_status: superseded by the pending successor-overlay replan above; the
+  prior approval does not authorize those three newly named paths.
 
 ## Ultra Execution Contract
 
-- Status is `APPROVED`: implement only the expanded affected-module list in a
-  new clean Cdiag. Set `NEEDS_REPLAN` for any added sidecar, error-code,
-  workflow, Dockerfile, API/SPI, release/pointer, or environment-remediation
-  requirement.
+- Status is `NEEDS_REPLAN`: pause all implementation and hash closure. The
+  owner must explicitly authorize only the three successor-overlay paths in
+  Replan Trigger before status may return to `APPROVED`.
+- After approval, implement only the resulting full affected-module list in a
+  clean Cdiag. Any further sidecar, error-code, workflow, Dockerfile,
+  Maven/POM, API/SPI, release/pointer, environment-remediation, or scope
+  addition must return here as `NEEDS_REPLAN`.
 - Complete the stated validation and append implementation summary, changed
   paths, tests, deviations, and residual risks. Set only `READY_FOR_SIGNOFF`
   after the approved implementation and evidence actually complete.
 
 ## Implementation Result
 
-> Owner approval is recorded, including the resolved Step 4 closure scope.
-> No implementation or runtime validation has started.
+> The approved Cdiag implementation remains isolated and uncommitted. Static
+> source/hash checks reached the successor-overlay positive control, which
+> stopped fail-closed at the stale binding. No Docker/Maven run, gate, or
+> runtime validation was started after that stop.
 
-- readiness: APPROVED
+- readiness: NEEDS_REPLAN
 
 ## References
 
