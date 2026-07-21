@@ -157,18 +157,18 @@
       "diagnostic": {
         "contract_status": "diagnostic-ready",
         "publication_status": "diagnostic-ready",
-        "sha256": "45dcbe9a951af79775f45a0c6623d81ebe6608548e0d467edda03f57abbb44a9"
+        "sha256": "677ae94a6a4609f5f4bcc28fa4bd0dd8f8d826da11b4b94b68f1430b703f4e28"
       },
       "formal": {
         "contract_status": "formal-ready",
         "publication_status": "formal-ready",
-        "sha256": "9d5a29807e44fe79255a273d304dfce22a883b11582f9871e3508e45457ca8dd"
+        "sha256": "147b8b4815c1cc139cab09088ce58edc3e19d96af97111d17a69f51c105361ab"
       },
       "kind": "workflow-dual-sha256"
     },
     "scripts/v934/step4/coverage-report-amendment.tsv": "8fc95f9a04f8c0e6c50d3bcd4361975bcfec42b8b893d93ed041f33a5f8f765c",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "93d28c5f9d518fe03b338f2471dcaebba7742446caaaa41c88d06311e43006a5",
+    "scripts/v934/step4/coverage_tool.py": "2d50787690a80face3461e7f925386083af9284c03d87636ae606784b6428bed",
     "scripts/v934/step4/step2-report-view-contract.json": "bf284cdd8b34b35e27137c0cfca59ad6f16bf782d38eaf523095c181f9f6f52b",
     "scripts/v934/step4/step2_report_view_tool.py": "8eae016bc5dcea03f7634d19e018c6722490632716ea72fc19fdf29888be13de",
     "scripts/v934/step4/unit-mysql57-fixture-contract.json": "4284155dfed2b4ea1691f6a7569310ef858502fd578fe08cd8df30e492ce6ccb"
