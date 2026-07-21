@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-IMAGE-EIMAGE-CLASSIFICATION
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-direction (successor-overlay replan approved)
@@ -19,6 +19,16 @@ open_questions: []
 - P2 is the existing fail-closed filesystem-cleanup residual risk only;
 - scope remains closed to Step5 rehearsal, release authority, 9.3.5 and 9.4.0
   until owner signoff and a separately approved fresh rehearsal.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted-with-risks
+- signed_off_by: foggy-projects
+- signed_off_at: 2026-07-21
+- acceptance_record: docs/9.3.4/acceptance/step4-eimage-r2-cfreeze-formal-scoped-reacceptance-20260721.md
+- blocking_items: none
+- follow_up_required: yes
 
 # Delivery Spec: Step 5 package-image `E_IMAGE` classification
 
