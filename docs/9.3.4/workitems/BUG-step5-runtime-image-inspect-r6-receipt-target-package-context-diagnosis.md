@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-R6-RECEIPT-TARGET-PACKAGE-CONTEXT-DIAGNOSIS
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -97,32 +97,32 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: The clone starts clean with r5 evidence pushed; the temporary
+- [x] AC-1: The clone starts clean with r5 evidence pushed; the temporary
   receipt/output preflight proves the existing fixed receipt contract and
   ownership before any package CLI invocation.
-- [ ] AC-2: The detached source, same-root Step 4/classes/TEST XML/report
+- [x] AC-2: The detached source, same-root Step 4/classes/TEST XML/report
   inventory seals are valid and read-only; missing or mismatched input stops
   before invocation.
-- [ ] AC-3: Exactly one direct package-component invocation occurs only after
+- [x] AC-3: Exactly one direct package-component invocation occurs only after
   AC-1 and AC-2 pass. No release gate, test lane, portable replay, archive, or
   pointer command runs.
-- [ ] AC-4: Any package failure yields a fixed safe receipt that independently
+- [x] AC-4: Any package failure yields a fixed safe receipt that independently
   validates against the invocation's bounded inputs; package success is only
   `package-context-passed-non-authoritative`; missing/invalid receipt is
   `package-context-inconclusive` and no retry occurs.
-- [ ] AC-5: The final result is exactly one approved category supported by
+- [x] AC-5: The final result is exactly one approved category supported by
   safe booleans/counts and a no-authority assertion. A valid reproduction may
   use only `package-context-eimage-reproduced`; no raw runtime detail remains.
-- [ ] AC-6: Owned temporary package output, receipt, logs, diagnostics, and
+- [x] AC-6: Owned temporary package output, receipt, logs, diagnostics, and
   component-owned Docker resources are removed or their verified cleanup is
   reported; uncertainty fails the diagnosis.
-- [ ] AC-7: Original branch/head, tracked source, package-contract inputs,
+- [x] AC-7: Original branch/head, tracked source, package-contract inputs,
   Step 4 input, and candidate/final pointer state are restored or unchanged;
   no package/candidate/archive artifact survives outside temporary storage.
-- [ ] AC-8: Safe evidence passes a privacy scan and records no raw command,
+- [x] AC-8: Safe evidence passes a privacy scan and records no raw command,
   output, path, identity, endpoint, credential, or digest. It does not change
   code or authorize a fresh canonical rehearsal.
-- [ ] AC-9: An E_IMAGE reproduction, precondition failure, or inconclusive
+- [x] AC-9: An E_IMAGE reproduction, precondition failure, or inconclusive
   result freezes a successor instrumented-diagnosis/remediation spec before
   any retry. A component pass still needs a new owner-governed Step 5 decision.
 
@@ -195,17 +195,38 @@ open_questions: []
 
 ## Implementation Result
 
-> Ultra execution is in progress under the receipt-target preflight and
+> Ultra execution completed under the receipt-target preflight and
 > exact-one-invocation boundary. R5 remains fail-closed and is not eligible
 > for delivery signoff.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: The receipt-target and same-root Step 4 preflights
+  passed, then exactly one direct package-component invocation produced a
+  fixed safe receipt that independently validated. Its only permitted result
+  is `package-context-eimage-reproduced`.
+- changed_paths:
+  - docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-r6-receipt-target-package-context-diagnosis.md
+  - docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-r6-receipt-target-package-context-diagnosis-20260722.md
+- tests_and_results: Receipt-target preflight, same-root Step 4/classes/TEST
+  XML/report preflight, one direct package invocation, independent fixed
+  receipt verification, cleanup, branch restoration, source/package-contract/
+  Step-4/pointer invariants, and privacy review passed. No release gate, test
+  lane, archive, candidate/final pointer, or publication command ran.
+- manual_or_experience_evidence: The isolated package context reproduced the
+  approved bounded category while leaving no authority output. Only safe
+  booleans/counts and the category were retained.
 - deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING
+- residual_risks: The receipt proves the broad runtime-image inspection
+  boundary, not the lower-level cause. A separate narrowly-scoped remediation
+  is required before any package retry or canonical Step 5 decision.
+- readiness: READY_FOR_SIGNOFF
+
+## Successor Boundary
+
+- successor_work_item:
+  `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-format-remediation.md`
+- successor_status: APPROVED
+- retry_authority: none; the successor must complete its fresh Step 4 reset
+  chain before its one post-remediation package proof.
 
 ## References
 
