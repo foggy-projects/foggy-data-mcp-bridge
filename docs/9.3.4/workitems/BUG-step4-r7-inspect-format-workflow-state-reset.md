@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP4-R7-INSPECT-FORMAT-WORKFLOW-STATE-RESET
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -204,7 +204,19 @@ open_questions: []
 - deviations: none
 - residual_risks: a clean reviewed Cdiag is only the valid input to the next
   fresh full Step 4 diagnostic; it is not diagnostic/formal/Step 5 authority.
-- readiness: READY_FOR_SIGNOFF
+- readiness: ACCEPTED — static-only reset accepted; the separately governed
+  fresh full Step 4 diagnostic remains the next required gate.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: foggy-projects-via-user-delegated-continuation
+- signed_off_at: 2026-07-22
+- acceptance_record:
+  `docs/9.3.4/acceptance/step4-r7-inspect-format-workflow-state-reset-delivery-signoff-20260722.md`
+- blocking_items: none
+- follow_up_required: yes
 
 ## References
 
