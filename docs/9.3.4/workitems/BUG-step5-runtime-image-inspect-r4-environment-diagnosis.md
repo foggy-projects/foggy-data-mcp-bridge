@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-R4-ENVIRONMENT-DIAGNOSIS
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -92,31 +92,31 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: The exercise starts only from a clean clone, creates one uniquely
+- [x] AC-1: The exercise starts only from a clean clone, creates one uniquely
   owned image/context, invokes no Maven, Step 4, package tool, release gate,
   pointer, or publication path, and leaves tracked source unchanged.
-- [ ] AC-2: The frozen base is confirmed locally usable without a pull, then
+- [x] AC-2: The frozen base is confirmed locally usable without a pull, then
   the unmodified release Dockerfile/`--pull=false` build is attempted once and
   the exact three-field runtime image inspection contract is sampled three
   times on that same owned image. The result is classified as exactly one of
   `valid-inspect-not-reproduced`, `runtime-inspect-reproduced`,
   `runtime-inspect-intermittent`, or `precondition-unavailable`; no raw
   response survives classification.
-- [ ] AC-3: Docker daemon/context/builder checks are persisted only as safe
+- [x] AC-3: Docker daemon/context/builder checks are persisted only as safe
   availability/capability booleans. The receipt must reject raw output, image,
   tag, container, OCI, endpoint, credential, digest, version, and path data.
-- [ ] AC-4: The diagnostic proves candidate/final pointer state and
+- [x] AC-4: The diagnostic proves candidate/final pointer state and
   source/Dockerfile/POM/contract-hash state unchanged before and after the
   exercise. It creates no release run-root, package, archive, or pointer.
-- [ ] AC-5: `finally` cleanup removes only this run's ownership-label-verified
+- [x] AC-5: `finally` cleanup removes only this run's ownership-label-verified
   image/context and proves no owned container, image tag, readback, or
   filesystem residue. It must not create a container, prune, or alter base
   images, caches, or pre-existing Docker resources; any cleanup uncertainty is
   fail-closed.
-- [ ] AC-6: Safe evidence records the failed Step 5 boundary, one diagnosis
+- [x] AC-6: Safe evidence records the failed Step 5 boundary, one diagnosis
   category, no-candidate/no-pointer status, command classes, privacy scan, and
   cleanup status without raw Docker payloads.
-- [ ] AC-7: If the category is not a bounded compatible result, or if a
+- [x] AC-7: If the category is not a bounded compatible result, or if a
   remediation would change a governed tool/policy/environment, this work item
   becomes `NEEDS_REPLAN`; no repair or new canonical rehearsal runs.
 
@@ -215,7 +215,18 @@ open_questions: []
 - residual_risks: The canonical package-context trigger remains unidentified;
   this diagnostic does not authorize a retry. A new, narrower package-context
   diagnosis/replan is required before remediation or a fresh rehearsal.
-- readiness: READY_FOR_SIGNOFF
+- readiness: ACCEPTED
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: foggy-projects-via-user-delegated-continuation
+- signed_off_at: 2026-07-22
+- acceptance_record:
+  docs/9.3.4/acceptance/step5-runtime-image-inspect-r4-environment-diagnosis-signoff-20260722.md
+- blocking_items: none
+- follow_up_required: yes
 
 ## References
 
