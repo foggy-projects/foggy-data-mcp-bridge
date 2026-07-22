@@ -59,6 +59,7 @@ RUNTIME_BASE_PLATFORM = {"os": "linux", "architecture": "amd64"}
 RUNTIME_BASE_FROM = (
     f"FROM --platform=linux/amd64 {RUNTIME_BASE_PINNED_REFERENCE}"
 )
+RUNTIME_IMAGE_INSPECT_FORMAT = "{{println .Id}}{{println .Os}}{{println .Architecture}}"
 LAUNCHER = "foggy-mcp-launcher"
 RUNTIME_REACTOR_MODULES = (
     "foggy-bean-copy",
@@ -2771,7 +2772,7 @@ def docker_inspect_identity(root: Path, reference: str, label: str) -> dict[str,
             "image",
             "inspect",
             "--format",
-            "{{.Id}}\\n{{.Os}}\\n{{.Architecture}}",
+            RUNTIME_IMAGE_INSPECT_FORMAT,
             reference,
         ],
         root,
@@ -4128,6 +4129,88 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
             "E_IMAGE_CLEANUP",
             lambda: require_image_cleanup(["synthetic-resource-survived"]),
         )
+    )
+    original_run_capture = run_capture
+    observed_inspect_command: list[str] | None = None
+    expected_runtime_image_inspect_format = (
+        "{{println .Id}}{{println .Os}}{{println .Architecture}}"
+    )
+
+    def canonical_inspect_capture(
+        command: Sequence[str], root: Path, code: str, label: str
+    ) -> str:
+        nonlocal observed_inspect_command
+        observed_inspect_command = list(command)
+        return "sha256:" + "a" * 64 + "\nlinux\namd64\n"
+
+    try:
+        globals()["run_capture"] = canonical_inspect_capture
+        canonical_inspect = docker_inspect_identity(
+            root,
+            "synthetic-runtime-image",
+            "synthetic runtime image",
+        )
+    finally:
+        globals()["run_capture"] = original_run_capture
+    require(
+        RUNTIME_IMAGE_INSPECT_FORMAT == expected_runtime_image_inspect_format
+        and observed_inspect_command
+        == [
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            expected_runtime_image_inspect_format,
+            "synthetic-runtime-image",
+        ]
+        and canonical_inspect
+        == {
+            "engine_image_id": "sha256:" + "a" * 64,
+            "platform": {"os": "linux", "architecture": "amd64"},
+        },
+        "E_NEGATIVE",
+        "runtime image inspect template or canonical identity differs",
+    )
+    cases.append(
+        {
+            "case": "runtime-image-inspect-println-template",
+            "expected": "canonical",
+            "actual": "canonical",
+            "status": "passed",
+        }
+    )
+
+    def expect_inspect_failure(name: str, output: str) -> None:
+        def capture(command: Sequence[str], root: Path, code: str, label: str) -> str:
+            return output
+
+        try:
+            globals()["run_capture"] = capture
+            cases.append(
+                expect_failure(
+                    name,
+                    "E_IMAGE",
+                    lambda: docker_inspect_identity(
+                        root,
+                        "synthetic-runtime-image",
+                        "synthetic runtime image",
+                    ),
+                )
+            )
+        finally:
+            globals()["run_capture"] = original_run_capture
+
+    expect_inspect_failure(
+        "runtime-image-inspect-literal-escape-output",
+        "sha256:" + "a" * 64 + r"\nlinux\namd64\n",
+    )
+    expect_inspect_failure(
+        "runtime-image-inspect-wrong-platform",
+        "sha256:" + "a" * 64 + "\nlinux\narm64\n",
+    )
+    expect_inspect_failure(
+        "runtime-image-inspect-malformed-id",
+        "sha256:" + "g" * 64 + "\nlinux\namd64\n",
     )
     release_status = {
         "mode": "release",

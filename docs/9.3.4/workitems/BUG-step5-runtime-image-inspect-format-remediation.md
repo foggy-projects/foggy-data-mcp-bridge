@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-FORMAT-REMEDIATION
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -12,6 +12,7 @@ controlling_step5_item: FEATURE-V934-RELEASE-AUTHORITY-AND-CI
 predecessors:
   - BUG-STEP5-RUNTIME-IMAGE-INSPECT-R6-RECEIPT-TARGET-PACKAGE-CONTEXT-DIAGNOSIS
 open_questions: []
+successor_replan: BUG-STEP4-R7-INSPECT-FORMAT-WORKFLOW-STATE-RESET
 ---
 
 # Delivery Spec: Step 5 runtime-image inspect format remediation
@@ -102,8 +103,8 @@ open_questions: []
 ## Acceptance Criteria
 
 - [ ] AC-1: The runtime-image inspect command uses the documented
-  line-emitting template form and has exactly two actual record separators;
-  the strict parser still requires exactly three fields, a valid ID shape, and
+  line-emitting template form and emits exactly three records; the strict
+  parser still requires exactly three fields, a valid ID shape, and
   linux/amd64.
 - [ ] AC-2: Docker-free regression coverage proves the exact command-template
   argument, canonical three-record acceptance, literal-escape/malformed output
@@ -203,16 +204,45 @@ open_questions: []
 
 ## Implementation Result
 
-> Ultra execution is in progress. R6 is an accepted diagnostic and does not
-> authorize a retry before this work item's fresh Step 4 chain.
+> The source repair and its Docker-free/static integrity closure are complete,
+> but no new-source Step 4 diagnostic may begin from the inherited
+> `formal-ready / confirmed` machine state. The necessary reset paths are
+> outside this work item's declared source-repair closure, so execution is
+> fail-closed pending the approved dedicated Cdiag successor.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
-- deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING
+- implementation_summary: corrected the runtime-image inspect caller to use
+  Docker's documented line-emitting template function, retained the strict
+  three-record/ID/linux-amd64 parser, and added Docker-free regression probes
+  for the exact template, canonical success and fail-closed malformed/literal-
+  escape/wrong-platform cases.
+- changed_paths: `scripts/v934/step5/release_package_tool.py` plus its exact
+  Step 5 -> Step 4 -> Step 6 integrity/CI closure and this governed work item.
+- tests_and_results: Python syntax, package Docker-free negative/self-test,
+  Step 4/5/6 manifest verification, Step 4 contract validation, and Step 6
+  workflow-contract/self-negative validation passed. No Maven, Docker, outer
+  Step 4 runner, package proof, candidate, pointer or release action ran.
+- manual_or_experience_evidence: static results establish only the repaired
+  source and closure; they do not constitute Step 4 diagnostic, formal, Step 5
+  or version authority.
+- deviations: the mandatory fresh Step 4 Cdiag requires an exact workflow-
+  state reset that was not listed in this work item's declared closure.
+- residual_risks: the repaired source has not yet entered a fresh Step 4
+  diagnostic/formal chain or the permitted one-shot package proof; previous
+  authority remains non-reusable for the changed bytes.
+- readiness: NEEDS_REPLAN
+
+## Replan Status
+
+- replan_status: required and successor approved.
+- replan_reason: current governed Step 4 machine state is
+  `formal-ready / confirmed`, while diagnostic mode requires the exact
+  `diagnostic-ready / diagnostic-pending` predecessor shape. Altering those
+  state documents and their Step 4 -> Step 6 mechanical closure would exceed
+  the source-repair scope.
+- successor_work_item:
+  `docs/9.3.4/workitems/BUG-step4-r7-inspect-format-workflow-state-reset.md`
+- signoff_eligibility: not eligible; no delivery-signoff may be created for
+  this remediation until the successor reset and fresh Step 4 chain complete.
 
 ## References
 
