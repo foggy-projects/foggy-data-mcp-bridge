@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-R6-RECEIPT-TARGET-PACKAGE-CONTEXT-DIAGNOSIS
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -218,7 +218,7 @@ open_questions: []
 - residual_risks: The receipt proves the broad runtime-image inspection
   boundary, not the lower-level cause. A separate narrowly-scoped remediation
   is required before any package retry or canonical Step 5 decision.
-- readiness: READY_FOR_SIGNOFF
+- readiness: ACCEPTED
 
 ## Successor Boundary
 
@@ -227,6 +227,17 @@ open_questions: []
 - successor_status: APPROVED
 - retry_authority: none; the successor must complete its fresh Step 4 reset
   chain before its one post-remediation package proof.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: foggy-projects-via-user-delegated-continuation
+- signed_off_at: 2026-07-22
+- acceptance_record:
+  docs/9.3.4/acceptance/step5-runtime-image-inspect-r6-receipt-target-package-context-diagnosis-signoff-20260722.md
+- blocking_items: none
+- follow_up_required: yes
 
 ## References
 
