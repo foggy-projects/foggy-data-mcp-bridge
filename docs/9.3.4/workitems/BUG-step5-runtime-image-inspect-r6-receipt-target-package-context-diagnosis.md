@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-R6-RECEIPT-TARGET-PACKAGE-CONTEXT-DIAGNOSIS
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -195,8 +195,9 @@ open_questions: []
 
 ## Implementation Result
 
-> Ultra execution has not started. This approved successor exists because r5
-> was fail-closed and is not eligible for delivery signoff.
+> Ultra execution is in progress under the receipt-target preflight and
+> exact-one-invocation boundary. R5 remains fail-closed and is not eligible
+> for delivery signoff.
 
 - implementation_summary: pending
 - changed_paths: pending
@@ -204,7 +205,7 @@ open_questions: []
 - manual_or_experience_evidence: pending
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
