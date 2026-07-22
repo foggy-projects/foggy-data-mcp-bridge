@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-STEP4-TAKEOVER-REPLAN
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-runner-pr-takeover-authorization
@@ -89,17 +89,17 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: 存在一个 clean/pushed integration merge，第一父为接管前 PR 接受头，
+- [x] AC-1: 存在一个 clean/pushed integration merge，第一父为接管前 PR 接受头，
   第二父为接管时 diagnostic 头；双方独有提交均为 ancestors，原工作区保持未改。
-- [ ] AC-2: 旧 r4 work item 明确为 `NEEDS_REPLAN`，且没有复用其 run root、candidate、
+- [x] AC-2: 旧 r4 work item 明确为 `NEEDS_REPLAN`，且没有复用其 run root、candidate、
   capsule、Cfreeze 或 formal authority。
-- [ ] AC-3: overlay protected drift 精确等于 declared amendments；新增两行分别绑定
+- [x] AC-3: overlay protected drift 精确等于 declared amendments；新增两行分别绑定
   `DefaultExpFactory.java` 和 `FunTable.java` 的 frozen parent/current blob SHA 与 mode，
   `overlay_tool.py validate`、manifest 和 negative contract 均通过。
-- [ ] AC-4: 合并后的 Step 5 package integrity/runtime image inspect、portable artifact
+- [x] AC-4: 合并后的 Step 5 package integrity/runtime image inspect、portable artifact
   semantics、Step 6 CI contract 和工作流修复同时存在；Step 4/5/6 manifests 及嵌套
   digest bindings 全部闭合，无 conflict marker 或 stale hash。
-- [ ] AC-5: integration commit 为 diagnostic-ready，随后唯一 Cdiag 是其单父子提交；
+- [x] AC-5: integration commit 为 diagnostic-ready，随后唯一 Cdiag 是其单父子提交；
   Cdiag 仅修改本文件的 `status: APPROVED -> ULTRA_EXECUTING` 和
   `readiness: APPROVED -> ULTRA_EXECUTING`，fresh clone 精确检出该头。
 - [ ] AC-6: 新 diagnostic 一次完成全部 required lanes、source before/after seal、coverage
@@ -197,15 +197,32 @@ open_questions: []
 
 ## Implementation Result
 
-> 由接管执行会话填写。当前仅为 approved Cplan，不授权 runner。
+> 由接管执行会话填写。本次唯一 fresh diagnostic 已按 fail-closed 结束，
+> 本事项不再授权 runner。
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: 已完成双历史 integration、两个 FSScript protected source
+  amendments、传递 hash closure、focused validation、唯一 activation Cdiag 和 fresh-clone
+  preflight。唯一授权 diagnostic 在 Unit `report-verify` 阶段以 `E_EXTRA_REPORT` 失败；
+  新增且已通过的 `DefaultExpFactorySpringLifecycleTest` 未被冻结的 Step2 execution
+  inventory 接纳，因此未进入 coverage observation、candidate、capsule、Cfreeze 或 formal。
+- changed_paths: integration/Cdiag 历史见 `f67ed0534074a9182f7df8d15e1eafba69f40364`
+  和 `54c774e636e33971b6cae612b8b89fb1acdb33c6`；本次 fail-closed 记录只修改本事项并新增
+  `docs/9.3.4/evidence/step-4/step4-v934-fsscript-amendment-diagnostic-20260722-r5-report-inventory-fail-closed.md`。
+- tests_and_results: integration focused validators 全绿，包括 overlay 20/20 negative、
+  coverage 28/28 negative、package 117/117 negative、artifact negative 105/105、CI
+  86/86 negative 及 Step4/5/6 manifests；fresh diagnostic run
+  `step4-v934-fsscript-amendment-diagnostic-20260722-r5` 唯一执行并以 exit 1 结束。
+  Unit Surefire XML 扫描无 failure/error/skipped，精确只读分类为
+  `E_EXTRA_REPORT: com.foggyframework.fsscript.exp.DefaultExpFactorySpringLifecycleTest`；
+  cleanup container/volume/network residue 均为 0，authority artifacts 均未产生。
+- manual_or_experience_evidence: fresh clone 为 clean、non-shallow、精确 Cdiag；固定端口、
+  pinned images、Docker/Compose、source seal、manifest、overlay、CI 和 sanitized-env
+  preflight 全部通过。runner raw terminal output 未读取、未保留；终止后身份/权限检查通过并删除。
 - deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING
+- residual_risks: Step2 successor report inventory/discovery/cardinality 及 Step4 coverage totals、
+  manifests 和所有传递 bindings 尚未纳入新增 lifecycle test。必须先形成并批准新的 replan，
+  使用新的 Cdiag 和 run ID；不得 retry 或复用本次 partial lane。
+- readiness: NEEDS_REPLAN
 
 ## References
 
