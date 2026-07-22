@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-R5-PACKAGE-CONTEXT-DIAGNOSIS
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -98,7 +98,7 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: Before the live attempt, the clone is clean, r4 docs are pushed,
+- [x] AC-1: Before the live attempt, the clone is clean, r4 docs are pushed,
   the temporary detached source exactly matches the successful Step 4 input,
   and its same-root Step 4/classes/TEST XML inputs are read-only and
   structurally valid. Missing or mismatched input stops before invocation.
@@ -108,20 +108,20 @@ open_questions: []
 - [ ] AC-3: A failure produces and independently validates only the fixed
   safe receipt; a successful package result is explicitly classified
   `package-context-passed-non-authoritative`. Both paths retain no raw output.
-- [ ] AC-4: The final result is exactly one approved category, supported by
+- [x] AC-4: The final result is exactly one approved category, supported by
   safe booleans/counts and a no-authority assertion; unknown or malformed
   results are `package-context-inconclusive` and fail closed.
-- [ ] AC-5: Temporary package output, logs, receipt, and diagnostic directory
+- [x] AC-5: Temporary package output, logs, receipt, and diagnostic directory
   are removed after classification. Docker cleanup is accepted only when the
   component itself reports its owned cleanup exact; any residue or uncertain
   cleanup fails the diagnosis.
-- [ ] AC-6: The original branch/head, tracked source, package-contract inputs,
+- [x] AC-6: The original branch/head, tracked source, package-contract inputs,
   Step 4 root, and candidate/final pointer state are restored or unchanged;
   no package/candidate/archive artifact survives outside temporary storage.
-- [ ] AC-7: Safe evidence passes a privacy scan and records no raw command,
+- [x] AC-7: Safe evidence passes a privacy scan and records no raw command,
   output, path, identity, endpoint, credential, or digest. The work item does
   not implement a fix or authorize a fresh canonical rehearsal.
-- [ ] AC-8: If the package context reproduces the boundary or yields an
+- [x] AC-8: If the package context reproduces the boundary or yields an
   inconclusive/precondition result, freeze a successor instrumented-diagnosis
   or remediation spec before any retry. If it passes, still require a new
   owner-governed decision before canonical Step 5.
@@ -195,16 +195,45 @@ open_questions: []
 
 ## Implementation Result
 
-> Ultra execution is in progress under the approved exact-one-invocation
-> boundary.
+> Ultra execution completed its single-attempt envelope but did not produce a
+> diagnostically valid package-context result. It is therefore fail-closed and
+> requires a successor replan, not signoff.
 
-- implementation_summary:
+- implementation_summary: The same-source/read-only-Step-4 preflight passed
+  and exactly one package CLI invocation was attempted. Its terminal outcome
+  could not be independently validated through the fixed safe receipt, so the
+  only permitted classification is `package-context-inconclusive`.
 - changed_paths:
-- tests_and_results:
-- manual_or_experience_evidence:
-- deviations: none
-- residual_risks:
-- readiness: ULTRA_EXECUTING
+  - docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-r5-package-context-diagnosis.md
+  - docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-r5-package-context-diagnosis-20260722.md
+- tests_and_results: One bounded invocation only; preflight, temporary cleanup,
+  branch restoration, source/package-contract/Step-4/pointer invariants, and
+  privacy review passed. Fixed safe-receipt validation did not pass. No
+  release gate, test lane, archive, candidate/final pointer, or publication
+  command ran.
+- manual_or_experience_evidence: The disposable-clone state was restored and
+  no authority output survived. The terminal safe evidence records only the
+  approved inconclusive classification and bounded booleans/counts.
+- deviations: The attempted command did not reach a diagnostically valid
+  package-component outcome because its fixed receipt contract was not
+  established. This is recorded as a fail-closed execution result, not as a
+  package or runtime-image finding.
+- residual_risks: The exact package-context behavior remains unknown. A
+  receipt-target preflight plus one corrected bounded diagnosis is required
+  before any package retry, tool remediation, or canonical Step 5 decision.
+- readiness: NEEDS_REPLAN
+
+## Replan Status
+
+- replan_status: required
+- replan_reason: The critical fixed safe-receipt validation obligation was not
+  met, so AC-2 and AC-3 remain unsatisfied and the package context is unknown.
+- terminal_evidence:
+  `docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-r5-package-context-diagnosis-20260722.md`
+- successor_work_item:
+  `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-r6-receipt-target-package-context-diagnosis.md`
+- signoff_eligibility: not eligible; do not create a delivery-signoff record
+  for this inconclusive diagnostic.
 
 ## References
 
