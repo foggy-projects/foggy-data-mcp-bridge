@@ -204,16 +204,19 @@ open_questions: []
 - implementation_summary: the fresh diagnostic produced a strictly validated
   diagnostic-observed result and source-side diagnostic validation passed. The
   single authorized threshold-candidate generation did not publish its expected
-  candidate artifact, so this Cdiag is excluded from Cfreeze.
+  external threshold-freeze candidate artifact, so this Cdiag is excluded from
+  Cfreeze.
 - changed_paths: this work-item state and the bounded post-run failure record
   only; no machine-state, source, policy, runner, CI, package or API path
   changed.
 - tests_and_results: clean fresh-clone preflight, the one canonical diagnostic
   and source-side diagnostic validation passed; the first threshold-candidate
-  generation failed before candidate publication. Per AC-6, it was not retried.
+  generation failed before external threshold-freeze candidate publication. Per
+  AC-6, it was not retried.
 - manual_or_experience_evidence: the strict finalizer status is
-  diagnostic-observed; the safe cleanup receipt exists; the candidate, capsule,
-  review, Cfreeze, formal, Step 5 and later authority paths remain absent.
+  diagnostic-observed; the safe cleanup receipt exists; the threshold-freeze
+  candidate, capsule, review, Cfreeze, formal, Step 5 and later authority
+  paths remain absent.
 - deviations: none.
 - residual_risks: the candidate-generation failure is intentionally
   unclassified; raw runner and tool output were not read or persisted.

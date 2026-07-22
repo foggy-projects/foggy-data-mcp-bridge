@@ -18,10 +18,10 @@ recorded_at: 2026-07-22
   diagnostic-observed status.
 - The source-side diagnostic validator passed against the clean, pushed Cdiag.
 - The single authorized threshold-candidate generation did not publish the
-  expected candidate artifact. No second candidate-generation attempt was
-  made.
-- No candidate, Git-safe capsule, review, Cfreeze, formal, Step 5, release or
-  version authority was created from this run.
+  expected external threshold-freeze candidate artifact. No second
+  candidate-generation attempt was made.
+- No threshold-freeze candidate, Git-safe capsule, review, Cfreeze, formal,
+  Step 5, release or version authority was created from this run.
 - A safe cleanup receipt exists. Raw runner output and raw tool output were
   neither read nor retained by this record.
 
