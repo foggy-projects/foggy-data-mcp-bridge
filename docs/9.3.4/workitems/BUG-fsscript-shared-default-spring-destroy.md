@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-934-FSSCRIPT-SHARED-DEFAULT-SPRING-DESTROY
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-confirmed-solution-a
@@ -164,3 +164,13 @@ open_questions: []
 - requirement / issue: PR #124；GitHub Actions run 29912487082。
 - architecture / glossary: `DefaultExpFactory.DEFAULT`、`FoggyFscriptAutoConfiguration`、`FunTable`。
 - related work items: `docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md`、`docs/9.3.4/workitems/DECISION-v934-risk-tiered-release-exit-policy.md`。
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: independent-release-reviewer
+- signed_off_at: 2026-07-22
+- acceptance_record: `docs/9.3.4/acceptance/BUG-fsscript-shared-default-spring-destroy-signoff-20260722.md`
+- blocking_items: none
+- follow_up_required: no
