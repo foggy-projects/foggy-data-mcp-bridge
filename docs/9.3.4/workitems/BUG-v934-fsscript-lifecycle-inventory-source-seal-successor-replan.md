@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-LIFECYCLE-INVENTORY-SOURCE-SEAL-SUCCESSOR-REPLAN
-status: APPROVED
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-continue-after-r6-fail-closed
@@ -185,15 +185,26 @@ open_questions: []
 
 ## Implementation Result
 
-> 由执行会话填写。当前为 approved Cplan，不授权 runner。
+> focused validation failed closed before any activation Cdiag or governed diagnostic run was
+> created. The attempted five-file hash-closure implementation was reverted; only this status and
+> the linked failure evidence are retained.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
-- deviations: none
-- residual_risks: pending
-- readiness: APPROVED
+- implementation_summary: updated the stale nested outer raw SHA and its Step4/Step6 transitive
+  digests in a clean successor worktree, then reverted that implementation after the full lifecycle
+  suite exposed a second stale outer executable-stream seal.
+- changed_paths: final failure-record commit changes only this work item and
+  `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-inventory-source-seal-successor-focused-lifecycle-fail-closed.md`.
+- tests_and_results: canonical raw binding preflight passed with `count=4`; Step4/6 manifests,
+  syntax and diff checks passed; the one full lifecycle focused invocation failed with exit 1 on
+  `E_EXECUTABLE_STREAM_SEAL` (`expected=f3d358...`, `observed=c696f9...`). It was not retried.
+- manual_or_experience_evidence: Git history shows commit `5245f2de` changed executable outer-runner
+  report-count lines from `773/5707` to `774/5709`, while the nested executable-stream constant
+  remained the value introduced/last updated at `5aaffbb4`.
+- deviations: the approved assumption that the outer executable stream was unchanged is false;
+  expanding the patch without a new contract is forbidden, so execution stopped before Cdiag.
+- residual_risks: the canonical outer raw SHA and executable-stream SHA are both stale consumers in
+  the lifecycle validator until a successor contract updates and validates both together.
+- readiness: NEEDS_REPLAN
 
 ## References
 
