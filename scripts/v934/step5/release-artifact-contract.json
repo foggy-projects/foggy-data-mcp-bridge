@@ -139,7 +139,7 @@
       },
       {
         "id": "credential-assignment",
-        "regex": "(?im)(?:^[ \\t]*(?:-[ \\t]+)?(?:[A-Za-z0-9_-]+\\.)*|[,{]\\s*)\"?(?:username|password|passwd|pwd|credential|api[-_]?key|access[-_]?key|secret[-_]?access[-_]?key|access[-_]?key[-_]?(?:id|secret)|secret[-_]?id|secret[-_]?key|private[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|client[-_]?token|client[-_]?secret|secret|authorization)\"?\\s*[:=]\\s*(?!\"?(?:null|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|(?:bearer|basic)\\s+\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|<?redacted>?|\\[redacted\\]|\\*{3,}|['\\\"]?\\.{3}['\\\"]?)\"?(?:[\\s,;)}\\]<>]|$))\"?[^\"\\s,}\\]]+(?=[ \\t]*(?:[\\\"',;#)}\\]\\r\\n<>]|$))"
+        "regex": "(?im)(?:^[ \\t]*(?:-[ \\t]+)?(?:[A-Za-z0-9_-]+\\.)*|[,{]\\s*)\"?(?:username|password|passwd|pwd|credential|api[-_]?key|access[-_]?key|secret[-_]?access[-_]?key|access[-_]?key[-_]?(?:id|secret)|secret[-_]?id|secret[-_]?key|private[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|client[-_]?token|client[-_]?secret|secret|authorization)\"?\\s*[:=]\\s*(?!\"?(?:null|\\{\\}|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|(?:bearer|basic)\\s+\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|<?redacted>?|\\[redacted\\]|\\*{3,}|['\\\"]?\\.{3}['\\\"]?)\"?(?:[\\s,;)}\\]<>]|$))\"?[^\"\\s,}\\]]+(?=[ \\t]*(?:[\\\"',;#)}\\]\\r\\n<>]|$))"
       },
       {
         "id": "bearer-token",
@@ -172,6 +172,7 @@
       "environment-function-without-literal-default",
       "redacted-marker",
       "ellipsis-example-marker",
+      "slf4j-empty-placeholder",
       "fixture-marker",
       "default-marker"
     ]

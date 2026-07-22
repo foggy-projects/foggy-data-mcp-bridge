@@ -911,6 +911,38 @@ def normalize_xml_keys(
     return result
 
 
+def normalize_html_quote_entities(
+    path: str,
+    data: bytes,
+    budget: CredentialScanBudget,
+    contract: dict[str, object],
+) -> bytes:
+    quotes = {
+        b"&#34;": b'"',
+        b"&#39;": b"'",
+        b"&#x22;": b'"',
+        b"&#x27;": b"'",
+        b"&apos;": b"'",
+        b"&quot;": b'"',
+    }
+
+    def replace(match: re.Match[bytes]) -> bytes:
+        budget.escape(path, contract)
+        return quotes[match.group(0).lower()]
+
+    result = re.sub(
+        rb"(?i)&#(?:34|39|x22|x27);|&(?:apos|quot);",
+        replace,
+        data,
+    )
+    require(
+        len(result) <= int(normalization_limits(contract)["max_normalized_bytes"]),
+        "E_SECRET_NORMALIZATION_LIMIT",
+        f"normalized HTML credential view exceeds size limit: {path}",
+    )
+    return result
+
+
 def normalize_credential_key_view(
     path: str,
     data: bytes,
@@ -931,6 +963,8 @@ def normalize_credential_key_view(
         result = normalize_properties_keys(path, data, budget, contract)
     elif extension in ("xml", "pom"):
         result = normalize_xml_keys(path, data, budget, contract)
+    elif extension in ("htm", "html"):
+        result = normalize_html_quote_entities(path, data, budget, contract)
     else:
         result = data
     require(
@@ -1067,7 +1101,7 @@ def sanitize_environment_functions(
 
 
 def safe_assignment_value(value: bytes) -> bool:
-    if value == b"" or SAFE_PLACEHOLDER_DEFAULT.fullmatch(value) is not None:
+    if value in (b"", b"{}") or SAFE_PLACEHOLDER_DEFAULT.fullmatch(value) is not None:
         return True
     placeholder = parse_environment_placeholder(value, 0)
     if placeholder is not None and placeholder[0] == len(value):
@@ -2548,6 +2582,7 @@ def validate_contract() -> tuple[dict[str, object], bytes, str]:
             "environment-function-without-literal-default",
             "redacted-marker",
             "ellipsis-example-marker",
+            "slf4j-empty-placeholder",
             "fixture-marker",
             "default-marker",
         ],
@@ -3201,7 +3236,12 @@ def validate_tar_member(member: tarfile.TarInfo, contract: dict[str, object], se
     require(member.mtime == archive["mtime"], "E_MEMBER_MTIME", f"archive mtime differs: {path}")
     require(set(member.pax_headers).issubset({"path"}), "E_MEMBER_PAX", f"unexpected PAX headers: {path}")
     if "path" in member.pax_headers:
-        require(member.pax_headers["path"] == path, "E_MEMBER_PAX", f"PAX path differs: {path}")
+        expected_pax_paths = {path, path + "/"} if member.isdir() else {path}
+        require(
+            member.pax_headers["path"] in expected_pax_paths,
+            "E_MEMBER_PAX",
+            f"PAX path differs: {path}",
+        )
     if member.isdir():
         kind = "directory"
         require(member.size == 0, "E_MEMBER_SIZE", f"directory is non-empty: {path}")
@@ -3892,6 +3932,7 @@ def write_fixture(staging: Path) -> None:
     (staging / "reports").mkdir()
     (staging / "bin").mkdir()
     (staging / "site").mkdir()
+    (staging / "reports" / ("long-directory-" + "x" * 100)).mkdir()
     safe_nested = fixture_regular_zip(
         [("nested-safe.properties", b"password=${NESTED_DATABASE_PASSWORD}\n")]
     )
@@ -4103,6 +4144,11 @@ def negative_matrix(work_root: Path | None = None) -> dict[str, object]:
                 b"<password>hunter2</password>\n",
             ),
             (
+                "secret-html-quoted-credential",
+                "jacoco-source.html",
+                b"username=&quot;admin&quot;\n",
+            ),
+            (
                 "secret-placeholder-literal-default",
                 "application.yml",
                 b"password=${DB_PASSWORD:hunter2}\n",
@@ -4225,6 +4271,10 @@ def negative_matrix(work_root: Path | None = None) -> dict[str, object]:
                 b'<property name="pass&#x77;ord" value="${DB_PASSWORD}"/>\n',
             ),
             ("safe.xml", b"<password>${DB_PASSWORD}</password>\n"),
+            (
+                "jacoco-source.html",
+                b"log.info(&quot;url={}, username={}&quot;, url, username);\n",
+            ),
             (
                 "SafeStatic.class",
                 fixture_credential_class(
