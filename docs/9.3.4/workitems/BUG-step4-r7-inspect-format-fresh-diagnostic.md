@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP4-R7-INSPECT-FORMAT-FRESH-DIAGNOSTIC
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -97,11 +97,11 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: This work item is committed/pushed, then a fresh non-shallow clone
+- [x] AC-1: This work item is committed/pushed, then a fresh non-shallow clone
   at that exact clean Cdiag passes the Step 4/5/6 integrity, diagnostic-state,
   overlay, source-seal and CI static preflight; the selected run root is absent
   and no authority/run environment override is inherited.
-- [ ] AC-2: Exactly one unique diagnostic invocation runs. It seals a passing
+- [x] AC-2: Exactly one unique diagnostic invocation runs. It seals a passing
   diagnostic with all governed lanes, required cardinalities, negative and
   sensitive gates, source-before/after identity and run-ID-owned cleanup; it
   generates no formal/candidate/final authority artifact.
@@ -112,10 +112,10 @@ open_questions: []
 - [ ] AC-4: Primary review independently recomputes diagnostic/candidate
   semantics, independent review materializes/rebuilds the capsule, and both
   report no blocker or required unlisted change.
-- [ ] AC-5: Safe result records distinguish `diagnostic-observed` from formal,
+- [x] AC-5: Safe result records distinguish `diagnostic-observed` from formal,
   Step 5, release and version authority. A success may authorize only proposal
   of one separately specified direct-child Cfreeze; it does not execute one.
-- [ ] AC-6: Any failed preflight, runner, validation, review, cleanup,
+- [x] AC-6: Any failed preflight, runner, validation, review, cleanup,
   privacy, scope or topology condition is fail-closed: preserve only bounded
   safe failure facts, mark this item `NEEDS_REPLAN`, and do not make a second
   attempt or reuse the run.
@@ -199,15 +199,25 @@ open_questions: []
 
 ## Implementation Result
 
-> Pending execution.
+> Execution stopped fail-closed after the one authorized diagnostic.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
-- deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING
+- implementation_summary: the fresh diagnostic produced a strictly validated
+  diagnostic-observed result and source-side diagnostic validation passed. The
+  single authorized threshold-candidate generation did not publish its expected
+  candidate artifact, so this Cdiag is excluded from Cfreeze.
+- changed_paths: this work-item state and the bounded post-run failure record
+  only; no machine-state, source, policy, runner, CI, package or API path
+  changed.
+- tests_and_results: clean fresh-clone preflight, the one canonical diagnostic
+  and source-side diagnostic validation passed; the first threshold-candidate
+  generation failed before candidate publication. Per AC-6, it was not retried.
+- manual_or_experience_evidence: the strict finalizer status is
+  diagnostic-observed; the safe cleanup receipt exists; the candidate, capsule,
+  review, Cfreeze, formal, Step 5 and later authority paths remain absent.
+- deviations: none.
+- residual_risks: the candidate-generation failure is intentionally
+  unclassified; raw runner and tool output were not read or persisted.
+- readiness: NEEDS_REPLAN
 
 ## References
 
