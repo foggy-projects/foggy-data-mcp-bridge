@@ -586,6 +586,10 @@ public class DefaultExpFactory implements ExpFactory, ApplicationRunner, Disposa
 
     @Override
     public void destroy() throws Exception {
-        clear();
+        DefaultExpFactory defaultFactory = DEFAULT;
+        // DEFAULT is shared at the class-loader level and may be owned by more than one Spring context.
+        if (this != defaultFactory) {
+            clear();
+        }
     }
 }
