@@ -20,7 +20,7 @@
     },
     "protected_tree_manifest": {
       "path": "scripts/v934/step4/successor/database-matrix-protected-trees.tsv",
-      "sha256": "10c319d6b2042c020cc4bb702535470ba1a048fc5b10baba60a2a317c623a674"
+      "sha256": "b45bdc9888910a91d7aec57f6727dd1f04ee2a273b59d4e857958ff4e17206e8"
     },
     "source_amendment": {
       "path": "scripts/v934/step4/successor/database-matrix-source-amendment.tsv",

@@ -143,6 +143,10 @@ FORMALIZATION_EXACT_PATHS = (
     "scripts/v934/step6/SHA256SUMS",
 )
 FORMALIZATION_ALLOWED_PREFIXES = ("docs/9.3.4/",)
+CDIAG_ONLY_STEP5_TOOLING_PATHS = (
+    "scripts/v934/step5/SHA256SUMS",
+    "scripts/v934/step5/release_package_tool.py",
+)
 HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
     "head-index-exact-path-gitmode-blob+worktree-canonical-euid-egid-private-"
     "primary-group-single-link-group-write-exec-unbound-other-write-special-"
@@ -3826,6 +3830,16 @@ def validate_formal_delta_policy(policy: Any, changed_paths: list[str]) -> dict[
         require(len(values) == len(set(values)), code, f"{field} contains duplicates")
         for number, value in enumerate(values, 1):
             validate_git_relative_path(value, code, f"{field}[{number}]")
+    required = policy["required_exact_paths"]
+    allowed_exact = policy["allowed_exact_paths"]
+    require(
+        not any(
+            relative in CDIAG_ONLY_STEP5_TOOLING_PATHS
+            for relative in (*required, *allowed_exact)
+        ),
+        code,
+        "Cdiag-only Step 5 tooling bindings are forbidden during formalization",
+    )
     require(
         policy["parent_git_head_source"] == "aggregate_observed.evidence.git_head"
         and policy["diagnostic_threshold_sha256"]
@@ -3839,8 +3853,6 @@ def validate_formal_delta_policy(policy: Any, changed_paths: list[str]) -> dict[
         code,
         "formalization delta policy frozen values differ",
     )
-    required = policy["required_exact_paths"]
-    allowed_exact = policy["allowed_exact_paths"]
     allowed_prefixes = policy["allowed_path_prefixes"]
     require(
         all(relative in allowed_exact for relative in required),
@@ -6705,6 +6717,33 @@ def negative_command(args: argparse.Namespace) -> None:
     )
     root, _, xml_sha = read_xml(args.xml)
     cases: dict[str, dict[str, str]] = {}
+
+    def cdiag_only_formal_policy(path: str, field: str) -> dict[str, Any]:
+        policy: dict[str, Any] = {
+            "parent_git_head_source": "aggregate_observed.evidence.git_head",
+            "diagnostic_threshold_sha256": EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256,
+            "repository_identity": copy.deepcopy(FORMAL_REPOSITORY_IDENTITY_POLICY),
+            "required_exact_paths": list(FORMALIZATION_EXACT_PATHS),
+            "allowed_exact_paths": list(FORMALIZATION_EXACT_PATHS),
+            "allowed_path_prefixes": list(FORMALIZATION_ALLOWED_PREFIXES),
+            "other_changes": "forbidden-requires-new-diagnostic",
+        }
+        policy[field].append(path)
+        return policy
+
+    for cdiag_only_path in CDIAG_ONLY_STEP5_TOOLING_PATHS:
+        for policy_field in ("required_exact_paths", "allowed_exact_paths"):
+            case_name = (
+                f"formal-cdiag-only-{policy_field.removesuffix('_exact_paths')}-"
+                f"{Path(cdiag_only_path).name}"
+            )
+            cases[case_name] = expect_failure(
+                "E_FORMAL_DELTA_POLICY",
+                lambda cdiag_only_path=cdiag_only_path, policy_field=policy_field: validate_formal_delta_policy(
+                    cdiag_only_formal_policy(cdiag_only_path, policy_field),
+                    list(FORMALIZATION_EXACT_PATHS),
+                ),
+            )
     repo_root = args.repo_root.resolve()
     ledger = load_ledger(repo_root)
     modules, artifact_to_module, _ = load_frozen_modules(repo_root)
