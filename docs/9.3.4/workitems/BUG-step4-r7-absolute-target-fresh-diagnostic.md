@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP4-R7-ABSOLUTE-TARGET-FRESH-DIAGNOSTIC
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -111,7 +111,7 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: This work item is committed/pushed as a clean non-shallow Cdiag.
+- [x] AC-1: This work item is committed/pushed as a clean non-shallow Cdiag.
   A fresh clone at that exact head passes the existing Step 4/5/6 integrity,
   diagnostic-state, overlay, source-seal, CI, environment and owned-resource
   preflight; r2 run root is absent.
@@ -131,7 +131,7 @@ open_questions: []
 - [ ] AC-5: Success records distinguish diagnostic-observed from formal, Step
   5, release and version authority. They authorize only proposal of one
   separately specified direct-child Cfreeze.
-- [ ] AC-6: Any preflight, runner, validator, candidate, capsule, review,
+- [x] AC-6: Any preflight, runner, validator, candidate, capsule, review,
   cleanup, privacy, scope or topology failure preserves only bounded facts,
   marks this item NEEDS_REPLAN and stops without a second attempt or authority
   reuse.
@@ -214,15 +214,22 @@ open_questions: []
 
 ## Implementation Result
 
-> Approved for Ultra execution.
+> Execution stopped fail-closed after a non-verifiable launch result.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: r2 preflight passed, but the authorized launch ended
+  without a Step 4 run root, controlled finalizer, cleanup receipt or owned
+  exit record. It cannot establish diagnostic authority.
+- changed_paths: this work-item state and the bounded r2 launch failure record
+  only; no source, policy, runner, CI, package or API path changed.
+- tests_and_results: static/runtime preflight passed. The one launch did not
+  create a controlled run root or finalization record; no candidate/capsule
+  operation was attempted and no launch retry occurred.
+- manual_or_experience_evidence: the isolated clone remained clean; all
+  expected runner-owned r2 records were absent after the launch process ended.
 - deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING
+- residual_risks: launch finalization is intentionally unclassified. A
+  terminal-direct successor needs a new Cdiag, clone and run ID.
+- readiness: NEEDS_REPLAN
 
 ## References
 
