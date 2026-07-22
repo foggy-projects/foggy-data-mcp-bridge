@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-LIFECYCLE-REPORT-INVENTORY-SUCCESSOR-REPLAN
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-confirmed-full-authority-replan
@@ -192,7 +192,8 @@ open_questions: []
 
 ## Implementation Result
 
-> Diagnostic-ready integration 已完成；当前仍为 approved Cplan，不授权 runner。
+> Diagnostic-ready integration 已完成，但唯一 fresh diagnostic 在 outer-runner source-seal
+> preflight fail closed；本事项不可重试并转入 successor replan。
 
 - implementation_summary: 在 Step4 report amendment 中精确加入
   `DefaultExpFactorySpringLifecycleTest` 的 1 report / 2 testcase，并将 derived Step2、Unit
@@ -214,11 +215,14 @@ open_questions: []
   - package negative 117/117、CI negative 86/86；Python/JSON、`git diff --check` PASS。
 - manual_or_experience_evidence: focused 输出位于执行机临时目录
   `/tmp/v934-fsscript-successor-focused/`；derived view 精确观测到 729 positive、59 structural、
-  5263 testcase，aggregate contract 精确观测到 774 positive、59 structural、5709 testcase。
+  5263 testcase，aggregate contract 精确观测到 774 positive、59 structural、5709 testcase；
+  唯一 Cdiag `b8be71ae` 的 runner invocation 在创建 run root 前以
+  `E_SOURCE_SEAL_BINDING` 退出，详见 r6 fail-closed record。
 - deviations: none
-- residual_risks: 尚未创建 activation Cdiag，唯一 fresh all-lane diagnostic 及后续
-  Cfreeze/formal/Step5-7 仍待执行；任何昂贵运行失败均按本契约转 `NEEDS_REPLAN` 并停止。
-- readiness: ULTRA_EXECUTING
+- residual_risks: `run_log_lifecycle_negative_test.sh` 内嵌 outer runner SHA 仍绑定旧字节；
+  当前 Cdiag/run ID 已永久排除。必须新建 approved successor replan、integration、Cdiag 和
+  run ID 后才能再次进入 diagnostic。
+- readiness: NEEDS_REPLAN
 
 ## References
 
@@ -226,6 +230,8 @@ open_questions: []
   `docs/9.3.4/workitems/BUG-v934-fsscript-step4-takeover-replan.md`
 - r5 fail-closed record:
   `docs/9.3.4/evidence/step-4/step4-v934-fsscript-amendment-diagnostic-20260722-r5-report-inventory-fail-closed.md`
+- r6 source-seal preflight fail-closed record:
+  `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-inventory-diagnostic-20260722-r6-source-seal-preflight-fail-closed.md`
 - FSScript spec/signoff:
   `docs/9.3.4/workitems/BUG-fsscript-shared-default-spring-destroy.md` /
   `docs/9.3.4/acceptance/BUG-fsscript-shared-default-spring-destroy-signoff-20260722.md`
