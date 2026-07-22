@@ -76,6 +76,32 @@ jobs:
           test "$(dpkg-query -W -f='${Version}' maven)" = 3.8.7-2
           test -x /usr/bin/rg
 
+      - name: Use the frozen containerd image store
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("/etc/docker/daemon.json")
+          payload = {}
+          if path.exists() and path.read_text(encoding="utf-8").strip():
+              payload = json.loads(path.read_text(encoding="utf-8"))
+          features = payload.setdefault("features", {})
+          if not isinstance(features, dict):
+              raise SystemExit("Docker daemon features configuration is not an object")
+          features["containerd-snapshotter"] = True
+          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+          sudo systemctl restart docker
+          docker info --format '{{json .DriverStatus}}' | python3 -c '
+          import json, sys
+          status = json.load(sys.stdin)
+          if ["driver-type", "io.containerd.snapshotter.v1"] not in status:
+              raise SystemExit(f"containerd image store is not active: {status!r}")
+          '
+
       - name: Bootstrap the exact offline-seal Maven closure
         shell: bash
         env:
