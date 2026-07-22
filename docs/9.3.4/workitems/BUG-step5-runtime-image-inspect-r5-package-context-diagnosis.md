@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-R5-PACKAGE-CONTEXT-DIAGNOSIS
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -195,7 +195,8 @@ open_questions: []
 
 ## Implementation Result
 
-> To be completed by the Ultra execution session.
+> Ultra execution is in progress under the approved exact-one-invocation
+> boundary.
 
 - implementation_summary:
 - changed_paths:
@@ -203,7 +204,7 @@ open_questions: []
 - manual_or_experience_evidence:
 - deviations: none
 - residual_risks:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
