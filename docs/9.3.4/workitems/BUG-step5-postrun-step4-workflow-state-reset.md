@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-POSTRUN-STEP4-WORKFLOW-STATE-RESET
-status: ULTRA_EXECUTING
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects
@@ -96,29 +96,29 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: `validate-contract` 在新 Cdiag 上仅返回 current frozen diagnostic predecessor 的 exact
+- [x] AC-1: `validate-contract` 在新 Cdiag 上仅返回 current frozen diagnostic predecessor 的 exact
   `diagnostic-ready / diagnostic-pending` state：contract status 与
   `tooling_manifest.publication_status` 均为 `diagnostic-ready`；threshold 的 observed/reviewed
   三组字段为 null，review 仅有 reviewer/reviewed_at/diagnostic_run_id/decision 四字段且前三者为
   null、decision=`pending-all-lane-diagnostic`。没有 formal observation/review data 成为当前 machine
   state input，历史 candidate/freeze 不被引入或读取为 state input，且 exact predecessor
   identity/binding 同时通过现有 validator 与安全布尔 identity comparison。
-- [ ] AC-2: 既有 policy/floor/critical/exclusion、source/authority contract、report/test cardinality 与
+- [x] AC-2: 既有 policy/floor/critical/exclusion、source/authority contract、report/test cardinality 与
   validator fail-closed semantics 没有变化；当前 package terminal-integrity closure bytes 不被本事项
   修改或回退。
-- [ ] AC-3: 确定性静态负向覆盖拒绝至少 status-only、contract/threshold mismatch、pending
+- [x] AC-3: 确定性静态负向覆盖拒绝至少 status-only、contract/threshold mismatch、pending
   observation 和残留 formal-review 的混合状态；旧 review 残留通过隔离副本的现有 structure-only
   validator 验证，pending state 的 candidate/final 拒绝沿用既有 XML negative。不得产生 raw-output
   evidence，且不调用 Maven/Docker 或 outer diagnostic runner。
-- [ ] AC-4: Step 4 contract/successor-overlay positive-and-negative validation、Step 4/5/6 manifests、
+- [x] AC-4: Step 4 contract/successor-overlay positive-and-negative validation、Step 4/5/6 manifests、
   Step 6 CI-contract self/negative validation全部通过；Step 5 manifest/tool 无 drift。没有未声明路径，
   也没有 workflow schema/semantic/graph、API/SPI/POM drift。
-- [ ] AC-5: 新 clean+pushed Cdiag 及其 static checkpoint 在 fresh diagnostic 前经独立审阅；checkpoint
+- [x] AC-5: 新 clean+pushed Cdiag 及其 static checkpoint 在 fresh diagnostic 前经独立审阅；checkpoint
   只声明安全静态结果，不把它表述为 diagnostic、Cfreeze、formal、Step 5 或 version authority。
-- [ ] AC-6: clean+pushed Cdiag 后的一次 fresh full Step 4 diagnostic、新 candidate/Git-safe capsule、
+- [x] AC-6: clean+pushed Cdiag 后的一次 fresh full Step 4 diagnostic、新 candidate/Git-safe capsule、
   两路独立 review、direct-child Cfreeze、fresh formal、quality/audit 和 foggy-projects scoped
   reacceptance 均实际完成；历史 r3/r4、原 formal/Cfreeze 及其 artifacts 不可复用。
-- [ ] AC-7: 在 AC-1 至 AC-6 全部完成之前，不启动新的 Step 5 rehearsal、portable replay、release/
+- [x] AC-7: 在 AC-1 至 AC-6 全部完成之前，不启动新的 Step 5 rehearsal、portable replay、release/
   pointer/final promotion、Step 6/7 runtime or authority action、9.3.5 或 9.4.0 transition。AC-4 的
   本地 Step 6 static contract self/negative validation 是唯一非运行时例外。
 
@@ -181,6 +181,10 @@ open_questions: []
 - approved_at: 2026-07-22.
 - approved_scope: minimal complete workflow-state reset and its required revalidation chain only; it does
   not authorize a Step 5 retry or any later roadmap/API/SPI work.
+- scoped_reacceptance_by: `foggy-projects`.
+- scoped_reacceptance_at: 2026-07-22.
+- scoped_reacceptance_record:
+  `docs/9.3.4/acceptance/step4-workflow-state-reset-scoped-reacceptance-20260722.md`.
 
 ## Ultra Execution Contract
 
@@ -199,24 +203,41 @@ open_questions: []
 
 ## Implementation Result
 
-- implementation_summary: restored the current frozen diagnostic predecessor's exact Step 4 contract and
-  threshold state, then refreshed only the Step 4 manifest and the transitive Step 6 CI binding/manifest.
-  No Step 4 validator, overlay, XML tool, Step 5 tool, runner, policy, workflow semantics or artifact
-  authority rule changed.
+- implementation_summary: restored the exact frozen diagnostic predecessor state and its Step 4→Step 6
+  mechanical closure, then completed the one new clean Cdiag → fresh diagnostic → candidate/Git-safe
+  capsule/dual review → direct-child Cfreeze → fresh formal → quality/audit chain. No Step 4 validator,
+  overlay, XML tool, Step 5 tool, runner, policy, workflow semantics or artifact authority rule changed.
 - changed_paths: the declared two Step 4 state files, Step 4 manifest, Step 6 CI binding tool/contract/
-  manifest, this work item and one safe static checkpoint only.
-- tests_and_results: exact predecessor/state and allowed-path booleans, Step 4/5/6 manifest checks,
-  contract/overlay positive validation, isolated status-only and stale-formal-review rejection, existing
-  contract/XML/overlay/CI negative suites, package synthetic negative, Python/Bash syntax and whitespace
-  checks passed. No Maven, Docker, outer runner or Step 5 runtime action ran.
+  manifest, this work item, and governed safe static, diagnostic, formal, quality, AC-audit and acceptance
+  records only.
+- tests_and_results: static predecessor/state and hybrid-state fail-closed checks; Step 4/5/6 manifests,
+  contract/overlay and CI closure; fresh diagnostic; candidate/capsule verification and dual review; fresh
+  formal; formal candidate/final readback; frozen-diagnostic replay; and independent quality/AC audit all
+  passed. The fresh formal completed its required lanes, database/external matrices, coverage gate,
+  negative checks, sensitive scan and cleanup successfully.
 - manual_or_experience_evidence:
-  `docs/9.3.4/evidence/step-4/step4-postrun-integrity-workflow-state-reset-cdiag-static-20260722.md`
-  and `docs/9.3.4/evidence/step-4/step4-postrun-integrity-workflow-state-reset-cdiag-review-20260722.md`
+  `docs/9.3.4/evidence/step-4/step4-postrun-integrity-workflow-state-reset-cdiag-static-20260722.md`,
+  `docs/9.3.4/evidence/step-4/step4-postrun-integrity-workflow-state-reset-formal-20260722.md`,
+  `docs/9.3.4/quality/step4-postrun-integrity-workflow-state-reset-final-implementation-quality-20260722.md`,
+  `docs/9.3.4/quality/step4-postrun-integrity-workflow-state-reset-ac-closure-audit-20260722.md`, and
+  `docs/9.3.4/acceptance/step4-workflow-state-reset-scoped-reacceptance-20260722.md`.
 - deviations: none
-- residual_risks: this is static Cdiag evidence only. It neither creates a diagnostic/candidate/capsule/
-  Cfreeze/formal result nor reuses historical authority. The fresh runtime chain remains mandatory.
-- readiness: ULTRA_EXECUTING — static Cdiag and independent review are complete; the fresh diagnostic and
-  every later authority gate remain pending.
+- residual_risks: downstream release, CI platform, version authority, 9.3.5 and 9.4.0 remain governed by
+  their own contracts. This scoped reacceptance does not reuse historical authority or authorize those
+  successors.
+- readiness: ACCEPTED — all AC-1 through AC-7, the owner scoped reacceptance and independent delivery
+  signoff are complete; downstream release, version and roadmap gates remain separate.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: foggy-projects
+- signed_off_at: 2026-07-22
+- acceptance_record:
+  `docs/9.3.4/acceptance/step4-workflow-state-reset-delivery-signoff-20260722.md`
+- blocking_items: none
+- follow_up_required: yes
 
 ## References
 
