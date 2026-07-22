@@ -128,6 +128,28 @@ jobs:
           timeout --signal=TERM --kill-after=60s 350m \
             scripts/verify-v934-release-gate.sh "${{ steps.identity.outputs.mode }}" "$AUTHORITY_RUN_ID"
 
+      - name: Emit run-owned fixture diagnostics after gate failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostics_root=target/v934-step3-database-matrix/runs
+          found=0
+          if [[ -d "$diagnostics_root" && ! -L "$diagnostics_root" ]]; then
+            while IFS= read -r -d '' diagnostics; do
+              test -f "$diagnostics"
+              test ! -L "$diagnostics"
+              found=1
+              echo "::group::fixture diagnostics: $diagnostics"
+              sha256sum "$diagnostics"
+              sed -n '1,400p' "$diagnostics"
+              echo "::endgroup::"
+            done < <(find "$diagnostics_root" -type f -name provisioner.log -print0 | sort -z)
+          fi
+          if [[ "$found" -eq 0 ]]; then
+            echo "No run-owned fixture provisioner diagnostics were produced."
+          fi
+
       - name: Stage the exact published candidate pointer for durable upload
         shell: bash
         run: |
