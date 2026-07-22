@@ -90,15 +90,15 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: 本 Cplan 是 failure-record commit
+- [x] AC-1: 本 Cplan 是 failure-record commit
   `41ade125fa4964c97a7446637588d8c9b08e2414` 的 clean/pushed 直接子提交；原工作区不变。
-- [ ] AC-2: nested outer raw seal 精确等于 canonical raw bytes 与 Step4 manifest；nested outer
+- [x] AC-2: nested outer raw seal 精确等于 canonical raw bytes 与 Step4 manifest；nested outer
   executable-stream seal 精确等于独立复算值；其他六个 seal 常量不变。
-- [ ] AC-3: exact binding PASS `count=4`，完整 lifecycle suite 最终 exit 0/PASS，既有 positive、
+- [x] AC-3: exact binding PASS `count=4`，完整 lifecycle suite 最终 exit 0/PASS，既有 positive、
   raw mutation、semantic mutation、shape/order/slice case 数量和拒绝码不减少。
-- [ ] AC-4: Step4/6 manifests、coverage contract、successor overlay、CI contract/workflows 与
+- [x] AC-4: Step4/6 manifests、coverage contract、successor overlay、CI contract/workflows 与
   86-case negative 全部闭合；Step5 bytes/manifest、报告基数和 coverage policy 不变。
-- [ ] AC-5: diagnostic-ready integration diff 仅包含本 work item implementation result 和批准的
+- [x] AC-5: diagnostic-ready integration diff 仅包含本 work item implementation result 和批准的
   5 个 tool/hash closure 文件；不含产品/测试/POM/outer runner/report amendment。
 - [ ] AC-6: activation Cdiag 是 integration 的直接单父子，diff 仅本文件 `status/readiness`
   两字段 `APPROVED -> ULTRA_EXECUTING`；fresh clone clean、non-shallow、detached exact HEAD。
@@ -188,14 +188,38 @@ open_questions: []
 
 ## Implementation Result
 
-> 由执行会话填写。当前为 approved Cplan，不授权 runner。
+> Focused implementation is complete and diagnostic-ready. Status remains `APPROVED`; only a
+> separate two-field activation Cdiag may authorize the governed runner.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: atomically synchronized the nested outer raw SHA and reviewed
+  executable-stream SHA, then recomputed the Step4 manifest and Step6 CI contract/tool/manifest
+  digest closure. The canonical outer runner itself was not modified.
+- changed_paths:
+  - this canonical work item;
+  - `scripts/v934/step4/run_log_lifecycle_negative_test.sh`;
+  - `scripts/v934/step4/SHA256SUMS`;
+  - `scripts/v934/step6/ci-contract.json`;
+  - `scripts/v934/step6/ci_contract_tool.py`;
+  - `scripts/v934/step6/SHA256SUMS`.
+- tests_and_results:
+  - independent executable-stream recomputation=`c696f9bf34e76bd3a5cae97d28ed378cae2cc78b872fc9c948985afc5c763a0c`;
+  - canonical raw binding=`status=passed count=4`；Step4/Step6 manifests、Bash/Python/JSON syntax、
+    `git diff --check`=PASS；
+  - complete lifecycle suite=exit 0/PASS，保持 `runner-seal-binding=1+6`、Unit shape=16、
+    Integration shape=14、semantic seal=2+5、source seal=3、outer/library shape=4+3；
+  - coverage contract=`774+59/5709`, `23 exec/48 sessions`, status=passed；successor overlay=passed；
+    workflows=`4`, status=passed；CI negative=`86/86`, result SHA-256=
+    `9ba9c1d403ae269b543b72bfe8b1ef18b6bd5c773ff023a3becaf844d7b44638`；
+  - no lifecycle helper/persistent-child remained after the suite.
+- manual_or_experience_evidence: outer raw remained
+  `ccda7e7e78547a30ada3466df76d197c483ddd3d16be3f43dcad0ff47e37a57e`; lifecycle tool=
+  `8ce0fd26b335ddad899178da760ee9bd8b77395b7ef0bb35f9a3cdffe77a17e3`; Step4 manifest=
+  `704b31cbd274578f4ca5e8d491b609c151f2026a84198bc479e24cb55ee956f3`; Step6 manifest=
+  `a1bb362888057201a9f674e66711c33be79a4b8e6fd7beebbef94ce55d38ff64`；Step5 manifest unchanged=
+  `e8aaa30f853ce723e6d2b9b09ce5e7241b3638b2748f80d55ae04a438624f4c7`.
 - deviations: none
-- residual_risks: pending
+- residual_risks: fresh all-lane diagnostic and subsequent formal/Step5-7 remain pending and retain
+  their existing Docker, port and external-environment risks.
 - readiness: APPROVED
 
 ## References
