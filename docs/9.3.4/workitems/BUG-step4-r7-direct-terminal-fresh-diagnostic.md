@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP4-R7-DIRECT-TERMINAL-FRESH-DIAGNOSTIC
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -185,7 +185,8 @@ open_questions: []
 
 ## Implementation Result
 
-> Approved for Ultra execution after independent review.
+> Ultra execution authorized; Cdiag and fresh-clone preflight are required
+> before the one permitted r3 terminal invocation.
 
 - implementation_summary: pending
 - changed_paths: pending
@@ -193,7 +194,7 @@ open_questions: []
 - manual_or_experience_evidence: pending
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
