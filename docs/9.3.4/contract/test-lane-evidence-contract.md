@@ -1120,3 +1120,26 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 5. A clean/pushed docs-only Cdiag and independent governed readiness preflight are required before fresh r34
    may satisfy every all-lane gate and the governed high-water. Only r34's complete authority may begin new
    candidate/Git-safe closure/review/Cfreeze processing.
+
+## Superseding v9.3.4 risk-tiered release exit policy（2026-07-22）
+
+1. The canonical decision record is
+   `docs/9.3.4/workitems/DECISION-v934-risk-tiered-release-exit-policy.md`. From 2026-07-22 onward it
+   supersedes historical clauses that automatically invalidate the complete Step 1–4 business evidence chain
+   for every test-only or evidence-packaging byte change. Historical run facts and failure records remain
+   immutable.
+2. Release blockers are limited to repeatable production defects; data correctness, isolation, security or
+   permission defects; public API/SPI/compatibility breaks; unprovable test or release-artifact authenticity;
+   and real required-test failure/error/skip.
+3. Deterministic test-oracle repairs and non-product timing/scheduling/order issues require targeted regression,
+   the affected lane, source/delta identity, and the last clean full formal only. Non-authenticity-impacting
+   evidence format, mtime, mode, layout, and portability issues receive the same bounded treatment. They do not
+   reopen Steps 1–3 and do not automatically restart `Cdiag -> diagnostic -> Cfreeze -> formal`.
+4. Further evidence-schema hardening, non-security mode/mtime perfection, incidental exact-high-water drift
+   above unchanged floors, test-infrastructure refactoring, permanent Unit MySQL fixture reclassification, and
+   new probes without a direct authenticity impact are 9.3.5 debt.
+5. This closeout permits at most one fresh clean-clone formal from exact Cfreeze
+   `b05dd0ec659c283b1a59a82c1c67710f4c10368e`; after it passes, at most one fresh Step 5 rehearsal plus
+   portable replay. A new B/C-only governance finding cannot automatically trigger another complete Step 4
+   certification loop. Coverage floors, exclusions, required tests, skip policy, source identity, and artifact
+   authenticity remain unchanged and fail closed.
