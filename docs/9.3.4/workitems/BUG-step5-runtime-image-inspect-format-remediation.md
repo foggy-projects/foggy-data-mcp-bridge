@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-FORMAT-REMEDIATION
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -203,8 +203,8 @@ open_questions: []
 
 ## Implementation Result
 
-> Ultra execution has not started. R6 is a completed diagnostic awaiting
-> independent signoff; it does not authorize a retry before this work item.
+> Ultra execution is in progress. R6 is an accepted diagnostic and does not
+> authorize a retry before this work item's fresh Step 4 chain.
 
 - implementation_summary: pending
 - changed_paths: pending
@@ -212,7 +212,7 @@ open_questions: []
 - manual_or_experience_evidence: pending
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
