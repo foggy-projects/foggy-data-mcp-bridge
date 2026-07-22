@@ -32,9 +32,9 @@
     "effective_db_kind": "mysql57",
     "effective_infra_kind": "run-owned-database",
     "effective_execution_step": 4,
-    "lane_reports": 681,
+    "lane_reports": 682,
     "lane_structural_reports": 55,
-    "lane_testcase_nodes": 4941
+    "lane_testcase_nodes": 4943
   },
   "historical_observed_failure": {
     "run_id": "step4-coverage-20260716-diagnostic-r7",
@@ -100,11 +100,11 @@
     "owner": "foggy-dataset"
   },
   "invariants": {
-    "frozen_unit_execution_keys": "unchanged-681",
+    "frozen_unit_execution_keys": "step4-derived-682",
     "single_maven_invocation": true,
-    "unit_reports": 681,
+    "unit_reports": 682,
     "unit_structural_reports": 55,
-    "unit_testcase_nodes": 4941,
+    "unit_testcase_nodes": 4943,
     "coverage_exec_files": 23,
     "coverage_sessions": 48,
     "ambient_listener_reuse": "forbidden",

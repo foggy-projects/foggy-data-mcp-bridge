@@ -1837,11 +1837,11 @@ finalize_run() {
 
   if [[ "$sealed" == true ]]; then
     if [[ "$MODE" == diagnostic ]]; then
-      echo "[v934-step4-coverage] DIAGNOSTIC PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=not-generated"
+      echo "[v934-step4-coverage] DIAGNOSTIC PASS run=$RUN_ID exec=23/48 reports=774/59/5709 addon=2/6 acceptance=not-generated"
     elif [[ "$MODE" == release ]]; then
-      echo "[v934-step4-coverage] RELEASE PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=successor-final"
+      echo "[v934-step4-coverage] RELEASE PASS run=$RUN_ID exec=23/48 reports=774/59/5709 addon=2/6 acceptance=successor-final"
     else
-      echo "[v934-step4-coverage] FORMAL PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=final"
+      echo "[v934-step4-coverage] FORMAL PASS run=$RUN_ID exec=23/48 reports=774/59/5709 addon=2/6 acceptance=final"
     fi
   else
     # A failed run cannot retain artifacts that could be mistaken for a
@@ -2932,9 +2932,9 @@ SUMMARY_ROWS+=( \
   "sensitive_scan_sha256=$(sha256_file "$RUN_ROOT/sensitive-scan.env")" \
   "exec_files=23" \
   "sessions=48" \
-  "required_reports=773" \
+  "required_reports=774" \
   "required_structural_reports=59" \
-  "required_testcase_nodes=5707" \
+  "required_testcase_nodes=5709" \
   "addon_reports=2" \
   "addon_testcase_nodes=6" \
   "model_external_gate=passed" \

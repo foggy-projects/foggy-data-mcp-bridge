@@ -1,23 +1,23 @@
 {
   "amendment": {
     "changed_positive_reports": 8,
-    "new_positive_reports": 4,
+    "new_positive_reports": 5,
     "path": "scripts/v934/step4/coverage-report-amendment.tsv",
-    "rows": 12,
-    "sha256": "8fc95f9a04f8c0e6c50d3bcd4361975bcfec42b8b893d93ed041f33a5f8f765c",
-    "testcase_delta": 56
+    "rows": 13,
+    "sha256": "c1aa8b86e7280a4014fb1d6131e3f6ca0d42f7b024648b4cec22242357f52cd6",
+    "testcase_delta": 58
   },
   "counts": {
     "derived": {
       "failsafe_positive_reports": 47,
       "failsafe_structural_reports": 4,
       "failsafe_testcases": 320,
-      "positive_reports": 728,
+      "positive_reports": 729,
       "structural_reports": 59,
-      "surefire_positive_reports": 681,
+      "surefire_positive_reports": 682,
       "surefire_structural_reports": 55,
-      "surefire_testcases": 4941,
-      "testcases": 5261
+      "surefire_testcases": 4943,
+      "testcases": 5263
     },
     "parent": {
       "failsafe_positive_reports": 47,

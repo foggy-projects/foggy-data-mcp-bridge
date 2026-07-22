@@ -192,14 +192,32 @@ open_questions: []
 
 ## Implementation Result
 
-> 由执行会话填写。当前为 approved Cplan，不授权 runner。
+> Diagnostic-ready integration 已完成；当前仍为 approved Cplan，不授权 runner。
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: 在 Step4 report amendment 中精确加入
+  `DefaultExpFactorySpringLifecycleTest` 的 1 report / 2 testcase，并将 derived Step2、Unit
+  fixture、required aggregate、Step5 portable replay、Step6 CI 及所有传递 digest 绑定更新为
+  `729+59/5263`、`682+55/4943` 和 `774+59/5709`；未改历史 Step2 parent、产品或测试字节。
+- changed_paths:
+  - `scripts/v934/step4/{coverage-report-amendment.tsv,step2-report-view-contract.json,step2_report_view_tool.py,unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py,coverage-contract.json,coverage_tool.py,coverage_xml_tool.py,report_inventory_tool.py,SHA256SUMS}`；
+  - `scripts/v934/step4/successor/{overlay-contract.json,overlay_tool.py,SHA256SUMS}` 和
+    `scripts/verify-v934-step4-coverage.sh`；
+  - `scripts/v934/step5/{portable_replay_tool.py,SHA256SUMS}`；
+  - `scripts/v934/step6/{ci-contract.json,ci_contract_tool.py,SHA256SUMS}`；
+  - 本交付契约的 Implementation Result。
+- tests_and_results:
+  - reactor `mvn -DskipTests test-compile`：26/26 modules BUILD SUCCESS；
+  - derived Step2 parent/generate/validate：`729+59/5263`；negative 12/12；
+  - coverage contract、successor overlay、Step4/5/6 manifests、CI workflows：全部 PASS；
+  - coverage contract negative 28/28、coverage XML fast negative 130/130、report inventory
+    synthetic negative 30/30、Unit fixture negative 42/42、Unit MySQL lifecycle negative 5/5；
+  - package negative 117/117、CI negative 86/86；Python/JSON、`git diff --check` PASS。
+- manual_or_experience_evidence: focused 输出位于执行机临时目录
+  `/tmp/v934-fsscript-successor-focused/`；derived view 精确观测到 729 positive、59 structural、
+  5263 testcase，aggregate contract 精确观测到 774 positive、59 structural、5709 testcase。
 - deviations: none
-- residual_risks: pending
+- residual_risks: 尚未创建 activation Cdiag，唯一 fresh all-lane diagnostic 及后续
+  Cfreeze/formal/Step5-7 仍待执行；任何昂贵运行失败均按本契约转 `NEEDS_REPLAN` 并停止。
 - readiness: APPROVED
 
 ## References

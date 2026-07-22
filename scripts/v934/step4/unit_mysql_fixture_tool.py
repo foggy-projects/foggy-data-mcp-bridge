@@ -38,7 +38,7 @@ CANONICAL_FIXTURE_SHA256 = "70b1a5d755bd781004cd35abd8d11525a997b857335165e0b0e2
 SELF_PATH = Path("scripts/v934/step4/unit_mysql_fixture_tool.py")
 PROVISIONER_PATH = Path("scripts/v934/step3/provision-database-cell.sh")
 FIXTURE_CONTRACT_PATH = Path("scripts/v934/step4/unit-mysql57-fixture-contract.json")
-FIXTURE_CONTRACT_SHA256 = "4284155dfed2b4ea1691f6a7569310ef858502fd578fe08cd8df30e492ce6ccb"
+FIXTURE_CONTRACT_SHA256 = "a64cacd959e7a9436a1dcd893d808a0e409d95005bbcc4ecba17bd32a6f36a5b"
 STEP2_EXECUTION_PATH = Path("scripts/v934/successor/step2/step2-required-execution.tsv")
 STEP2_EXECUTION_SHA256 = "42a9467cdbcfbed5ed54d0bdfa276d92daa7fa2c83795cd13a21df931d0fc1d0"
 STEP2_DISCOVERY_PATH = Path("scripts/v934/successor/step2/discovery-inventory.tsv")
@@ -509,9 +509,9 @@ def expected_fixture_contract() -> dict[str, Any]:
             "effective_db_kind": "mysql57",
             "effective_infra_kind": "run-owned-database",
             "effective_execution_step": 4,
-            "lane_reports": 681,
+            "lane_reports": 682,
             "lane_structural_reports": 55,
-            "lane_testcase_nodes": 4941,
+            "lane_testcase_nodes": 4943,
         },
         "historical_observed_failure": {
             "run_id": "step4-coverage-20260716-diagnostic-r7",
@@ -538,11 +538,11 @@ def expected_fixture_contract() -> dict[str, Any]:
         },
         "parent_metadata_expected": PARENT_METADATA_EXPECTED,
         "invariants": {
-            "frozen_unit_execution_keys": "unchanged-681",
+            "frozen_unit_execution_keys": "step4-derived-682",
             "single_maven_invocation": True,
-            "unit_reports": 681,
+            "unit_reports": 682,
             "unit_structural_reports": 55,
-            "unit_testcase_nodes": 4941,
+            "unit_testcase_nodes": 4943,
             "coverage_exec_files": 23,
             "coverage_sessions": 48,
             "ambient_listener_reuse": "forbidden",

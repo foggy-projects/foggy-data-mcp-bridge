@@ -233,20 +233,20 @@ EXPECTED_STEP4_RUNTIME_BINDINGS = {
         "diagnostic": {
             "contract_status": "diagnostic-ready",
             "publication_status": "diagnostic-ready",
-            "sha256": "677ae94a6a4609f5f4bcc28fa4bd0dd8f8d826da11b4b94b68f1430b703f4e28",
+            "sha256": "0a948febf6a93c76d47533929977fa311e7421c308b0940e68ec3e7065c753b2",
         },
         "formal": {
             "contract_status": "formal-ready",
             "publication_status": "formal-ready",
-            "sha256": "147b8b4815c1cc139cab09088ce58edc3e19d96af97111d17a69f51c105361ab",
+            "sha256": "5107aad524da7f309acc939c2e1698dfe10e88822749806fdbf441c8ae9412be",
         },
     },
-    "scripts/v934/step4/coverage-report-amendment.tsv": "8fc95f9a04f8c0e6c50d3bcd4361975bcfec42b8b893d93ed041f33a5f8f765c",
+    "scripts/v934/step4/coverage-report-amendment.tsv": "c1aa8b86e7280a4014fb1d6131e3f6ca0d42f7b024648b4cec22242357f52cd6",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "2d50787690a80face3461e7f925386083af9284c03d87636ae606784b6428bed",
-    "scripts/v934/step4/step2-report-view-contract.json": "bf284cdd8b34b35e27137c0cfca59ad6f16bf782d38eaf523095c181f9f6f52b",
-    "scripts/v934/step4/step2_report_view_tool.py": "8eae016bc5dcea03f7634d19e018c6722490632716ea72fc19fdf29888be13de",
-    "scripts/v934/step4/unit-mysql57-fixture-contract.json": "4284155dfed2b4ea1691f6a7569310ef858502fd578fe08cd8df30e492ce6ccb",
+    "scripts/v934/step4/coverage_tool.py": "71acc7a133dab7c4542c87ec4a4c4cb7a8b20bb136e480f3fb71315fe122db6e",
+    "scripts/v934/step4/step2-report-view-contract.json": "559add41ac9e6e1902fa104472996dd5bdb534851b6f73902c1da9d5d3d3a1e0",
+    "scripts/v934/step4/step2_report_view_tool.py": "5f0ddb4ea974d5f26f50daacbb48ac3eaf9269dcf92f342c11c2158ff4a15e0d",
+    "scripts/v934/step4/unit-mysql57-fixture-contract.json": "a64cacd959e7a9436a1dcd893d808a0e409d95005bbcc4ecba17bd32a6f36a5b",
 }
 REDIS_SOURCE_ID = f"v934-src|{len(REDIS_SOURCE_PATH)}:{REDIS_SOURCE_PATH}"
 

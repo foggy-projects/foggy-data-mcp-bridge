@@ -63,9 +63,9 @@ TOOL_BINDING_PATHS = (
 EXPECTED = {
     "unit": {
         "runner": "surefire",
-        "positive": 681,
+        "positive": 682,
         "structural": 55,
-        "testcases": 4941,
+        "testcases": 4943,
         "variants": ["unit"],
     },
     "integration": {
@@ -82,9 +82,9 @@ EXPECTED = {
             "sqlite-refresh",
         ],
     },
-    "step2": {"positive": 728, "structural": 59, "testcases": 5261},
+    "step2": {"positive": 729, "structural": 59, "testcases": 5263},
     "step3": {"positive": 45, "testcases": 446},
-    "required": {"positive": 773, "structural": 59, "testcases": 5707},
+    "required": {"positive": 774, "structural": 59, "testcases": 5709},
     "addon": {"reports": 2, "testcases": 6, "variants": 2},
 }
 
@@ -1242,7 +1242,7 @@ def validate_union_semantics(payload: dict[str, Any]) -> None:
         "E_EVIDENCE",
         "Step 2 report view hash manifest",
     )
-    for field, expected in (("positive_reports", 728), ("structural_reports", 59), ("testcase_nodes", 5261)):
+    for field, expected in (("positive_reports", 729), ("structural_reports", 59), ("testcase_nodes", 5263)):
         exact_int(view[field], "E_SCHEMA", f"Step 2 report view.{field}")
         require(view[field] == expected, "E_TOTAL", f"Step 2 report view {field} differs")
 
@@ -1380,7 +1380,7 @@ def build_inventory(root: Path, run_id: str) -> dict[str, Any]:
 
     step2_keys = sorted((*unit.execution_keys, *integration.execution_keys))
     step2_structural = sorted((*unit.structural_fqcns, *integration.structural_fqcns))
-    require(len(step2_keys) == len(set(step2_keys)) == 728, "E_STEP2_SET", "Unit/Integration positive union differs")
+    require(len(step2_keys) == len(set(step2_keys)) == 729, "E_STEP2_SET", "Unit/Integration positive union differs")
     require(len(step2_structural) == len(set(step2_structural)) == 59, "E_STEP2_SET", "Unit/Integration structural union differs")
     expected_step2_keys = sorted(row["execution_key"] for row in contract.rows)
     expected_step2_structural = sorted(row["report_fqcn"] for row in contract.structural_rows)
@@ -1416,9 +1416,9 @@ def build_inventory(root: Path, run_id: str) -> dict[str, Any]:
             "step2_report_view": {
                 "path": repo_relative(root, view),
                 "hash_manifest": evidence_record(root, view_manifest),
-                "positive_reports": 728,
+                "positive_reports": 729,
                 "structural_reports": 59,
-                "testcase_nodes": 5261,
+                "testcase_nodes": 5263,
             },
             "unit": {
                 "root": repo_relative(root, unit.root),
@@ -1452,9 +1452,9 @@ def build_inventory(root: Path, run_id: str) -> dict[str, Any]:
         },
         "required_union": {
             "step2": {
-                "positive_reports": 728,
+                "positive_reports": 729,
                 "structural_reports": 59,
-                "testcase_nodes": 5261,
+                "testcase_nodes": 5263,
                 "failures": 0,
                 "errors": 0,
                 "skipped": 0,
@@ -1472,9 +1472,9 @@ def build_inventory(root: Path, run_id: str) -> dict[str, Any]:
                 "execution_keys_sha256": digest_strings(step3.execution_keys),
             },
             "combined": {
-                "positive_reports": 773,
+                "positive_reports": 774,
                 "structural_reports": 59,
-                "testcase_nodes": 5707,
+                "testcase_nodes": 5709,
                 "failures": 0,
                 "errors": 0,
                 "skipped": 0,
@@ -1538,7 +1538,7 @@ def command_verify(args: argparse.Namespace) -> None:
     revalidate_workspace_identity(root, second_payload)
     require(not output.exists() and not output.is_symlink(), "E_OUTPUT", f"output appeared before publication: {output}")
     atomic_publish(output, second_bytes)
-    print(f"{PREFIX} PASS run={args.run_id} required=773/59/5707 F0/E0/S0 addon=2/6 output={output}")
+    print(f"{PREFIX} PASS run={args.run_id} required=774/59/5709 F0/E0/S0 addon=2/6 output={output}")
 
 
 def command_validate(args: argparse.Namespace) -> None:
@@ -1550,11 +1550,11 @@ def command_validate(args: argparse.Namespace) -> None:
     require(observed == expected, "E_OUTPUT", "run-owned report inventory differs from live authority evidence")
     validate_union_semantics(observed)
     revalidate_workspace_identity(root, expected)
-    print(f"{PREFIX} validate PASS run={args.run_id} required=773/59/5707 F0/E0/S0 addon=2/6")
+    print(f"{PREFIX} validate PASS run={args.run_id} required=774/59/5709 F0/E0/S0 addon=2/6")
 
 
 def synthetic_payload() -> dict[str, Any]:
-    step2_keys = [f"step2-{index:03d}" for index in range(728)]
+    step2_keys = [f"step2-{index:03d}" for index in range(729)]
     step3_keys = [f"step3-{index:02d}" for index in range(45)]
     combined = sorted((*step2_keys, *step3_keys))
     structural = [f"structural-{index:02d}" for index in range(59)]
@@ -1592,9 +1592,9 @@ def synthetic_payload() -> dict[str, Any]:
             "step2_report_view": {
                 "path": f"{coverage_root}/step2-report-view",
                 "hash_manifest": artifact(f"{coverage_root}/step2-report-view/SHA256SUMS"),
-                "positive_reports": 728,
+                "positive_reports": 729,
                 "structural_reports": 59,
-                "testcase_nodes": 5261,
+                "testcase_nodes": 5263,
             },
             "unit": {
                 "root": unit_root,
@@ -1628,7 +1628,7 @@ def synthetic_payload() -> dict[str, Any]:
         },
         "required_union": {
             "step2": {
-                "positive_reports": 728, "structural_reports": 59, "testcase_nodes": 5261,
+                "positive_reports": 729, "structural_reports": 59, "testcase_nodes": 5263,
                 "failures": 0, "errors": 0, "skipped": 0, "execution_keys": step2_keys,
                 "execution_keys_sha256": digest_strings(step2_keys), "structural_report_fqcns": structural,
             },
@@ -1638,7 +1638,7 @@ def synthetic_payload() -> dict[str, Any]:
                 "execution_keys_sha256": digest_strings(step3_keys),
             },
             "combined": {
-                "positive_reports": 773, "structural_reports": 59, "testcase_nodes": 5707,
+                "positive_reports": 774, "structural_reports": 59, "testcase_nodes": 5709,
                 "failures": 0, "errors": 0, "skipped": 0, "execution_keys": combined,
                 "execution_keys_sha256": digest_strings(combined), "structural_report_fqcns": structural,
             },

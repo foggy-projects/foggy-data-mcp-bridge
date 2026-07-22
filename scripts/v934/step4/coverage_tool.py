@@ -607,18 +607,18 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
     )
     require(report_inventory == {
         "amendment_path": "scripts/v934/step4/coverage-report-amendment.tsv",
-        "amendment_sha256": "8fc95f9a04f8c0e6c50d3bcd4361975bcfec42b8b893d93ed041f33a5f8f765c",
+        "amendment_sha256": "c1aa8b86e7280a4014fb1d6131e3f6ca0d42f7b024648b4cec22242357f52cd6",
         "step2_parent_positive_reports": 724,
         "step2_parent_structural_reports": 59,
         "step2_parent_testcases": 5205,
-        "step4_new_positive_reports": 4,
+        "step4_new_positive_reports": 5,
         "step4_changed_positive_reports": 8,
-        "step4_step2_testcase_delta": 56,
+        "step4_step2_testcase_delta": 58,
         "step3_required_positive_reports": 45,
         "step3_required_testcases": 446,
-        "required_positive_reports": 773,
+        "required_positive_reports": 774,
         "required_structural_reports": 59,
-        "required_testcases": 5707,
+        "required_testcases": 5709,
         "addon_companion_reports": 2,
         "addon_companion_testcases": 6,
     }, "coverage contract.report_inventory: frozen values changed")
@@ -1126,9 +1126,9 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
             rows = list(reader)
     except (OSError, UnicodeError) as exc:
         raise ContractError("coverage report amendment: cannot read UTF-8 TSV") from exc
-    require(len(rows) == 12, "coverage report amendment: expected exact 12 rows")
-    require(len({row["source_path"] for row in rows}) == 12, "coverage report amendment: duplicate source")
-    require(len({row["report_fqcn"] for row in rows}) == 12, "coverage report amendment: duplicate report FQCN")
+    require(len(rows) == 13, "coverage report amendment: expected exact 13 rows")
+    require(len({row["source_path"] for row in rows}) == 13, "coverage report amendment: duplicate source")
+    require(len({row["report_fqcn"] for row in rows}) == 13, "coverage report amendment: duplicate report FQCN")
     counts: Counter[str] = Counter()
     testcase_delta = 0
     for number, row in enumerate(rows, 1):
@@ -1166,8 +1166,8 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
         require(workitem.is_file() and not workitem.is_symlink(), f"coverage report amendment row {number}: workitem missing")
         counts[change_kind] += 1
         testcase_delta += after_nodes - before_nodes
-    require(counts == Counter({"new-positive-report": 4, "changed-positive-report": 8}), "coverage report amendment: expected 4 new and 8 changed reports")
-    require(testcase_delta == inventory["step4_step2_testcase_delta"] == 56, "coverage report amendment: testcase delta must be 56")
+    require(counts == Counter({"new-positive-report": 5, "changed-positive-report": 8}), "coverage report amendment: expected 5 new and 8 changed reports")
+    require(testcase_delta == inventory["step4_step2_testcase_delta"] == 58, "coverage report amendment: testcase delta must be 58")
     require(inventory["required_positive_reports"] == inventory["step2_parent_positive_reports"] + inventory["step4_new_positive_reports"] + inventory["step3_required_positive_reports"], "coverage report inventory: required positive arithmetic differs")
     require(inventory["required_testcases"] == inventory["step2_parent_testcases"] + testcase_delta + inventory["step3_required_testcases"], "coverage report inventory: required testcase arithmetic differs")
     return dict(counts)

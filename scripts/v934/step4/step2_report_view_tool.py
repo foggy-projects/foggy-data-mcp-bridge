@@ -3,7 +3,7 @@
 
 The generated directory implements the ``--successor-dir`` interface consumed
 by ``scripts/v934/step2_report_tool.py``.  It copies the confirmed Step 2
-contract, applies only the reviewed ten-row Step 4 report amendment, and keeps
+contract, applies only the reviewed Step 4 report amendment, and keeps
 the parent structural inventory byte-for-byte unchanged.
 """
 
@@ -81,12 +81,12 @@ EXPECTED_COUNTS = {
         "failsafe_testcases": 315,
     },
     "derived": {
-        "positive_reports": 728,
+        "positive_reports": 729,
         "structural_reports": 59,
-        "testcases": 5261,
-        "surefire_positive_reports": 681,
+        "testcases": 5263,
+        "surefire_positive_reports": 682,
         "surefire_structural_reports": 55,
-        "surefire_testcases": 4941,
+        "surefire_testcases": 4943,
         "failsafe_positive_reports": 47,
         "failsafe_structural_reports": 4,
         "failsafe_testcases": 320,
@@ -284,11 +284,11 @@ def load_contract(root: Path) -> tuple[dict[str, Any], Path]:
     require(
         amendment == {
             "path": "scripts/v934/step4/coverage-report-amendment.tsv",
-            "sha256": "8fc95f9a04f8c0e6c50d3bcd4361975bcfec42b8b893d93ed041f33a5f8f765c",
-            "rows": 12,
-            "new_positive_reports": 4,
+            "sha256": "c1aa8b86e7280a4014fb1d6131e3f6ca0d42f7b024648b4cec22242357f52cd6",
+            "rows": 13,
+            "new_positive_reports": 5,
             "changed_positive_reports": 8,
-            "testcase_delta": 56,
+            "testcase_delta": 58,
         },
         "E_CONTRACT",
         "reviewed amendment identity/counts differ",
@@ -425,10 +425,10 @@ def load_amendment(
         "reviewed amendment hash differs",
     )
     rows = read_tsv(path, AMENDMENT_HEADER, "E_AMENDMENT")
-    require(len(rows) == 12, "E_AMENDMENT", "amendment must contain exactly twelve rows")
+    require(len(rows) == 13, "E_AMENDMENT", "amendment must contain exactly thirteen rows")
     require(
-        len({row["source_path"] for row in rows}) == 12
-        and len({row["report_fqcn"] for row in rows}) == 12,
+        len({row["source_path"] for row in rows}) == 13
+        and len({row["report_fqcn"] for row in rows}) == 13,
         "E_AMENDMENT",
         "amendment paths/report identities must be unique",
     )
@@ -436,7 +436,7 @@ def load_amendment(
         "new-positive-report", "changed-positive-report"
     }}
     require(
-        kinds == {"new-positive-report": 4, "changed-positive-report": 8}
+        kinds == {"new-positive-report": 5, "changed-positive-report": 8}
         and all(row["change_kind"] in kinds for row in rows),
         "E_AMENDMENT",
         "amendment change kinds differ",
@@ -482,7 +482,7 @@ def load_amendment(
         workitem = root / safe_relative(row["workitem"], "amendment workitem")
         require(workitem.is_file() and not workitem.is_symlink(), "E_AMENDMENT", f"missing workitem: {workitem}")
         delta += new - old
-    require(delta == 56, "E_AMENDMENT", f"amendment testcase delta is {delta}, expected 56")
+    require(delta == 58, "E_AMENDMENT", f"amendment testcase delta is {delta}, expected 58")
     if validate_sources:
         validate_workspace_sources(root, rows)
     return rows
@@ -656,7 +656,7 @@ def apply_amendment(
             "engine_ids": "junit-jupiter",
             "source_sha256": change["step4_source_sha256"],
             # Replaced for every derived discovery row by bind_current_workspace
-            # after all ten reviewed amendments have been materialized.
+            # after all reviewed amendments have been materialized.
             "test_classes_sha256": "0" * 64,
             "main_classes_sha256": "0" * 64,
         })
@@ -680,12 +680,12 @@ def apply_amendment(
     executions.sort(key=lambda row: row["execution_key"])
     discoveries.sort(key=lambda row: (row["module"], row["source_fqcn"], row["report_fqcn"]))
     sources.sort(key=lambda row: row["source_path"])
-    require(len(executions) == 728, "E_DERIVED_COUNTS", "derived positive report count differs")
+    require(len(executions) == 729, "E_DERIVED_COUNTS", "derived positive report count differs")
     require(len(structural) == 59, "E_DERIVED_COUNTS", "derived structural report count differs")
-    require(len(discoveries) == 824, "E_DERIVED_COUNTS", "derived discovery row count differs")
-    require(len(sources) == 536, "E_DERIVED_COUNTS", "derived source row count differs")
+    require(len(discoveries) == 825, "E_DERIVED_COUNTS", "derived discovery row count differs")
+    require(len(sources) == 537, "E_DERIVED_COUNTS", "derived source row count differs")
     require(
-        sum(row["runner"] == "surefire" for row in executions) == 681
+        sum(row["runner"] == "surefire" for row in executions) == 682
         and sum(row["runner"] == "failsafe" for row in executions) == 47,
         "E_DERIVED_COUNTS",
         "derived runner report counts differ",
@@ -767,27 +767,27 @@ def derive_runner_contract(
     variant_counts = evidence.get("variant_report_cardinality")
     runner_counts = evidence.get("runner_report_cardinality")
     require(isinstance(variant_counts, dict) and isinstance(runner_counts, dict), "E_PARENT_SEMANTICS", "missing report counts")
-    variant_counts["surefire/unit"] = {"positive": 681, "structural": 55, "raw": 736}
-    runner_counts["surefire"] = {"positive": 681, "structural": 55, "raw": 736}
+    variant_counts["surefire/unit"] = {"positive": 682, "structural": 55, "raw": 737}
+    runner_counts["surefire"] = {"positive": 682, "structural": 55, "raw": 737}
     runner_counts["failsafe"] = {"positive": 47, "structural": 4, "raw": 51}
-    runner_counts["step2"] = {"positive": 728, "structural": 59, "raw": 787}
+    runner_counts["step2"] = {"positive": 729, "structural": 59, "raw": 788}
     ownership = runner.get("ownership")
     require(isinstance(ownership, dict), "E_PARENT_SEMANTICS", "missing runner ownership")
-    ownership["discovery_report_containers"]["surefire"] = 736
-    ownership["executable_reactor_sources"] = 518
-    ownership["execution_owners"]["surefire"] = 681
-    ownership["positive_report_owners"]["surefire"] = 681
-    ownership["source_owners"]["surefire"] = 475
-    ownership["step2_owners"]["surefire"] = 681
+    ownership["discovery_report_containers"]["surefire"] = 737
+    ownership["executable_reactor_sources"] = 519
+    ownership["execution_owners"]["surefire"] = 682
+    ownership["positive_report_owners"]["surefire"] = 682
+    ownership["source_owners"]["surefire"] = 476
+    ownership["step2_owners"]["surefire"] = 682
     runner["step4_report_view"] = {
         "kind": provenance["kind"],
         "run_id": provenance["run_id"],
         "status": provenance["status"],
         "parent_hash_manifest_sha256": provenance["parent"]["hash_manifest_sha256"],
         "amendment_sha256": provenance["amendment"]["sha256"],
-        "positive_reports": 728,
+        "positive_reports": 729,
         "structural_reports": 59,
-        "testcases": 5261,
+        "testcases": 5263,
     }
     return runner
 
@@ -797,18 +797,18 @@ def derive_freeze(parent_dir: Path, provenance: dict[str, Any]) -> dict[str, Any
     counts = freeze.get("counts")
     require(isinstance(counts, dict), "E_PARENT_SEMANTICS", "missing parent freeze counts")
     counts.update({
-        "required_step2": 728,
+        "required_step2": 729,
         "structural_reports": 59,
-        "execution_keys": 774,
-        "discovery_reports": 808,
-        "discovery_rows": 824,
-        "reactor_sources": 534,
-        "workspace_sources": 536,
+        "execution_keys": 775,
+        "discovery_reports": 809,
+        "discovery_rows": 825,
+        "reactor_sources": 535,
+        "workspace_sources": 537,
     })
     zero = freeze.get("zero_container_amendment")
     if isinstance(zero, dict):
-        zero["positive_execution_keys"] = 774
-        zero["required_step2"] = 728
+        zero["positive_execution_keys"] = 775
+        zero["required_step2"] = 729
         zero["structural_reports"] = 59
     freeze["step4_report_view"] = {
         "schema_version": 1,
@@ -998,7 +998,7 @@ def validate_view(root: Path, run_id: str) -> Path:
         derived = report_tool.load_successor(view)
     except Exception as exc:
         fail("E_REPORT_INTERFACE", f"Step 2 report tool rejected derived view: {exc}")
-    require(len(derived.rows) == 728 and len(derived.structural_rows) == 59, "E_REPORT_INTERFACE", "derived interface counts differ")
+    require(len(derived.rows) == 729 and len(derived.structural_rows) == 59, "E_REPORT_INTERFACE", "derived interface counts differ")
     parent_by_key = {row["execution_key"]: row for row in parent.rows}
     derived_by_key = {row["execution_key"]: row for row in derived.rows}
     require(
@@ -1020,19 +1020,19 @@ def validate_parent_command(args: argparse.Namespace) -> None:
     parent_dir = root / contract["parent"]["directory"]
     parent, _tool = validate_parent_directory(root, parent_dir, contract, enforce_location=True)
     load_amendment(root, root / contract["amendment"]["path"], contract)
-    print(f"{PREFIX} parent PASS positive={len(parent.rows)} structural={len(parent.structural_rows)} amendment=12")
+    print(f"{PREFIX} parent PASS positive={len(parent.rows)} structural={len(parent.structural_rows)} amendment=13")
 
 
 def generate_command(args: argparse.Namespace) -> None:
     root = args.repo_root.resolve()
     view = materialize(root, args.run_id)
-    print(f"{PREFIX} generated PASS run_id={args.run_id} positive=728 structural=59 testcases=5261 view={view}")
+    print(f"{PREFIX} generated PASS run_id={args.run_id} positive=729 structural=59 testcases=5263 view={view}")
 
 
 def validate_command(args: argparse.Namespace) -> None:
     root = args.repo_root.resolve()
     view = validate_view(root, args.run_id)
-    print(f"{PREFIX} validate PASS run_id={args.run_id} positive=728 structural=59 testcases=5261 view={view}")
+    print(f"{PREFIX} validate PASS run_id={args.run_id} positive=729 structural=59 testcases=5263 view={view}")
 
 
 def expect_error(name: str, expected: str, action, results: list[tuple[str, str, str]]) -> None:
