@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-LIFECYCLE-REPORT-INVENTORY-SUCCESSOR-REPLAN
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-confirmed-full-authority-replan
@@ -218,7 +218,7 @@ open_questions: []
 - deviations: none
 - residual_risks: 尚未创建 activation Cdiag，唯一 fresh all-lane diagnostic 及后续
   Cfreeze/formal/Step5-7 仍待执行；任何昂贵运行失败均按本契约转 `NEEDS_REPLAN` 并停止。
-- readiness: APPROVED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
