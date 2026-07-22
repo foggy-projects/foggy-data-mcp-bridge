@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-LIFECYCLE-INVENTORY-DUAL-SEAL-SUCCESSOR-REPLAN
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-start-steps-1-through-8
@@ -220,7 +220,7 @@ open_questions: []
 - deviations: none
 - residual_risks: fresh all-lane diagnostic and subsequent formal/Step5-7 remain pending and retain
   their existing Docker, port and external-environment risks.
-- readiness: APPROVED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
