@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP4-R7-DIRECT-TERMINAL-FRESH-DIAGNOSTIC
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -162,8 +162,11 @@ open_questions: []
 
 ## Risks and Open Questions
 
-- known_risks: direct terminal transport failure remains a hard stop; correct
-  launch transport does not relax Docker/Maven, candidate or cleanup gates.
+- known_risks: Cdiag identity must be unique because it seals the Git head for
+  the diagnostic and any later direct-child Cfreeze. The current three-doc
+  approval head and later status-only head were both described as execution
+  input; this topology ambiguity is a hard stop. No r3 terminal invocation or
+  r3 run root was created.
 - open_questions: none.
 
 ## Approval Record
@@ -171,30 +174,36 @@ open_questions: []
 - approval_authority: project-owner delegated continuation direction.
 - approved_by: foggy-projects-via-user-delegated-continuation.
 - approved_at: 2026-07-22.
-- approved_scope: bounded r3 terminal-direct diagnostic/candidate sequence;
-  final independent review passed.
+- approved_scope: superseded before launch by the Cdiag-topology preflight
+  finding; a new independent review and approval are required.
 
 ## Ultra Execution Contract
 
-- Start only after pushed clean Cdiag and fresh clone preflight.
-- Use exactly r3 and one direct foreground terminal invocation; never
-  background/detach/wrap it or create an external exit record.
-- Use the literal target derivation once, persist only safe booleans/counts and
-  never commit success material before a separate Cfreeze.
-- On any anomaly set NEEDS_REPLAN and stop; do not self-accept.
+- Stopped before terminal launch. Do not use either prior r3 head as Cdiag,
+  create a candidate, or start a runner until a reviewed replan fixes the
+  unique Cdiag topology.
+- The absence of a terminal invocation and r3 run root is bounded context, not
+  diagnostic authority or a completed attempt.
 
 ## Implementation Result
 
-> Ultra execution authorized; Cdiag and fresh-clone preflight are required
-> before the one permitted r3 terminal invocation.
+> Execution stopped fail-closed before terminal launch because the Cdiag head
+> was not uniquely defined.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: no r3 terminal invocation, candidate, capsule or
+  authority operation occurred. Fresh-clone topology review found that the
+  three-document approval commit and its status-only child were both described
+  as Cdiag input.
+- changed_paths: this canonical work-item state only; no source, policy,
+  runner, CI, package or API path changed.
+- tests_and_results: clean/non-shallow clone and absent r3 run-root checks
+  passed; execution-head identity failed the preflight topology review.
+- manual_or_experience_evidence: the isolated clone remained clean and had no
+  r3 runner-owned records.
 - deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING
+- residual_risks: a narrowly reviewed replan must make one future status-only
+  execution head the sole Cdiag before any fresh clone or terminal run.
+- readiness: NEEDS_REPLAN
 
 ## References
 
