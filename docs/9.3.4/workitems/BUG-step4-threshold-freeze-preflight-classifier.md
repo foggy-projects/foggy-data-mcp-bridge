@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP4-THRESHOLD-FREEZE-PREFLIGHT-CLASSIFIER
-status: APPROVED
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -225,9 +225,9 @@ does not guarantee later atomic publication or remove TOCTOU risk.
 - approval_authority: project-owner delegated continuation direction.
 - approved_by: foggy-projects-via-user-delegated-continuation.
 - approved_at: 2026-07-22.
-- approved_scope: exactly the diagnostic-only safe classifier and its focused
-  regression/integrity closure; it does not approve a diagnostic, candidate,
-  Cfreeze, formal, Step 5 or later authority.
+- approved_scope: superseded before integration when static audit identified
+  the existing absolute-target invocation contract as the deterministic cause
+  of the excluded R7 candidate failure.
 
 ## Ultra Execution Contract
 
@@ -248,15 +248,21 @@ does not guarantee later atomic publication or remove TOCTOU risk.
 
 ## Implementation Result
 
-> Approved for Ultra execution.
+> Execution stopped before integration because its premise was superseded.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: no classifier delivery is required. Static audit
+  proved the excluded candidate invocation used a repository-relative target
+  against an existing absolute-target publisher contract.
+- changed_paths: none; no source, test, manifest or CI byte from this scope is
+  part of a delivery.
+- tests_and_results: no delivery validation is claimed. A transient
+  uncommitted prototype was not integrated, committed or used as authority.
+- manual_or_experience_evidence: the documented static publisher contract and
+  the bounded invocation fact identify the cause without reading raw output.
 - deviations: none
-- residual_risks: pending
-- readiness: APPROVED
+- residual_risks: a future sequence must still use a new Cdiag and fresh run;
+  this item must not be revived merely to add preventive tooling.
+- readiness: NEEDS_REPLAN
 
 ## References
 
