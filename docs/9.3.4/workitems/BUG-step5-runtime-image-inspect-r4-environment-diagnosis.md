@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-R4-ENVIRONMENT-DIAGNOSIS
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -38,9 +38,12 @@ open_questions: []
 
 - in_scope:
   - use a fresh, clean clone and a unique temporary Docker build context;
+  - first confirm, without a pull, that the frozen runtime base is locally
+    usable; stop as `precondition-unavailable` if it is not;
   - copy the existing release Dockerfile and a regular disposable placeholder
     `app.jar`, build with `--pull=false`, and inspect the resulting temporary
-    image using the same identity field contract as the package tool;
+    image using the same identity field contract as the package tool three
+    times on the same image;
   - check only safe local-environment predicates needed to interpret that
     exercise: Docker server availability, selected context/build capability,
     inspect command completion, identity field shape, and linux/amd64 match;
@@ -84,6 +87,7 @@ open_questions: []
 | Preserve the fixed E_IMAGE taxonomy | The prior classification repair already narrowed the boundary safely | output is a bounded category, never raw runtime detail |
 | Use the exact release Dockerfile with a disposable regular placeholder | It exercises the runtime platform/image-inspect path without rebuilding tested application outputs | the placeholder is never executed or presented as a release JAR |
 | No pull or image remediation | Diagnosis must distinguish existing local compatibility from environment mutation | `--pull=false`; any missing prerequisite is a safe diagnostic result |
+| Use one random tag plus an ownership label | Cleanup must not rely on a name collision or touch a foreign image | ownership is verified before removal; no container is created |
 | Stop before remediation | A tool, Dockerfile, image, platform, or CI change would be a new material solution | set `NEEDS_REPLAN` and freeze a successor contract first |
 
 ## Acceptance Criteria
@@ -91,10 +95,12 @@ open_questions: []
 - [ ] AC-1: The exercise starts only from a clean clone, creates one uniquely
   owned image/context, invokes no Maven, Step 4, package tool, release gate,
   pointer, or publication path, and leaves tracked source unchanged.
-- [ ] AC-2: The unmodified release Dockerfile/`--pull=false` build and the
-  exact three-field runtime image inspection contract are attempted once. The
-  result is classified as exactly one of `reproduced-control-plane`,
-  `valid-inspect-not-reproduced`, or `inconclusive-precondition`; no raw
+- [ ] AC-2: The frozen base is confirmed locally usable without a pull, then
+  the unmodified release Dockerfile/`--pull=false` build is attempted once and
+  the exact three-field runtime image inspection contract is sampled three
+  times on that same owned image. The result is classified as exactly one of
+  `valid-inspect-not-reproduced`, `runtime-inspect-reproduced`,
+  `runtime-inspect-intermittent`, or `precondition-unavailable`; no raw
   response survives classification.
 - [ ] AC-3: Docker daemon/context/builder checks are persisted only as safe
   availability/capability booleans. The receipt must reject raw output, image,
@@ -102,10 +108,11 @@ open_questions: []
 - [ ] AC-4: The diagnostic proves candidate/final pointer state and
   source/Dockerfile/POM/contract-hash state unchanged before and after the
   exercise. It creates no release run-root, package, archive, or pointer.
-- [ ] AC-5: `finally` cleanup removes only this run's image/context and proves
-  no owned container, image tag, readback, or filesystem residue. It must not
-  prune or alter base images, caches, or pre-existing Docker resources; any
-  cleanup uncertainty is fail-closed.
+- [ ] AC-5: `finally` cleanup removes only this run's ownership-label-verified
+  image/context and proves no owned container, image tag, readback, or
+  filesystem residue. It must not create a container, prune, or alter base
+  images, caches, or pre-existing Docker resources; any cleanup uncertainty is
+  fail-closed.
 - [ ] AC-6: Safe evidence records the failed Step 5 boundary, one diagnosis
   category, no-candidate/no-pointer status, command classes, privacy scan, and
   cleanup status without raw Docker payloads.
@@ -131,7 +138,7 @@ open_questions: []
 | Item | Risk | Required Validation | Required Evidence |
 |---|---|---|---|
 | AC-1/AC-4/AC-5 | critical | ownership, before/after seals and cleanup | safe boolean/count summary |
-| AC-2/AC-3 | critical | one isolated build, exact inspect shape and privacy rejection checks | bounded category plus capability booleans |
+| AC-2/AC-3 | critical | base preflight, one isolated build, three exact inspect samples and privacy rejection checks | bounded category plus capability booleans |
 | AC-6 | critical | evidence privacy/sensitive scan | no-raw-field checklist and terminal status |
 | AC-7 | critical | scope/authority review | replan marker or explicitly bounded compatible result |
 
@@ -163,8 +170,9 @@ open_questions: []
 ## Risks and Open Questions
 
 - known_risks: Docker build cache behavior can change transient local state;
-  a missing base or incomplete cleanup must be recorded as non-compatible, not
-  repaired in place. The exercise cannot prove a canonical release candidate.
+  a missing base, mixed inspection samples, or incomplete cleanup must be
+  recorded as non-compatible, not repaired in place. The exercise cannot prove
+  a canonical release candidate.
 - open_questions: none.
 
 ## Ultra Execution Contract
@@ -176,6 +184,9 @@ open_questions: []
 - Maintain a private transient mapping from raw Docker observations to one
   approved category. Persist only the category and safe booleans; reject any
   attempted raw field before evidence publication.
+- Self-check the fixed classification matrix, forbidden command graph,
+  foreign-resource refusal, cleanup-failure behavior, and evidence privacy
+  before the live exercise. These checks must not invoke Docker.
 - If resources cannot be proven owned/cleaned, or if remediation is needed,
   set `NEEDS_REPLAN` and stop the affected expansion.
 - On completion, write the implementation result and set
@@ -183,7 +194,7 @@ open_questions: []
 
 ## Implementation Result
 
-> To be completed by the Ultra execution session.
+> Ultra execution is in progress under the approved single-attempt boundary.
 
 - implementation_summary:
 - changed_paths:
@@ -191,7 +202,7 @@ open_questions: []
 - manual_or_experience_evidence:
 - deviations: none
 - residual_risks:
-- readiness: READY_FOR_SIGNOFF | NEEDS_REPLAN | BLOCKED
+- readiness: ULTRA_EXECUTING
 
 ## References
 
