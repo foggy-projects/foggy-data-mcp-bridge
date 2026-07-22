@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP4-R7-INSPECT-FORMAT-WORKFLOW-STATE-RESET
-status: APPROVED
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: foggy-projects-via-user-delegated-continuation
@@ -185,15 +185,26 @@ open_questions: []
 
 ## Implementation Result
 
-> Pending execution.
-
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: restored the exact frozen diagnostic entry state
+  for the R7 repaired source and refreshed only the required Step 4 -> Step 6
+  mechanical integrity/CI closure. No runtime task or source/policy change was
+  made by this successor.
+- changed_paths: the declared two Step 4 state documents, Step 4 manifest,
+  Step 6 CI binding tool/contract/manifest, this work item, and the governed
+  Cdiag static checkpoint/review records only.
+- tests_and_results: canonical diagnostic contract validation; isolated
+  canonical-plus-three-hybrid fixture; 28-probe contract negative suite;
+  130-case XML negative suite; successor-overlay positive/20-probe negative;
+  117-case Docker-free package negative; Step 4/5/6 manifests; CI workflow
+  validation/86-case negative; Python syntax and whitespace all passed.
+- manual_or_experience_evidence:
+  `docs/9.3.4/evidence/step-4/step4-r7-inspect-format-workflow-state-reset-cdiag-static-20260722.md`
+  and
+  `docs/9.3.4/evidence/step-4/step4-r7-inspect-format-workflow-state-reset-cdiag-review-20260722.md`.
 - deviations: none
-- residual_risks: pending
-- readiness: APPROVED
+- residual_risks: a clean reviewed Cdiag is only the valid input to the next
+  fresh full Step 4 diagnostic; it is not diagnostic/formal/Step 5 authority.
+- readiness: READY_FOR_SIGNOFF
 
 ## References
 
