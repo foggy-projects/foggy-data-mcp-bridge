@@ -1789,19 +1789,20 @@ def require_image_cleanup(errors: Sequence[str]) -> None:
 
 
 def docker_inspect_identity(root: Path, reference: str, label: str) -> dict[str, Any]:
-    observed = run_capture(
+    observed_lines = run_capture(
         [
             "docker",
             "image",
             "inspect",
             "--format",
-            "{{.Id}}\\n{{.Os}}\\n{{.Architecture}}",
+            "{{.Id}}|{{.Os}}|{{.Architecture}}",
             reference,
         ],
         root,
         "E_BASE_IMAGE" if reference == RUNTIME_BASE_PINNED_REFERENCE else "E_IMAGE",
         f"{label} inspect",
     ).splitlines()
+    observed = observed_lines[0].split("|") if len(observed_lines) == 1 else []
     require(
         len(observed) == 3
         and re.fullmatch(r"sha256:[0-9a-f]{64}", observed[0]) is not None
