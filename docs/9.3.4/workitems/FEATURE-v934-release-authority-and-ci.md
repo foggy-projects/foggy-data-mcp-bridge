@@ -11,7 +11,7 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: exactly one Step 7 authority run on exact clean origin/main; no CI, tag, release or publish
+active_scope: exactly one semantic-replay replacement Step 5 rehearsal on the clean pushed repair branch; no CI, tag, release or publish
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
@@ -42,6 +42,11 @@ step7_replan_implementation_status: ACCEPTED
 step7_replan_review_chain_status: accepted-by-repository-owner
 semantic_replay_replacement_step5_attempt_budget: 1
 semantic_replay_replacement_step5_attempt_consumed: false
+semantic_replay_replacement_step5_run_id: step5-semantic-replay-replacement-20260723-r1
+semantic_replay_replacement_step5_preflight_commit: 1e068cd5d8e0fd6bce5afdaa33e4472261b81729
+semantic_replay_replacement_step5_preflight_receipt_sha256: 76313f97925f44bb695546307d69b6ad4f775b500e652bbb62ff6f74b1550404
+semantic_replay_replacement_step5_activation_status: authorized-pending-pushed-activation-commit
+semantic_replay_replacement_step5_runner_status: not-started
 semantic_replay_replacement_step7_attempt_budget: 1
 semantic_replay_replacement_step7_attempt_consumed: false
 open_questions: []
@@ -279,6 +284,43 @@ open_questions: []
 - pointer_state: historical candidate pointer exists; final authority pointer
   remains absent and must remain absent through semantic replay and the ordered
   review chain.
+
+## Semantic Replay Replacement Step 5 Activation — 2026-07-23
+
+- activation_decision: the accepted repair, frozen minimum replan and attempt
+  ledger were rechecked at clean pushed commit
+  `1e068cd5d8e0fd6bce5afdaa33e4472261b81729`. Exactly one replacement Step 5
+  rehearsal is authorized after this docs-only activation commit is pushed and
+  the branch identity is reverified.
+- planned_run:
+  `step5-semantic-replay-replacement-20260723-r1`.
+- preflight: private full clone, real `.git`, non-shallow, canonical SSH origin,
+  clean remote-exact branch, parent mode `0700`; runtime-source scan passed for
+  `13` modules / `1411` files / `10757069` bytes with set SHA-256
+  `22670362fff8f063791129e1e875768d6b1b44286ec8237591f458b5486b07f8`.
+- focused_checks: Step 4/5/6 manifests=`63/8/16`; changed Python consumers and
+  release runner syntax passed; artifact negatives=`105`, portable replay
+  same-/cross-filesystem checks=`2/1` with negatives=`9`, package=`120` and
+  pointer=`5`, all passed.
+- runtime_environment: frozen OCI index/manifest/config identities match;
+  required ports `13306/13308/15432/11433/17017/16379/19530` are free;
+  future run target and Docker namespace are absent; historical v934 owners are
+  retained only as dead panes; GitHub Actions remains disabled with no queued
+  or in-progress run.
+- process_owner: a fresh private `0700` tmux control directory owns the runner.
+  After launch this session is observer-only and does not write to the pane or
+  take Maven/JVM/Docker/process ownership.
+- launch_environment: clear `MAVEN_ARGS`, `MAVEN_BASEDIR`, `MAVEN_CONFIG`,
+  `MAVEN_OPTS`, `MAVEN_SKIP_RC`, `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` and
+  `_JAVA_OPTIONS`.
+- attempt_boundary: the attempt remains unconsumed until runner launch. Launch
+  consumes the only budget. Any runner failure is immutable, sets this feature
+  back to a stopped `NEEDS_REPLAN` condition and forbids an automatic retry.
+- unchanged_boundaries: this activation does not authorize Step 7, a main
+  merge, GitHub CI, tag, release, publish, verifier relaxation, production
+  API/SPI change or final authority pointer creation.
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-preflight-20260723.md`.
 
 ## Ultra Execution Contract
 

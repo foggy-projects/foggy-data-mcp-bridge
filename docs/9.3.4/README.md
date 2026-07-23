@@ -632,7 +632,7 @@ updated_at: 2026-07-23
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | NEEDS_REPLACEMENT / old r2 historical accepted | semantic replay repair changed governed tool bytes and source seal；exactly one replacement rehearsal remains, budget unconsumed；no-CI |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | ACTIVATING_REPLACEMENT / old r2 historical accepted | semantic replay repair changed governed tool bytes and source seal；preflight passed；exactly one replacement rehearsal is authorized after pushed activation, budget still unconsumed；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | NEEDS_REPLAN / repair ACCEPTED | old r1 consumed and remains candidate-only；final pointer absent；replacement Step 5 and new Step 7 remain；no-CI/tag/release/publish |
 
@@ -659,9 +659,10 @@ Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run �
 - canonical repair BUG 已由 repository owner 明确批准，并在 delivery-signoff
   audit 后记为 `ACCEPTED`；父 feature 继续 `NEEDS_REPLAN`。旧 Step 7 attempt 已
   消耗；新的 replacement Step 5 与 Step 7 各有唯一一次未消耗预算。
-  clean/pushed exact source seal、契约/attempt 复核和 tmux owner 未齐备前不得
-  启动长任务；semantic replay 与 ordered review chain 完成前不得生成 final
-  authority pointer。
+  replacement Step 5 preflight 已在 clean/pushed repair source seal
+  `1e068cd5…` 通过；docs-only activation 推送并再次核对 identity/attempt 后，由
+  新的 private tmux owner 启动唯一一次长任务。semantic replay 与 ordered review
+  chain 完成前不得生成 final authority pointer。
 
 9.3.1–9.3.3 historical run/FQCN/count 保持封存；重命名后的 9.3.4 通过 reviewed
 predecessor migration manifest 和 successor current-source lanes 证明等价回归，
