@@ -634,7 +634,7 @@ updated_at: 2026-07-23
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | ACCEPTED / replacement r2 independently signed off | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
-| 7 | clean-commit 本地权威回放与后置门 | APPROVED / merge-only authorization | Step 5 accepted；PR #124 复核后仅以 merge commit 建立 exact `origin/main` entry；authority runner 仍未授权 |
+| 7 | clean-commit 本地权威回放与后置门 | ULTRA_EXECUTING / r1 authorized | PR #124 merge commit entry + private-full-clone preflight passed；exactly one authority attempt 激活；no-CI/tag/release/publish |
 
 Steps 1–5 未满足 exit 不进入下一步；Step 6 不再是执行或签收依赖；Step 7 只在
 Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run 不得拼接为
