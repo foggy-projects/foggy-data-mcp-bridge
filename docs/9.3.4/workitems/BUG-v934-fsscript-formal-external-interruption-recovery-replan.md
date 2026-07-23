@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-FORMAL-EXTERNAL-INTERRUPTION-RECOVERY-REPLAN
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-recovery-authorization
@@ -79,16 +79,16 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: 本 Cplan 是 failure-record commit
+- [x] AC-1: 本 Cplan 是 failure-record commit
   `351d68cfc4c48c8509ee1076b2b4fd46ad4236df` 的 clean/pushed 单父直接子提交；原工作区保持
   `9743f97d9d935d5e26311b78c158755bca51f17a` 与用户 v9.3.5 改动不变。
-- [ ] AC-2: activation commit 是 Cplan 的 clean/pushed 单父直接子，diff 仅为本文件
+- [x] AC-2: activation commit 是 Cplan 的 clean/pushed 单父直接子，diff 仅为本文件
   `status: APPROVED -> ULTRA_EXECUTING` 与 readiness activation 记录；activation SHA、Cfreeze SHA、
   新 run ID 在执行前 durable 绑定。
-- [ ] AC-3: fresh clone preflight 证明 remote exact、clean、non-shallow、无 replace/graft、detached
+- [x] AC-3: fresh clone preflight 证明 remote exact、clean、non-shallow、无 replace/graft、detached
   exact Cfreeze；formal delta 仍为 Cdiag `462d64ac...` 的 direct-single-parent child 与六个 exact
   formalization paths；source/contract/manifest/threshold digests 与 frozen record一致。
-- [ ] AC-4: 不存在新 run ID 的旧目录、进程、端口或 run-owned Docker residue；r8 root 未被读取为
+- [x] AC-4: 不存在新 run ID 的旧目录、进程、端口或 run-owned Docker residue；r8 root 未被读取为
   执行输入；新 formal 仅由一个 foreground terminal-managed invocation 启动。
 - [ ] AC-5: 新 formal 完成所有 required lanes，required report inventory 至少保持 reviewed
   `774 positive + 59 structural / 5709 testcases`，Addon 保持 `2/6`，所有 Failures/Errors/Skipped=0。
@@ -184,13 +184,25 @@ open_questions: []
 
 ## Implementation Result
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
-- deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING — this exact two-field transition is the activation identity; bind its clean/pushed Git SHA in preflight and post-run evidence
+- implementation_summary: recovery activation and fresh formal r9 were executed; the run was
+  externally interrupted after Unit, Integration and Addon child PASS but before the Step3 database
+  matrix and outer Step4 terminal chain, so the invocation is permanently failed/excluded.
+- changed_paths:
+  `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-dual-seal-formal-recovery-20260723-r9-external-interruption-fail-closed.md`
+  and this work-item status/result only.
+- tests_and_results: Unit `682+55/4943` PASS; Integration `47+4/320` PASS; successor overlay
+  `45/446` PASS; Addon `2/6` PASS; Step3 orchestrator terminal `status=failed`, `exit_code=1`,
+  `last_phase=child-database-matrix`; outer formal terminal receipts absent.
+- manual_or_experience_evidence: post-interruption inspection found no matching runner process or
+  run-labeled Docker residue and port `13306` free; child cleanup receipts were zero-residue, but no
+  outer cleanup receipt exists.
+- deviations: the only authorized fresh formal attempt did not reach terminal PASS because its
+  terminal-managed execution session was externally interrupted.
+- residual_risks: Step4 formal authority remains open; partial r8/r9 evidence cannot support Step5-7;
+  another attempt requires a new approved replan and a more interruption-resilient foreground
+  ownership strategy without weakening runner lifecycle controls.
+- readiness: NEEDS_REPLAN — second expensive formal attempt failed to reach terminal authority;
+  automatic third attempt and Step5-7 are forbidden
 
 ## References
 
@@ -198,5 +210,7 @@ open_questions: []
   `docs/9.3.4/workitems/BUG-v934-fsscript-lifecycle-inventory-dual-seal-successor-replan.md`
 - interruption record:
   `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-dual-seal-formal-20260722-r8-external-interruption-fail-closed.md`
+- recovery interruption record:
+  `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-dual-seal-formal-recovery-20260723-r9-external-interruption-fail-closed.md`
 - controlling release item:
   `docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md`
