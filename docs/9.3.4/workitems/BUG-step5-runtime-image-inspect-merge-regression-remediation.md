@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-MERGE-REGRESSION-REMEDIATION
-status: READY_FOR_SIGNOFF
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: release-owner-via-explicit-remediation-authorization
@@ -27,6 +27,20 @@ open_questions: []
   一次性 runtime proof 边界。
 - canonical_path:
   `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-merge-regression-remediation.md`
+
+## Contract Replan Record
+
+- replan_trigger: PR #124 的 repository-hosted GitHub Actions 在目标提交
+  `919870138ae53c5f2445797814659a39b01890d4` 上自动发起 run
+  `29996320563`，其 workflow graph 包含 canonical v9.3.4 gate；原 AC-10
+  未显式区分 remediation-owned 执行与外部 CI 自动执行。
+- replan_scope: 仅澄清 AC-6/AC-7 attempt cardinality、AC-10 stop boundary 和
+  r19 bounded evidence 字段的 process-owner 边界；不改变实现、测试选择、产物、
+  coverage policy、证据真实性或 package proof 结论。
+- evidence_reuse: r16-r19 及源码/manifest/static 证据在字节和前提未改变时继续
+  可复用；不得因此重跑 Step4、package proof 或 canonical Step5。
+- approval_state: 等待 release owner 明确批准外部 GitHub Actions 的范围处理后，
+  方可恢复 `READY_FOR_SIGNOFF`。
 
 ## Goal
 
