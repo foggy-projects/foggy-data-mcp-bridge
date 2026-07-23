@@ -3,16 +3,17 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
 approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
-activated_at: pending
-activation_parent: pending
-active_scope: replacement Step 5 full-clone preflight only
+activated_at: 2026-07-23
+activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
+active_scope: exactly one replacement Step 5 full-clone rehearsal
 replan_resolution: private full clone plus pre-activation scan-runtime-source
+replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 open_questions: []
 ---
 
@@ -168,8 +169,8 @@ open_questions: []
   delivery contract but not the tool's previously unstated full-clone
   requirement.
 - residual_risks: required CI/branch protection intentionally absent by owner
-  decision; replacement full-clone rehearsal remains pending.
-- readiness: APPROVED / replacement preflight pending
+  decision; replacement full-clone rehearsal is activated but not yet complete.
+- readiness: ULTRA_EXECUTING
 
 ## References
 
@@ -178,3 +179,5 @@ open_questions: []
 - related work items: `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`
 - failed execution evidence:
   `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-r1-git-metadata-preflight-fail-closed-20260723.md`
+- replacement preflight evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-preflight-20260723.md`

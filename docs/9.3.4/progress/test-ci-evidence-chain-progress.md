@@ -69,7 +69,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
-| 5 | authority runner rehearsal / immutable candidate | approved / replacement preflight pending | accepted current Step 4 and package remediations | one private-full-clone replacement authorized conditionally；activation requires direct `scan-runtime-source` PASS first |
+| 5 | authority runner rehearsal / immutable candidate | ULTRA_EXECUTING / replacement r2 | accepted current Step 4 and package remediations | private-full-clone preflight passed；exactly one replacement rehearsal activated；no automatic retry |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` | pending：full local authority + quality→coverage→acceptance signed-off |
 
@@ -108,6 +108,20 @@ Step 7 prerequisite。
 - preflight 全绿后允许提交一次 docs-only activation，并启动 exactly one
   replacement rehearsal；runner 启动后任何失败均回到 `NEEDS_REPLAN`，不得自动重试。
 - Step 7、merge、tag、release、publish 仍未授权；Actions 继续 disabled。
+
+## Execution Check-in — Step 5 full-clone replacement activation（2026-07-23）
+
+- activation parent=`22e737e09bb3e283aa21894d3f0b92ef205ff6b9`；
+  clone `.git` 为 real directory、clean、non-shallow、canonical origin。
+- direct `scan-runtime-source`=`passed`：13 modules / 1411 files /
+  set=`22670362fff8f063791129e1e875768d6b1b44286ec8237591f458b5486b07f8`；
+  receipt SHA-256=`5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9`。
+- manifests=`63/8/16`；artifact self-test passed；package negative=`120`；
+  pointer negative=`5`；frozen runtime base index/manifest/config exact。
+- 7 required ports free；candidate/final/runs pointers absent；无竞争 runner；
+  Actions disabled。预检已满足，现激活 exactly one replacement rehearsal。
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-preflight-20260723.md`
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 
