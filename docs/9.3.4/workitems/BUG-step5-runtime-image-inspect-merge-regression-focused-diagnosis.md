@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-MERGE-REGRESSION-FOCUSED-DIAGNOSIS
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-focused-diagnosis-authorization
@@ -90,32 +90,32 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: APPROVED plan is a clean pushed child of
+- [x] AC-1: APPROVED plan is a clean pushed child of
   `3ebfa0d4abed159d0bb92d9e04a412097e2ac0a6`; activation is its clean pushed
   single-parent child and changes only this file to `ULTRA_EXECUTING`.
-- [ ] AC-2: governance root、execution clone、remote和 protected original
+- [x] AC-2: governance root、execution clone、remote和 protected original
   workspace identities are exact; r11 Step4 remains public-valid and no
   package/canonical Step5 process or output exists.
-- [ ] AC-3: Git evidence establishes whether `d2565c0a` is in the first-parent
+- [x] AC-3: Git evidence establishes whether `d2565c0a` is in the first-parent
   ancestry, `faf0efed` is in the second-parent ancestry, and `f67ed053`
   selected which inspect implementation; later commits through Cfreeze are
   checked for additional inspect changes.
-- [ ] AC-4: one tmux-owned diagnostic uses one cached-image owned tag and no
+- [x] AC-4: one tmux-owned diagnostic uses one cached-image owned tag and no
   build/pull/container/Maven/package operation. Current and portable formats
   are compared on exactly the same image.
-- [ ] AC-5: durable results record only output line count, empty-record count,
+- [x] AC-5: durable results record only output line count, empty-record count,
   field-count/shape/platform booleans and current-function/portable-function
   pass/error classifications; raw image ID/stdout/tag token is absent.
-- [ ] AC-6: root-cause conclusion requires agreement between merge history,
+- [x] AC-6: root-cause conclusion requires agreement between merge history,
   exact CLI behavior and current-function versus in-memory portable-function
   behavior. Any disagreement is `diagnosis-inconclusive`.
-- [ ] AC-7: the existing Docker-free regression fixture is evaluated against
+- [x] AC-7: the existing Docker-free regression fixture is evaluated against
   actual Docker newline behavior and any modeling gap is identified without
   editing tests.
-- [ ] AC-8: owned tag, tmux/control/result and temporary material are removed;
+- [x] AC-8: owned tag, tmux/control/result and temporary material are removed;
   no owned Docker residue/process remains; source, r11 Step4, pointers and
   protected workspace remain unchanged.
-- [ ] AC-9: result is committed and pushed as either
+- [x] AC-9: result is committed and pushed as either
   `merge-regression-confirmed`, another bounded diagnosis category, or
   `diagnosis-inconclusive`; this contract stops before remediation.
 
@@ -202,16 +202,34 @@ open_questions: []
 
 ## Implementation Result
 
-> Activated for the one governed focused diagnostic matrix.
+> The governed focused matrix completed with
+> `merge-regression-confirmed`.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
-- deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING — this clean single-parent commit is the sole
-  activation and must be pushed before the live diagnostic.
+- implementation_summary: proved that merge `f67ed053` selected the
+  second-parent `println` package-tool blob and discarded the first-parent
+  portable format/parser pair; reproduced the current four-record/E_IMAGE
+  behavior and the historical one-record/three-field PASS on the same image.
+- changed_paths:
+  - `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-merge-regression-focused-diagnosis.md`
+  - `docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-merge-regression-r13-confirmed-20260723.md`
+- tests_and_results: Git ancestry/blob selection confirmed; Step4/5/6 checksum
+  manifests passed; r11 candidate/final public verification passed; one
+  same-image tmux matrix passed with current line-count=4/empty-count=1 and
+  `E_IMAGE`, historical portable line-count=1/field-count=3 and PASS; zero
+  build/pull/container/package operations.
+- manual_or_experience_evidence: existing Docker-free mock models one terminal
+  line feed while real Docker current-format output contains two; owned tag,
+  control material and ignored bytecode were removed; source, authority and
+  protected workspace remained unchanged.
+- deviations: the matrix retained a constant-only portable-format call as a
+  negative control and separately evaluated the exact historical portable
+  parser. This clarifies that format and parser must be restored atomically
+  without expanding production scope.
+- residual_risks: no source remediation has been implemented. Any patch changes
+  release-tool bytes and therefore requires the exact Step4/5/6 integrity
+  closure, a fresh new-source Step4 chain and a later one-shot package proof.
+- readiness: READY_FOR_SIGNOFF — diagnosis is complete; remediation requires a
+  separately approved work item and is not authorized here.
 
 ## References
 
@@ -221,3 +239,5 @@ open_questions: []
   `docs/9.3.4/evidence/step-5/step5-package-proof-clean-maven-env-r12-fail-closed-20260723.md`
 - prior remediation:
   `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-format-remediation.md`
+- confirmed diagnosis evidence:
+  `docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-merge-regression-r13-confirmed-20260723.md`
