@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-PROOF-CLEAN-MAVEN-ENV-SUCCESSOR
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-package-only-reuse-authorization
@@ -224,7 +224,8 @@ open_questions: []
 - manual_or_experience_evidence: pending
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED — execution requires a separate clean/pushed activation commit.
+- readiness: ULTRA_EXECUTING — this clean single-parent commit is the sole
+  activation; its exact SHA must be bound before the package invocation.
 
 ## References
 
