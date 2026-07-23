@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: ACCEPTED
+status: APPROVED
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -11,7 +11,7 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: replacement Step 5 rehearsal independently accepted; Step 7 remains pending and separately authorized
+active_scope: Step 7 minimum contract freeze and PR #124 merge only; authority runner remains separately authorized
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
@@ -21,6 +21,11 @@ accepted_scope: replacement Step 5 rehearsal only
 accepted_at: 2026-07-23
 accepted_by: independent-release-reviewer
 acceptance_record: docs/9.3.4/acceptance/step5-local-rehearsal-no-ci-fullclone-r2-signoff-20260723.md
+step7_contract_approved_at: 2026-07-23
+step7_contract_approved_by: repository-owner-via-user-request
+step7_merge_authorized: true
+step7_authority_runner_authorized: false
+step7_entry_pr: 124
 open_questions: []
 ---
 
@@ -33,6 +38,7 @@ open_questions: []
 - canonical_path: `docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md`
 - compatibility_note: 文件名为历史稳定路径，不再表示 GitHub CI 接线属于当前交付范围。
 - scope_revision: 2026-07-23 owner 明确移除原 Step 6 GitHub CI 接线；本文件取代 2026-07-18 的 CI-including 契约。
+- step7_revision: 2026-07-23 owner 批准冻结 Step 7 最小契约，并授权在实时复核后以 merge commit 合并 PR #124；本次不授权 Step 7 authority runner。
 
 ## Goal
 
@@ -68,7 +74,8 @@ open_questions: []
 | Decision | Rationale | Compatibility / Constraint |
 |---|---|---|
 | 原 Step 6 标记为 owner-waived / out-of-scope | owner 明确不考虑接入 CI | 不再是 Step 7 entry 或 9.3.4 signoff blocker |
-| Step 5 后直接进入 exact-clean-main 的 Step 7 | 保留既有 runner/证据编号，避免重编号破坏历史引用 | Step 5 必须先独立签收；merge/main 操作仍需单独授权 |
+| Step 5 后直接进入 exact-clean-main 的 Step 7 | 保留既有 runner/证据编号，避免重编号破坏历史引用 | Step 5 已独立签收；PR #124 merge 已获本次授权，authority runner 仍需单独授权 |
+| PR #124 必须使用 merge commit | 保留 145 个既有审计提交及其 tested/accepted ancestry，不把大范围历史压成新的 squash source identity | 禁止 squash/rebase；合并前必须重新核对 exact head/base、MERGEABLE/CLEAN、Actions disabled 和无活动 run |
 | GitHub Actions 在本交付期间保持 disabled 且不作为证据源 | 消除 remote run 与本地 authority 的所有权混淆 | 不配置 required check/branch protection；既有 workflow 文件不删除 |
 | replacement Step 5 使用 private full clone | r1 已证明 linked worktree 的 `.git` regular file 不满足 sealed artifact tool | 不修改 Step 5 tool/manifest/hash closure；full clone 必须 exact pushed HEAD、clean、non-shallow |
 | activation 前直接执行 `scan-runtime-source` | 把 r1 的环境契约缺口前移到不消耗 attempt 的轻量门 | receipt 必须 exit=0、`status=passed`、`command=scan-runtime-source`、`git_head` 精确匹配 |
@@ -116,37 +123,69 @@ open_questions: []
 - Step 7 authority: `>60m`，maximum attempts=`1`；只在 Step 5 已独立签收、exact clean `origin/main` 和单独执行授权齐备后运行。失败后设置 `NEEDS_REPLAN` 并停止。
 - test-only、文档或证据传输变更不自动推翻与其无依赖关系的产品正确性证据。
 
+## Step 7 Minimum Contract
+
+- entry_identity:
+  - PR #124 必须先以 merge commit 合入 `main`；merge 的第二父提交必须是合并前复核过的 exact PR head，第一父提交必须是同期复核过的 exact `origin/main`。
+  - authority 只能在合并后的 exact clean `origin/main` 上执行；必须使用新的 private full clone，父目录权限 `0700`、`.git` 为 real directory、clean、non-shallow、canonical origin。
+  - 合并完成本身只建立 Step 7 entry，不等于 authority、version signoff 或 9.3.4 acceptance。
+- preflight_before_activation:
+  - 先直接执行 `scan-runtime-source`，精确核对 receipt 的 command/status/git_head/module_count。
+  - 复核 frozen manifests、static/focused negatives、runtime base、required ports、candidate/final/authority pointers、process owner、Actions disabled 和无 queued/in-progress run。
+  - preflight 是轻量 entry proof；不产生 final/authority pointer，不消耗唯一 authority attempt。
+- authority_execution:
+  - 仅在 repository owner 再次明确授权后，使用
+    `verify-v934-release-gate.sh authority <fresh-run-id>` 启动 exactly one fresh run。
+  - runner 必须由新的私有 `0700` tmux control directory 持有；当前会话及其他会话启动后仅作观察者，不抢占 Maven/JVM/Docker/process ownership。
+  - 启动环境必须 `env -u` 清除 `MAVEN_ARGS`、`MAVEN_BASEDIR`、
+    `MAVEN_CONFIG`、`MAVEN_OPTS`、`MAVEN_SKIP_RC`、`JAVA_TOOL_OPTIONS`、
+    `JDK_JAVA_OPTIONS`、`_JAVA_OPTIONS`。
+  - attempt budget=`1`；任何 runner 失败均保留原始证据、设置
+    `NEEDS_REPLAN` 并停止，不自动重试、不跨 run 拼接。
+- authority_exit:
+  - 同一 run 必须覆盖 inventory、required S0、Unit/Integration、五库/external、
+    successor regression、coverage critical gates、package/Launcher、archive、
+    portable verify、sensitive scan 和 candidate JAR=image identity。
+  - 只有完整成功 run 才能更新 final/authority pointers；candidate pointer、Step 5
+    evidence 或历史绿色均不得替代。
+  - semantic portable replay 保持 Step 7 downstream required evidence；
+    Unit MySQL 5.7 临时分类必须复验并明确移交 9.3.5。
+  - runner 完成后按 implementation self-check -> independent quality ->
+    coverage audit -> version signoff 顺序执行；任何门失败即停止。
+- boundaries:
+  - no-CI 范围保持不变；不得启用 Actions、required checks、branch protection 或 Step 6。
+  - 本契约不授权 tag、GitHub Release、publish、9.3.5/9.4.0 production scope 或 public API/SPI 变化。
+
 ## Active Execution Authorization
 
-- authorized_stage: replacement Step 5 private-full-clone preflight only；preflight
-  通过后允许提交 activation，并启动 exactly one replacement rehearsal；不授权
-  merge、Step 7、tag、release 或 publish。
-- clone_identity: canonical origin 的新 private full clone；`.git` 为 real
-  directory；clean、non-shallow、HEAD 与 pushed PR head 精确一致。
-- required_new_preflight:
-  - `python3 scripts/v934/step5/release_artifact_tool.py scan-runtime-source
-    --repo-root <clone>` exit=`0`；
-  - receipt 的 `command=scan-runtime-source`、`status=passed`、
-    `git_head=<exact HEAD>`、`module_count=13`；
-  - 既有 manifest/static/focused negatives、runtime base、ports、pointer、
-    process-owner 和 Actions-disabled 检查仍全部通过。
-- activation_gate: preflight receipt 固化后，用 docs-only commit 把本文件改为
-  `ULTRA_EXECUTING` 并记录 exact activation parent；activation 必须先推送并与
-  PR head 精确一致，runner 才能启动。
-- process_owner: 一个新的私有 `0700` tmux control directory；启动后当前会话只作观察者。
-- environment: 启动命令必须 `env -u` 清除 `MAVEN_ARGS`、`MAVEN_BASEDIR`、
-  `MAVEN_CONFIG`、`MAVEN_OPTS`、`MAVEN_SKIP_RC`、`JAVA_TOOL_OPTIONS`、
-  `JDK_JAVA_OPTIONS`、`_JAVA_OPTIONS`。
-- attempt_budget: replacement exactly one；无自动重试。
-- stop_rule: preflight 不满足则不激活、不消耗 replacement attempt；runner
-  启动后的任何失败均保留证据、设置 `NEEDS_REPLAN` 并停止。
+- authorized_stage: docs-only Step 7 contract freeze、推送至 PR #124、实时复核，
+  以及复核全绿后以 merge commit 合并 PR #124。
+- merge_gate:
+  - exact PR head 必须等于本契约提交后的 pushed branch head；
+  - base 必须是复核时 exact `origin/main`，且 PR 相对 main 无反向 divergence；
+  - PR 必须 `OPEN`、non-draft、`MERGEABLE/CLEAN`；
+  - Actions 必须保持 `enabled=false`，status checks 为空，queued/in-progress run
+    均为 `0`；
+  - 本契约提交只能包含 `docs/9.3.4`，不得包含原工作区 `docs/9.3.5` dirty baseline。
+- merge_method: merge commit only；禁止 squash、rebase、force push 或删除审计提交。
+- post_merge_read_only_checks:
+  - PR 状态为 `MERGED`，merge commit 必须精确有两个父提交，分别为复核过的
+    base 和 head；
+  - `origin/main` 必须精确等于 merge commit，PR head 必须是其 ancestor；
+  - Actions 仍 disabled，且无 queued/in-progress run；
+  - 原工作区 HEAD 与 `docs/9.3.5` dirty baseline 保持不变。
+- explicitly_not_authorized: Step 7 preflight、Step 7 authority runner、tag、
+  release、publish 或任何 9.3.5/9.4.0 production change。
+- stop_rule: 任一 merge gate 不满足即停止并请求重规划；合并和只读核验完成后停止，
+  等待 Step 7 下一阶段单独授权。
 
 ## Risks and Open Questions
 
 - known_risks:
   - 不接入 required CI/branch protection 后，未来 PR/merge 不具备自动 fail-closed 保障；这是 owner 明确接受的流程风险，不是本地 9.3.4 authority blocker。
   - 完整 authority 成本高；必须先用 contract/negative/focused preflight 收敛，再各执行唯一一次 Step 5 和 Step 7。
-  - exact clean `origin/main` 仍需要后续单独 merge/main 授权；本契约不授权 merge、tag、release 或 publish。
+  - PR #124 合并后 `origin/main` 将形成新的 merge commit；在 Step 7 authority 运行并独立签收前，该 commit 只是 authority entry，不是已验收版本。
+  - 本次只授权 merge，不授权 Step 7 preflight/runner、tag、release 或 publish。
 - open_questions: none
 
 ## Ultra Execution Contract

@@ -71,7 +71,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
 | 5 | authority runner rehearsal / immutable candidate | ACCEPTED / replacement r2 independently signed off | accepted current Step 4 and package remediations | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
-| 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` | pending：full local authority + quality→coverage→acceptance signed-off |
+| 7 | clean-commit 本地权威回放与后置门 | APPROVED / merge-only authorization | Step 5 accepted；PR #124 实时复核后以 merge commit 建立 exact `origin/main` entry | authority preflight/runner 尚未授权；后续仍需 full local authority + quality→coverage→acceptance signed-off |
 
 Steps 1–5 未记录 exit=`passed`，后一步不得改为 in-progress；Step 6 不再是
 Step 7 prerequisite。
@@ -166,6 +166,18 @@ Step 7 prerequisite。
   downstream；Step7、merge、tag、release、publish 继续未授权且未启动。
 - signoff:
   `docs/9.3.4/acceptance/step5-local-rehearsal-no-ci-fullclone-r2-signoff-20260723.md`
+
+## Execution Check-in — Step 7 minimum contract and merge-only authorization（2026-07-23）
+
+- repository owner 已授权冻结 Step 7 最小契约，并在实时复核 PR #124 后执行
+  merge commit；禁止 squash/rebase，以保留既有 tested/accepted ancestry。
+- merge 前必须确认 exact pushed head/base、PR=`OPEN`/non-draft/
+  `MERGEABLE/CLEAN`、main 无反向 divergence、Actions=`enabled=false`、status
+  checks 为空且 queued/in-progress=`0/0`。
+- merge 完成只建立 exact clean `origin/main` entry，不等于 Step 7 authority 或
+  9.3.4 version acceptance。
+- Step 7 preflight/authority runner、tag、release、publish 仍未授权；合并后只执行
+  PR/merge-parent/main/no-CI/original-workspace 的只读核验并停止。
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 
