@@ -3,15 +3,16 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: NEEDS_REPLAN
+status: APPROVED
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
 approved_at: 2026-07-23
-activated_at: 2026-07-23
-activation_parent: deb92e78d8a01aeef227f6ca8c9f9a60d9b162a2
-active_scope: none
-replan_reason: Step 5 r1 rejected linked-worktree .git metadata before Step 4
+replan_approved_at: 2026-07-23
+activated_at: pending
+activation_parent: pending
+active_scope: replacement Step 5 full-clone preflight only
+replan_resolution: private full clone plus pre-activation scan-runtime-source
 open_questions: []
 ---
 
@@ -49,7 +50,8 @@ open_questions: []
   - 不修改 9.3.3 historical exact authority runner，也不拼接历史 run 形成新 authority。
 - do_not_touch:
   - 不降低 coverage threshold、不扩大 exclusion、不允许 required skip/assumption。
-  - 不清理、覆盖、stash 或混入用户的 dirty baseline；runner 必须在独立 clean worktree 中 fail closed。
+  - 不清理、覆盖、stash 或混入用户的 dirty baseline；replacement runner 必须在
+    独立 private full clone 中 fail closed，且 `.git` 必须为真实目录。
   - 不把 candidate pointer 当 final authority pointer；失败运行不得更新任何成功 pointer。
   - 本交付不得修改 repository Actions enablement、branch rule、required checks 或 PR merge policy。
 
@@ -60,6 +62,8 @@ open_questions: []
 | 原 Step 6 标记为 owner-waived / out-of-scope | owner 明确不考虑接入 CI | 不再是 Step 7 entry 或 9.3.4 signoff blocker |
 | Step 5 后直接进入 exact-clean-main 的 Step 7 | 保留既有 runner/证据编号，避免重编号破坏历史引用 | Step 5 必须先独立签收；merge/main 操作仍需单独授权 |
 | GitHub Actions 在本交付期间保持 disabled 且不作为证据源 | 消除 remote run 与本地 authority 的所有权混淆 | 不配置 required check/branch protection；既有 workflow 文件不删除 |
+| replacement Step 5 使用 private full clone | r1 已证明 linked worktree 的 `.git` regular file 不满足 sealed artifact tool | 不修改 Step 5 tool/manifest/hash closure；full clone 必须 exact pushed HEAD、clean、non-shallow |
+| activation 前直接执行 `scan-runtime-source` | 把 r1 的环境契约缺口前移到不消耗 attempt 的轻量门 | receipt 必须 exit=0、`status=passed`、`command=scan-runtime-source`、`git_head` 精确匹配 |
 | 测试只在 owning lane 执行一次，coverage collector 只聚合 exec/XML | 防止重复执行造成结果漂移或双计 | unit、SQLite broad、five-DB、external exact inventory 继续 fail closed |
 | archive 使用内容相对路径和规范元数据生成 deterministic digest | Step 3/4 run-local absolute path/mtime 不可搬迁 | 解压到不同目录后必须可独立 verify |
 | Launcher candidate JAR 与 runtime-only image embedded JAR 必须同源 | 本地 authority 仍需证明候选制品身份 | 禁止 package/image 路径 source rebuild 或替换 JAR |
@@ -97,20 +101,37 @@ open_questions: []
 ## Validation Cost and Attempt Control
 
 - focused/static preflight: `<5m`，可按输入变化重跑。
-- Step 5 rehearsal: `>60m`，maximum attempts=`1`；仅 runner/source/fixture/环境假设实质改变时旧证据失效。失败后保留安全证据、设置 `NEEDS_REPLAN` 并停止，不自动重试。
+- Step 5 rehearsal r1: attempt 已消耗且保持 failed-closed，不得改写或拼接。
+- Step 5 replacement rehearsal: `>60m`，maximum attempts=`1`；仅在 private full
+  clone preflight 全部通过并提交 activation 后启动。失败后保留安全证据、设置
+  `NEEDS_REPLAN` 并停止，不自动重试。
 - Step 7 authority: `>60m`，maximum attempts=`1`；只在 Step 5 已独立签收、exact clean `origin/main` 和单独执行授权齐备后运行。失败后设置 `NEEDS_REPLAN` 并停止。
 - test-only、文档或证据传输变更不自动推翻与其无依赖关系的产品正确性证据。
 
 ## Active Execution Authorization
 
-- authorized_stage: Step 5 rehearsal only；不授权 merge、Step 7、tag、release 或 publish。
+- authorized_stage: replacement Step 5 private-full-clone preflight only；preflight
+  通过后允许提交 activation，并启动 exactly one replacement rehearsal；不授权
+  merge、Step 7、tag、release 或 publish。
+- clone_identity: canonical origin 的新 private full clone；`.git` 为 real
+  directory；clean、non-shallow、HEAD 与 pushed PR head 精确一致。
+- required_new_preflight:
+  - `python3 scripts/v934/step5/release_artifact_tool.py scan-runtime-source
+    --repo-root <clone>` exit=`0`；
+  - receipt 的 `command=scan-runtime-source`、`status=passed`、
+    `git_head=<exact HEAD>`、`module_count=13`；
+  - 既有 manifest/static/focused negatives、runtime base、ports、pointer、
+    process-owner 和 Actions-disabled 检查仍全部通过。
+- activation_gate: preflight receipt 固化后，用 docs-only commit 把本文件改为
+  `ULTRA_EXECUTING` 并记录 exact activation parent；activation 必须先推送并与
+  PR head 精确一致，runner 才能启动。
 - process_owner: 一个新的私有 `0700` tmux control directory；启动后当前会话只作观察者。
 - environment: 启动命令必须 `env -u` 清除 `MAVEN_ARGS`、`MAVEN_BASEDIR`、
   `MAVEN_CONFIG`、`MAVEN_OPTS`、`MAVEN_SKIP_RC`、`JAVA_TOOL_OPTIONS`、
   `JDK_JAVA_OPTIONS`、`_JAVA_OPTIONS`。
-- attempt_budget: exactly one；无自动重试。
-- stop_rule: preflight 不满足则不消耗 attempt；runner 启动后的任何失败均保留证据、
-  设置 `NEEDS_REPLAN` 并停止。
+- attempt_budget: replacement exactly one；无自动重试。
+- stop_rule: preflight 不满足则不激活、不消耗 replacement attempt；runner
+  启动后的任何失败均保留证据、设置 `NEEDS_REPLAN` 并停止。
 
 ## Risks and Open Questions
 
@@ -147,8 +168,8 @@ open_questions: []
   delivery contract but not the tool's previously unstated full-clone
   requirement.
 - residual_risks: required CI/branch protection intentionally absent by owner
-  decision; replacement rehearsal requires owner-approved full-clone replan.
-- readiness: NEEDS_REPLAN
+  decision; replacement full-clone rehearsal remains pending.
+- readiness: APPROVED / replacement preflight pending
 
 ## References
 

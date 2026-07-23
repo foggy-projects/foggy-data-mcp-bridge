@@ -69,7 +69,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
-| 5 | authority runner rehearsal / immutable candidate | failed-closed / NEEDS_REPLAN | accepted current Step 4 and package remediations | no-CI r1 stopped at `runtime-source-before`: linked-worktree `.git` rejected; no Step4/Maven/Docker/pointer; replacement attempt forbidden pending owner replan |
+| 5 | authority runner rehearsal / immutable candidate | approved / replacement preflight pending | accepted current Step 4 and package remediations | one private-full-clone replacement authorized conditionally；activation requires direct `scan-runtime-source` PASS first |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` | pending：full local authority + quality→coverage→acceptance signed-off |
 
@@ -98,6 +98,16 @@ Step 7 prerequisite。
   full clone，并在 activation 前增加 `scan-runtime-source` 预检；不得自动重试。
 - evidence:
   `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-r1-git-metadata-preflight-fail-closed-20260723.md`
+
+## Execution Check-in — Step 5 full-clone replacement replan（2026-07-23）
+
+- owner 批准保持 no-CI scope、现有 runner/tool/manifest bytes 不变，仅把
+  replacement 执行环境改为 private full clone。
+- preflight 必须在 activation 前直接执行 `scan-runtime-source`，并精确验证
+  receipt command/status/git_head/module_count；失败不消耗 replacement attempt。
+- preflight 全绿后允许提交一次 docs-only activation，并启动 exactly one
+  replacement rehearsal；runner 启动后任何失败均回到 `NEEDS_REPLAN`，不得自动重试。
+- Step 7、merge、tag、release、publish 仍未授权；Actions 继续 disabled。
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 
