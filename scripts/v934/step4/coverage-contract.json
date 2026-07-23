@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "kind": "v934-step4-coverage-contract",
-  "status": "formal-ready",
+  "status": "diagnostic-ready",
   "tooling_manifest": {
     "path": "scripts/v934/step4/SHA256SUMS",
     "path_semantics": "repository-relative-posix",
     "required_entries": 63,
-    "publication_status": "formal-ready"
+    "publication_status": "diagnostic-ready"
   },
   "parent_links": {
     "step1_coverage_policy": {
