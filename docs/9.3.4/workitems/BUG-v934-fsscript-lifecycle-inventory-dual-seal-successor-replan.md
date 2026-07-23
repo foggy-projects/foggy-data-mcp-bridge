@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-LIFECYCLE-INVENTORY-DUAL-SEAL-SUCCESSOR-REPLAN
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-start-steps-1-through-8
@@ -100,11 +100,11 @@ open_questions: []
   86-case negative 全部闭合；Step5 bytes/manifest、报告基数和 coverage policy 不变。
 - [x] AC-5: diagnostic-ready integration diff 仅包含本 work item implementation result 和批准的
   5 个 tool/hash closure 文件；不含产品/测试/POM/outer runner/report amendment。
-- [ ] AC-6: activation Cdiag 是 integration 的直接单父子，diff 仅本文件 `status/readiness`
+- [x] AC-6: activation Cdiag 是 integration 的直接单父子，diff 仅本文件 `status/readiness`
   两字段 `APPROVED -> ULTRA_EXECUTING`；fresh clone clean、non-shallow、detached exact HEAD。
-- [ ] AC-7: 唯一新 diagnostic 使用新 run ID，完成 required lanes、source before/after、report
+- [x] AC-7: 唯一新 diagnostic 使用新 run ID，完成 required lanes、source before/after、report
   inventory、coverage、sensitive、cleanup、candidate/capsule；所有 F/E/S 为 0。
-- [ ] AC-8: 仅 AC-7 成功后推进 direct-child Cfreeze、fresh formal、Step5-7；任一新昂贵运行
+- [x] AC-8: 仅 AC-7 成功后推进 direct-child Cfreeze、fresh formal、Step5-7；任一新昂贵运行
   失败均记录 failed/excluded、设置 `NEEDS_REPLAN` 并停止，不自动重试。
 
 ## Contract / Data / Security Constraints
@@ -188,39 +188,48 @@ open_questions: []
 
 ## Implementation Result
 
-> Focused implementation is complete and diagnostic-ready. Status remains `APPROVED`; only a
-> separate two-field activation Cdiag may authorize the governed runner.
+> Focused implementation, the unique fresh diagnostic and direct-child Cfreeze succeeded. The sole
+> fresh formal invocation was externally interrupted before terminal authority and is permanently
+> excluded; execution stops fail closed without retry.
 
 - implementation_summary: atomically synchronized the nested outer raw SHA and reviewed
-  executable-stream SHA, then recomputed the Step4 manifest and Step6 CI contract/tool/manifest
-  digest closure. The canonical outer runner itself was not modified.
+  executable-stream SHA, closed the Step4/Step6 digest chain, completed the unique fresh diagnostic,
+  reviewed its threshold candidate/capsule and created direct-child Cfreeze
+  `5c57e537603004d47be936f74e92f873de5fe431`. The canonical outer runner and product/test bytes were
+  not modified by the formalization commit.
 - changed_paths:
-  - this canonical work item;
-  - `scripts/v934/step4/run_log_lifecycle_negative_test.sh`;
-  - `scripts/v934/step4/SHA256SUMS`;
-  - `scripts/v934/step6/ci-contract.json`;
-  - `scripts/v934/step6/ci_contract_tool.py`;
-  - `scripts/v934/step6/SHA256SUMS`.
+  - focused integration: this work item plus the five approved lifecycle/Step4/Step6 hash-closure
+    paths;
+  - Cfreeze: six reviewed diagnostic evidence documents/artifacts and six exact Step4/Step6
+    formalization paths;
+  - failure record:
+    `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-dual-seal-formal-20260722-r8-external-interruption-fail-closed.md`;
+  - this canonical work-item terminal state.
 - tests_and_results:
-  - independent executable-stream recomputation=`c696f9bf34e76bd3a5cae97d28ed378cae2cc78b872fc9c948985afc5c763a0c`;
-  - canonical raw binding=`status=passed count=4`；Step4/Step6 manifests、Bash/Python/JSON syntax、
-    `git diff --check`=PASS；
-  - complete lifecycle suite=exit 0/PASS，保持 `runner-seal-binding=1+6`、Unit shape=16、
-    Integration shape=14、semantic seal=2+5、source seal=3、outer/library shape=4+3；
-  - coverage contract=`774+59/5709`, `23 exec/48 sessions`, status=passed；successor overlay=passed；
-    workflows=`4`, status=passed；CI negative=`86/86`, result SHA-256=
-    `9ba9c1d403ae269b543b72bfe8b1ef18b6bd5c773ff023a3becaf844d7b44638`；
-  - no lifecycle helper/persistent-child remained after the suite.
-- manual_or_experience_evidence: outer raw remained
-  `ccda7e7e78547a30ada3466df76d197c483ddd3d16be3f43dcad0ff47e37a57e`; lifecycle tool=
-  `8ce0fd26b335ddad899178da760ee9bd8b77395b7ef0bb35f9a3cdffe77a17e3`; Step4 manifest=
-  `704b31cbd274578f4ca5e8d491b609c151f2026a84198bc479e24cb55ee956f3`; Step6 manifest=
-  `a1bb362888057201a9f674e66711c33be79a4b8e6fd7beebbef94ce55d38ff64`；Step5 manifest unchanged=
-  `e8aaa30f853ce723e6d2b9b09ce5e7241b3638b2748f80d55ae04a438624f4c7`.
-- deviations: none
-- residual_risks: fresh all-lane diagnostic and subsequent formal/Step5-7 remain pending and retain
-  their existing Docker, port and external-environment risks.
-- readiness: ULTRA_EXECUTING
+  - focused raw/executable-stream binding, lifecycle suite, Step4/Step6 manifests, coverage/overlay,
+    four workflows and CI negative `86/86`: PASS;
+  - diagnostic `step4-v934-fsscript-lifecycle-dual-seal-diagnostic-20260722-r7`: PASS with
+    `23/48` exec/sessions, `774+59/5709`, Addon `2/6`, all F/E/S zero, all critical floors met,
+    cleanup/model/sensitive PASS, candidate/capsule verified;
+  - formal `step4-v934-fsscript-lifecycle-dual-seal-formal-20260722-r8`: Unit child PASS at
+    `682+55/4943` with zero process-group/MySQL fixture residue; integration canonical PASS markers
+    through `sqlite-lifecycle`; external interruption occurred during `sqlite-refresh` before any
+    integration-complete or outer terminal receipt;
+  - no formal summary, run-status, final coverage/cleanup verdict, candidate or capsule exists; r8
+    is FAILED/EXCLUDED and no retry was attempted.
+- manual_or_experience_evidence: diagnostic Cdiag=
+  `462d64acf0865f44582b2b1245a9b4c771aad4cd`; Cfreeze=
+  `5c57e537603004d47be936f74e92f873de5fe431`; formal source SHA-256=
+  `21b9bddf5f5a120b8058ddaab5a9c0088ae2f72a9e67668d17a095bb391ca01a`; post-interruption audit
+  found no live process matching the formal run, but this does not substitute for the missing outer
+  cleanup finalizer.
+- deviations: the outer tool session terminated the sole formal invocation after its start. This is
+  an execution-environment interruption, not a product-test verdict, but the one-attempt contract
+  still requires fail-closed exclusion.
+- residual_risks: Step4 formal authority and Step5-7 remain incomplete. A future attempt requires a
+  new approved successor Cplan, new activation identity and new run ID; partial r8 evidence cannot be
+  reused or spliced.
+- readiness: NEEDS_REPLAN
 
 ## References
 
@@ -228,6 +237,8 @@ open_questions: []
   `docs/9.3.4/workitems/BUG-v934-fsscript-lifecycle-inventory-source-seal-successor-replan.md`
 - focused fail-closed evidence:
   `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-inventory-source-seal-successor-focused-lifecycle-fail-closed.md`
+- formal interruption record:
+  `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-dual-seal-formal-20260722-r8-external-interruption-fail-closed.md`
 - historical binding bug:
   `docs/9.3.4/workitems/BUG-step4-outer-runner-source-seal-binding-drift.md`
 - controlling release item:
