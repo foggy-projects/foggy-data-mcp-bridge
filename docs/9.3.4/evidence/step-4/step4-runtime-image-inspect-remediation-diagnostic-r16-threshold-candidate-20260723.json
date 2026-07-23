@@ -1,36 +1,4 @@
 {
-  "schema_version": 1,
-  "kind": "v934-step4-coverage-threshold-successor",
-  "status": "confirmed",
-  "parent_policy": {
-    "path": "scripts/v934/coverage-thresholds.json",
-    "sha256": "45058f63b71558e4660f60e0cfda9a8a490fa8f96b532c6656c3d726eaad44fb",
-    "immutable": true
-  },
-  "jacoco": {
-    "version": "0.8.12",
-    "aggregate_reporter": "build-only",
-    "aggregate_check": "versioned-xml-verifier"
-  },
-  "model_inherited_gate": {
-    "module": "foggy-dataset-model",
-    "exec_policy": "merged-unit-and-all-required-it",
-    "bundle": {
-      "line": 0.77,
-      "branch": 0.62
-    },
-    "classes": [
-      {
-        "fqcn": "com.foggyframework.dataset.db.model.impl.SemanticScaleSqlSupport",
-        "line": 1.0,
-        "branch": 1.0
-      }
-    ]
-  },
-  "critical_candidate_floor": {
-    "line": 0.8,
-    "branch": 0.7
-  },
   "aggregate_observed": {
     "branch": {
       "covered": 26117,
@@ -427,12 +395,22 @@
       "module": "addons/foggy-dataset-model-cache"
     }
   ],
-  "review": {
-    "reviewer": "codex-governed-cfreeze-review",
-    "reviewed_at": "2026-07-23T07:14:35Z",
+  "kind": "v934-step4-coverage-threshold-freeze-candidate",
+  "predecessor": {
+    "path": "scripts/v934/step4/coverage-thresholds.json",
+    "sha256": "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96",
+    "status": "diagnostic-pending"
+  },
+  "review_requirements": {
+    "decision": "confirm-observed-thresholds",
     "diagnostic_run_id": "step4-v934-runtime-image-inspect-remediation-diagnostic-20260723-r16",
-    "evidence_path": "docs/9.3.4/evidence/step-4/step4-runtime-image-inspect-remediation-diagnostic-r16-threshold-review-20260723.md",
-    "evidence_sha256": "b36a6883395bfd59a58d5836f04b815e12a5735d784677393834cb330ac919eb",
-    "decision": "confirm-observed-thresholds"
-  }
+    "required_fields": [
+      "reviewer",
+      "reviewed_at",
+      "evidence_path",
+      "evidence_sha256"
+    ]
+  },
+  "schema_version": 1,
+  "status": "review-required"
 }
