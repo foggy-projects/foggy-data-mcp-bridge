@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-MERGE-REGRESSION-FOCUSED-DIAGNOSIS
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-focused-diagnosis-authorization
@@ -202,7 +202,7 @@ open_questions: []
 
 ## Implementation Result
 
-> Pending activation and the one governed focused diagnostic matrix.
+> Activated for the one governed focused diagnostic matrix.
 
 - implementation_summary: pending
 - changed_paths: pending
@@ -210,7 +210,8 @@ open_questions: []
 - manual_or_experience_evidence: pending
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED — awaiting clean pushed activation.
+- readiness: ULTRA_EXECUTING — this clean single-parent commit is the sole
+  activation and must be pushed before the live diagnostic.
 
 ## References
 
