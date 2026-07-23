@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-INSPECT-FORMAT-POST-REMEDIATION-PACKAGE-PROOF-REPLAN
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-sequential-release-authority-authorization
@@ -209,7 +209,8 @@ open_questions: []
 - manual_or_experience_evidence: pending
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED — runner not yet authorized until the separate activation commit is pushed.
+- readiness: ULTRA_EXECUTING — this clean single-parent commit is the sole activation; its exact SHA
+  is bound before any runtime invocation and recorded in the terminal evidence.
 
 ## References
 
