@@ -6,7 +6,7 @@ priority: P0
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-20
+updated_at: 2026-07-23
 ---
 
 # P0 测试与 CI 证据链
@@ -16,6 +16,16 @@ updated_at: 2026-07-20
 - doc_type: requirement
 - intended_for: project-root-session / build owner / CI owner / signoff owner
 - purpose: 冻结 9.3.4 的目标、边界、fail-closed 规则和版本完成门。
+
+## Owner Scope Override（2026-07-23）
+
+- 原 Step 6 GitHub CI 接线已移出当前版本交付：不启用/接入 Actions required
+  gate，不配置 required check/branch protection，不执行 GitHub release dry-run。
+- CI 相关原始 requirement 保留为历史设计，不再是 9.3.4 version signoff 的
+  acceptance requirement；当前唯一 canonical 范围以
+  `docs/9.3.4/workitems/FEATURE-v934-release-authority-and-ci.md` 为准。
+- 本地 Steps 1–5 与 exact-clean-main Step 7 的 fail-closed、coverage、五库、
+  archive、JAR/image identity 和独立签收要求保持不变。
 
 ## 背景
 

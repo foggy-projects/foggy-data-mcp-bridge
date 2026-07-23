@@ -4,7 +4,7 @@ doc_purpose: Define the strict Step 1-7 implementation and verification order fo
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-20
+updated_at: 2026-07-23
 ---
 
 # 9.3.4 Implementation Plan
@@ -14,6 +14,14 @@ updated_at: 2026-07-20
 - doc_type: implementation-plan
 - intended_for: project-root-session / build owner / CI owner / reviewer
 - purpose: 固定每步输入、代码触点、验证、证据和下一步进入条件。
+
+## Owner Scope Override（2026-07-23）
+
+- 原 Step 6 GitHub CI 接线为 `owner-waived / out-of-scope`，不执行 workflow、
+  artifact collector、aggregator、required check、branch protection 或 GitHub
+  release dry-run。
+- Step 7 在 Step 5 accepted 后直接进入，以 exact clean `origin/main` 的本地
+  authority 为版本证据；旧 Step 6 正文仅由本节替代，不再是 active work。
 
 ## Global Entry
 
@@ -25,10 +33,10 @@ updated_at: 2026-07-20
   change；authority clean-commit requirement applies at Step 7, not by destructive cleanup。
 - predecessor rule: v931–v933 raw evidence、exact FQCN/count 和 runners保持封存；
   9.3.4 用 reviewed migration manifest + successor lanes 证明 current-source 等价回归。
-- rehearsal rule: Step 5 可在 protected dirty baseline 演练，只产 candidate；Step 6
-  使用 review commit 接线 CI；只有 Step 7 exact clean commit run 是 final authority。
-- execution rule: one root progress, strict Step 1→7；each exit must be recorded before
-  next step starts。
+- rehearsal rule: Step 5 只产 candidate；原 Step 6 不执行；只有 Step 7 exact clean
+  `origin/main` run 是 final authority。
+- execution rule: one root progress, strict Step 1→5→7；Steps 1–5 的 exit 必须在
+  后一步开始前记录，Step 6 不作为 dependency。
 
 ## Step 1 — 契约与静态库存冻结
 
@@ -531,44 +539,26 @@ Exit：单一 exact candidate 可独立复算；状态明确 diagnostic/candidat
 不更新 candidate pointer，任何 candidate 都不更新 final authority pointer；evidence
 archive/digest/download/image-JAR verify pass。Progress 回写 Step 5。
 
-## Step 6 — PR/Main/Release CI 接线
+## Step 6 — PR/Main/Release CI 接线（Owner-Waived / Out of Scope）
 
-Inputs：rehearsed authority commands/candidate artifacts。
+Inputs：N/A。
 
-Work：
+Work：不执行。不得由本交付启用 GitHub Actions、修改 workflow/branch settings、
+配置 required checks，或把任意 GitHub Actions run 当作 authority。
 
-1. 建 reusable workflow，jobs 分为 inventory+unit、SQLite broad integration、
-   five-DB contract matrix、coverage collector/check、package/evidence 和 always-run
-   aggregator；coverage job 只下载各 lane exec，不重复执行测试；
-   两个 SQLite job 消费 confirmed Step 2 successor 中冻结的互斥 FQCN manifests，
-   并保留其 Step 1 parent/rename-plan linkage。
-2. 五库每个 matrix cell 上传带 db kind/SHA/run/attempt 的 lane artifact；collector
-   断言 exact set/cardinality=`5`、XML/manifest freshness。aggregator 再读取 collector
-   与其他 required job results，拒绝 failure/skipped/cancelled；check name 稳定。
-3. PR/main 实际触发并保留 run evidence；配置/核对 branch protection required
-   check。无权限时记录 external blocker，不宣称完成。
-4. 收窄/替换 legacy pivot/model-lifecycle workflow authority，禁止重复执行或
-   partial green 被误当 release gate。
-5. release 在同一 workflow run 调用/依赖 full reusable gate，校验 tag SHA，下载已测
-   JAR/evidence，复验 digest；GitHub release 直接发布该 JAR+archive+digests。
-6. Docker job 下载同一 JAR，使用 runtime-only release Dockerfile COPY；push 前回读
-   image `/app/app.jar` SHA；删除 release path 中 skip-external/skip-test/source rebuild。
-
-Exit：PR/main stable required check 实际通过；缺任一 DB artifact、重复/wrong-kind
-artifact 或任一 required job skipped/cancelled 时 aggregator expected-fail；release
-dry-run 的 GitHub JAR 与 image embedded JAR 均等于 gate artifact，missing upload
-error。Progress 回写 Step 6。
+Exit：N/A。progress 记录 owner waiver；Step 7 不依赖 Step 6。
 
 ## Step 7 — Clean-Commit 权威回放与后置门
 
-Inputs：Steps 1–6 completed, clean commit, required CI configured。
+Inputs：Steps 1–5 completed and Step 5 accepted；exact clean `origin/main` commit；
+Step 7 单独执行授权。
 
 Work：
 
-1. 在 exact clean commit 执行完整 v934 local/CI authority；不得调用旧 exact runner
+1. 在 exact clean commit 执行完整 v934 local authority；不得调用旧 exact runner
    冒充 current pass，也不得拼接旧/candidate run。
-2. 从 CI 下载 archive/JAR/image，独立复算 migration coverage、XML/count/skip/
-   coverage/DB/source/JAR/image/hash。
+2. 从 run-owned local archive/JAR/image evidence 独立复算 migration coverage、
+   XML/count/skip/coverage/DB/source/JAR/image/hash，并在不同目录完成 portable verify。
 3. 更新 requirement、contract、inventory、test evidence、progress 和 roadmap。
 4. 严格执行 implementation self-check → formal quality gate → coverage audit →
    version acceptance。
@@ -576,7 +566,7 @@ Work：
    不实施 9.3.5/9.4.0。
 
 Exit：五库/external、coverage、successor regression、package、JAR=image、immutable
-evidence、required CI 全绿；无 blocker/high；9.3.4 version signoff完成。签收记录必须
+evidence 全绿；无 blocker/high；9.3.4 version signoff完成。签收记录必须
 保存 `tested_commit`；authority 后的纯文档回写不冒充新的测试 commit。
 
 ## Stop Conditions
@@ -586,7 +576,6 @@ evidence、required CI 全绿；无 blocker/high；9.3.4 version signoff完成�
   cardinality；
 - DB 无法提供可证明的 product/version/physical identity/sentinel；
 - coverage 只能靠降阈值/扩大 exclusion 过门；
-- CI 平台无法使 required aggregator 对 skipped/cancelled fail；
 - release 无法复用已测 artifact；
 - Docker image 无法证明嵌入同一 tested JAR；
 - 修复需要 9.3.5 public API 或 9.4.0 production module boundary。

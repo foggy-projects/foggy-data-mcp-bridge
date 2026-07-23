@@ -9,7 +9,7 @@ step2_result: passed
 step3_result: passed
 step4_result: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-20
+updated_at: 2026-07-23
 ---
 
 # 9.3.4 Test and Evidence Plan
@@ -20,6 +20,13 @@ updated_at: 2026-07-20
 - intended_for: test/build/CI implementers and evidence reviewers
 - purpose: 把 requirement criteria 映射到可执行 positive、expected-negative 和
   authority evidence；本文件不预填任何通过结果。
+
+## Owner Scope Override（2026-07-23）
+
+- 原 Step 6 GitHub CI/Release 验证整体为 `owner-waived / out-of-scope`。
+- 不运行 Actions required gate、CI artifact collector/aggregator、branch protection
+  或 GitHub release dry-run；这些项目不再属于 Step 7 final acceptance。
+- Step 7 改为从 Step 5 accepted 直接进入 exact clean `origin/main` local authority。
 
 ## Evidence Rules
 
@@ -344,29 +351,16 @@ drift、migration gap、report/JAR/image/source hash mismatch、tampered archive
 artifact、failed run更新 candidate pointer、candidate 更新 final pointer、credential
 scan hit 均失败。
 
-## Step 6 — CI / Release
+## Step 6 — CI / Release（Owner-Waived / Out of Scope）
 
-Positive：
-
-- PR/main reusable workflow 实际运行所有 required jobs；always-run aggregator 名称
-  固定为 reviewed stable check，并确认 branch rule 实际引用。
-- artifact 名含 commit/run/attempt；package/evidence job 下载并复验所有 upstream
-  evidence。
-- five-DB cells 各自产带 db kind/SHA/run/attempt 的 artifact；collector 只接受
-  exact set/cardinality=5 和 fresh manifests/XML。
-- release dry-run 校验 tag SHA，下载同一已测 Launcher JAR/archive/digests；GitHub
-  asset直接使用该 JAR，runtime-only Dockerfile COPY 后回读 image JAR SHA，均不重建。
-
-Expected-negative：任一 required job `failure`、`skipped`、`cancelled`；artifact
-missing/tampered/duplicate/wrong-kind 或 cardinality!=5；tag SHA mismatch；release
-使用 `-DskipTests`、source-building Dockerfile 或生成/嵌入不同 JAR；
-legacy partial workflow 冒充 required authority，全部使 aggregator/release 失败。
+不执行 positive/expected-negative CI 验证。静态存在的 workflow/Step6 工具不等于
+启用、验收或 authority；本交付也不得修改 repository Actions/branch settings。
 
 ## Step 7 — Final Authority and Gate Order
 
 在 exact clean commit 完整回放 v934 successor authority，并由独立 reviewer 从
 migration map、原始 XML、DB manifests、JaCoCo XML、JAR/image/archive digests 和
-CI job states 复算，不只读取 summary。
+local authority receipts 复算，不只读取 summary。
 
 Final acceptance 至少验证：
 
@@ -376,8 +370,8 @@ Final acceptance 至少验证：
 - aggregate XML verifier、model merged-exec 与 critical coverage checks 全通过；
 - 9.3.1–9.3.3 successor mapping/regression、package、Launcher、JAR=image
   same-artifact release 全通过；
-- five-DB artifacts exact set/cardinality=5，且每 cell XML/manifest fresh；
-- CI required aggregator 的 success 与 failure/skipped/cancelled negative 均有实际证据；
+- local authority 的 five-DB execution exact set/cardinality=5，且每 cell
+  XML/manifest fresh；
 - inner/outer/archive digest、下载复验、sensitive scan 全通过；
 - self-check → quality gate → coverage audit → version acceptance 顺序无跳门。
 
@@ -390,8 +384,8 @@ Final acceptance 至少验证：
 | DB-IDENTITY / DB-PARITY / SKIP-ZERO | 3 | five DB manifests/XML/native oracle + unavailable/wrong/skip negatives |
 | COVERAGE-AGG / COVERAGE-CRITICAL | 4 | all-lane exec + aggregate XML verifier + model merged check + negatives |
 | AUTHORITY / EVIDENCE-IMMUTABLE | 5/7 | candidate rehearsal + clean exact run + two-layer/archive digest + recomputation |
-| CI-REQUIRED | 6/7 | exact five-cell artifacts + actual PR/main state negatives + branch-rule evidence |
-| RELEASE-SAME-ARTIFACT | 6/7 | tag/source/JAR/image linkage + download/reverify + rebuild-negative |
+| CI-REQUIRED | N/A | owner-waived / out-of-scope；不作为 9.3.4 acceptance requirement |
+| RELEASE-SAME-ARTIFACT | 5/7 | local candidate/source/JAR/image linkage + portable reverify + rebuild-negative |
 | REGRESSION-931-933 | 1/5/7 | historical→successor mapping + current-source exact lane summaries/raw XML |
 | POST-GATES | 7 | timestamped ordered gate records and version signoff |
 

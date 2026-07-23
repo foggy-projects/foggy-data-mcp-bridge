@@ -5,10 +5,10 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-20
+updated_at: 2026-07-23
 ---
 
-# 9.3.4 测试与 CI 证据链进度
+# 9.3.4 测试与本地 Release Authority 证据链进度
 
 ## 文档作用
 
@@ -17,6 +17,14 @@ updated_at: 2026-07-20
 - purpose: 记录每个 Step 的真实实现、验证、负向证据、偏差和 exit decision；这是
   9.3.4 唯一进度 authority。
 
+## Owner Scope Override（2026-07-23）
+
+- 原 Step 6 GitHub CI 接线已由 repository owner 明确移出 9.3.4 后续范围。
+- Actions required gate、five-cell CI artifact collector、aggregator、required
+  check、branch protection 和 GitHub release dry-run 均不再执行或阻断版本签收。
+- Step 6 编号仅为历史引用保留；Step 7 entry 改为 Step 5 accepted + exact clean
+  `origin/main`。历史记录中旧的 Step 6/CI 描述保持当时事实，不作为当前计划。
+
 ## 基本信息
 
 - requirement: `docs/9.3.4/requirement/P0-test-ci-evidence-chain.md`
@@ -24,7 +32,7 @@ updated_at: 2026-07-20
 - implementation plan: `docs/9.3.4/implementation-plan.md`
 - test plan: `docs/9.3.4/test/test-ci-evidence-chain-test-plan.md`
 - predecessor signoff: `docs/9.3.3/acceptance/version-signoff.md`
-- execution mode: single-root-delivery / strict Step 1→7
+- execution mode: single-root-delivery / strict Step 1→5→7；Step 6 owner-waived
 - implementation owner: current 9.3.4 root session
 - started_at: 2026-07-14
 - completed_at: not-completed
@@ -62,10 +70,11 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
 | 5 | authority runner rehearsal / immutable candidate | failed-closed / r3 superseded | r38 revalidation accepted | r3 stopped at sqlite-broad on one TTL oracle failure; retry only after the new Step 4 chain; no Step 6/7 or version signoff implication |
-| 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
-| 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
+| 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
+| 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` | pending：full local authority + quality→coverage→acceptance signed-off |
 
-任一步未记录 exit=`passed`，后一步不得改为 in-progress。
+Steps 1–5 未记录 exit=`passed`，后一步不得改为 in-progress；Step 6 不再是
+Step 7 prerequisite。
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 

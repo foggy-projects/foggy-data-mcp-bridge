@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-20
+updated_at: 2026-07-23
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -14,8 +14,21 @@ updated_at: 2026-07-20
 
 - doc_type: requirement+contract+plan+progress+acceptance-evidence-index
 - intended_for: project-root-session / build owner / CI owner / reviewer
-- purpose: 把 Failsafe 分层、五数据库矩阵、聚合覆盖率、required CI 与
-  immutable release evidence 拆成严格 1~7 的可执行版本计划。
+- purpose: 把 Failsafe 分层、五数据库矩阵、聚合覆盖率与 immutable local release
+  evidence 拆成可执行版本计划。
+
+## Owner Scope Override（2026-07-23）
+
+- repository owner 已明确移除原 Step 6 GitHub CI 接线；本版本不启用或接入
+  GitHub Actions required gate，不配置 required check/branch protection，也不执行
+  GitHub release dry-run。
+- 现有 `.github/workflows`、`scripts/v934/step6` 和历史 CI 证据保持原样，只作为
+  历史材料，不删除、不重写、不作为 9.3.4 当前 authority 或签收门槛。
+- 编号为兼容历史引用而保留：Step 6=`owner-waived / out-of-scope`；Step 7 在
+  Step 5 独立签收后直接以 exact clean `origin/main` 为 entry。
+- 本节和 canonical
+  `workitems/FEATURE-v934-release-authority-and-ci.md` 覆盖本目录旧文档中与上述
+  决策冲突的 active planning 语句；历史运行事实和验收记录不回写。
 
 ## Entry Decision
 
@@ -620,11 +633,12 @@ updated_at: 2026-07-20
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | r9 exclusion and recovery reset do not open entry; wait for replacement formal successor + final quality + Step 4 coverage audit/feature acceptance |
-| 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
-| 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
+| 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
+| 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` → local authority → quality→coverage→version acceptance |
 
-任一步未满足 exit，不进入下一步；expected-negative、diagnostic 和 superseded
-run 不得拼接为绿色 authority。
+Steps 1–5 未满足 exit 不进入下一步；Step 6 不再是执行或签收依赖；Step 7 只在
+Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run 不得拼接为
+绿色 authority。
 
 9.3.1–9.3.3 historical run/FQCN/count 保持封存；重命名后的 9.3.4 通过 reviewed
 predecessor migration manifest 和 successor current-source lanes 证明等价回归，
