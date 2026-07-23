@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-MERGE-REGRESSION-REMEDIATION
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: release-owner-via-explicit-github-actions-scope-clarification
@@ -307,3 +307,14 @@ open_questions: []
   `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-format-remediation.md`
 - completed remediation evidence:
   `docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-merge-regression-remediation-r19-passed-20260723.md`
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: independent-release-reviewer
+- signed_off_at: 2026-07-23
+- acceptance_record:
+  `docs/9.3.4/acceptance/step5-runtime-image-inspect-merge-regression-remediation-signoff-20260723.md`
+- blocking_items: none
+- follow_up_required: no
