@@ -69,7 +69,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
-| 5 | authority runner rehearsal / immutable candidate | READY_FOR_SIGNOFF / replacement r2 passed | accepted current Step 4 and package remediations | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
+| 5 | authority runner rehearsal / immutable candidate | ACCEPTED / replacement r2 independently signed off | accepted current Step 4 and package remediations | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` | pending：full local authority + quality→coverage→acceptance signed-off |
 
@@ -148,6 +148,24 @@ Step 7 prerequisite。
   `READY_FOR_SIGNOFF`，不得解释为版本最终签收。
 - evidence:
   `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-passed-20260723.md`
+
+## Acceptance Check-in — Step 5 full-clone replacement accepted（2026-07-23）
+
+- independent signoff input：PR #124 head=
+  `c6654042d0b4f7b9abdd2e524c64e451e070e90a`；tested commit=
+  `6c3ee97abbe49c0cf5cf485d2ddeb4ba7ff7c84f`。
+- candidate pointer、summary、source seals、Step4/Unit/Integration/五库/External/
+  Addon raw summaries、archive/JAR/image identity、异目录 verify 与 negatives
+  全部交叉一致；`final-run.env`、`authority-run.env` 和
+  `final-authority-run.env` 均不存在。
+- live repository audit：PR 仍 open；Actions=`enabled=false`，queued/in-progress=
+  `0/0`，无 status check 被作为 authority；无 9.3.4 tag 或 release。
+- original workspace 仍只含既有 `docs/9.3.5` dirty baseline；Step5 closure 与
+  本签收提交均未包含这些路径。
+- decision=`accepted` for replacement Step 5 only。semantic portable replay 仍为
+  downstream；Step7、merge、tag、release、publish 继续未授权且未启动。
+- signoff:
+  `docs/9.3.4/acceptance/step5-local-rehearsal-no-ci-fullclone-r2-signoff-20260723.md`
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 

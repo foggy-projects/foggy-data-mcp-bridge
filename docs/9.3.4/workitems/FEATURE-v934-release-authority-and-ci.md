@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -11,12 +11,16 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: replacement Step 5 rehearsal completed; awaiting independent signoff
+active_scope: replacement Step 5 rehearsal independently accepted; Step 7 remains pending and separately authorized
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
 replacement_tested_commit: 6c3ee97abbe49c0cf5cf485d2ddeb4ba7ff7c84f
 replacement_completed_at: 2026-07-23
+accepted_scope: replacement Step 5 rehearsal only
+accepted_at: 2026-07-23
+accepted_by: independent-release-reviewer
+acceptance_record: docs/9.3.4/acceptance/step5-local-rehearsal-no-ci-fullclone-r2-signoff-20260723.md
 open_questions: []
 ---
 
@@ -76,7 +80,7 @@ open_questions: []
 ## Acceptance Criteria
 
 - [x] AC-1: 单一 `verify-v934-release-gate.sh rehearsal` 串联 inventory、unit、integration、five-DB/external、9.3.1–9.3.3 successor regression、coverage collect/check、package/Launcher audit，且每个 owning suite 只执行一次。
-- [ ] AC-2: candidate run root 具备 source/environment/inventory/report/DB/coverage/regression/JAR/image manifests、inner/outer hashes、deterministic archive/digest；异目录 verify、portable replay 与 image `/app/app.jar` SHA 复算通过。
+- [x] AC-2: candidate run root 具备 source/environment/inventory/report/DB/coverage/regression/JAR/image manifests、inner/outer hashes、deterministic archive/digest；异目录 verify、portable replay 与 image `/app/app.jar` SHA 复算通过。
 - [x] AC-3: skip flags、missing/stale/tampered artifacts、report/skip/migration/hash/source/JAR/image drift、failed pointer publication 和 credential scan 命中等 expected-negative 全部 fail closed。
 - [x] AC-4: 原 Step 6 明确记录为 `owner-waived / out-of-scope`；本交付未启用 Actions、未运行或接入 GitHub required gate、未修改 branch protection/required checks，且这些项目不再阻断 Step 7。
 - [ ] AC-5: `verify-v934-release-gate.sh authority` 在 exact clean `origin/main` commit 取得单一 fresh local authority；inventory、required S0、五库/external、coverage critical gates、successor regression、package/Launcher、archive 和 same-JAR 全绿，无跨 run 拼接。
@@ -193,6 +197,19 @@ open_questions: []
   final signoff remain pending and separately authorized.
 - readiness: `READY_FOR_SIGNOFF` for Step5 rehearsal only. This is not Step7 or
   9.3.4 final authority.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- accepted_scope: replacement Step 5 rehearsal only
+- signed_off_by: independent-release-reviewer
+- signed_off_at: 2026-07-23
+- acceptance_record:
+  `docs/9.3.4/acceptance/step5-local-rehearsal-no-ci-fullclone-r2-signoff-20260723.md`
+- blocking_items: none
+- follow_up_required: yes；Step 7 requires separate authorization and is not
+  started by this acceptance.
 
 ## References
 
