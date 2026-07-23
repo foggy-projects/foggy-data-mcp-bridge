@@ -3,11 +3,14 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
 approved_at: 2026-07-23
+activated_at: 2026-07-23
+activation_parent: deb92e78d8a01aeef227f6ca8c9f9a60d9b162a2
+active_scope: Step 5 local rehearsal only
 open_questions: []
 ---
 
@@ -96,6 +99,17 @@ open_questions: []
 - Step 5 rehearsal: `>60m`，maximum attempts=`1`；仅 runner/source/fixture/环境假设实质改变时旧证据失效。失败后保留安全证据、设置 `NEEDS_REPLAN` 并停止，不自动重试。
 - Step 7 authority: `>60m`，maximum attempts=`1`；只在 Step 5 已独立签收、exact clean `origin/main` 和单独执行授权齐备后运行。失败后设置 `NEEDS_REPLAN` 并停止。
 - test-only、文档或证据传输变更不自动推翻与其无依赖关系的产品正确性证据。
+
+## Active Execution Authorization
+
+- authorized_stage: Step 5 rehearsal only；不授权 merge、Step 7、tag、release 或 publish。
+- process_owner: 一个新的私有 `0700` tmux control directory；启动后当前会话只作观察者。
+- environment: 启动命令必须 `env -u` 清除 `MAVEN_ARGS`、`MAVEN_BASEDIR`、
+  `MAVEN_CONFIG`、`MAVEN_OPTS`、`MAVEN_SKIP_RC`、`JAVA_TOOL_OPTIONS`、
+  `JDK_JAVA_OPTIONS`、`_JAVA_OPTIONS`。
+- attempt_budget: exactly one；无自动重试。
+- stop_rule: preflight 不满足则不消耗 attempt；runner 启动后的任何失败均保留证据、
+  设置 `NEEDS_REPLAN` 并停止。
 
 ## Risks and Open Questions
 
