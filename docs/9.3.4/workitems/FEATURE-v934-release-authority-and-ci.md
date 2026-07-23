@@ -11,7 +11,7 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: exactly one semantic-replay replacement Step 5 rehearsal on the clean pushed repair branch; no CI, tag, release or publish
+active_scope: semantic-replay replacement Step 5 completed and READY_FOR_SIGNOFF; new Step 7 remains closed pending explicit Step 5 acceptance and exact-main activation; no CI, tag, release or publish
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
@@ -41,12 +41,17 @@ step7_replan_approved_by: repository-owner-via-user-request
 step7_replan_implementation_status: ACCEPTED
 step7_replan_review_chain_status: accepted-by-repository-owner
 semantic_replay_replacement_step5_attempt_budget: 1
-semantic_replay_replacement_step5_attempt_consumed: false
+semantic_replay_replacement_step5_attempt_consumed: true
 semantic_replay_replacement_step5_run_id: step5-semantic-replay-replacement-20260723-r1
 semantic_replay_replacement_step5_preflight_commit: 1e068cd5d8e0fd6bce5afdaa33e4472261b81729
 semantic_replay_replacement_step5_preflight_receipt_sha256: 76313f97925f44bb695546307d69b6ad4f775b500e652bbb62ff6f74b1550404
-semantic_replay_replacement_step5_activation_status: authorized-pending-pushed-activation-commit
-semantic_replay_replacement_step5_runner_status: not-started
+semantic_replay_replacement_step5_activation_status: completed
+semantic_replay_replacement_step5_runner_status: candidate-passed
+semantic_replay_replacement_step5_tested_commit: b9b8adfd725399cf069dd4165582b7d2e8af4b39
+semantic_replay_replacement_step5_completed_at: 2026-07-23
+semantic_replay_replacement_step5_readiness: READY_FOR_SIGNOFF
+semantic_replay_replacement_step5_acceptance_status: pending-explicit-signoff
+semantic_replay_replacement_step5_evidence: docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md
 semantic_replay_replacement_step7_attempt_budget: 1
 semantic_replay_replacement_step7_attempt_consumed: false
 open_questions: []
@@ -321,6 +326,48 @@ open_questions: []
   API/SPI change or final authority pointer creation.
 - evidence:
   `docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-preflight-20260723.md`.
+
+## Semantic Replay Replacement Step 5 Result — 2026-07-23
+
+- execution: the exact pushed activation commit
+  `b9b8adfd725399cf069dd4165582b7d2e8af4b39` was run once as
+  `step5-semantic-replay-replacement-20260723-r1` by the frozen private tmux
+  owner. The pane terminated with status `0`; no retry was started and the
+  replacement Step 5 budget is consumed.
+- runner_result: release summary=`candidate-passed`; Step 4=`release-passed`;
+  source and runtime-source before/after seals are exact. The candidate pointer
+  binds this run and commit; final/authority pointers remain absent.
+- lane_result: aggregate=`23 exec / 48 sessions`; required=
+  `774 positive + 59 structural / 5709 testcase / F0E0S0`; Unit=
+  `682+55 / 4943`; Integration=`47+4 / 320`; five-DB=`29/370`; external=
+  `16/76`; Addon=`2/6`, all F0E0S0. Coverage line=`54630/76834` and branch=
+  `26117/44876`, exactly meeting the frozen minima.
+- replay_regression: same-filesystem=`2`, cross-filesystem=`1`, negatives=
+  `9/9`; policy remains independent-copy-only with the exact three
+  `child-ready/*.json: 0644 -> 0600` restorations and an unchanged extracted
+  source tree. The Step 5 summary intentionally keeps
+  `portable_semantic_replay=required-downstream`.
+- artifact_identity: JAR=image `/app/app.jar` SHA-256=
+  `ed48e51e3ab57e86f67d04ed2ed12e812acf29e7da7153b11c7930fa0e14ecae`;
+  archive SHA-256=
+  `613e1cacbbb08494dfb45fe049cf1b89b5c0c2f5e5bd01211be6314474e73ade`;
+  archive build, verify and independent extract-verify all passed.
+- cleanup_and_boundaries: run-owned container/network/volume residue=`0/0/0`;
+  all required ports are free. Actions remains disabled with no queued or
+  in-progress run. No CI, main merge, tag, release, publish, production API/SPI
+  change, verifier relaxation or final pointer creation occurred.
+- protected_workspace: the original user workspace remains at
+  `9743f97d9d935d5e26311b78c158755bca51f17a` with its pre-existing
+  `docs/9.3.5` changes untouched.
+- clock_note: generated host-local file timestamps that display `2026-07-24`
+  are future clock/timezone artifacts. The governed UTC run interval and all
+  manual records use the authoritative date `2026-07-23`.
+- readiness: `READY_FOR_SIGNOFF` for semantic-replay replacement Step 5 only.
+  This result is not self-signed `ACCEPTED`; the parent feature remains
+  `NEEDS_REPLAN`, replacement Step 7 remains unconsumed and closed, and no
+  final authority pointer may be created.
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md`.
 
 ## Ultra Execution Contract
 
