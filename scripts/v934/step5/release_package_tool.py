@@ -59,7 +59,7 @@ RUNTIME_BASE_PLATFORM = {"os": "linux", "architecture": "amd64"}
 RUNTIME_BASE_FROM = (
     f"FROM --platform=linux/amd64 {RUNTIME_BASE_PINNED_REFERENCE}"
 )
-RUNTIME_IMAGE_INSPECT_FORMAT = "{{println .Id}}{{println .Os}}{{println .Architecture}}"
+RUNTIME_IMAGE_INSPECT_FORMAT = "{{.Id}}|{{.Os}}|{{.Architecture}}"
 LAUNCHER = "foggy-mcp-launcher"
 RUNTIME_REACTOR_MODULES = (
     "foggy-bean-copy",
@@ -2766,7 +2766,7 @@ def require_image_cleanup(errors: Sequence[str]) -> None:
 
 
 def docker_inspect_identity(root: Path, reference: str, label: str) -> dict[str, Any]:
-    observed = run_capture(
+    observed_lines = run_capture(
         [
             "docker",
             "image",
@@ -2779,6 +2779,7 @@ def docker_inspect_identity(root: Path, reference: str, label: str) -> dict[str,
         "E_BASE_IMAGE" if reference == RUNTIME_BASE_PINNED_REFERENCE else "E_IMAGE",
         f"{label} inspect",
     ).splitlines()
+    observed = observed_lines[0].split("|") if len(observed_lines) == 1 else []
     require(
         len(observed) == 3
         and re.fullmatch(r"sha256:[0-9a-f]{64}", observed[0]) is not None
@@ -4133,7 +4134,7 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
     original_run_capture = run_capture
     observed_inspect_command: list[str] | None = None
     expected_runtime_image_inspect_format = (
-        "{{println .Id}}{{println .Os}}{{println .Architecture}}"
+        "{{.Id}}|{{.Os}}|{{.Architecture}}"
     )
 
     def canonical_inspect_capture(
@@ -4141,7 +4142,7 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
     ) -> str:
         nonlocal observed_inspect_command
         observed_inspect_command = list(command)
-        return "sha256:" + "a" * 64 + "\nlinux\namd64\n"
+        return "sha256:" + "a" * 64 + "|linux|amd64\n"
 
     try:
         globals()["run_capture"] = canonical_inspect_capture
@@ -4173,7 +4174,7 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
     )
     cases.append(
         {
-            "case": "runtime-image-inspect-println-template",
+            "case": "runtime-image-inspect-portable-single-record-template",
             "expected": "canonical",
             "actual": "canonical",
             "status": "passed",
@@ -4205,12 +4206,27 @@ def negative_command(args: argparse.Namespace) -> dict[str, Any]:
         "sha256:" + "a" * 64 + r"\nlinux\namd64\n",
     )
     expect_inspect_failure(
+        "runtime-image-inspect-println-double-terminal-lf-output",
+        "sha256:" + "a" * 64 + "\nlinux\namd64\n\n",
+    )
+    expect_inspect_failure(
+        "runtime-image-inspect-multiple-records",
+        "sha256:" + "a" * 64 + "|linux|amd64\n"
+        + "sha256:"
+        + "b" * 64
+        + "|linux|amd64\n",
+    )
+    expect_inspect_failure(
+        "runtime-image-inspect-malformed-field-count",
+        "sha256:" + "a" * 64 + "|linux\n",
+    )
+    expect_inspect_failure(
         "runtime-image-inspect-wrong-platform",
-        "sha256:" + "a" * 64 + "\nlinux\narm64\n",
+        "sha256:" + "a" * 64 + "|linux|arm64\n",
     )
     expect_inspect_failure(
         "runtime-image-inspect-malformed-id",
-        "sha256:" + "g" * 64 + "\nlinux\namd64\n",
+        "sha256:" + "g" * 64 + "|linux|amd64\n",
     )
     release_status = {
         "mode": "release",

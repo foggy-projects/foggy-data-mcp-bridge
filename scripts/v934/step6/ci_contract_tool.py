@@ -30,14 +30,14 @@ CONTRACT_RELATIVE_PATH = Path("scripts/v934/step6/ci-contract.json")
 TOOLING_MANIFEST_RELATIVE_PATH = Path("scripts/v934/step6/SHA256SUMS")
 STEP4_TOOLING_MANIFEST = Path("scripts/v934/step4/SHA256SUMS")
 STEP4_TOOLING_MANIFEST_SHA256 = (
-    "56c1b6c832bcfb7e1e4ea9b208a86bffe8ddec799c5ae6162459f3cba31415d6"
+    "1c8b58e2c9841e4920d02ee4e23fcf2630deb153713b0a659d683a7ab2c91652"
 )
 STEP4_DATABASE_AUTHORITY_MANIFEST = Path(
     "scripts/v934/step4/successor/database-authority-SHA256SUMS"
 )
 STEP5_TOOLING_MANIFEST = Path("scripts/v934/step5/SHA256SUMS")
 STEP5_TOOLING_MANIFEST_SHA256 = (
-    "e8aaa30f853ce723e6d2b9b09ce5e7241b3638b2748f80d55ae04a438624f4c7"
+    "de599dd835f23e0a4001b1864da5ad7c57787e5e18629f4baeb296a6777fa30a"
 )
 DATABASE_AUTHORITY_TOOL = Path(
     "scripts/v934/step4/successor/database_matrix_report_tool.py"
