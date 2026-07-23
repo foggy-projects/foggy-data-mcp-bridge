@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-PACKAGE-PROOF-CLEAN-MAVEN-ENV-SUCCESSOR
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-package-only-reuse-authorization
@@ -103,31 +103,31 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: 本 Cplan 是 pushed fail-closed checkpoint
+- [x] AC-1: 本 Cplan 是 pushed fail-closed checkpoint
   `ecd668b96a13cb087f7898ee56f7b888d409f0e5` 的 clean single-parent child；
   activation 又是 Cplan 的 clean/pushed single-parent child，diff仅为本文件
   `APPROVED -> ULTRA_EXECUTING` 与 readiness。
-- [ ] AC-2: 原工作区仍为
+- [x] AC-2: 原工作区仍为
   `9743f97d9d935d5e26311b78c158755bca51f17a`，v9.3.5 用户改动原样保留；
   governance 和 execution roots均无未授权 tracked drift，remote包含 activation。
-- [ ] AC-3: r11 Step4 root在原 canonical location保持 immutable；run status、summary、
+- [x] AC-3: r11 Step4 root在原 canonical location保持 immutable；run status、summary、
   final manifest和 public verifier仍为
   `release-passed / release-candidate-ready / release-final / VALID`，required=
   `774 executions + 59 structural / 5709 tests / F0E0S0`、Addon=`2/6`。
-- [ ] AC-4: preflight确认 package tool/Step4/5/6 manifests和 negative/self-test closure；
+- [x] AC-4: preflight确认 package tool/Step4/5/6 manifests和 negative/self-test closure；
   output/receipt/control/session不存在，frozen base image cached，required package resources
   无同 run-owned residue。净化 probe只记录八个受禁变量 absent，不记录 parent/raw value。
-- [ ] AC-5: 唯一 package invocation由独立 tmux pane `exec env -u ... python3` 持有；
+- [x] AC-5: 唯一 package invocation由独立 tmux pane `exec env -u ... python3` 持有；
   run ID、repo root、Step4 root、output和 fixed sibling receipt精确绑定。Codex在 pane
   live期间只读观察，不运行 Step4或 canonical Step5 runner。
 - [ ] AC-6: package success必须同时满足 exit=0、无 failure receipt、内部
   `verified=true`、package/image manifest与 app/embedded JAR identity一致、source/classes/
   reports before-after一致、Step4 authority复验一致和 package-owned cleanup exact；最终
   category只能是 `package-context-passed-non-authoritative`。
-- [ ] AC-7: package failure必须有可独立验证的 fixed safe receipt并形成允许的
+- [x] AC-7: package failure必须有可独立验证的 fixed safe receipt并形成允许的
   fail-closed category；missing/invalid receipt、tmux/identity不一致、cleanup或 invariance
   失败均为 inconclusive。任一非PASS结果都转 `NEEDS_REPLAN`且不得重试。
-- [ ] AC-8: owned package output/receipt/tmux/control和 package Docker residue被清理；
+- [x] AC-8: owned package output/receipt/tmux/control和 package Docker residue被清理；
   source、r11 Step4 root、candidate/final pointers和原工作区不变。Durable evidence只含
   safe facts/counts/status，privacy scan通过。
 - [ ] AC-9: component PASS后，两个 predecessor work item的 AC/Implementation Result被
@@ -216,16 +216,33 @@ open_questions: []
 
 ## Implementation Result
 
-> Pending activation and the one governed clean-environment package-only proof.
+> The governed package-only invocation completed fail closed at the real
+> runtime-image inspection boundary.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: reused exact r11 Step4 authority without rerunning
+  tests; launched the sole package command with all eight prohibited Maven/JVM
+  variables absent; independently verified the fixed `E_IMAGE /
+  package-image-runtime-inspect` receipt; performed exact cleanup and
+  post-run authority checks.
+- changed_paths:
+  - `docs/9.3.4/workitems/BUG-step5-package-proof-clean-maven-env-successor.md`
+  - `docs/9.3.4/evidence/step-5/step5-package-proof-clean-maven-env-r12-fail-closed-20260723.md`
+- tests_and_results: clean-environment probe 8/8 absent; package
+  negative/self-test 117/117 passed; Step4/5/6 checksum manifests passed; r11
+  candidate/final public artifact verification passed; sole package invocation
+  exit=1 with independently valid fixed receipt
+  `package-image-runtime-inspect / E_IMAGE`; no package output published.
+- manual_or_experience_evidence: private tmux pane remained observer-only after
+  launch; no package retry or canonical Step5 invocation occurred; output,
+  receipt, tmux control and run-owned Docker resources were absent after exact
+  cleanup; protected original workspace and v9.3.5 user changes were unchanged.
 - deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING — this clean single-parent commit is the sole
-  activation; its exact SHA must be bound before the package invocation.
+- residual_risks: the safe receipt proves the failure boundary but intentionally
+  omits raw Docker output, so the exact inspect failure mechanism is unresolved.
+  Any further diagnosis or package invocation requires a separate approved
+  successor; canonical Step5 remains blocked.
+- readiness: NEEDS_REPLAN — AC-6 and AC-9 remain open because the package
+  component did not pass. No retry is authorized by this work item.
 
 ## References
 
@@ -237,3 +254,5 @@ open_questions: []
   `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-format-remediation.md`
 - predecessor fail-closed evidence:
   `docs/9.3.4/evidence/step-5/step5-inspect-format-post-remediation-package-proof-r11-fail-closed-20260723.md`
+- current fail-closed evidence:
+  `docs/9.3.4/evidence/step-5/step5-package-proof-clean-maven-env-r12-fail-closed-20260723.md`
