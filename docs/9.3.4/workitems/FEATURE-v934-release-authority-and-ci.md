@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -32,7 +32,18 @@ step7_activation_parent: 0c0e7a2921d7a7f10f9a3640b08d015cce5c45db
 step7_preflight_receipt_sha256: 095621143a34e15c9c90e987eb8406e8f8ee9b0800a20fc6721ea33ef49894ea
 step7_run_id: step7-local-authority-20260723-r1
 step7_attempt_budget: 1
-step7_attempt_consumed: false
+step7_attempt_consumed: true
+step7_runner_status: candidate-passed
+step7_semantic_replay_status: failed-closed
+step7_replan_ticket: v934-step7-semantic-portable-replay
+step7_replan_approved_at: 2026-07-23
+step7_replan_approved_by: repository-owner-via-user-request
+step7_replan_implementation_status: ACCEPTED
+step7_replan_review_chain_status: accepted-by-repository-owner
+semantic_replay_replacement_step5_attempt_budget: 1
+semantic_replay_replacement_step5_attempt_consumed: false
+semantic_replay_replacement_step7_attempt_budget: 1
+semantic_replay_replacement_step7_attempt_consumed: false
 open_questions: []
 ---
 
@@ -47,6 +58,7 @@ open_questions: []
 - scope_revision: 2026-07-23 owner 明确移除原 Step 6 GitHub CI 接线；本文件取代 2026-07-18 的 CI-including 契约。
 - step7_revision: 2026-07-23 owner 批准冻结 Step 7 最小契约，并授权在实时复核后以 merge commit 合并 PR #124；本次不授权 Step 7 authority runner。
 - step7_activation_revision: 2026-07-23 owner 在 PR #124 合并后明确授权继续；exact-main private-full-clone preflight 已通过，现激活 exactly one Step 7 authority attempt。
+- step7_replan_revision: 2026-07-23 downstream semantic portable replay 证明现有 replay/release-tool 契约互相冲突；旧 runner 只保留 `candidate-passed` 机械事实，不能生成 final authority pointer。总 feature 进入 `NEEDS_REPLAN`，修复契约由 `BUG-step7-semantic-portable-replay-tool-contract.md` 唯一承载。
 
 ## Goal
 
@@ -95,7 +107,7 @@ open_questions: []
 ## Acceptance Criteria
 
 - [x] AC-1: 单一 `verify-v934-release-gate.sh rehearsal` 串联 inventory、unit、integration、five-DB/external、9.3.1–9.3.3 successor regression、coverage collect/check、package/Launcher audit，且每个 owning suite 只执行一次。
-- [x] AC-2: candidate run root 具备 source/environment/inventory/report/DB/coverage/regression/JAR/image manifests、inner/outer hashes、deterministic archive/digest；异目录 verify、portable replay 与 image `/app/app.jar` SHA 复算通过。
+- [ ] AC-2: candidate run root 具备 source/environment/inventory/report/DB/coverage/regression/JAR/image manifests、inner/outer hashes、deterministic archive/digest；旧 run 只完成 byte-level 异目录 verify，semantic portable replay 已 fail closed，必须由 repair 后 replacement Step 5 和新 Step 7 重新证明；image `/app/app.jar` SHA 历史复算保持有效但不能替代新 source seal。
 - [x] AC-3: skip flags、missing/stale/tampered artifacts、report/skip/migration/hash/source/JAR/image drift、failed pointer publication 和 credential scan 命中等 expected-negative 全部 fail closed。
 - [x] AC-4: 原 Step 6 明确记录为 `owner-waived / out-of-scope`；本交付未启用 Actions、未运行或接入 GitHub required gate、未修改 branch protection/required checks，且这些项目不再阻断 Step 7。
 - [ ] AC-5: `verify-v934-release-gate.sh authority` 在 exact clean `origin/main` commit 取得单一 fresh local authority；inventory、required S0、五库/external、coverage critical gates、successor regression、package/Launcher、archive 和 same-JAR 全绿，无跨 run 拼接。
@@ -206,6 +218,67 @@ open_questions: []
     及其 docs-only activation child 只是 authority input，不是已验收版本。
   - Step 7 runner 已获 exactly-one 授权；tag、release、publish 和最终签收仍未授权。
 - open_questions: none
+
+## Step 7 Semantic Replay Replan Hold — 2026-07-23
+
+- historical_run: `step7-local-authority-20260723-r1` at tested commit
+  `62bf3fe1456af01179f09e2a9a80c3d229e2435f` completed its repository runner as
+  `candidate-passed`; the candidate pointer exists and the final authority
+  pointer remains absent.
+- downstream_failures:
+  - same-filesystem replay failed closed with `E_RUN_CONTEXT` because canonical
+    evidence was hardlinked while the verifier requires a regular single-link
+    inode;
+  - cross-filesystem replay failed closed with `E_CHILD_LIFECYCLE` because the
+    release artifact normalized ordinary files to `0644` while canonical
+    `child-ready/*.json` evidence requires verifier-private mode `0600`.
+- authority_effect: the old Step 7 attempt is consumed and immutable. Its
+  runner success, byte-level archive verification and candidate pointer are not
+  final authority and must not be promoted, amended, retried in place or
+  combined with replacement evidence.
+- approved_minimum_replan: canonical evidence and tested classes must be copied
+  into independent inodes; semantic replay must restore the complete audited
+  set of canonical verifier-required modes without mutating extracted artifact
+  bytes or metadata; receipt must record copy counts and the explicit mode
+  policy; deterministic positive and negative regressions are mandatory.
+- replacement_radius: because governed tool bytes and source seal change, one
+  replacement Step 5 rehearsal and one new Step 7 authority are required after
+  the repair reaches `READY_FOR_SIGNOFF` and the frozen contract/attempt budgets
+  are rechecked. Neither long run may start from this hold section alone.
+- unchanged_boundaries: no GitHub CI/Step 6, tag, release or publish; no coverage
+  verifier weakening; no production API/SPI change; no final authority pointer
+  before semantic replay and the ordered review chain pass.
+
+## Step 7 Semantic Replay Repair Implementation Checkpoint — 2026-07-23
+
+- repair_status: the canonical BUG is `ACCEPTED` by explicit repository-owner
+  approval after delivery-signoff audit；this parent feature remains
+  `NEEDS_REPLAN` until replacement Step 5 and a new Step 7 authority complete.
+- implementation: canonical evidence and tested classes are copied into
+  independent inodes only; hardlinks are prohibited. The exact audited
+  permission restoration set is limited to
+  `child-ready/{unit,integration,step3-required}.json: 0644 -> 0600` in the
+  separate semantic target. The extracted artifact is not mutated.
+- receipt: named/versioned policy, per-tree and total copies, zero hardlinks and
+  the three permission restoration items/counts are recorded and verified.
+- focused_evidence: same-filesystem and cross-filesystem positives passed;
+  replay mutation negatives=`9/9`, artifact negatives=`105`, coverage XML=`130`,
+  coverage contract=`28`, package=`120`, pointer=`5+66`, CI static contract=`86`.
+  Step 4/5/6 hash closure and unchanged workflow validation pass.
+- scope_audit: `release_artifact_tool.py` and `coverage_xml_tool.py` were audited
+  but their normalization and verifier safety semantics were not weakened or
+  changed. No production API/SPI, POM behavior or GitHub workflow was modified.
+- attempt_ledger: historical Step 7 r1 consumed=`true`; semantic-replay
+  replacement Step 5 budget=`1`, consumed=`false`; replacement Step 7
+  budget=`1`, consumed=`false`.
+- long_run_gate: neither replacement run may start until the repair receives
+  independent signoff, its exact bytes are clean/pushed, the frozen contract
+  and attempt ledger are rechecked, and a private tmux owner is established.
+  The replacement Step 7 additionally requires accepted replacement Step 5 and
+  a separately frozen exact-main activation.
+- pointer_state: historical candidate pointer exists; final authority pointer
+  remains absent and must remain absent through semantic replay and the ordered
+  review chain.
 
 ## Ultra Execution Contract
 
