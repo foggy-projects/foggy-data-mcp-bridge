@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-FORMAL-TMUX-OWNER-RECOVERY-REPLAN
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-tmux-recovery-authorization
@@ -86,27 +86,27 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: 本 APPROVED Cplan 是 r9 failure-record commit
+- [x] AC-1: 本 APPROVED Cplan 是 r9 failure-record commit
   `f217f456516f4ba73cf6dd7a90ba4a0c8cad9331` 的 clean/pushed 单父直接子；原工作区仍为
   `9743f97d9d935d5e26311b78c158755bca51f17a`，用户 v9.3.5 改动不变。
-- [ ] AC-2: tmux capability probe 使用独立 socket，证明 detached pane 具有真实 PTY、pane
+- [x] AC-2: tmux capability probe 使用独立 socket，证明 detached pane 具有真实 PTY、pane
   process 是自身 PGID/SID leader、`remain-on-exit` 能保留 exact nonzero dead status；probe server
   已清理，未接触用户 tmux server。
-- [ ] AC-3: activation 是 Cplan 的 clean/pushed 单父直接子，diff 仅为本文件
+- [x] AC-3: activation 是 Cplan 的 clean/pushed 单父直接子，diff 仅为本文件
   `APPROVED -> ULTRA_EXECUTING` 与 readiness activation identity。
-- [ ] AC-4: fresh clone clean/non-shallow、无 replace/graft、remote含 activation、detached exact
+- [x] AC-4: fresh clone clean/non-shallow、无 replace/graft、remote含 activation、detached exact
   Cfreeze；formal delta仍为 Cdiag `462d64ac...` 的 direct-single-parent child与六个 exact paths；
   source/contract/manifest/threshold digests 与 frozen record一致。
-- [ ] AC-5: r10 启动前 run root、control socket/session与 run-owned runtime residue均不存在；唯一
+- [x] AC-5: r10 启动前 run root、control socket/session与 run-owned runtime residue均不存在；唯一
   tmux pane通过 `exec` 启动唯一 formal invocation，并记录 socket/session/window、pane PID/SID/
   PGID/TTY、start command与 run ID。
-- [ ] AC-6: 启动后所有观察均为只读；没有 attach、send-keys、pipe-pane、respawn、局部续跑或
+- [x] AC-6: 启动后所有观察均为只读；没有 attach、send-keys、pipe-pane、respawn、局部续跑或
   第二 runner。tmux pane dead status与 runner终态一致。
-- [ ] AC-7: formal完成所有 required lanes，至少保持 `774 positive + 59 structural / 5709
+- [x] AC-7: formal完成所有 required lanes，至少保持 `774 positive + 59 structural / 5709
   testcases`、Addon `2/6`、F/E/S=0；outer source-after、summary/run-status、coverage/critical、
   model、sensitive、cleanup、candidate、capsule全部 PASS，且无 process/container/database/port
   residue。
-- [ ] AC-8: durable evidence绑定 Cplan/activation/Cfreeze/run/tmux identities与 receipt digests，
+- [x] AC-8: durable evidence绑定 Cplan/activation/Cfreeze/run/tmux identities与 receipt digests，
   明确 r8/r9未复用；本 work item达到 `READY_FOR_SIGNOFF` 后，才按 controlling item顺序推进
   Step5、Step6、Step7，任一失败立即停止。
 
@@ -192,14 +192,25 @@ open_questions: []
 
 ## Implementation Result
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
+- implementation_summary: r10 使用独立 tmux socket/session 持有唯一 Step4 formal runner；Codex
+  全程只读观察。runner 于 2026-07-23 11:43:28 +08:00 自然退出，pane dead status 为 0，canonical
+  终态为 `FORMAL PASS`。source before/after、coverage、critical、model、sensitive、cleanup、candidate、
+  final 与 public final verification 全部闭合。
+- changed_paths:
+  - `docs/9.3.4/workitems/BUG-v934-fsscript-formal-tmux-owner-recovery-replan.md`
+  - `docs/9.3.4/evidence/step-4/step4-v934-fsscript-lifecycle-dual-seal-formal-tmux-recovery-20260723-r10-pass.md`
+- tests_and_results: Step4 formal `23 exec / 48 sessions`；`774 positive + 59 structural / 5709
+  testcases`；Addon `2/6`；F/E/S=0；24 production modules、12 critical classes、below-floor=0；
+  database/external/model/negative/cleanup gates 全部 PASS。
 - manual_or_experience_evidence: tmux 3.4 isolated capability probe observed real PTY,
-  PID=PGID=SID for the pane process and exact retained `pane_dead_status=7`; probe server cleaned.
+  PID=PGID=SID for the pane process and exact retained `pane_dead_status=7`; probe server cleaned。r10
+  session `v934-formal-r10` 的 pane `%0` 为 PID/PGID/SID `677327`、TTY `/dev/pts/6`，终态保留为
+  `pane_dead=1 / dead_status=0`；证据读取后 server 已关闭。
 - deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING — this exact two-field transition is the activation identity for r10 tmux-owned formal execution
+- residual_risks: tmux 只能隔离 Codex/PTY 误杀，不能抵御 host reboot、显式 kill-server 或宿主机资源
+  故障；后续 Step5-7 仍须各自 fresh governed execution，不能把本 formal evidence当作发布签收。
+- readiness: READY_FOR_SIGNOFF — r10 formal authority 已闭合；本 work item 不自行设置 ACCEPTED，
+  后续仅按 controlling item 顺序进入 Step5-7。
 
 ## References
 
