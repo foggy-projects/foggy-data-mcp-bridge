@@ -3,14 +3,15 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: ULTRA_EXECUTING
+status: NEEDS_REPLAN
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
 approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: deb92e78d8a01aeef227f6ca8c9f9a60d9b162a2
-active_scope: Step 5 local rehearsal only
+active_scope: none
+replan_reason: Step 5 r1 rejected linked-worktree .git metadata before Step 4
 open_questions: []
 ---
 
@@ -131,16 +132,28 @@ open_questions: []
 
 > 由执行会话填写。
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: experience N/A; GitHub CI/platform evidence N/A by approved scope
-- deviations: none
-- residual_risks: required CI/branch protection intentionally absent by owner decision
-- readiness: pending
+- implementation_summary: no-CI scope and one-attempt activation were committed; the
+  authorized rehearsal failed closed in `runtime-source-before` because the
+  release artifact tool requires `.git` to be a real directory and rejects a
+  linked Git worktree.
+- changed_paths: docs-only scope/activation/evidence changes; no production,
+  POM, workflow, runner, API or SPI changes.
+- tests_and_results: manifests PASS; shell/Python static PASS; artifact
+  self-test PASS; package negative `120/120`; pointer negative `5/5`; formal
+  rehearsal exit=`1` before Step 4/Maven/Docker.
+- manual_or_experience_evidence: candidate/final pointers absent; no run-owned
+  Docker resources; GitHub CI/platform evidence N/A by approved scope.
+- deviations: the clean-worktree execution environment satisfied the written
+  delivery contract but not the tool's previously unstated full-clone
+  requirement.
+- residual_risks: required CI/branch protection intentionally absent by owner
+  decision; replacement rehearsal requires owner-approved full-clone replan.
+- readiness: NEEDS_REPLAN
 
 ## References
 
 - requirement / issue: `docs/9.3.4/requirement/P0-test-ci-evidence-chain.md`
 - architecture / glossary: `docs/9.3.4/implementation-plan.md`, `docs/9.3.4/contract/test-lane-evidence-contract.md`
 - related work items: `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`
+- failed execution evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-r1-git-metadata-preflight-fail-closed-20260723.md`

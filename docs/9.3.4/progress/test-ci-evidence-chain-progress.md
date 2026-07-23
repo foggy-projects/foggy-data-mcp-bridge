@@ -69,7 +69,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
-| 5 | authority runner rehearsal / immutable candidate | authorized / preflight pending | accepted current Step 4 and package remediations | exactly one local rehearsal attempt; private tmux owner; failure => `NEEDS_REPLAN` and stop |
+| 5 | authority runner rehearsal / immutable candidate | failed-closed / NEEDS_REPLAN | accepted current Step 4 and package remediations | no-CI r1 stopped at `runtime-source-before`: linked-worktree `.git` rejected; no Step4/Maven/Docker/pointer; replacement attempt forbidden pending owner replan |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` | pending：full local authority + quality→coverage→acceptance signed-off |
 
@@ -84,6 +84,20 @@ Step 7 prerequisite。
   不配置 required check/branch protection，不把任何 remote CI run 当作 authority。
 - activation 只开放 Step 5 preflight 和唯一 rehearsal；Step 7、merge、tag、release、
   publish 仍需后续独立授权。
+
+## Execution Check-in — Step 5 no-CI r1 Git metadata fail-closed（2026-07-23）
+
+- run=`step5-local-rehearsal-20260723-no-ci-r1`，tested commit=`ea079116...`；
+  private tmux pane exit=`1`。
+- source-before=`4296 files` /
+  `8ea272ee46e7b4bafd3bae7ae718f13344f23008fd548132cd38ff22ae546ae0`；
+  随后 `runtime-source-before` 以 `E_DIRECTORY` 拒绝 linked-worktree `.git` regular file。
+- Step4/Maven/Docker/package/archive 均未开始；candidate/final pointer absent；无
+  run-owned Docker resources。
+- attempt 已消耗；current decision=`NEEDS_REPLAN`。推荐仅把执行环境改为 private
+  full clone，并在 activation 前增加 `scan-runtime-source` 预检；不得自动重试。
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-r1-git-metadata-preflight-fail-closed-20260723.md`
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 

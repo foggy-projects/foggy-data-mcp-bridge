@@ -632,7 +632,7 @@ updated_at: 2026-07-23
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | hold / execution closed | r9 exclusion and recovery reset do not open entry; wait for replacement formal successor + final quality + Step 4 coverage audit/feature acceptance |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | failed-closed / NEEDS_REPLAN | no-CI r1 stopped before Step4 at `runtime-source-before`: linked-worktree `.git` rejected；no Maven/Docker/pointer；replacement attempt requires owner-approved full-clone replan |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` → local authority → quality→coverage→version acceptance |
 
