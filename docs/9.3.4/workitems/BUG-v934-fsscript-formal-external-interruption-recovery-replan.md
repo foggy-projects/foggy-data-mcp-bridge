@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-FORMAL-EXTERNAL-INTERRUPTION-RECOVERY-REPLAN
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-recovery-authorization
@@ -190,7 +190,7 @@ open_questions: []
 - manual_or_experience_evidence: pending
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED — awaiting clean/pushed activation identity
+- readiness: ULTRA_EXECUTING — this exact two-field transition is the activation identity; bind its clean/pushed Git SHA in preflight and post-run evidence
 
 ## References
 
