@@ -69,7 +69,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
-| 5 | authority runner rehearsal / immutable candidate | ULTRA_EXECUTING / replacement r2 | accepted current Step 4 and package remediations | private-full-clone preflight passed；exactly one replacement rehearsal activated；no automatic retry |
+| 5 | authority runner rehearsal / immutable candidate | READY_FOR_SIGNOFF / replacement r2 passed | accepted current Step 4 and package remediations | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | pending | Step 5 accepted + exact clean `origin/main` | pending：full local authority + quality→coverage→acceptance signed-off |
 
@@ -122,6 +122,32 @@ Step 7 prerequisite。
   Actions disabled。预检已满足，现激活 exactly one replacement rehearsal。
 - evidence:
   `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-preflight-20260723.md`
+
+## Execution Check-in — Step 5 full-clone replacement passed（2026-07-23）
+
+- run=`step5-local-rehearsal-20260723-no-ci-fullclone-r2`，tested
+  commit=`6c3ee97abbe49c0cf5cf485d2ddeb4ba7ff7c84f`；同一 run 的 Step4
+  release=`23 exec / 48 sessions`、required=`774 positive + 59 structural /
+  5709 testcase / F0E0S0`、Addon=`2/6/F0E0S0`。
+- Unit=`682+55 / 4943 / F0E0S0`；Integration=`47+4 / 320 /
+  F0E0S0`；five-DB=`29/370/F0E0S0`、state=`18/18`；external=
+  `16/76/F0E0S0`、state=`4/4`。
+- Launcher JAR SHA-256=
+  `14aac41389fd4728232ca99e47ed792e1da57641a2c6ce8dd2a73d3f7889f677`；
+  runtime image embedded `/app/app.jar` 与之相同；image id=
+  `sha256:d109c64d99f44f3335fc06f173c167494522bb82d4d9df83ea3ebbc266e38bf0`。
+- archive SHA-256=
+  `36245c874d13f914750a9a1e7e2cb1ef4e95de2bc2c37c8f9ce8cae8ca035ba6`；
+  verify-archive、异目录 extract-verify、durable seal 和 sensitive scan 均通过。
+  `portable_byte_verify=passed`；semantic portable replay 明确保留给 downstream。
+- expected-negative：artifact=`105`、package=`120`、pointer=`5`，全部通过。
+  candidate pointer 只指向本 rehearsal；`final-run.env`、`authority-run.env`
+  均不存在，`final_authority_pointer_updated=false`。
+- replacement attempt 已成功消耗，无重跑。Actions 保持 disabled，未接线 CI；
+  Step7、merge、tag、release、publish 未获授权。当前仅 Step5=
+  `READY_FOR_SIGNOFF`，不得解释为版本最终签收。
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-passed-20260723.md`
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 

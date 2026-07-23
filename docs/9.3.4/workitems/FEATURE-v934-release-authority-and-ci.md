@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -11,9 +11,12 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: exactly one replacement Step 5 full-clone rehearsal
+active_scope: replacement Step 5 rehearsal completed; awaiting independent signoff
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
+replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
+replacement_tested_commit: 6c3ee97abbe49c0cf5cf485d2ddeb4ba7ff7c84f
+replacement_completed_at: 2026-07-23
 open_questions: []
 ---
 
@@ -72,10 +75,10 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: 单一 `verify-v934-release-gate.sh rehearsal` 串联 inventory、unit、integration、five-DB/external、9.3.1–9.3.3 successor regression、coverage collect/check、package/Launcher audit，且每个 owning suite 只执行一次。
+- [x] AC-1: 单一 `verify-v934-release-gate.sh rehearsal` 串联 inventory、unit、integration、five-DB/external、9.3.1–9.3.3 successor regression、coverage collect/check、package/Launcher audit，且每个 owning suite 只执行一次。
 - [ ] AC-2: candidate run root 具备 source/environment/inventory/report/DB/coverage/regression/JAR/image manifests、inner/outer hashes、deterministic archive/digest；异目录 verify、portable replay 与 image `/app/app.jar` SHA 复算通过。
-- [ ] AC-3: skip flags、missing/stale/tampered artifacts、report/skip/migration/hash/source/JAR/image drift、failed pointer publication 和 credential scan 命中等 expected-negative 全部 fail closed。
-- [ ] AC-4: 原 Step 6 明确记录为 `owner-waived / out-of-scope`；本交付未启用 Actions、未运行或接入 GitHub required gate、未修改 branch protection/required checks，且这些项目不再阻断 Step 7。
+- [x] AC-3: skip flags、missing/stale/tampered artifacts、report/skip/migration/hash/source/JAR/image drift、failed pointer publication 和 credential scan 命中等 expected-negative 全部 fail closed。
+- [x] AC-4: 原 Step 6 明确记录为 `owner-waived / out-of-scope`；本交付未启用 Actions、未运行或接入 GitHub required gate、未修改 branch protection/required checks，且这些项目不再阻断 Step 7。
 - [ ] AC-5: `verify-v934-release-gate.sh authority` 在 exact clean `origin/main` commit 取得单一 fresh local authority；inventory、required S0、五库/external、coverage critical gates、successor regression、package/Launcher、archive 和 same-JAR 全绿，无跨 run 拼接。
 - [ ] AC-6: Unit MySQL 5.7 临时分类例外在 fresh authority 中继续满足 run-owned fixture、唯一连接回执、精确报告与 cleanup 条件，并在 9.3.4 signoff 中明确移交给 9.3.5；不得把 Step 2 历史绿色当正确性证据。
 - [ ] AC-7: implementation result 完整回写后状态为 `READY_FOR_SIGNOFF`，随后独立执行 version quality、coverage audit 和 signoff；仅 accepted/accepted-with-risks 才更新 roadmap 并把 9.3.5 标 ready。
@@ -152,25 +155,44 @@ open_questions: []
 
 ## Implementation Result
 
-> 由执行会话填写。
-
-- implementation_summary: no-CI scope and one-attempt activation were committed; the
-  authorized rehearsal failed closed in `runtime-source-before` because the
-  release artifact tool requires `.git` to be a real directory and rejects a
-  linked Git worktree.
-- changed_paths: docs-only scope/activation/evidence changes; no production,
-  POM, workflow, runner, API or SPI changes.
-- tests_and_results: manifests PASS; shell/Python static PASS; artifact
-  self-test PASS; package negative `120/120`; pointer negative `5/5`; formal
-  rehearsal exit=`1` before Step 4/Maven/Docker.
-- manual_or_experience_evidence: candidate/final pointers absent; no run-owned
-  Docker resources; GitHub CI/platform evidence N/A by approved scope.
-- deviations: the clean-worktree execution environment satisfied the written
-  delivery contract but not the tool's previously unstated full-clone
-  requirement.
-- residual_risks: required CI/branch protection intentionally absent by owner
-  decision; replacement full-clone rehearsal is activated but not yet complete.
-- readiness: ULTRA_EXECUTING
+- implementation_summary: the single owner-approved replacement rehearsal
+  completed successfully in a clean, non-shallow private full clone. It produced
+  an immutable candidate pointer, portable byte-verified archive, exact
+  Launcher JAR/runtime-image identity, complete same-run Step4 evidence and
+  expected-negative results. The predecessor r1 remains immutable failed
+  evidence and was not retried or spliced.
+- changed_paths: execution closure changes are documentation/evidence only; no
+  production, POM, workflow, runner, manifest, coverage, API or SPI bytes were
+  changed.
+- tests_and_results:
+  - run=`step5-local-rehearsal-20260723-no-ci-fullclone-r2` at
+    `6c3ee97abbe49c0cf5cf485d2ddeb4ba7ff7c84f`, runner terminal status=
+    `candidate-passed`;
+  - Step4=`23 exec / 48 sessions`；required=`774 positive + 59 structural /
+    5709 testcase / F0E0S0`；Addon=`2/6/F0E0S0`;
+  - Unit=`682+55 / 4943 / F0E0S0`；Integration=`47+4 / 320 /
+    F0E0S0`；five-DB=`29/370/F0E0S0`；external=`16/76/F0E0S0`;
+  - artifact self-test=`105` negatives, package=`120` negatives and
+    pointer=`5` negatives, all passed;
+  - Launcher JAR and image `/app/app.jar` SHA-256 both equal
+    `14aac41389fd4728232ca99e47ed792e1da57641a2c6ce8dd2a73d3f7889f677`;
+    archive SHA-256=
+    `36245c874d13f914750a9a1e7e2cb1ef4e95de2bc2c37c8f9ce8cae8ca035ba6`.
+- manual_or_experience_evidence: source before/after is exact
+  `f0a33a720920b0a07464419fe12b7f28578c6828d92e7cf76a6c564365cbcb49`;
+  archive verify/extract-verify, durable seal, sensitive scan and Docker
+  cleanup passed; run-owned containers/networks/volumes are absent and required
+  ports are free. Candidate pointer is exact; final/authority pointers remain
+  absent. Actions remained disabled and no remote CI result was used.
+- deviations: none from the approved full-clone replacement contract. The
+  environment-only r1 failure was resolved by the approved minimal replan; no
+  runner/tool/manifest production semantics changed.
+- residual_risks: semantic portable replay remains explicitly downstream;
+  required CI/branch protection is intentionally absent by owner decision;
+  Step7 exact-clean-main authority, ordered independent reviews and version
+  final signoff remain pending and separately authorized.
+- readiness: `READY_FOR_SIGNOFF` for Step5 rehearsal only. This is not Step7 or
+  9.3.4 final authority.
 
 ## References
 
@@ -181,3 +203,5 @@ open_questions: []
   `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-r1-git-metadata-preflight-fail-closed-20260723.md`
 - replacement preflight evidence:
   `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-preflight-20260723.md`
+- replacement execution evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-passed-20260723.md`
