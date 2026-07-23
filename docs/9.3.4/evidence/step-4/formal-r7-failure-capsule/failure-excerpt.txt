@@ -1,0 +1,12 @@
+[v934-step4-step2-report-view] validate PASS run_id=step4-coverage-20260719-formal-r7 positive=728 structural=59 testcases=5261
+[v934-integration] running Failsafe variant=caffeine-sqlite
+[v934-step2-report] PASS collect runner=failsafe variant=caffeine-sqlite executions=1 structural=0 tests=2
+[v934-integration] running Failsafe variant=hermetic
+[v934-step2-report] PASS collect runner=failsafe variant=hermetic executions=1 structural=0 tests=3
+[v934-integration] running Failsafe variant=sqlite-broad
+[ERROR] Failures:
+[ERROR]   CalculateMvpIT.parityCatalogCasesStayExecutable:450->resolveParityCatalogPath:625 Cannot locate P1-CALCULATE parity catalog from working directory
+[ERROR] Tests run: 307, Failures: 1, Errors: 0, Skipped: 0
+[v934-step4-coverage] ERROR: child failed: integration rc=1
+[v934-step4-coverage] FAILED run=step4-coverage-20260719-formal-r7 phase=child-integration
+V934_FORMAL_R7_OUTER_FINAL runner_rc=1 restore_rc=0 run_id=step4-coverage-20260719-formal-r7

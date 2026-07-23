@@ -22,8 +22,8 @@ import java.io.ByteArrayInputStream;
  *       type: huawei-obs
  *       huawei-obs:
  *         endpoint: obs.cn-east-3.myhuaweicloud.com
- *         access-key-id: your-access-key-id
- *         access-key-secret: your-access-key-secret
+ *         access-key-id: ${HUAWEI_OBS_ACCESS_KEY_ID}
+ *         access-key-secret: ${HUAWEI_OBS_ACCESS_KEY_SECRET}
  *         bucket-name: your-bucket-name
  *         path-prefix: charts/
  *         custom-domain: https://cdn.example.com

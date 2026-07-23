@@ -159,7 +159,11 @@ public class FunTable implements FunctionSet, DisposableBean {
 
     @Override
     public void destroy() throws Exception {
-        clear();
+        DefaultExpFactory defaultFactory = DefaultExpFactory.DEFAULT;
+        // Spring also registers DEFAULT's table as a bean; one context must not clear the shared table.
+        if (defaultFactory == null || this != defaultFactory.getFunctionSet()) {
+            clear();
+        }
     }
 
 //	@Override

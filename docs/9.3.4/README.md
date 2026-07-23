@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-23
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -14,11 +14,35 @@ updated_at: 2026-07-18
 
 - doc_type: requirement+contract+plan+progress+acceptance-evidence-index
 - intended_for: project-root-session / build owner / CI owner / reviewer
-- purpose: 把 Failsafe 分层、五数据库矩阵、聚合覆盖率、required CI 与
-  immutable release evidence 拆成严格 1~7 的可执行版本计划。
+- purpose: 把 Failsafe 分层、五数据库矩阵、聚合覆盖率与 immutable local release
+  evidence 拆成可执行版本计划。
+
+## Owner Scope Override（2026-07-23）
+
+- repository owner 已明确移除原 Step 6 GitHub CI 接线；本版本不启用或接入
+  GitHub Actions required gate，不配置 required check/branch protection，也不执行
+  GitHub release dry-run。
+- 现有 `.github/workflows`、`scripts/v934/step6` 和历史 CI 证据保持原样，只作为
+  历史材料，不删除、不重写、不作为 9.3.4 当前 authority 或签收门槛。
+- 编号为兼容历史引用而保留：Step 6=`owner-waived / out-of-scope`；Step 7 在
+  Step 5 独立签收后直接以 exact clean `origin/main` 为 entry。
+- 本节和 canonical
+  `workitems/FEATURE-v934-release-authority-and-ci.md` 覆盖本目录旧文档中与上述
+  决策冲突的 active planning 语句；历史运行事实和验收记录不回写。
 
 ## Entry Decision
 
+- Fresh Step 5 rehearsal `step5-rehearsal-20260720-r3` stopped fail-closed in the SQLite broad integration
+  variant on one Pivot outer-cache TTL testcase. The failure is a test-only wall-clock oracle defect, not an
+  r38 Addon regression: a controlled-time wrapper over the real local provider has passed focused, class and
+  provider-contract checks plus independent implementation review. Because test source changed, r38 is
+  historical for the new bytes and a new Cdiag → diagnostic → Cfreeze → formal chain is mandatory before
+  Step 5 can be retried. See [TTL clock-oracle BUG](workitems/BUG-step5-pivot-outer-cache-ttl-clock-oracle.md).
+- 2026-07-20 Step 5 rehearsal exposed a WSL child-context publication-order inversion. The strict
+  cross-run-splice guard remains unchanged. The bounded Addon successor repair has completed its fresh
+  Cdiag → diagnostic → Cfreeze → formal chain as r38; formal-r11/feature acceptance remain historical for the
+  new runner. foggy-projects accepted r38 for fresh Step 5 rehearsal only; Steps 6–7 remain closed. See
+  workitems/BUG-step4-addon-context-mtime-publication-order.md.
 - 9.3.3 已 `signed-off / accepted-with-risks`；replacement authority
   `20260714T084351Z-3271604`=`3824 tests / 519 reports / F0/E0/S3`，满足本版本
   predecessor。
@@ -41,9 +65,25 @@ updated_at: 2026-07-18
   已按序完成。diagnostic r7 在无 ambient DB listener 的环境中
   暴露 Unit 对 `127.0.0.1:13306` 的隐式依赖并 fail closed；该 r7 时点尚无 coverage pass
   或可复用的 reviewed aggregate baseline。
-- Step 4 已由 fresh formal-r4、final quality、coverage audit 与 feature acceptance 按序关闭；
-  decision=`accepted`，25/25 workitem closed，Step 5=`ready / not-started`。下方 r1–r19
-  记录均为历史 fail-closed/recovery ledger，不覆盖本 superseding decision。
+- Step 4 historical formal-r4、final quality、coverage audit 与 feature acceptance 已按序关闭；
+  decision=`accepted`，25/25 workitem closed。后续 release-authority delta 触发 replacement
+  coverage authority；formal-r7 CALCULATE portability remediation 后的 fresh r25 虽 public-valid，
+  但 follow-up audit 证明其 schema 1 把真实 known-consumer lower bound `7 reports / 12 nodes`
+  低记为 historical `6/11`，所以 r25 永久是
+  `pre-remediation / superseded / non-candidate`。修复后的 Cdiag `4fe86929…`、fresh-clone isolated
+  r4、fresh diagnostic-r26 与 direct-child Cfreeze `7c18019e…` 已作为历史链封存。fresh formal-r8
+  在 coverage reporter 直接执行 Git `100644` Python 工具时 rc126，永久
+  `failed/excluded/non-reusable/non-candidate`；其 interpreter recovery 后，r27 又因 aggregate
+  high-water 少一而被拒绝。r28 的 reviewed threshold 被 direct-child Cfreeze `34cd2452…` 冻结，
+  但 fresh formal-r9 在 coverage-report 以 exit=`2` fail closed：strict umask 令公开
+  effective-POM receipt 成为 mode=`0600`，违反 `E_OUTPUT` public-output contract。r9 永久
+  `failed/excluded/non-reusable/non-candidate`，不得拼接 child output、exec 或 r28 material。
+  修复基线 `39032229…` 已将 machine 回退到
+  `diagnostic-ready/diagnostic-pending`，但它不是 final Cdiag。其后 clean/pushed Cdiag
+  `f420a4e…` 的 fresh diagnostic-r29 保留为有效诊断观察；审计发现其 local capsule 不满足
+  Git-safe 内容边界，故 r29=`non-freezable`，不得进入 Cfreeze。Git-safe capsule / frozen-replay 工具
+  的本地静态与负向验证已完成，但尚未形成 Cdiag；当前唯一后续是 new Cdiag→fresh diagnostic；
+  Step 5=`hold / closed`。
 - Step 4 r5 已在 clean/pushed commit 上建立 run-owned source seal，但 database-state
   companion 选择 frozen Step 3 authority manifest 而 fail closed；该轮 Unit、Integration 和
   Addon 子结果只属于 r5 失败运行，不得拼接或复用。successor runtime-binding
@@ -591,13 +631,14 @@ updated_at: 2026-07-18
 | 1 | 契约与静态库存冻结 | passed | r8 confirmed；532 sources / 820 discovery / 829 execution / 519 predecessor；28/28 negatives |
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / feature accepted | Cfreeze `f97483a0…` 上 fresh formal=`formal-passed`：required=`773+59/5707/F0E0S0`、Addon=`2/6`、`23/48/16953`、line=`54624/76830`、branch=`26111/44870`、critical=`12/23/below0`、唯一 N/A=`NamespaceScope.branch`、source/model/sensitive/cleanup PASS；Pivot legacy companion=`1/F0E0S0`；quality/audit/acceptance 按序 PASS，25/25 workitem closed |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | ready / not-started | Step 4 feature acceptance=`accepted`，entry 已满足；下一步产 dirty-safe、可独立复算的 immutable candidate，但不更新 final authority pointer |
-| 6 | PR/main/release CI 接线 | pending | exact five-cell artifacts、stable aggregator、JAR/镜像同一制品 |
-| 7 | clean-commit 权威回放与后置门 | pending | self-check→quality→coverage→version acceptance signed-off |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | ACCEPTED / replacement r2 independently signed off | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
+| 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
+| 7 | clean-commit 本地权威回放与后置门 | APPROVED / merge-only authorization | Step 5 accepted；PR #124 复核后仅以 merge commit 建立 exact `origin/main` entry；authority runner 仍未授权 |
 
-任一步未满足 exit，不进入下一步；expected-negative、diagnostic 和 superseded
-run 不得拼接为绿色 authority。
+Steps 1–5 未满足 exit 不进入下一步；Step 6 不再是执行或签收依赖；Step 7 只在
+Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run 不得拼接为
+绿色 authority。
 
 9.3.1–9.3.3 historical run/FQCN/count 保持封存；重命名后的 9.3.4 通过 reviewed
 predecessor migration manifest 和 successor current-source lanes 证明等价回归，
@@ -612,3 +653,356 @@ predecessor migration manifest 和 successor current-source lanes 证明等价�
   或 Addon TCK。
 - 测试治理发现生产 BUG 时先建 9.3.4 workitem，做最小 RED→fix→GREEN；若需
   公共 API/模块边界变更则停止并转交 9.3.5/9.4.0。
+
+## Superseding replacement-authority status（2026-07-19）
+
+- fresh formal-r6 on Cfreeze `14931b68…` 在 `bootstrap-negative` fail closed；formal delta、
+  frozen r22 和 contract 已通过，但 source seal/所有 test lane 尚未开始；r6 永久 failed/excluded；
+- 根因是 synthetic fsmonitor v2 hook 使用换行 token，导致首读偶发掩码，不是 fresh clone 的
+  real index/source 漂移；
+- fixture 已改为 NUL-token，保留 exact `h` 前置条件与 validator rc=2 拒绝；focused stress=
+  `100/100`、独立 stress=`1000/1000`、full negative processes=`5/5`；
+- r23 在新 Cdiag `9b0bd281…` 上 full PASS/public-valid，但 branch=`26112/44870` 的唯一新增 outcome
+  来自 `MapBeanInfoHelper#getBeanProperty` inner double-check 偶发调度；candidate/capsule 均 absent；
+- existing-node controlled regression 已在 5 个 fresh JVM 得到 exact class probe bitmap，owning module
+  `97/F0E0S0`，pre-Cdiag review=`0/0/0/0`；
+- current machine=`diagnostic-ready / diagnostic-pending`。历史 r22/r23/Cfreeze 不可复用；必须
+  replacement Cdiag→fresh diagnostic-r24→candidate/capsule/双审→direct-child Cfreeze→formal-r7；
+- Step 5–7、coverage acceptance replacement、9.3.5 与 9.4.0 在 formal-r7 完成前保持关闭。
+
+## Superseding diagnostic-r24 reviewed-Cfreeze status（2026-07-19）
+
+- replacement Cdiag=`414c8b12bff31155584e639e74987bf22df13ba9` 已 clean/pushed；fresh r24=
+  `completed / diagnostic-observed / exit 0 / public-valid`，required=`773+59/5707/F0E0S0`、
+  Addon=`2/6`、exec/session=`23/48`、source exact、cleanup/restore PASS；
+- aggregate exact line=`54624/76830`、branch=`26112/44870`、complexity=`17659/35571`；目标
+  `MapBeanInfoHelper#getBeanProperty` 在受控 existing-node regression 下稳定为 branch=`4/4`、
+  probe=`10/11 / _wU`；
+- immutable candidate=`f13f3c35…2ee`；portable capsule=`6638 entries / symlink 0`，两次独立
+  rebuild、public verify、空目录 materialize 全部 PASS；两路 independent review=`0/0/0/0`；
+- canonical machine 已 exact formalize：threshold=`confirmed / ddc1b24d…c04c`、contract=
+  `formal-ready / babdcd88…be1e`，Step 4/6 manifest=`61/61 + 16/16`，frozen r24 replay PASS；
+- pre-Cfreeze quality=`PASS / B0 H0 M0 L0`。当前只授权以 `414c8b12…` 为唯一直接父提交的
+  Cfreeze commit/push/clean 与一次 fresh-clone formal-r7；Step 5–7、post-formal audit/acceptance、
+  9.3.5 与 9.4.0 继续关闭。
+
+Current r24 records：
+
+- [diagnostic PASS](evidence/step-4/step4-coverage-diagnostic-r24-pass-20260719.md)
+- [immutable threshold candidate](evidence/step-4/step4-coverage-diagnostic-r24-threshold-candidate-20260719.json)
+- [dual threshold review](evidence/step-4/step4-coverage-diagnostic-r24-threshold-review-20260719.md)
+- [portable capsule manifest](evidence/step-4/step4-coverage-20260719-diagnostic-r24-portable-capsule.manifest.json)
+- [pre-Cfreeze implementation quality](quality/step4-r24-cfreeze-implementation-quality.md)
+
+## Superseding formal-r7 portability recovery（historical；2026-07-19）
+
+- Cfreeze=`439aea5e…` 已 clean/pushed；fresh formal-r7 的 Unit 完整通过
+  `681+55/4941/F0E0S0`，Integration 前两变体通过，`sqlite-broad` 在
+  `CalculateMvpIT.parityCatalogCasesStayExecutable` 以 `307/F1E0S0` fail closed；
+- 唯一根因是 bridge Git tree 未跟踪 parity catalog，本地 diagnostic 误读工作区父目录同名文件；
+  r7 永久 `failed/excluded/non-reusable`，cleanup=`0/0/0`，四个 demo DB exact ID 恢复 healthy；
+- exact catalog 已纳入 `docs/v1.5.1/`；Step 4 runner 在任何测试前校验 exact tracked
+  `100644` blob + SHA-256，raw/executable lifecycle 双层 seal 与 Step4→Step6 hash cascade 已同步；
+- focused `CalculateMvpIT=14/F0E0S0`，test source SHA/node count 不变；machine 已回到
+  `diagnostic-ready/diagnostic-pending`；
+- 该 checkpoint 当时的下一合法状态只允许 Cdiag commit/push/isolated proof→fresh diagnostic-r25→
+  candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8；随后已被下方 r25/r26 状态
+  supersede。Step 5–7、9.3.5、9.4.0 在该 checkpoint 继续关闭。
+
+Current recovery records：
+
+- [formal-r7 fail-closed evidence](evidence/step-4/step4-coverage-formal-r7-calculate-catalog-portability-fail-closed-20260719.md)
+- [formal-r7 failure capsule](evidence/step-4/formal-r7-failure-capsule/manifest.json)
+- [portability blocker workitem](workitems/BUG-calculate-mvp-parity-catalog-fresh-clone-portability.md)
+- [portability recovery implementation quality](quality/step4-formal-r7-portability-recovery-implementation-quality.md)
+
+## Superseding diagnostic-r25 Unit MySQL 7/12 remediation（historical；2026-07-19）
+
+- Cdiag=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`；fresh r25=
+  `completed / diagnostic-observed / exit 0`，public validator=`DIAGNOSTIC VALID`，observation=
+  `01487f7efd930406ffa05af9408012aa1fb215d94ba9c36c261f72c1aec7e42a`；required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`、production universe=
+  `24/2098`，source before=after、cleanup 和 exact demo DB restore 均通过；
+- follow-up consumer audit 发现第 7 个真实 MySQL consumer：
+  `DatasetJdbcUtilsTest#getOrCreateDataSource` 建立 JDBC connection 并执行 `SELECT 1`，却捕获
+  `SQLException` 后只打印 stack trace；无 listener 时它可产生伪绿；
+- r7 的 `6 reports / 11 errors` 是不可改写的历史失败观测；当前 reviewed known-consumer
+  lower bound 是 `7 reports / 12 nodes`。r25 tested schema 1 contract 的 `6/11` 因而不足以授权
+  candidate；r25 保持有效诊断观测，但被标记为 `pre-remediation / superseded / non-candidate`；
+- remediation machine closure 已完成：测试改为 `throws SQLException` + try-with-resources +
+  `SELECT 1` 精确断言；schema 2 分离 historical `6/11` 与 known lower bound `7/12`；
+  fixture negatives=`42/42`、lifecycle=`5/5`、overlay=`20/20`、Step4=`61/61`、
+  Step6=`16/16`，pre-Cdiag quality=`APPROVE / 0/0/0/0`。disposable MySQL 正/负结果仅是
+  未封存的 local observation；new Cdiag 后仍须 isolated durable proof，随后才可 fresh r26；
+- 该 checkpoint 不得生成 r25 candidate/capsule、不得 Cfreeze，也不得进入 Step 5、9.3.5 或
+  9.4.0；随后已被下方 r26 reviewed-Cfreeze 状态 supersede。当时唯一合法链路是完成修复与机器
+  闭包→new Cdiag/push/clean→isolated proof→fresh r26→
+  candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8→后置质量/audit/acceptance。
+
+Current 7/12 remediation records：
+
+- [r25 superseded diagnostic evidence](evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md)
+- [known-consumer understatement BUG](workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md)
+- [pre-Cdiag implementation quality](quality/step4-unit-mysql712-remediation-implementation-quality.md)
+
+## Superseding diagnostic-r26 reviewed-Cfreeze status（2026-07-19）
+
+- repaired Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 clean/pushed；fresh-clone isolated
+  r4 保存 positive=`Maven rc 0 / 1/F0E0S0` 与 wrong-password=`Maven rc 1 / 1/F0E1S0` 双
+  XML，并证明 disposable container absent、random port released；
+- fresh r26=`diagnostic-observed / completed / exit 0 / public-valid`，required=
+  `773+59/5707/F0E0S0`、Addon=`2/6/F0E0S0`、exec/session=`23/48`、source exact、cleanup 与
+  四个 demo DB exact restore PASS；Unit fixture historical/current=`6/11 + 7/12`、negative/lifecycle=
+  `42/42 + 5/5`；
+- aggregate=`54624/76830 line + 26112/44870 branch`；candidate=
+  `b8bd24113223e9a9c79280b248582ff34ad7a29013c2f93c4c7f4ebea682797a`，portable capsule
+  deterministic rebuild/materialize 与两路 review 均 PASS，B/H/M/L=`0/0/0/0`；
+- 当前只授权一个以 `4fe86929…` 为 direct parent 的 Cfreeze，随后必须 fresh formal-r8。r26
+  reviewed candidate 不是 formal、coverage audit、Step 4 feature acceptance 或 9.3.4 version signoff；
+- formal-r8 PASS 后按序执行 final quality→Step 4 coverage audit→Step 4 feature acceptance，三门
+  PASS 后只开放 Step 5。9.3.4 仍须完成 Steps 5–7 和 version signoff；9.3.5 保持 queued，version
+  signoff 后也只能先进入 Gate 0 classification-debt migration。
+
+Current r26 records：
+
+- [diagnostic PASS and portable evidence](evidence/step-4/step4-coverage-diagnostic-r26-pass-20260719.md)
+- [immutable threshold candidate](evidence/step-4/step4-coverage-diagnostic-r26-threshold-candidate-20260719.json)
+- [dual threshold review](evidence/step-4/step4-coverage-diagnostic-r26-threshold-review-20260719.md)
+- [portable capsule manifest](evidence/step-4/step4-coverage-20260719-diagnostic-r26-portable-capsule.manifest.json)
+- [pre-Cfreeze implementation quality](quality/step4-r26-cfreeze-implementation-quality.md)
+
+## Superseding formal-r8 report-runner recovery status（2026-07-19）
+
+- direct-child Cfreeze=`7c18019ed12d25c029de7e7e49caef77a79b2e67` 已 push/clean；fresh
+  formal-r8 完成 Unit `681+55/4941`、Integration `47+4/320`、database `29/370`、external
+  `16/76`、Step 3 required `45/446`、Addon `2/6` 与 report inventory
+  `773+59/5707/F0E0S0`；
+- coverage report 首个 provenance 调用直接执行 Git mode=`100644` 的 Python 工具，fresh clone
+  正确返回 rc126；r8 因而永久 `failed / excluded / non-reusable / non-candidate`，exec manifest、
+  aggregate、observation、gate、summary、candidate/final 均 absent；
+- runner cleanup=`0/0/0`，outer restore=`rc0`，四个 demo DB 原 exact ID 均恢复
+  `running/healthy`；16-entry failure capsule 与独立 sensitive scan PASS；
+- 三个错误的直接调用点已统一为 `python3`；新 negative contract 先绑定 runner exact raw bytes 与
+  `292` 条 logical executable command stream，再对全部四个 Git `100644` 工具和七个 interpreter
+  dispatch 作 target/top-level exact binding；raw/stream/semantic mutation 分别=`44/44 / 43/43 /
+  33/33`，其中 `11/11` dynamic/heredoc source mutations 包含一个 stream-unchanged inline-Python
+  direct call；Git-mode mutation=`4/4`、non-executable tool smoke=`4/4`。Step 4/6
+  manifests、CI workflow closure 与
+  `diagnostic-ready / diagnostic-pending` machine reset PASS；
+- 独立 pre-Cdiag code/docs reviews=`PASS / 0/0/0/0 / mandatory 0`；当前只授权把 failure capsule、
+  BUG、修复、machine reset 与 recovery quality 提交为一个 new Cdiag；
+  后续必须 fresh diagnostic-r27→candidate/capsule/双审→direct-child Cfreeze→fresh formal-r9→final
+  quality→coverage audit `31/31`→feature acceptance。Step 5–7、9.3.5、9.4.0 继续关闭。
+
+Current recovery records：
+
+- [formal-r8 fail-closed evidence](evidence/step-4/step4-coverage-formal-r8-report-runner-permission-fail-closed-20260719.md)
+- [failure capsule](evidence/step-4/formal-r8-failure-capsule/manifest.json)
+- [report-runner executable-bit BUG](workitems/BUG-step4-report-runner-nonauthoritative-exec-bit-dependency.md)
+- [interpreter recovery evidence](evidence/step-4/step4-coverage-report-runner-interpreter-recovery-20260719.md)
+- [pre-Cdiag recovery quality](quality/step4-formal-r8-report-runner-recovery-implementation-quality.md)
+
+## Superseding diagnostic-r27 high-water recovery status（2026-07-19）
+
+- r27 completed and public validation passed, but is permanently `non-freezable`: aggregate branch/complexity
+  were `26111/44870` / `17658/35571`, each one below r26 reviewed high-water. Candidate and capsule
+  generated during tool validation were isolated outside canonical evidence and are not reusable.
+- The only delta was `ExportWithChartTool.java:248`; the existing test used unordered `Map.of` before a
+  short-circuit numeric-field search. The test-only `LinkedHashMap(category -> amount)` stabilization is
+  independently reviewed PASS and reproduced `mb=0/cb=2` with an identical target probe bitmap in five
+  fresh JVMs.
+- At the r27 checkpoint, authority was new Cdiag -> fresh diagnostic-r28 -> candidate/capsule/dual review ->
+  direct-child Cfreeze -> fresh formal-r9. That checkpoint is superseded by the formal-r9 boundary below;
+  Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+- [r27 rejection and controlled recovery evidence](evidence/step-4/step4-coverage-diagnostic-r27-export-chart-order-high-water-fail-closed-20260719.md)
+- [recovery implementation quality](quality/step4-diagnostic-r27-export-chart-order-recovery-implementation-quality.md)
+- [map-order coverage workitem](workitems/BUG-step4-export-chart-inference-map-order-coverage.md)
+
+## Superseding formal-r9 strict-umask recovery boundary（2026-07-19）
+
+- r28 reviewed material was frozen by direct-child Cfreeze `34cd2452c1bbe793c0567ebe23179b290227ae3d`;
+  fresh `step4-coverage-20260719-formal-r9` reached `coverage-report` but terminated exit=`2` when the
+  effective-POM public receipt inherited strict umask and was published as mode=`0600`. The reporter rejected
+  it with `E_OUTPUT: unexpected output mode: 0600`.
+- formal-r9 is immutable `failed / excluded / non-reusable / non-candidate`. Although its failure root retains
+  formalization-delta and child-lane observations, it has no success summary/candidate/final authority; none of
+  r28 candidate/capsule/Cfreeze or r9 partial output may be promoted or combined with a successor run.
+- Outer restoration completed after the failed run (`restore_rc=0` and runner cleanup had no container, volume
+  or network residue). This only preserves the environment boundary; it is not a Step 4 exit or formal result.
+- Recovery baseline `390322295e1efce34399468f98076edf7fcc6f73` makes public receipt mode explicit and adds the
+  strict-umask negative probe, then clears frozen observations/review to
+  `diagnostic-ready / diagnostic-pending`. It is a machine-recovery baseline, **not** the final Cdiag and not a
+  formal-ready state.
+- The only authorized successor is one new clean/pushed Cdiag (including the recovered authority documents)
+  → one fresh all-lane diagnostic-r29 → new candidate/capsule with dual independent review → that Cdiag's
+  direct-single-parent Cfreeze → fresh formal successor → final implementation quality → replacement coverage
+  audit `31/31` → Step 4 feature acceptance. Until every gate is separately recorded, `can_enter_cfreeze=no`,
+  `can_enter_step5=no`, `can_enter_coverage_audit=no`, and `can_enter_acceptance=no`; Steps 5–7, 9.3.5 and
+  9.4.0 remain closed.
+
+- [formal-r9 strict-umask recovery implementation quality](quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md)
+  records the recovery decision as `ready-for-new-Cdiag` only; it is not a post-formal or downstream-gate record.
+
+## Superseding diagnostic-r29 Git-safety hold（2026-07-19）
+
+- clean/pushed Cdiag=`f420a4eaa3cf9bed0d7027b656ea71af6d0b03ca`；fresh diagnostic-r29 在
+  outer `umask 077` 下完成，durable diagnostic replay 验证其计数与全 lane 状态；
+- r29 的候选事实只保留为本地诊断观察。审计发现其 local capsule 包含 Git 排除的原始运行内容，
+  因而不存在可入库的安全 closure；r29=`non-freezable / no-cfreeze-authority`；
+- 不得为 r29 补录、重打包或引用 capsule identity，也不得将其 candidate/review 与任何历史运行拼接；
+- Git-safe tooling Cdiag `7757aa36…` 的 r30 在 successor overlay binding 预检 fail-closed；binding
+  closure Cdiag `f80fadd6…` 随后的 fresh r31 则在 Unit fixture 的固定端口前置条件处 fail-closed，未
+  启动 lifecycle probe、fixture 或测试 lane。r31 永久 excluded，不能补跑或复用；当前只允许封存该环境
+  边界、形成新的 clean/pushed Cdiag、确认端口空闲后运行 fresh r32。Cfreeze、formal、coverage audit、
+  acceptance、Step 5–7、9.3.5 与 9.4.0 继续关闭。
+
+- [r29 diagnostic evidence](evidence/step-4/step4-coverage-diagnostic-r29-pass-20260719.md)
+- [r29 candidate review](quality/step4-diagnostic-r29-candidate-review.md)
+- [r29 capsule review](quality/step4-diagnostic-r29-capsule-review.md)
+- [Git-safe capsule blocker](workitems/BUG-step4-frozen-capsule-git-safe-content-boundary.md)
+- [r31 environment fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r31-environment-port-precondition-fail-closed-20260719.md)
+
+## Superseding diagnostic-r30 successor-binding failure（2026-07-19）
+
+- Cdiag `7757aa36c0efd0970422669e0f88f74daa8f15b0` introduced the Git-safe capsule/replay closure.
+  Fresh `step4-coverage-20260719-diagnostic-r30` stopped in `contract-validate` because its Step 3 successor
+  overlay still bound the old dual coverage-contract projection and coverage-tool identities.
+- r30=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. It has no source seal, child
+  lane, aggregate, XML, observation, summary, candidate or final authority; it must not be repaired in place or
+  combined with r29 or historical material.
+- The remediation synchronizes both overlay binding sources and their manifest chain, and makes the Step 4
+  contract-negative suite execute the same canonical overlay preflight. A new clean/pushed Cdiag is mandatory
+  before one fresh strict-umask diagnostic-r31.
+
+- [r30 fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r30-successor-binding-fail-closed-20260719.md)
+
+## Superseding diagnostic-r31 fixed-port environment failure（2026-07-19）
+
+- Cdiag `f80fadd62ca00d3ba56f1be04e92113ba1145019` sealed the successor-binding correction; its fresh
+  strict-umask `step4-coverage-20260719-diagnostic-r31` passed preflight/source-seal/class-universe then stopped
+  before any lifecycle probe, fixture provision or Maven Unit execution.
+- r31=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. Its derived resource and outer
+  cleanup counts are zero, while a fixed-port precondition remained occupied outside the derived project; no
+  external listener is taken over, reused or recorded as runtime evidence.
+- The authorized path is now: seal r31 → new clean/pushed Cdiag → independently confirm the port is free → fresh
+  r32 → new candidate/review → direct-child Cfreeze → fresh formal → post gates. Step 5–7, 9.3.5 and 9.4.0 remain
+  closed.
+
+## Superseding diagnostic-r32 WatchService delete high-water boundary（2026-07-20）
+
+- fresh r32 is `completed / diagnostic-observed / public-valid`, with required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, source-before=after and cleanup=`0/0/0`;
+- its line=`54624/76830` reaches the floor, but branch=`26111/44870` and complexity=`17658/35571` remain one
+  below the reviewed high-water. It is permanently `non-freezable`; no r32 candidate or Git-safe closure is
+  admitted to Git authority;
+- the unique delta is `WatchServiceFileTracer.java:442` filtered-delete coverage. One existing mock-key test
+  now synchronously covers unfiltered, filtered-reject and filtered-match deletes; five focused JVMs and the
+  `foggy-core` suite (`97/F0E0S0`) confirm the recovery without changing production code or test identity;
+- r33 consumed this Cdiag's one fresh-run authorization and is permanently excluded before a Unit marker or
+  canonical lane result. The only path is a clean/pushed docs-only Cdiag → governed readiness preflight →
+  fresh strict-umask r34 meeting line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571`
+  → new candidate/Git-safe closure/dual review →
+  direct-child Cfreeze → fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+- [r32 high-water rejection](evidence/step-4/step4-coverage-diagnostic-r32-watchservice-delete-high-water-fail-closed-20260720.md)
+- [delete-event determinism workitem](workitems/BUG-step4-watchservice-delete-event-coverage-determinism.md)
+- [r32 recovery implementation quality](quality/step4-diagnostic-r32-watchservice-delete-recovery-implementation-quality.md)
+
+## Superseding diagnostic-r33 Unit pre-marker failure（2026-07-20）
+
+- r33 from Cdiag `4d917214…` is `failed / excluded / non-reusable / non-candidate / zero-lane-authority`.
+  Its Unit marker, successor view, lifecycle receipt, normal fixture manifest, canonical Unit result and all
+  downstream authority are absent; the final fallback-cleanup failure does not identify the primary cause or
+  establish cleanup closure.
+- No product, test, runner, threshold, or successor-contract change is authorized by this unclassified
+  pre-marker failure. The failed run is immutable and must not be manually repaired or reused.
+- The only authorized path is r33 exclusion record → clean/pushed docs-only Cdiag → independent Docker,
+  fixed-port and run-owned-scope readiness preflight → fresh strict-umask r34 → candidate/review → Cfreeze →
+  fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+- [r33 Unit pre-marker fail-closed evidence](evidence/step-4/step4-coverage-diagnostic-r33-unit-pre-marker-fallback-cleanup-fail-closed-20260720.md)
+
+## Superseding formal-r10 report-stage receipt boundary（2026-07-20）
+
+- formal-r10 remains mechanically recorded as `formal-passed`, but its final public effective-POM report
+  receipt was mode `0600` rather than the exact governed public mode `0644`. The result is therefore
+  `contract-invalid / non-authoritative / excluded-from-audit-and-acceptance`; it must not be retroactively
+  edited or used as Step 4, Step 5, audit, or acceptance authority.
+- The initial publisher correction was sound. The remaining defect was the later report-stage copy under
+  strict `umask 077`, combined with provenance that omitted the mode. The successor binds exact mode into
+  both runner enforcement and final provenance and proves it with strict-umask/mutation regressions.
+- The authority sequence restarts at a new clean/pushed Cdiag and fresh diagnostic-r35. Only that new run
+  may create candidate/review/Cfreeze/formal successors, followed by final quality, `legacy 31 +
+  supplemental 4` audit, and feature acceptance. 9.3.5 and 9.4.0 remain closed.
+
+- [formal-r10 report-stage fail-closed evidence](evidence/step-4/step4-coverage-formal-r10-report-stage-public-receipt-fail-closed-20260720.md)
+- [formal-r10 implementation-quality rejection](quality/step4-formal-r10-report-stage-receipt-fail-closed-implementation-quality.md)
+
+## r35 reviewed Cfreeze boundary（2026-07-20）
+
+- Clean/pushed recovery Cdiag `93b3993e…` produced fresh strict-umask diagnostic-r35 with all required
+  lanes, high-water counters, source/lifecycle/cleanup closure, and a regular/non-link final public
+  effective-POM receipt at exact `0644`.
+- Its candidate and Git-safe capsule were independently recomputed/rebuilt/materialized; both independent
+  reviews are `APPROVE / B/H/M/L=0/0/0/0`. This establishes a Cfreeze input, not formal, audit, acceptance,
+  Step 5, 9.3.5, or 9.4.0 authority.
+- The sole authorized successor is one direct-child Cfreeze of `93b3993e…`, followed by fresh formal-r11
+  in a clean clone, final quality, a replacement `legacy 31 + supplemental 4` audit, and Step 4 feature
+  acceptance. r34, r10 and prior Cfreeze material remain non-reusable.
+
+- [r35 diagnostic pass](evidence/step-4/step4-coverage-diagnostic-r35-pass-20260720.md)
+- [r35 threshold review](evidence/step-4/step4-coverage-diagnostic-r35-threshold-review-20260720.md)
+
+## formal-r11 evidence completion / signoff prerequisite（2026-07-20）
+
+- Cfreeze `4b17dbe…` produced fresh formal-r11=`formal-passed`; final replay, exact public receipt=`0644`,
+  cleanup, high-water, same-Cfreeze Pivot companion, independent quality and replacement audit all pass.
+- The audit is `35/35` (`legacy31 + supplemental4`) with a separate report-stage receipt gate passed; it does
+  not reuse r10/r34/prior-Cfreeze authority.
+- Step 4 replacement feature acceptance is issued by `foggy-projects`; the canonical spec is
+  [`ACCEPTED`](workitems/FEATURE-step4-replacement-coverage-gate-signoff.md). Step 5 is
+  `ready / not-started`; Steps 6–7 remain pending, and 9.3.5/9.4.0 remain closed until 9.3.4 version signoff.
+
+## r37 reviewed Cfreeze boundary（2026-07-20）
+
+- Clean/pushed Cdiag `9743f97d…` produced fresh
+  `step4-coverage-20260720-diagnostic-r37=diagnostic-observed / completed / exit 0` with
+  required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`, source before=after,
+  cleanup=`0/0/0`, line=`54624/76830`, branch=`26112/44870`, and complexity=`17659/35571`.
+- The r37 candidate and Git-safe capsule were independently recomputed/rebuilt/materialized. Both reviews are
+  `PASS / B/H/M/L=0/0/0/0`; only the attestation and aggregate XML are retained in the capsule.
+- This authorizes exactly one direct-child Cfreeze from `9743f97d…`. A fresh formal run and Step 5 rehearsal
+  remain mandatory; formal-r11 and its feature acceptance remain historical for the changed successor runner.
+
+- [r37 threshold review](evidence/step-4/step4-coverage-diagnostic-r37-threshold-review-20260720.md)
+
+## r38 formal revalidation accepted / Step 5 ready（2026-07-20）
+
+- Direct-child Cfreeze 62361688… produced fresh formal-r38=formal-passed / completed / exit=0 with
+  required=773+59/5707/F0E0S0, Addon=2/6/F0E0S0, exec/session=23/48, source before=after,
+  cleanup=0/0/0, line=54624/76830, branch=26112/44870, and complexity=17659/35571.
+- Same-Cfreeze Pivot companion is 1/F0E0S0; independent implementation quality is APPROVE with
+  B/H/M/L=0/0/0/0; the newly bound r38 35+1 audit has no critical/major evidence gap.
+- The canonical Addon remediation is ACCEPTED by foggy-projects. r11 acceptance remains historical only; the
+  r38 acceptance opens a new fresh Step 5 rehearsal, not Steps 6-7, 9.3.5, or 9.4.0.
+
+- [formal-r38 result](evidence/step-4/step4-coverage-formal-r38-pass-20260720.md)
+- [r38 Pivot companion](evidence/step-4/step4-pivot-legacy-companion-r38-20260720.md)
+- [r38 acceptance](acceptance/step4-addon-context-revalidation-acceptance-20260720.md)
+
+## Step 5 Pivot TTL clock-oracle remediation / new Cdiag pending（2026-07-20）
+
+- The fresh r3 rehearsal itself is immutable failed evidence: the release/Step 4/integration structured
+  statuses stop at `step4-release-successor` / `child-integration` / `variant-sqlite-broad`; its structured
+  aggregate has exactly one failed case, `PivotIT#testOuterCacheTtlExpiryFlatPivotE1b`.
+- The bounded remediation changes only `PivotIT`: a private controlled-time provider delegates to real
+  `PivotOuterResponseCache`, stores at time 100, advances to 102 for TTL=1, and proves the existing
+  evicted/miss/re-execution/store contract without `Thread.sleep` or wall-clock sampling. Five fresh focused
+  forks, full `PivotIT=55/F0E0S0`, and `PivotOuterResponseCacheTest=8/F0E0S0` passed; independent code audit
+  is `ACCEPT / B/H/M/L=0/0/0/0`.
+- This is implementation evidence only. The next authority is a clean/pushed Cdiag followed by fresh
+  diagnostic/review, direct-child Cfreeze, formal, quality/audit and a new Step 5 rehearsal/portable replay.
+  Steps 6–7, 9.3.5 and 9.4.0 remain closed.
+
+- [TTL clock-oracle BUG](workitems/BUG-step5-pivot-outer-cache-ttl-clock-oracle.md)

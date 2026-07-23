@@ -56,22 +56,11 @@ class JavaComposeScriptSnapshotTest {
             assertJavaRuntimeContract(c);
         }
 
-        Path pythonTarget = Path.of(
-                "..",
-                "..",
-                "foggy-data-mcp-bridge-python",
-                "tests",
-                "fixtures",
-                "java_compose_script_snapshot_parity.json"
-        ).normalize();
-        Files.createDirectories(pythonTarget.getParent());
-        MAPPER.writeValue(pythonTarget.toFile(), snapshot);
-
-        Path localCopy = Path.of("target", "parity", "java_compose_script_snapshot_parity.json");
-        Files.createDirectories(localCopy.getParent());
-        MAPPER.writeValue(localCopy.toFile(), snapshot);
-        assertTrue(Files.exists(pythonTarget),
-                "snapshot was not written: " + pythonTarget.toAbsolutePath());
+        Path localArtifact = Path.of("target", "parity", "java_compose_script_snapshot_parity.json");
+        Files.createDirectories(localArtifact.getParent());
+        MAPPER.writeValue(localArtifact.toFile(), snapshot);
+        assertTrue(Files.exists(localArtifact),
+                "snapshot was not written: " + localArtifact.toAbsolutePath());
     }
 
     private static Map<String, Object> toolSnapshot() throws Exception {

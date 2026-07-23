@@ -1,0 +1,103 @@
+{
+  "addon_companion": {
+    "included_in_required_totals": false,
+    "required": true,
+    "resource_residue": "0/0/0",
+    "totals": {
+      "errors": 0,
+      "failures": 0,
+      "reports": 2,
+      "skipped": 0,
+      "testcase_nodes": 6,
+      "variants": 2
+    }
+  },
+  "artifact_tree_sha256": "6ec96fe11c81b19823cf01aee41e99c2bffb4d8c8f262cf770a89ab03ca0cf3c",
+  "artifacts": [
+    {
+      "mtime_ns": 1784148136190297328,
+      "path": "cleanup.env",
+      "sha256": "5524f0c68afb6ff1d13358f8fa3d2d19f7c1270454f2dfed1d2fe72cfe334ff1",
+      "size_bytes": 69
+    },
+    {
+      "mtime_ns": 1784146705001662609,
+      "path": "final/outer-run-marker.json",
+      "sha256": "e3a5f1fdaa13299f8649f85fbdcb8709cc8efaa216aeae3e3ea70f0e2335710e",
+      "size_bytes": 870
+    },
+    {
+      "mtime_ns": 1784148137839359336,
+      "path": "final/report-manifest.json",
+      "sha256": "9040bff263101ed7ad33dbc4681bbf37f48e39b00957d2bf8224fb506afa5282",
+      "size_bytes": 16869
+    },
+    {
+      "mtime_ns": 1784148135514498101,
+      "path": "negative/probes.tsv",
+      "sha256": "ef16311e470156cbd9c4b9a883c09a14b922b077c927ee906b8f61aae7a82cf1",
+      "size_bytes": 1043
+    },
+    {
+      "mtime_ns": 1784146705001662609,
+      "path": "run-context.json",
+      "sha256": "e3a5f1fdaa13299f8649f85fbdcb8709cc8efaa216aeae3e3ea70f0e2335710e",
+      "size_bytes": 870
+    },
+    {
+      "mtime_ns": 1784148139314246434,
+      "path": "run-status.env",
+      "sha256": "e73c57d603b793644b1c7ed7e9d0e3a4995f8fdb49eb528a43694cda7e328223",
+      "size_bytes": 663
+    },
+    {
+      "mtime_ns": 1784148135514498101,
+      "path": "run.log",
+      "sha256": "97146c6d46da48e5ce5ca083adde4c74bfe9a3feba2f56efd1ac6a5afd1cf919",
+      "size_bytes": 32530724
+    },
+    {
+      "mtime_ns": 1784148136374294304,
+      "path": "sensitive-scan.env",
+      "sha256": "d6f954b77d9060e3b585f421017ad9efe4ae5aa97c6c84499ff4df983cb3ae52",
+      "size_bytes": 33
+    },
+    {
+      "mtime_ns": 1784148135462305547,
+      "path": "source-after.tsv",
+      "sha256": "350e671354f99c76237913619558255cde18131872cb0807ff227545614b9a60",
+      "size_bytes": 631306
+    },
+    {
+      "mtime_ns": 1784146704948456742,
+      "path": "source-before.tsv",
+      "sha256": "350e671354f99c76237913619558255cde18131872cb0807ff227545614b9a60",
+      "size_bytes": 631306
+    },
+    {
+      "mtime_ns": 1784148139314246434,
+      "path": "summary.env",
+      "sha256": "ab8e1264ff25ad922c7ed31d0f28fab86d38562f1d5f8c76daec5bcc8f04aa10",
+      "size_bytes": 900
+    }
+  ],
+  "contract_sha256": "f2bd52df7ed2829051ad263f97d560d3f8babe048d25864edb725eb671ba4d1b",
+  "git_head": "ce3d70c391c7b8bd8046fe66dde0ad568d66601e",
+  "kind": "v934-step3-required-matrix-candidate",
+  "lane": "step3-required-matrix",
+  "outer_marker_sha256": "e3a5f1fdaa13299f8649f85fbdcb8709cc8efaa216aeae3e3ea70f0e2335710e",
+  "report_manifest_sha256": "9040bff263101ed7ad33dbc4681bbf37f48e39b00957d2bf8224fb506afa5282",
+  "run_id": "step3-required-20260716-final-r4",
+  "runner": "orchestrator",
+  "schema_version": 1,
+  "totals": {
+    "database_variants": 7,
+    "errors": 0,
+    "execution_keys": 45,
+    "external_variants": 7,
+    "failures": 0,
+    "reports": 45,
+    "skipped": 0,
+    "testcase_nodes": 446
+  }
+}

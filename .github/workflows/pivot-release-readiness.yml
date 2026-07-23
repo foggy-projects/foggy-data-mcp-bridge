@@ -1,16 +1,6 @@
-name: Pivot Release Readiness
+name: Legacy Pivot Diagnostics
 
 on:
-  pull_request:
-    paths:
-      - 'foggy-dataset-model/**'
-      - 'foggy-dataset-mcp/**'
-      - 'foggy-dataset-demo/**'
-      - 'scripts/verify-pivot-v9-release.*'
-      - 'scripts/verify-v38-engine-evidence.*'
-      - 'scripts/verify-v39-engine-production-gate.*'
-      - 'scripts/collect-v38-engine-evidence-artifact.*'
-      - '.github/workflows/pivot-release-readiness.yml'
   workflow_dispatch:
   schedule:
     - cron: '0 18 * * *'
@@ -22,8 +12,8 @@ env:
   JAVA_VERSION: '17'
 
 jobs:
-  sqlite-pr-fast-path:
-    name: SQLite pivot parity fast path
+  sqlite-pivot-diagnostic:
+    name: Legacy SQLite pivot parity diagnostic
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -50,8 +40,8 @@ jobs:
           test -s "$report"
           grep -q '<testcase' "$report"
 
-  external-db-release-gate:
-    name: MySQL8/PostgreSQL pivot parity release gate
+  external-db-diagnostic:
+    name: Legacy MySQL8/PostgreSQL pivot parity diagnostic
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:

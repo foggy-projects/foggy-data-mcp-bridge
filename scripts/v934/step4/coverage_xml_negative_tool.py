@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -308,6 +309,166 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     tool.real_directory(repo_root, "E_REPO_ROOT")
     cases: dict[str, dict[str, str]] = {}
 
+    with tempfile.TemporaryDirectory(prefix="v934-public-receipt-mode-") as temporary_name:
+        receipt = Path(temporary_name) / "effective-reporter-pom-receipt.json"
+        receipt.write_text('{"status":"verified"}\n', encoding="utf-8")
+        receipt.chmod(0o644)
+        observed = tool.regular_file(
+            receipt,
+            "E_REPORT_PROVENANCE",
+            expected_mode=0o644,
+        )
+        if not stat.S_ISREG(observed.st_mode):
+            raise RuntimeError("public receipt positive fixture is not regular")
+        record_positive(cases, "public-effective-receipt-mode-positive")
+        receipt.chmod(0o600)
+        expect_failure(
+            cases,
+            "public-effective-receipt-mode-0600",
+            "E_REPORT_PROVENANCE",
+            lambda: tool.regular_file(
+                receipt,
+                "E_REPORT_PROVENANCE",
+                expected_mode=0o644,
+            ),
+        )
+
+    capsule_self_test = tool.diagnostic_capsule.run_self_test()
+    required_capsule_cases = {
+        "deterministic-build",
+        "materialize-exact-members",
+        "unrelated-run-content-ignored",
+        "archive-tamper",
+        "schema-v1-rejected",
+        "extra-member-rejected",
+        "tar-trailing-payload-rejected",
+        "tar-extra-member-rejected",
+        "raw-exec-attestation-rejected",
+        "raw-log-attestation-rejected",
+        "container-identity-rejected",
+        "process-identity-rejected",
+        "sensitive-attestation-rejected",
+        "untrusted-doctype-rejected",
+        "raw-exec-xml-rejected",
+        "raw-log-xml-rejected",
+        "container-identity-xml-rejected",
+        "process-identity-xml-rejected",
+        "encoded-sensitive-xml-rejected",
+        "nonempty-destination",
+    }
+    observed_capsule_cases = {
+        item.get("name")
+        for item in capsule_self_test.get("cases", [])
+        if isinstance(item, dict)
+    }
+    if (
+        capsule_self_test.get("status") != "passed"
+        or not required_capsule_cases.issubset(observed_capsule_cases)
+        or capsule_self_test.get("case_count") != len(capsule_self_test.get("cases", []))
+    ):
+        raise RuntimeError("portable diagnostic capsule self-test differs")
+    record_positive(
+        cases,
+        "frozen-diagnostic-capsule-self-test",
+        f"{capsule_self_test['case_count']}-cases",
+    )
+
+    frozen_validation_fixture, _frozen_step1_fixture = synthetic_freeze_validation()
+    frozen_source_evidence = frozen_validation_fixture["evidence"]
+    confirmed_evidence = tool.validate_threshold_evidence(
+        {
+            "run_id": frozen_source_evidence["run_id"],
+            "git_head": frozen_source_evidence["git_head"],
+            "source_sha256": frozen_source_evidence["source_sha256"],
+            "run_status_sha256": frozen_source_evidence["run_status_sha256"],
+            "summary_sha256": frozen_source_evidence["summary_sha256"],
+            "observation_sha256": frozen_source_evidence["observation_sha256"],
+            "coverage_contract_sha256": frozen_source_evidence[
+                "coverage_contract_sha256"
+            ],
+            "threshold_predecessor_sha256": frozen_source_evidence[
+                "threshold_sha256"
+            ],
+            "exec_manifest_sha256": frozen_source_evidence["exec_manifest_sha256"],
+            "aggregate_exec_sha256": frozen_source_evidence[
+                "aggregate_exec_sha256"
+            ],
+            "aggregate_xml_sha256": frozen_source_evidence["aggregate_xml_sha256"],
+            "workspace_class_tree_sha256": frozen_source_evidence[
+                "workspace_class_tree_sha256"
+            ],
+        },
+        "E_NEGATIVE_FIXTURE",
+    )
+    frozen_attestation = {
+        "identity": {
+            "run_id": confirmed_evidence["run_id"],
+            "git_head": confirmed_evidence["git_head"],
+            "source_sha256": confirmed_evidence["source_sha256"],
+            "run_context_sha256": "1" * 64,
+            "run_status_sha256": confirmed_evidence["run_status_sha256"],
+            "summary_sha256": confirmed_evidence["summary_sha256"],
+            "coverage_contract_sha256": confirmed_evidence[
+                "coverage_contract_sha256"
+            ],
+            "threshold_predecessor_sha256": confirmed_evidence[
+                "threshold_predecessor_sha256"
+            ],
+            "observation_sha256": confirmed_evidence["observation_sha256"],
+        },
+        "execution_attestation": {
+            "mode": "source-validated-hash-only",
+            "retention": "no-execution-bytes",
+            "exec_count": 23,
+            "session_count": 48,
+            "byte_tree_sha256": "2" * 64,
+            "aggregate_exec_sha256": confirmed_evidence["aggregate_exec_sha256"],
+            "merge_semantics": tool.EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+            "status": "verified",
+        },
+        "xml": {
+            "sha256": confirmed_evidence["aggregate_xml_sha256"],
+            "size": 1,
+            "deterministic_report_replay_count": 2,
+        },
+        "source_attestation": {
+            "class_universe_sha256": "3" * 64,
+            "workspace_class_tree_sha256": confirmed_evidence[
+                "workspace_class_tree_sha256"
+            ],
+            "workspace_bytecode_class_count": 1,
+            "toolchain_receipt_sha256": "4" * 64,
+            "coverage_ledger_sha256": tool.EXPECTED_LEDGER_SHA256,
+        },
+    }
+    tool.validate_frozen_git_safe_attestation(
+        frozen_attestation,
+        confirmed_evidence,
+        confirmed_evidence["git_head"],
+    )
+    record_positive(cases, "git-safe-frozen-attestation-binding-positive")
+    tampered_frozen_attestation = copy.deepcopy(frozen_attestation)
+    tampered_frozen_attestation["execution_attestation"][
+        "aggregate_exec_sha256"
+    ] = "5" * 64
+    expect_failure(
+        cases,
+        "git-safe-frozen-attestation-aggregate-tamper",
+        "E_FROZEN_ATTESTATION",
+        lambda: tool.validate_frozen_git_safe_attestation(
+            tampered_frozen_attestation,
+            confirmed_evidence,
+            confirmed_evidence["git_head"],
+        ),
+    )
+    frozen_sessions = tool.expected_sessions_from_ledger(
+        confirmed_evidence["run_id"],
+        tool.load_ledger(repo_root),
+    )
+    if len(frozen_sessions) != 48 or len(set(frozen_sessions)) != 48:
+        raise RuntimeError("Git-safe frozen session derivation differs")
+    record_positive(cases, "git-safe-frozen-session-derivation-positive")
+
     identity_manifest = {
         "class_id_consistency_scope": tool.EXPECTED_CLASS_ID_CONSISTENCY_SCOPE,
         "unique_execution_classes": 2,
@@ -407,6 +568,21 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         for node in tool_source.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
+    frozen_replay_calls = {
+        node.func.id
+        for node in ast.walk(functions["validate_frozen_diagnostic_data"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+    }
+    if "validate_run_data" in frozen_replay_calls:
+        raise RuntimeError(
+            "Git-safe frozen replay must not revalidate a retained runtime closure"
+        )
+    if "recompute_sanitized_attested_observation" not in frozen_replay_calls:
+        raise RuntimeError(
+            "Git-safe frozen replay must recompute retained XML semantics"
+        )
+    record_positive(cases, "git-safe-frozen-replay-semantic-scope")
     expected_size_calls = {
         "validate_aggregate_provenance": 2,
         "validate_report_provenance": 1,
@@ -1118,6 +1294,67 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     tool.validate_formal_delta_policy(formal_policy, valid_formal_changes)
     record_positive(cases, "formal-delta-policy-positive")
+
+    summary_values = {field: "fixture" for field in tool.RELEASE_SUMMARY_FIELDS}
+    summary_values.update(
+        {
+            "mode": "release",
+            "release_successor": tool.RELEASE_SUCCESSOR_MARKER,
+            "status": "release-candidate-ready",
+        }
+    )
+    release_summary_payload = tool.encode_env(
+        summary_values,
+        tool.RELEASE_SUMMARY_FIELDS,
+        "E_RUN_SUMMARY",
+    )
+    tool.parse_env_bytes(
+        release_summary_payload,
+        tool.RELEASE_SUMMARY_FIELDS,
+        "E_RUN_SUMMARY",
+        "release summary positive",
+    )
+    record_positive(cases, "release-summary-schema-positive")
+    release_as_formal = release_summary_payload.replace(
+        b"mode=release\n", b"mode=formal\n", 1
+    ).replace(
+        b"status=release-candidate-ready\n",
+        b"status=formal-candidate-ready\n",
+        1,
+    )
+    expect_failure(
+        cases,
+        "release-summary-cannot-masquerade-as-formal",
+        "E_RUN_SUMMARY",
+        lambda: tool.parse_env_bytes(
+            release_as_formal,
+            tool.FORMAL_SUMMARY_FIELDS,
+            "E_RUN_SUMMARY",
+            "release-as-formal summary",
+        ),
+    )
+    formal_without_delta_values = {
+        field: "fixture" for field in tool.DIAGNOSTIC_SUMMARY_FIELDS
+    }
+    formal_without_delta_values.update(
+        {"mode": "formal", "status": "formal-candidate-ready"}
+    )
+    formal_without_delta = tool.encode_env(
+        formal_without_delta_values,
+        tool.DIAGNOSTIC_SUMMARY_FIELDS,
+        "E_RUN_SUMMARY",
+    )
+    expect_failure(
+        cases,
+        "formal-summary-still-requires-formalization-delta",
+        "E_RUN_SUMMARY",
+        lambda: tool.parse_env_bytes(
+            formal_without_delta,
+            tool.FORMAL_SUMMARY_FIELDS,
+            "E_RUN_SUMMARY",
+            "formal summary without delta",
+        ),
+    )
     expect_failure(
         cases,
         "formal-delta-forbidden-path",
@@ -1640,10 +1877,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "bindings": {"aggregate_xml": {"sha256": "e" * 64}},
         }
 
-        def fake_formal_check(_repo_root: Path, run_id: str) -> dict[str, Any]:
+        def fake_formal_check(
+            _repo_root: Path,
+            run_id: str,
+            mode: str = "formal",
+        ) -> dict[str, Any]:
             if run_id != fake_gate["run_id"]:
                 tool.reject("E_COVERAGE_GATE", "fake gate run mismatch")
-            return copy.deepcopy(fake_gate)
+            result = copy.deepcopy(fake_gate)
+            if mode == "release":
+                result["release_successor"] = tool.RELEASE_SUCCESSOR_MARKER
+            return result
 
         tool.formal_check_data = fake_formal_check
         gate_path = temporary_root / "coverage-gate.json"
@@ -1659,6 +1903,37 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         write_json(final_path, final_value)
         tool.validate_acceptance_final(repo_root, final_path)
         record_positive(cases, "canonical-gate-candidate-final-positive")
+
+        release_gate = fake_formal_check(repo_root, run_id, "release")
+        write_json(gate_path, release_gate)
+        release_candidate = tool.acceptance_candidate_data(
+            repo_root, run_id, gate_path, "release"
+        )
+        write_json(candidate_path, release_candidate)
+        tool.validate_acceptance_candidate(repo_root, candidate_path, "release")
+        release_final = tool.acceptance_final_data(
+            repo_root, candidate_path, "release"
+        )
+        write_json(final_path, release_final)
+        tool.validate_acceptance_final(repo_root, final_path, "release")
+        record_positive(cases, "release-gate-candidate-final-positive")
+
+        release_as_formal_candidate = copy.deepcopy(release_candidate)
+        release_as_formal_candidate["status"] = "formal-candidate"
+        release_as_formal_candidate.pop("release_successor")
+        write_json(candidate_path, release_as_formal_candidate)
+        expect_failure(
+            cases,
+            "release-candidate-cannot-masquerade-as-formal",
+            "E_COVERAGE_GATE_MODE",
+            lambda: tool.validate_acceptance_candidate(
+                repo_root, candidate_path, "formal"
+            ),
+        )
+
+        write_json(gate_path, fake_gate)
+        write_json(candidate_path, candidate_value)
+        write_json(final_path, final_value)
 
         gate_numeric_alias = copy.deepcopy(fake_gate)
         gate_numeric_alias["schema_version"] = True

@@ -4,7 +4,7 @@ doc_purpose: Define ownership and dependency boundaries for the 9.3.4 test and C
 version: 9.3.4
 status: ready
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Module Responsibility
@@ -35,7 +35,7 @@ updated_at: 2026-07-18
 | Runtime/MCP/fsscript/cache/addons | module integration ownership and 9.3.1–9.3.3 successor regressions | model/fsscript/runtime ports | correctly named IT, hermetic/external lane ownership, exact reports, Step 4 exec provenance | new lifecycle/API design | 2/3/4/5 |
 | `foggy-dataset-demo/docker` | deterministic five-DB images/init/sentinel fixture | Docker Compose | pinned image identity, automated init, before/after | production deployment redesign | 3 |
 | Step 4 Unit MySQL replacement authority | enforce the 9.3.4-only full Unit lane replacement and machine-readable fixture contract | frozen Step 2 execution/discovery inventory, Step 3 provisioner, Docker, `scripts/v934/step4/unit-mysql57-fixture-contract.json` | `681 positive + 55 structural / 4,941 testcase` in one Maven invocation, pinned/run-owned MySQL 5.7, restricted non-super exclusive connection receipt, typed schema/publisher/profile-boundary/lifecycle/cleanup evidence | permanent DB-in-Unit classification or unreviewed execution-key expansion | 4 |
-| `foggy-dataset` classification-debt and datasource-adapter owner | find, migrate and reclassify every real DB consumer represented by or discovered beyond the r7 known set；scope fixture credentials only to its test resource | fixture contract + `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholders + `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` | known 6 execution keys / 11 testcase nodes, profile-boundary isolation, discovery expansion, debt closure evidence | global Spring datasource/profile override, treating 6/11 as exhaustive proof or carrying the debt through 9.3.5 acceptance | 4 / 9.3.5 acceptance |
+| `foggy-dataset` classification-debt and datasource-adapter owner | find, migrate and reclassify every real DB consumer represented by or discovered beyond the r7 historical set；scope fixture credentials only to its test resource | fixture contract + `V934_UNIT_MYSQL57_URL/USERNAME/PASSWORD` placeholders + `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md` | current reviewed lower bound 7 execution keys / 12 testcase nodes, profile-boundary isolation, discovery expansion, debt closure evidence | global Spring datasource/profile override, treating historical 6/11 or current 7/12 as exhaustive proof, or carrying the debt through 9.3.5 version acceptance | 4 / 9.3.5 Gate 0 |
 | build-only coverage reporter | merge/report reactor UT/IT exec | root/modules | aggregate XML/HTML only | empty-project `jacoco:check`, production classes, Launcher packaging | 4 |
 | coverage verifier | fail-closed aggregate XML/package/class counter checks and model merged-exec gate | reporter + reviewed thresholds | aggregate/critical/module threshold authority | runtime-discovered threshold acceptance | 4 |
 | `.github/workflows` | reusable jobs, exact five-cell collector, stable required aggregator, artifact upload/download verification | authority scripts | PR/main/release wiring, cardinality and result-state checks | branch protection claim without evidence | 6 |
@@ -307,7 +307,7 @@ updated_at: 2026-07-18
   `docs/9.3.4/**`，并负责 direct-parent、formalization-delta、push 与 clean identity；
 - formal owner 只有在 Cfreeze clean pushed 后才能启动一次 fresh formal；post-formal owner 仍须按
   final implementation quality -> coverage audit -> acceptance 接手；
-- 当前 machine=`confirmed/formal-ready`，Step 4=`in-progress`。formal/audit/acceptance、Step 5 与
+- At that r19/Cfreeze checkpoint machine=`confirmed/formal-ready`，Step 4=`in-progress`。formal/audit/acceptance、Step 5 与
   9.3.5 owner 尚无开工授权。
 
 ## Superseding formal-r4 / post-formal ownership boundary（2026-07-18）
@@ -319,7 +319,7 @@ updated_at: 2026-07-18
   拆分 live inventory 与 durable artifact replay；
 - coverage-audit owner 当前获授权逐项映射 requirement、25 workitems、positive/negative/
   lifecycle/cleanup/public artifact。acceptance owner 仅在 audit=`ready-for-acceptance` 后接手；
-- 当前 Step 4=`in-progress`，`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5、
+- At that formal-r4 checkpoint Step 4=`in-progress`，`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5、
   Step 6/7 与 9.3.5 owner 未因本质量门提前开工。
 
 ## Superseding Step 4 accepted ownership handoff（2026-07-18）
@@ -332,3 +332,141 @@ updated_at: 2026-07-18
 - Step 5 single-authority owner 现获得开工授权，负责 portable candidate、live/durable replay
   入口与 rehearsal；状态=`ready / not-started`；
 - Step 6/7 owner 与 9.3.5 owner 仍无开工授权，9.3.4 version owner 尚不能签收版本。
+
+## Superseding formal-r6 recovery ownership（2026-07-19）
+
+- Step 4 authority owner 重新持有唯一 active gate：提交/push Cdiag 并完成 diagnostic→freeze→formal；
+- failure-evidence owner 保持 r6 immutable，禁止任何 artifact repair；
+- fixture owner 只维护合规 v2 NUL-token synthetic precondition，不能修改 real validator policy；
+- Step 5–7 owners 的既有实现可保留但 execution authorization 撤回；9.3.5/9.4.0 owner 继续 queued；
+- formal-r7 及后置三门全部 PASS 后才重新交接 downstream ownership。
+
+## Superseding diagnostic-r23 remediation ownership（2026-07-19）
+
+- evidence owner 负责永久记录 r23 为 `diagnostic-observed / public-valid / freeze refused`，保持
+  candidate/capsule absent；不得把较高 covered counter 当成天然更可靠；
+- coverage-delta owner 负责保存 XML/raw-exec 唯一归因：MapBeanInfo inner double-check probe 4，
+  其余 22 exec 对目标类不变；
+- `foggy-core` test owner 只维护 existing-node controlled monitor regression、5 秒有界等待和线程
+  termination；不得改 production double-check 或增加测试节点；
+- machine/Cdiag owner 负责形成一次 clean/pushed replacement Cdiag，再由 Step 4 coverage owner运行
+  唯一 fresh diagnostic-r24；
+- threshold owner 在 r24 public validation、counter/probe review 前无 freeze 权限；Step 5–7、9.3.5、
+  9.4.0 owners 继续 queued/closed。
+
+## Superseding r24 ownership handoff（2026-07-19）
+
+- Step 4 coverage owner 已关闭 r24 all-lane/public-validation、counter/probe 与 cleanup responsibility；
+- threshold reviewers 已关闭 candidate/critical/provenance/capsule 双审，combined findings=`0/0/0/0`；
+- machine owner 已将 exact projection 封为 `confirmed/formal-ready` 并关闭 Step 4/6 hash cascade；
+- Cfreeze owner 当前只负责 direct-single-parent commit/push/topology/clean proof；随后 formal owner
+  必须在真正 fresh clone 完整运行 formal-r7；
+- quality/audit/acceptance、Step 5–7、9.3.5/9.4.0 owners 在 formal-r7 PASS 前不得接管 execution。
+
+## Superseding formal-r7 portability recovery ownership（2026-07-19）
+
+- failure-evidence owner 保持 formal-r7 immutable/excluded，并维护可解码为 byte-exact raw Failsafe 的 Base64 + provenance capsule；
+- catalog owner 只维护 exact repo-contained v1.5.1 bytes，不改 CALCULATE 业务语义或 test nodes；
+- authority owner 维护 tracked blob/SHA preflight、raw/executable lifecycle seals 与 Step4→Step6 hash closure；
+- diagnostic owner 仅在 clean/pushed Cdiag 和 isolated proof 后运行 fresh r25；
+- quality/audit/acceptance、Step 5–7、9.3.5/9.4.0 owners 在 formal-r8 + post-gates PASS 前不得接管。
+
+## Superseding Unit MySQL 7/12 remediation ownership（2026-07-19）
+
+- failure-evidence owner 必须原样保留 r7 observed=`6 reports / 11 errors`；consumer-inventory owner
+  另行维护 current known lower bound=`7 reports / 12 testcase nodes`，并纳入第 7 个
+  `DatasetJdbcUtilsTest#getOrCreateDataSource / 1 node`。两个 owner 不得互相改写历史与当前字段；
+- `foggy-dataset` test owner 负责移除该节点吞掉 `SQLException` 的假绿路径，使 datasource reuse、
+  真实连接和 `SELECT 1` 结果均由 required assertions 约束；不得改变 `@Test` identity/cardinality、
+  production datasource API 或把 fixture credentials 写死进测试；
+- fixture-contract owner 负责把 consumer authority 升级到 lower-bound `7/12`，并把 negatives 扩为
+  `42/42`；lifecycle owner 保持真实 probes=`5/5`，不得以 static/focused PASS 替代完整 Unit；
+- Unit authority owner 仍须证明唯一 Maven invocation=`681+55/4941/F0E0S0` 及既有 identity、
+  receipt、profile isolation、publisher、report inventory 与 cleanup contract；
+- evidence owner 将 r25（HEAD=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`）永久登记为
+  `full-chain public-valid / pre-remediation / superseded / non-candidate`，candidate/review/Cfreeze owner
+  对其均无开工授权；
+- machine/Cdiag owner 已关闭 `4fe86929…` push/clean、isolated r4 durable proof 和 fresh r26；
+  candidate/capsule reviewers 已以 `0/0/0/0` 关闭 review，并只向 direct-child Cfreeze owner 交接；
+- Cfreeze、fresh formal-r8 与 post-formal quality/coverage-audit/acceptance owners 尚未完成各自 gate。
+  在这些 gate 完成前，Step 5–7、9.3.5/9.4.0 owners 继续 closed/queued；r25 永久保持
+  `pre-remediation / superseded / non-candidate`；
+- 9.3.4 version signoff 后，classification-debt migration owner=`9.3.5 Gate 0`，实现责任仍由
+  `foggy-dataset` 承担，deadline=`9.3.5 version acceptance`。
+
+## Superseding formal-r8 interpreter-portability recovery ownership（2026-07-19）
+
+- failure-evidence owner 已封存 formal-r8 capsule、raw log identity、success-only absence、cleanup、
+  sensitive 与 exact demo DB restore，并永久禁止 r8 resume/reuse/candidate promotion；
+- runner owner 只负责三个 Python command positions 的显式 interpreter dispatch；Python tool owner
+  保持 Git mode=`100644`，不得用 chmod 或主工作树 mode 作为发布前提；
+- negative-contract owner 负责 runner raw/292-command-stream seal、四 tool target、七 top-level logical
+  call、raw/stream/semantic mutation=`44/44 / 43/43 / 33/33`、Git-stage mode mutation=`4/4`、
+  non-executable smoke=`4/4` 与 runner before/after hash；machine owner
+  负责 diagnostic reset 和
+  Step4→Step6 hash closure；
+- independent code/docs quality owners 已关闭全部 finding，B/H/M/L=`0/0/0/0`、mandatory=`0`；当前
+  唯一开放责任已移交 Cdiag owner，只可提交/push 一个原子 recovery checkpoint，并把 clean fresh
+  clone 交给 diagnostic-r27 owner；
+- candidate/reviewer/Cfreeze/formal-r9/final-quality/audit/acceptance owners 必须逐门串行接管，不得复用
+  r26/r8 authority；Step 5–7、9.3.5/9.4.0 owners 继续 closed/queued。
+
+## Superseding diagnostic-r27 map-order recovery ownership（2026-07-19）
+
+- evidence owner records r27 as public-valid but non-freezable and keeps its candidate/capsule out of
+  canonical authority;
+- `foggy-dataset-mcp` test owner owns only the ordered existing-node fixture and its five-JVM proof; production
+  owner must not change `inferFields` for coverage;
+- Cdiag owner must commit/push/clean the recovery, then diagnostic owner runs fresh r28. Candidate/Cfreeze/
+  formal owners remain closed until r28 meets the r26 aggregate high-water.
+
+## Superseding formal-r9 strict-umask recovery ownership（2026-07-19）
+
+- failure-evidence owner seals formal-r9 as `failed / excluded` and keeps raw logs, raw exec, container
+  identities, and success-only artifacts outside Git authority;
+- effective-POM tool owner owns descriptor-bound final-mode publication: private staging, write/fsync,
+  explicit `0644`, fsync, then no-replace link. It must not weaken the outer `umask 077` test condition;
+- negative-contract owner owns the direct strict-umask real-publisher regression and the Step4→Step6 hash
+  closure; machine owner owns exact reset to `diagnostic-ready / diagnostic-pending`;
+- Cdiag owner may only hand off one clean/pushed successor to diagnostic-r29. Candidate, Cfreeze, formal,
+  quality/audit/acceptance, Step 5–7, 9.3.5, and 9.4.0 owners remain closed until the replacement sequence
+  completes in order.
+
+## Superseding diagnostic-r32 WatchService delete recovery ownership（2026-07-20）
+
+- evidence owner records r32 as `diagnostic-observed / non-freezable` and retains all non-canonical material
+  outside Git authority; required lane success and cleanup do not transfer freeze responsibility;
+- `foggy-core` test owner owns only the existing mock-key delete test's null/filter-false/filter-true oracle.
+  Production owner must not alter `WatchServiceFileTracer` to manufacture coverage;
+- independent reviewer owns the narrow code/test review and has recorded `PASS / B/H/M/L=0/0/0/1`,
+  mandatory=`0`. Existing singleton fake-watcher cleanup is Low debt, not an authorization bypass;
+- r33 consumed that fresh-run authorization and is excluded before canonical Unit authority. Evidence owner must
+  preserve its boundary; no owner may manually repair, reuse, or reinterpret its fallback cleanup as a successful
+  closure.
+- Cdiag owner must commit/push/clean the r33 exclusion record, then diagnostic owner independently preflights
+  Docker reachability, fixed port and run-owned scope before fresh r34. Candidate/Git-safe closure/reviewer/
+  Cfreeze/formal owners remain closed until r34 meets the governed high-water. Step 5–7, 9.3.5, and 9.4.0
+  owners remain closed.
+
+## Superseding formal-r10 report-stage receipt recovery ownership（2026-07-20）
+
+- report-runner owner owns exact `0644` enforcement after report-stage copy and immediately before final
+  publication; it must preserve private staging and reject regular-file, link, emptiness, or mode failures;
+- provenance owner owns recording and verifying the exact public mode alongside content SHA-256 and size;
+  content identity alone must never certify a public receipt;
+- negative-test owner owns strict-umask real-copy coverage, `0600` rejection, and mutation probes for both
+  enforcement calls, normalization, and assertion;
+- Cdiag owner owns the clean/pushed reset. diagnostic owner may then run fresh r35 only. r10 is immutable
+  and excluded; candidate, Cfreeze, formal, final quality, audit, acceptance, Step 5–7, 9.3.5, and 9.4.0
+  owners remain closed until the replacement chain completes.
+
+## r35 Cfreeze/formal ownership（2026-07-20）
+
+- evidence/review owners have completed r35 candidate and Git-safe capsule review; their `APPROVE /
+  0/0/0/0` decision authorizes exactly one Cfreeze and transfers no formal or acceptance authority.
+- Cfreeze owner must make `93b3993e…` the sole parent, limit the machine delta to the governed six-file
+  Step 4→Step 6 hash cascade, push it, and hand over only a clean non-shallow clone.
+- formal owner must independently preflight Docker and fixed-port scope, rebuild all formal lanes under
+  `umask 077`, prove exact public receipt mode=`0644`, and preserve r35 as diagnostic-only evidence.
+- post-formal owner then runs public final replay and the same-Cfreeze Pivot supplemental companion; quality,
+  coverage-audit and feature-acceptance owners remain sequentially closed until their predecessor record passes.

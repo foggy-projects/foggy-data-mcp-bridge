@@ -94,6 +94,65 @@ for config_file in "$ROOT_DIR/.mvn/maven.config" "$ROOT_DIR/.mvn/jvm.config"; do
   fi
 done
 
+if ! python3 - "$ROOT_DIR" <<'PY'
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+expected = {
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaComposeScriptToolErrorSnapshotTest.java": "java_compose_script_tool_error_snapshot_parity.json",
+    "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaDomainQuestionNeutralRunnerSnapshotTest.java": "java_domain_question_neutral_runner_parity.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/compilation/JavaComposeSnapshotTest.java": "java_compose_snapshot_parity.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/runtime/JavaComposeScriptSnapshotTest.java": "java_compose_script_snapshot_parity.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/security/JavaGovernanceSnapshotTest.java": "java_governance_snapshot_parity.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotDomainSnapshotTest.java": "java_pivot_domain_snapshot_parity.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotOutputSnapshotTest.java": "java_pivot_output_snapshot_parity.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/FormulaParitySnapshotTest.java": "_parity_snapshot.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaQueryModelAggregateJoinSnapshotTest.java": "_querymodel_aggregate_join_snapshot.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaSemanticScaleSnapshotTest.java": "java_semantic_scale_snapshot_parity.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/StableRelationOuterAggregateSnapshotTest.java": "_stable_relation_outer_aggregate_snapshot.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/StableRelationOuterWindowSnapshotTest.java": "_stable_relation_outer_window_snapshot.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/StableRelationSnapshotTest.java": "_stable_relation_schema_snapshot.json",
+    "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/TimeWindowParitySnapshotTest.java": "_time_window_parity_snapshot.json",
+}
+actual = set()
+for test_root in (
+    root / "foggy-dataset-model/src/test/java",
+    root / "foggy-dataset-mcp/src/test/java",
+):
+    for path in test_root.rglob("*SnapshotTest.java"):
+        if path.is_file() and '"target", "parity"' in path.read_text(encoding="utf-8"):
+            actual.add(path.relative_to(root).as_posix())
+if actual != set(expected):
+    print(f"missing snapshot producers: {sorted(set(expected) - actual)}", file=sys.stderr)
+    print(f"unexpected snapshot producers: {sorted(actual - set(expected))}", file=sys.stderr)
+    raise SystemExit(1)
+tracked = set(subprocess.check_output(
+    ["git", "-C", str(root), "ls-files", "--", *sorted(expected)], text=True
+).splitlines())
+if tracked != set(expected):
+    print(f"untracked snapshot producers: {sorted(set(expected) - tracked)}", file=sys.stderr)
+    raise SystemExit(1)
+for relative_path, artifact_name in expected.items():
+    path = root / relative_path
+    if path.is_symlink() or not path.is_file():
+        print(f"snapshot producer is missing or symlinked: {relative_path}", file=sys.stderr)
+        raise SystemExit(1)
+    source = path.read_text(encoding="utf-8")
+    if artifact_name not in source:
+        print(f"snapshot artifact mapping drifted: {relative_path} -> {artifact_name}", file=sys.stderr)
+        raise SystemExit(1)
+    for forbidden in ("foggy-data-mcp-bridge-python", "pythonFixturePath"):
+        if forbidden in source:
+            print(f"snapshot producer contains forbidden sibling reference: {relative_path}", file=sys.stderr)
+            raise SystemExit(1)
+print("[v934-unit] snapshot artifact isolation PASS producers=14 external=0")
+PY
+then
+  fail "snapshot artifact isolation preflight failed"
+fi
+
 # shellcheck source=scripts/v934/authority_runner_lib.sh
 source "$AUTHORITY_LIB"
 # shellcheck source=scripts/v934/step4/authority_parent_lib.sh

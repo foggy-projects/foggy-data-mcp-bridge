@@ -1,0 +1,117 @@
+{
+  "artifacts": [
+    {
+      "path": "mysql57-runtime-evidence.json",
+      "sha256": "002dcf693058b91643675c29f6a992ac220642f1d9b6cf0c310927600fddbe86",
+      "size": 954
+    },
+    {
+      "path": "negative-probes.tsv",
+      "sha256": "fed358b6ed99704c493faaaab0f4ba97b36448a9e04874016378e52c3de03210",
+      "size": 188
+    },
+    {
+      "path": "parent-context.env",
+      "sha256": "ccadf90d4d8710e44ee309ec75cc5693141d404089d4bf420d0b34d7462f7918",
+      "size": 513
+    },
+    {
+      "path": "resource-evidence.json",
+      "sha256": "15fe1b168755452f64e28ed87ba3a26c05babb11a1282f914ca4c913fa237bca",
+      "size": 158
+    },
+    {
+      "path": "run-context.json",
+      "sha256": "850fe94c3be2e2c45a11de01c1ca384021b572490774dd5063fa861c808b9e59",
+      "size": 979
+    },
+    {
+      "path": "run-status.env",
+      "sha256": "79ed1e38783e787c823a8808ac4b0b66bec0b345defd700c5eb01d09fe67113a",
+      "size": 459
+    },
+    {
+      "path": "summary.env",
+      "sha256": "6bf750f8610b3c6d3a1abfecbba3bce5dca5da4dfa3137d098383141354e1bb5",
+      "size": 820
+    },
+    {
+      "path": "variants/mysql57/raw-reports/TEST-com.foggyframework.dataset.db.model.preagg.lifecycle.PreAggAddonLifecycleIT.xml",
+      "sha256": "bb01040f36409143e9e67dd158850124041acb6e64998372728064e7d2a8032e",
+      "size": 45700
+    },
+    {
+      "path": "variants/mysql57/report-manifest.json",
+      "sha256": "69105d890b48f3f1caa3a7170e0202fc3f9a7887bea2e4fc961e18ad8a354156",
+      "size": 1056
+    },
+    {
+      "path": "variants/mysql57/variant-marker.json",
+      "sha256": "e72318668eae1b907e407afd8702fb76e3a90dbb1a269fb77335307dd19a4c3b",
+      "size": 511
+    },
+    {
+      "path": "variants/sqlite/raw-reports/TEST-com.foggyframework.dataset.db.model.preagg.lifecycle.PreAggAddonLifecycleIT.xml",
+      "sha256": "b15ca10174b2ea9cad4209549fbf7c09b36273962025b886840fee3c55b2fa26",
+      "size": 49409
+    },
+    {
+      "path": "variants/sqlite/report-manifest.json",
+      "sha256": "35bde64edd04eaccd3f47e5eb4ea2621226ff1aad64e345c661e6cf899eb72b5",
+      "size": 1055
+    },
+    {
+      "path": "variants/sqlite/variant-marker.json",
+      "sha256": "3e2ffdb230f22dda83b3a5e69e92378ec987028123004066d1f8009bf66e978f",
+      "size": 510
+    },
+    {
+      "path": "work/mysql57/maven.log",
+      "sha256": "3e32cb7debf55af93d73a94f4f40715ec2eebacb5df60e413cb0c3e89f70f894",
+      "size": 23145
+    },
+    {
+      "path": "work/mysql57/variant-marker.json",
+      "sha256": "e72318668eae1b907e407afd8702fb76e3a90dbb1a269fb77335307dd19a4c3b",
+      "size": 511
+    },
+    {
+      "path": "work/sqlite/maven.log",
+      "sha256": "b0101ee6eadad60e6fcb4ddb6724a73a7a72e44b63cf47f241758b6fdcf9a4d5",
+      "size": 26860
+    },
+    {
+      "path": "work/sqlite/variant-marker.json",
+      "sha256": "3e2ffdb230f22dda83b3a5e69e92378ec987028123004066d1f8009bf66e978f",
+      "size": 510
+    }
+  ],
+  "contract_sha256": "9315e41a1d0dda37f7efa88fdc6a75960d9e0866acd89bb8eb75197d15c9d045",
+  "git_head": "7c18019ed12d25c029de7e7e49caef77a79b2e67",
+  "kind": "v934-step3-preagg-addon-candidate",
+  "lane": "preagg-addon-lifecycle",
+  "parent": {
+    "authority_kind": "step3-required-matrix",
+    "contract_sha256": "4dbab92203edf8d0de0abb3796908364cd7157b6dfa65d7e4e902b6b31b42f4f",
+    "git_head": "7c18019ed12d25c029de7e7e49caef77a79b2e67",
+    "outer_marker_sha256": "dfc2926936d46bc240bf51488fa045ceec36d88a0dd6ce79cf3ce70e070162df",
+    "run_id": "step4-coverage-20260719-formal-r8",
+    "source_sha256": "0d561dc98a92e6ae704e5abaf24974edf8e3c47e6beefb381892503caf0f6c7e"
+  },
+  "resource_residue": "0/0/0",
+  "run_context_sha256": "850fe94c3be2e2c45a11de01c1ca384021b572490774dd5063fa861c808b9e59",
+  "run_id": "step4-coverage-20260719-formal-r8",
+  "run_status_sha256": "79ed1e38783e787c823a8808ac4b0b66bec0b345defd700c5eb01d09fe67113a",
+  "runner": "failsafe",
+  "schema_version": 1,
+  "source_sha256": "0363791c3839d0ee929af98d3ac30586aa0410dfe1003e302d2bdb094153a15e",
+  "summary_sha256": "6bf750f8610b3c6d3a1abfecbba3bce5dca5da4dfa3137d098383141354e1bb5",
+  "totals": {
+    "errors": 0,
+    "failures": 0,
+    "reports": 2,
+    "skipped": 0,
+    "testcase_nodes": 6,
+    "variants": 2
+  }
+}

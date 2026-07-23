@@ -26,6 +26,10 @@ AUTHORITY_NEGATIVE="$STEP4_DIR/authority_parent_negative_test.sh"
 STEP1_FREEZE="$ROOT_DIR/scripts/v934/contract-freeze.json"
 JACOCO_AGENT_JAR="$HOME/.m2/repository/org/jacoco/org.jacoco.agent/0.8.12/org.jacoco.agent-0.8.12-runtime.jar"
 JACOCO_AGENT_SHA256="115e8e6e6593ca3a9892dfef695df4d487c706e59e71e64dc0ab95716ee02622"
+CALCULATE_PARITY_CATALOG_REL="docs/v1.5.1/P1-CALCULATE-restricted-mvp-parity-catalog.json"
+CALCULATE_PARITY_CATALOG="$ROOT_DIR/$CALCULATE_PARITY_CATALOG_REL"
+CALCULATE_PARITY_CATALOG_BLOB="d7879a6a0c3ac3846719911a0c3b87b3e2ad9f11"
+CALCULATE_PARITY_CATALOG_SHA256="f52eba376e3b2e94c2d03c8f01fcc6d9c3b98623d82938608aeacb90dd03ef60"
 SENSITIVE_PATTERNS=(
   '(?i)(?:MYSQL_PWD|SQLCMDPASSWORD|REDIS_PASSWORD|REDIS_USERNAME|REDIS_URI|MONGO(?:DB)?_(?:URI|PASSWORD|USERNAME)|MYSQL_(?:PASSWORD|ROOT_PASSWORD)|MINIO_ROOT_(?:USER|PASSWORD)|AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY))'
   '(?i)"?(?:password|passwd|pwd|credential|credentials|api[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|secret|authorization)"?[[:space:]]*[:=][[:space:]]*(?!"?null"?(?:[[:space:],}\]]|$))"?[^"[:space:],}\]]+'
@@ -39,11 +43,15 @@ usage() {
 Usage:
   scripts/verify-v934-step4-coverage.sh [diagnostic] [RUN_ID]
   scripts/verify-v934-step4-coverage.sh formal [RUN_ID]
+  scripts/verify-v934-step4-coverage.sh release [RUN_ID]
 
 Diagnostic requires the exact diagnostic-ready/diagnostic-pending workflow
 state and records an observed baseline without an acceptance artifact. Formal
 requires the exact formal-ready/confirmed successor, a direct single-parent
 threshold-freeze commit, and publishes the canonical gate/candidate/final chain.
+Release is a post-Step-4 successor replay: it consumes the already confirmed
+thresholds and publishes the same fully checked artifact chain, but does not
+pretend that its current commit is the historical diagnostic's Cfreeze child.
 EOF
 }
 
@@ -422,6 +430,21 @@ PY
 require_real_file() {
   local path="$1"
   [[ -f "$path" && ! -L "$path" ]] || fail "required real file missing: $path"
+}
+
+verify_calculate_parity_catalog() {
+  local expected_index_entry actual_index_entry actual_sha256
+  expected_index_entry=$'100644 '"$CALCULATE_PARITY_CATALOG_BLOB"$' 0\t'"$CALCULATE_PARITY_CATALOG_REL"
+  actual_index_entry="$(git -c core.fsmonitor=false -c core.untrackedCache=false \
+    -c core.hooksPath=/dev/null -C "$ROOT_DIR" ls-files --stage -- \
+    "$CALCULATE_PARITY_CATALOG_REL")" || \
+    fail "cannot inspect the tracked CALCULATE parity catalog"
+  [[ "$actual_index_entry" == "$expected_index_entry" ]] || \
+    fail "CALCULATE parity catalog is not the exact tracked 100644 input"
+  actual_sha256="$(sha256_file "$CALCULATE_PARITY_CATALOG")"
+  [[ "$actual_sha256" == "$CALCULATE_PARITY_CATALOG_SHA256" ]] || \
+    fail "CALCULATE parity catalog SHA-256 differs"
+  echo "[v934-step4-coverage] CALCULATE parity catalog PASS blob=$CALCULATE_PARITY_CATALOG_BLOB sha256=$actual_sha256"
 }
 
 ensure_real_directory() {
@@ -1814,9 +1837,11 @@ finalize_run() {
 
   if [[ "$sealed" == true ]]; then
     if [[ "$MODE" == diagnostic ]]; then
-      echo "[v934-step4-coverage] DIAGNOSTIC PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=not-generated"
+      echo "[v934-step4-coverage] DIAGNOSTIC PASS run=$RUN_ID exec=23/48 reports=774/59/5709 addon=2/6 acceptance=not-generated"
+    elif [[ "$MODE" == release ]]; then
+      echo "[v934-step4-coverage] RELEASE PASS run=$RUN_ID exec=23/48 reports=774/59/5709 addon=2/6 acceptance=successor-final"
     else
-      echo "[v934-step4-coverage] FORMAL PASS run=$RUN_ID exec=23/48 reports=773/59/5707 addon=2/6 acceptance=final"
+      echo "[v934-step4-coverage] FORMAL PASS run=$RUN_ID exec=23/48 reports=774/59/5709 addon=2/6 acceptance=final"
     fi
   else
     # A failed run cannot retain artifacts that could be mistaken for a
@@ -2038,7 +2063,7 @@ case "$#" in
   0) ;;
   1)
     case "$1" in
-      diagnostic|formal) MODE="$1" ;;
+      diagnostic|formal|release) MODE="$1" ;;
       -h|--help) usage; exit 0 ;;
       *) RUN_ID="$1" ;;
     esac
@@ -2049,7 +2074,8 @@ case "$#" in
     ;;
   *) usage >&2; exit 2 ;;
 esac
-[[ "$MODE" == diagnostic || "$MODE" == formal ]] || fail "mode must be diagnostic or formal"
+[[ "$MODE" == diagnostic || "$MODE" == formal || "$MODE" == release ]] || \
+  fail "mode must be diagnostic, formal, or release"
 RUN_ID="${RUN_ID:-step4-coverage-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$RUN_ID" != . && "$RUN_ID" != .. && "${#RUN_ID}" -le 128 ]] || \
   fail "unsafe run id: $RUN_ID"
@@ -2066,7 +2092,7 @@ for required_file in \
   "$RUN_LOG_LIFECYCLE_NEGATIVE" "$RUN_LOG_LIB" \
   "$TOOLCHAIN_RECEIPT_TOOL" \
   "$COVERAGE_CONTRACT" \
-  "$COVERAGE_THRESHOLDS" "$STEP4_MANIFEST" \
+  "$COVERAGE_THRESHOLDS" "$STEP4_MANIFEST" "$CALCULATE_PARITY_CATALOG" \
   "$SUCCESSOR_OVERLAY_TOOL" "$AUTHORITY_NEGATIVE" \
   "$STEP1_FREEZE" "$JACOCO_AGENT_JAR"; do
   require_real_file "$required_file"
@@ -2078,6 +2104,7 @@ done
   fail "JaCoCo 0.8.12 runtime agent hash differs"
 [[ "$(git -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null -C "$ROOT_DIR" rev-parse --show-toplevel)" == "$ROOT_DIR" ]] || \
   fail "repository root differs from the canonical Git worktree root"
+verify_calculate_parity_catalog
 if SOURCE_PREFLIGHT_RESULT="$(python3 "$COVERAGE_TOOL" source-hash \
   --repo-root "$ROOT_DIR")"; then
   :
@@ -2171,7 +2198,7 @@ if [[ "$MODE" == diagnostic ]]; then
     fail "diagnostic requires diagnostic-ready/diagnostic-pending, got $WORKFLOW_STATE/$THRESHOLD_STATUS"
 else
   [[ "$WORKFLOW_STATE" == formal && "$THRESHOLD_STATUS" == confirmed ]] || \
-    fail "formal requires formal-ready/confirmed, got $WORKFLOW_STATE/$THRESHOLD_STATUS"
+    fail "$MODE requires formal-ready/confirmed, got $WORKFLOW_STATE/$THRESHOLD_STATUS"
 fi
 
 # The top-level runner is the only owner of the canonical authority lock.
@@ -2318,7 +2345,7 @@ if [[ "$MODE" == formal ]]; then
   require_real_file "$RUN_ROOT/formalization-delta.json"
 else
   [[ ! -e "$RUN_ROOT/formalization-delta.json" && ! -L "$RUN_ROOT/formalization-delta.json" ]] || \
-    fail "diagnostic run contains a formalization delta"
+    fail "non-Cfreeze run contains a formalization delta"
 fi
 
 PHASE=bootstrap-negative
@@ -2874,6 +2901,8 @@ SUMMARY_ROWS=( \
 )
 if [[ "$MODE" == formal ]]; then
   SUMMARY_ROWS+=("formalization_delta_sha256=$(sha256_file "$RUN_ROOT/formalization-delta.json")")
+elif [[ "$MODE" == release ]]; then
+  SUMMARY_ROWS+=("release_successor=confirmed-threshold-post-step4-replay")
 fi
 SUMMARY_ROWS+=( \
   "toolchain_receipt_sha256=$TOOLCHAIN_RECEIPT_SHA" \
@@ -2903,35 +2932,39 @@ SUMMARY_ROWS+=( \
   "sensitive_scan_sha256=$(sha256_file "$RUN_ROOT/sensitive-scan.env")" \
   "exec_files=23" \
   "sessions=48" \
-  "required_reports=773" \
+  "required_reports=774" \
   "required_structural_reports=59" \
-  "required_testcase_nodes=5707" \
+  "required_testcase_nodes=5709" \
   "addon_reports=2" \
   "addon_testcase_nodes=6" \
   "model_external_gate=passed" \
   "acceptance_candidate=$([[ "$MODE" == diagnostic ]] && printf not-generated || printf required)" \
-  "status=$([[ "$MODE" == diagnostic ]] && printf diagnostic-observed || printf formal-candidate-ready)"
+  "status=$([[ "$MODE" == diagnostic ]] && printf diagnostic-observed || { [[ "$MODE" == formal ]] && printf formal-candidate-ready || printf release-candidate-ready; })"
 )
 atomic_env "$RUN_ROOT/summary.env" "${SUMMARY_ROWS[@]}"
 
-if [[ "$MODE" == formal ]]; then
-  PHASE=formal-coverage-gate
+if [[ "$MODE" != diagnostic ]]; then
+  PHASE="${MODE}-coverage-gate"
   python3 "$COVERAGE_XML_TOOL" formal-check \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --run-id "$RUN_ID" \
     --output "$RUN_ROOT/coverage-gate.json"
-  PHASE=formal-candidate
+  PHASE="${MODE}-candidate"
   python3 "$COVERAGE_XML_TOOL" build-artifact \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --stage candidate \
     --run-id "$RUN_ID" \
     --coverage-gate "$RUN_ROOT/coverage-gate.json" \
     --output "$RUN_ROOT/candidate-manifest.json"
   python3 "$COVERAGE_XML_TOOL" verify-artifact \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --artifact "$RUN_ROOT/candidate-manifest.json"
-  PHASE=formal-final-preseal
+  PHASE="${MODE}-final-preseal"
   python3 "$COVERAGE_XML_TOOL" build-artifact \
+    --mode "$MODE" \
     --repo-root "$ROOT_DIR" \
     --stage final \
     --candidate "$RUN_ROOT/candidate-manifest.json" \

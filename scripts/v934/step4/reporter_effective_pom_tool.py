@@ -416,12 +416,17 @@ def atomic_json(output: Path, payload: dict[str, Any]) -> None:
         descriptor = os.open(
             temporary,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o644,
+            0o600,
         )
         try:
             with os.fdopen(descriptor, "wb") as stream:
                 stream.write(data)
                 stream.flush()
+                os.fsync(stream.fileno())
+                # Keep the staging inode private while its contents are being
+                # written, then publish the contractually public receipt with
+                # an explicit mode independent of the caller's umask.
+                os.fchmod(stream.fileno(), 0o644)
                 os.fsync(stream.fileno())
         except BaseException:
             try:

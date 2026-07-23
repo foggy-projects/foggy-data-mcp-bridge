@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Acceptance Evidence Plan
@@ -22,19 +22,19 @@ updated_at: 2026-07-18
 | Material | Planned path/evidence | 当前状态 |
 |---|---|---|
 | requirement | `requirement/P0-test-ci-evidence-chain.md` | ready |
-| confirmed contract | `contract/test-lane-evidence-contract.md` | machine=`confirmed/formal-ready`；Cfreeze/formal-r4、coverage audit 与 Step 4 feature acceptance complete |
+| confirmed contract | `contract/test-lane-evidence-contract.md` | r26/Cfreeze/formal-r8 history sealed；formal-r9/r30/r31 excluded；r29 capsule 无 Git-safe closure；r31 fixed-port precondition requires a new Cdiag and fresh r32 |
 | module responsibility | `module-responsibility.md` | ready |
-| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | formal-r4 Unit=`681+55/4941/F0E0S0`；`23/48/16953`、`24/2098`；Step 5 ready/not-started，Steps 6–7 pending |
+| reviewed code/test inventory | `code-inventory.md` + frozen inventory/predecessor migration/threshold manifests | historical formal-r4/r24/r25/r26/r28/Cfreeze retained；formal-r8/r9 failure boundaries sealed；r38 revalidation accepted; Step 5 ready, Steps 6–7 closed |
 | implementation plan | `implementation-plan.md` | ready |
-| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress / Steps 1–4 passed / Step 5 ready-not-started |
-| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r4=`773+59/5707/F0E0S0`、aggregate exact confirmed threshold；Step 4 passed，version in-progress |
-| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–4 exit/quality/audit/feature acceptance present；Steps 5–6 pending |
-| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + Step 4 quality records | Step 2–4 quality gates complete；Step 4 B/H/M/L=`0/0/0/1`、mandatory fixes=0 |
-| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-coverage-gate-coverage-audit.md` | Steps 2–4 ready；Step 4 workitems=25/25、critical/major gap=`0/0` |
+| progress/check-ins | `progress/test-ci-evidence-chain-progress.md` | in-progress; r38 revalidation accepted; Step 5 ready/not-started, Steps 6–7 closed |
+| test plan/results | `test/test-ci-evidence-chain-test-plan.md` + exact raw reports | formal-r9, r30 and r31 failure boundaries sealed；r29 facts cannot enter freeze without a Git-safe closure；fixed-port precondition/new chain pending |
+| Step 1–6 evidence | immutable per-step records under `docs/9.3.4/evidence/` + run roots | Steps 1–4 passed through r38 acceptance; historical failures remain excluded; Step 5 ready/not-started, Step 6 closed |
+| implementation quality | `quality/step2-runner-split-implementation-quality.md` + `quality/step3-required-matrix-implementation-quality.md` + `quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md` | formal-r9 recovery quality is `ready-for-new-Cdiag` only, not post-formal quality; new Cdiag and replacement post-formal quality pending |
+| coverage audit | `coverage/step2-runner-split-coverage-audit.md` + `coverage/step3-required-matrix-coverage-audit.md` + `coverage/step4-replacement-coverage-audit-r38-20260720.md` | historical Step 4 audit retained；r38 audit=`35/35` plus separate report-stage gate=`passed`; canonical BUG acceptance is signed-off for Step 5 rehearsal only |
 | Step 3 feature acceptance | `acceptance/step3-required-matrix-acceptance.md` | signed-off / accepted；not version signoff |
-| Step 4 feature acceptance | `acceptance/step4-coverage-gate-acceptance.md` | signed-off / accepted；Step 5 ready；not version signoff |
+| Step 4 feature acceptance | `acceptance/step4-addon-context-revalidation-acceptance-20260720.md` + historical records | r38 BUG revalidation=`accepted`; r11 accepted records retained as history; Step 5=`ready / not-started` only |
 | version signoff | planned `acceptance/version-signoff.md` | not-started |
-| roadmap/status sync | `README.md` + authoritative roadmap | Steps 1–4 passed；Step 5 ready/not-started；9.3.5 queued |
+| roadmap/status sync | `README.md` + authoritative roadmap | current README records r38 accepted; Step 5 ready/not-started, Steps 6–7 and 9.3.5/9.4.0 remain closed/queued |
 
 Evidence documents must reference exact run id、commit SHA、root/archive digest 和原始
 artifact location；不得只引用可移动 `latest` 指针。
@@ -536,7 +536,8 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   sensitive/cleanup 与 exact external restore 均满足边界；
 - post-formal implementation quality=`ready-for-coverage-audit`，B/H/M/L=`0/0/0/1`、mandatory
   fixes=`0`；唯一 Low 由 Step 5 负责拆分 live inventory 与 durable artifact replay；
-- `acceptance_status` 继续表示 9.3.4 version acceptance，保持 `not-started`。当前只开放 Step 4
+- `acceptance_status` 继续表示 9.3.4 version acceptance，保持 `not-started`。At that formal-r4
+  checkpoint only Step 4
   test evidence coverage audit：`can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；
   Step 4 仍 `in-progress`，Step 5/9.3.5 closed。
 
@@ -552,3 +553,188 @@ Risks/Open Items、Final Decision 和 Signoff Marker。
   Step 4 标为 `passed`，把 Step 5 标为 `ready / not-started`；
 - live/durable replay Low、portable raw archive 与 Unit MySQL classification debt 分别由
   Step 5/9.3.5 承接；Steps 6/7、9.3.4 version signoff 与 9.3.5 开工均未提前。
+
+## Superseding replacement evidence boundary（2026-07-19）
+
+历史 feature acceptance 不改写，但 post-acceptance authority delta 必须以 replacement formal 重新
+证明。formal-r6 在 bootstrap negative fixture fail closed，成功证据边界止于 delta/frozen replay/
+contract；source、tests、coverage 和 final artifacts 均 absent。修复位于 prior formal allowlist 外，
+所以 current `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+
+新的 acceptance 输入只能来自 controlled MapBeanInfo regression 之后 clean/pushed replacement Cdiag
+的 fresh diagnostic-r24、全新 review/Cfreeze 和 fresh formal-r7；r22/r23/r6 不得拼接。r23 虽
+public-valid，但 candidate/capsule 因 scheduling high-water 保持 absent。r7 PASS 后仍按 implementation
+quality→coverage audit→acceptance 顺序恢复 downstream entry。
+
+## Superseding diagnostic-r24 pre-Cfreeze acceptance boundary（2026-07-19）
+
+- r24 在 clean/pushed Cdiag `414c8b12…` 上完成全部 required lanes；public validation、source seal、
+  model/sensitive、cleanup 与 exact DB restore PASS；aggregate=`54624/76830 line + 26112/44870 branch`；
+- deterministic MapBeanInfo target=`4/4 branch / 10/11 _wU`；candidate=`f13f3c35…2ee`，capsule=
+  `6638 entries / 0 symlink`；dual independent review=`APPROVE / 0/0/0/0`；
+- canonical machine=`confirmed/formal-ready`，frozen r24 replay PASS，pre-Cfreeze quality=
+  `PASS / 0/0/0/0`。这些材料只授权 direct-child Cfreeze 和 fresh formal-r7；
+- acceptance 仍未重开：`can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+  formal-r7 PASS 后仍必须按 final quality→coverage audit→acceptance 顺序恢复。
+
+## Superseding formal-r7 evidence boundary（2026-07-19）
+
+- r7 只形成 failed outer、完整 Unit、partial Integration、cleanup/restore 与 root-cause evidence；
+  success-only aggregate/candidate/final absent，任何 r7/r24 拼接均禁止；
+- persistent capsule 包含可解码为 byte-exact raw Failsafe failure 的 Base64 封装、outer/integration status、Unit summary、
+  formal delta、cleanup 与 per-entry provenance；敏感扫描 PASS；
+- repo-local catalog、tracked blob/SHA preflight、lifecycle seal/hash closure 与 focused 14/0/0/0 只构成
+  当时的 portability remediation input；后续 7/12 审计已将 r25 永久降级为
+  `superseded / non-candidate`，当前 acceptance 链以本文件后续 r26 boundary 为准。
+
+## Superseding diagnostic-r25 Unit MySQL 7/12 acceptance boundary（2026-07-19）
+
+- r25 在 Cdiag `5aaffbb4…` 上完整通过并获 public `DIAGNOSTIC VALID`，但 follow-up audit 证明
+  r25-tested schema 1 将 immutable r7 failure set `6/11` 误作 current consumer set；真实 reviewed
+  lower bound 至少为 `7 reports / 12 nodes`；
+- `DatasetJdbcUtilsTest#getOrCreateDataSource` 的旧 catch-and-log 可产生假绿。测试 oracle、schema 2
+  contract、42/42 negatives、LF source binding 与 Step4→Step6 hash closure 构成新 remediation input；
+- r25 exact classified 为 `pre-remediation / superseded / non-candidate`，不得生成或复用其
+  candidate/capsule/Cfreeze；acceptance 必须等待 new Cdiag→fresh r26→candidate/review→direct-child
+  Cfreeze→fresh formal-r8→final quality→coverage audit→acceptance；
+- 9.3.4 version signoff 前 9.3.5 保持 queued。version signoff 后 9.3.5 只允许先执行 Gate 0 classification-debt
+  migration，债务关闭前 9.3.5 version acceptance 仍关闭。
+
+## Superseding diagnostic-r26 pre-Cfreeze acceptance boundary（2026-07-19）
+
+- Cdiag `4fe86929…`、fresh-clone isolated r4 与 fresh diagnostic-r26 已完整通过；r26 public
+  observation=`15e1ed76…fe705`，required=`773+59/5707/F0E0S0`、Addon=`2/6/F0E0S0`、
+  exec/session=`23/48`、aggregate=`54624/76830 line + 26112/44870 branch`；
+- immutable candidate=`b8bd2411…2797a`、portable capsule 与两路 independent review PASS，review
+  decision=`confirm-observed-thresholds / 0/0/0/0`。这些材料只满足 Cfreeze entry，不是 formal、
+  post-formal quality、coverage audit、Step 4 feature acceptance 或 version signoff；
+- acceptance 当前仍关闭。唯一后续顺序是 direct-child Cfreeze→fresh formal-r8→final implementation
+  quality→Step 4 coverage audit→Step 4 feature acceptance；只有该 feature acceptance PASS 才恢复
+  Step 5 entry；
+- `acceptance_status` 继续表示 9.3.4 version acceptance，故保持 `not-started`。Step 4 replacement
+  acceptance 后 9.3.4 仍须完成 Steps 5–7 与 version signoff；9.3.5 仅在 version signoff 后先进入
+  Gate 0 classification-debt migration，债务关闭前不得执行其 version acceptance。
+
+## Superseding formal-r8 recovery acceptance boundary（2026-07-19）
+
+- Cfreeze `7c18019e…` 与 fresh formal-r8 identity/topology/restore 已封存；r8 完成全部 required
+  test/report inventory，但 coverage reporter 因直接执行 Git `100644` Python tool 以 rc126 fail
+  closed，故永久 `failed/excluded/non-reusable/non-candidate`；
+- r8 的 exec-manifest、aggregate、observation、gate、summary、candidate/final 均 absent，不能用于
+  acceptance；raw exec 与 child summaries 也不得拼接到 replacement run；
+- 三处 interpreter 修复、runner raw/292-command-stream 双封印、四工具/七调用 binding、raw/stream/
+  semantic mutation=`44/44 / 43/43 / 33/33`、Git-mode mutation=`4/4`、nonexec smoke=`4/4`、
+  Step4/Step6 hash closure 与 machine
+  reset 已完成。当前只开放 pre-Cdiag recovery quality，不开放 post-formal quality/audit/acceptance；
+- 新增 blocker workitem 后 replacement audit denominator=`31`。唯一顺序为 new Cdiag→fresh r27→
+  reviewed candidate/capsule→direct-child Cfreeze→fresh formal-r9→final quality→coverage audit
+  `31/31`→feature acceptance；Step 5 继续关闭。
+
+## Superseding diagnostic-r27 acceptance boundary（2026-07-19）
+
+- r27 is not acceptance input: it is public-valid but one branch/complexity outcome below r26 high-water;
+  its non-canonical candidate/capsule cannot be promoted.
+- Test-only deterministic map ordering is pre-diagnostic remediation, proven by five fresh JVMs, but does not
+  reopen quality/audit/acceptance.
+- At the r27 boundary, the replacement acceptance chain began only after new Cdiag -> fresh r28 -> new
+  reviewed Cfreeze -> fresh formal-r9. That boundary is superseded below; Step 5 and later versions remain
+  closed.
+
+## Superseding formal-r9 strict-umask acceptance boundary（2026-07-19）
+
+- formal-r9 on Cfreeze `34cd2452…` failed at `coverage-report / exit 2`: a strict caller umask published the
+  contractually public effective-POM receipt as mode `0600`, and the authoritative reporter rejected it with
+  `E_OUTPUT`. The failure is `failed / excluded / non-reusable / non-candidate`, not a conditional formal
+  result.
+- Its formalization delta, child-lane observations, cleanup and outer restoration are failure-boundary records
+  only. There is no r9 success summary/candidate/final input; r28 reviewed material and every r9 partial output
+  are forbidden from replacement acceptance composition.
+- `39032229…` is solely the recovery baseline: it makes the public receipt mode independent of caller umask,
+  adds a strict-umask negative probe and resets contract/threshold state to
+  `diagnostic-ready/diagnostic-pending`. It is not the new Cdiag, a reviewed candidate, Cfreeze or formal
+  authority.
+- Acceptance input must restart from one new clean/pushed Cdiag successor → fresh all-lane diagnostic-r29 →
+  new candidate/capsule/dual review → direct-single-parent Cfreeze → fresh formal successor → final quality →
+  coverage audit `31/31` → feature acceptance. `acceptance_status=not-started` and
+  `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no` remain in force; 9.3.5 and
+  9.4.0 are not opened.
+
+## Superseding diagnostic-r29 Git-safety acceptance boundary（2026-07-19）
+
+- f420 Cdiag 的 r29 全 lane diagnostic 事实保留为非权威观察；其本地 capsule 经审计不满足 Git-safe
+  内容边界，因而 r29=`non-freezable / no-cfreeze-authority`。
+- 不得在 Git 中绑定、引用或重打包该本地 capsule；r29 candidate、review 与任何历史材料均不能拼接成
+  freeze、formal 或 acceptance 输入。
+- Git-safe capsule/replay 的 Cdiag `7757aa36…` 曾启动 fresh r30，但 r30 在 successor binding 预检
+  fail-closed、未执行 lane。binding repair Cdiag `f80fadd6…` 的 fresh r31 又在 Unit fixture 固定端口
+  前置条件处 fail-closed，同样未执行 lane；r31 派生资源与 outer cleanup 均为零，不得接管或复用外部
+  listener。必须先封存 r31→new Cdiag→确认端口空闲→fresh r32 diagnostic→new candidate/review→
+  Cfreeze→fresh formal 的完整替换链。
+- `acceptance_status=not-started`，且 `can_enter_cfreeze=no / can_enter_formal=no /
+  can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。9.3.5 与 9.4.0 不开工。
+
+## Superseding diagnostic-r32 high-water acceptance boundary（2026-07-20）
+
+- r32 is a completed public-valid diagnostic, not an acceptance input: required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, source closure and cleanup=`0/0/0` are necessary but not
+  sufficient for freeze authority;
+- governed counters remain branch=`26111/44870` and complexity=`17658/35571`, each one below
+  `26112/44870` / `17659/35571`. Its isolated non-canonical material cannot be promoted or combined with
+  any historical evidence;
+- deterministic filtered-delete coverage is pre-diagnostic remediation only. It preserves the existing test
+  node and has focused five-JVM plus full-module evidence; it does not open final quality, coverage audit,
+  feature acceptance, Step 5, 9.3.5, or 9.4.0;
+- r33 has consumed that fresh-run authorization and is excluded before canonical Unit authority. Acceptance
+  input must restart from a clean/pushed docs-only Cdiag → governed readiness preflight → fresh r34 satisfying
+  the governed high-water → new candidate/Git-safe closure/dual review → direct-single-parent Cfreeze → fresh formal → final quality
+  → replacement coverage audit → feature acceptance.
+
+## Superseding diagnostic-r33 pre-marker acceptance boundary（2026-07-20）
+
+- r33 is `failed / excluded / non-reusable / non-candidate / zero-lane-authority`; successor/marker/lifecycle/
+  normal-fixture/Unit-lane authority is absent and its fallback cleanup closure is unproven.
+- This is not acceptance evidence and it authorizes no source, fixture, runner, threshold, contract, quality,
+  coverage-audit, Step 5, 9.3.5 or 9.4.0 transition.
+- The replacement acceptance chain resumes only after r33 is sealed, a clean/pushed docs-only Cdiag and an
+  independent governed readiness preflight allow fresh r34 to complete the original all-lane/high-water gate.
+
+## Superseding formal-r10 report-stage acceptance boundary（2026-07-20）
+
+- formal-r10 is excluded from acceptance even though it mechanically reported success: its final public
+  report effective-POM receipt was `0600`, not contract-required `0644`, and the old provenance did not
+  bind the mode.
+- No r10 output, r34 observation, candidate, review, Cfreeze, or companion may be joined to a replacement
+  acceptance packet. The immutable r10 status is retained only as a fail-closed historical record.
+- Acceptance remains `not-started`. It may reopen only after a new clean/pushed Cdiag, fresh r35,
+  fresh candidate/reviews, direct-child Cfreeze, fresh formal, final quality, and a separately recorded
+  `legacy 31 + supplemental 4` audit with critical/major gaps `0/0`.
+
+## r35 Cfreeze acceptance boundary（2026-07-20）
+
+- r35 is fresh diagnostic evidence only: it confirms the repaired exact public receipt mode=`0644`, but it
+  is not a formal artifact, audit input, or acceptance substitute.
+- The r35 candidate/capsule and two independent reviews authorize one Cfreeze from Cdiag `93b3993e…` only.
+  No r34/r10/prior-Cfreeze output may be joined to the future acceptance packet.
+- Future acceptance input must originate from a clean-clone formal-r11 on that Cfreeze, its independently
+  verified public final artifact, a same-Cfreeze Pivot supplemental companion, final implementation quality,
+  and a replacement audit whose critical/major gaps are `0/0`.
+
+## formal-r11 evidence-ready signoff prerequisite（2026-07-20）
+
+- The fresh formal, final replay, same-Cfreeze Pivot companion, independent quality, 35-row replacement audit,
+  and separately mandatory report-stage receipt gate are complete and passed.
+- The Step 4 canonical candidate is accepted by `foggy-projects`; its feature acceptance opens Step 5 only to
+  `ready / not-started`. The separate canonical 9.3.4 spec remains `ULTRA_EXECUTING` for Steps 5–7.
+- The formal acceptance decision and Step 5 entry remain blocked only on that canonical-signoff input, as
+  recorded in `acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.
+
+## r38 Addon-context revalidation accepted（2026-07-20）
+
+- The original r11 acceptance is retained as history, but the declared Addon successor runner changed to
+  safely publish a child context no earlier than its authenticated Step 3 parent. It therefore cannot restore
+  Step 5 authority for the new bytes.
+- Direct-child Cfreeze 62361688… and fresh formal-r38 now provide the sole formal authority. The formal
+  result, same-Cfreeze Pivot companion, independent final quality, and new r38 35+1 audit are complete;
+  critical/major evidence gaps are 0/0.
+- The canonical Addon remediation is ACCEPTED by foggy-projects. The acceptance opens only fresh Step 5
+  rehearsal readiness; Steps 6-7, 9.3.5, and 9.4.0 remain closed.

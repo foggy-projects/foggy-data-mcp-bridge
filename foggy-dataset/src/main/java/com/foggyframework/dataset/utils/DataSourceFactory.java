@@ -16,15 +16,15 @@ import java.util.Map;
  * // 方式1: 使用 Map 配置
  * export const myDataSource = dataSourceFactory.create({
  *     url: 'jdbc:mysql://localhost:3306/mydb',
- *     username: 'root',
- *     password: 'password'
+ *     username: env('MY_DB_USER'),
+ *     password: env('MY_DB_PASS')
  * });
  *
  * // 方式2: 使用环境变量
  * export const myDataSource = dataSourceFactory.create({
  *     url: env('MY_DB_URL', 'jdbc:mysql://localhost:3306/mydb'),
- *     username: env('MY_DB_USER', 'root'),
- *     password: env('MY_DB_PASS', 'password')
+ *     username: env('MY_DB_USER'),
+ *     password: env('MY_DB_PASS')
  * });
  * </pre>
  *

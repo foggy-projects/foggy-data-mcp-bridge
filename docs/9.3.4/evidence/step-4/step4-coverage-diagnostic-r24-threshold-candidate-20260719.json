@@ -1,0 +1,416 @@
+{
+  "aggregate_observed": {
+    "branch": {
+      "covered": 26112,
+      "fraction": "26112/44870",
+      "total": 44870
+    },
+    "evidence": {
+      "aggregate_exec_sha256": "8afdc4c55469551be3ebfe7e99d619028f42498f10a1f5152898ff9c5176b14d",
+      "aggregate_xml_sha256": "debb72d55e7fe1565692ae31cea16b9eab82f02eeacb728feb26eb262db01d3d",
+      "coverage_contract_sha256": "5f7ba4bf9d6e6b0673065c3f4d004d2ce627cd87dea7a286996d14b06f07d530",
+      "exec_manifest_sha256": "b886f7455952df549fafb9c0d7a27dbf16dc18add8feacd5123c319e1687eff9",
+      "git_head": "414c8b12bff31155584e639e74987bf22df13ba9",
+      "observation_sha256": "48b72388c47a8010c7c05b82f345841a4277dcbe5ce52f4238e6b071e7ddc387",
+      "run_id": "step4-coverage-20260719-diagnostic-r24",
+      "run_status_sha256": "d248d19163f54d116157ac746d7f120f3783c55e3916e84812b27800bf131d81",
+      "source_sha256": "c9c0a57926b25302bd40e8260410ec3a366dcc5b647676143cafccb15d25c607",
+      "summary_sha256": "fb2dd9c575d1c72122f010255201a699f1d12605574f581556b43f95848013f2",
+      "threshold_predecessor_sha256": "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96",
+      "workspace_class_tree_sha256": "ba17cb2e724e875c05bf6b80826dcb87b2897b4a0da6f754989290a24304f57b"
+    },
+    "line": {
+      "covered": 54624,
+      "fraction": "54624/76830",
+      "total": 76830
+    }
+  },
+  "aggregate_reviewed_thresholds": {
+    "branch": {
+      "covered": 26112,
+      "fraction": "26112/44870",
+      "total": 44870
+    },
+    "line": {
+      "covered": 54624,
+      "fraction": "54624/76830",
+      "total": 76830
+    }
+  },
+  "critical_reviewed_thresholds": [
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 83,
+          "fraction": "83/104",
+          "total": 104
+        },
+        "observed": {
+          "covered": 83,
+          "fraction": "83/104",
+          "total": 104
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 202,
+          "fraction": "202/214",
+          "total": 214
+        },
+        "observed": {
+          "covered": 202,
+          "fraction": "202/214",
+          "total": 214
+        }
+      },
+      "module": "foggy-dataset-model"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 31,
+          "fraction": "31/44",
+          "total": 44
+        },
+        "observed": {
+          "covered": 31,
+          "fraction": "31/44",
+          "total": 44
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildSingleFlight",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 79,
+          "fraction": "79/89",
+          "total": 89
+        },
+        "observed": {
+          "covered": 79,
+          "fraction": "79/89",
+          "total": 89
+        }
+      },
+      "module": "foggy-dataset-model"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 95,
+          "fraction": "95/134",
+          "total": 134
+        },
+        "observed": {
+          "covered": 95,
+          "fraction": "95/134",
+          "total": 134
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 253,
+          "fraction": "253/282",
+          "total": 282
+        },
+        "observed": {
+          "covered": 253,
+          "fraction": "253/282",
+          "total": 282
+        }
+      },
+      "module": "foggy-dataset-model"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 20,
+          "fraction": "20/26",
+          "total": 26
+        },
+        "observed": {
+          "covered": 20,
+          "fraction": "20/26",
+          "total": 26
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.lifecycle.refresh.DatasourceCatalogConvergence",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 51,
+          "fraction": "51/52",
+          "total": 52
+        },
+        "observed": {
+          "covered": 51,
+          "fraction": "51/52",
+          "total": 52
+        }
+      },
+      "module": "foggy-dataset-model"
+    },
+    {
+      "branch": {
+        "applicability": "not-applicable-zero-total-only",
+        "minimum": null,
+        "observed": {
+          "covered": 0,
+          "fraction": null,
+          "total": 0
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.spi.NamespaceScope",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 5,
+          "fraction": "5/5",
+          "total": 5
+        },
+        "observed": {
+          "covered": 5,
+          "fraction": "5/5",
+          "total": 5
+        }
+      },
+      "module": "foggy-dataset-model"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 19,
+          "fraction": "19/24",
+          "total": 24
+        },
+        "observed": {
+          "covered": 19,
+          "fraction": "19/24",
+          "total": 24
+        }
+      },
+      "fqcn": "com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 53,
+          "fraction": "53/55",
+          "total": 55
+        },
+        "observed": {
+          "covered": 53,
+          "fraction": "53/55",
+          "total": 55
+        }
+      },
+      "module": "foggy-fsscript"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 66,
+          "fraction": "66/94",
+          "total": 94
+        },
+        "observed": {
+          "covered": 66,
+          "fraction": "66/94",
+          "total": 94
+        }
+      },
+      "fqcn": "com.foggyframework.runtime.api.service.RuntimeNamedDataSourceResolver",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 145,
+          "fraction": "145/166",
+          "total": 166
+        },
+        "observed": {
+          "covered": 145,
+          "fraction": "145/166",
+          "total": 166
+        }
+      },
+      "module": "foggy-runtime-api"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 99,
+          "fraction": "99/128",
+          "total": 128
+        },
+        "observed": {
+          "covered": 99,
+          "fraction": "99/128",
+          "total": 128
+        }
+      },
+      "fqcn": "com.foggyframework.core.utils.file.WatchServiceFileTracer",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 204,
+          "fraction": "204/244",
+          "total": 244
+        },
+        "observed": {
+          "covered": 204,
+          "fraction": "204/244",
+          "total": 244
+        }
+      },
+      "module": "foggy-core"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 65,
+          "fraction": "65/84",
+          "total": 84
+        },
+        "observed": {
+          "covered": 65,
+          "fraction": "65/84",
+          "total": 84
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 159,
+          "fraction": "159/179",
+          "total": 179
+        },
+        "observed": {
+          "covered": 159,
+          "fraction": "159/179",
+          "total": 179
+        }
+      },
+      "module": "addons/foggy-dataset-model-cache"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 73,
+          "fraction": "73/92",
+          "total": 92
+        },
+        "observed": {
+          "covered": 73,
+          "fraction": "73/92",
+          "total": 92
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.cache.fingerprint.SecurityPolicyFingerprint",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 112,
+          "fraction": "112/117",
+          "total": 117
+        },
+        "observed": {
+          "covered": 112,
+          "fraction": "112/117",
+          "total": 117
+        }
+      },
+      "module": "addons/foggy-dataset-model-cache"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 64,
+          "fraction": "64/78",
+          "total": 78
+        },
+        "observed": {
+          "covered": 64,
+          "fraction": "64/78",
+          "total": 78
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 126,
+          "fraction": "126/135",
+          "total": 135
+        },
+        "observed": {
+          "covered": 126,
+          "fraction": "126/135",
+          "total": 135
+        }
+      },
+      "module": "addons/foggy-dataset-model-cache"
+    },
+    {
+      "branch": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 73,
+          "fraction": "73/88",
+          "total": 88
+        },
+        "observed": {
+          "covered": 73,
+          "fraction": "73/88",
+          "total": 88
+        }
+      },
+      "fqcn": "com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProvider",
+      "line": {
+        "applicability": "required-positive-total",
+        "minimum": {
+          "covered": 152,
+          "fraction": "152/159",
+          "total": 159
+        },
+        "observed": {
+          "covered": 152,
+          "fraction": "152/159",
+          "total": 159
+        }
+      },
+      "module": "addons/foggy-dataset-model-cache"
+    }
+  ],
+  "kind": "v934-step4-coverage-threshold-freeze-candidate",
+  "predecessor": {
+    "path": "scripts/v934/step4/coverage-thresholds.json",
+    "sha256": "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96",
+    "status": "diagnostic-pending"
+  },
+  "review_requirements": {
+    "decision": "confirm-observed-thresholds",
+    "diagnostic_run_id": "step4-coverage-20260719-diagnostic-r24",
+    "required_fields": [
+      "reviewer",
+      "reviewed_at",
+      "evidence_path",
+      "evidence_sha256"
+    ]
+  },
+  "schema_version": 1,
+  "status": "review-required"
+}

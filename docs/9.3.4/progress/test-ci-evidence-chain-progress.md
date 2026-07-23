@@ -5,10 +5,10 @@ version: 9.3.4
 status: in-progress
 acceptance_status: not-started
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-23
 ---
 
-# 9.3.4 测试与 CI 证据链进度
+# 9.3.4 测试与本地 Release Authority 证据链进度
 
 ## 文档作用
 
@@ -17,6 +17,14 @@ updated_at: 2026-07-18
 - purpose: 记录每个 Step 的真实实现、验证、负向证据、偏差和 exit decision；这是
   9.3.4 唯一进度 authority。
 
+## Owner Scope Override（2026-07-23）
+
+- 原 Step 6 GitHub CI 接线已由 repository owner 明确移出 9.3.4 后续范围。
+- Actions required gate、five-cell CI artifact collector、aggregator、required
+  check、branch protection 和 GitHub release dry-run 均不再执行或阻断版本签收。
+- Step 6 编号仅为历史引用保留；Step 7 entry 改为 Step 5 accepted + exact clean
+  `origin/main`。历史记录中旧的 Step 6/CI 描述保持当时事实，不作为当前计划。
+
 ## 基本信息
 
 - requirement: `docs/9.3.4/requirement/P0-test-ci-evidence-chain.md`
@@ -24,7 +32,7 @@ updated_at: 2026-07-18
 - implementation plan: `docs/9.3.4/implementation-plan.md`
 - test plan: `docs/9.3.4/test/test-ci-evidence-chain-test-plan.md`
 - predecessor signoff: `docs/9.3.3/acceptance/version-signoff.md`
-- execution mode: single-root-delivery / strict Step 1→7
+- execution mode: single-root-delivery / strict Step 1→5→7；Step 6 owner-waived
 - implementation owner: current 9.3.4 root session
 - started_at: 2026-07-14
 - completed_at: not-completed
@@ -60,12 +68,156 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 1 | 契约与静态库存冻结 | passed | predecessor verified | r8 confirmed；532/820/829/519；28/28 negatives；dual review PASS |
 | 2 | Surefire/Failsafe 全量分层 | passed | Step 1 exit passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe authority |
 | 3 | 五数据库与外部集成 required matrix | passed | Step 2 exit passed | r4 same-commit authority：DB `29/370` + external `16/76` = exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`、Addon companion `2/6` |
-| 4 | JaCoCo unit+IT 聚合与关键类门 | passed / feature accepted | Step 3 exit passed | Cfreeze `f97483a0…` fresh formal-r4=`773+59/5707/F0E0S0`、`23/48/16953`、aggregate=`54624/76830 line + 26111/44870 branch`、critical=`12/23/below0`；quality/audit/acceptance PASS，25/25 workitem closed |
-| 5 | authority runner rehearsal / immutable candidate | ready / not-started | Step 4 feature accepted | entry satisfied；pending candidate root、two-layer/archive/JAR=image digest；no final pointer |
-| 6 | PR/main/release CI 接线 | pending | Step 5 exit | pending：five artifacts exact、state-negative、GitHub JAR=image dry-run |
-| 7 | clean-commit 权威回放与后置门 | pending | Step 6 exit | pending：full authority + quality→coverage→acceptance signed-off |
+| 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
+| 5 | authority runner rehearsal / immutable candidate | ACCEPTED / replacement r2 independently signed off | accepted current Step 4 and package remediations | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
+| 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
+| 7 | clean-commit 本地权威回放与后置门 | APPROVED / merge-only authorization | Step 5 accepted；PR #124 实时复核后以 merge commit 建立 exact `origin/main` entry | authority preflight/runner 尚未授权；后续仍需 full local authority + quality→coverage→acceptance signed-off |
 
-任一步未记录 exit=`passed`，后一步不得改为 in-progress。
+Steps 1–5 未记录 exit=`passed`，后一步不得改为 in-progress；Step 6 不再是
+Step 7 prerequisite。
+
+## Execution Check-in — no-CI scope activation（2026-07-23）
+
+- scope commit=`deb92e78d8a01aeef227f6ca8c9f9a60d9b162a2`；原 Step 6
+  GitHub CI 接线为 `owner-waived / out-of-scope`。
+- repository owner 已授权一个 Step 5 local rehearsal attempt；Actions 保持 disabled，
+  不配置 required check/branch protection，不把任何 remote CI run 当作 authority。
+- activation 只开放 Step 5 preflight 和唯一 rehearsal；Step 7、merge、tag、release、
+  publish 仍需后续独立授权。
+
+## Execution Check-in — Step 5 no-CI r1 Git metadata fail-closed（2026-07-23）
+
+- run=`step5-local-rehearsal-20260723-no-ci-r1`，tested commit=`ea079116...`；
+  private tmux pane exit=`1`。
+- source-before=`4296 files` /
+  `8ea272ee46e7b4bafd3bae7ae718f13344f23008fd548132cd38ff22ae546ae0`；
+  随后 `runtime-source-before` 以 `E_DIRECTORY` 拒绝 linked-worktree `.git` regular file。
+- Step4/Maven/Docker/package/archive 均未开始；candidate/final pointer absent；无
+  run-owned Docker resources。
+- attempt 已消耗；current decision=`NEEDS_REPLAN`。推荐仅把执行环境改为 private
+  full clone，并在 activation 前增加 `scan-runtime-source` 预检；不得自动重试。
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-r1-git-metadata-preflight-fail-closed-20260723.md`
+
+## Execution Check-in — Step 5 full-clone replacement replan（2026-07-23）
+
+- owner 批准保持 no-CI scope、现有 runner/tool/manifest bytes 不变，仅把
+  replacement 执行环境改为 private full clone。
+- preflight 必须在 activation 前直接执行 `scan-runtime-source`，并精确验证
+  receipt command/status/git_head/module_count；失败不消耗 replacement attempt。
+- preflight 全绿后允许提交一次 docs-only activation，并启动 exactly one
+  replacement rehearsal；runner 启动后任何失败均回到 `NEEDS_REPLAN`，不得自动重试。
+- Step 7、merge、tag、release、publish 仍未授权；Actions 继续 disabled。
+
+## Execution Check-in — Step 5 full-clone replacement activation（2026-07-23）
+
+- activation parent=`22e737e09bb3e283aa21894d3f0b92ef205ff6b9`；
+  clone `.git` 为 real directory、clean、non-shallow、canonical origin。
+- direct `scan-runtime-source`=`passed`：13 modules / 1411 files /
+  set=`22670362fff8f063791129e1e875768d6b1b44286ec8237591f458b5486b07f8`；
+  receipt SHA-256=`5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9`。
+- manifests=`63/8/16`；artifact self-test passed；package negative=`120`；
+  pointer negative=`5`；frozen runtime base index/manifest/config exact。
+- 7 required ports free；candidate/final/runs pointers absent；无竞争 runner；
+  Actions disabled。预检已满足，现激活 exactly one replacement rehearsal。
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-preflight-20260723.md`
+
+## Execution Check-in — Step 5 full-clone replacement passed（2026-07-23）
+
+- run=`step5-local-rehearsal-20260723-no-ci-fullclone-r2`，tested
+  commit=`6c3ee97abbe49c0cf5cf485d2ddeb4ba7ff7c84f`；同一 run 的 Step4
+  release=`23 exec / 48 sessions`、required=`774 positive + 59 structural /
+  5709 testcase / F0E0S0`、Addon=`2/6/F0E0S0`。
+- Unit=`682+55 / 4943 / F0E0S0`；Integration=`47+4 / 320 /
+  F0E0S0`；five-DB=`29/370/F0E0S0`、state=`18/18`；external=
+  `16/76/F0E0S0`、state=`4/4`。
+- Launcher JAR SHA-256=
+  `14aac41389fd4728232ca99e47ed792e1da57641a2c6ce8dd2a73d3f7889f677`；
+  runtime image embedded `/app/app.jar` 与之相同；image id=
+  `sha256:d109c64d99f44f3335fc06f173c167494522bb82d4d9df83ea3ebbc266e38bf0`。
+- archive SHA-256=
+  `36245c874d13f914750a9a1e7e2cb1ef4e95de2bc2c37c8f9ce8cae8ca035ba6`；
+  verify-archive、异目录 extract-verify、durable seal 和 sensitive scan 均通过。
+  `portable_byte_verify=passed`；semantic portable replay 明确保留给 downstream。
+- expected-negative：artifact=`105`、package=`120`、pointer=`5`，全部通过。
+  candidate pointer 只指向本 rehearsal；`final-run.env`、`authority-run.env`
+  均不存在，`final_authority_pointer_updated=false`。
+- replacement attempt 已成功消耗，无重跑。Actions 保持 disabled，未接线 CI；
+  Step7、merge、tag、release、publish 未获授权。当前仅 Step5=
+  `READY_FOR_SIGNOFF`，不得解释为版本最终签收。
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-local-rehearsal-no-ci-fullclone-r2-passed-20260723.md`
+
+## Acceptance Check-in — Step 5 full-clone replacement accepted（2026-07-23）
+
+- independent signoff input：PR #124 head=
+  `c6654042d0b4f7b9abdd2e524c64e451e070e90a`；tested commit=
+  `6c3ee97abbe49c0cf5cf485d2ddeb4ba7ff7c84f`。
+- candidate pointer、summary、source seals、Step4/Unit/Integration/五库/External/
+  Addon raw summaries、archive/JAR/image identity、异目录 verify 与 negatives
+  全部交叉一致；`final-run.env`、`authority-run.env` 和
+  `final-authority-run.env` 均不存在。
+- live repository audit：PR 仍 open；Actions=`enabled=false`，queued/in-progress=
+  `0/0`，无 status check 被作为 authority；无 9.3.4 tag 或 release。
+- original workspace 仍只含既有 `docs/9.3.5` dirty baseline；Step5 closure 与
+  本签收提交均未包含这些路径。
+- decision=`accepted` for replacement Step 5 only。semantic portable replay 仍为
+  downstream；Step7、merge、tag、release、publish 继续未授权且未启动。
+- signoff:
+  `docs/9.3.4/acceptance/step5-local-rehearsal-no-ci-fullclone-r2-signoff-20260723.md`
+
+## Execution Check-in — Step 7 minimum contract and merge-only authorization（2026-07-23）
+
+- repository owner 已授权冻结 Step 7 最小契约，并在实时复核 PR #124 后执行
+  merge commit；禁止 squash/rebase，以保留既有 tested/accepted ancestry。
+- merge 前必须确认 exact pushed head/base、PR=`OPEN`/non-draft/
+  `MERGEABLE/CLEAN`、main 无反向 divergence、Actions=`enabled=false`、status
+  checks 为空且 queued/in-progress=`0/0`。
+- merge 完成只建立 exact clean `origin/main` entry，不等于 Step 7 authority 或
+  9.3.4 version acceptance。
+- Step 7 preflight/authority runner、tag、release、publish 仍未授权；合并后只执行
+  PR/merge-parent/main/no-CI/original-workspace 的只读核验并停止。
+
+## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
+
+- Cdiag=`9743f97d9d935d5e26311b78c158755bca51f17a`; fresh r37=`diagnostic-observed / completed / exit=0`;
+  required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`, source before=after and
+  cleanup=`0/0/0`.
+- Candidate=`f8b8cac4…`, capsule=`209386ac…`, and capsule manifest=`e9a69df1…`; independent candidate
+  and capsule reviewers both report `PASS / B/H/M/L=0/0/0/0`.
+- Current decision: `can_enter_cfreeze=yes`; `can_enter_formal=no` until one direct-single-parent Cfreeze is
+  committed and pushed. Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution Check-in — formal-r38 revalidation accepted（2026-07-20）
+
+- Cfreeze=62361688d838ba0a73348900502924decfbeeb68 is the sole direct child of
+  Cdiag=9743f97d9d935d5e26311b78c158755bca51f17a. Fresh
+  step4-coverage-20260720-formal-r38 completed formal-passed / completed / exit=0; required=773+59/5707/F0E0S0,
+  Addon=2/6/F0E0S0, exec/session=23/48, source before=after, cleanup=0/0/0, and governed coverage is
+  line/branch/complexity=54624/76830 / 26112/44870 / 17659/35571.
+- Formal final artifact replay, contract/frozen-diagnostic, successor overlay, Step 4/6 hash closure and CI
+  workflow validation passed. Same-Cfreeze Pivot companion=1/F0E0S0; independent quality=APPROVE /
+  B/H/M/L=0/0/0/0; r38 scope/audit=35/35 plus one receipt gate, critical/major gaps=0/0.
+- Independent final signoff review is accepted with B/H/M/L=0/0/0/0; foggy-projects explicitly accepted the
+  canonical Addon remediation. Current decision: can_enter_step5=yes for a fresh rehearsal only. Steps 6-7,
+  9.3.5, and 9.4.0 remain closed.
+
+## Execution Check-in — Step 5 r3 Pivot TTL oracle fail-closed（2026-07-20）
+
+- Fresh `step5-rehearsal-20260720-r3` is immutable failed evidence. Structured release/Step 4/integration
+  status stops at `step4-release-successor` / `child-integration` / `variant-sqlite-broad`; aggregate result
+  is `307/F1E0S0`, with only `PivotIT#testOuterCacheTtlExpiryFlatPivotE1b` failing. No raw log/XML is used
+  as authority.
+- The source diagnosis is a 1ms local-cache TTL combined with `Thread.sleep(20)` while Pipeline supplies
+  independent wall-clock values to local-cache lookup/store. The accepted implementation repair is test-only:
+  private controlled time delegates to real `PivotOuterResponseCache`; focused fresh forks=`5 x 1/F0E0S0`,
+  full `PivotIT=55/F0E0S0`, provider contract=`8/F0E0S0`, and independent implementation audit=`ACCEPT /
+  B/H/M/L=0/0/0/0`.
+- Current decision: `can_enter_step5=no`; r38 remains historical for its exact source but cannot be spliced
+  with the new test source. Only clean/pushed Cdiag → fresh diagnostic/review → direct-child Cfreeze →
+  fresh formal → quality/audit → Step 5 rehearsal/portable replay may reopen downstream authority. Steps
+  6–7, 9.3.5, and 9.4.0 remain closed.
 
 ## Execution Check-in — Step 1（passed）
 
@@ -1248,22 +1400,47 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
   diagnostic。threshold=`diagnostic-pending`，`can_enter_coverage_audit=no`；Step 5、formal、
   coverage audit 与 acceptance 保持关闭。
 
-## Current Risks / Stop Conditions
+## Historical formal-r4 checkpoint risks / stop conditions（superseded）
 
-- Step 4 已 accepted；r1–r19 failed/diagnostic history 永久 immutable/excluded，Step 5 不得选择、
-  拼接或重标这些产物，只能消费 `f97483a0…` formal-r4 与已登记 companion。
-- Step 5 当前风险是 single-authority orchestration、portable raw archive、candidate two-layer digest
+- 在 formal-r4 checkpoint，Step 4 曾 accepted；r1–r19 failed/diagnostic history 永久
+  immutable/excluded，当时 Step 5 不得选择、拼接或重标这些产物，只能消费 `f97483a0…`
+  formal-r4 与已登记 companion。后续 replacement chain 已重新关闭 Step 5。
+- Step 5 当时的风险是 single-authority orchestration、portable raw archive、candidate two-layer digest
   与 live lifecycle/durable replay 入口混淆；任一 identity/hash/replay 不一致必须 fail closed，
   final authority pointer 保持不变。
-- Unit MySQL classification DEBT 仍 open；Step 5 不得把 9.3.4-only fixture 例外永久化，最终
-  9.3.4 临时放行由 Step 7 version acceptance 决定，债务须在 9.3.5 acceptance 前关闭。
+- Unit MySQL classification DEBT 仍 open；Step 5 不得把 9.3.4-only fixture 例外永久化。只有
+  9.3.4 version signoff 后才由 9.3.5 Gate 0 owner 接管 migration，deadline=
+  `9.3.5 version acceptance`。
+
+## Execution check-in — formal-r8 report-runner fail-closed recovery（2026-07-19）
+
+- Cfreeze=`7c18019ed12d25c029de7e7e49caef77a79b2e67` direct-parent/topology/push/clean
+  PASS；fresh clone formal-r8=`failed / coverage-report / exit 126 / excluded`；
+- before failure：Unit=`681+55/4941`、Integration=`47+4/320`、database=`29/370`、external=
+  `16/76`、Step3 required=`45/446`、Addon=`2/6`、report inventory=
+  `773+59/5707/F0E0S0`，child residue=`0`；
+- success-only exec-manifest/aggregate/observation/gate/summary/candidate/final 全 absent；r8 raw exec
+  不得复用。runner cleanup=`0/0/0`，wrapper restore=`rc0`，四个 demo DB exact ID 均
+  `running/healthy`；
+- cause：report runner 三处直接执行 Git `100644` Python tools；main `core.fileMode=false` 的偶然
+  x bit 掩盖缺陷，fresh clone `0664` 正确拒绝；
+- remediation：三处统一 `python3`；runner raw/292-command-stream seal、全部四工具/七调用 logical
+  binding、raw/stream/semantic mutation=`44/44 / 43/43 / 33/33`、Git-mode mutation=`4/4`、
+  nonexec smoke=`4/4`；Step4 manifest=`6a48ab01…0782`、Step6 manifest=`d1efe031…43bd`，full diagnostic
+  contract/overlay/lifecycle/XML/authority/CI validation PASS；machine=
+  `diagnostic-ready / diagnostic-pending`；
+- code/docs reviews=`PASS / 0/0/0/0 / mandatory 0`；current：Step 4=
+  `in-progress / ready-for-new-Cdiag`；next=new Cdiag
+  commit/push/clean→fresh r27→
+  candidate/capsule/双审→direct-child Cfreeze→fresh formal-r9→post gates `31/31`。Step 5–7、9.3.5、
+  9.4.0 继续关闭。
 - remote required check、five-cell collector、branch protection、release artifact reuse 与 Docker
   embedded-JAR equality 尚无实际证据，分别属于 Steps 6/7。
 - v933 Batch 7 旧 FQCN/count 不能原样重跑；Step 5/7 必须继续使用 frozen predecessor mapping 与
   v934 successor regression。
 
-上述是 Step 5 及后续步骤的当前风险。触发 stop condition 时保持当前 Step 未通过并记录 blocker，
-不得回退 Step 4 accepted 状态或跳到 Step 6/7。
+上述是 formal-r4 checkpoint 的历史风险，不是当前状态；当前 authority 以文末 r26 check-in 为准。
+历史 checkpoint 触发 stop condition 时保持当时 Step 未通过并记录 blocker，不得跳到 Step 6/7。
 
 ## Planning Reviews
 
@@ -1278,7 +1455,10 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 - final review：`READY`，blocker/high/medium=`0/0/0`；最后一项 low（1:N/N:1
   mapping 的 stop-condition 措辞）已修正，无未处理 planning finding。
 
-## Post-Gate Status
+## Historical post-gate status after formal-r4 acceptance
+
+This table records the 2026-07-18 checkpoint only. Its downstream authorization was withdrawn by the
+formal-r6 replacement recovery recorded at the end of this document; it is not the current status.
 
 | Gate | 状态 | 证据 |
 |---|---|---|
@@ -1289,14 +1469,15 @@ optional disposition、Addon companion 与 Step 4 并发前置条件全部满足
 | version acceptance | not-started | planned `docs/9.3.4/acceptance/version-signoff.md` |
 | roadmap sync / downstream | Steps 1–4 passed / Step 5 ready | roadmap/README 已同步；Step 5=`ready / not-started`，9.3.5=`queued` |
 
-## Next Action
+## Historical next action after formal-r4 acceptance
 
 Step 4 已完成 formal-r4、final quality、coverage audit 与 feature acceptance；decision=
 `accepted`，25/25 workitem closed，blocking items=`none`。
 
-Next action：启动 Step 5 single-authority rehearsal，生成 portable immutable candidate，拆分
+At that checkpoint，next action was Step 5 single-authority rehearsal，生成 portable immutable candidate，拆分
 live lifecycle validation 与 durable artifact replay，并保持 final authority pointer 不变。
-当前 `can_enter_step5=yes`，Step 5=`ready / not-started`；Steps 6/7 pending，9.3.5 queued。
+At that checkpoint `can_enter_step5=yes`，Step 5=`ready / not-started`；该授权已由文末
+formal-r6 recovery 重新关闭。
 
 ### Superseding Post-diagnostic Check-in — r9 exec identity scope fail-closed / r10 remediation
 
@@ -1720,7 +1901,7 @@ live lifecycle validation 与 durable artifact replay，并保持 final authorit
 - 外层 restore 后单独 live 重放 `report_inventory_tool validate` 会因 Unit fixture 的全局
   `13306 free` 动态前置条件返回 `E_UNIT_FIXTURE`；运行内 validate 与 post-run public final
   verifier 均 PASS。正式质量闸门将其定为非阻断 Low，owner=Step 5 single authority/rehearsal；
-- current：Step 4=`in-progress / formal-passed / final-quality-passed`，
+- At that checkpoint：Step 4=`in-progress / formal-passed / final-quality-passed`，
   `can_enter_coverage_audit=yes`、`can_enter_acceptance=no`；Step 5/9.3.5 closed。
 
 ### Superseding Check-in — Step 4 coverage audit / feature acceptance complete
@@ -1736,5 +1917,250 @@ live lifecycle validation 与 durable artifact replay，并保持 final authorit
   `signed-off / accepted`，blocking items=`none`，Experience=`N/A`；
 - 25 个 Step 4 workitem 已关闭；classification DEBT 继续
   `open / accepted-for-9.3.4-only / due-before-9.3.5-acceptance`；
-- current：Step 4=`passed`；Step 5=`ready / not-started`；`can_enter_step5=yes`；
+- At that checkpoint：Step 4=`passed`；Step 5=`ready / not-started`；`can_enter_step5=yes`；
   9.3.4=`in-progress`，Steps 6/7=`pending`，9.3.5=`queued`。
+
+## Execution check-in — formal-r6 recovery（2026-07-19）
+
+- Cfreeze=`14931b68…`，fresh formal-r6=`failed / bootstrap-negative / exit 1`；delta、r22 replay、
+  contract、overlay PASS，source/tests/summary absent，cleanup/DB restore PASS；
+- cause=`synthetic fsmonitor v2 newline token`；real main/fresh index=`4066 × ordinary H`；
+- fixed hook=`token\0`；independent stress=`1000/1000`、local focused=`100/100`、five full negative=
+  `5/5`；
+- machine=`diagnostic-ready / diagnostic-pending`，Step4 manifest=`51ff1d26…f76`，Step6 workflow
+  closure PASS；
+- r23：`completed / diagnostic-observed / public-valid`，required=`773+59/5707`、exec/session=
+  `23/48`、source exact、cleanup/restore PASS；
+- r23 high-water：branch=`26112/44870`、complexity=`17659/35571`，唯一 delta 为
+  `MapBeanInfoHelper#getBeanProperty` inner double-check；candidate/capsule absent；
+- controlled regression：existing node、100 interleavings、5 fresh JVM class probe bitmap exact、
+  `foggy-core=97/F0E0S0`、independent review=`0/0/0/0`；
+- current：Step 4=`in-progress`，Step 5–7=`closed/hold`，9.3.5=`queued`；next=`replacement Cdiag
+  commit/push -> fresh diagnostic-r24`。
+
+## Execution check-in — diagnostic-r24 reviewed Cfreeze（2026-07-19）
+
+- Cdiag=`414c8b12…` 已 clean/pushed；r24=`completed / diagnostic-observed / exit 0 / public-valid`；
+- lanes=`773+59/5707/F0E0S0 + Addon 2/6`，exec/session/classes=`23/48/16953`，production
+  universe=`24/2098`，source exact，cleanup=`0/0/0`，四个 exact demo DB restored healthy；
+- aggregate=`54624/76830 line, 26112/44870 branch, 17659/35571 complexity`；MapBeanInfo
+  method=`4/4`，raw Unit probe=`10/11 / _wU`；
+- candidate=`f13f3c35…2ee` 保持 `review-required`；capsule=`6638 entries / 0 symlink`，独立双
+  rebuild、verify、空目录 materialize PASS；Reviewer A/B=`APPROVE / combined 0/0/0/0`；
+- canonical working tree=`confirmed/formal-ready`；Step 4/6 manifests=`61/61 + 16/16`，frozen
+  diagnostic、contract、workflow 与 negatives PASS；pre-Cfreeze quality=`PASS / 0/0/0/0`；
+- current Step 4=`in-progress / ready-for-one-direct-child-Cfreeze`，`can_enter_step5=no`、
+  `can_enter_coverage_audit=no`、`can_enter_acceptance=no`；next=Cfreeze commit/push/topology/clean，
+  then one fresh-clone formal-r7。
+
+## Execution check-in — formal-r7 CALCULATE catalog portability recovery（historical；2026-07-19）
+
+- Cfreeze=`439aea5e…`；fresh formal-r7=`failed / child-integration / exit 1`；Unit=
+  `681+55/4941/F0E0S0`，Integration `caffeine-sqlite=2`、`hermetic=3` PASS，`sqlite-broad=307/F1`；
+- 唯一失败=`CalculateMvpIT.parityCatalogCasesStayExecutable`，根因是 catalog 从未进入 bridge Git tree，
+  diagnostic 被上层 workspace 文件偶然喂绿；production/test source、node、selector无回归；
+- r7 capsule=`9 entries / 10303 bytes`，Base64 封装的 byte-exact Failsafe text、per-entry provenance、cleanup、source、
+  sensitive scan、四 DB exact restore 均已复核；r7 永久 excluded；
+- remediation：repo-local catalog exact blob/SHA + pre-test Git ownership/hash gate；lifecycle raw/executable
+  seals与 Step4/6 hash closure同步；focused=`14/F0E0S0`；machine=`diagnostic-ready/diagnostic-pending`；
+- checkpoint state at that time：只授权 Cdiag commit/push、isolated focused/negative proof 和 fresh
+  diagnostic-r25；该状态已被下方 r25/r26 check-in supersede。Step 5–7、post-formal gates、
+  9.3.5/9.4.0 当时均 closed。
+
+## Execution check-in — diagnostic-r25 public-valid / Unit MySQL 7/12 remediation（2026-07-19）
+
+- tested Cdiag=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`；run=
+  `step4-coverage-20260719-diagnostic-r25`，status=
+  `diagnostic-observed / completed / exit 0`；public validator=`DIAGNOSTIC VALID`，observation=
+  `01487f7efd930406ffa05af9408012aa1fb215d94ba9c36c261f72c1aec7e42a`；
+- lanes=`773+59/5707/F0E0S0 + Addon 2/6`，exec/session=`23/48`，production class universe=
+  `24 modules / 2098 classes`，class-universe SHA-256=
+  `e53103549fc7f4f460ca36847c82d441000c433b5619030d688a3c54d046f9b8`；source
+  before=after=`2f41810585ade813671740218a2c303b1306a14236337712ef71d3e4aa5b1677`；
+- wrapper=`runner_rc=0 / restore_rc=0 / wrapper_outcome_rc=0`；四个开跑前 demo DB container
+  original ID 均 exact 恢复为 `running/healthy`；runner cleanup=`container/volume/network 0/0/0`；
+- post-run consumer audit 发现
+  `v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest`
+  的 `getOrCreateDataSource` 会建立连接并执行 `SELECT 1`，但旧实现捕获 `SQLException` 后只
+  `printStackTrace`。因此 r7 的 `6 reports / 11 errors` 仍是 immutable historical
+  observation，而真实 known-consumer lower bound 是 `7 reports / 12 nodes`；
+- decision：r25 的 diagnostic observation 有效，但它发生在 7/12 修复前，状态=
+  `superseded / non-candidate`；candidate/capsule/Cfreeze 均不授权。schema 2 fixture contract、
+  negative=`42/42`、lifecycle=`5/5`、Step4=`61/61`、Step6=`16/16` 与 pre-Cdiag
+  quality=`APPROVE / 0/0/0/0` 已 PASS；disposable MySQL 正向/错误密码结果仅为未封存 local
+  observation，不能替代 new Cdiag 后的 isolated durable proof；
+- next=new Cdiag commit/push/clean→isolated durable positive/negative proof→
+  fresh diagnostic-r26→candidate/capsule/双审→direct-child Cfreeze→fresh formal-r8→final
+  quality/audit/acceptance。Step 5–7、9.3.5、9.4.0 保持关闭。
+
+Records：
+
+- `docs/9.3.4/evidence/step-4/step4-unit-mysql57-known-consumer-7of12-remediation-20260719.md`
+- `docs/9.3.4/workitems/BUG-step4-unit-mysql57-known-consumer-understatement.md`
+
+## Execution check-in — diagnostic-r26 reviewed candidate / pre-Cfreeze（2026-07-19）
+
+- replacement Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 push/clean；isolated r4
+  durable proof 已完成：positive=`Maven rc0 / XML 1/F0E0S0`、wrong-password=
+  `Maven rc1 / XML 1/F0E1S0`，disposable container absent、random port released；
+- fresh r26=`step4-coverage-20260719-diagnostic-r26` public-valid，observation=
+  `15e1ed76eaa624c0899b980472689e34e1b272ddda58b2bc5cf27994abffe705`；required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`，source before=after=
+  `6acfad24cc3d43c3bf550c904aa61c7e01f5b7829d4e2f204d489ab6cc40a8f5`；
+- candidate/capsule 与两路独立 review 已完成，decision=`confirm-observed-thresholds`、
+  B/H/M/L=`0/0/0/0`、mandatory=`0`，当前只授权唯一 direct-single-parent Cfreeze；
+- r25 永久保持 `pre-remediation / superseded / non-candidate`，不得拼接或提升。Cfreeze、fresh
+  formal-r8、post-formal quality/coverage audit/acceptance 均尚未完成；Step 5–7、9.3.5、9.4.0
+  继续关闭；9.3.4 version signoff 后 classification debt 交 9.3.5 Gate 0 owner，deadline=
+  `9.3.5 version acceptance`。
+
+## Execution check-in — diagnostic-r27 governed high-water rejection（2026-07-19）
+
+- fresh r27 on `f102b52c…` completed/public-valid with required=`773+59/5707/F0E0S0`、Addon=`2/6`、
+  exec/session=`23/48`、source exact、cleanup and external restore PASS;
+- aggregate was line=`54624/76830`、branch=`26111/44870`、complexity=`17658/35571`; r26 reviewed
+  high-water is branch=`26112/44870`、complexity=`17659/35571`, so r27 is `non-freezable`;
+- sole delta=`ExportWithChartTool.java:248` due to unordered test fixture. Candidate/capsule were isolated
+  and are non-canonical. Ordered-test remediation and five fresh-JVM exact probe proofs are complete;
+  next at that checkpoint=clean/pushed Cdiag -> fresh diagnostic-r28; the formal-r9 check-in below supersedes
+  this next gate.
+
+## Execution check-in — formal-r9 strict-umask fail-closed / recovery baseline（2026-07-19）
+
+- tested Cfreeze=`34cd2452c1bbe793c0567ebe23179b290227ae3d`; fresh
+  `step4-coverage-20260719-formal-r9` ended `failed / coverage-report / exit 2`. The failure occurred after
+  report-inventory/exec validation when a strict caller umask yielded effective-POM public output mode=`0600`;
+  the reporter emitted `E_OUTPUT: unexpected output mode: 0600`.
+- r9 is immutable `failed / excluded / non-reusable / non-candidate`. Its formalization-delta and child-lane
+  observations remain failure records, while success summary/candidate/final authority is absent. Neither r28
+  reviewed material nor any r9 partial XML/exec/report output may be combined with a replacement run.
+- runner cleanup recorded `container/volume/network=0/0/0`; outer restoration recorded `restore_rc=0`.
+  These are environment-boundary observations only and do not alter Step 4, Step 5 or acceptance status.
+- recovery baseline=`390322295e1efce34399468f98076edf7fcc6f73`: explicit public receipt mode plus a strict-umask
+  negative probe, followed by reset to `coverage-contract=diagnostic-ready` and
+  `coverage-thresholds=diagnostic-pending`. This commit is not the final Cdiag; its
+  [implementation-quality record](../quality/step4-formal-r9-effective-pom-output-mode-recovery-implementation-quality.md)
+  is `ready-for-new-Cdiag` only.
+- next=one new clean/pushed Cdiag successor→fresh all-lane diagnostic-r29→new candidate/capsule/dual review→
+  direct-single-parent Cfreeze→fresh formal successor→final quality→replacement coverage audit `31/31`→
+  Step 4 feature acceptance. `can_enter_cfreeze=no / can_enter_step5=no /
+  can_enter_coverage_audit=no / can_enter_acceptance=no`; Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r29 Git-safety hold（2026-07-19）
+
+- Cdiag=`f420a4eaa3cf9bed0d7027b656ea71af6d0b03ca`; fresh r29 completed under `umask 077` and its
+  diagnostic replay/candidate facts remain recorded as non-authoritative observation.
+- Git-safety review identified that the recursive local capsule captures excluded raw runtime content and
+  process/runtime metadata. The r29 closure is therefore not a Git-safe publication artifact.
+- r29=`non-freezable / no-cfreeze-authority`: its local candidate, capsule and reviews must not be reused,
+  repackaged, linked as tracked evidence, or combined with historical material.
+- The fail-closed tooling repair is locally validated: explicit allowlist, de-identified attestation, safe frozen
+  recomputation, and persistent rejection tests. It still requires a new Cdiag and a fresh diagnostic before any
+  candidate, Cfreeze or formal decision. Step 5–7, coverage audit, acceptance, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r30 successor-binding fail-closed（2026-07-19）
+
+- Cdiag=`7757aa36c0efd0970422669e0f88f74daa8f15b0`; fresh strict-umask
+  `step4-coverage-20260719-diagnostic-r30` failed in `contract-validate` when the Step 3 successor overlay
+  rejected stale dual coverage-contract and coverage-tool bindings.
+- r30=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. No source seal, lane result,
+  aggregate, XML, observation, summary, candidate or final output exists; it cannot be rerun, repaired or merged
+  with another run.
+- Remediation synchronizes the two binding sources and Step 4/6 manifest chain, then exercises canonical overlay
+  validation from the contract-negative suite. A new Cdiag and fresh r31 are required before any review/Cfreeze/
+  formal transition; Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r31 fixed-port environment fail-closed（2026-07-19）
+
+- Cdiag=`f80fadd62ca00d3ba56f1be04e92113ba1145019`; fresh strict-umask
+  `step4-coverage-20260719-diagnostic-r31` completed preflight/source-seal/class-universe and stopped in
+  `child-unit` before lifecycle probes, fixture provision or Maven Unit execution.
+- r31=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. Derived Docker resource and outer
+  cleanup counts are `0/0/0`; only the fixed-port-free precondition was false, from outside the derived project.
+  No external listener is reused, changed or entered as tracked runtime evidence.
+- The one fresh diagnostic authorized by f80 is consumed. The only successor is r31 exclusion record → new
+  clean/pushed Cdiag → independently verify port free → fresh r32 → new candidate/Git-safe capsule/review →
+  direct-child Cfreeze → fresh formal → post gates. Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r32 WatchService delete high-water rejection（2026-07-20）
+
+- fresh strict-umask `step4-coverage-20260720-diagnostic-r32` from clean `a9ec2a2f…` completed:
+  required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`, source before=after, critical
+  policy=`12/23/1 N/A/below 0`, cleanup=`0/0/0`;
+- r32 is `diagnostic-observed / public-valid / non-freezable`: line=`54624/76830`, branch=`26111/44870`,
+  complexity=`17658/35571`; branch and complexity are one below the governed high-water, so no r32
+  non-canonical material may become candidate, Cfreeze, formal, audit, or acceptance authority;
+- semantic comparison isolated line 442 of `WatchServiceFileTracer`. The existing mock-key test now drives
+  unfiltered, filtered-reject, and filtered-match deletion. Five focused JVMs restored line=`4/4` and method
+  branch/complexity=`11/12` / `6/7`; full `foggy-core`=`97/F0E0S0`; independent review=
+  `PASS / B/H/M/L=0/0/0/1`, mandatory=`0`;
+- r33 consumed the test-only Cdiag's one fresh-run authorization but is permanently excluded before canonical
+  Unit authority; its fallback cleanup failure cannot be treated as a successful cleanup closure.
+- only successor: clean/pushed docs-only Cdiag → governed readiness preflight → fresh strict-umask r34 with all
+  lanes, source/cleanup closure, line >= `54624/76830`, branch >= `26112/44870`, complexity >=
+  `17659/35571` → new candidate/Git-safe closure/dual review → direct-child Cfreeze → fresh formal → post
+  gates. Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r33 Unit pre-marker fail-closed（2026-07-20）
+
+- Cdiag=`4d91721406c81eb14112e68f660a80e464e2401e`; fresh strict-umask
+  `step4-coverage-20260720-diagnostic-r33` stopped in `child-unit`. The final Unit status is
+  `unit-mysql57-fallback-cleanup-failed`, while the successor view, Unit outer/run marker, lifecycle receipt,
+  normal fixture manifest and canonical Unit lane authority are absent.
+- r33=`failed / excluded / non-reusable / non-candidate / zero-lane-authority`. The final cleanup label only
+  proves a non-zero fallback cleanup invocation; it neither identifies the primary pre-marker failure nor proves
+  cleanup closure. No raw run material is promoted.
+- The authorized path is r33 exclusion record → clean/pushed docs-only Cdiag → independent governed readiness
+  preflight → fresh r34 meeting every all-lane/high-water gate → candidate/Git-safe closure/review →
+  direct-child Cfreeze → fresh formal → post gates. Steps 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — formal-r10 report-stage contract invalidation（2026-07-20）
+
+- r34 completed as a diagnostic observation and led to a direct-child Cfreeze. formal-r10 retained its
+  immutable mechanical `formal-passed` status, but independent post-formal review found its final public
+  effective-POM report receipt was mode `0600`, not the exact governed public mode `0644`.
+- The original publisher was correct; a later report-stage copy under strict `umask 077` recreated the
+  receipt with the wrong mode. Provenance bound SHA-256 and size but omitted mode, so r10 is a false-green
+  mechanical result. It is now `contract-invalid / non-authoritative / excluded-from-audit-and-acceptance`.
+- The repair explicitly enforces `0644` at the report-stage copy and pre-publication boundaries, binds mode
+  into provenance, and adds strict-umask and mutation regressions. Its machine state is
+  `diagnostic-ready / diagnostic-pending`.
+- The only continuation is a clean/pushed Cdiag → fresh r35 → fresh candidate/Git-safe closure/capsule/dual
+  review → direct-child Cfreeze → fresh formal → replacement final quality → `legacy 31 + supplemental 4`
+  audit → Step 4 acceptance. No r34/r10/Cfreeze output may be reused; Step 5–7, 9.3.5 and 9.4.0 remain closed.
+
+## Execution check-in — diagnostic-r35 reviewed Cfreeze authorization（2026-07-20）
+
+- recovery Cdiag=`93b3993e41d285300cb6968865da229319dad26d` is clean/pushed and contains the report-stage
+  public-receipt mode repair. Fresh strict-umask `step4-coverage-20260720-diagnostic-r35` completed
+  `diagnostic-observed / public-valid / exit 0` with required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`,
+  exec/session=`23/48`, line=`54624/76830`, branch=`26112/44870`, complexity=`17659/35571`, critical
+  below=`0`, and cleanup=`0/0/0`.
+- The report-stage public effective-POM receipt is regular/non-link and exact mode=`0644`. This is a fresh
+  observation under the repaired code; r10 remains mechanically recorded but `contract-invalid /
+  non-authoritative / excluded-from-audit-and-acceptance`.
+- The new threshold candidate, Git-safe three-member capsule, independent rebuild/materialization review,
+  and result review are all recorded under `evidence/step-4/`; both reviews are `APPROVE`,
+  B/H/M/L=`0/0/0/0`. r35 is the only permitted diagnostic input; r34, r10 and every prior Cfreeze stay
+  excluded from this successor chain.
+- Machine state is `coverage-contract=formal-ready` and `coverage-thresholds=confirmed`; Step 4/6 manifest,
+  frozen diagnostic, successor overlay and CI workflow validation all pass. This authorizes exactly one
+  direct-single-parent Cfreeze from Cdiag `93b3993e…`, then one fresh clean-clone formal-r11.
+- Current decision: `can_enter_cfreeze=yes`; `can_enter_formal=no` until that Cfreeze is pushed and cloned
+  clean; `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`. Steps 5–7, 9.3.5
+  and 9.4.0 remain closed.
+
+## Execution check-in — formal-r11 evidence complete / signoff prerequisite blocked（2026-07-20）
+
+- Cfreeze `4b17dbe…` is the single child of Cdiag `93b3993e…`; clean non-shallow formal-r11 completed
+  `formal-passed / exit=0`. Required=`773+59/5707/F0E0S0`, Addon=`2/6/F0E0S0`, exec/session=`23/48`,
+  line/branch/complexity=`54624/76830` / `26112/44870` / `17659/35571`, public receipt=`0644` regular/non-link,
+  cleanup=`0/0/0`, and independent final artifact replay all passed.
+- Same-Cfreeze Pivot companion=`1/F0E0S0`; independent final quality and coverage-audit reviews are both
+  `APPROVE / B/H/M/L=0/0/0/0`. The audit is exactly 35 rows (`legacy31 + supplemental4`) plus the separate
+  post-r10 report-stage receipt gate; critical/major evidence gaps=`0/0`.
+- The evidence package and Step 4 feature acceptance are complete: the canonical candidate is `ACCEPTED` by
+  `foggy-projects`. The separate canonical spec remains `ULTRA_EXECUTING` for Steps 5–7. See
+  `docs/9.3.4/acceptance/step4-coverage-gate-replacement-signoff-prerequisite-20260720.md`.
+- Current decision: `can_enter_step5=yes`; Step 5=`ready / not-started`; Steps 6–7, 9.3.5 and 9.4.0 remain
+  closed.

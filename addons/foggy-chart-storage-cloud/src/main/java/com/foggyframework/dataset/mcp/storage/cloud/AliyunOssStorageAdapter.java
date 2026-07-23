@@ -23,8 +23,8 @@ import java.io.ByteArrayInputStream;
  *       type: aliyun-oss
  *       aliyun-oss:
  *         endpoint: oss-cn-hangzhou.aliyuncs.com
- *         access-key-id: your-access-key-id
- *         access-key-secret: your-access-key-secret
+ *         access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID}
+ *         access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET}
  *         bucket-name: your-bucket-name
  *         path-prefix: charts/
  *         custom-domain: https://cdn.example.com

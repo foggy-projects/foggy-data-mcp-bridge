@@ -7,9 +7,9 @@ result: in-progress
 step1_result: passed
 step2_result: passed
 step3_result: passed
-step4_result: passed
+step4_result: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-23
 ---
 
 # 9.3.4 Test and Evidence Plan
@@ -20,6 +20,13 @@ updated_at: 2026-07-18
 - intended_for: test/build/CI implementers and evidence reviewers
 - purpose: 把 requirement criteria 映射到可执行 positive、expected-negative 和
   authority evidence；本文件不预填任何通过结果。
+
+## Owner Scope Override（2026-07-23）
+
+- 原 Step 6 GitHub CI/Release 验证整体为 `owner-waived / out-of-scope`。
+- 不运行 Actions required gate、CI artifact collector/aggregator、branch protection
+  或 GitHub release dry-run；这些项目不再属于 Step 7 final acceptance。
+- Step 7 改为从 Step 5 accepted 直接进入 exact clean `origin/main` local authority。
 
 ## Evidence Rules
 
@@ -344,29 +351,16 @@ drift、migration gap、report/JAR/image/source hash mismatch、tampered archive
 artifact、failed run更新 candidate pointer、candidate 更新 final pointer、credential
 scan hit 均失败。
 
-## Step 6 — CI / Release
+## Step 6 — CI / Release（Owner-Waived / Out of Scope）
 
-Positive：
-
-- PR/main reusable workflow 实际运行所有 required jobs；always-run aggregator 名称
-  固定为 reviewed stable check，并确认 branch rule 实际引用。
-- artifact 名含 commit/run/attempt；package/evidence job 下载并复验所有 upstream
-  evidence。
-- five-DB cells 各自产带 db kind/SHA/run/attempt 的 artifact；collector 只接受
-  exact set/cardinality=5 和 fresh manifests/XML。
-- release dry-run 校验 tag SHA，下载同一已测 Launcher JAR/archive/digests；GitHub
-  asset直接使用该 JAR，runtime-only Dockerfile COPY 后回读 image JAR SHA，均不重建。
-
-Expected-negative：任一 required job `failure`、`skipped`、`cancelled`；artifact
-missing/tampered/duplicate/wrong-kind 或 cardinality!=5；tag SHA mismatch；release
-使用 `-DskipTests`、source-building Dockerfile 或生成/嵌入不同 JAR；
-legacy partial workflow 冒充 required authority，全部使 aggregator/release 失败。
+不执行 positive/expected-negative CI 验证。静态存在的 workflow/Step6 工具不等于
+启用、验收或 authority；本交付也不得修改 repository Actions/branch settings。
 
 ## Step 7 — Final Authority and Gate Order
 
 在 exact clean commit 完整回放 v934 successor authority，并由独立 reviewer 从
 migration map、原始 XML、DB manifests、JaCoCo XML、JAR/image/archive digests 和
-CI job states 复算，不只读取 summary。
+local authority receipts 复算，不只读取 summary。
 
 Final acceptance 至少验证：
 
@@ -376,8 +370,8 @@ Final acceptance 至少验证：
 - aggregate XML verifier、model merged-exec 与 critical coverage checks 全通过；
 - 9.3.1–9.3.3 successor mapping/regression、package、Launcher、JAR=image
   same-artifact release 全通过；
-- five-DB artifacts exact set/cardinality=5，且每 cell XML/manifest fresh；
-- CI required aggregator 的 success 与 failure/skipped/cancelled negative 均有实际证据；
+- local authority 的 five-DB execution exact set/cardinality=5，且每 cell
+  XML/manifest fresh；
 - inner/outer/archive digest、下载复验、sensitive scan 全通过；
 - self-check → quality gate → coverage audit → version acceptance 顺序无跳门。
 
@@ -390,8 +384,8 @@ Final acceptance 至少验证：
 | DB-IDENTITY / DB-PARITY / SKIP-ZERO | 3 | five DB manifests/XML/native oracle + unavailable/wrong/skip negatives |
 | COVERAGE-AGG / COVERAGE-CRITICAL | 4 | all-lane exec + aggregate XML verifier + model merged check + negatives |
 | AUTHORITY / EVIDENCE-IMMUTABLE | 5/7 | candidate rehearsal + clean exact run + two-layer/archive digest + recomputation |
-| CI-REQUIRED | 6/7 | exact five-cell artifacts + actual PR/main state negatives + branch-rule evidence |
-| RELEASE-SAME-ARTIFACT | 6/7 | tag/source/JAR/image linkage + download/reverify + rebuild-negative |
+| CI-REQUIRED | N/A | owner-waived / out-of-scope；不作为 9.3.4 acceptance requirement |
+| RELEASE-SAME-ARTIFACT | 5/7 | local candidate/source/JAR/image linkage + portable reverify + rebuild-negative |
 | REGRESSION-931-933 | 1/5/7 | historical→successor mapping + current-source exact lane summaries/raw XML |
 | POST-GATES | 7 | timestamped ordered gate records and version signoff |
 
@@ -401,8 +395,8 @@ Final acceptance 至少验证：
 - step1_result: `passed`
 - step2_result: `passed`
 - step3_result: `passed`
-- step4_result: `passed / formal-r4 + final quality + coverage audit + feature acceptance`
-- step5_status: `ready / not-started`
+- step4_result: `in-progress / formal-r8 recovery / ready-for-new-Cdiag`
+- step5_status: `hold / execution closed`
 - version_acceptance: `not-started`
 
 ### Historical result ledger
@@ -948,3 +942,164 @@ coverage audit 与 acceptance 保持关闭。
   `step4_result=passed`，而版本级 `result` 继续 `in-progress`；
 - Step 5=`ready / not-started`；后续测试边界为 portable single-authority rehearsal，不能复用
   failed diagnostics、不能降低 threshold、不能提前宣称 CI/release/version PASS。
+
+## Superseding formal-r6 recovery test boundary（2026-07-19）
+
+- r6 failure oracle：bootstrap negative 返回非零，source/test/summary absent，cleanup 与 exact demo DB
+  restore PASS；
+- fixture regression：合规 NUL-token 后必须 exact `h tracked.txt\0`，生产 validator 仍必须 rc=2；
+- stability：independent 1000 iterations、local 100 iterations、five complete negative processes；
+- static closure：Step 4 `61/61`、Step 6 `16/16`、diagnostic contract/overlay/workflows PASS；
+- r23 dynamic result：full PASS/public-valid，但唯一新增 MapBeanInfo inner double-check branch 依赖
+  scheduling；candidate/capsule absent，不能把 PASS 等同于 freeze authorization；
+- deterministic regression：既有 test node 内 100 次 controlled monitor interleaving；5 个 fresh
+  Maven/JVM/JaCoCo fork class id/probe/bitmap exact，方法 branch=`4/4`、complexity=`3/3`；
+- replacement dynamic boundary：只允许从 clean/pushed replacement Cdiag 运行完整 diagnostic-r24；
+  成功且 counter/probe 稳定后才能生成 candidate/capsule、双审/Cfreeze 和 fresh formal-r7。任何失败
+  继续关闭 Step 5/9.3.5。
+
+## diagnostic-r24 reviewed-threshold test boundary（2026-07-19）
+
+- r24 full lanes=`773+59/5707/F0E0S0 + Addon 2/6`，exec/session=`23/48`；public diagnostic
+  validation、source before/after、model/sensitive、cleanup 与 exact external restore PASS；
+- aggregate oracle=`54624/76830 line, 26112/44870 branch`；12 critical/23 applicable 全部达 floor，
+  unique N/A=`NamespaceScope.branch`；target method=`4/4`，raw Unit bitmap=`_wU`；
+- candidate public verify、Reviewer A counter/probe replay、Reviewer B capsule rebuild/materialize 全 PASS；
+- canonical formal machine=`confirmed/formal-ready`；contract/frozen diagnostic/Step 4+6 manifests/workflows
+  与 negatives PASS；
+- fresh formal-r7 必须在 direct-child Cfreeze push/clean 后从真正 fresh clone 完整重跑，不得复用 r24
+  exec/XML 代替；任何 exact threshold、source、provenance、negative 或 cleanup 失败均 fail closed。
+
+## Superseding formal-r7 portability test boundary（2026-07-19）
+
+- observed RED=`CalculateMvpIT 14/F1E0S0`，唯一 named failure为 parity catalog missing；
+- remediation positive=`CalculateMvpIT 14/F0E0S0`，test source SHA/node count不变；提交后还必须在
+  parent/sibling catalog absent 的 isolated clone 复验 focused method与全类；
+- authority negative必须证明 repo-local missing、single-byte tamper、仅有仓外诱饵均在 Docker/tests 前拒绝；
+- 该历史 portability checkpoint 当时只允许下一次 full GREEN 来自 fresh diagnostic-r25 和 fresh
+  formal-r8；r7/r24 results 不可拼接。后续 7/12 审计已永久将 r25 降级为
+  `superseded / non-candidate`，当前 authority 以本文件后续 r26 boundary 为准。
+
+## Superseding Unit MySQL 7/12 regression test boundary（2026-07-19）
+
+- historical oracle 保留 r7 raw result=`6 reports / 11 errors`；另以 source/runtime consumer audit
+  验证 current lower bound=`7 reports / 12 nodes`，其中新增 positive identity 为
+  `DatasetJdbcUtilsTest#getOrCreateDataSource / 1 node`。两组数字语义不同，测试不得相互覆盖；
+- `getOrCreateDataSource` regression 必须让 datasource reuse 与真实 `SELECT 1` 连接/结果断言都成为
+  required assertion；错误 credentials、连接拒绝或查询错误必须形成 test failure，禁止
+  `catch SQLException + printStackTrace` 后继续绿色；
+- Unit fixture contract negatives 的新 exact oracle=`42/42`，至少覆盖 historical/current 字段混淆、
+  第 7 key/node 缺失或篡改、consumer inventory 漂移与假绿异常吞噬；真实 signal/exit cleanup
+  lifecycle oracle 继续为 `5/5`；
+- focused consumer regression、negative 与 lifecycle PASS 只证明 remediation quality，不替代完整
+  Unit。fresh full Unit 仍须 exact `681+55/4941/F0E0S0`，且同一 replacement run 继续满足
+  connection receipt、profile isolation、source/report/exec/provenance 和 cleanup oracles；
+- r25 在 `5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7` 上的 all-lane/public validation 结果仅作为
+  pre-remediation diagnostic evidence 保存，classification=`superseded / non-candidate`，不得与修复后
+  focused 或 formal evidence 拼接；
+- 修复后的动态测试顺序固定为 new Cdiag→fresh diagnostic-r26→candidate/review→direct-child
+  Cfreeze→fresh formal-r8（或下一可用 formal ID）→post gates。replacement formal chain 完成前，
+  Step 5/9.3.5 保持 closed；9.3.4 version signoff 后，9.3.5 只能先运行 Gate 0 debt migration，债务关闭前
+  9.3.5 acceptance 仍不得执行。
+
+## diagnostic-r26 reviewed-Cfreeze test transition（2026-07-19）
+
+- Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 clean/pushed。fresh-clone isolated r4
+  positive oracle=`Maven rc 0 + 1/F0E0S0`，wrong-password oracle=
+  `Maven rc 1 + 1/F0E1S0`；双 XML、exact source/contract/manifest identity 与 cleanup receipt 均
+  持久化，disposable container absent、random port released；
+- fresh r26 all-lane/public oracle PASS：Unit=`681+55/4941/F0E0S0`、Integration=
+  `47+4/320/F0E0S0`、database=`29/370/F0E0S0`、external=`16/76/F0E0S0`、required=
+  `773+59/5707/F0E0S0`、Addon=`2/6/F0E0S0`、exec/session=`23/48`；source exact、cleanup 与
+  external restore PASS；
+- aggregate oracle=`54624/76830 line + 26112/44870 branch`；schema 2 historical/current=
+  `6/11 + 7/12`，fixture negatives/lifecycle=`42/42 + 5/5`；candidate public verification、capsule
+  deterministic rebuild/materialize 与两路 review 均 PASS；
+- r26 reviewed candidate 只打开 direct-single-parent Cfreeze transition，不是 formal 或 acceptance
+  test result。Cfreeze 后必须 fresh formal-r8 完整复现全部 lane、threshold、source/provenance、negative、
+  lifecycle 与 cleanup oracle；
+- formal-r8 PASS 后只执行 Step 4 final quality→coverage audit→feature acceptance。该 acceptance
+  仅开放 Step 5；9.3.4 仍须完成 Steps 5–7 和 version signoff，9.3.5 仍保持 queued。
+
+## formal-r8 report-runner recovery test transition（2026-07-19）
+
+- fresh formal-r8 child/report oracles 全 PASS：Unit=`681+55/4941`、Integration=`47+4/320`、
+  database=`29/370`、external=`16/76`、required inventory=`773+59/5707/F0E0S0`、Addon=
+  `2/6`；
+- expected failure oracle：fresh clone Git `100644` Python tool direct `--help`=`126`，
+  `python3 … --help`=`0`；formal runner 在首个 direct call rc126，后续 success-only artifact absent；
+- recovery static oracle：runner raw bytes 与 292-command logical executable stream exact，四个 tool
+  target 与七个 top-level logical interpreter bindings exact；raw/stream/semantic mutation=
+  `44/44 / 43/43 / 33/33`，inline-Python heredoc direct mutation 在 stream unchanged 下由 raw seal 拒绝；
+  Git-mode mutation=`4/4`；四个 `0644` copied tools direct denied /
+  interpreter PASS=`4/4`；
+- machine/static oracle：Step4 manifest=`61/61`、Step6 manifest=`16/16`、diagnostic contract、
+  successor overlay、lifecycle negative、coverage XML negative、authority negative 与 CI workflow
+  validator均 PASS；
+- r8 永久 excluded。next test sequence=new Cdiag→fresh diagnostic-r27→candidate/capsule/双审→
+  direct-child Cfreeze→fresh formal-r9→final quality→coverage audit `31/31`→feature acceptance。
+
+## diagnostic-r27 map-order high-water regression test boundary（2026-07-19）
+
+- r27 full diagnostic is valid but non-freezable: branch/complexity=`26111/44870` / `17658/35571`, below
+  r26 by one. Candidate/capsule must not be committed or reused.
+- `ExportWithChartToolTest#fields_shouldBeInferredAutomatically` must preserve its existing node and use
+  ordered `category -> amount` item data so line 248 visits both false and true outcomes. Five independent
+  Maven/Surefire/JaCoCo JVMs produced `16/F0E0S0`, line 248=`mb0/cb2`, and one identical target bitmap.
+- Next full-run test sequence is new Cdiag -> fresh diagnostic-r28 (at least r26 aggregate high-water) ->
+  new candidate/capsule/dual review -> direct-child Cfreeze -> fresh formal-r9.
+
+## formal-r9 strict-umask receipt regression test boundary（2026-07-19）
+
+- reproduce the original environment with `umask 077`: an effective POM input may remain `0600`, but both
+  public effective-POM JSON receipts must be regular non-symlink files at exact `0644`; a `0600` public
+  receipt remains a fail-closed error, not an accepted variant;
+- the no-container contract-negative suite must import the real publication function under that umask, verify
+  byte-exact payload and `0644`, and fail the whole static gate on any mismatch;
+- static recovery validation must continue to prove Step4=`61/61`, Step6=`16/16`, diagnostic contract,
+  overlay, and CI workflow closure before the new Cdiag is eligible;
+- formal-r9 remains excluded even though Unit/Integration/Step3/DB/external/inventory/exec prerequisites
+  passed. Fresh diagnostic-r29 must rebuild every lane and all later artifacts; no r9 partial output is a
+  test substitute;
+- r29 must additionally meet or exceed reviewed high-water line=`54624/76830`, branch=`26112/44870`, and
+  complexity=`17659/35571` before candidate/review/Cfreeze authority can resume.
+
+## diagnostic-r32 WatchService filtered-delete regression test boundary（2026-07-20）
+
+- r32 is valid but non-freezable: line=`54624/76830`, branch=`26111/44870`, complexity=`17658/35571`.
+  Its branch/complexity shortfall is a governed rejection even if technical candidate tooling succeeds.
+- `WatchServiceFileTracerTest#watchedChildDeletionMustSignalAuthorityLossAndCleanOnlyChildTree` must retain its
+  existing node and fake-key setup. Its ordered events must prove: unfiltered deletion invokes the callback,
+  `.txt` under `.qm` filter invokes none, and `.qm` under the filter invokes exactly one.
+- Five independent focused Maven/Surefire/JaCoCo JVMs must each yield line 442=`4/4` and
+  `handleFileDeleted` branch/complexity=`11/12` / `6/7`; full `foggy-core` must remain `F0E0S0`.
+- r33 consumed the prior Cdiag's one fresh-run authorization but stopped before canonical Unit authority; it is
+  failed/excluded and its fallback cleanup closure is unproven.
+- The next authority test sequence is clean/pushed docs-only Cdiag → independent governed readiness preflight →
+  fresh r34 satisfying line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571` → new
+  candidate/Git-safe closure/dual review → direct-child Cfreeze → fresh formal. No r32 or r33 material
+  substitutes for any stage.
+
+## formal-r10 report-stage public-receipt regression boundary（2026-07-20）
+
+- The final report-stage effective-POM receipt is a public artifact and must be a regular, non-link,
+  non-empty file at exact mode `0644`. SHA-256 and byte size alone are insufficient identity.
+- Under outer `umask 077`, the real report-stage copy path must finish at `0644`; the runner must enforce
+  it after the copy and before publication, and final provenance must carry and verify `mode=0644`.
+- Positive coverage must reject a report-stage `0600` receipt. Mutation probes must fail when either
+  enforcement call site, the explicit normalization, or the exact-mode assertion is removed or weakened.
+- formal-r10 is permanently excluded as a contract-invalid mechanical result. The end-to-end authority test
+  starts from a new Cdiag and fresh r35; no r10/r34/Cfreeze artifact substitutes for it.
+
+## r35-to-formal-r11 replacement test boundary（2026-07-20）
+
+- r35 proves only diagnostic readiness. After its direct-child Cfreeze is clean/pushed, formal-r11 must run
+  under outer `umask 077` in a new clone and independently rebuild Unit, Integration, Step 3 required and
+  Addon companion; diagnostic exec, XML, aggregate and raw runtime material must not be imported.
+- Formal must reprove all-lane inventory, source/provenance/lifecycle/cleanup, high-water thresholds,
+  critical/model gates and a regular/non-link final public effective-POM receipt at exact `0644`. The
+  independent final-artifact verifier must reject content-correct but mode-incorrect receipt metadata.
+- After formal succeeds, rerun the focused
+  `PivotSqlParityIT#testPreAggHitWithSystemSliceAndLimitKeepsFinalParamOrder` companion on the same Cfreeze.
+  It is supplemental coverage evidence only and must not alter formal `23 exec / 48 session` or aggregate
+  counters.

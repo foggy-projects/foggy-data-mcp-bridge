@@ -15,7 +15,7 @@ spring:
   # 阿里云通义千问: https://dashscope.aliyuncs.com/compatible-mode
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:sk-xxx}
+      api-key: ${OPENAI_API_KEY:}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com}
       chat:
         options:
@@ -128,7 +128,7 @@ foggy:
       # 图表渲染服务
       chart-render:
         base-url: ${CHART_RENDER_URL:http://localhost:3000}
-        auth-token: ${CHART_RENDER_TOKEN:default-render-token}
+        auth-token: ${CHART_RENDER_TOKEN:}
         timeout-seconds: 60
 
     # MCP Tools Configuration

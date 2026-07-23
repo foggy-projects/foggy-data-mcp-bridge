@@ -130,7 +130,7 @@
     },
     "runner": {
       "path": "scripts/verify-v934-preagg-addon-lifecycle.sh",
-      "sha256": "5ac2bd692ab0faf4e514a188f4074b81538bbe3014da779f7e4351ac8fa3befb"
+      "sha256": "7c5020dc8af9328a0b70cc7933df3b01b7574bbfd21ecb9458c20c99ac2c9ac8"
     },
     "sales_tm": {
       "path": "foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/model/FactSalesPreAggModel.tm",

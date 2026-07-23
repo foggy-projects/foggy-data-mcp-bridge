@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "v934-step4-formal-failure-capsule",
+  "run_id": "step4-coverage-20260719-formal-r6",
+  "tested_commit": "14931b681f0e4203c1108264f9c1f3b4cfb514db",
+  "source_run_root": "/tmp/v934-formal-r6.rw3Ssn/repo/target/v934-step4-coverage/runs/step4-coverage-20260719-formal-r6",
+  "status": "sealed-failed",
+  "entries": [
+    {
+      "path": "cleanup.env",
+      "sha256": "5524f0c68afb6ff1d13358f8fa3d2d19f7c1270454f2dfed1d2fe72cfe334ff1",
+      "size": 69
+    },
+    {
+      "path": "formalization-delta.json",
+      "sha256": "c1d84e8762dd6b4c57bec62a82a9094edb878c01c540c7930dc4d3da9d38955b",
+      "size": 3241
+    },
+    {
+      "path": "outer-restore.json",
+      "sha256": "0124a05738d9e2c1b53ce86e5f2f4b4740e155facf535fcd3d6c2e849ce04229",
+      "size": 1543
+    },
+    {
+      "path": "run-status.env",
+      "sha256": "462eb651d46415ae417bc8a20a9b33acc5254bc4df1e0c9f7aafad8c6de13e0b",
+      "size": 282
+    },
+    {
+      "path": "run.log",
+      "sha256": "f250635d6389c5280dfddbb2e8bb06430284c98d83cec7c5202667389e528195",
+      "size": 5277
+    }
+  ],
+  "entry_count": 5,
+  "total_size": 10412
+}

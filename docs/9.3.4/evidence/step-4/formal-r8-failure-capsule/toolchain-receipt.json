@@ -1,0 +1,1221 @@
+{
+  "commands": {
+    "java": {
+      "path": "$JAVA_HOME/bin/java",
+      "sha256": "c0a86c03d2acbe2f389d5198142309f8e61db0c498920893977a494c4e9fd69b",
+      "size": 14464,
+      "version_lines": [
+        "openjdk version \"17.0.19\" 2026-04-21",
+        "OpenJDK Runtime Environment (build 17.0.19+10-1-24.04.2-Ubuntu)",
+        "OpenJDK 64-Bit Server VM (build 17.0.19+10-1-24.04.2-Ubuntu, mixed mode, sharing)"
+      ]
+    },
+    "javac": {
+      "path": "$JAVA_HOME/bin/javac",
+      "sha256": "4e6c3635162235234bde92b0645e2df7e7340f1a21498a483c22d624aebffc7c",
+      "size": 14512,
+      "version_lines": [
+        "javac 17.0.19"
+      ]
+    },
+    "mvn": {
+      "java_runtime": {
+        "runtime": "$JAVA_HOME",
+        "vendor": "Ubuntu",
+        "version": "17.0.19"
+      },
+      "path": "$MAVEN_HOME/bin/mvn",
+      "sha256": "c9a491d16181737e76ee9d694ff3767a9f6671541c956b23d2f08e97672f3447",
+      "size": 6121,
+      "version_lines": [
+        "\u001b[1mApache Maven 3.8.7\u001b[m",
+        "Maven home: $MAVEN_HOME",
+        "Java version: 17.0.19, vendor: Ubuntu, runtime: $JAVA_HOME",
+        "Default locale: en_US, platform encoding: ANSI_X3.4-1968",
+        "OS name: \"linux\", version: \"6.18.33.2-microsoft-standard-wsl2\", arch: \"amd64\", family: \"unix\""
+      ]
+    }
+  },
+  "compiler_effective_contract": {
+    "help_plugin": {
+      "coordinate": "org.apache.maven.plugins:maven-help-plugin:3.5.1",
+      "jar": {
+        "repository_path": "org/apache/maven/plugins/maven-help-plugin/3.5.1/maven-help-plugin-3.5.1.jar",
+        "sha256": "db1296f90c93cd1ac763f8262674dc376cf7670166dc2c270a498b1141a51865",
+        "size": 64730
+      },
+      "pom": {
+        "repository_path": "org/apache/maven/plugins/maven-help-plugin/3.5.1/maven-help-plugin-3.5.1.pom",
+        "sha256": "b027863f439971a15609a832be044a019fc3da7645b82ed49ea38b6318b83b29",
+        "size": 10138
+      }
+    },
+    "module_models": [
+      {
+        "artifact_id": "foggy-chart-storage-cloud",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-chart-storage-cloud",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-data-viewer",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-data-viewer",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-client",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-client",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-graphql",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-graphql",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-model-cache",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-model-cache",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-model-mongo",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-model-mongo",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-model-preagg",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-model-preagg",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-model-vector",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-model-vector",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-mongo",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-mongo",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-vector",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-dataset-vector",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-fsscript-client",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-fsscript-client",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-odoo-bridge-java",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "addons/foggy-odoo-bridge-java",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-bean-copy",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-bean-copy",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-core",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-core",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-dataset",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-demo",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-dataset-demo",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-mcp",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-dataset-mcp",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-memory-grid-bridge",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-dataset-memory-grid-bridge",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-memory-grid-duckdb",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-dataset-memory-grid-duckdb",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-dataset-model",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-dataset-model",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-fsscript",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-fsscript",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-mcp-launcher",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-mcp-launcher",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-mcp-spi",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-mcp-spi",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      },
+      {
+        "artifact_id": "foggy-runtime-api",
+        "configuration": {
+          "encoding": "UTF-8",
+          "parameters": true,
+          "source": "17",
+          "target": "17"
+        },
+        "module": "foggy-runtime-api",
+        "plugin": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0"
+      }
+    ],
+    "module_models_sha256": "d821d8814efa9f77f0b1eb6d3237e53eba50c64579cc814947e35bf8101f8fcd",
+    "production_module_count": 24,
+    "project_count": 26,
+    "validation": "Maven effective reactor model, exact compiler plugin/configuration"
+  },
+  "git_head": "7c18019ed12d25c029de7e7e49caef77a79b2e67",
+  "jdk": {
+    "home": "$JAVA_HOME",
+    "modules": {
+      "sha256": "2d9de349be2aaa70adf53f78a88b8ca9bff70e910795655022808b4f61cbdc15",
+      "size": 128880903
+    },
+    "packages": {
+      "openjdk-17-jdk-headless": "17.0.19+10-1~24.04.2",
+      "openjdk-17-jre-headless": "17.0.19+10-1~24.04.2"
+    },
+    "release": {
+      "sha256": "d11d538e6810095deff65fee2b1b4ddb53025b5f87b70ccf842bd7a550fa6ec8",
+      "size": 1231
+    }
+  },
+  "kind": "v934-step4-toolchain-receipt",
+  "maven": {
+    "configuration": [
+      {
+        "label": "global-settings",
+        "present": true,
+        "sha256": "20a89dcbcab99b87fbce06e10329d3f43bb72f8c464f95c5909fa1564dc6eab3",
+        "size": 10478
+      },
+      {
+        "label": "global-toolchains",
+        "present": true,
+        "sha256": "716a6e73e4b0131a72c7329cf7a9cbfb75afc3042ed732cd1862bdfcd89c1311",
+        "size": 3645
+      },
+      {
+        "label": "user-settings",
+        "present": true,
+        "sha256": "fb3c560038459fe2cf4021685b00715395283478eda6fd706e1c071be95b5464",
+        "size": 1035
+      },
+      {
+        "label": "user-toolchains",
+        "present": true,
+        "sha256": "ea7438feb02114079b774eba5a2b4dbacacd95fb46c61f0697b693b66f3270c9",
+        "size": 751
+      },
+      {
+        "label": "user-mavenrc",
+        "present": true,
+        "sha256": "3a3f32b165ef6c023f7b15216cd6fe3ea08b0586ee1bed61e392056f8a79cddc",
+        "size": 52
+      },
+      {
+        "label": "system-mavenrc",
+        "present": false
+      },
+      {
+        "label": "project-maven-config",
+        "present": false
+      },
+      {
+        "label": "project-jvm-config",
+        "present": false
+      },
+      {
+        "label": "project-extensions",
+        "present": false
+      }
+    ],
+    "environment": [
+      {
+        "name": "JAVA_HOME",
+        "present": true,
+        "value_sha256": "fbe1698414fa8c46b3751f8cacce4df2bbca312a7dd7e1a1e46dab8d7cea2dfe"
+      },
+      {
+        "name": "JDK_HOME",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "MAVEN_HOME",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "M2_HOME",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "MAVEN_OPTS",
+        "present": true,
+        "value_sha256": "fe7d25f06046e759ac1bffb434058f131ef11b4f2f284689f891af7238e0039b"
+      },
+      {
+        "name": "MAVEN_ARGS",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "MAVEN_CONFIG",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "JAVA_TOOL_OPTIONS",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "JDK_JAVA_OPTIONS",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "_JAVA_OPTIONS",
+        "present": false,
+        "value_sha256": null
+      }
+    ],
+    "home": "$MAVEN_HOME",
+    "package": {
+      "package": "maven",
+      "version": "3.8.7-2"
+    },
+    "runtime": {
+      "closure_sha256": "a0894f25c3cb673315501d9b5f6e3b9ac2166506cf347e6a01ad735d1a43689e",
+      "entries": [
+        {
+          "kind": "symlink-file",
+          "link_target": "/etc/maven/m2.conf",
+          "path": "bin/m2.conf",
+          "sha256": "f501a89e726a09fd7b964b0f683e0b15f7b2ef868b7b6a037d2f82244f2884cc",
+          "size": 220
+        },
+        {
+          "kind": "file",
+          "path": "bin/mvn",
+          "sha256": "c9a491d16181737e76ee9d694ff3767a9f6671541c956b23d2f08e97672f3447",
+          "size": 6121
+        },
+        {
+          "kind": "file",
+          "path": "bin/mvnDebug",
+          "sha256": "549c72c1fca6c993ecb4ee9e26d3dea73f1f738447f9ed5ae270b194d4a5a01b",
+          "size": 1601
+        },
+        {
+          "kind": "file",
+          "path": "bin/mvnyjp",
+          "sha256": "defa1cc9acabc91135f164301e1ba9ffe41b3f5f07c9e2c3ebeb36aa7da054a2",
+          "size": 1532
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/plexus-classworlds.jar",
+          "path": "boot/plexus-classworlds-2.x.jar",
+          "sha256": "3d7284faab52e1f3cfdac90f7df3503d4ce0bc7c82e645e08e18a231f25f37d0",
+          "size": 53331
+        },
+        {
+          "kind": "directory-symlink",
+          "link_target": "/etc/maven",
+          "path": "conf"
+        },
+        {
+          "kind": "file",
+          "path": "conf/logging/simplelogger.properties",
+          "sha256": "bc13eb303c08fcd94f38283d232143723049ef2ea9200b524b16582bf167ede1",
+          "size": 1519
+        },
+        {
+          "kind": "file",
+          "path": "conf/m2.conf",
+          "sha256": "f501a89e726a09fd7b964b0f683e0b15f7b2ef868b7b6a037d2f82244f2884cc",
+          "size": 220
+        },
+        {
+          "kind": "file",
+          "path": "conf/settings.xml",
+          "sha256": "20a89dcbcab99b87fbce06e10329d3f43bb72f8c464f95c5909fa1564dc6eab3",
+          "size": 10478
+        },
+        {
+          "kind": "file",
+          "path": "conf/toolchains.xml",
+          "sha256": "716a6e73e4b0131a72c7329cf7a9cbfb75afc3042ed732cd1862bdfcd89c1311",
+          "size": 3645
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/aopalliance.jar",
+          "path": "lib/aopalliance.jar",
+          "sha256": "79df2a2f9467ada261535d3e362eac3182087d778695c7b55a713ac9d57dae7d",
+          "size": 10368
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/cdi-api.jar",
+          "path": "lib/cdi-api.jar",
+          "sha256": "5de54ff4e19b9e26f54122b887d733e5a29b1294ebc3e4b70b38e16e3ff5580a",
+          "size": 66224
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/commons-cli.jar",
+          "path": "lib/commons-cli.jar",
+          "sha256": "db1b194a7875f6359803c346fd533837fe7b298f1156786657e89e7683769be4",
+          "size": 53048
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/commons-io.jar",
+          "path": "lib/commons-io.jar",
+          "sha256": "60d795632cb5207a53b2b288db10d18975f4ecabdbbf358f8f412b1815067fa1",
+          "size": 323964
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/commons-lang3.jar",
+          "path": "lib/commons-lang3.jar",
+          "sha256": "740783bb916e06f9410bddd7dadb9d8b39f635377540c6df7f09bc7b87a309b5",
+          "size": 650719
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/guava.jar",
+          "path": "lib/guava.jar",
+          "sha256": "5435201cc390913baed355e07a6b790a7901129d90c7cd2288df151666425751",
+          "size": 3013790
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/guice-no-aop.jar",
+          "path": "lib/guice-no-aop.jar",
+          "sha256": "364500872d692c253c09ac1272e9f9a59efe5a1088575a673800e7804f700bb1",
+          "size": 522892
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/jansi.jar",
+          "path": "lib/jansi.jar",
+          "sha256": "9d1a716c269d3b5971134c7b763b2dff8c9a0b6b19b43aef00aeb04824fac3a3",
+          "size": 86988
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/geronimo-annotation-1.3-spec.jar",
+          "path": "lib/javax.annotation-api.jar",
+          "sha256": "090d12e0a3b8995cd3e4a1a33abc1c455c5d81221aafa0e717c8085f0919fdac",
+          "size": 11033
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/atinject-jsr330-api-1.0.jar",
+          "path": "lib/javax.inject.jar",
+          "sha256": "a5aa798f59e7625776d968e5ac800cfdadf48fa0a5989f8a4ca938cc1b754a29",
+          "size": 3095
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/jcl-over-slf4j.jar",
+          "path": "lib/jcl-over-slf4j.jar",
+          "sha256": "d708597f4182cdd4062ba62856f5bbc2cbc87382ca9b4fa7ff33356b578c2820",
+          "size": 16968
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-artifact.jar",
+          "path": "lib/maven-artifact-3.x.jar",
+          "sha256": "f2ee58c22f84e73c405e80cddd37f2082b598f24731b00f5083baee68ed06e9a",
+          "size": 53685
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-builder-support.jar",
+          "path": "lib/maven-builder-support-3.x.jar",
+          "sha256": "13145f9ceeead48b013e3ad86d19ff77855164f23868e2be1b6f60def91094a7",
+          "size": 9848
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-compat.jar",
+          "path": "lib/maven-compat-3.x.jar",
+          "sha256": "9478d199f50694b095b7ce4a3c12cecbe8dbc6bbb8cb9e3e66e495c76e2fe14b",
+          "size": 294420
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-core.jar",
+          "path": "lib/maven-core-3.x.jar",
+          "sha256": "8c22a8a057764f9f4ddde08f492f330e95f123e5efeed403d73d5abdbf34fda1",
+          "size": 649246
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-embedder.jar",
+          "path": "lib/maven-embedder-3.x.jar",
+          "sha256": "38cc11717283ae32d279a454242f32c295074756966703b9312867bf0a262a28",
+          "size": 99535
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-model.jar",
+          "path": "lib/maven-model-3.x.jar",
+          "sha256": "80756884c0b4b4587ae7351ea56b91cbe2097917dc52fb9c7a6bb6e902930fdd",
+          "size": 223098
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-model-builder.jar",
+          "path": "lib/maven-model-builder-3.x.jar",
+          "sha256": "0bbac4b536f7eb8327cd6354750e9cfdd51737450a6ec850f639380df993976a",
+          "size": 192247
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-plugin-api.jar",
+          "path": "lib/maven-plugin-api-3.x.jar",
+          "sha256": "11d8adc6b815912e893fe67e94aea4b80e755cf13e7941ec9c8ffdc70001f865",
+          "size": 47389
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-repository-metadata.jar",
+          "path": "lib/maven-repository-metadata-3.x.jar",
+          "sha256": "e67d9580eeb067df281db139fe97f91af3bf1fca9663754c597b3e6d78957a15",
+          "size": 29112
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven-resolver-api.jar",
+          "path": "lib/maven-resolver-api.jar",
+          "sha256": "b79027b84d79f3fc248bdb527be1c68274fde413fe66138734927d65f02f4638",
+          "size": 141308
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven-resolver-connector-basic.jar",
+          "path": "lib/maven-resolver-connector-basic.jar",
+          "sha256": "36238585fc235deaa87879c8ce065118e404709244ec7801007eb02d01016639",
+          "size": 37614
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven-resolver-impl.jar",
+          "path": "lib/maven-resolver-impl.jar",
+          "sha256": "b8bb3ca373ea5d777e25a4cdfe4e808f5352097922f7a57ba6167926ba2cba23",
+          "size": 172336
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-resolver-provider.jar",
+          "path": "lib/maven-resolver-provider-3.x.jar",
+          "sha256": "7389a720bd13c0874beb1d285342195dfcad194a407a070380af6b6c20afacea",
+          "size": 62319
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven-resolver-spi.jar",
+          "path": "lib/maven-resolver-spi.jar",
+          "sha256": "0ed46896c698ccd9f0c0d3308cdeb058ccf9d89ec614b1fc54b6425e34e696c3",
+          "size": 30657
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven-resolver-transport-wagon.jar",
+          "path": "lib/maven-resolver-transport-wagon.jar",
+          "sha256": "8e420cbfde5114953dfd10d0cb34560ae64fb743d04b027f9760fd3e0da20e48",
+          "size": 24224
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven-resolver-util.jar",
+          "path": "lib/maven-resolver-util.jar",
+          "sha256": "91213d02e9d5a97c42b8c3c58f07ced05e6ef99cf6e2268dd07e04e57cd615cf",
+          "size": 160221
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-settings.jar",
+          "path": "lib/maven-settings-3.x.jar",
+          "sha256": "c16f1d47f4ef06fbf628faa7af4a3af724f36f99513e32d0327d7eddfe591817",
+          "size": 45180
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-settings-builder.jar",
+          "path": "lib/maven-settings-builder-3.x.jar",
+          "sha256": "7dc33b57bf0cd143f8101c0b6f25388d0a8d4c6822b83d7e8c011dbb0ed3eb2d",
+          "size": 37205
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven-shared-utils.jar",
+          "path": "lib/maven-shared-utils.jar",
+          "sha256": "43fa2b7d6f20e654b02012c33cd593d69fe8cccfe048ec93596bcbaba339ec12",
+          "size": 147058
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/maven3-slf4j-provider.jar",
+          "path": "lib/maven-slf4j-provider-3.x.jar",
+          "sha256": "6649ce56ba97d09dad0c0bcf1c1f927e1360e34e91b7fa2f127d8a10e5abafd9",
+          "size": 20383
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/plexus-cipher.jar",
+          "path": "lib/plexus-cipher.jar",
+          "sha256": "5449b328753610c838c64572dd8abb42b5340d292552ca4cbeb0e419e277cfc8",
+          "size": 13005
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/plexus-component-annotations.jar",
+          "path": "lib/plexus-component-annotations.jar",
+          "sha256": "25f4534e9316a29853a6bdd76cde72bc2a99c5023a6f4a6c0fb01ec26ebe9cff",
+          "size": 4175
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/plexus-interpolation.jar",
+          "path": "lib/plexus-interpolation.jar",
+          "sha256": "9410e09c9842c5ea070b00a2c9117287e668494214e5e186d62c456a890e6dab",
+          "size": 84536
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/plexus-sec-dispatcher.jar",
+          "path": "lib/plexus-sec-dispatcher.jar",
+          "sha256": "ec3c7f5f633e77e83110515d4bfa9bcdf3f71510d598a25454f2dad01d0e3fa0",
+          "size": 28772
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/plexus-utils2.jar",
+          "path": "lib/plexus-utils.jar",
+          "sha256": "f3fd6d3f93407eb610be2b409382517526bfccecad2b7fba22a05bc3a2d6cacc",
+          "size": 269951
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/sisu-inject.jar",
+          "path": "lib/sisu-inject.jar",
+          "sha256": "dc15fa7e4d0b89ca7b47ff90435a9e2943fb125ef92085cf45808f5866e8d03f",
+          "size": 373258
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/sisu-plexus.jar",
+          "path": "lib/sisu-plexus.jar",
+          "sha256": "2b49db9d9de0fa6833af8a9d2fe6d694c45ca63a7c575337ede2e6e93613603c",
+          "size": 203901
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/slf4j-api.jar",
+          "path": "lib/slf4j-api.jar",
+          "sha256": "56e282b3c99c142c52b43b19e70ccbce83114a9fe05fe798e703b8353d06eb5f",
+          "size": 42138
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/wagon-file.jar",
+          "path": "lib/wagon-file.jar",
+          "sha256": "88c619ee46e97927127223feed508fa3384ff7ffb7efbe2a5ba4e17711fade64",
+          "size": 6551
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/wagon-http-shaded.jar",
+          "path": "lib/wagon-http-shaded.jar",
+          "sha256": "2fb4fd1116389201619e8a04d08dcee7769d59ccdc538bf12f5f5ba7b2e0d745",
+          "size": 1589815
+        },
+        {
+          "kind": "symlink-file",
+          "link_target": "../../java/wagon-provider-api.jar",
+          "path": "lib/wagon-provider-api.jar",
+          "sha256": "08506201f3cc77cd50a92b638218b0ace8acc35672079ffd4ec1ff3bd2d2a57d",
+          "size": 50698
+        }
+      ],
+      "entry_count": 52
+    }
+  },
+  "platform": {
+    "machine": "x86_64",
+    "release": "6.18.33.2-microsoft-standard-WSL2",
+    "system": "Linux"
+  },
+  "plugin_realms": {
+    "compiler": {
+      "entry_count": 12,
+      "imported_realm": "maven.api",
+      "maven_resolved_coordinates": [
+        "org.apache.maven.plugins:maven-compiler-plugin:jar:3.13.0",
+        "org.apache.maven.shared:maven-shared-utils:jar:3.4.2",
+        "commons-io:commons-io:jar:2.11.0",
+        "org.apache.maven.shared:maven-shared-incremental:jar:1.1",
+        "org.codehaus.plexus:plexus-java:jar:1.2.0",
+        "org.ow2.asm:asm:jar:9.6",
+        "com.thoughtworks.qdox:qdox:jar:2.0.3",
+        "org.codehaus.plexus:plexus-compiler-api:jar:2.15.0",
+        "org.codehaus.plexus:plexus-compiler-manager:jar:2.15.0",
+        "org.codehaus.plexus:plexus-xml:jar:3.0.0",
+        "org.codehaus.plexus:plexus-compiler-javac:jar:2.15.0",
+        "org.codehaus.plexus:plexus-utils:jar:4.0.0"
+      ],
+      "ordered_closure_sha256": "d3e50c435cab5f21e034521fda0c2cc1787bae1a85c5ede4834c6ac7770d1a37",
+      "ordered_entries": [
+        {
+          "coordinate": "org.apache.maven.plugins:maven-compiler-plugin:3.13.0",
+          "jar": {
+            "sha256": "6f819947a2a773792dc91d17f906e22113bfb2fefb6b64dec836175715d7402a",
+            "size": 82525
+          },
+          "pom": {
+            "repository_path": "org/apache/maven/plugins/maven-compiler-plugin/3.13.0/maven-compiler-plugin-3.13.0.pom",
+            "sha256": "0d00b84f26ff5f3e845bf349302345633ca65f8d8e9101b31082082415912c1e",
+            "size": 10444
+          },
+          "repository_path": "org/apache/maven/plugins/maven-compiler-plugin/3.13.0/maven-compiler-plugin-3.13.0.jar"
+        },
+        {
+          "coordinate": "org.apache.maven.shared:maven-shared-utils:3.4.2",
+          "jar": {
+            "sha256": "b613357e1bad4dfc1dead801691c9460f9585fe7c6b466bc25186212d7d18487",
+            "size": 151103
+          },
+          "pom": {
+            "repository_path": "org/apache/maven/shared/maven-shared-utils/3.4.2/maven-shared-utils-3.4.2.pom",
+            "sha256": "a941745d7faeb8dc9a75edc2c330c994b7440b9a44d21142716b6053967a41c1",
+            "size": 5899
+          },
+          "repository_path": "org/apache/maven/shared/maven-shared-utils/3.4.2/maven-shared-utils-3.4.2.jar"
+        },
+        {
+          "coordinate": "commons-io:commons-io:2.11.0",
+          "jar": {
+            "sha256": "961b2f6d87dbacc5d54abf45ab7a6e2495f89b75598962d8c723cea9bc210908",
+            "size": 327135
+          },
+          "pom": {
+            "repository_path": "commons-io/commons-io/2.11.0/commons-io-2.11.0.pom",
+            "sha256": "2e016fd7e3244b5f2c20acad834d93aa4790486ee1e4564641361a3e831eef59",
+            "size": 19729
+          },
+          "repository_path": "commons-io/commons-io/2.11.0/commons-io-2.11.0.jar"
+        },
+        {
+          "coordinate": "org.apache.maven.shared:maven-shared-incremental:1.1",
+          "jar": {
+            "sha256": "61988e54486a5dc38f06c70fdae5b108556c63bd433697b9f4305fcdb30fa40e",
+            "size": 13538
+          },
+          "pom": {
+            "repository_path": "org/apache/maven/shared/maven-shared-incremental/1.1/maven-shared-incremental-1.1.pom",
+            "sha256": "f21d19eb49b4a66cd85354a9ee7335439ea92a368173760a202766008cc19924",
+            "size": 4742
+          },
+          "repository_path": "org/apache/maven/shared/maven-shared-incremental/1.1/maven-shared-incremental-1.1.jar"
+        },
+        {
+          "coordinate": "org.codehaus.plexus:plexus-java:1.2.0",
+          "jar": {
+            "sha256": "4d2d63cdcad46feba432110ef64bcdc8f8fad48538fda5cd2253686b45a94304",
+            "size": 57542
+          },
+          "pom": {
+            "repository_path": "org/codehaus/plexus/plexus-java/1.2.0/plexus-java-1.2.0.pom",
+            "sha256": "d069564d4f490ae22ad885dd4b3ab9ac33a27e23a6f8542760970a36935ccf42",
+            "size": 4273
+          },
+          "repository_path": "org/codehaus/plexus/plexus-java/1.2.0/plexus-java-1.2.0.jar"
+        },
+        {
+          "coordinate": "org.ow2.asm:asm:9.6",
+          "jar": {
+            "sha256": "3c6fac2424db3d4a853b669f4e3d1d9c3c552235e19a319673f887083c2303a1",
+            "size": 123598
+          },
+          "pom": {
+            "repository_path": "org/ow2/asm/asm/9.6/asm-9.6.pom",
+            "sha256": "92eee24bc3c843e4881d46c1dd6505471ee3142facfb466b428cfea5a56c6b60",
+            "size": 2370
+          },
+          "repository_path": "org/ow2/asm/asm/9.6/asm-9.6.jar"
+        },
+        {
+          "coordinate": "com.thoughtworks.qdox:qdox:2.0.3",
+          "jar": {
+            "sha256": "ff70c10165714fe9546c418a65d74ecd5d57623ba408cecde9428f0a609b5d1c",
+            "size": 334163
+          },
+          "pom": {
+            "repository_path": "com/thoughtworks/qdox/qdox/2.0.3/qdox-2.0.3.pom",
+            "sha256": "e7ebaead3c95e74934451fc5b5ae9d02066303db67430f59fe219714efcf3bf3",
+            "size": 17237
+          },
+          "repository_path": "com/thoughtworks/qdox/qdox/2.0.3/qdox-2.0.3.jar"
+        },
+        {
+          "coordinate": "org.codehaus.plexus:plexus-compiler-api:2.15.0",
+          "jar": {
+            "sha256": "d31d744eb69f77dffd3722dca4094758e0f90e79918a7b3b9fdc37ce49b60342",
+            "size": 29072
+          },
+          "pom": {
+            "repository_path": "org/codehaus/plexus/plexus-compiler-api/2.15.0/plexus-compiler-api-2.15.0.pom",
+            "sha256": "4c89cab0505b0ac901197d2dd1363fe5e26bcbfd43e99dd21a8ae023b443cc4e",
+            "size": 1362
+          },
+          "repository_path": "org/codehaus/plexus/plexus-compiler-api/2.15.0/plexus-compiler-api-2.15.0.jar"
+        },
+        {
+          "coordinate": "org.codehaus.plexus:plexus-compiler-manager:2.15.0",
+          "jar": {
+            "sha256": "c13b12c32a18b00e457de9b93cfc3d5593bfa1fb992b2c46a3498be1a77c4889",
+            "size": 5232
+          },
+          "pom": {
+            "repository_path": "org/codehaus/plexus/plexus-compiler-manager/2.15.0/plexus-compiler-manager-2.15.0.pom",
+            "sha256": "12bd3bfb803d2004ed8318583ac7b272115a8b9303eabcd100808c54d44d2017",
+            "size": 1348
+          },
+          "repository_path": "org/codehaus/plexus/plexus-compiler-manager/2.15.0/plexus-compiler-manager-2.15.0.jar"
+        },
+        {
+          "coordinate": "org.codehaus.plexus:plexus-xml:3.0.0",
+          "jar": {
+            "sha256": "d2622dc9339b16f5b8c9cad2add440e965831d0e16f19ae1de24e1202b0de536",
+            "size": 93014
+          },
+          "pom": {
+            "repository_path": "org/codehaus/plexus/plexus-xml/3.0.0/plexus-xml-3.0.0.pom",
+            "sha256": "c07d67161cdf7f8fdce4cd921be5d3cccb9e2c259105ca1afeb772cbcb0cbec5",
+            "size": 3738
+          },
+          "repository_path": "org/codehaus/plexus/plexus-xml/3.0.0/plexus-xml-3.0.0.jar"
+        },
+        {
+          "coordinate": "org.codehaus.plexus:plexus-compiler-javac:2.15.0",
+          "jar": {
+            "sha256": "89603334988453b9cf4d7ec404d4b54f140de28b678d6a8e8edc448240dd0e90",
+            "size": 25708
+          },
+          "pom": {
+            "repository_path": "org/codehaus/plexus/plexus-compiler-javac/2.15.0/plexus-compiler-javac-2.15.0.pom",
+            "sha256": "bbe796c5fe109736980aff79860548d828abd27b36872b80a0e831642b65f328",
+            "size": 1291
+          },
+          "repository_path": "org/codehaus/plexus/plexus-compiler-javac/2.15.0/plexus-compiler-javac-2.15.0.jar"
+        },
+        {
+          "coordinate": "org.codehaus.plexus:plexus-utils:4.0.0",
+          "jar": {
+            "sha256": "270cd703b48c6e5c8c691f1875f22d62d22cfe072c73ae2f5814d83d68c1da0b",
+            "size": 192368
+          },
+          "pom": {
+            "repository_path": "org/codehaus/plexus/plexus-utils/4.0.0/plexus-utils-4.0.0.pom",
+            "sha256": "a44c5479426dea0e7bfffd2ec3adf49c68515019788965c4d231fc3f04da4129",
+            "size": 8656
+          },
+          "repository_path": "org/codehaus/plexus/plexus-utils/4.0.0/plexus-utils-4.0.0.jar"
+        }
+      ]
+    },
+    "jacoco_reporter": {
+      "entry_count": 12,
+      "imported_realm": "maven.api",
+      "maven_resolved_coordinates": [
+        "org.jacoco:jacoco-maven-plugin:jar:0.8.12",
+        "org.codehaus.plexus:plexus-utils:jar:3.0.24",
+        "org.apache.maven.shared:file-management:jar:3.1.0",
+        "commons-io:commons-io:jar:2.11.0",
+        "org.apache.maven.reporting:maven-reporting-api:jar:3.0",
+        "org.apache.maven.doxia:doxia-sink-api:jar:1.0",
+        "org.jacoco:org.jacoco.agent:jar:runtime:0.8.12",
+        "org.jacoco:org.jacoco.core:jar:0.8.12",
+        "org.ow2.asm:asm:jar:9.7",
+        "org.ow2.asm:asm-commons:jar:9.7",
+        "org.ow2.asm:asm-tree:jar:9.7",
+        "org.jacoco:org.jacoco.report:jar:0.8.12"
+      ],
+      "ordered_closure_sha256": "9aa583c6e4b1972bba0b64953bda0a85f8f87cafe79a3a18e91e9b97d0597e25",
+      "ordered_entries": [
+        {
+          "coordinate": "org.jacoco:jacoco-maven-plugin:0.8.12",
+          "jar": {
+            "sha256": "b305a57535247cff2b7450c4dc1db505c7c246c838cec48c10e52fa71aa423bd",
+            "size": 57456
+          },
+          "pom": {
+            "repository_path": "org/jacoco/jacoco-maven-plugin/0.8.12/jacoco-maven-plugin-0.8.12.pom",
+            "sha256": "8c2fb71ba7c58dcd354e221721946aceb4547c65e90882199f26cd58ff7eb01c",
+            "size": 4230
+          },
+          "repository_path": "org/jacoco/jacoco-maven-plugin/0.8.12/jacoco-maven-plugin-0.8.12.jar"
+        },
+        {
+          "coordinate": "org.codehaus.plexus:plexus-utils:3.0.24",
+          "jar": {
+            "sha256": "83ee748b12d06afb0ad4050a591132b3e8025fbb1990f1ed002e8b73293e69b4",
+            "size": 247351
+          },
+          "pom": {
+            "repository_path": "org/codehaus/plexus/plexus-utils/3.0.24/plexus-utils-3.0.24.pom",
+            "sha256": "11067f6a75fded12bcdc8daf7a66ddd942ce289c3daf88a3fe0f8b12858a2ee6",
+            "size": 4127
+          },
+          "repository_path": "org/codehaus/plexus/plexus-utils/3.0.24/plexus-utils-3.0.24.jar"
+        },
+        {
+          "coordinate": "org.apache.maven.shared:file-management:3.1.0",
+          "jar": {
+            "sha256": "2e8cb2d546a01c2259cb17f1e06732db3d14b079d19622bf8400c82cb1ee6b96",
+            "size": 36328
+          },
+          "pom": {
+            "repository_path": "org/apache/maven/shared/file-management/3.1.0/file-management-3.1.0.pom",
+            "sha256": "5e93a63b3042023e558dcbeb19914ce82e6a6fbccdbd68797f80b135121a8bde",
+            "size": 4487
+          },
+          "repository_path": "org/apache/maven/shared/file-management/3.1.0/file-management-3.1.0.jar"
+        },
+        {
+          "coordinate": "commons-io:commons-io:2.11.0",
+          "jar": {
+            "sha256": "961b2f6d87dbacc5d54abf45ab7a6e2495f89b75598962d8c723cea9bc210908",
+            "size": 327135
+          },
+          "pom": {
+            "repository_path": "commons-io/commons-io/2.11.0/commons-io-2.11.0.pom",
+            "sha256": "2e016fd7e3244b5f2c20acad834d93aa4790486ee1e4564641361a3e831eef59",
+            "size": 19729
+          },
+          "repository_path": "commons-io/commons-io/2.11.0/commons-io-2.11.0.jar"
+        },
+        {
+          "coordinate": "org.apache.maven.reporting:maven-reporting-api:3.0",
+          "jar": {
+            "sha256": "498949e5576b022559d1622e534c18e052f94dec883924b67e0a4e8676c07b17",
+            "size": 10940
+          },
+          "pom": {
+            "repository_path": "org/apache/maven/reporting/maven-reporting-api/3.0/maven-reporting-api-3.0.pom",
+            "sha256": "efaa4fc4832aad9703df46b89cb02845dbf4db6f6ac88534b7824c4956a3a5fb",
+            "size": 2373
+          },
+          "repository_path": "org/apache/maven/reporting/maven-reporting-api/3.0/maven-reporting-api-3.0.jar"
+        },
+        {
+          "coordinate": "org.apache.maven.doxia:doxia-sink-api:1.0",
+          "jar": {
+            "sha256": "1cd68e9b4cf427a2b6b9a943a9bef6da879d25702334ea5addb0d153bb8f8911",
+            "size": 10073
+          },
+          "pom": {
+            "repository_path": "org/apache/maven/doxia/doxia-sink-api/1.0/doxia-sink-api-1.0.pom",
+            "sha256": "50d699f86369802baf2cd16c31d936ad8f0c1a8976120cd1dc3dc70c8abed99a",
+            "size": 1387
+          },
+          "repository_path": "org/apache/maven/doxia/doxia-sink-api/1.0/doxia-sink-api-1.0.jar"
+        },
+        {
+          "coordinate": "org.jacoco:org.jacoco.agent:0.8.12:runtime",
+          "jar": {
+            "sha256": "115e8e6e6593ca3a9892dfef695df4d487c706e59e71e64dc0ab95716ee02622",
+            "size": 302428
+          },
+          "pom": {
+            "repository_path": "org/jacoco/org.jacoco.agent/0.8.12/org.jacoco.agent-0.8.12.pom",
+            "sha256": "0f9da994abd9827f957fc1ba7c5bad3fe918f62601c1d743f216b0615efe480e",
+            "size": 3503
+          },
+          "repository_path": "org/jacoco/org.jacoco.agent/0.8.12/org.jacoco.agent-0.8.12-runtime.jar"
+        },
+        {
+          "coordinate": "org.jacoco:org.jacoco.core:0.8.12",
+          "jar": {
+            "sha256": "fca26db37c0c5fbd5dc4985237eb82866df9799d5082af899475a73f91f5b035",
+            "size": 210277
+          },
+          "pom": {
+            "repository_path": "org/jacoco/org.jacoco.core/0.8.12/org.jacoco.core-0.8.12.pom",
+            "sha256": "aa0b2773786886d51d188d7ed1a43f676efa21278520445bfef0ccb5d8cbe717",
+            "size": 2085
+          },
+          "repository_path": "org/jacoco/org.jacoco.core/0.8.12/org.jacoco.core-0.8.12.jar"
+        },
+        {
+          "coordinate": "org.ow2.asm:asm:9.7",
+          "jar": {
+            "sha256": "adf46d5e34940bdf148ecdd26a9ee8eea94496a72034ff7141066b3eea5c4e9d",
+            "size": 125428
+          },
+          "pom": {
+            "repository_path": "org/ow2/asm/asm/9.7/asm-9.7.pom",
+            "sha256": "de00115f1d84f3a0b2ee3a4b6f6192d066f86d185d67b9d1522f2c80feac5f00",
+            "size": 2370
+          },
+          "repository_path": "org/ow2/asm/asm/9.7/asm-9.7.jar"
+        },
+        {
+          "coordinate": "org.ow2.asm:asm-commons:9.7",
+          "jar": {
+            "sha256": "389bc247958e049fc9a0408d398c92c6d370c18035120395d4cba1d9d9304b7a",
+            "size": 73426
+          },
+          "pom": {
+            "repository_path": "org/ow2/asm/asm-commons/9.7/asm-commons-9.7.pom",
+            "sha256": "5acee3ee7252ed90b8074c755d022787499a95fafff98ac4a685107c4da409b4",
+            "size": 2788
+          },
+          "repository_path": "org/ow2/asm/asm-commons/9.7/asm-commons-9.7.jar"
+        },
+        {
+          "coordinate": "org.ow2.asm:asm-tree:9.7",
+          "jar": {
+            "sha256": "62f4b3bc436045c1acb5c3ba2d8ec556ec3369093d7f5d06c747eb04b56d52b1",
+            "size": 51934
+          },
+          "pom": {
+            "repository_path": "org/ow2/asm/asm-tree/9.7/asm-tree-9.7.pom",
+            "sha256": "a34ea1e3e4128c01038db43c6976e88c779cf5af84b0505da266dfe6965668ec",
+            "size": 2592
+          },
+          "repository_path": "org/ow2/asm/asm-tree/9.7/asm-tree-9.7.jar"
+        },
+        {
+          "coordinate": "org.jacoco:org.jacoco.report:0.8.12",
+          "jar": {
+            "sha256": "f9c79ad66a66a0337c57849ad1287a2ab23b9b232d35314443e5ec49e6e3d20f",
+            "size": 131105
+          },
+          "pom": {
+            "repository_path": "org/jacoco/org.jacoco.report/0.8.12/org.jacoco.report-0.8.12.pom",
+            "sha256": "b7abd47a94e297f4befd10ad7aac51484b123e8fcca8e2d514d883e7543c8008",
+            "size": 1883
+          },
+          "repository_path": "org/jacoco/org.jacoco.report/0.8.12/org.jacoco.report-0.8.12.jar"
+        }
+      ]
+    }
+  },
+  "run_id": "step4-coverage-20260719-formal-r8",
+  "schema_version": 1,
+  "status": "verified",
+  "step1_contract_freeze_sha256": "ff418e04f6a938a853ce7bbd0700223627f42520705530e819a53e5591e82876",
+  "test_classpath_asm_guard": {
+    "entry_count": 3,
+    "ordered_closure_sha256": "57a63ac83beebc6b173d9dbe99b3bc3b36a86f75b665cdecaba6cd3304fa2489",
+    "ordered_entries": [
+      {
+        "coordinate": "org.ow2.asm:asm:9.7.1",
+        "jar": {
+          "sha256": "8cadd43ac5eb6d09de05faecca38b917a040bb9139c7edeb4cc81c740b713281",
+          "size": 126093
+        },
+        "pom": {
+          "repository_path": "org/ow2/asm/asm/9.7.1/asm-9.7.1.pom",
+          "sha256": "7229b03b30a73ee91008072d9e4569a51d8547fae8c50f527841aef4c1b0baa8",
+          "size": 2372
+        },
+        "repository_path": "org/ow2/asm/asm/9.7.1/asm-9.7.1.jar"
+      },
+      {
+        "coordinate": "org.ow2.asm:asm-commons:9.7.1",
+        "jar": {
+          "sha256": "9a579b54d292ad9be171d4313fd4739c635592c2b5ac3a459bbd1049cddec6a0",
+          "size": 73459
+        },
+        "pom": {
+          "repository_path": "org/ow2/asm/asm-commons/9.7.1/asm-commons-9.7.1.pom",
+          "sha256": "0bf1d31da0c9f9d8edc2f27dbbfdbbf73f1a715b72cd2fa28f3f195994d74ad1",
+          "size": 2794
+        },
+        "repository_path": "org/ow2/asm/asm-commons/9.7.1/asm-commons-9.7.1.jar"
+      },
+      {
+        "coordinate": "org.ow2.asm:asm-tree:9.7.1",
+        "jar": {
+          "sha256": "9929881f59eb6b840e86d54570c77b59ce721d104e6dfd7a40978991c2d3b41f",
+          "size": 51939
+        },
+        "pom": {
+          "repository_path": "org/ow2/asm/asm-tree/9.7.1/asm-tree-9.7.1.pom",
+          "sha256": "13b905f65e7fd43ca7674f40cdaa37679ba4858c6c9d9fb8f17a7afd9baabc9e",
+          "size": 2596
+        },
+        "repository_path": "org/ow2/asm/asm-tree/9.7.1/asm-tree-9.7.1.jar"
+      }
+    ],
+    "scope": "project-test-classpath"
+  },
+  "tool_sha256": "64e67e94072f713b09910efec2be8c708871b01f15834cefddfbbc4be6b2e065"
+}

@@ -125,6 +125,20 @@ REVIEWED_THRESHOLD_POLICY = {
         "exceptions": list(CRITICAL_NOT_APPLICABLE_METRICS),
     },
 }
+FROZEN_DIAGNOSTIC_CAPSULE_POLICY = {
+    "schema_version": 2,
+    "profile": "git-safe-sanitized-attested-v1",
+    "archive_members": [
+        "evidence/diagnostic-attestation.json",
+        "evidence/jacoco.xml",
+    ],
+    "retention": {
+        "runtime_closure": "forbidden",
+        "execution_bytes": "forbidden",
+        "unstructured_output": "forbidden",
+    },
+    "replay_scope": "sanitized-attested-semantic-replay",
+}
 INDEX_FLAGS_IDENTITY_POLICY = "ordinary-H-only-no-fsmonitor-valid"
 HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
     "head-index-exact-path-gitmode-blob+worktree-canonical-euid-egid-private-"
@@ -149,15 +163,25 @@ FORMALIZATION_DELTA = {
         "scripts/v934/step4/coverage-thresholds.json",
         "scripts/v934/step4/coverage-contract.json",
         "scripts/v934/step4/SHA256SUMS",
+        "scripts/v934/step6/ci-contract.json",
+        "scripts/v934/step6/ci_contract_tool.py",
+        "scripts/v934/step6/SHA256SUMS",
     ],
     "allowed_exact_paths": [
         "scripts/v934/step4/coverage-thresholds.json",
         "scripts/v934/step4/coverage-contract.json",
         "scripts/v934/step4/SHA256SUMS",
+        "scripts/v934/step6/ci-contract.json",
+        "scripts/v934/step6/ci_contract_tool.py",
+        "scripts/v934/step6/SHA256SUMS",
     ],
     "allowed_path_prefixes": ["docs/9.3.4/"],
     "other_changes": "forbidden-requires-new-diagnostic",
 }
+CDIAG_ONLY_STEP5_TOOLING_PATHS = (
+    "scripts/v934/step5/SHA256SUMS",
+    "scripts/v934/step5/release_package_tool.py",
+)
 EXPECTED_STEP4_MANIFEST_PATHS = (
     "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java",
     "build-support/foggy-coverage-report/pom.xml",
@@ -184,6 +208,7 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "scripts/v934/step4/coverage_tool.py",
     "scripts/v934/step4/coverage_xml_negative_tool.py",
     "scripts/v934/step4/coverage_xml_tool.py",
+    "scripts/v934/step4/frozen_diagnostic_capsule_tool.py",
     "scripts/v934/step4/report_inventory_tool.py",
     "scripts/v934/step4/reporter_effective_pom_tool.py",
     "scripts/v934/step4/run_log_lifecycle_lib.sh",
@@ -208,6 +233,7 @@ EXPECTED_STEP4_MANIFEST_PATHS = (
     "scripts/v934/step4/toolchain_receipt_tool.py",
     "scripts/v934/step4/unit-mysql57-fixture-contract.json",
     "scripts/v934/step4/unit_mysql_fixture_tool.py",
+    *CDIAG_ONLY_STEP5_TOOLING_PATHS,
     "scripts/verify-v934-database-matrix.sh",
     "scripts/verify-v934-external-matrix.sh",
     "scripts/verify-v934-external-mongo.sh",
@@ -581,18 +607,18 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
     )
     require(report_inventory == {
         "amendment_path": "scripts/v934/step4/coverage-report-amendment.tsv",
-        "amendment_sha256": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
+        "amendment_sha256": "c1aa8b86e7280a4014fb1d6131e3f6ca0d42f7b024648b4cec22242357f52cd6",
         "step2_parent_positive_reports": 724,
         "step2_parent_structural_reports": 59,
         "step2_parent_testcases": 5205,
-        "step4_new_positive_reports": 4,
+        "step4_new_positive_reports": 5,
         "step4_changed_positive_reports": 8,
-        "step4_step2_testcase_delta": 56,
+        "step4_step2_testcase_delta": 58,
         "step3_required_positive_reports": 45,
         "step3_required_testcases": 446,
-        "required_positive_reports": 773,
+        "required_positive_reports": 774,
         "required_structural_reports": 59,
-        "required_testcases": 5707,
+        "required_testcases": 5709,
         "addon_companion_reports": 2,
         "addon_companion_testcases": 6,
     }, "coverage contract.report_inventory: frozen values changed")
@@ -650,6 +676,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
             "standard_jacoco_check_allowed",
             "versioned_xml_verifier_required",
             "effective_model_receipt_required",
+            "effective_model_receipt_public_mode",
         ),
         "coverage contract.reporter",
     )
@@ -660,6 +687,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
     require(type(reporter["standard_jacoco_check_allowed"]) is bool and reporter["standard_jacoco_check_allowed"] is False, "coverage contract.reporter.standard_jacoco_check_allowed: expected boolean false")
     require(type(reporter["versioned_xml_verifier_required"]) is bool and reporter["versioned_xml_verifier_required"] is True, "coverage contract.reporter.versioned_xml_verifier_required: expected boolean true")
     require(type(reporter["effective_model_receipt_required"]) is bool and reporter["effective_model_receipt_required"] is True, "coverage contract.reporter.effective_model_receipt_required: expected boolean true")
+    require(reporter["effective_model_receipt_public_mode"] == "0644", "coverage contract.reporter.effective_model_receipt_public_mode: expected string 0644")
 
     successor = require_exact_keys(
         contract["threshold_successor"],
@@ -669,6 +697,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
             "required_status_for_exit",
             "workflow_states",
             "reviewed_threshold_policy",
+            "frozen_diagnostic_capsule",
             "formalization_delta",
         ),
         "coverage contract.threshold_successor",
@@ -681,6 +710,7 @@ def validate_contract_json(contract: dict[str, Any], threshold_status: str) -> s
             "required_status_for_exit": "confirmed",
             "workflow_states": WORKFLOW_STATES,
             "reviewed_threshold_policy": REVIEWED_THRESHOLD_POLICY,
+            "frozen_diagnostic_capsule": FROZEN_DIAGNOSTIC_CAPSULE_POLICY,
             "formalization_delta": FORMALIZATION_DELTA,
         },
         "coverage contract.threshold_successor: frozen values changed",
@@ -1096,9 +1126,9 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
             rows = list(reader)
     except (OSError, UnicodeError) as exc:
         raise ContractError("coverage report amendment: cannot read UTF-8 TSV") from exc
-    require(len(rows) == 12, "coverage report amendment: expected exact 12 rows")
-    require(len({row["source_path"] for row in rows}) == 12, "coverage report amendment: duplicate source")
-    require(len({row["report_fqcn"] for row in rows}) == 12, "coverage report amendment: duplicate report FQCN")
+    require(len(rows) == 13, "coverage report amendment: expected exact 13 rows")
+    require(len({row["source_path"] for row in rows}) == 13, "coverage report amendment: duplicate source")
+    require(len({row["report_fqcn"] for row in rows}) == 13, "coverage report amendment: duplicate report FQCN")
     counts: Counter[str] = Counter()
     testcase_delta = 0
     for number, row in enumerate(rows, 1):
@@ -1136,8 +1166,8 @@ def validate_report_amendment(repo_root: Path, contract: dict[str, Any]) -> dict
         require(workitem.is_file() and not workitem.is_symlink(), f"coverage report amendment row {number}: workitem missing")
         counts[change_kind] += 1
         testcase_delta += after_nodes - before_nodes
-    require(counts == Counter({"new-positive-report": 4, "changed-positive-report": 8}), "coverage report amendment: expected 4 new and 8 changed reports")
-    require(testcase_delta == inventory["step4_step2_testcase_delta"] == 56, "coverage report amendment: testcase delta must be 56")
+    require(counts == Counter({"new-positive-report": 5, "changed-positive-report": 8}), "coverage report amendment: expected 5 new and 8 changed reports")
+    require(testcase_delta == inventory["step4_step2_testcase_delta"] == 58, "coverage report amendment: testcase delta must be 58")
     require(inventory["required_positive_reports"] == inventory["step2_parent_positive_reports"] + inventory["step4_new_positive_reports"] + inventory["step3_required_positive_reports"], "coverage report inventory: required positive arithmetic differs")
     require(inventory["required_testcases"] == inventory["step2_parent_testcases"] + testcase_delta + inventory["step3_required_testcases"], "coverage report inventory: required testcase arithmetic differs")
     return dict(counts)
@@ -3196,50 +3226,58 @@ def validate_frozen_diagnostic_receipt(
     replay = require_exact_keys(
         receipt["replay_receipt"],
         (
-            "run_context_sha256",
-            "source_sha256",
-            "not_before_ns",
-            "git_head",
-            "raw_exec_replay",
+            "profile",
+            "capsule_manifest_sha256",
+            "attestation_sha256",
+            "aggregate_xml_sha256",
+            "execution_attestation",
             "scope",
             "status",
         ),
         "frozen diagnostic validator receipt.replay_receipt",
     )
-    raw_exec_replay = require_exact_keys(
-        replay["raw_exec_replay"],
+    execution_attestation = require_exact_keys(
+        replay["execution_attestation"],
         (
             "mode",
-            "identity_policy",
-            "freshness_policy",
+            "retention",
             "exec_count",
+            "session_count",
             "byte_tree_sha256",
+            "aggregate_exec_sha256",
+            "merge_semantics",
             "status",
         ),
-        "frozen diagnostic validator receipt.replay_receipt.raw_exec_replay",
+        "frozen diagnostic validator receipt.replay_receipt.execution_attestation",
     )
     require(
-        type(replay["run_context_sha256"]) is str
-        and re.fullmatch(r"[0-9a-f]{64}", replay["run_context_sha256"]) is not None
-        and type(replay["source_sha256"]) is str
-        and re.fullmatch(r"[0-9a-f]{64}", replay["source_sha256"]) is not None
-        and type(replay["not_before_ns"]) is int
-        and replay["not_before_ns"] > 0
-        and type(replay["git_head"]) is str
-        and re.fullmatch(r"[0-9a-f]{40}", replay["git_head"]) is not None
-        and replay["scope"] == "exact-retained-diagnostic-run-bytes"
-        and replay["status"] == "verified"
-        and raw_exec_replay["mode"] == "exact-retained-raw-exec-byte-replay"
-        and raw_exec_replay["identity_policy"]
-        == "canonical-dirfd-nofollow-stable-inode"
-        and raw_exec_replay["freshness_policy"]
-        == "exact-manifest-mtime-at-or-after-not-before"
-        and type(raw_exec_replay["exec_count"]) is int
-        and raw_exec_replay["exec_count"] == 23
-        and type(raw_exec_replay["byte_tree_sha256"]) is str
-        and re.fullmatch(r"[0-9a-f]{64}", raw_exec_replay["byte_tree_sha256"])
+        replay["profile"] == FROZEN_DIAGNOSTIC_CAPSULE_POLICY["profile"]
+        and type(replay["capsule_manifest_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["capsule_manifest_sha256"])
         is not None
-        and raw_exec_replay["status"] == "verified",
+        and type(replay["attestation_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["attestation_sha256"]) is not None
+        and type(replay["aggregate_xml_sha256"]) is str
+        and re.fullmatch(r"[0-9a-f]{64}", replay["aggregate_xml_sha256"])
+        is not None
+        and replay["scope"]
+        == FROZEN_DIAGNOSTIC_CAPSULE_POLICY["replay_scope"]
+        and replay["status"] == "verified"
+        and execution_attestation["mode"] == "source-validated-hash-only"
+        and execution_attestation["retention"] == "no-execution-bytes"
+        and type(execution_attestation["exec_count"]) is int
+        and execution_attestation["exec_count"] == 23
+        and type(execution_attestation["session_count"]) is int
+        and execution_attestation["session_count"] == 48
+        and type(execution_attestation["byte_tree_sha256"]) is str
+        and re.fullmatch(
+            r"[0-9a-f]{64}", execution_attestation["byte_tree_sha256"]
+        )
+        is not None
+        and execution_attestation["aggregate_exec_sha256"] == evidence["aggregate_exec_sha256"]
+        and execution_attestation["merge_semantics"]
+        == "exact-session-and-jacoco-class-id-probe-bitmap-union"
+        and execution_attestation["status"] == "verified",
         "frozen diagnostic validator: replay receipt differs",
     )
     require(
@@ -3248,8 +3286,7 @@ def validate_frozen_diagnostic_receipt(
         and receipt["current_git_head"] == git_commit(repo_root, "frozen diagnostic validator")
         and receipt["confirmed_threshold_sha256"]
         == sha256_file(thresholds_path, "confirmed coverage thresholds")
-        and replay["git_head"] == evidence["git_head"]
-        and replay["source_sha256"] == evidence["source_sha256"]
+        and replay["aggregate_xml_sha256"] == evidence["aggregate_xml_sha256"]
         and strict_json_equal(receipt["evidence"], evidence)
         and strict_json_equal(receipt["aggregate_observed"], aggregate)
         and strict_json_equal(

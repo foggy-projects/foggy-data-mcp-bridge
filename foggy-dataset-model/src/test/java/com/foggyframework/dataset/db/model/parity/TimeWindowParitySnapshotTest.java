@@ -85,28 +85,13 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
 
         ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
-        // Write to Python repo (cross-repo direct write) — best effort
-        Path pythonTarget = Path.of(
-                "..", "..",
-                "foggy-data-mcp-bridge-python",
-                "tests", "integration",
-                "_time_window_parity_snapshot.json"
-        ).normalize();
-        if (Files.exists(pythonTarget.getParent())) {
-            Files.createDirectories(pythonTarget.getParent());
-            mapper.writeValue(pythonTarget.toFile(), snapshot);
-            log.info("Wrote timeWindow snapshot to Python repo: {}", pythonTarget.toAbsolutePath());
-        } else {
-            log.warn("Python repo path not reachable: {} — skipping direct write", pythonTarget.toAbsolutePath());
-        }
+        Path localArtifact = Path.of("target", "parity", "_time_window_parity_snapshot.json");
+        Files.createDirectories(localArtifact.getParent());
+        mapper.writeValue(localArtifact.toFile(), snapshot);
+        log.info("Wrote timeWindow snapshot to local: {}", localArtifact.toAbsolutePath());
 
-        // Write to Java local artifact (always)
-        Path localCopy = Path.of("target", "parity", "_time_window_parity_snapshot.json");
-        Files.createDirectories(localCopy.getParent());
-        mapper.writeValue(localCopy.toFile(), snapshot);
-        log.info("Wrote timeWindow snapshot to local: {}", localCopy.toAbsolutePath());
-
-        assertTrue(Files.exists(localCopy), "local snapshot was not written: " + localCopy.toAbsolutePath());
+        assertTrue(Files.exists(localArtifact),
+                "local snapshot was not written: " + localArtifact.toAbsolutePath());
     }
 
     // ------------------------------------------------------------------

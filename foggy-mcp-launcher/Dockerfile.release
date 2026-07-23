@@ -1,0 +1,9 @@
+FROM --platform=linux/amd64 eclipse-temurin:17-jre-alpine@sha256:b658bee7bbf0277559bd07dfb2e8473c30dc90c3da0d8cfe568e61f52792ce52
+
+ARG TESTED_JAR=app.jar
+
+WORKDIR /app
+COPY --chown=65532:65532 ${TESTED_JAR} /app/app.jar
+
+USER 65532:65532
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

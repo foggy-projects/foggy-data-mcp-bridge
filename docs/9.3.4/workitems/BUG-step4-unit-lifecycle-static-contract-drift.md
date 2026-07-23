@@ -176,7 +176,8 @@ evidence。
 
 本 BUG 的原始 stale-token drift 已被 r9 动态证明关闭；随后发现的更深层 semantic bypass
 由 `BUG-934-STEP4-LIFECYCLE-SEMANTIC-VALIDATOR-BYPASS` 单独治理并关闭。后续 replacement、
-formal-r4、coverage audit 与 feature acceptance 已通过；Step 5 现为 `ready / not-started`。
+formal-r4、coverage audit 与 feature acceptance 在历史 checkpoint 已通过；Step 5 曾为
+`ready / not-started`，之后被 replacement chain 重新关闭。
 
 ## References
 

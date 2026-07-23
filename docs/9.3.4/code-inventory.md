@@ -4,7 +4,7 @@ doc_purpose: Record planned 9.3.4 code touchpoints and protected boundaries.
 version: 9.3.4
 status: in-progress
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-20
 ---
 
 # 9.3.4 Code Inventory
@@ -162,7 +162,7 @@ code_inventory:
     path: scripts/v934/step4/{unit-mysql57-fixture-contract.json,unit_mysql_fixture_tool.py}; scripts/verify-v934-unit.sh
     role: replace the complete Step 4 Unit lane with one run-owned pinned MySQL 5.7 fixture while retaining the frozen Unit execution identities and cardinality
     expected_change: create
-    notes: known hidden dependency inventory is 6 reports / 11 testcase nodes, not proof that other Unit tests are DB-free; Step 2 identity/cardinality remains structural only and its Unit correctness green is not reused; temporary classification exception is tracked by docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md
+    notes: historical observed failure is 6 reports / 11 testcase nodes; reviewed current known-consumer lower bound is 7 reports / 12 nodes; neither is exhaustive proof that other Unit tests are DB-free; Step 2 identity/cardinality remains structural only and its Unit correctness green is not reused; temporary classification exception is tracked by docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md
   - module: v934-step4-run-log-lifecycle
     path: scripts/v934/step4/{run_log_lifecycle_lib.sh,run_log_lifecycle_negative_test.sh}
     role: owned FIFO logger close/reap protocol and process-group residue regression authority
@@ -893,7 +893,7 @@ code_inventory:
 - Cfreeze machine delta 精确只有 `scripts/v934/step4/coverage-thresholds.json`、
   `coverage-contract.json`、`SHA256SUMS`；其余变更仅 `docs/9.3.4/**`。没有 production、test、
   POM、runner、successor manifest、floor、critical set 或 exclusion 变化；
-- working tree machine=`confirmed/formal-ready`；direct-child Cfreeze commit/push/topology/clean 与
+- At that r19 checkpoint machine=`confirmed/formal-ready`；direct-child Cfreeze commit/push/topology/clean 与
   fresh formal pending。Step 4/5、final quality、coverage audit、acceptance 仍关闭。
 
 ### Superseding formal-r4 / final-quality inventory
@@ -919,5 +919,162 @@ code_inventory:
   不加入 formal report/exec/coverage totals；
 - 25 个 Step 4 workitem 均 closed；`DEBT-unit-mysql57-fixture-classification-migration.md`
   仍 open，owner/截止点保持 9.3.5 version acceptance；
-- Step 4 inventory 现为 accepted/frozen input；Step 5=`ready / not-started`，后续不得修改
-  formal-r4 bytes，只能消费并封装 portable single-authority candidate。
+- Historical formal-r4 inventory 当时为 accepted/frozen input；formal-r6 recovery 已重新关闭
+  downstream entry。Current Step 4=`in-progress / replacement Cdiag`、Step 5=`hold/closed`；
+  historical bytes 只读保留且不得被拼接为 replacement authority。
+
+### Superseding formal-r6 recovery inventory
+
+- implementation delta：`scripts/v934/step4/coverage_contract_negative_tool.py`，只把 synthetic
+  fsmonitor hook response 从 newline token 改为 protocol-v2 NUL token；
+- diagnostic state delta：Step 4 threshold/contract/manifest 与 Step 6 contract/tool/manifest，恢复
+  `diagnostic-pending / diagnostic-ready` 并级联 exact SHA；
+- evidence delta：formal-r6 failure、BUG、recovery quality 和本轮状态同步；
+- production/POM/API/test/report/exec/database delta=`0`；threshold floor、critical set、exclusion 和
+  real source-hash rejection semantic 不变；
+- current inventory 只授权 new Cdiag/fresh diagnostic；r22 capsule 与 r6 artifacts 只读保留。
+
+### Superseding diagnostic-r23 remediation inventory
+
+- r23 dynamic inventory=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session/classes=
+  `23/48/16962`、production universe=`24/2098`，public validation/source/model/sensitive/cleanup PASS；
+- r23 aggregate=`54624/76830 line, 26112/44870 branch`；唯一相对 r22 的 class/method delta 是
+  `BeanInfoHelper$MapBeanInfoHelper#getBeanProperty` inner double-check，不能冻结为 exact minimum；
+- remediation inventory 只增加既有 `BeanInfoHelperTest#getClassHelper` 内部 assertions/interleaving；
+  `@Test`、report/testcase cardinality、production/POM/runner/threshold/critical/exclusion delta=`0`；
+- final test source SHA-256=`52bf8b885f6cd0e6e65fafe4f4afa753699edf5b5e902b93c778ef36f020966c`；
+  five fresh JVM class probe=`a6629aa379049ec7 / 10/11 / _wU` exact，owning module=`97/F0E0S0`；
+- current inventory 只授权 replacement Cdiag/fresh diagnostic-r24；r23 candidate/capsule absent，
+  Step 5–7/9.3.5 继续 closed。
+
+## Execution check-in — diagnostic-r24 freeze inventory（2026-07-19）
+
+- replacement Cdiag=`414c8b12…`；r24 source closure=`4,077 tracked files / 102,591,681 bytes`，
+  before/after exact；production universe=`24 modules / 2,098 bytecode classes`；
+- required inventory=`773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`，runtime-loaded
+  identities=`16,953`；
+- r24 exact aggregate=`54624/76830 line, 26112/44870 branch, 17659/35571 complexity`；target
+  class id/probe=`a6629aa379049ec7 / 10/11 / _wU`；
+- candidate/capsule/review 已闭合；canonical formalization 只改六个 machine paths，其余仅
+  `docs/9.3.4/**`。production/test/POM/runner/workflow/floor/critical/exclusion inventory delta=`0`；
+- current inventory authorizes one direct-child Cfreeze and fresh formal-r7 only；Step 5–7/9.3.5 closed。
+
+## formal-r7 portability recovery inventory（historical；2026-07-19）
+
+- new tracked input=`docs/v1.5.1/P1-CALCULATE-restricted-mvp-parity-catalog.json`，mode/blob/raw=
+  `100644 / d7879a6a… / f52eba37…`；
+- changed authority bytes=`verify-v934-step4-coverage.sh` + lifecycle seal test + Step4/Step6 hash closure；
+- unchanged inventory=`CalculateMvpIT.java 21d8d817… / 14 nodes`、all successor source/discovery/
+  execution/report identities、production/POM、exec ledger、critical set、floors、exclusions；
+- checkpoint inventory at that time authorized only new Cdiag/fresh diagnostic-r25；该授权已被下方
+  Unit MySQL 7/12/r26 inventory supersede。formal-r7/r24/Cfreeze are historical，Step 5–7/9.3.5 closed。
+
+## Unit MySQL 7/12 remediation inventory（2026-07-19）
+
+- immutable historical inventory 保留 r7=`6 reports / 11 errors`；follow-up source/runtime inventory
+  新确认 `foggy-dataset` 的
+  `DatasetJdbcUtilsTest#getOrCreateDataSource`（`1` node）也会真实连接并执行 `SELECT 1`，但旧
+  `catch SQLException + printStackTrace` 会吞掉连接失败。current known consumer lower bound 因此为
+  `7 execution reports / 12 testcase nodes`；
+- execution/discovery cardinality delta=`0`：完整 Unit 仍为
+  `681 positive + 55 structural / 4,941 testcase`，新增的是已存在节点的 failure oracle 与 consumer
+  classification，不是新增 report/testcase；
+- remediation inventory 包含该 test assertion、`7/12` fixture consumer contract/tool binding 及其
+  Step 4→Step 6 hash closure；fixture negative target 更新为 `42/42`，真实 lifecycle 保持 `5/5`。
+  r7 文档和 raw observed `6/11` 不在改写范围；
+- r25 inventory：run=`step4-coverage-20260719-diagnostic-r25`，tested HEAD=
+  `5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`，all-lane/public validation 已通过；由于 tested bytes
+  尚未包含上述 assertion/contract remediation，该 run exact classified 为
+  `pre-remediation / superseded / non-candidate`，不得转为 candidate/capsule/review/freeze input；
+- replacement Cdiag=`4fe86929de6206aa3e514c974635e90395c28b2e` 已 push/clean；isolated r4 durable
+  positive/wrong-password proof 与 cleanup 已完成；fresh r26 public-valid，required=
+  `773+59/5707/F0E0S0`、Addon=`2/6`、exec/session=`23/48`，source before=after=`6acfad24…`；
+- r26 candidate/capsule 与两路独立 review 已完成，review findings=`0/0/0/0`，当前 inventory
+  只授权唯一 direct-single-parent Cfreeze。Cfreeze、fresh formal-r8 与 post-formal
+  quality/coverage-audit/acceptance 尚未完成，Step 5–7/9.3.5/9.4.0 closed；
+- r25 永久保持 `pre-remediation / superseded / non-candidate`。9.3.4 version signoff 后，classification-debt
+  migration owner=`9.3.5 Gate 0`，deadline=`9.3.5 version acceptance`。
+
+## Superseding formal-r8 interpreter-portability recovery inventory（2026-07-19）
+
+- formal-r8 tested Cfreeze=`7c18019ed12d25c029de7e7e49caef77a79b2e67`，在 required
+  `773+59/5707/F0E0S0`、Addon=`2/6` 和 report inventory 全 PASS 后，于 coverage-report
+  首个 Python direct dispatch 以 `126 / Permission denied` fail closed；该 run 永久为
+  `failed / excluded / non-reusable / non-candidate`，success-only aggregate/candidate/final 均 absent；
+- implementation inventory 只修改 report runner 三个 command positions，使 exec verify、contract
+  validate、exec verify-aggregate 全部显式经 `python3`；runner 的四个 Python tool target 均保持 Git
+  mode=`100644`；负向工具绑定 runner raw bytes、292-command logical executable stream 与全部七个
+  top-level logical dispatch，并以 raw/stream/semantic mutation=`44/44 / 43/43 / 33/33`、Git-mode
+  mutation=`4/4` 和 non-executable smoke=`4/4` 拒绝 false-green；
+- machine inventory 重置为 `diagnostic-ready / diagnostic-pending`；Step 4 manifest=
+  `6a48ab01…0782 / 61/61`，Step 6 manifest=`d1efe031…43bd / 16/16`，只发生既有
+  Step4→Step6 hash cascade；
+- production/test/POM/selector/report cardinality/database/threshold floor/critical/exclusion/API
+  delta=`0`；failure capsule=`9003f11f…e4e5 / 16 entries / 282473 bytes / sensitive 0`；
+- independent pre-Cdiag code/docs reviews 已 `PASS / 0/0/0/0`；current inventory 只授权创建一个
+  clean/pushed new Cdiag，再运行 fresh diagnostic-r27。r26 candidate、旧 Cfreeze 与 formal-r8 均不能作为 replacement authority；
+  Step 5–7、coverage audit、acceptance、9.3.5/9.4.0 继续 closed/queued。
+
+## diagnostic-r27 ExportWithChart high-water remediation inventory（2026-07-19）
+
+- r27 evidence is retained as non-freezable: only `foggy-dataset-mcp/ExportWithChartTool.java:248` changed
+  coverage outcome, aggregate branch/complexity each `-1` from r26;
+- implementation delta is one test file: `ExportWithChartToolTest.java`, `Map.of` fixture -> two ordered
+  `LinkedHashMap` items. production/POM/runner/workflow/test-node/report cardinality/floor/critical/API delta=`0`;
+- five fresh JVM execs share target class id `eefbab946aa40203`, `182` probes, `134` covered and bitmap
+  `f37_3_Pq__l_e68z_z8AKhy__U___zE`; new Cdiag then r28 are the only authorized successors.
+
+## formal-r9 strict-umask recovery inventory（2026-07-19）
+
+- failed formal inventory is bounded: Cfreeze=`34cd2452…`, phase=`coverage-report`, exit=`2`; children,
+  required inventory, and exec manifest completed, while report/aggregate/XML/observation/gate/summary/
+  candidate/final are absent and non-authoritative;
+- implementation delta is limited to `reporter_effective_pom_tool.py` and its existing
+  `coverage_contract_negative_tool.py` regression harness. No production Java, Java test, POM, selector,
+  report/testcase cardinality, coverage floor, critical set, exclusion, database matrix, or public API changed;
+- Step 4 manifest is `77c9ad05f8c39624e55a57057f4661fa598c2aa0403852ce6c33cd1c5ed89ff8 / 61/61`; Step 6
+  manifest is `effa63a2f5281517bf6896502b8323b5950f8aec3dab22ec219a8183f09d0e1a / 16/16`; machine state is
+  `diagnostic-ready / diagnostic-pending` with pending threshold predecessor `0df17a…`;
+- inventory authorization is limited to a clean/pushed Cdiag successor and fresh diagnostic-r29. r9/r28
+  partial artifacts cannot cross that boundary; Step 5–7, 9.3.5, and 9.4.0 remain closed.
+
+## diagnostic-r32 WatchService delete determinism inventory（2026-07-20）
+
+- r32 is retained as `diagnostic-observed / non-freezable`: it completed required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, source closure and cleanup=`0/0/0`, but aggregate
+  branch/complexity=`26111/44870` / `17658/35571` are one below high-water;
+- the implementation delta is one existing test file,
+  `foggy-core/.../WatchServiceFileTracerTest.java`. It extends one existing mock-key test with filtered
+  delete reject/match cases; production/POM/runner/workflow/test-node/report cardinality/floor/critical/API
+  delta=`0`, and the source remains `11` test nodes;
+- focused proof restores `WatchServiceFileTracer.java:442` to branch=`4/4` and
+  `handleFileDeleted` to branch/complexity=`11/12` / `6/7` in five independent JVMs; full `foggy-core` is
+  `97/F0E0S0` with the same semantic counters;
+- independent review is `PASS / B/H/M/L=0/0/0/1`, mandatory=`0`. The Low is existing singleton fake-watcher
+  cleanup debt, not expanded by this Cdiag. r33 consumed the one fresh-run authorization but is excluded before
+  canonical Unit authority; current inventory authorizes only docs-only Cdiag → governed readiness preflight →
+  fresh r34. candidate/Cfreeze/formal/Step 5–7/9.3.5/9.4.0 remain closed.
+
+## formal-r10 report-stage receipt recovery inventory（2026-07-20）
+
+- active implementation surface: `coverage_report_runner.sh` owns post-copy and pre-publication public-mode
+  enforcement; `coverage_xml_tool.py` owns exact mode consumption in report provenance; the contract and
+  both negative tools own the immutable requirement and regressions;
+- active validation surface: strict-umask real report-stage copy proof, mode-omission/weakening mutations,
+  `0600` provenance negative, and Step 4/successor/Step 6 hash closure;
+- machine state is `diagnostic-ready / diagnostic-pending`. formal-r10 and all its upstream r34/Cfreeze
+  material are historical observation only. Inventory authorization is limited to clean/pushed Cdiag then
+  fresh r35; candidate/Cfreeze/formal/audit/acceptance/Step 5–7/9.3.5/9.4.0 remain closed.
+
+## diagnostic-r35 Cfreeze inventory boundary（2026-07-20）
+
+- r35 is a new all-lane diagnostic observation on Cdiag `93b3993e…`: required=`773+59/5707/F0E0S0`,
+  Addon=`2/6/F0E0S0`, exec/session=`23/48`, line/branch/complexity=`54624/76830` /
+  `26112/44870` / `17659/35571`, critical below=`0`, cleanup=`0/0/0`, and report-stage public receipt
+  regular/non-link mode=`0644`.
+- Cfreeze surface is restricted to `coverage-contract.json`, `coverage-thresholds.json`, and their Step 4
+  manifest plus the corresponding Step 6 contract/tool/manifest hash cascade; all other tracked changes are
+  r35 evidence/review/authority documentation under `docs/9.3.4/**`. Production Java, Java tests, POMs,
+  selector, cardinality, database policy, threshold floors, critical policy and public API delta=`0`.
+- The r35 candidate and Git-safe capsule are tracked evidence; no raw run log, exec/XML root, container
+  identity or r34/r10 artifact enters Git. Cfreeze/formal/audit/acceptance have not yet executed.

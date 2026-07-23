@@ -1,0 +1,323 @@
+{
+  "schema_version": 1,
+  "kind": "v934-ci-contract",
+  "tooling_manifest": {
+    "path": "scripts/v934/step6/SHA256SUMS",
+    "exact_paths": [
+      ".github/workflows/model-lifecycle-concurrency.yml",
+      ".github/workflows/pivot-release-readiness.yml",
+      ".github/workflows/release.yml",
+      ".github/workflows/test-ci-evidence-chain.yml",
+      "foggy-mcp-launcher/Dockerfile.release",
+      "scripts/v934/step4/SHA256SUMS",
+      "scripts/v934/step5/SHA256SUMS",
+      "scripts/v934/step5/final-promotion-contract.json",
+      "scripts/v934/step5/pointer_tool.py",
+      "scripts/v934/step5/portable_replay_tool.py",
+      "scripts/v934/step5/release-artifact-contract.json",
+      "scripts/v934/step5/release_artifact_tool.py",
+      "scripts/v934/step5/release_package_tool.py",
+      "scripts/v934/step6/ci-contract.json",
+      "scripts/v934/step6/ci_contract_tool.py",
+      "scripts/verify-v934-release-gate.sh"
+    ],
+    "cardinality": 16,
+    "step4_manifest": "scripts/v934/step4/SHA256SUMS",
+    "step4_manifest_sha256": "da2815776f727efaabd12614c18898d54a911e755ad8ea1ee34b7d2abe0ed011",
+    "step5_manifest": "scripts/v934/step5/SHA256SUMS",
+    "step5_manifest_sha256": "de599dd835f23e0a4001b1864da5ad7c57787e5e18629f4baeb296a6777fa30a",
+    "policy": "exact-path-order-and-byte-digest"
+  },
+  "required_upstream_job_ids": [
+    "inventory-unit",
+    "sqlite-integration",
+    "database-matrix",
+    "external-integration",
+    "coverage",
+    "package-evidence"
+  ],
+  "aggregator": {
+    "id": "required-aggregator",
+    "name": "9.3.4 Test & Release Authority",
+    "always_run": true,
+    "required_result": "success"
+  },
+  "workflow_structure": {
+    "authority": {
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "push_branches": [
+        "main"
+      ],
+      "jobs": [
+        {
+          "id": "inventory-unit",
+          "needs": []
+        },
+        {
+          "id": "sqlite-integration",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "database-matrix",
+          "needs": [
+            "inventory-unit",
+            "sqlite-integration",
+            "external-integration",
+            "coverage",
+            "package-evidence"
+          ]
+        },
+        {
+          "id": "external-integration",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "coverage",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "package-evidence",
+          "needs": [
+            "inventory-unit"
+          ]
+        },
+        {
+          "id": "required-aggregator",
+          "needs": [
+            "inventory-unit",
+            "sqlite-integration",
+            "database-matrix",
+            "external-integration",
+            "coverage",
+            "package-evidence"
+          ]
+        }
+      ]
+    },
+    "release": {
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "push_tags": [
+        "v9.3.4"
+      ],
+      "jobs": [
+        {
+          "id": "release-dry-run",
+          "needs": []
+        },
+        {
+          "id": "docker-publish",
+          "needs": [
+            "release-dry-run"
+          ]
+        },
+        {
+          "id": "github-release",
+          "needs": [
+            "release-dry-run",
+            "docker-publish"
+          ]
+        }
+      ]
+    },
+    "tooling_closure": {
+      "authority_job_count": 7,
+      "release_job_count": 3,
+      "manifest_order": [
+        "scripts/v934/step6/SHA256SUMS",
+        "scripts/v934/step4/SHA256SUMS",
+        "scripts/v934/step5/SHA256SUMS"
+      ],
+      "validator": "python3-$CI_TOOL-validate-workflows"
+    }
+  },
+  "database_artifacts": {
+    "kinds": [
+      "sqlite",
+      "mysql57",
+      "mysql8",
+      "postgres15",
+      "sqlserver2022"
+    ],
+    "cardinality": 5,
+    "logical_name_template": "v934-db-{kind}-{commit_sha}-{workflow_run_id}-{attempt}",
+    "manifest_file": "cell-manifest.json",
+    "payload_directory": "payload",
+    "authority_input": {
+      "kind": "v934-step3-database-matrix-final",
+      "verifier": "scripts/v934/step4/successor/database_matrix_report_tool.py verify-final",
+      "selection": "outer-marker+merged-manifest+metrics+exact-cell+exact-variants"
+    },
+    "cell_expectations": [
+      {
+        "db_kind": "sqlite",
+        "reports": 5,
+        "testcase_nodes": 50,
+        "variant_keys": [
+          "db-sqlite"
+        ]
+      },
+      {
+        "db_kind": "mysql57",
+        "reports": 5,
+        "testcase_nodes": 50,
+        "variant_keys": [
+          "db-mysql57"
+        ]
+      },
+      {
+        "db_kind": "mysql8",
+        "reports": 6,
+        "testcase_nodes": 105,
+        "variant_keys": [
+          "db-mysql8",
+          "mysql8-targeted"
+        ]
+      },
+      {
+        "db_kind": "postgres15",
+        "reports": 8,
+        "testcase_nodes": 115,
+        "variant_keys": [
+          "db-postgres15",
+          "postgres15-targeted"
+        ]
+      },
+      {
+        "db_kind": "sqlserver2022",
+        "reports": 5,
+        "testcase_nodes": 50,
+        "variant_keys": [
+          "db-sqlserver2022"
+        ]
+      }
+    ]
+  },
+  "identity": {
+    "commit_sha": "lowercase-40-hex",
+    "workflow_run_id": "positive-json-integer",
+    "attempt": "positive-json-integer",
+    "authority_run_id": "safe-id"
+  },
+  "job_states": {
+    "format": "exact-job-id-to-result-object",
+    "accepted_result": "success",
+    "terminal_results": [
+      "success",
+      "failure",
+      "skipped",
+      "cancelled"
+    ]
+  },
+  "receipt": {
+    "kind": "v934-ci-aggregate-receipt",
+    "write_policy": "atomic-create-no-replace"
+  },
+  "release_authority_source": {
+    "version": "9.3.4",
+    "workflow_file": ".github/workflows/test-ci-evidence-chain.yml",
+    "workflow_name": "9.3.4 Test & Release Evidence Chain",
+    "event": "push",
+    "branch": "main",
+    "gate_mode": "authority",
+    "required_job_names": [
+      "Inventory + Unit — single gate producer",
+      "SQLite broad integration evidence",
+      "Exact five-database artifact collector",
+      "External integration evidence",
+      "Immutable coverage collector/check",
+      "Same-tested JAR and package evidence",
+      "9.3.4 Test & Release Authority"
+    ],
+    "artifact_name_templates": [
+      "v934-gate-run-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-db-sqlite-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-db-mysql57-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-db-mysql8-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-db-postgres15-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-db-sqlserver2022-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-db-collector-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-portable-replay-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-tested-release-assets-{commit_sha}-{workflow_run_id}-{attempt}",
+      "v934-required-receipt-{commit_sha}-{workflow_run_id}-{attempt}"
+    ],
+    "artifact_cardinality": 10,
+    "release_artifact_name_template": "v934-tested-release-assets-{commit_sha}-{workflow_run_id}-{attempt}",
+    "artifact_transport": {
+      "selector": "github-rest-artifact-id",
+      "archive_format": "zip",
+      "digest": "sha256:lowercase-64-hex",
+      "digest_mismatch": "fail",
+      "extraction": "canonical-framing-exact-set-no-traversal-no-symlink-no-duplicate",
+      "framing": "unique-eocd-at-eof-no-comment-no-zip64-exact-central-and-contiguous-local-records-no-prefix-trailing-concatenation"
+    }
+  },
+  "runtime_base_image": {
+    "tag_reference": "eclipse-temurin:17-jre-alpine",
+    "pinned_reference": "eclipse-temurin:17-jre-alpine@sha256:b658bee7bbf0277559bd07dfb2e8473c30dc90c3da0d8cfe568e61f52792ce52",
+    "index_digest": "sha256:02320dd4ce20e243dfb915c686089cf9315c763084fafbb12d5c9993aee18b57",
+    "manifest_digest": "sha256:b658bee7bbf0277559bd07dfb2e8473c30dc90c3da0d8cfe568e61f52792ce52",
+    "config_digest": "sha256:af15432fe4678068270da7f69356edd1e53555f15671a6373ce44d9e65c2dfcc",
+    "platform": {
+      "os": "linux",
+      "architecture": "amd64"
+    }
+  },
+  "external_action_pins": [
+    {
+      "repository": "actions/checkout",
+      "commit_sha": "34e114876b0b11c390a56381ad16ebd13914f8d5",
+      "authority_occurrences": 7,
+      "release_occurrences": 3
+    },
+    {
+      "repository": "actions/upload-artifact",
+      "commit_sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "authority_occurrences": 10,
+      "release_occurrences": 1
+    },
+    {
+      "repository": "actions/download-artifact",
+      "commit_sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "authority_occurrences": 14,
+      "release_occurrences": 0
+    },
+    {
+      "repository": "docker/login-action",
+      "commit_sha": "c94ce9fb468520275223c153574b00df6fe4bcc9",
+      "authority_occurrences": 0,
+      "release_occurrences": 1
+    },
+    {
+      "repository": "softprops/action-gh-release",
+      "commit_sha": "3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
+      "authority_occurrences": 0,
+      "release_occurrences": 1
+    }
+  ],
+  "workflow_actions": {
+    "authority_local_uses": "forbidden",
+    "release_local_uses": "forbidden",
+    "external_reference": "full-commit-sha"
+  },
+  "security": {
+    "json_duplicate_keys": "reject",
+    "non_integer_numeric_identity": "reject",
+    "symlink_or_special": "reject",
+    "path_traversal": "reject",
+    "secret_material": "reject"
+  }
+}

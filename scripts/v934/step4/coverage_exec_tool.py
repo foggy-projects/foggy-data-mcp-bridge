@@ -1549,6 +1549,9 @@ def run_negatives(args: argparse.Namespace) -> None:
             symlink, repo_root=repo_root, classes=inspector_classes, core_jar=core_jar
         ),
     )
+    symlink.unlink()
+    if symlink.exists() or symlink.is_symlink():
+        reject("E_NEGATIVE_CLEANUP", "symlink exec negative fixture survived")
     session_ids = {row["id"] for row in valid["sessions"]}
     cases["wrong-session"] = expect_failure(
         "E_SESSION_SET",

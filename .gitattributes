@@ -1,2 +1,3 @@
 foggy-runtime-api/src/main/java/**/*.java text eol=lf
 foggy-runtime-api/src/test/java/**/*.java text eol=lf
+foggy-dataset/src/test/java/com/foggyframework/dataset/fun/DatasetJdbcUtilsTest.java text eol=lf

@@ -38,26 +38,24 @@ class JavaComposeScriptToolErrorSnapshotTest {
     @Test
     @DisplayName("writes java_compose_script_tool_error_snapshot_parity.json for Python replay")
     void shouldProduceComposeScriptToolErrorSnapshot() throws Exception {
+        List<Map<String, Object>> snapshotCases = cases();
         Map<String, Object> snapshot = ordered();
         snapshot.put("schemaVersion", 1);
         snapshot.put("feature", "scriptRuntimeToolErrors");
         snapshot.put("source", "JavaComposeScriptToolErrorSnapshotTest");
         snapshot.put("tool", "dataset.compose_script");
-        snapshot.put("cases", cases());
+        snapshot.put("cases", snapshotCases);
 
-        for (Map<String, Object> c : cases()) {
+        for (Map<String, Object> c : snapshotCases) {
             assertJavaToolErrorContract(c);
         }
 
-        Path pythonTarget = pythonFixturePath();
-        Files.createDirectories(pythonTarget.getParent());
-        MAPPER.writeValue(pythonTarget.toFile(), snapshot);
-
-        Path localCopy = Path.of("target", "parity", "java_compose_script_tool_error_snapshot_parity.json");
-        Files.createDirectories(localCopy.getParent());
-        MAPPER.writeValue(localCopy.toFile(), snapshot);
-        assertTrue(Files.exists(pythonTarget),
-                "snapshot was not written: " + pythonTarget.toAbsolutePath());
+        Path localArtifact = Path.of("target", "parity",
+                "java_compose_script_tool_error_snapshot_parity.json");
+        Files.createDirectories(localArtifact.getParent());
+        MAPPER.writeValue(localArtifact.toFile(), snapshot);
+        assertTrue(Files.exists(localArtifact),
+                "snapshot was not written: " + localArtifact.toAbsolutePath());
     }
 
     private static List<Map<String, Object>> cases() {
@@ -371,24 +369,6 @@ class JavaComposeScriptToolErrorSnapshotTest {
                 throw new UnsupportedOperationException("executeSql is not used by tool error snapshots");
             }
         };
-    }
-
-    private static Path pythonFixturePath() {
-        for (Path pythonRoot : List.of(
-                Path.of("..", "foggy-data-mcp-bridge-python"),
-                Path.of("..", "..", "foggy-data-mcp-bridge-python")
-        )) {
-            Path fixture = pythonRoot
-                    .resolve("tests")
-                    .resolve("fixtures")
-                    .resolve("java_compose_script_tool_error_snapshot_parity.json")
-                    .normalize();
-            if (Files.exists(pythonRoot.resolve("pyproject.toml").normalize())) {
-                return fixture;
-            }
-        }
-        throw new IllegalStateException("Unable to locate foggy-data-mcp-bridge-python from "
-                + Path.of("").toAbsolutePath());
     }
 
     private static Map<String, Object> ordered() {

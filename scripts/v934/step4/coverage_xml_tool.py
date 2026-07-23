@@ -26,6 +26,8 @@ import tempfile
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Iterable, Sequence
 
+import frozen_diagnostic_capsule_tool as diagnostic_capsule
+
 
 JACOCO_DOCTYPE = b'<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" "report.dtd">'
 MAVEN_NAMESPACE = "http://maven.apache.org/POM/4.0.0"
@@ -52,9 +54,35 @@ EXPECTED_CLASS_ID_CONSISTENCY_SCOPE = "frozen-24-module-production-class-univers
 EXPECTED_AGGREGATE_MERGE_SEMANTICS = (
     "exact-session-and-jacoco-class-id-probe-bitmap-union"
 )
+GIT_SAFE_DIAGNOSTIC_PROFILE = "git-safe-sanitized-attested-v1"
+GIT_SAFE_DIAGNOSTIC_REPLAY_SCOPE = "sanitized-attested-semantic-replay"
+GIT_SAFE_DIAGNOSTIC_CAPSULE_POLICY = {
+    "schema_version": 2,
+    "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+    "archive_members": [
+        "evidence/diagnostic-attestation.json",
+        "evidence/jacoco.xml",
+    ],
+    "retention": {
+        "runtime_closure": "forbidden",
+        "execution_bytes": "forbidden",
+        "unstructured_output": "forbidden",
+    },
+    "replay_scope": GIT_SAFE_DIAGNOSTIC_REPLAY_SCOPE,
+}
+GIT_SAFE_SEMANTIC_OBSERVATION_KEYS = (
+    "report_inventory",
+    "aggregate_observed",
+    "group_counters",
+    "critical_candidate_floor",
+    "critical_classes",
+)
 EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256 = (
     "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96"
 )
+RELEASE_SUCCESSOR_MARKER = "confirmed-threshold-post-step4-replay"
+RUN_MODES = ("diagnostic", "formal", "release")
+ARTIFACT_MODES = ("formal", "release")
 LEDGER_HEADER = (
     "exec_file",
     "runner",
@@ -110,8 +138,15 @@ FORMALIZATION_EXACT_PATHS = (
     "scripts/v934/step4/coverage-thresholds.json",
     "scripts/v934/step4/coverage-contract.json",
     "scripts/v934/step4/SHA256SUMS",
+    "scripts/v934/step6/ci-contract.json",
+    "scripts/v934/step6/ci_contract_tool.py",
+    "scripts/v934/step6/SHA256SUMS",
 )
 FORMALIZATION_ALLOWED_PREFIXES = ("docs/9.3.4/",)
+CDIAG_ONLY_STEP5_TOOLING_PATHS = (
+    "scripts/v934/step5/SHA256SUMS",
+    "scripts/v934/step5/release_package_tool.py",
+)
 HEAD_INDEX_WORKTREE_IDENTITY_POLICY = (
     "head-index-exact-path-gitmode-blob+worktree-canonical-euid-egid-private-"
     "primary-group-single-link-group-write-exec-unbound-other-write-special-"
@@ -241,6 +276,11 @@ FORMAL_SUMMARY_FIELDS = (
     "formalization_delta_sha256",
     *DIAGNOSTIC_SUMMARY_FIELDS[_FORMAL_SUMMARY_INSERT:],
 )
+RELEASE_SUMMARY_FIELDS = (
+    *DIAGNOSTIC_SUMMARY_FIELDS[:_FORMAL_SUMMARY_INSERT],
+    "release_successor",
+    *DIAGNOSTIC_SUMMARY_FIELDS[_FORMAL_SUMMARY_INSERT:],
+)
 DIAGNOSTIC_RUN_STATUS_FIELDS = (
     "run_id",
     "mode",
@@ -262,6 +302,7 @@ FORMAL_RUN_STATUS_FIELDS = DIAGNOSTIC_RUN_STATUS_FIELDS[:-1] + (
     "final_manifest_sha256",
     "status",
 )
+RELEASE_RUN_STATUS_FIELDS = FORMAL_RUN_STATUS_FIELDS
 
 
 class CoverageXmlError(RuntimeError):
@@ -282,6 +323,38 @@ def require(condition: bool, code: str, message: str) -> None:
         reject(code, message)
 
 
+def summary_fields(mode: str) -> tuple[str, ...]:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    if mode == "diagnostic":
+        return DIAGNOSTIC_SUMMARY_FIELDS
+    if mode == "formal":
+        return FORMAL_SUMMARY_FIELDS
+    return RELEASE_SUMMARY_FIELDS
+
+
+def run_status_fields(mode: str) -> tuple[str, ...]:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    return DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+
+
+def successful_run_status(mode: str) -> str:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    return {
+        "diagnostic": "diagnostic-observed",
+        "formal": "formal-passed",
+        "release": "release-passed",
+    }[mode]
+
+
+def candidate_summary_status(mode: str) -> str:
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
+    return {
+        "diagnostic": "diagnostic-observed",
+        "formal": "formal-candidate-ready",
+        "release": "release-candidate-ready",
+    }[mode]
+
+
 def reject_json_constant(value: str) -> None:
     reject("E_JSON", f"non-finite JSON number is forbidden: {value}")
 
@@ -295,7 +368,13 @@ def unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def regular_file(path: Path, missing_code: str, *, nonempty: bool = True) -> os.stat_result:
+def regular_file(
+    path: Path,
+    missing_code: str,
+    *,
+    nonempty: bool = True,
+    expected_mode: int | None = None,
+) -> os.stat_result:
     try:
         file_stat = path.lstat()
     except FileNotFoundError:
@@ -308,6 +387,11 @@ def regular_file(path: Path, missing_code: str, *, nonempty: bool = True) -> os.
         reject("E_FILE_TYPE", f"evidence is not a regular file: {path}")
     if nonempty and file_stat.st_size <= 0:
         reject("E_FILE_EMPTY", f"evidence is empty: {path}")
+    if expected_mode is not None and stat.S_IMODE(file_stat.st_mode) != expected_mode:
+        reject(
+            missing_code,
+            f"evidence mode must be {expected_mode:04o}: {path}",
+        )
     return file_stat
 
 
@@ -1924,14 +2008,26 @@ def validate_report_provenance(
     json_sha256(report["run_context_sha256"], "E_REPORT_PROVENANCE", "run context SHA")
     json_sha256(report["source_sha256"], "E_REPORT_PROVENANCE", "source SHA")
 
-    def require_identity(label: str, path: Path) -> None:
+    def require_identity(
+        label: str,
+        path: Path,
+        *,
+        expected_mode: int | None = None,
+    ) -> None:
+        expected_keys = ("sha256", "size")
+        if expected_mode is not None:
+            expected_keys = (*expected_keys, "mode")
         identity = exact_keys(
             report[label],
-            ("sha256", "size"),
+            expected_keys,
             "E_REPORT_PROVENANCE",
             f"report provenance {label}",
         )
-        file_stat = regular_file(path, "E_REPORT_PROVENANCE")
+        file_stat = regular_file(
+            path,
+            "E_REPORT_PROVENANCE",
+            expected_mode=expected_mode,
+        )
         require(
             json_sha256(identity["sha256"], "E_REPORT_PROVENANCE", f"{label} SHA")
             == sha256_file(path, "E_REPORT_PROVENANCE")
@@ -1941,6 +2037,12 @@ def validate_report_provenance(
             "E_REPORT_PROVENANCE",
             f"report provenance {label} identity differs",
         )
+        if expected_mode is not None:
+            require(
+                identity["mode"] == f"{expected_mode:04o}",
+                "E_REPORT_PROVENANCE",
+                f"report provenance {label} mode differs",
+            )
 
     require_identity("exec_manifest", exec_manifest_path)
     toolchain_receipt_path = (
@@ -1996,7 +2098,11 @@ def validate_report_provenance(
         aggregate_exec_path.parent / "effective-reporter-pom-receipt.json"
     )
     require_identity("effective_reporter_pom", effective_pom_path)
-    require_identity("effective_reporter_pom_receipt", effective_receipt_path)
+    require_identity(
+        "effective_reporter_pom_receipt",
+        effective_receipt_path,
+        expected_mode=0o644,
+    )
     effective_receipt = load_json(
         effective_receipt_path,
         "E_REPORT_PROVENANCE",
@@ -2302,6 +2408,8 @@ def validate_class(
     module: str,
     repo_root: Path,
     source_names: set[str],
+    *,
+    require_compiled_class_files: bool = True,
 ) -> tuple[str, CounterVector]:
     require_attributes(class_element, ("name", "sourcefilename"), "E_XML_SCHEMA", f"class in {artifact}")
     class_name = class_element.attrib["name"]
@@ -2324,19 +2432,20 @@ def validate_class(
             expected = method_sum.get(counter_type, (0, 0))
             require(actual == expected, "E_COUNTER_SUM", f"class {class_name} {counter_type} does not equal method sum")
 
-    classes_root = repo_root / module / "target/classes"
-    class_file = classes_root.joinpath(*parts[:-1], f"{parts[-1]}.class")
-    try:
-        class_file.resolve(strict=False).relative_to(classes_root.resolve())
-    except (OSError, ValueError) as exc:
-        reject("E_XML_CLASS_EXTRA", f"class path escapes module {module}: {class_name} ({exc.__class__.__name__})")
-    try:
-        class_stat = class_file.lstat()
-    except FileNotFoundError:
-        reject("E_XML_CLASS_EXTRA", f"XML class is absent from {module}/target/classes: {class_name}")
-    except OSError as exc:
-        reject("E_XML_CLASS_EXTRA", f"cannot inspect compiled class {class_name}: {exc.__class__.__name__}")
-    require(stat.S_ISREG(class_stat.st_mode) and not stat.S_ISLNK(class_stat.st_mode) and class_stat.st_size > 0, "E_XML_CLASS_EXTRA", f"compiled class is not a real nonempty file: {class_name}")
+    if require_compiled_class_files:
+        classes_root = repo_root / module / "target/classes"
+        class_file = classes_root.joinpath(*parts[:-1], f"{parts[-1]}.class")
+        try:
+            class_file.resolve(strict=False).relative_to(classes_root.resolve())
+        except (OSError, ValueError) as exc:
+            reject("E_XML_CLASS_EXTRA", f"class path escapes module {module}: {class_name} ({exc.__class__.__name__})")
+        try:
+            class_stat = class_file.lstat()
+        except FileNotFoundError:
+            reject("E_XML_CLASS_EXTRA", f"XML class is absent from {module}/target/classes: {class_name}")
+        except OSError as exc:
+            reject("E_XML_CLASS_EXTRA", f"cannot inspect compiled class {class_name}: {exc.__class__.__name__}")
+        require(stat.S_ISREG(class_stat.st_mode) and not stat.S_ISLNK(class_stat.st_mode) and class_stat.st_size > 0, "E_XML_CLASS_EXTRA", f"compiled class is not a real nonempty file: {class_name}")
     return class_name, class_counters
 
 
@@ -2385,6 +2494,8 @@ def validate_xml_structure(
     artifact_to_module: dict[str, str],
     critical_rows: list[dict[str, str]],
     repo_root: Path,
+    *,
+    require_compiled_class_files: bool = True,
 ) -> tuple[
     CounterVector,
     dict[str, CounterVector],
@@ -2418,8 +2529,9 @@ def validate_xml_structure(
     require(len(group_names) == len(set(group_names)), "E_GROUP_IDENTITY", "duplicate JaCoCo group identity")
     require(group_names == expected_artifacts, "E_GROUP_SET", f"JaCoCo groups differ from exact frozen production artifacts: expected={expected_artifacts} actual={group_names}")
 
-    for module in module_order:
-        real_directory(repo_root / module / "target/classes", "E_CLASS_TREE")
+    if require_compiled_class_files:
+        for module in module_order:
+            real_directory(repo_root / module / "target/classes", "E_CLASS_TREE")
 
     # Critical presence is an independent fail-closed identity contract.  Check
     # it before hierarchy arithmetic so deleting a critical node reports the
@@ -2473,6 +2585,7 @@ def validate_xml_structure(
                     module,
                     repo_root,
                     set(source_names),
+                    require_compiled_class_files=require_compiled_class_files,
                 )
                 require(class_name not in all_class_names, "E_CLASS_IDENTITY", f"duplicate XML class identity: {class_name}")
                 all_class_names.add(class_name)
@@ -3321,6 +3434,15 @@ def validate_workflow_contract(
     successor = contract.get("threshold_successor")
     require(type(tooling) is dict and type(successor) is dict, "E_CONTRACT", "coverage workflow contract is incomplete")
     require(
+        diagnostic_capsule.PROFILE == GIT_SAFE_DIAGNOSTIC_PROFILE
+        and exact_json_identity(
+            successor.get("frozen_diagnostic_capsule"),
+            GIT_SAFE_DIAGNOSTIC_CAPSULE_POLICY,
+        ),
+        "E_CONTRACT_WORKFLOW",
+        "coverage contract Git-safe frozen diagnostic capsule policy differs",
+    )
+    require(
         contract.get("schema_version") == 1
         and type(contract.get("schema_version")) is int
         and contract.get("kind") == "v934-step4-coverage-contract"
@@ -3708,6 +3830,16 @@ def validate_formal_delta_policy(policy: Any, changed_paths: list[str]) -> dict[
         require(len(values) == len(set(values)), code, f"{field} contains duplicates")
         for number, value in enumerate(values, 1):
             validate_git_relative_path(value, code, f"{field}[{number}]")
+    required = policy["required_exact_paths"]
+    allowed_exact = policy["allowed_exact_paths"]
+    require(
+        not any(
+            relative in CDIAG_ONLY_STEP5_TOOLING_PATHS
+            for relative in (*required, *allowed_exact)
+        ),
+        code,
+        "Cdiag-only Step 5 tooling bindings are forbidden during formalization",
+    )
     require(
         policy["parent_git_head_source"] == "aggregate_observed.evidence.git_head"
         and policy["diagnostic_threshold_sha256"]
@@ -3721,8 +3853,6 @@ def validate_formal_delta_policy(policy: Any, changed_paths: list[str]) -> dict[
         code,
         "formalization delta policy frozen values differ",
     )
-    required = policy["required_exact_paths"]
-    allowed_exact = policy["allowed_exact_paths"]
     allowed_prefixes = policy["allowed_path_prefixes"]
     require(
         all(relative in allowed_exact for relative in required),
@@ -4047,7 +4177,7 @@ def validate_summary_artifact_hashes(
         require(
             not formalization_path.exists() and not formalization_path.is_symlink(),
             "E_RUN_SUMMARY",
-            "diagnostic run must not contain formalization-delta.json",
+            f"{mode} run must not contain formalization-delta.json",
         )
     for field, path in bindings.items():
         require(
@@ -4098,9 +4228,9 @@ def validate_run_status(
     expected_artifact_hashes: dict[str, str] | None = None,
 ) -> tuple[dict[str, str], str]:
     status_path = run_root / "run-status.env"
-    fields = DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+    fields = run_status_fields(mode)
     status = load_env(status_path, fields, "E_RUN_STATUS", "run status")
-    expected_status = "diagnostic-observed" if mode == "diagnostic" else "formal-passed"
+    expected_status = successful_run_status(mode)
     require(
         status["run_id"] == run_id
         and status["mode"] == mode
@@ -4120,7 +4250,7 @@ def validate_run_status(
     )
     finished_at = validate_utc_timestamp(status["finished_at"], "E_RUN_STATUS", "finished_at")
     require(finished_at >= context["started_at"], "E_RUN_STATUS", "run finished before it started")
-    if mode == "formal":
+    if mode in ARTIFACT_MODES:
         require_sha256_fields(
             status,
             ("coverage_gate_sha256", "candidate_manifest_sha256", "final_manifest_sha256"),
@@ -4169,16 +4299,16 @@ def validate_run_data(
     _expected_git_head: str | None = None,
     _preseal: bool = False,
 ) -> dict[str, Any]:
-    require(mode in ("diagnostic", "formal"), "E_RUN_MODE", "unsupported coverage run mode")
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported coverage run mode")
     require(
         not _preseal or not require_run_status,
         "E_RUN_STATUS",
         "preseal validation cannot require an already-published status",
     )
     require(
-        mode == "formal" or expected_artifact_hashes is None,
+        mode in ARTIFACT_MODES or expected_artifact_hashes is None,
         "E_RUN_STATUS",
-        "artifact hashes are formal-only",
+        "artifact hashes are formal/release-only",
     )
     repo_root = repo_root.resolve()
     real_directory(repo_root, "E_REPO_ROOT")
@@ -4194,7 +4324,11 @@ def validate_run_data(
     )
     expected_threshold_status = "diagnostic-pending" if mode == "diagnostic" else "confirmed"
     if step4["status"] != expected_threshold_status:
-        code = "E_FORMAL_THRESHOLD_STATUS" if mode == "formal" else "E_DIAGNOSTIC_THRESHOLD_STATUS"
+        code = {
+            "diagnostic": "E_DIAGNOSTIC_THRESHOLD_STATUS",
+            "formal": "E_FORMAL_THRESHOLD_STATUS",
+            "release": "E_RELEASE_THRESHOLD_STATUS",
+        }[mode]
         reject(code, f"{mode} run requires threshold status {expected_threshold_status}")
 
     contract_path, contract_sha = validate_workflow_contract(
@@ -4231,11 +4365,11 @@ def validate_run_data(
     )
     summary = load_env(
         run_root / "summary.env",
-        DIAGNOSTIC_SUMMARY_FIELDS if mode == "diagnostic" else FORMAL_SUMMARY_FIELDS,
+        summary_fields(mode),
         "E_RUN_SUMMARY",
         "run summary",
     )
-    expected_summary_status = "diagnostic-observed" if mode == "diagnostic" else "formal-candidate-ready"
+    expected_summary_status = candidate_summary_status(mode)
     expected_acceptance = "not-generated" if mode == "diagnostic" else "required"
     require(
         summary["run_id"] == run_id
@@ -4250,6 +4384,12 @@ def validate_run_data(
         "E_RUN_SUMMARY",
         "run summary identity or state differs",
     )
+    if mode == "release":
+        require(
+            summary["release_successor"] == RELEASE_SUCCESSOR_MARKER,
+            "E_RUN_SUMMARY",
+            "release successor marker differs",
+        )
     require(
         {
             "exec_files": summary["exec_files"],
@@ -4264,9 +4404,9 @@ def validate_run_data(
         == {
             "exec_files": "23",
             "sessions": "48",
-            "required_reports": "773",
+            "required_reports": "774",
             "required_structural_reports": "59",
-            "required_testcase_nodes": "5707",
+            "required_testcase_nodes": "5709",
             "addon_reports": "2",
             "addon_testcase_nodes": "6",
             "model_external_gate": "passed",
@@ -4381,6 +4521,307 @@ def validate_run_data(
     }
 
 
+def canonical_git_safe_diagnostic_attestation_path(
+    repo_root: Path,
+    run_id: str,
+) -> Path:
+    return canonical_run_root(repo_root.resolve(), run_id) / "git-safe-diagnostic-attestation.json"
+
+
+def git_safe_semantic_observation(
+    observation: dict[str, Any],
+    *,
+    code: str,
+) -> dict[str, Any]:
+    require(
+        all(key in observation for key in GIT_SAFE_SEMANTIC_OBSERVATION_KEYS),
+        code,
+        "coverage observation lacks a required Git-safe semantic field",
+    )
+    value = {
+        key: observation.get(key)
+        for key in GIT_SAFE_SEMANTIC_OBSERVATION_KEYS
+    }
+    exact_keys(value, GIT_SAFE_SEMANTIC_OBSERVATION_KEYS, code, "Git-safe semantic observation")
+    try:
+        diagnostic_capsule.validate_no_runtime_metadata(value)
+    except diagnostic_capsule.CapsuleError as exc:
+        reject(code, f"Git-safe semantic observation is unsafe ({exc.code})")
+    return value
+
+
+def build_git_safe_diagnostic_attestation_data(
+    repo_root: Path,
+    run_id: str,
+) -> dict[str, Any]:
+    """Project a fully validated source run into retention-safe capsule data.
+
+    This function intentionally invokes the normal source-side diagnostic
+    validator first.  The resulting attestation contains only hash bindings
+    for raw execution evidence; it never serializes execution bytes, runtime
+    closure, unstructured output, or process/host metadata.
+    """
+
+    validation = validate_run_data(
+        repo_root,
+        run_id,
+        mode="diagnostic",
+        require_run_status=True,
+    )
+    evidence = validation["evidence"]
+    source_context = validation["source_context"]
+    observation = validation["observation"]
+    provenance = observation.get("provenance")
+    require(type(provenance) is dict, "E_GIT_SAFE_ATTESTATION", "coverage observation provenance is missing")
+    raw_execution = validation["raw_exec_validation"]
+    exact_keys(
+        raw_execution,
+        (
+            "mode",
+            "identity_policy",
+            "freshness_policy",
+            "exec_count",
+            "byte_tree_sha256",
+            "status",
+        ),
+        "E_GIT_SAFE_ATTESTATION",
+        "source raw execution validation",
+    )
+    require(
+        raw_execution["mode"] == "exact-retained-raw-exec-byte-replay"
+        and raw_execution["exec_count"] == 23
+        and type(raw_execution["exec_count"]) is int
+        and raw_execution["status"] == "verified",
+        "E_GIT_SAFE_ATTESTATION",
+        "source raw execution validation is not verified",
+    )
+    aggregate_provenance = provenance.get("aggregate_provenance")
+    aggregate_xml = provenance.get("aggregate_xml")
+    report_inventory = observation.get("report_inventory")
+    require(
+        type(aggregate_provenance) is dict
+        and type(aggregate_xml) is dict
+        and type(report_inventory) is dict,
+        "E_GIT_SAFE_ATTESTATION",
+        "coverage observation lacks capsule-safe provenance",
+    )
+    require(
+        aggregate_provenance.get("merge_semantics")
+        == EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "E_GIT_SAFE_ATTESTATION",
+        "aggregate merge semantics differs",
+    )
+    workspace_class_count = json_integer(
+        report_inventory.get("workspace_bytecode_class_count"),
+        "E_GIT_SAFE_ATTESTATION",
+        "workspace bytecode class count",
+        positive=True,
+    )
+    xml_size = json_integer(
+        aggregate_xml.get("size"),
+        "E_GIT_SAFE_ATTESTATION",
+        "aggregate XML size",
+        positive=True,
+    )
+    identity = {
+        "run_id": evidence["run_id"],
+        "git_head": evidence["git_head"],
+        "source_sha256": evidence["source_sha256"],
+        "run_context_sha256": source_context["run_context_sha256"],
+        "run_status_sha256": evidence.get("run_status_sha256"),
+        "summary_sha256": evidence["summary_sha256"],
+        "coverage_contract_sha256": evidence["coverage_contract_sha256"],
+        "threshold_predecessor_sha256": evidence["threshold_sha256"],
+        "observation_sha256": evidence["observation_sha256"],
+    }
+    require(
+        identity["run_id"] == run_id
+        and identity["threshold_predecessor_sha256"]
+        == EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256,
+        "E_GIT_SAFE_ATTESTATION",
+        "diagnostic attestation identity differs",
+    )
+    json_git_head(identity["git_head"], "E_GIT_SAFE_ATTESTATION", "diagnostic Git head")
+    for field, value in identity.items():
+        if field not in ("run_id", "git_head"):
+            json_sha256(value, "E_GIT_SAFE_ATTESTATION", f"diagnostic identity {field}")
+    execution_attestation = {
+        "mode": "source-validated-hash-only",
+        "retention": "no-execution-bytes",
+        "exec_count": 23,
+        "session_count": 48,
+        "byte_tree_sha256": raw_execution["byte_tree_sha256"],
+        "aggregate_exec_sha256": evidence["aggregate_exec_sha256"],
+        "merge_semantics": EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "status": "verified",
+    }
+    json_sha256(
+        execution_attestation["byte_tree_sha256"],
+        "E_GIT_SAFE_ATTESTATION",
+        "source execution byte tree SHA",
+    )
+    source_attestation = {
+        "class_universe_sha256": provenance.get("fresh_class_universe_sha256"),
+        "workspace_class_tree_sha256": evidence["workspace_class_tree_sha256"],
+        "workspace_bytecode_class_count": workspace_class_count,
+        "toolchain_receipt_sha256": provenance.get("toolchain_receipt_sha256"),
+        "coverage_ledger_sha256": provenance.get("coverage_ledger_sha256"),
+    }
+    for field, value in source_attestation.items():
+        if field != "workspace_bytecode_class_count":
+            json_sha256(value, "E_GIT_SAFE_ATTESTATION", f"source attestation {field}")
+    require(
+        source_attestation["coverage_ledger_sha256"] == EXPECTED_LEDGER_SHA256,
+        "E_GIT_SAFE_ATTESTATION",
+        "source attestation ledger differs",
+    )
+    result = {
+        "schema_version": 1,
+        "kind": "v934-step4-git-safe-diagnostic-attestation",
+        "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+        "status": "verified",
+        "identity": identity,
+        "execution_attestation": execution_attestation,
+        "xml": {
+            "sha256": evidence["aggregate_xml_sha256"],
+            "size": xml_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "source_attestation": source_attestation,
+        "semantic_observation": git_safe_semantic_observation(
+            observation,
+            code="E_GIT_SAFE_ATTESTATION",
+        ),
+    }
+    return result
+
+
+def load_git_safe_diagnostic_attestation(
+    path: Path,
+    *,
+    code: str,
+) -> tuple[dict[str, Any], bytes]:
+    try:
+        attestation, payload = diagnostic_capsule.load_attestation(path)
+    except diagnostic_capsule.CapsuleError as exc:
+        reject(code, f"Git-safe diagnostic attestation rejected ({exc.code})")
+    semantic = attestation.get("semantic_observation")
+    require(type(semantic) is dict, code, "Git-safe semantic observation is missing")
+    exact_keys(
+        semantic,
+        GIT_SAFE_SEMANTIC_OBSERVATION_KEYS,
+        code,
+        "Git-safe semantic observation",
+    )
+    return attestation, payload
+
+
+def ensure_git_safe_diagnostic_attestation(
+    repo_root: Path,
+    run_id: str,
+) -> tuple[Path, dict[str, Any], str]:
+    repo_root = repo_root.resolve()
+    expected = build_git_safe_diagnostic_attestation_data(repo_root, run_id)
+    path = canonical_git_safe_diagnostic_attestation_path(repo_root, run_id)
+    expected_payload = diagnostic_capsule.canonical_json(expected)
+    if path.exists() or path.is_symlink():
+        actual, payload = load_git_safe_diagnostic_attestation(
+            path,
+            code="E_GIT_SAFE_ATTESTATION",
+        )
+        require(
+            payload == expected_payload and exact_json_identity(actual, expected),
+            "E_GIT_SAFE_ATTESTATION",
+            "existing Git-safe diagnostic attestation differs from source recomputation",
+        )
+    else:
+        atomic_bytes(path, expected_payload, mode=0o644)
+        actual, payload = load_git_safe_diagnostic_attestation(
+            path,
+            code="E_GIT_SAFE_ATTESTATION",
+        )
+        require(
+            payload == expected_payload and exact_json_identity(actual, expected),
+            "E_GIT_SAFE_ATTESTATION",
+            "published Git-safe diagnostic attestation differs",
+        )
+    return path, actual, hashlib.sha256(payload).hexdigest()
+
+
+def attest_git_safe_diagnostic_command(args: argparse.Namespace) -> None:
+    _path, attestation, digest = ensure_git_safe_diagnostic_attestation(
+        args.repo_root,
+        args.run_id,
+    )
+    print(
+        json.dumps(
+            {
+                "kind": "v934-step4-git-safe-diagnostic-attestation-result",
+                "profile": attestation["profile"],
+                "run_id": attestation["identity"]["run_id"],
+                "attestation_sha256": digest,
+                "status": "passed",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+def build_git_safe_diagnostic_capsule_data(
+    repo_root: Path,
+    run_id: str,
+    archive: Path,
+    manifest: Path,
+) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    attestation_path, attestation, attestation_sha = ensure_git_safe_diagnostic_attestation(
+        repo_root,
+        run_id,
+    )
+    xml_path = canonical_run_root(repo_root, run_id) / "report/jacoco-aggregate/jacoco.xml"
+    xml_stat = regular_file(xml_path, "E_GIT_SAFE_CAPSULE")
+    xml_sha = sha256_file(xml_path, "E_GIT_SAFE_CAPSULE")
+    require(
+        attestation["xml"]
+        == {
+            "sha256": xml_sha,
+            "size": xml_stat.st_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "E_GIT_SAFE_CAPSULE",
+        "Git-safe attestation/XML binding differs before capsule build",
+    )
+    try:
+        capsule = diagnostic_capsule.build_capsule(
+            attestation_path,
+            xml_path,
+            archive,
+            manifest,
+        )
+    except diagnostic_capsule.CapsuleError as exc:
+        reject("E_GIT_SAFE_CAPSULE", f"Git-safe diagnostic capsule rejected ({exc.code})")
+    return {
+        "schema_version": 2,
+        "kind": "v934-step4-git-safe-diagnostic-capsule-build",
+        "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+        "run_id": attestation["identity"]["run_id"],
+        "attestation_sha256": attestation_sha,
+        "archive_sha256": capsule["archive_sha256"],
+        "status": "passed",
+    }
+
+
+def build_git_safe_diagnostic_capsule_command(args: argparse.Namespace) -> None:
+    result = build_git_safe_diagnostic_capsule_data(
+        args.repo_root,
+        args.run_id,
+        args.archive,
+        args.manifest,
+    )
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+
+
 def validate_diagnostic_command(args: argparse.Namespace) -> None:
     validation = validate_run_data(
         args.repo_root,
@@ -4401,7 +4842,7 @@ def seal_run_data(
     *,
     _exit_on_commit: bool = False,
 ) -> dict[str, Any]:
-    require(mode in ("diagnostic", "formal"), "E_RUN_MODE", "unsupported seal mode")
+    require(mode in RUN_MODES, "E_RUN_MODE", "unsupported seal mode")
     repo_root = repo_root.resolve()
     validation = validate_run_data(
         repo_root,
@@ -4412,17 +4853,17 @@ def seal_run_data(
     )
     run_root = validation["run_root"]
     artifact_hashes: dict[str, str] = {}
-    if mode == "formal":
+    if mode in ARTIFACT_MODES:
         gate_path = run_root / "coverage-gate.json"
         candidate_path = run_root / "candidate-manifest.json"
         final_path = run_root / "final-manifest.json"
-        gate = validate_coverage_gate(repo_root, gate_path)
-        candidate = validate_acceptance_candidate(repo_root, candidate_path)
-        final = validate_acceptance_final(repo_root, final_path)
+        gate = validate_coverage_gate(repo_root, gate_path, mode)
+        candidate = validate_acceptance_candidate(repo_root, candidate_path, mode)
+        final = validate_acceptance_final(repo_root, final_path, mode)
         require(
             gate["run_id"] == candidate["run_id"] == final["run_id"] == run_id,
             "E_ACCEPTANCE_ARTIFACT",
-            "formal gate/candidate/final run identities differ",
+            f"{mode} gate/candidate/final run identities differ",
         )
         artifact_hashes = {
             "coverage_gate_sha256": sha256_file(gate_path, "E_COVERAGE_GATE"),
@@ -4440,7 +4881,7 @@ def seal_run_data(
         "E_RUN_STATUS",
         "run cannot be sealed before its start time",
     )
-    status_value = "diagnostic-observed" if mode == "diagnostic" else "formal-passed"
+    status_value = successful_run_status(mode)
     status_values = {
         "run_id": run_id,
         "mode": mode,
@@ -4461,7 +4902,7 @@ def seal_run_data(
         **artifact_hashes,
         "status": status_value,
     }
-    fields = DIAGNOSTIC_RUN_STATUS_FIELDS if mode == "diagnostic" else FORMAL_RUN_STATUS_FIELDS
+    fields = run_status_fields(mode)
     payload = encode_env(status_values, fields, "E_RUN_STATUS")
     status_path = run_root / "run-status.env"
     result = {
@@ -5247,6 +5688,178 @@ def threshold_candidate_from_frozen_result(result: dict[str, Any]) -> dict[str, 
     }
 
 
+def expected_sessions_from_ledger(
+    run_id: str,
+    ledger: list[dict[str, str]],
+) -> list[str]:
+    require(
+        isinstance(run_id, str)
+        and SESSION_PREFIX_PATTERN.fullmatch(run_id) is not None
+        and len(run_id) <= 128,
+        "E_FROZEN_SESSIONS",
+        "frozen diagnostic run id is unsafe",
+    )
+    sessions = sorted(
+        f"{run_id}-{row['variant_key']}-{owner}"
+        for row in ledger
+        for owner in row["expected_session_owners"].split(",")
+    )
+    require(
+        len(sessions) == 48 and len(set(sessions)) == 48,
+        "E_FROZEN_SESSIONS",
+        "frozen diagnostic session derivation differs",
+    )
+    return sessions
+
+
+def recompute_sanitized_attested_observation(
+    repo_root: Path,
+    xml_path: Path,
+    run_id: str,
+    step1: dict[str, Any],
+    diagnostic_threshold: dict[str, Any],
+    attestation: dict[str, Any],
+) -> dict[str, Any]:
+    """Recompute only the retained XML semantics of a Git-safe capsule."""
+
+    modules, artifact_to_module, freeze_sha = load_frozen_modules(repo_root)
+    ledger = load_ledger(repo_root)
+    expected_sessions = expected_sessions_from_ledger(run_id, ledger)
+    root, xml_stat, xml_sha = read_xml(xml_path)
+    require(
+        attestation["xml"]
+        == {
+            "sha256": xml_sha,
+            "size": xml_stat.st_size,
+            "deterministic_report_replay_count": 2,
+        },
+        "E_FROZEN_XML",
+        "frozen capsule XML binding differs",
+    )
+    root_counters, group_counters, class_index, xml_class_names = validate_xml_structure(
+        root,
+        expected_sessions,
+        modules,
+        artifact_to_module,
+        step1["critical_classes"],
+        repo_root,
+        require_compiled_class_files=False,
+    )
+    line_floor = decimal_ratio(
+        diagnostic_threshold["critical_candidate_floor"]["line"],
+        "E_FROZEN_THRESHOLD",
+        "critical line floor",
+    )
+    branch_floor = decimal_ratio(
+        diagnostic_threshold["critical_candidate_floor"]["branch"],
+        "E_FROZEN_THRESHOLD",
+        "critical branch floor",
+    )
+    critical_results, below_floor_count, not_applicable_count = critical_observations(
+        step1["critical_classes"],
+        class_index,
+        artifact_to_module,
+        line_floor,
+        branch_floor,
+    )
+    source_attestation = attestation["source_attestation"]
+    require(
+        source_attestation["coverage_ledger_sha256"] == EXPECTED_LEDGER_SHA256
+        and source_attestation["workspace_bytecode_class_count"] > 0,
+        "E_FROZEN_ATTESTATION",
+        "frozen source attestation ledger/class count differs",
+    )
+    value = {
+        "report_inventory": {
+            "group_count": len(group_counters),
+            "session_count": 48,
+            "critical_class_count": len(critical_results),
+            "reportable_class_count": len(xml_class_names),
+            "workspace_bytecode_class_count": source_attestation[
+                "workspace_bytecode_class_count"
+            ],
+            "class_universe_binding": "exact-reporter-config-and-deterministic-replay",
+            "frozen_modules": modules,
+        },
+        "aggregate_observed": {
+            "line": counter_json(root_counters["LINE"]),
+            "branch": counter_json(root_counters["BRANCH"]),
+            "counters": all_counters_json(root_counters),
+        },
+        "group_counters": {
+            artifact: {
+                "module": artifact_to_module[artifact],
+                "counters": all_counters_json(group_counters[artifact]),
+            }
+            for artifact in artifact_to_module
+        },
+        "critical_candidate_floor": {
+            "line": float(line_floor),
+            "branch": float(branch_floor),
+            "outcome": "below-floor-gaps-recorded"
+            if below_floor_count
+            else "at-or-above-floor",
+            "below_floor_class_count": below_floor_count,
+            "not_applicable_metric_count": not_applicable_count,
+            "thresholds_frozen_by_observe": False,
+        },
+        "critical_classes": critical_results,
+    }
+    require(
+        freeze_sha == EXPECTED_STEP1_FREEZE_SHA256,
+        "E_FROZEN_RECOMPUTE",
+        "frozen module mapping freeze differs",
+    )
+    return value
+
+
+def validate_frozen_git_safe_attestation(
+    attestation: dict[str, Any],
+    confirmed_evidence: dict[str, Any],
+    diagnostic_head: str,
+) -> dict[str, Any]:
+    identity = attestation["identity"]
+    expected_identity = {
+        "run_id": confirmed_evidence["run_id"],
+        "git_head": diagnostic_head,
+        "source_sha256": confirmed_evidence["source_sha256"],
+        "run_status_sha256": confirmed_evidence["run_status_sha256"],
+        "summary_sha256": confirmed_evidence["summary_sha256"],
+        "coverage_contract_sha256": confirmed_evidence["coverage_contract_sha256"],
+        "threshold_predecessor_sha256": confirmed_evidence[
+            "threshold_predecessor_sha256"
+        ],
+        "observation_sha256": confirmed_evidence["observation_sha256"],
+    }
+    require(
+        all(identity[field] == expected for field, expected in expected_identity.items()),
+        "E_FROZEN_ATTESTATION",
+        "frozen attestation identity differs from confirmed threshold evidence",
+    )
+    execution = attestation["execution_attestation"]
+    require(
+        execution["aggregate_exec_sha256"]
+        == confirmed_evidence["aggregate_exec_sha256"]
+        and execution["merge_semantics"] == EXPECTED_AGGREGATE_MERGE_SEMANTICS,
+        "E_FROZEN_ATTESTATION",
+        "frozen execution attestation differs from confirmed evidence",
+    )
+    require(
+        attestation["xml"]["sha256"] == confirmed_evidence["aggregate_xml_sha256"],
+        "E_FROZEN_ATTESTATION",
+        "frozen XML attestation differs from confirmed evidence",
+    )
+    source = attestation["source_attestation"]
+    require(
+        source["workspace_class_tree_sha256"]
+        == confirmed_evidence["workspace_class_tree_sha256"]
+        and source["coverage_ledger_sha256"] == EXPECTED_LEDGER_SHA256,
+        "E_FROZEN_ATTESTATION",
+        "frozen source attestation differs from confirmed evidence",
+    )
+    return execution
+
+
 def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     real_directory(repo_root, "E_REPO_ROOT")
@@ -5278,16 +5891,26 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
         confirmed_evidence["coverage_contract_sha256"],
         "diagnostic coverage contract",
     )
+    capsule_stem = (
+        repo_root
+        / "docs/9.3.4/evidence/step-4"
+        / f"{confirmed_evidence['run_id']}-portable-capsule"
+    )
+    capsule_archive = Path(f"{capsule_stem}.tar.gz")
+    capsule_manifest = Path(f"{capsule_stem}.manifest.json")
 
     with tempfile.TemporaryDirectory(prefix="v934-frozen-diagnostic-") as temporary_name:
         temporary_root = Path(temporary_name)
+        override_root = temporary_root / "overrides"
+        override_root.mkdir(mode=0o700)
+        evidence_root = temporary_root / "evidence"
         threshold_path = write_private_blob(
-            temporary_root,
+            override_root,
             "coverage-thresholds.json",
             threshold_blob,
         )
         contract_path = write_private_blob(
-            temporary_root,
+            override_root,
             "coverage-contract.json",
             contract_blob,
         )
@@ -5295,7 +5918,11 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             repo_root,
             _step4_path_override=threshold_path,
         )
-        require(old_step1 == step1, "E_FROZEN_RECOMPUTE", "Step 1 policy changed during replay")
+        require(
+            old_step1 == step1,
+            "E_FROZEN_RECOMPUTE",
+            "Step 1 policy changed during semantic replay",
+        )
         require(
             old_threshold["status"] == "diagnostic-pending"
             and old_hashes["step4_successor_sha256"] == threshold_blob_sha,
@@ -5312,16 +5939,76 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             "E_FROZEN_BLOB",
             "frozen contract blob is not the exact diagnostic-ready contract",
         )
-        validation = validate_run_data(
-            repo_root,
-            confirmed_evidence["run_id"],
-            mode="diagnostic",
-            require_run_status=True,
-            _threshold_path_override=threshold_path,
-            _contract_path_override=contract_path,
-            _expected_git_head=diagnostic_head,
+        try:
+            diagnostic_capsule.materialize_capsule(
+                capsule_archive,
+                capsule_manifest,
+                evidence_root,
+                expected_run_id=confirmed_evidence["run_id"],
+                expected_git_head=diagnostic_head,
+                expected_source_sha256=confirmed_evidence["source_sha256"],
+            )
+        except diagnostic_capsule.CapsuleError as exc:
+            reject(
+                "E_FROZEN_CAPSULE",
+                f"Git-safe diagnostic capsule rejected ({exc.code})",
+            )
+        attestation_path = evidence_root / "evidence/diagnostic-attestation.json"
+        xml_path = evidence_root / "evidence/jacoco.xml"
+        attestation, attestation_payload = load_git_safe_diagnostic_attestation(
+            attestation_path,
+            code="E_FROZEN_ATTESTATION",
         )
-        candidate = threshold_candidate_data(validation, old_step1)
+        execution_attestation = validate_frozen_git_safe_attestation(
+            attestation,
+            confirmed_evidence,
+            diagnostic_head,
+        )
+        recomputed_semantic = recompute_sanitized_attested_observation(
+            repo_root,
+            xml_path,
+            confirmed_evidence["run_id"],
+            old_step1,
+            old_threshold,
+            attestation,
+        )
+        require(
+            exact_json_identity(
+                attestation["semantic_observation"], recomputed_semantic
+            ),
+            "E_FROZEN_RECOMPUTE",
+            "retained semantic observation differs from XML recomputation",
+        )
+        frozen_evidence = {
+            "run_id": attestation["identity"]["run_id"],
+            "git_head": attestation["identity"]["git_head"],
+            "source_sha256": attestation["identity"]["source_sha256"],
+            "run_status_sha256": attestation["identity"]["run_status_sha256"],
+            "summary_sha256": attestation["identity"]["summary_sha256"],
+            "observation_sha256": attestation["identity"]["observation_sha256"],
+            "coverage_contract_sha256": attestation["identity"][
+                "coverage_contract_sha256"
+            ],
+            "threshold_sha256": attestation["identity"][
+                "threshold_predecessor_sha256"
+            ],
+            "exec_manifest_sha256": confirmed_evidence["exec_manifest_sha256"],
+            "aggregate_exec_sha256": execution_attestation["aggregate_exec_sha256"],
+            "aggregate_xml_sha256": attestation["xml"]["sha256"],
+            "workspace_class_tree_sha256": attestation["source_attestation"][
+                "workspace_class_tree_sha256"
+            ],
+        }
+        candidate = threshold_candidate_data(
+            {
+                "observation": {
+                    "aggregate_observed": recomputed_semantic["aggregate_observed"],
+                    "critical_classes": recomputed_semantic["critical_classes"],
+                },
+                "evidence": frozen_evidence,
+            },
+            old_step1,
+        )
 
     validate_frozen_candidate_equivalence(confirmed, candidate)
     return {
@@ -5346,14 +6033,15 @@ def validate_frozen_diagnostic_data(repo_root: Path) -> dict[str, Any]:
             },
         },
         "replay_receipt": {
-            "run_context_sha256": validation["source_context"][
-                "run_context_sha256"
-            ],
-            "source_sha256": validation["source_context"]["source_sha256"],
-            "not_before_ns": validation["source_context"]["not_before_ns"],
-            "git_head": validation["source_context"]["git_head"],
-            "raw_exec_replay": validation["raw_exec_validation"],
-            "scope": "exact-retained-diagnostic-run-bytes",
+            "profile": GIT_SAFE_DIAGNOSTIC_PROFILE,
+            "capsule_manifest_sha256": sha256_file(
+                capsule_manifest,
+                "E_FROZEN_CAPSULE",
+            ),
+            "attestation_sha256": hashlib.sha256(attestation_payload).hexdigest(),
+            "aggregate_xml_sha256": attestation["xml"]["sha256"],
+            "execution_attestation": execution_attestation,
+            "scope": GIT_SAFE_DIAGNOSTIC_REPLAY_SCOPE,
             "status": "verified",
         },
         "evidence": confirmed_evidence,
@@ -5483,7 +6171,12 @@ def formal_critical_metric_result(
     }
 
 
-def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
+def formal_check_data(
+    repo_root: Path,
+    run_id: str,
+    mode: str = "formal",
+) -> dict[str, Any]:
+    require(mode in ARTIFACT_MODES, "E_RUN_MODE", "coverage gate mode must be formal or release")
     repo_root = repo_root.resolve()
     step1, step4, threshold_hashes = load_thresholds(repo_root)
     if step4["status"] != "confirmed":
@@ -5498,7 +6191,7 @@ def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
     validation = validate_run_data(
         repo_root,
         run_id,
-        mode="formal",
+        mode=mode,
         require_run_status=False,
     )
     require_formal_class_tree(
@@ -5585,7 +6278,7 @@ def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
                 "branch": metrics["branch"],
             }
         )
-    return {
+    result = {
         "schema_version": 1,
         "kind": "v934-step4-coverage-gate",
         "status": "passed",
@@ -5604,6 +6297,9 @@ def formal_check_data(repo_root: Path, run_id: str) -> dict[str, Any]:
         "aggregate": aggregate_results,
         "critical_classes": critical_results,
     }
+    if mode == "release":
+        result["release_successor"] = RELEASE_SUCCESSOR_MARKER
+    return result
 
 
 def formal_check_command(args: argparse.Namespace) -> None:
@@ -5620,13 +6316,29 @@ def formal_check_command(args: argparse.Namespace) -> None:
         "coverage-gate.json",
         "E_COVERAGE_GATE_PATH",
     )
-    result = formal_check_data(args.repo_root, args.run_id)
+    result = formal_check_data(args.repo_root, args.run_id, args.mode)
     atomic_json(output, result)
-    print(f"[v934-coverage-xml] FORMAL PASS run={args.run_id} output={output}")
+    print(f"[v934-coverage-xml] {args.mode.upper()} PASS run={args.run_id} output={output}")
 
 
-def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
+def validate_coverage_gate(
+    repo_root: Path,
+    gate_path: Path,
+    expected_mode: str | None = None,
+) -> dict[str, Any]:
     gate = load_json(gate_path, "E_COVERAGE_GATE")
+    mode = "release" if "release_successor" in gate else "formal"
+    require(
+        expected_mode is None or expected_mode == mode,
+        "E_COVERAGE_GATE_MODE",
+        "coverage gate workflow mode differs",
+    )
+    if mode == "release":
+        require(
+            gate.get("release_successor") == RELEASE_SUCCESSOR_MARKER,
+            "E_COVERAGE_GATE_MODE",
+            "release coverage gate successor marker differs",
+        )
     require(
         gate.get("kind") == "v934-step4-coverage-gate"
         and gate.get("status") == "passed"
@@ -5642,7 +6354,7 @@ def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
         "E_COVERAGE_GATE_PATH",
     )
     require(gate_path.absolute() == canonical_gate, "E_COVERAGE_GATE_PATH", "coverage gate path differs")
-    expected = formal_check_data(repo_root, gate["run_id"])
+    expected = formal_check_data(repo_root, gate["run_id"], mode)
     require(
         exact_json_identity(gate, expected),
         "E_COVERAGE_GATE",
@@ -5651,11 +6363,36 @@ def validate_coverage_gate(repo_root: Path, gate_path: Path) -> dict[str, Any]:
     return gate
 
 
+def artifact_workflow_mode(
+    value: dict[str, Any],
+    stage: str,
+    code: str,
+) -> str:
+    status = value.get("status")
+    if status == f"formal-{stage}":
+        require(
+            "release_successor" not in value,
+            code,
+            "formal artifact contains a release successor marker",
+        )
+        return "formal"
+    if status == f"release-{stage}":
+        require(
+            value.get("release_successor") == RELEASE_SUCCESSOR_MARKER,
+            code,
+            "release artifact successor marker differs",
+        )
+        return "release"
+    reject(code, f"{stage} artifact workflow status differs")
+
+
 def acceptance_candidate_data(
     repo_root: Path,
     run_id: str,
     gate_path: Path,
+    mode: str = "formal",
 ) -> dict[str, Any]:
+    require(mode in ARTIFACT_MODES, "E_RUN_MODE", "candidate mode must be formal or release")
     gate_path = require_canonical_run_artifact_path(
         repo_root,
         run_id,
@@ -5663,13 +6400,13 @@ def acceptance_candidate_data(
         "coverage-gate.json",
         "E_COVERAGE_GATE_PATH",
     )
-    gate = validate_coverage_gate(repo_root, gate_path)
+    gate = validate_coverage_gate(repo_root, gate_path, mode)
     require(gate["run_id"] == run_id, "E_ACCEPTANCE_CANDIDATE", "gate/run identity differs")
-    return {
+    result = {
         "schema_version": 1,
         "kind": "v934-step4-coverage-acceptance-artifact",
         "stage": "candidate",
-        "status": "formal-candidate",
+        "status": f"{mode}-candidate",
         "run_id": run_id,
         "git_head": gate["git_head"],
         "threshold": gate["threshold"],
@@ -5677,24 +6414,42 @@ def acceptance_candidate_data(
         "evidence": gate["formal_evidence"],
         "bindings": gate["bindings"],
     }
+    if mode == "release":
+        result["release_successor"] = RELEASE_SUCCESSOR_MARKER
+    return result
 
 
-def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict[str, Any]:
+def validate_acceptance_candidate(
+    repo_root: Path,
+    candidate_path: Path,
+    expected_mode: str | None = None,
+) -> dict[str, Any]:
     candidate = load_json(candidate_path, "E_ACCEPTANCE_CANDIDATE")
+    mode = artifact_workflow_mode(
+        candidate, "candidate", "E_ACCEPTANCE_CANDIDATE"
+    )
+    require(
+        expected_mode is None or expected_mode == mode,
+        "E_ACCEPTANCE_CANDIDATE_MODE",
+        "acceptance candidate workflow mode differs",
+    )
+    expected_keys = (
+        "schema_version",
+        "kind",
+        "stage",
+        "status",
+        "run_id",
+        "git_head",
+        "threshold",
+        "coverage_gate",
+        "evidence",
+        "bindings",
+    )
+    if mode == "release":
+        expected_keys = (*expected_keys, "release_successor")
     exact_keys(
         candidate,
-        (
-            "schema_version",
-            "kind",
-            "stage",
-            "status",
-            "run_id",
-            "git_head",
-            "threshold",
-            "coverage_gate",
-            "evidence",
-            "bindings",
-        ),
+        expected_keys,
         "E_ACCEPTANCE_CANDIDATE",
         "formal acceptance candidate",
     )
@@ -5703,7 +6458,7 @@ def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict
         and type(candidate["schema_version"]) is int
         and candidate["kind"] == "v934-step4-coverage-acceptance-artifact"
         and candidate["stage"] == "candidate"
-        and candidate["status"] == "formal-candidate",
+        and candidate["status"] == f"{mode}-candidate",
         "E_ACCEPTANCE_CANDIDATE",
         "formal acceptance candidate identity/status differs",
     )
@@ -5722,7 +6477,9 @@ def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict
         "candidate coverage gate",
         expected_path=expected_gate_path,
     )
-    expected = acceptance_candidate_data(repo_root, candidate["run_id"], gate_path)
+    expected = acceptance_candidate_data(
+        repo_root, candidate["run_id"], gate_path, mode
+    )
     require(
         exact_json_identity(candidate, expected),
         "E_ACCEPTANCE_CANDIDATE",
@@ -5731,13 +6488,20 @@ def validate_acceptance_candidate(repo_root: Path, candidate_path: Path) -> dict
     return candidate
 
 
-def acceptance_final_data(repo_root: Path, candidate_path: Path) -> dict[str, Any]:
-    candidate = validate_acceptance_candidate(repo_root, candidate_path)
-    return {
+def acceptance_final_data(
+    repo_root: Path,
+    candidate_path: Path,
+    mode: str | None = None,
+) -> dict[str, Any]:
+    candidate = validate_acceptance_candidate(repo_root, candidate_path, mode)
+    workflow_mode = artifact_workflow_mode(
+        candidate, "candidate", "E_ACCEPTANCE_FINAL"
+    )
+    result = {
         "schema_version": 1,
         "kind": "v934-step4-coverage-acceptance-artifact",
         "stage": "final",
-        "status": "formal-final",
+        "status": f"{workflow_mode}-final",
         "run_id": candidate["run_id"],
         "git_head": candidate["git_head"],
         "threshold": candidate["threshold"],
@@ -5748,25 +6512,41 @@ def acceptance_final_data(repo_root: Path, candidate_path: Path) -> dict[str, An
         "evidence": candidate["evidence"],
         "bindings": candidate["bindings"],
     }
+    if workflow_mode == "release":
+        result["release_successor"] = RELEASE_SUCCESSOR_MARKER
+    return result
 
 
-def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, Any]:
+def validate_acceptance_final(
+    repo_root: Path,
+    final_path: Path,
+    expected_mode: str | None = None,
+) -> dict[str, Any]:
     final = load_json(final_path, "E_ACCEPTANCE_FINAL")
+    mode = artifact_workflow_mode(final, "final", "E_ACCEPTANCE_FINAL")
+    require(
+        expected_mode is None or expected_mode == mode,
+        "E_ACCEPTANCE_FINAL_MODE",
+        "acceptance final workflow mode differs",
+    )
+    expected_keys = (
+        "schema_version",
+        "kind",
+        "stage",
+        "status",
+        "run_id",
+        "git_head",
+        "threshold",
+        "coverage_gate",
+        "candidate_manifest",
+        "evidence",
+        "bindings",
+    )
+    if mode == "release":
+        expected_keys = (*expected_keys, "release_successor")
     exact_keys(
         final,
-        (
-            "schema_version",
-            "kind",
-            "stage",
-            "status",
-            "run_id",
-            "git_head",
-            "threshold",
-            "coverage_gate",
-            "candidate_manifest",
-            "evidence",
-            "bindings",
-        ),
+        expected_keys,
         "E_ACCEPTANCE_FINAL",
         "formal acceptance final",
     )
@@ -5775,7 +6555,7 @@ def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, An
         and type(final["schema_version"]) is int
         and final["kind"] == "v934-step4-coverage-acceptance-artifact"
         and final["stage"] == "final"
-        and final["status"] == "formal-final",
+        and final["status"] == f"{mode}-final",
         "E_ACCEPTANCE_FINAL",
         "formal acceptance final identity/status differs",
     )
@@ -5794,7 +6574,7 @@ def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, An
         "final candidate manifest",
         expected_path=expected_candidate_path,
     )
-    expected = acceptance_final_data(repo_root, candidate_path)
+    expected = acceptance_final_data(repo_root, candidate_path, mode)
     require(
         exact_json_identity(final, expected),
         "E_ACCEPTANCE_FINAL",
@@ -5805,19 +6585,22 @@ def validate_acceptance_final(repo_root: Path, final_path: Path) -> dict[str, An
 
 def build_artifact_command(args: argparse.Namespace) -> None:
     repo_root = args.repo_root.resolve()
-    # Both acceptance stages are formal-only. Check this before looking at an
-    # attacker-controlled candidate/gate path so pending can never fall through.
+    mode = getattr(args, "mode", "formal")
+    # Both acceptance stages are confirmed-threshold-only. Check this before
+    # looking at an attacker-controlled candidate/gate path.
     _, step4, _ = load_thresholds(repo_root)
     if step4["status"] != "confirmed":
         reject(
             "E_FORMAL_THRESHOLD_STATUS",
-            "formal artifacts require a confirmed threshold successor",
+            "formal/release artifacts require a confirmed threshold successor",
         )
     if args.stage == "candidate":
         require(args.run_id is not None, "E_ARGUMENT", "candidate stage requires --run-id")
         require(args.coverage_gate is not None, "E_ARGUMENT", "candidate stage requires --coverage-gate")
         require(args.candidate is None, "E_ARGUMENT", "candidate stage forbids --candidate")
-        value = acceptance_candidate_data(repo_root, args.run_id, args.coverage_gate)
+        value = acceptance_candidate_data(
+            repo_root, args.run_id, args.coverage_gate, mode
+        )
         output = require_canonical_run_artifact_path(
             repo_root,
             value["run_id"],
@@ -5829,7 +6612,7 @@ def build_artifact_command(args: argparse.Namespace) -> None:
         require(args.candidate is not None, "E_ARGUMENT", "final stage requires --candidate")
         require(args.run_id is None, "E_ARGUMENT", "final stage forbids --run-id")
         require(args.coverage_gate is None, "E_ARGUMENT", "final stage forbids --coverage-gate")
-        value = acceptance_final_data(repo_root, args.candidate)
+        value = acceptance_final_data(repo_root, args.candidate, mode)
         output = require_canonical_run_artifact_path(
             repo_root,
             value["run_id"],
@@ -5846,24 +6629,26 @@ def build_artifact_command(args: argparse.Namespace) -> None:
 
 def verify_artifact_command(args: argparse.Namespace) -> None:
     repo_root = args.repo_root.resolve()
+    expected_mode = getattr(args, "mode", None)
     _, step4, _ = load_thresholds(repo_root)
     if step4["status"] != "confirmed":
         reject(
             "E_FORMAL_THRESHOLD_STATUS",
-            "formal artifact verification requires confirmed thresholds",
+            "formal/release artifact verification requires confirmed thresholds",
         )
     payload = load_json(args.artifact, "E_ACCEPTANCE_ARTIFACT")
     stage = payload.get("stage")
     if stage == "candidate":
         require(args.run_status is None, "E_ARGUMENT", "--run-status is final-only")
-        value = validate_acceptance_candidate(repo_root, args.artifact)
+        value = validate_acceptance_candidate(repo_root, args.artifact, expected_mode)
     elif stage == "final":
         require(
             args.run_status is not None,
             "E_RUN_STATUS",
-            "public final verification requires the canonical formal run status",
+            "public final verification requires the canonical run status",
         )
-        value = validate_acceptance_final(repo_root, args.artifact)
+        value = validate_acceptance_final(repo_root, args.artifact, expected_mode)
+        mode = artifact_workflow_mode(value, "final", "E_ACCEPTANCE_ARTIFACT")
         run_root = canonical_run_root(repo_root, value["run_id"])
         canonical_status = run_root / "run-status.env"
         require(
@@ -5871,7 +6656,7 @@ def verify_artifact_command(args: argparse.Namespace) -> None:
             and args.run_status == canonical_status
             and args.run_status.resolve(strict=False) == canonical_status,
             "E_RUN_STATUS",
-            "--run-status is not the canonical formal run status",
+            "--run-status is not the canonical run status",
         )
         expected_hashes = {
             "coverage_gate_sha256": value["coverage_gate"]["sha256"],
@@ -5881,12 +6666,12 @@ def verify_artifact_command(args: argparse.Namespace) -> None:
         validate_run_data(
             repo_root,
             value["run_id"],
-            mode="formal",
+            mode=mode,
             require_run_status=True,
             expected_artifact_hashes=expected_hashes,
         )
     else:
-        reject("E_ACCEPTANCE_ARTIFACT", "formal acceptance artifact stage differs")
+        reject("E_ACCEPTANCE_ARTIFACT", "acceptance artifact stage differs")
     print(f"[v934-coverage-xml] ARTIFACT VALID stage={stage} run={value['run_id']}")
 
 
@@ -5932,6 +6717,33 @@ def negative_command(args: argparse.Namespace) -> None:
     )
     root, _, xml_sha = read_xml(args.xml)
     cases: dict[str, dict[str, str]] = {}
+
+    def cdiag_only_formal_policy(path: str, field: str) -> dict[str, Any]:
+        policy: dict[str, Any] = {
+            "parent_git_head_source": "aggregate_observed.evidence.git_head",
+            "diagnostic_threshold_sha256": EXPECTED_DIAGNOSTIC_THRESHOLD_SHA256,
+            "repository_identity": copy.deepcopy(FORMAL_REPOSITORY_IDENTITY_POLICY),
+            "required_exact_paths": list(FORMALIZATION_EXACT_PATHS),
+            "allowed_exact_paths": list(FORMALIZATION_EXACT_PATHS),
+            "allowed_path_prefixes": list(FORMALIZATION_ALLOWED_PREFIXES),
+            "other_changes": "forbidden-requires-new-diagnostic",
+        }
+        policy[field].append(path)
+        return policy
+
+    for cdiag_only_path in CDIAG_ONLY_STEP5_TOOLING_PATHS:
+        for policy_field in ("required_exact_paths", "allowed_exact_paths"):
+            case_name = (
+                f"formal-cdiag-only-{policy_field.removesuffix('_exact_paths')}-"
+                f"{Path(cdiag_only_path).name}"
+            )
+            cases[case_name] = expect_failure(
+                "E_FORMAL_DELTA_POLICY",
+                lambda cdiag_only_path=cdiag_only_path, policy_field=policy_field: validate_formal_delta_policy(
+                    cdiag_only_formal_policy(cdiag_only_path, policy_field),
+                    list(FORMALIZATION_EXACT_PATHS),
+                ),
+            )
     repo_root = args.repo_root.resolve()
     ledger = load_ledger(repo_root)
     modules, artifact_to_module, _ = load_frozen_modules(repo_root)
@@ -5991,6 +6803,12 @@ def negative_command(args: argparse.Namespace) -> None:
     cases["symlink"] = expect_failure(
         "E_FILE_SYMLINK",
         lambda: validate_mutated_xml(symlink_path),
+    )
+    symlink_path.unlink()
+    require(
+        not symlink_path.exists() and not symlink_path.is_symlink(),
+        "E_NEGATIVE_CLEANUP",
+        "symlink XML negative fixture survived",
     )
 
     malformed_path = output_dir / "malformed.xml"
@@ -6095,6 +6913,24 @@ def build_parser() -> argparse.ArgumentParser:
     validate_diagnostic.add_argument("--run-id", required=True)
     validate_diagnostic.set_defaults(function=validate_diagnostic_command)
 
+    attest_diagnostic = commands.add_parser(
+        "attest-git-safe-diagnostic",
+        help="validate a sealed diagnostic source run and publish its safe hash-only attestation",
+    )
+    attest_diagnostic.add_argument("--repo-root", type=Path, required=True)
+    attest_diagnostic.add_argument("--run-id", required=True)
+    attest_diagnostic.set_defaults(function=attest_git_safe_diagnostic_command)
+
+    build_capsule = commands.add_parser(
+        "build-git-safe-diagnostic-capsule",
+        help="build the two-member Git-safe capsule from a sealed diagnostic source run",
+    )
+    build_capsule.add_argument("--repo-root", type=Path, required=True)
+    build_capsule.add_argument("--run-id", required=True)
+    build_capsule.add_argument("--archive", type=Path, required=True)
+    build_capsule.add_argument("--manifest", type=Path, required=True)
+    build_capsule.set_defaults(function=build_git_safe_diagnostic_capsule_command)
+
     freeze = commands.add_parser(
         "freeze-thresholds",
         help="build an immutable reviewed-threshold candidate from a diagnostic run",
@@ -6123,15 +6959,16 @@ def build_parser() -> argparse.ArgumentParser:
         "seal-run",
         help="fully prevalidate and atomically publish the canonical success status",
     )
-    seal_run.add_argument("--mode", choices=("diagnostic", "formal"), required=True)
+    seal_run.add_argument("--mode", choices=RUN_MODES, required=True)
     seal_run.add_argument("--repo-root", type=Path, required=True)
     seal_run.add_argument("--run-id", required=True)
     seal_run.set_defaults(function=seal_run_command)
 
     formal = commands.add_parser(
         "formal-check",
-        help="apply confirmed exact coverage gates to a fresh formal run",
+        help="apply confirmed exact coverage gates to a fresh formal or release run",
     )
+    formal.add_argument("--mode", choices=ARTIFACT_MODES, default="formal")
     formal.add_argument("--repo-root", type=Path, required=True)
     formal.add_argument("--run-id", required=True)
     formal.add_argument("--output", type=Path, required=True)
@@ -6139,8 +6976,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_artifact = commands.add_parser(
         "build-artifact",
-        help="build a formal acceptance candidate or final manifest",
+        help="build a formal or release acceptance candidate/final manifest",
     )
+    build_artifact.add_argument("--mode", choices=ARTIFACT_MODES, default="formal")
     build_artifact.add_argument("--repo-root", type=Path, required=True)
     build_artifact.add_argument("--stage", choices=("candidate", "final"), required=True)
     build_artifact.add_argument("--run-id")
@@ -6151,8 +6989,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_artifact = commands.add_parser(
         "verify-artifact",
-        help="recompute a formal candidate or verify a sealed formal final",
+        help="recompute a formal/release candidate or verify a sealed final",
     )
+    verify_artifact.add_argument("--mode", choices=ARTIFACT_MODES)
     verify_artifact.add_argument("--repo-root", type=Path, required=True)
     verify_artifact.add_argument("--artifact", type=Path, required=True)
     verify_artifact.add_argument("--run-status", type=Path)

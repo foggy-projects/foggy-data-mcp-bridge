@@ -33,40 +33,40 @@
   },
   "aggregate_observed": {
     "branch": {
-      "covered": 26111,
-      "fraction": "26111/44870",
-      "total": 44870
+      "covered": 26117,
+      "fraction": "26117/44876",
+      "total": 44876
     },
     "evidence": {
-      "aggregate_exec_sha256": "f3aa604e8a05fb4b5bb6975f628cfc410478bec6afe3a1d5cd271d878b7da4d0",
-      "aggregate_xml_sha256": "5c137de8f75edd6a8647eb264fc57be09a36e8e9883d02c5b3f496495bb88532",
-      "coverage_contract_sha256": "15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0",
-      "exec_manifest_sha256": "ab75669e985d4f3d939d9737afa033586be95c85ecc52bbdc6490c62487f257b",
-      "git_head": "613b11a0ae6732f865f918551cd9116079771b5e",
-      "observation_sha256": "43735e488079108c63fcfe7cb89b44245dd44b7eba8442ba8f5b6df23f5df50b",
-      "run_id": "step4-coverage-20260717-diagnostic-r19",
-      "run_status_sha256": "c7511e0cf7b2499272851bb7574b435446d02594562a121869c882138e9467fa",
-      "source_sha256": "a4ccff29f7bc0dc3f0613d2f732eecae95a0e324aa21dff8b31f789820c38f65",
-      "summary_sha256": "90e007edab12d0d12677c2820ee38dae70162108052a1056efb827955b408cfa",
+      "aggregate_exec_sha256": "e97a7f9d7ba2ed3d0ad19b26aee6f116c62f3419ae973a3d37e5b65671624d5c",
+      "aggregate_xml_sha256": "e780a7b95b71b5d950637adcfebee579ac77a9127c43ca10a5434e7ccefd2468",
+      "coverage_contract_sha256": "0a948febf6a93c76d47533929977fa311e7421c308b0940e68ec3e7065c753b2",
+      "exec_manifest_sha256": "1dcded2ea950c009f1e5655720f3aa566e0ae3cf2810b0d5961ff29cb81f3c7c",
+      "git_head": "dfa8bf954a47744c3d18211dbe937ec90955b012",
+      "observation_sha256": "e10af0f68bf6e70b58022b24ff85349c5b53cdf5a50251b50b23ef2ea03c0043",
+      "run_id": "step4-v934-runtime-image-inspect-remediation-diagnostic-20260723-r16",
+      "run_status_sha256": "be944fcc15b0452efddd86b541e4f9336b663c737d75dc6b98b3fa644c5963c6",
+      "source_sha256": "7d5872219c801c186ec1759b4e48f94ddecc92f2d2376a59d836e86a77cab330",
+      "summary_sha256": "18640167161e6eb582a176400b1b85853280c5ba9a796a39fd9091af33f10dcd",
       "threshold_predecessor_sha256": "0df17a8774d2c0c0299146940f1e93453175263cda3f7ebfab9234c3e820ff96",
-      "workspace_class_tree_sha256": "a72007a8beecace7a21770d5e0b47f979aabb64f69bac7e7ede90fbf333f99be"
+      "workspace_class_tree_sha256": "b897a603269bb674a47b1391866c1ab96244edfef5f63968b4a8aff66591ad0e"
     },
     "line": {
-      "covered": 54624,
-      "fraction": "54624/76830",
-      "total": 76830
+      "covered": 54630,
+      "fraction": "54630/76834",
+      "total": 76834
     }
   },
   "aggregate_reviewed_thresholds": {
     "branch": {
-      "covered": 26111,
-      "fraction": "26111/44870",
-      "total": 44870
+      "covered": 26117,
+      "fraction": "26117/44876",
+      "total": 44876
     },
     "line": {
-      "covered": 54624,
-      "fraction": "54624/76830",
-      "total": 76830
+      "covered": 54630,
+      "fraction": "54630/76834",
+      "total": 76834
     }
   },
   "critical_reviewed_thresholds": [
@@ -428,11 +428,11 @@
     }
   ],
   "review": {
-    "reviewer": "Codex /root+r19_threshold_metric_review+r19_threshold_binding_review",
-    "reviewed_at": "2026-07-17T14:46:01Z",
-    "diagnostic_run_id": "step4-coverage-20260717-diagnostic-r19",
-    "evidence_path": "docs/9.3.4/evidence/step-4/step4-coverage-diagnostic-r19-threshold-review-20260717.md",
-    "evidence_sha256": "7c1c1ae1a5d22c170f3b064830bc6803b5b12a9192dc4b5c29507ce5001b00ec",
+    "reviewer": "codex-governed-cfreeze-review",
+    "reviewed_at": "2026-07-23T07:14:35Z",
+    "diagnostic_run_id": "step4-v934-runtime-image-inspect-remediation-diagnostic-20260723-r16",
+    "evidence_path": "docs/9.3.4/evidence/step-4/step4-runtime-image-inspect-remediation-diagnostic-r16-threshold-review-20260723.md",
+    "evidence_sha256": "b36a6883395bfd59a58d5836f04b815e12a5735d784677393834cb330ac919eb",
     "decision": "confirm-observed-thresholds"
   }
 }

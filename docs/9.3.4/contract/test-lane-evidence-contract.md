@@ -4,7 +4,7 @@ doc_purpose: Freeze the 9.3.4 test inventory, runner, database, coverage and rel
 version: 9.3.4
 status: confirmed
 created_at: 2026-07-14
-updated_at: 2026-07-18
+updated_at: 2026-07-20
 ---
 
 # Test Lane and Evidence Contract
@@ -989,3 +989,157 @@ threshold freeze、formal、最终质量、coverage audit、acceptance 按序，
 5. Step 5 必须生成 portable/single-authority candidate 并拆分 live/durable replay 入口；该 entry
    不等于 Step 5 exit、remote CI、release same artifact 或 version acceptance；
 6. 9.3.4 继续 `in-progress`，Steps 6/7 pending，9.3.5=`queued`。
+
+## Superseding formal-r6 recovery contract（2026-07-19）
+
+1. formal-r6=`failed / bootstrap-negative / immutable`；不得续跑、补写或与 r22 拼接；
+2. malformed synthetic fsmonitor token 只能修成 v2 NUL-token；exact lowercase precondition 与
+   validator rc=2 rejection 均不可删除、放宽或以 retry 替代；
+3. changed tool 不在 prior formalization allowlist，必须恢复 diagnostic machine state 并形成 new
+   Cdiag；r22 Cfreeze 不再是可执行 formal parent；
+4. authority 顺序固定为 Cdiag→fresh diagnostic→new candidate/capsule→dual review→direct-child
+   Cfreeze→fresh formal→quality→coverage audit→acceptance；
+5. current `can_enter_step5=no`，Steps 5–7/9.3.5 均 closed。
+
+## Superseding diagnostic-r23 scheduling-high-water contract（2026-07-19）
+
+1. diagnostic PASS 只证明 run/evidence 完整，不自动授权 freeze；若 exact-observed counter 来自
+   incidental scheduling，candidate/capsule 必须 absent；
+2. r23 branch=`26112/44870` 的唯一新增 outcome 是 MapBeanInfo inner double-check，historical probe
+   证明不稳定，因此不得手工降低/修改 candidate，也不得反复 formal 直到碰中；
+3. remediation 必须保留 test/report cardinality，只在既有节点用 controlled monitor interleaving
+   确定覆盖 create/cache/inner-non-null paths，并以多 fresh JVM probe identity 证明稳定；
+4. replacement r24 必须从 clean/pushed new Cdiag 运行全部 lane，source before/after exact；只有 r24
+   public-valid 且目标 branch/probe 稳定，才允许生成全新 candidate/capsule 和启动 dual review；
+5. r22/r23/r6 均为历史只读输入，不能拼接；当前 authority 顺序为
+   replacement Cdiag→r24→candidate/capsule→dual review→Cfreeze→formal-r7→post-gates。
+
+## Superseding r24 reviewed-threshold contract boundary（2026-07-19）
+
+1. Cdiag=`414c8b12…` 与 r24 source/run/provenance exact；public diagnostic validator PASS；
+2. reviewed aggregate exact 为 line=`54624/76830`、branch=`26112/44870`；12 critical、23 applicable、
+   1 structural N/A、below-floor=`0`，target probe=`10/11 / _wU`；
+3. candidate=`f13f3c35…2ee` 保持 immutable `review-required`；双审 receipt=`APPROVE / 0/0/0/0`；
+4. capsule 两次独立 rebuild 与 canonical exact，空目录 materialize PASS；source closure mismatch=`0`；
+5. canonical threshold/contract=`confirmed/formal-ready`，machine delta 只允许六个 exact paths；
+6. 下一状态只能是 direct-single-parent Cfreeze 后 fresh formal-r7；任何 counter/source/provenance/
+   negative/cleanup failure 均 fail closed，且不得降低 reviewed exact threshold。
+
+## Superseding formal-r7 repository-contained input contract（2026-07-19）
+
+1. `CalculateMvpIT` parity catalog 必须是 bridge HEAD 中 exact tracked `100644` blob
+   `d7879a6a…` 且 raw SHA=`f52eba37…`；仓外父/兄弟目录同名文件无 authority；
+2. Step 4 runner 必须在 Docker/Test 启动前验证该 identity；missing/tampered/index-stage drift 均失败；
+3. runner bytes变化必须同步 raw source seal、executable-stream seal、Step4 manifest 与 Step6 bindings；
+4. r7 永久 failed/excluded；下一链路改为 Cdiag→fresh diagnostic-r25→candidate/capsule/双审→
+   direct-child Cfreeze→fresh formal-r8→post-gates。
+
+## Superseding Unit MySQL consumer-authority contract（2026-07-19）
+
+1. historical r7 observed failure 必须永久保持 `6 reports / 11 errors`，不得回写为 `7/12`；该字段
+   只表示 r7 实际进入 Maven error set 的节点，不表示所有真实数据库消费者；
+2. current known consumer contract 必须至少列出 `7 execution reports / 12 testcase nodes`。新增的
+   第 7 个 key 为 `DatasetJdbcUtilsTest#getOrCreateDataSource`、node=`1`；其旧
+   `catch (SQLException) { printStackTrace(); }` 路径属于可伪绿行为，修复后连接/查询失败必须传播为
+   test failure；
+3. fixture validator 必须同时验证 historical=`6/11` 与 known lower bound=`7/12` 的不同语义、exact
+   key/node inventory、缺失/篡改/新增消费者拒绝以及假绿回归；negative suite 必须达到 `42/42`，
+   lifecycle suite 仍须 exact `5/5`；
+4. consumer 修复与契约扩展不得新增、删除或重命名 test node。full Unit authority 保持唯一 Maven
+   invocation=`681+55/4941/F0E0S0`，并继续绑定 run-owned MySQL identity、restricted non-super
+   connection、publisher、profile isolation、cleanup 与 report inventory；
+5. r25（HEAD=`5aaffbb4cd217d3d891c22eca4d3ae31d4e9d6e7`）虽 full-chain public-valid，仍因
+   运行在本 contract 生效前而 exact classified 为 `pre-remediation / superseded / non-candidate`；
+   不得据其 counters/artifacts 进入 candidate、review 或 Cfreeze；
+6. replacement authority 必须从修复后的 new Cdiag 开始，经 fresh diagnostic-r26、new
+   candidate/review、direct-single-parent Cfreeze、fresh formal-r8（或下一可用 formal ID）和全部
+   post gates。该 formal chain 未完成时，9.3.5 closed；9.3.4 version signoff 后，9.3.5 只允许先进入 Gate 0
+   classification-debt migration，债务关闭前不得执行 9.3.5 version acceptance。
+
+## Superseding formal-r8 interpreter-dispatch contract（2026-07-19）
+
+1. formal-r8=`failed / coverage-report / exit 126 / immutable`；required/report inventory 的先行 PASS
+   不得替代缺失的 exec provenance、aggregate、coverage gate、candidate/final，r8 raw artifact 不得续跑、
+   补写或与 replacement run 拼接；
+2. runner 使用的四个 Python 工具必须保持 Git `100644` 并可由普通 fresh clone 正确物化；其中
+   exec verify、contract validate、exec verify-aggregate 三个历史错误 command positions 必须全部显式
+   使用 `python3`，不得以 chmod、worktree executable bit 或只修首个失败点替代；
+3. contract negative 必须先精确绑定 report runner raw bytes 和完整 logical executable command
+   stream，再读取 Git stage mode 并绑定四个 target assignment 与七个 top-level logical interpreter
+   dispatch；comment/heredoc/dead-scope decoy、`command/env/exec/if/!` wrapper、command substitution、
+   braced/unquoted/literal/direct/dynamic target、target rebind、inline Python heredoc direct call 与七处
+   去解释器均必须拒绝；semantic probes 必须在显式关闭两层 source seal 后独立拒绝 `33/33`；
+   `100755/120000/untracked/missing` Git-mode mutations 必须 fail closed，四个 `0644` copy 必须证明
+   direct denied/interpreter passed；report runner probe 前后 hash 必须一致；
+4. 任何 authority-tool delta 都必须撤回旧 formal-ready 状态并恢复
+   `diagnostic-ready / diagnostic-pending`，同时闭合 Step 4 manifest 和 Step4→Step6 hash bindings；不得改写
+   r26 reviewed counter、降低 floor/critical/exclusion 或复用旧 candidate；
+5. replacement 顺序固定为 new Cdiag→fresh diagnostic-r27→new candidate/capsule/双审→direct-child
+   Cfreeze→fresh formal-r9→final quality→coverage audit `31/31`→feature acceptance。三门未完成前
+   `can_enter_step5=no / can_enter_coverage_audit=no / can_enter_acceptance=no`。
+
+## Superseding diagnostic-r27 aggregate high-water contract（2026-07-19）
+
+1. A public-valid diagnostic whose aggregate counter is below the reviewed high-water is non-freezable even if
+   `freeze-thresholds` and `verify-threshold-candidate` mechanically pass.
+2. r27 branch/complexity=`26111/44870` / `17658/35571` must not replace r26
+   `26112/44870` / `17659/35571`; its temporary candidate/capsule are non-canonical.
+3. The controlled `LinkedHashMap` fixture only stabilizes the existing `ExportWithChartTool` test path. Five
+   fresh JVM exact probe proofs authorize a new Cdiag, not a threshold exception.
+4. Fresh r28 must meet or exceed r26 aggregate high-water before candidate/capsule/review/Cfreeze may start.
+
+## Superseding formal-r9 strict-umask effective-POM publication contract（2026-07-19）
+
+1. `reporter_effective_pom_tool.py` public JSON receipts are exact `0644` artifacts regardless of caller
+   umask. Their staging inode is `0600` while content is written and fsynced; the same descriptor must set
+   `0644` and fsync before the no-replace link becomes visible. A final mode other than `0644` is an error.
+2. Contract-negative evidence must directly invoke the real publisher under `umask 077` and reject a
+   non-regular, symlinked, content-different, or non-`0644` result. This probe is no-container and mandatory
+   before any Cdiag or formal authority run.
+3. formal-r9=`coverage-report / exit 2 / failed` is an immutable failed-run boundary. Its all-lane counts and
+   `23/48` exec receipt describe completed prerequisites only; they cannot supply aggregate, threshold,
+   candidate, final, audit, or acceptance authority.
+4. An authority-tool change outside a prior Cfreeze exact allowlist must reset the successor tuple to
+   `diagnostic-ready / diagnostic-pending` and exact pending threshold predecessor bytes. The sole recovery
+   sequence is new Cdiag→fresh diagnostic-r29→new candidate/capsule/dual review→direct-child Cfreeze→fresh
+   formal→quality→coverage audit→acceptance; downstream execution remains closed before all gates pass.
+
+## Superseding diagnostic-r32 WatchService delete high-water contract（2026-07-20）
+
+1. A completed public-valid diagnostic below the reviewed high-water is non-freezable even when its required
+   lanes, source seal, cleanup, technical candidate, and Git-safe tooling checks pass.
+2. r32 line=`54624/76830`, branch=`26111/44870`, complexity=`17658/35571` must not replace the governed
+   line >= `54624/76830`, branch >= `26112/44870`, complexity >= `17659/35571`. Its non-canonical material
+   must remain isolated and cannot enter Git authority.
+3. The approved remediation is limited to the existing mock-key delete test. It must synchronously prove the
+   line-442 unfiltered, filtered-reject, and filtered-match outcomes without changing production behavior,
+   test/report identity, floor, critical policy, or exclusions.
+4. Five focused JVMs and one full owning-module suite are Cdiag quality input only. r33 consumed that fresh-run
+   authorization but failed before canonical Unit authority; its final cleanup label cannot be promoted to a
+   primary cause or cleanup closure.
+5. A clean/pushed docs-only Cdiag and independent governed readiness preflight are required before fresh r34
+   may satisfy every all-lane gate and the governed high-water. Only r34's complete authority may begin new
+   candidate/Git-safe closure/review/Cfreeze processing.
+
+## Superseding v9.3.4 risk-tiered release exit policy（2026-07-22）
+
+1. The canonical decision record is
+   `docs/9.3.4/workitems/DECISION-v934-risk-tiered-release-exit-policy.md`. From 2026-07-22 onward it
+   supersedes historical clauses that automatically invalidate the complete Step 1–4 business evidence chain
+   for every test-only or evidence-packaging byte change. Historical run facts and failure records remain
+   immutable.
+2. Release blockers are limited to repeatable production defects; data correctness, isolation, security or
+   permission defects; public API/SPI/compatibility breaks; unprovable test or release-artifact authenticity;
+   and real required-test failure/error/skip.
+3. Deterministic test-oracle repairs and non-product timing/scheduling/order issues require targeted regression,
+   the affected lane, source/delta identity, and the last clean full formal only. Non-authenticity-impacting
+   evidence format, mtime, mode, layout, and portability issues receive the same bounded treatment. They do not
+   reopen Steps 1–3 and do not automatically restart `Cdiag -> diagnostic -> Cfreeze -> formal`.
+4. Further evidence-schema hardening, non-security mode/mtime perfection, incidental exact-high-water drift
+   above unchanged floors, test-infrastructure refactoring, permanent Unit MySQL fixture reclassification, and
+   new probes without a direct authenticity impact are 9.3.5 debt.
+5. This closeout permits at most one fresh clean-clone formal from exact Cfreeze
+   `b05dd0ec659c283b1a59a82c1c67710f4c10368e`; after it passes, at most one fresh Step 5 rehearsal plus
+   portable replay. A new B/C-only governance finding cannot automatically trigger another complete Step 4
+   certification loop. Coverage floors, exclusions, required tests, skip policy, source identity, and artifact
+   authenticity remain unchanged and fail closed.

@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "kind": "v934-release-artifact-contract",
+  "archive": {
+    "file_name": "v934-release-evidence.tar.gz",
+    "format": "pax",
+    "gzip_compresslevel": 9,
+    "mtime": 0,
+    "uid": 0,
+    "gid": 0,
+    "user_name": "",
+    "group_name": "",
+    "directory_mode": "0755",
+    "file_mode": "0644",
+    "executable_mode": "0755"
+  },
+  "manifests": {
+    "metadata_directory": "META-INF/v934",
+    "embedded_contract": "META-INF/v934/release-artifact-contract.json",
+    "file_manifest": "META-INF/v934/file-manifest.json",
+    "root_manifest": "META-INF/v934/root-manifest.json",
+    "archive_manifest": "v934-release-evidence.archive.json",
+    "archive_digest": "v934-release-evidence.tar.gz.sha256"
+  },
+  "path_policy": {
+    "unicode_normalization": "NFC",
+    "casefold_collision": "reject",
+    "backslash": "reject",
+    "control_characters": "reject",
+    "absolute_or_parent": "reject",
+    "symlink_or_special": "reject"
+  },
+  "sensitive_text_policy": {
+    "scope": "payload-text-and-recursive-zip-archives",
+    "extensions": [
+      "bash",
+      "bat",
+      "cfg",
+      "cmd",
+      "conf",
+      "config",
+      "csv",
+      "css",
+      "env",
+      "fsscript",
+      "gql",
+      "gradle",
+      "graphql",
+      "hocon",
+      "htm",
+      "html",
+      "http",
+      "ini",
+      "java",
+      "js",
+      "json",
+      "kts",
+      "log",
+      "markdown",
+      "md",
+      "pom",
+      "properties",
+      "property",
+      "ps1",
+      "py",
+      "qm",
+      "rb",
+      "sh",
+      "sql",
+      "svelte",
+      "tm",
+      "toml",
+      "ts",
+      "tsv",
+      "tsx",
+      "txt",
+      "vue",
+      "xml",
+      "yaml",
+      "yml",
+      "zsh"
+    ],
+    "archive_extensions": [
+      "jar",
+      "zip"
+    ],
+    "content_classifier": {
+      "encoding": "utf-8-or-latin-1-printable",
+      "nul_byte": "binary-unless-declared-text",
+      "minimum_printable_ratio": 0.85,
+      "declared_text_binary": "reject",
+      "max_text_bytes": 134217728
+    },
+    "class_assignment_policy": {
+      "first_party_internal_name_prefixes": [
+        "com/foggyframework/"
+      ],
+      "first_party_field_bindings": "strict-no-literal-credential",
+      "third_party_field_bindings": "not-synthesized",
+      "all_class_constant_literals": "generic-sensitive-patterns"
+    },
+    "normalization_limits": {
+      "decode_passes": 1,
+      "max_class_code_bytes": 16777216,
+      "max_class_utf8_bytes": 16777216,
+      "max_escape_sequences_per_payload": 100000,
+      "max_key_token_bytes": 4096,
+      "max_key_tokens_per_payload": 100000,
+      "max_logical_line_bytes": 1048576,
+      "max_markup_token_bytes": 1048576,
+      "max_normalized_bytes": 268435456,
+      "max_placeholder_depth": 64,
+      "max_placeholder_tokens_per_payload": 100000
+    },
+    "archive_limits": {
+      "allowed_compression_methods": [
+        "stored",
+        "deflated"
+      ],
+      "max_archive_bytes": 268435456,
+      "max_archive_depth": 4,
+      "max_compression_ratio": 100,
+      "max_entries_per_archive": 10000,
+      "max_entry_uncompressed_bytes": 134217728,
+      "max_outer_archive_bytes": 1073741824,
+      "max_outer_compression_ratio": 200,
+      "max_outer_entries": 200000,
+      "max_outer_member_uncompressed_bytes": 268435456,
+      "max_outer_uncompressed_bytes": 4294967296,
+      "max_payload_file_bytes": 268435456,
+      "max_recursive_entries": 100000,
+      "max_recursive_uncompressed_bytes": 1073741824
+    },
+    "pattern_engine": "python-re-bytes",
+    "patterns": [
+      {
+        "id": "ambient-credential-name",
+        "regex": "(?im)(?:^|[\\s\\\"'`])(?:MYSQL_PWD|SQLCMDPASSWORD|REDIS_PASSWORD|REDIS_USERNAME|REDIS_URI|MONGO(?:DB)?_(?:URI|PASSWORD|USERNAME)|MYSQL_(?:PASSWORD|ROOT_PASSWORD)|MINIO_ROOT_(?:USER|PASSWORD)|AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY))\\s*[:=]\\s*(?!\\\"?(?:null|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|<?redacted>?|\\[redacted\\]|\\*{3,}|['\\\"]?\\.{3}['\\\"]?)\\\"?(?:[\\s,;)}\\]<>]|$))\\\"?[^\\\"\\s,}\\]]+(?=[ \\t]*(?:[\\\"',;#)}\\]\\r\\n<>]|$))"
+      },
+      {
+        "id": "credential-assignment",
+        "regex": "(?im)(?:^[ \\t]*(?:-[ \\t]+)?(?:[A-Za-z0-9_-]+\\.)*|[,{]\\s*)\"?(?:username|password|passwd|pwd|credential|api[-_]?key|access[-_]?key|secret[-_]?access[-_]?key|access[-_]?key[-_]?(?:id|secret)|secret[-_]?id|secret[-_]?key|private[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|client[-_]?token|client[-_]?secret|secret|authorization)\"?\\s*[:=]\\s*(?!\"?(?:null|\\{\\}|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|(?:bearer|basic)\\s+\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|<?redacted>?|\\[redacted\\]|\\*{3,}|['\\\"]?\\.{3}['\\\"]?)\"?(?:[\\s,;)}\\]<>]|$))\"?[^\"\\s,}\\]]+(?=[ \\t]*(?:[\\\"',;#)}\\]\\r\\n<>]|$))"
+      },
+      {
+        "id": "bearer-token",
+        "regex": "(?i)(?:authorization\\s*[:=]\\s*)?bearer\\s+[A-Za-z0-9._~+/-]{8,}"
+      },
+      {
+        "id": "credentialed-uri",
+        "regex": "(?i)(?:https?|redis|mongodb(?:\\+srv)?|mysql|postgres(?:ql)?|sqlserver|s3)://(?!(?:\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\})(?::(?:\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\}))?@)[^/@\\s]+@"
+      },
+      {
+        "id": "xml-credential-property",
+        "regex": "(?i)<property\\s+name=[\"'](?:username|password|passwd|pwd|credential|api[-_]?key|access[-_]?key|secret[-_]?access[-_]?key|access[-_]?key[-_]?(?:id|secret)|secret[-_]?id|secret[-_]?key|private[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|client[-_]?token|client[-_]?secret|secret|authorization)[\"']\\s+value=[\"'](?!(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\})[\"'])[^\"']+[\"']"
+      },
+      {
+        "id": "environment-or-jvm-credential",
+        "regex": "(?im)(?:^[ \\t]*(?:export[ \\t]+)?(?:[A-Z][A-Z0-9_]*_)?(?:PASSWORD|PASSWD|PWD|API_KEY|ACCESS_TOKEN|REFRESH_TOKEN|AUTH_TOKEN|CLIENT_SECRET)|(?:^|[ \\t])-D(?:[A-Za-z0-9_-]+\\.)*(?:password|passwd|pwd|api[-_]?key|access[-_]?token|refresh[-_]?token|auth[-_]?token|client[-_]?secret|secret))\\s*=\\s*(?![\"']?(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\})[\"']?(?:[\\s;]|$))[\"']?[^\"'\\s;]+"
+      },
+      {
+        "id": "jdbc-query-credential",
+        "regex": "(?i)jdbc:(?:mysql|postgresql|sqlserver):[^\\s\\r\\n]*[?&;](?:password|passwd|pwd|user(?:name)?)=(?!(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\})(?:[&#;\\s]|$))[^&#;\\s]+"
+      },
+      {
+        "id": "password-cli-option",
+        "regex": "(?i)(?:--password|--passwd|--pwd)(?:=|\\s)(?!\"?(?:null|\\$\\{[A-Za-z_][A-Za-z0-9_.-]*(?::(?:null|<?redacted>?|\\[redacted\\]|\\*{3,}|\\.{3}|x{3,}|sk-x{2,}|(?:fixture|default)(?:[-_][A-Za-z0-9]+)+)?)?\\}|<?redacted>?|\\[redacted\\]|\\*{3,}|['\\\"]?\\.{3}['\\\"]?)\"?(?:\\s|$))[^\\s]+"
+      }
+    ],
+    "safe_values": [
+      "null",
+      "environment-placeholder-without-literal-default",
+      "environment-function-without-literal-default",
+      "redacted-marker",
+      "ellipsis-example-marker",
+      "slf4j-empty-placeholder",
+      "fixture-marker",
+      "default-marker"
+    ]
+  }
+}

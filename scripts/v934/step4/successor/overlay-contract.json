@@ -21,17 +21,33 @@
       "scripts/verify-v934-external-mysql.sh",
       "scripts/verify-v934-external-vector.sh",
       "scripts/verify-v934-preagg-addon-lifecycle.sh",
+      "scripts/v934/step3/database_state_probe_callback.sh",
+      "scripts/v934/step3/provision-database-cell.sh",
       "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java",
       "foggy-dataset/src/test/resources/application.yml",
+      "foggy-dataset/src/main/java/com/foggyframework/dataset/utils/DataSourceFactory.java",
+      "foggy-fsscript/src/main/java/com/foggyframework/fsscript/exp/DefaultExpFactory.java",
+      "foggy-fsscript/src/main/java/com/foggyframework/fsscript/exp/FunTable.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationEdgeCaseTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationDataValidationTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationL2CacheIT.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIT.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIT.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStoreTest.java",
       "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent/ModelBuildSingleFlightTest.java",
-      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java"
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/refresh/CatalogRefreshCoordinatorBehaviorTest.java",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaComposeScriptToolErrorSnapshotTest.java",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaDomainQuestionNeutralRunnerSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/compilation/JavaComposeSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/runtime/JavaComposeScriptSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/compose/security/JavaGovernanceSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotDomainSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/JavaPivotOutputSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/FormulaParitySnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/JavaSemanticScaleSnapshotTest.java",
+      "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/parity/TimeWindowParitySnapshotTest.java"
     ],
-    "sha256": "8f989dc2d267dde8192886e0ea5db0246aca100c27ca6cd6381b03ce65c03827"
+    "sha256": "5c59b07e2afd9fa2a3319e2e007d473f86e5d4773e45b610fd4253e20f61f19f"
   },
   "frozen_semantics": {
     "addon": {
@@ -129,11 +145,13 @@
       "foggy-dataset-model/pom.xml",
       "foggy-dataset/src/test/resources/application.yml",
       "scripts/verify-v934-unit.sh",
-      "scripts/verify-v934-integration.sh"
+      "scripts/verify-v934-integration.sh",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaComposeScriptToolErrorSnapshotTest.java",
+      "foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/tools/JavaDomainQuestionNeutralRunnerSnapshotTest.java"
     ],
     "source_inventory": "scripts/v934/successor/step2/source-inventory.tsv"
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "step4_runtime_bindings": {
     "scripts/v934/step4/authority_parent_lib.sh": "35024328ec6f181f4454a36b702f76c20dfd049af8a38a84b5f3117ac94254fa",
     "scripts/v934/step4/authority_parent_negative_test.sh": "2329d6211d51f673b29aae407e4e0a1f99af2f5bac0425d56cade3d1e1c148ca",
@@ -141,21 +159,21 @@
       "diagnostic": {
         "contract_status": "diagnostic-ready",
         "publication_status": "diagnostic-ready",
-        "sha256": "15dae282395d920ffb3d2aae4c518f0d1c8be09aaed8b08e40044f9d9bc6b0b0"
+        "sha256": "0a948febf6a93c76d47533929977fa311e7421c308b0940e68ec3e7065c753b2"
       },
       "formal": {
         "contract_status": "formal-ready",
         "publication_status": "formal-ready",
-        "sha256": "6b5e03002ab10bb921d6cb06a4ff3472f2b0605524da6f0f9dc65452a8a21160"
+        "sha256": "5107aad524da7f309acc939c2e1698dfe10e88822749806fdbf441c8ae9412be"
       },
       "kind": "workflow-dual-sha256"
     },
-    "scripts/v934/step4/coverage-report-amendment.tsv": "998ae49927721576c26327b8477010b0238843565e6afdbc70987e97544a028c",
+    "scripts/v934/step4/coverage-report-amendment.tsv": "c1aa8b86e7280a4014fb1d6131e3f6ca0d42f7b024648b4cec22242357f52cd6",
     "scripts/v934/step4/coverage_runner_lib.sh": "ecbb9ce810d61280542a694a3e977d123ebfc3de83599252bdfd9dbe407ce383",
-    "scripts/v934/step4/coverage_tool.py": "965ec00d76fe4a91e903ba140c3a5ca4b5aa69854bffcdcdf5c1d544aeccbb13",
-    "scripts/v934/step4/step2-report-view-contract.json": "545853cecfb3129a49a3fa3b2d8c0c3aef31f737c032097a3e6e68846accc7c9",
-    "scripts/v934/step4/step2_report_view_tool.py": "1258f65c8ed1a8969766031a8356a10014a41936190de741ed6210a58716863c",
-    "scripts/v934/step4/unit-mysql57-fixture-contract.json": "7aa1e21aef85b51a13aacc8c134a1c363c595deffbfb3acf6aafdb942519b53a"
+    "scripts/v934/step4/coverage_tool.py": "71acc7a133dab7c4542c87ec4a4c4cb7a8b20bb136e480f3fb71315fe122db6e",
+    "scripts/v934/step4/step2-report-view-contract.json": "559add41ac9e6e1902fa104472996dd5bdb534851b6f73902c1da9d5d3d3a1e0",
+    "scripts/v934/step4/step2_report_view_tool.py": "5f0ddb4ea974d5f26f50daacbb48ac3eaf9269dcf92f342c11c2158ff4a15e0d",
+    "scripts/v934/step4/unit-mysql57-fixture-contract.json": "a64cacd959e7a9436a1dcd893d808a0e409d95005bbcc4ecba17bd32a6f36a5b"
   },
   "successors": {
     "addon": {
