@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-V934-FSSCRIPT-FORMAL-TMUX-OWNER-RECOVERY-REPLAN
-status: APPROVED
+status: ULTRA_EXECUTING
 canonical: true
 execution_mode: ultra
 approved_by: project-owner-via-explicit-tmux-recovery-authorization
@@ -199,7 +199,7 @@ open_questions: []
   PID=PGID=SID for the pane process and exact retained `pane_dead_status=7`; probe server cleaned.
 - deviations: none
 - residual_risks: pending
-- readiness: APPROVED — awaiting clean/pushed activation before r10 tmux-owned formal execution
+- readiness: ULTRA_EXECUTING — this exact two-field transition is the activation identity for r10 tmux-owned formal execution
 
 ## References
 
