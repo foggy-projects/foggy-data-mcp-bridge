@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.3.4
 ticket: BUG-STEP5-RUNTIME-IMAGE-INSPECT-MERGE-REGRESSION-REMEDIATION
-status: ULTRA_EXECUTING
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 approved_by: release-owner-via-explicit-remediation-authorization
@@ -97,38 +97,38 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: APPROVED plan is a clean pushed child of the r13 result; activation
+- [x] AC-1: APPROVED plan is a clean pushed child of the r13 result; activation
   is its clean pushed single-parent child and changes only this file from
   `APPROVED` to `ULTRA_EXECUTING` plus readiness.
-- [ ] AC-2: portable exact command and matching single-record parser are
+- [x] AC-2: portable exact command and matching single-record parser are
   restored atomically; strict field count, ID shape and linux/amd64 policy
   remain unchanged.
-- [ ] AC-3: Docker-free regression accepts the canonical portable record and
+- [x] AC-3: Docker-free regression accepts the canonical portable record and
   rejects the real `println` double-terminal-LF shape, extra/multiple records,
   malformed delimiter/field count, malformed ID and wrong platform as
   `E_IMAGE`; receipt/privacy behavior remains unchanged.
-- [ ] AC-4: Python syntax, package negative suite, Step4/5/6 manifests, Step4
+- [x] AC-4: Python syntax, package negative suite, Step4/5/6 manifests, Step4
   contract/static negatives and Step6 workflow/negative validators pass for
   the exact declared closure.
-- [ ] AC-5: changed source is committed and pushed cleanly; protected original
+- [x] AC-5: changed source is committed and pushed cleanly; protected original
   workspace and all out-of-scope files remain unchanged.
-- [ ] AC-6: one reviewed diagnostic-ready source input leads to exactly one
+- [x] AC-6: one reviewed diagnostic-ready source input leads to exactly one
   fresh tmux-owned Step4 authority chain on a clean non-shallow clone. Required
   lanes, Addon, coverage floor/critical set, source seal, cleanup and public
   artifact verification all pass with F/E/S=0.
-- [ ] AC-7: only after AC-6, exactly one clean-environment direct package
+- [x] AC-7: only after AC-6, exactly one clean-environment direct package
   invocation runs from the same-source Step4 release root. Success requires
   exit 0, no failure receipt, internal `verified=true`, exact JAR/image/
   embedded-JAR identity, source/classes/reports invariance and cleanup.
-- [ ] AC-8: success is recorded only as
+- [x] AC-8: success is recorded only as
   `package-context-passed-non-authoritative`; failure requires a valid fixed
   receipt and fail-closed category. Missing/invalid receipt, identity drift,
   cleanup failure or nonzero Step4 result is inconclusive and forbids retry.
-- [ ] AC-9: owned package output, receipt, tmux/control and Docker residue are
+- [x] AC-9: owned package output, receipt, tmux/control and Docker residue are
   removed; source, Step4 input, pointers and original workspace remain
   unchanged; evidence contains no raw environment, image/container identity,
   endpoint, credential or temporary path.
-- [ ] AC-10: result is committed/pushed and this item becomes
+- [x] AC-10: result is committed/pushed and this item becomes
   `READY_FOR_SIGNOFF` only after AC-1..AC-9. No canonical Step5 execution
   occurs; its next rehearsal requires a separate owner-governed contract.
 
@@ -213,15 +213,50 @@ open_questions: []
 
 ## Implementation Result
 
-> 由执行会话填写。
+> The governed remediation completed with
+> `package-context-passed-non-authoritative`.
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
+- implementation_summary: atomically restored the historical portable
+  delimiter inspect format and matching single-record parser; corrected the
+  Docker-free fixture's terminal-newline fidelity; retained strict engine-ID
+  and linux/amd64 validation, fixed receipt semantics and fail-closed cleanup;
+  refreshed the exact Step4/5/6 integrity closure; completed one fresh Step4
+  diagnostic/formal/release sequence and one same-source clean-environment
+  direct package proof.
+- changed_paths:
+  - `scripts/v934/step5/release_package_tool.py`
+  - `scripts/v934/step5/SHA256SUMS`
+  - `scripts/v934/step4/SHA256SUMS`
+  - `scripts/v934/step4/coverage-contract.json`
+  - `scripts/v934/step4/coverage-thresholds.json`
+  - `scripts/v934/step6/SHA256SUMS`
+  - `scripts/v934/step6/ci-contract.json`
+  - `scripts/v934/step6/ci_contract_tool.py`
+  - scoped Step4 diagnostic/quality freeze evidence under `docs/9.3.4`
+  - `docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-merge-regression-remediation-r19-passed-20260723.md`
+  - this work item
+- tests_and_results: Python syntax passed; package Docker-free negative/self-test
+  120/120 passed; Step4/5/6 checksum manifests, Step4 contract/static negatives
+  and Step6 workflow/negative validators passed. r16 diagnostic, r17 formal and
+  r18 release each completed with 774 required executions, 59 structural
+  reports, 5709 required test cases, two Addon reports and six Addon test cases,
+  Failures=0, Errors=0, Skipped=0. Aggregate coverage was 54630/76834 lines and
+  26117/44876 branches; all 12 critical classes met their floors. The sole r19
+  package invocation exited 0 with internal `verified=true`, exact
+  JAR/image/embedded-JAR identity and no failure receipt.
+- manual_or_experience_evidence: r19 ran in a separate private tmux process
+  after removing all eight prohibited Maven/JVM control names. Source, class
+  tree and report seals were invariant; Docker/package cleanup was exact; no
+  owned output, receipt, tmux control, image tag or readback container remained;
+  canonical Step5 and pointers were untouched; the protected original
+  workspace and v9.3.5 user changes remained unchanged.
 - deviations: none
-- residual_risks: pending
-- readiness: ULTRA_EXECUTING
+- residual_risks: the passing result is deliberately non-authoritative and
+  does not cover canonical Step5 archive/candidate/pointer or portable replay.
+  Those operations require a separately approved owner-governed execution.
+- readiness: READY_FOR_SIGNOFF — source, integrity, fresh Step4 authority and
+  one-shot package component proof are complete; independent signoff is the
+  next permitted action.
 
 ## References
 
@@ -233,3 +268,5 @@ open_questions: []
   `docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-merge-regression-r13-confirmed-20260723.md`
 - superseded remediation:
   `docs/9.3.4/workitems/BUG-step5-runtime-image-inspect-format-remediation.md`
+- completed remediation evidence:
+  `docs/9.3.4/evidence/step-5/step5-runtime-image-inspect-merge-regression-remediation-r19-passed-20260723.md`
