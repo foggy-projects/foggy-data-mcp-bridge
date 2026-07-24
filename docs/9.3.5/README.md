@@ -3,7 +3,7 @@ doc_role: version_execution_index
 version: 9.3.5
 status: ready / speed-forward
 entry_gate: 9.3.4-owner-carried-forward
-first_execution_gate: Gate-0-classification-debt-migration
+first_execution_gate: Gate-0-classification-debt-migration-closed
 validation_mode: affected-tests
 final_acceptance: deferred-to-9.4.0-integrated-acceptance
 recorded_at: 2026-07-24
@@ -16,6 +16,14 @@ recorded_at: 2026-07-24
 9.3.5 已按 repository owner 的 speed-forward 决定开放实施。9.3.4 使用既有证据
 carry forward，不再等待 replacement Step 7、final authority pointer 或独立 version signoff。
 Gate 0 仍是第一个开发切片，但通过其受影响测试后即可立即进入后续 API 工作。
+
+## 当前进度
+
+- Gate 0 已选择 Option A 并关闭：7 个真实 DB suite / 12 个 node 已迁入 Failsafe
+  `mysql57-it` lane。
+- 默认 Unit datasource 已恢复为 hermetic H2；专用 MySQL profile 缺少配置时 fail closed。
+- fresh 受治理 MySQL 5.7 run 为 7 reports / 12 nodes / F0E0S0。
+- 当前执行切片：QueryFacade request/result DTO 与外部调用入口收敛。
 
 ## 已确认目标
 

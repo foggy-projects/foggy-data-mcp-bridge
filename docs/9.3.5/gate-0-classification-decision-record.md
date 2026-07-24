@@ -1,70 +1,76 @@
 ---
-doc_role: preexecution_decision_record
+doc_role: implementation_decision_record
 version: 9.3.5
 gate: Gate-0-unit-mysql57-fixture-classification
-status: DRAFT / awaiting-9.3.4-version-signoff
-decision_owner: pending
-baseline_commit: 0bfe75a9eee8277077d218654fcb6b353857589c
-recorded_at: 2026-07-20
+status: CLOSED / option-A-governed-db-lane
+decision_owner: repository-owner-speed-forward
+baseline_commit: 3b1c7249ba75b3bab54cb0f898ea1c198e5303d4
+recorded_at: 2026-07-24
 ---
 
-# 9.3.5 Gate 0：Unit MySQL fixture 分类债务决策包
+# 9.3.5 Gate 0：Unit MySQL fixture 分类债务关闭记录
 
-## 目的与边界
+## 决策
 
-本记录把已确认的两条关闭路径、共同 fail-closed 证据和需要项目 owner 作出的选择列清。它不选择路径，
-不改变执行 inventory、测试、runner、POM 或生产代码，也不关闭
-`DEBT-unit-mysql57-fixture-classification-migration`。
+采用 Option A：7 个已确认的真实 MySQL consumer 从默认 Unit lane 迁入模块级 Failsafe DB lane。
+测试类名和 FQCN 保持不变，执行身份改为 `failsafe/mysql57-it`；默认测试上下文改用 hermetic H2，
+不再包含 ambient MySQL listener 或带默认值的 MySQL 凭据。
 
-Gate 0 仅在 9.3.4 version signoff 后作为 9.3.5 的首项执行工作开启；无论选择哪条路径，必须在
-9.3.5 version acceptance 前完成并删除临时例外。
+该决定依据 9.4.0 speed-forward 交付契约直接实施。它关闭
+`DEBT-unit-mysql57-fixture-classification-migration`，不启动 version authority、Step 5/Step 7、
+semantic/portable replay 或 source-seal。
 
-## 已冻结事实
+## 当前 inventory
 
-- r7 的 immutable historical observation 是 6 reports / 11 testcase errors；它不能被改写或用作
-  当前总量。
-- 当前 reviewed lower bound 是至少 7 suites / 12 testcase nodes；它不证明其他 Unit 测试没有 DB
-  访问。
-- `DatasetJdbcUtilsTest#getOrCreateDataSource` 是第 7 个已确认 consumer，执行身份为
-  `v934|8:surefire|4:unit|4:unit|51:com.foggyframework.dataset.fun.DatasetJdbcUtilsTest`，其 1 个
-  testcase node 必须让 JDBC connection 或 `SELECT 1` 的 `SQLException` 直接传播。
-- 9.3.4 的 fresh Step 4 Unit run-owned MySQL 5.7 只提供该版本的临时正确性证据；Step 2 的
-  `none/hermetic/step=2` 绿色不得重新作为正确性证据使用。
+| Suite | Testcase nodes | Runner | Profile | DB owner |
+|---|---:|---|---|---|
+| `com.foggyframework.dataset.db.dialect.FDialectTest` | 2 | Failsafe | `mysql57-it` | run-owned MySQL 5.7 |
+| `com.foggyframework.dataset.fun.DatasetJdbcUtilsTest` | 1 | Failsafe | `mysql57-it` | run-owned MySQL 5.7 |
+| `com.foggyframework.dataset.db.utils.JdbcTableUtilsTest` | 4 | Failsafe | `mysql57-it` | run-owned MySQL 5.7 |
+| `com.foggyframework.dataset.db.fsscript.SyncSqlTableTest` | 1 | Failsafe | `mysql57-it` | run-owned MySQL 5.7 |
+| `com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest` | 2 | Failsafe | `mysql57-it` | run-owned MySQL 5.7 |
+| `com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest` | 1 | Failsafe | `mysql57-it` | run-owned MySQL 5.7 |
+| `com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest` | 1 | Failsafe | `mysql57-it` | run-owned MySQL 5.7 |
 
-## 待 owner 选择的关闭路径
+总计为 7 reports / 12 testcase nodes。机器可读契约位于
+`scripts/v935/gate0/mysql57-classification.json`。9.3.4 的 Surefire execution key、6/11 历史失败观测和
+7/12 reviewed lower bound 保留为历史事实，不再代表当前执行分类。
 
-| Option | Outcome | Required proof | Prohibited shortcut |
-|---|---|---|---|
-| A. 迁入受治理 DB lane | 每个真实 DB consumer 有明确的 DB owner/lane | 更新 inventory、精确 report/testcase mapping、run-owned DB execution、fresh fail-closed run、DB/lifecycle negatives | 复用 ambient listener、只移动测试文件、不更新 execution identity |
-| B. 去除外部 DB 依赖 | `none/hermetic/step=2` 分类重新可证 | 更新 inventory、测试/实现的依赖消除证据、fresh hermetic fail-closed run、连接/异常负例 | catch/print/`assertDoesNotThrow` 吞掉 JDBC exception、仅在本机有 DB 时绿 |
+## 实现边界
 
-选择必须覆盖当前 lower bound 以及实施中发现的每一个真实 DB consumer。若发现新 consumer，先更新机器
-契约与 decision record，并重新通过 fresh Step 4 diagnostic/formal run、质量闸门和覆盖审计，再进入相应
-approved implementation；不得静默新增或删除 frozen execution key。
+- `foggy-dataset` Surefire 明确排除上述 7 个类；显式 Maven profile `mysql57-it` 才把它们加入
+  Failsafe，普通 `verify` 不隐式启动 DB lane。
+- 7 个类显式激活同名 Spring profile `mysql57-it`；profile 只接受
+  `V935_GATE0_MYSQL57_URL/USERNAME/PASSWORD`，没有默认值。
+- `application.yml` 的默认测试 datasource 为进程内 H2，仅用于不要求外部数据库的 Spring context
+  测试。
+- `DatasetJdbcUtilsTest#getOrCreateDataSource` 仍直接传播 JDBC connection 或 `SELECT 1` failure；
+  不允许 catch/print/`assertDoesNotThrow` 假绿。
+- 原 `scripts/v934/step4/unit-mysql57-fixture-contract.json` 不改写，继续作为 9.3.4 历史契约。
 
-## 共同验收与负例
+## Fresh 关闭证据
 
-- [ ] 更新后的 inventory 明确每个 consumer 的 execution identity、DB/infra 分类、report 与 testcase
-  cardinality；差异由审批记录解释。
-- [ ] clean/fresh run 在预期基础设施缺失、错误、stale 或 tampered 时 fail closed，且没有 skip 或
-  ambient fallback。
-- [ ] 正向 run 的报告、testcase、F/E/S、fixture receipt 和 cleanup 能与更新后的 inventory 精确对应。
-- [ ] JDBC connection 或 `SELECT 1` failure 不能被吞掉；选择 A/B 后都保留等价的防假绿负例。
-- [ ] independent quality、coverage audit 与 9.3.5 version acceptance 明确记录债务删除和遗留风险。
+在独立 worktree、基线 `3b1c7249ba75b3bab54cb0f898ea1c198e5303d4` 上完成：
 
-## 决策与执行顺序
+1. `mvn -pl foggy-dataset -am -DskipITs test`
+   - reactor SUCCESS；`foggy-dataset` 默认 Unit 为 93 / F0E0S0；非 DB Spring tests 使用 H2。
+2. 清除三个 `V935_GATE0_MYSQL57_*` 环境变量后，定向 Failsafe invocation 失败，原因为必需 URL
+   placeholder 未解析；证明没有 ambient fallback。
+3. 使用唯一 run-owned `mysql:5.7`、随机 host port 和专用非 root 测试账号执行精确 7 个类；
+   Failsafe 报告为 7、testcase nodes 为 12、F0E0S0。
+4. 临时容器按精确名称停止并由 `--rm` 清理。
 
-1. 9.3.4 version signoff 完成后，project owner 在 A/B 中作出选择，或批准一个不改变两条目标的
-   等价方案。
-2. 为所选路径创建唯一 approved implementation spec，冻结 inventory delta、兼容边界、测试命令与
-   rollback 条件。
-3. 实施只覆盖 Gate 0；发现新增 consumer、范围扩大或无法满足 fail-closed proof 时设置
-   `NEEDS_REPLAN`，不得顺带启动 QueryFacade/API 或模块化重构。
-4. Gate 0 evidence accepted 后，才可按 9.3.5 执行契约进入更广的 phase/public-API 工作。
+可复现入口：`scripts/v935/gate0/verify-mysql57-classification.sh`。该入口只执行 Gate 0 受影响的
+Unit/DB lane 和 fail-closed negative，不承担版本级验收。
+
+## 关闭结论
+
+Gate 0 的 classification debt 已关闭：真实 DB consumers 有明确 runner、profile、fixture owner 和
+fail-closed 配置；默认 Unit lane 恢复 hermetic 分类。speed-forward 可继续 QueryFacade/DTO 切片。
 
 ## References
 
 - governing debt: `docs/9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md`
-- machine contract: `scripts/v934/step4/unit-mysql57-fixture-contract.json`
-- 9.3.5 baseline: `docs/9.3.5/code-inventory.md`
-- roadmap: `docs/9.3.1/roadmap-9.3.1-to-9.4.0.md`
+- historical machine contract: `scripts/v934/step4/unit-mysql57-fixture-contract.json`
+- current machine contract: `scripts/v935/gate0/mysql57-classification.json`
+- canonical delivery contract: `docs/9.4.0/workitems/FEATURE-v934-v940-speed-forward.md`

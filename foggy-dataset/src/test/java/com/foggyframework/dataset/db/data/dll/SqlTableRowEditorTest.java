@@ -8,9 +8,11 @@ import com.foggyframework.fsscript.parser.spi.Fsscript;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Arrays;
 
+@ActiveProfiles("mysql57-it")
 class SqlTableRowEditorTest extends DatasetTestSupport {
     @Autowired
     FileFsscriptLoader fileFsscriptLoader;

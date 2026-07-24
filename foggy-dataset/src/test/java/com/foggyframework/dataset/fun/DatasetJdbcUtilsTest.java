@@ -5,12 +5,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ActiveProfiles;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+@ActiveProfiles("mysql57-it")
 class DatasetJdbcUtilsTest extends DatasetTestSupport {
     @Autowired
     DatasetJdbcUtils datasetJdbcUtils;
