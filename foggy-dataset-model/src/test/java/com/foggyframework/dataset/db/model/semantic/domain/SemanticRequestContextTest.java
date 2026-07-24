@@ -12,6 +12,9 @@ import com.foggyframework.dataset.db.model.spi.QueryModel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,6 +28,21 @@ import static org.mockito.Mockito.when;
  */
 @DisplayName("SemanticRequestContext")
 class SemanticRequestContextTest {
+
+    @Test
+    @DisplayName("domain transport 使用语义层中立契约并兼容 Pivot 实现")
+    void testDomainTransportBoundaryContract() throws NoSuchFieldException, NoSuchMethodException {
+        assertTrue(DomainTransportPlanSpec.class.isAssignableFrom(DomainTransportPlan.class));
+
+        Field plans = SemanticRequestContext.class.getDeclaredField("domainTransportPlans");
+        ParameterizedType listType = assertInstanceOf(ParameterizedType.class, plans.getGenericType());
+        assertEquals(DomainTransportPlanSpec.class, listType.getActualTypeArguments()[0]);
+
+        Method compatibilityGetter = SemanticRequestContext.class.getMethod("getDomainTransportPlans");
+        ParameterizedType compatibilityType = assertInstanceOf(
+                ParameterizedType.class, compatibilityGetter.getGenericReturnType());
+        assertEquals(DomainTransportPlan.class, compatibilityType.getActualTypeArguments()[0]);
+    }
 
     @Test
     @DisplayName("empty() 返回 namespace 和 securityContext 均为 null 的实例")
@@ -218,6 +236,7 @@ class SemanticRequestContextTest {
         assertSame(resolution, pinned.getCatalogResolution());
         assertSame(resolution, transported.getCatalogResolution());
         assertEquals(List.of(plan), transported.getDomainTransportPlans());
+        assertEquals(List.of(plan), transported.getDomainTransportPlanSpecs());
         assertSame(pinned, pinned.withCatalogResolution(new CatalogResolution<>(
                 resolution.canonicalName(),
                 resolution.model(),

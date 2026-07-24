@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.pivot.transport;
 
+import com.foggyframework.dataset.db.model.semantic.domain.DomainTransportPlanSpec;
 import lombok.Builder;
 import lombok.Getter;
 import java.util.List;
@@ -10,8 +11,8 @@ import java.util.List;
  */
 @Getter
 @Builder
-public class DomainTransportPlan {
-    public static final String EXT_DATA_KEY = "pivotDomainTransportPlans";
+public class DomainTransportPlan implements DomainTransportPlanSpec {
+    public static final String EXT_DATA_KEY = DomainTransportPlanSpec.EXT_DATA_KEY;
 
     /**
      * Relation name used by renderers. It is internal SQL identifier text and
@@ -51,6 +52,7 @@ public class DomainTransportPlan {
         }
     }
 
+    @Override
     public int parameterCount() {
         return fields.size() * tuples.size();
     }

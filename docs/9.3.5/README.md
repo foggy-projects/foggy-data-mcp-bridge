@@ -45,6 +45,10 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   `PivotRollupExecutionPort/PivotOuterCacheEvictionPort`；rollup SQL 通过 engine-neutral DTO 桥接，
   Pivot 主实现不再直接依赖 `semantic.service` 或 `engine.compose`。旧 `SemanticQueryServiceV3`
   继续提供兼容桥接，不改变 governed SQL、raw execution 或 serial fallback 行为。
+- semantic request context 内部改为持有 engine-neutral `DomainTransportPlanSpec`；semantic SQL
+  编排只消费中立视图，具体 Pivot plan、builder、renderer 和 ext-data key 均保持原行为。旧
+  `getDomainTransportPlans()/withDomainTransportPlans(...)` 源码与 JVM 签名保留一个兼容周期，
+  避免现有链式调用方发生无过渡期破坏。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
   33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
@@ -52,9 +56,10 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   read-port 切片受影响测试 54/54 通过；Compose port 切片 reactor 编译通过，model 端口/适配器/
   自动配置 16/16、runtime runner/HTTP/CTE bridge/依赖边界 17/17 通过；Pivot semantic-port
   切片 reactor 编译通过，边界/cache/pipeline validation/自动配置 36/36、non-additive
-  UNION ALL SQLite 集成路径 1/1 通过。
-- 当前执行切片：迁移 semantic request context 中的 Pivot transport DTO，并继续拆解 compose
-  compiler 对完整 semantic service 的剩余依赖。
+  UNION ALL SQLite 集成路径 1/1 通过；domain transport contract/renderer/rollup 41/41、
+  大域 transport/diagnostics/SQL parity SQLite 集成路径 3/3 通过。
+- 当前执行切片：拆解 compose compiler/planner 对完整 `SemanticQueryServiceV3` 的剩余依赖，
+  保持 per-request authority 与字段表达式解析能力不降级。
 
 ## 已确认目标
 

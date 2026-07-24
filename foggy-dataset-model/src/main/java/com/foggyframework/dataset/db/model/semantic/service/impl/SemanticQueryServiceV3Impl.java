@@ -21,12 +21,12 @@ import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionPar
 import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheModelIdentityProvider;
 import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheProvider;
 import com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheSafeProvider;
-import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationDiagnostic;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.db.model.port.AdvancedQueryExecutionPort;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.DomainTransportPlanSpec;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -424,9 +424,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private void putDomainTransportPlans(Map<String, Object> extData, SemanticRequestContext context) {
         if (context != null
-                && context.getDomainTransportPlans() != null
-                && !context.getDomainTransportPlans().isEmpty()) {
-            extData.put(DomainTransportPlan.EXT_DATA_KEY, new ArrayList<>(context.getDomainTransportPlans()));
+                && context.getDomainTransportPlanSpecs() != null
+                && !context.getDomainTransportPlanSpecs().isEmpty()) {
+            extData.put(DomainTransportPlanSpec.EXT_DATA_KEY,
+                    new ArrayList<>(context.getDomainTransportPlanSpecs()));
         }
     }
 

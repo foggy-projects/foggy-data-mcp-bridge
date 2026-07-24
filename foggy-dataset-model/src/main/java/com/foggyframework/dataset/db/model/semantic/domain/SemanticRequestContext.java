@@ -45,13 +45,13 @@ public class SemanticRequestContext {
     private final Set<String> fieldAccess;
     private final List<DeniedPhysicalColumn> deniedColumns;
     private final List<SliceRequestDef> systemSlice;
-    private final List<DomainTransportPlan> domainTransportPlans;
+    private final List<DomainTransportPlanSpec> domainTransportPlans;
     private final CatalogResolution<QueryModel> catalogResolution;
 
     private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext,
                                    Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
                                    List<SliceRequestDef> systemSlice,
-                                   List<DomainTransportPlan> domainTransportPlans,
+                                   List<? extends DomainTransportPlanSpec> domainTransportPlans,
                                    CatalogResolution<QueryModel> catalogResolution) {
         this.namespace = namespace;
         this.securityContext = securityContext;
@@ -190,7 +190,23 @@ public class SemanticRequestContext {
      * @return domain transport plans；null 表示无大域传输
      * @since 9.1.0
      */
+    @SuppressWarnings("unchecked")
     public List<DomainTransportPlan> getDomainTransportPlans() {
+        // The compatibility write path below only accepts the legacy Pivot implementation.
+        return (List<DomainTransportPlan>) (List<?>) domainTransportPlans;
+    }
+
+    /**
+     * Returns the engine-neutral view used by semantic orchestration.
+     *
+     * <p>{@link #getDomainTransportPlans()} remains available for one
+     * compatibility cycle so existing Pivot callers keep their source and
+     * binary contract.</p>
+     *
+     * @return immutable transport-plan specifications, or {@code null}
+     * @since 9.4.0
+     */
+    public List<DomainTransportPlanSpec> getDomainTransportPlanSpecs() {
         return domainTransportPlans;
     }
 
