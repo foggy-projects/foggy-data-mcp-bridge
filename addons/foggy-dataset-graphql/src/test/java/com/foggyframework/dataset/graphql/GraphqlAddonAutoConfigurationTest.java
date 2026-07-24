@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.graphql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacade;
 import com.foggyframework.dataset.graphql.controller.GraphqlEndpointController;
 import com.foggyframework.dataset.graphql.converter.GraphqlToDslConverter;
 import org.junit.jupiter.api.Test;

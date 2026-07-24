@@ -15,7 +15,7 @@ recorded_at: 2026-07-24
 
 9.3.5 已按 repository owner 的 speed-forward 决定开放实施。9.3.4 使用既有证据
 carry forward，不再等待 replacement Step 7、final authority pointer 或独立 version signoff。
-Gate 0 仍是第一个开发切片，但通过其受影响测试后即可立即进入后续 API 工作。
+Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内部端口收敛。
 
 ## 当前进度
 
@@ -23,7 +23,11 @@ Gate 0 仍是第一个开发切片，但通过其受影响测试后即可立即�
   `mysql57-it` lane。
 - 默认 Unit datasource 已恢复为 hermetic H2；专用 MySQL profile 缺少配置时 fail closed。
 - fresh 受治理 MySQL 5.7 run 为 7 reports / 12 nodes / F0E0S0。
-- 当前执行切片：QueryFacade request/result DTO 与外部调用入口收敛。
+- 稳定 `QueryFacade` request/result DTO 已建立；model controller、Data Viewer 和 GraphQL
+  执行入口已改用 DTO-only facade，旧 9 方法 facade 保留 deprecated 兼容转发层。
+- DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
+  及既有 `QueryExecutionPhase` 回归均通过。
+- 当前执行切片：context、SQL generation 和 managed relation 下沉 internal/advanced ports。
 
 ## 已确认目标
 

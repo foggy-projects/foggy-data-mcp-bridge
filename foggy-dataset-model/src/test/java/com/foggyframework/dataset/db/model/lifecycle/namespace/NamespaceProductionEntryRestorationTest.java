@@ -14,12 +14,14 @@ import com.foggyframework.dataset.db.model.spi.NamespaceContext;
 import com.foggyframework.dataset.db.model.spi.NamespaceScope;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.api.QueryFacadeRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -178,6 +180,44 @@ class NamespaceProductionEntryRestorationTest {
                 () -> assertNull(NamespaceContext.getNamespace(),
                         "closing each root query scope must restore unset")
         );
+    }
+
+    @Test
+    void publicDtoQueryWithoutNamespaceInheritsAndRestoresOuterNamespace() {
+        List<String> namespacesPassedToLoader = new ArrayList<>();
+        List<String> namespacesSeenInside = new ArrayList<>();
+        QueryFacadeImpl facade = facadeThatCapturesAndSkips(namespacesPassedToLoader, namespacesSeenInside);
+
+        try (NamespaceScope ignored = NamespaceContext.open(OUTER_NAMESPACE)) {
+            facade.query(QueryFacadeRequest.builder(Map.of("queryModel", MODEL_NAME)).build());
+
+            assertAll(
+                    () -> assertEquals(List.of(OUTER_NAMESPACE), namespacesPassedToLoader),
+                    () -> assertEquals(List.of(OUTER_NAMESPACE), namespacesSeenInside),
+                    () -> assertEquals(OUTER_NAMESPACE, NamespaceContext.getNamespace(),
+                            "the DTO entry must restore its inherited outer scope")
+            );
+        }
+    }
+
+    @Test
+    void publicDtoQueryWithExplicitNullNamespaceUsesDefaultAndRestoresOuterNamespace() {
+        List<String> namespacesPassedToLoader = new ArrayList<>();
+        List<String> namespacesSeenInside = new ArrayList<>();
+        QueryFacadeImpl facade = facadeThatCapturesAndSkips(namespacesPassedToLoader, namespacesSeenInside);
+
+        try (NamespaceScope ignored = NamespaceContext.open(OUTER_NAMESPACE)) {
+            facade.query(QueryFacadeRequest.builder(Map.of("queryModel", MODEL_NAME))
+                    .namespace(null)
+                    .build());
+
+            assertAll(
+                    () -> assertEquals(List.of(""), namespacesPassedToLoader),
+                    () -> assertEquals(List.of(""), namespacesSeenInside),
+                    () -> assertEquals(OUTER_NAMESPACE, NamespaceContext.getNamespace(),
+                            "the DTO entry must restore the outer scope after explicit default")
+            );
+        }
     }
 
     @Test

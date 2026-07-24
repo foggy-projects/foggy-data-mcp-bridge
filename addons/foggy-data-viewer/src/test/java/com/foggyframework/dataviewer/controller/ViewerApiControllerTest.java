@@ -9,12 +9,11 @@ import com.foggyframework.dataviewer.domain.MemberQueryResponse;
 import com.foggyframework.dataviewer.domain.ViewerDataResponse;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
-import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
-import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.api.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacadeRequest;
+import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -35,7 +34,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -125,11 +123,8 @@ class ViewerApiControllerTest {
                     .thenReturn(Optional.of(validContext));
 
             // 模拟 QueryFacade 返回数据
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(10));
-            mockResult.setTotal(100);
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(10, 100));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(0);
@@ -167,11 +162,8 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(5));
-            mockResult.setTotal(100);
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(5, 100));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(20);
@@ -193,11 +185,8 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(50));
-            mockResult.setTotal(100);
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(50, 100));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             // 不设置分页参数
@@ -216,7 +205,7 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
                     .thenThrow(new RuntimeException("Database connection failed"));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
@@ -238,11 +227,8 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(1));
-            mockResult.setTotal(1);
-            when(queryFacade.queryModelData(any(PagingRequest.class), eq("Bearer request-token"), eq("header-ns")))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(1, 1));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setNamespace("body-ns");
@@ -252,7 +238,11 @@ class ViewerApiControllerTest {
             RX response = controller.queryData("orders", "test-query-id", "Bearer request-token", "header-ns", request);
 
             assertEquals(RX.SUCCESS, response.getCode());
-            verify(queryFacade).queryModelData(any(PagingRequest.class), eq("Bearer request-token"), eq("header-ns"));
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            assertEquals("Bearer request-token", captor.getValue().getAuthorization());
+            assertEquals("header-ns", captor.getValue().getNamespace());
+            assertTrue(captor.getValue().isNamespaceProvided());
         }
 
         @Test
@@ -263,11 +253,8 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(1));
-            mockResult.setTotal(1);
-            when(queryFacade.queryModelData(any(PagingRequest.class), eq("Bearer cached-token"), eq("cached-ns")))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(1, 1));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(0);
@@ -276,7 +263,10 @@ class ViewerApiControllerTest {
             RX response = controller.queryData("orders", "test-query-id", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
-            verify(queryFacade).queryModelData(any(PagingRequest.class), eq("Bearer cached-token"), eq("cached-ns"));
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            assertEquals("Bearer cached-token", captor.getValue().getAuthorization());
+            assertEquals("cached-ns", captor.getValue().getNamespace());
         }
 
         @Test
@@ -285,11 +275,8 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(1));
-            mockResult.setTotal(1);
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(1, 1));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(0);
@@ -299,12 +286,12 @@ class ViewerApiControllerTest {
             RX response = controller.queryData("orders", "test-query-id", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
-            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
-            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
-            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
-            assertEquals(Map.of("suggestionSheetId", "2490136163"), queryDef.getExtData());
-            assertEquals(1, queryDef.getSlice().size());
-            assertEquals("status", queryDef.getSlice().get(0).getField());
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            assertEquals(Map.of("suggestionSheetId", "2490136163"), captor.getValue().getQuery().get("extData"));
+            List<?> slices = (List<?>) captor.getValue().getQuery().get("slice");
+            assertEquals(1, slices.size());
+            assertEquals("status", ((Map<?, ?>) slices.get(0)).get("field"));
         }
 
         @Test
@@ -314,11 +301,8 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(1));
-            mockResult.setTotal(1);
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(1, 1));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setExtData(Map.of("suggestionSheetId", "2490136163"));
@@ -326,10 +310,10 @@ class ViewerApiControllerTest {
             RX response = controller.queryData("orders", "test-query-id", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
-            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
-            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
-            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
-            assertEquals(Map.of("tenantRuntime", "T1", "suggestionSheetId", "2490136163"), queryDef.getExtData());
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            assertEquals(Map.of("tenantRuntime", "T1", "suggestionSheetId", "2490136163"),
+                    captor.getValue().getQuery().get("extData"));
         }
     }
 
@@ -340,11 +324,8 @@ class ViewerApiControllerTest {
         @Test
         @DisplayName("应优先使用请求头namespace执行直连查询")
         void shouldUseHeaderNamespaceForDirectQuery() {
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(1));
-            mockResult.setTotal(1);
-            when(queryFacade.queryModelData(any(PagingRequest.class), eq("Bearer token"), eq("header-ns")))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(1, 1));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setNamespace("body-ns");
@@ -356,22 +337,20 @@ class ViewerApiControllerTest {
             RX response = controller.queryDirect("orders", "Bearer token", "header-ns", request);
 
             assertEquals(RX.SUCCESS, response.getCode());
-            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
-            verify(queryFacade).queryModelData(captor.capture(), eq("Bearer token"), eq("header-ns"));
-            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
-            assertEquals(List.of("orderId", "salesAmountYuan"), queryDef.getColumns());
-            assertEquals(Map.of("suggestionSheetId", "2490136163"), queryDef.getExtData());
-            assertNull(queryDef.getSlice());
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            assertEquals("Bearer token", captor.getValue().getAuthorization());
+            assertEquals("header-ns", captor.getValue().getNamespace());
+            assertEquals(List.of("orderId", "salesAmountYuan"), captor.getValue().getQuery().get("columns"));
+            assertEquals(Map.of("suggestionSheetId", "2490136163"), captor.getValue().getQuery().get("extData"));
+            assertNull(captor.getValue().getQuery().get("slice"));
         }
 
         @Test
         @DisplayName("直连查询不携带extData时保持为空")
         void shouldKeepExtDataNullWhenDirectRequestMissingIt() {
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(1));
-            mockResult.setTotal(1);
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(1, 1));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(0);
@@ -381,10 +360,9 @@ class ViewerApiControllerTest {
             RX response = controller.queryDirect("orders", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
-            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
-            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
-            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
-            assertNull(queryDef.getExtData());
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            assertNull(captor.getValue().getQuery().get("extData"));
         }
 
         @Test
@@ -401,7 +379,7 @@ class ViewerApiControllerTest {
             assertNotNull(response.getData());
             assertFalse(response.getData().isSuccess());
             assertEquals("columns 不能为空，直连查询必须显式指定输出列", response.getData().getError());
-            verify(queryFacade, never()).queryModelData(any(PagingRequest.class), any(), any());
+            verify(queryFacade, never()).query(any(QueryFacadeRequest.class));
         }
 
         @Test
@@ -414,7 +392,7 @@ class ViewerApiControllerTest {
 
             assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
             assertEquals("columns 不能为空，直连查询必须显式指定输出列", response.getMsg());
-            verify(queryFacade, never()).queryModelData(any(PagingRequest.class), any(), any());
+            verify(queryFacade, never()).query(any(QueryFacadeRequest.class));
         }
 
         @Test
@@ -427,17 +405,14 @@ class ViewerApiControllerTest {
 
             assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
             assertEquals("columns 不能为空，直连查询必须显式指定输出列", response.getMsg());
-            verify(queryFacade, never()).queryModelData(any(PagingRequest.class), any(), any());
+            verify(queryFacade, never()).query(any(QueryFacadeRequest.class));
         }
 
         @Test
         @DisplayName("直连查询应忽略空白列名并传入规范化列")
         void shouldNormalizeDirectQueryColumns() {
-            PagingResultImpl mockResult = new PagingResultImpl();
-            mockResult.setItems(generateMockItems(1));
-            mockResult.setTotal(1);
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
-                    .thenReturn(mockResult);
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
+                    .thenReturn(queryResult(1, 1));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setColumns(List.of(" orderId ", "", "salesAmountYuan"));
@@ -445,16 +420,15 @@ class ViewerApiControllerTest {
             RX response = controller.queryDirect("orders", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
-            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
-            verify(queryFacade).queryModelData(captor.capture(), isNull(), isNull());
-            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
-            assertEquals(List.of("orderId", "salesAmountYuan"), queryDef.getColumns());
+            ArgumentCaptor<QueryFacadeRequest> captor = ArgumentCaptor.forClass(QueryFacadeRequest.class);
+            verify(queryFacade).query(captor.capture());
+            assertEquals(List.of("orderId", "salesAmountYuan"), captor.getValue().getQuery().get("columns"));
         }
 
         @Test
         @DisplayName("直连查询业务异常应保留业务错误码并返回错误数据")
         void shouldReturnBusinessErrorForDirectQueryBusinessException() {
-            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
+            when(queryFacade.query(any(QueryFacadeRequest.class)))
                     .thenThrow(new ExRuntimeExceptionImpl(46001, "字段不存在: fleetName"));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
@@ -469,7 +443,7 @@ class ViewerApiControllerTest {
             assertNotNull(response.getData());
             assertFalse(response.getData().isSuccess());
             assertEquals("字段不存在: fleetName", response.getData().getError());
-            verify(queryFacade).queryModelData(any(PagingRequest.class), isNull(), isNull());
+            verify(queryFacade).query(any(QueryFacadeRequest.class));
         }
     }
 
@@ -516,5 +490,9 @@ class ViewerApiControllerTest {
             items.add(item);
         }
         return items;
+    }
+
+    private QueryFacadeResult queryResult(int count, long total) {
+        return new QueryFacadeResult(total, count < total, 0, count, generateMockItems(count), null);
     }
 }

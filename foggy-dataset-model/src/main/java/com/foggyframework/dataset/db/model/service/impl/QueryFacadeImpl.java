@@ -10,12 +10,15 @@ import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.service.LegacyQueryFacadeAdapter;
 import com.foggyframework.dataset.db.model.spi.NamespaceContext;
 import com.foggyframework.dataset.db.model.spi.NamespaceScope;
 import com.foggyframework.dataset.db.model.spi.QueryEngine;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.api.QueryFacadeRequest;
+import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,6 +52,19 @@ public class QueryFacadeImpl implements QueryFacade {
 
     @Resource
     private DataSetResultFilterManager dataSetResultFilterManager;
+
+    @Override
+    public QueryFacadeResult query(QueryFacadeRequest request) {
+        PagingRequest<DbQueryRequestDef> legacyRequest = LegacyQueryFacadeAdapter.toLegacyRequest(request);
+        PagingResultImpl result = queryModelData(
+                legacyRequest,
+                request.getAuthorization(),
+                request.getNamespace(),
+                ModelResultContext.QueryType.NORMAL,
+                request.isNamespaceProvided()
+        );
+        return LegacyQueryFacadeAdapter.toResult(result);
+    }
 
     @Override
     public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form) {

@@ -25,7 +25,7 @@ import com.foggyframework.dataviewer.service.tabledefault.PropertiesTableDefault
 import com.foggyframework.dataviewer.service.tabledefault.TableDefaultQueryConfigProvider;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacade;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

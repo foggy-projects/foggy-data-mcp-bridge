@@ -3,8 +3,10 @@ package com.foggyframework.dataset.db.model.controller;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.service.LegacyQueryFacadeAdapter;
 import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.api.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import io.swagger.annotations.ApiModelProperty;
 import io.swagger.annotations.ApiParam;
 import jakarta.annotation.Resource;
@@ -29,7 +31,9 @@ public class QueryModelDataStoreController {
             @RequestBody PagingRequest<DbQueryRequestDef> form,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-NS", required = false) String namespace) {
-        PagingResultImpl v = queryFacade.queryModelData(form, authorization, namespace);
+        QueryFacadeResult result = queryFacade.query(
+                LegacyQueryFacadeAdapter.toRequest(form, authorization, namespace));
+        PagingResultImpl v = LegacyQueryFacadeAdapter.toLegacyResult(result);
         return RX.success(v);
     }
 
@@ -41,7 +45,9 @@ public class QueryModelDataStoreController {
             @RequestHeader(value = "X-NS", required = false) String namespace) {
 
         form.getParam().setQueryModel(model);
-        PagingResultImpl v = queryFacade.queryModelData(form, authorization, namespace);
+        QueryFacadeResult result = queryFacade.query(
+                LegacyQueryFacadeAdapter.toRequest(form, authorization, namespace));
+        PagingResultImpl v = LegacyQueryFacadeAdapter.toLegacyResult(result);
         return RX.success(v);
     }
 }

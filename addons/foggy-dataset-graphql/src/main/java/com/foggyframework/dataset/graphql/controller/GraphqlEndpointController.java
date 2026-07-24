@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.service.LegacyQueryFacadeAdapter;
 import com.foggyframework.dataset.graphql.converter.GraphqlToDslConverter;
-import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.api.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.Data;
@@ -79,7 +80,7 @@ public class GraphqlEndpointController {
             log.debug("转换后的 DSL 请求: {}", objectMapper.writeValueAsString(dslRequest));
 
             // 2. 执行查询
-            PagingResultImpl result = queryFacade.queryModelData(dslRequest);
+            QueryFacadeResult result = queryFacade.query(LegacyQueryFacadeAdapter.toRequest(dslRequest));
 
             // 3. 包装为 GraphQL 响应格式
             Map<String, Object> response = new HashMap<>();
@@ -121,7 +122,7 @@ public class GraphqlEndpointController {
      * 直接返回 items 列表，不包装 Connection
      * </p>
      */
-    private Object buildSimpleResponse(PagingResultImpl result) {
+    private Object buildSimpleResponse(QueryFacadeResult result) {
         return result.getItems();
     }
 

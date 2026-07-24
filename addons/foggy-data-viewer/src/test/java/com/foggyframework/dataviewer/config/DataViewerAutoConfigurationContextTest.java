@@ -3,7 +3,7 @@ package com.foggyframework.dataviewer.config;
 import com.foggyframework.dataviewer.plugins.LargeResultTruncationStep;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacade;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;

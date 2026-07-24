@@ -27,7 +27,7 @@ import com.foggyframework.dataset.model.PagingResultImpl;
  * @author foggy-framework
  * @since 8.0.0
  */
-public interface QueryFacade {
+public interface QueryFacade extends com.foggyframework.dataset.model.api.QueryFacade {
 
     /**
      * 执行查询（简化版）
@@ -39,6 +39,7 @@ public interface QueryFacade {
      * @param form 查询请求
      * @return 查询结果
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form);
 
     /**
@@ -48,6 +49,7 @@ public interface QueryFacade {
      * @param namespace 显式命名空间（空字符串或null表示默认命名空间）
      * @return 查询结果
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form, String namespace);
 
     /**
@@ -58,6 +60,7 @@ public interface QueryFacade {
      * @param namespace     显式命名空间（空字符串或null表示默认命名空间）
      * @return 查询结果
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form, String authorization, String namespace);
 
     /**
@@ -68,6 +71,7 @@ public interface QueryFacade {
      * @param queryType 查询类型（NORMAL、SEMANTIC）
      * @return 查询结果
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form,
                                     ModelResultContext.QueryType queryType);
 
@@ -81,6 +85,7 @@ public interface QueryFacade {
      * @param form 查询请求
      * @return 查询结果（包含查询引擎信息）
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     DbQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form);
 
     /**
@@ -94,6 +99,7 @@ public interface QueryFacade {
      * @param context 预配置的上下文（必须已设置 request）
      * @return 查询结果（包含查询引擎信息）
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     DbQueryResult queryModelResult(ModelResultContext context);
 
     /**
@@ -105,6 +111,7 @@ public interface QueryFacade {
      * @param context 预配置的上下文（必须已设置 request）
      * @return SQL 生成结果（含 SQL 字符串、绑定参数）
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     SqlGenerationResult buildSqlOnly(ModelResultContext context);
 
     /**
@@ -120,6 +127,7 @@ public interface QueryFacade {
      * @param options 准备选项
      * @return 受管 SQL Relation
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     ManagedSqlRelation prepareManagedRelation(ModelResultContext context, ManagedRelationOptions options);
 
     /**
@@ -130,5 +138,6 @@ public interface QueryFacade {
      * @param finalParams 外层包装后的最终参数
      * @return 查询结果
      */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     DbQueryResult executeManagedRelation(ManagedSqlRelation relation, String finalSql, java.util.List<Object> finalParams);
 }
