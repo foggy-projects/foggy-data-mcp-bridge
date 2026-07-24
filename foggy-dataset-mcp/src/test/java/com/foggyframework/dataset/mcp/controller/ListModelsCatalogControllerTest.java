@@ -1,11 +1,11 @@
 package com.foggyframework.dataset.mcp.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.spi.QueryModel;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.spi.QueryModel;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.mcp.service.ModelCatalogService;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import org.junit.jupiter.api.BeforeEach;

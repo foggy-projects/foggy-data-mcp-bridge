@@ -1,11 +1,11 @@
 package com.foggyframework.dataset.mcp.datasource;
 
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
-import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
-import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
-import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
-import com.foggyframework.dataset.db.model.spi.ProcessLocalDefaultDataSourceResolver;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.model.lifecycle.port.DatasourceBindingResolver;
+import com.foggyframework.dataset.model.lifecycle.port.ResolvedDatasourceBinding;
+import com.foggyframework.dataset.model.spi.NamedDataSourceResolver;
+import com.foggyframework.dataset.model.spi.ProcessLocalDefaultDataSourceResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

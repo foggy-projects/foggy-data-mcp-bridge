@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.5.0
 ticket: v950-legacy-exit
-status: APPROVED
+status: READY_FOR_REVIEW
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -81,22 +81,22 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: reactor、dependency management、第一方 POM 中没有旧
+- [x] AC-1: reactor、dependency management、第一方 POM 中没有旧
   `com.foggysource:foggy-dataset-model` 模块或依赖；目标依赖显式指向 API/core/engine/adapter。
-- [ ] AC-2: tracked production Java 与 Spring/runtime 元数据中没有
+- [x] AC-2: tracked production Java 与 Spring/runtime 元数据中没有
   `com.foggyframework.dataset.db.model`；新 engine 源码路径与包声明一致。
-- [ ] AC-3: architecture guard 要求旧坐标、旧包 import/FQCN、`LegacyQueryFacadeAdapter` 与 model-query
+- [x] AC-3: architecture guard 要求旧坐标、旧包 import/FQCN、`LegacyQueryFacadeAdapter` 与 model-query
   bypass 均为零，不保留 legacy allowlist。
-- [ ] AC-4: `ModelLoadBackendProvider` 对应真实 load port；namespace 作为必填/显式默认 identity 维度；
+- [x] AC-4: `ModelLoadBackendProvider` 对应真实 load port；namespace 作为必填/显式默认 identity 维度；
   engine 只有在现有 catalog 原子切换路径可验证时声明 ATOMIC_REFRESH。
-- [ ] AC-5: core/TCK 对 MODEL_LOAD/QUERY/ATOMIC_REFRESH/CACHE_INVALIDATION 的 capability-role overclaim
+- [x] AC-5: core/TCK 对 MODEL_LOAD/QUERY/ATOMIC_REFRESH/CACHE_INVALIDATION 的 capability-role overclaim
   在 discovery fail closed，descriptor/identity 仍不可变且唯一。
-- [ ] AC-6: JDBC/query-cache 现有能力不扩大；Mongo/vector/preagg 未接入的能力保持不声明。
-- [ ] AC-7: `LegacyQueryFacadeAdapter` 及其 compatibility test 删除；公共查询控制器和消费者直接使用
+- [x] AC-6: JDBC/query-cache 现有能力不扩大；Mongo/vector/preagg 未接入的能力保持不声明。
+- [x] AC-7: `LegacyQueryFacadeAdapter` 及其 compatibility test 删除；公共查询控制器和消费者直接使用
   stable QueryFacade DTO 或 engine-internal mapper/port。
-- [ ] AC-8: runtime/MCP/memory-grid/launcher/addons 在新模块图上 compile，focused unit/context/TCK 与
+- [x] AC-8: runtime/MCP/memory-grid/launcher/addons 在新模块图上 compile，focused unit/context/TCK 与
   affected reactor tests 实际通过。
-- [ ] AC-9: 9.5.0 README/migration/breaking/rollback 和本 workitem 记录精确命令、结果、偏差及残余风险；
+- [x] AC-9: 9.5.0 README/migration/breaking/rollback 和本 workitem 记录精确命令、结果、偏差及残余风险；
   完成 review 后状态为 `READY_FOR_SIGNOFF`，不得自行伪造 `ACCEPTED`。
 
 ## Contract / Data / Security Constraints
@@ -166,17 +166,65 @@ open_questions: []
 
 ## Implementation Result
 
-> 由执行会话填写。
-
 - implementation_summary:
+  旧聚合模块已物理归位为 engine，第一方旧坐标/旧包/查询 bridge/bypass 归零；新增稳定
+  MODEL_LOAD 与 ATOMIC_REFRESH 小角色，JDBC engine provider 复用真实 namespace-aware loader
+  和 atomic catalog publication，catalog/TCK 对四种 capability-role overclaim fail closed。
 - changed_paths:
+  root reactor/dependency management；`foggy-dataset-model-{api,core,jdbc,starter,web,tck,engine}`；
+  runtime/MCP/memory-grid/launcher；model addons/viewer/GraphQL/benchmark；Spring metadata、
+  Docker/launcher identity、顶层验证脚本；`docs/9.5.0/**`。
 - tests_and_results:
+  - focused API/core/TCK/engine reactor：13/13 modules success；API 6、core 6、TCK 3、engine 16 tests。
+  - JDBC engine operational provider/TCK：5 tests；13/13 modules success。
+  - affected production compile：30/30 reactor modules success。
+  - launcher/client affected test-compile：28/28 reactor modules success。
+  - JDBC/cache/engine/launcher provider、context、assembly slice：27/27 reactor modules success；
+    cache 23、launcher 7，及 engine/JDBC focused tests 全部通过。
+  - standalone pivot/benchmark reactor test-compile：pivot 无源码；benchmark 13 main + 2 test sources
+    实际编译通过。
+  - `LegacyExitArchitectureTest`、tracked-text inventory、`git diff --check`、top-level `bash -n`
+    和 launcher JAR/assembly boundary 检查通过。
+- validation_commands:
+  ```bash
+  mvn -pl foggy-dataset-model-api,foggy-dataset-model-core,foggy-dataset-model-tck,foggy-dataset-model-engine \
+    -am test -DskipITs \
+    -Dtest=LegacyExitArchitectureTest,ModelApiDependencyBoundaryTest,QueryFacadePublicApiTest,BackendProviderCatalogTest,BackendProviderTckSelfTest,JdbcEngineBackendProviderTest,JdbcEngineBackendProviderTckTest,DbModelAutoConfigurationTest,QueryFacadePortBoundaryTest,QueryFacadeDtoMapperTest \
+    -Dsurefire.failIfNoSpecifiedTests=false -Dsurefire.failIfNoTests=false
+
+  mvn -pl foggy-mcp-launcher,addons/foggy-dataset-client -am \
+    test-compile -DskipTests -DskipITs
+
+  mvn -pl foggy-dataset-model-jdbc,addons/foggy-dataset-model-cache,foggy-dataset-model-engine,foggy-mcp-launcher \
+    -am test -DskipITs \
+    -Dtest=JdbcQueryBackendProviderTest,JdbcQueryBackendProviderTckTest,JdbcEngineBackendProviderTest,JdbcEngineBackendProviderTckTest,DbModelAutoConfigurationTest,QueryCacheBackendProviderTckTest,QueryCacheBackendProviderAutoConfigurationTest,QueryCacheAutoConfigurationContextTest,AutoConfigurationBoundaryContractTest,FullAddonAutoConfigurationAssemblyTest \
+    -Dsurefire.failIfNoSpecifiedTests=false -Dsurefire.failIfNoTests=false
+
+  mvn -f /tmp/foggy-v950-standalone-reactor/pom.xml \
+    -pl :foggy-dataset-pivot,:foggy-benchmark-spider2 -am \
+    test-compile -DskipTests -DskipITs
+  ```
 - manual_or_experience_evidence:
-- deviations: none
+  第一方旧坐标精确计数 0；生产旧包引用 0；旧 adapter/旧 engine QueryFacade 0；受治理 bypass 0；
+  顶层脚本旧路径/FQCN 0；`.github` diff 0；原始脏工作区状态保持不变。
+- deviations:
+  standalone benchmark 原 POM 未显式指向根 parent，补充
+  `<relativePath>../../pom.xml</relativePath>`；其测试同时暴露旧 semantic import 与已移除的
+  二参 resolver 调用，已按当前显式 `SemanticRequestContext` 契约修正。顶层验证脚本同步迁移
+  新模块路径/FQCN；历史 `scripts/v934/**` source-sealed 证据保持不改。
 - residual_risks:
+  外部调用方存在有意的 Maven/source/binary breaking；大型 authority/replay 未运行；
+  独立 pivot 模块当前无 Java 源码；历史 sealed 脚本不是 9.5.0 可执行入口。
 - reused_evidence:
+  9.4.1 已签收的 stable QueryFacade、JDBC QUERY、query-cache invalidation、
+  duplicate/missing/unsupported/role mismatch 与 launcher boundary 证据。
 - omitted_validation_and_reason:
+  按 owner 明确预算未运行 `mvn install`、Step 5/7、release-governance authority、
+  semantic/portable replay、source-seal、通用五库矩阵、GitHub CI、tag/release/publish；
+  这些排除项不得被描述为已验证。
 - readiness:
+  `READY_FOR_REVIEW`；完成候选提交后的独立 code review 与最终零守卫复核后，才更新为
+  `READY_FOR_SIGNOFF`，不自行声明 `ACCEPTED`。
 
 ## References
 

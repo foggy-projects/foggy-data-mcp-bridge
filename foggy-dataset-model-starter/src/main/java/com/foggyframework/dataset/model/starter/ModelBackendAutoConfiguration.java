@@ -13,7 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 
 /** Spring assembly for the SPI v2 provider catalog and JDBC compatibility adapter. */
-@AutoConfiguration(afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
+@AutoConfiguration(afterName = "com.foggyframework.dataset.model.DbModelAutoConfiguration")
 @ConditionalOnClass({BackendProviderCatalog.class, JdbcQueryBackendProvider.class})
 public class ModelBackendAutoConfiguration {
 

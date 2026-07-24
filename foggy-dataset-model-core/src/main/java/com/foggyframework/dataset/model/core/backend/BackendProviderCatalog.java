@@ -4,7 +4,9 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.AtomicRefreshBackendProvider;
 import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
+import com.foggyframework.dataset.model.api.backend.ModelLoadBackendProvider;
 import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 
 import java.util.Collections;
@@ -95,6 +97,16 @@ public final class BackendProviderCatalog {
                 && !(provider instanceof QueryBackendProvider)) {
             throw new BackendProviderTypeMismatchException(
                     descriptor.backendId(), QueryBackendProvider.class);
+        }
+        if (descriptor.supports(BackendCapability.MODEL_LOAD)
+                && !(provider instanceof ModelLoadBackendProvider)) {
+            throw new BackendProviderTypeMismatchException(
+                    descriptor.backendId(), ModelLoadBackendProvider.class);
+        }
+        if (descriptor.supports(BackendCapability.ATOMIC_REFRESH)
+                && !(provider instanceof AtomicRefreshBackendProvider)) {
+            throw new BackendProviderTypeMismatchException(
+                    descriptor.backendId(), AtomicRefreshBackendProvider.class);
         }
         if (descriptor.supports(BackendCapability.CACHE_INVALIDATION)
                 && !(provider instanceof CacheInvalidationBackendProvider)) {

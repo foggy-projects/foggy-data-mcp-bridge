@@ -13,7 +13,7 @@ COVERAGE_RUNNER_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 DEFERRED_INVENTORY="$ROOT_DIR/scripts/v934/successor/step2/deferred-step3.tsv"
 MODEL_REPORTS="$ROOT_DIR/addons/foggy-dataset-model-mongo/target/failsafe-reports"
 VIEWER_REPORTS="$ROOT_DIR/addons/foggy-data-viewer/target/failsafe-reports"
-CLEAN_MODULES="foggy-core,foggy-bean-copy,foggy-mcp-spi,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model,addons/foggy-data-viewer,addons/foggy-dataset-model-mongo"
+CLEAN_MODULES="foggy-core,foggy-bean-copy,foggy-mcp-spi,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model-engine,addons/foggy-data-viewer,addons/foggy-dataset-model-mongo"
 
 RUNNER_NAME="failsafe"
 LANE="external-mongo"
@@ -63,7 +63,7 @@ assert_clean_targets_absent() {
   local module
   local -a modules=(
     foggy-core foggy-bean-copy foggy-mcp-spi foggy-fsscript foggy-dataset
-    foggy-dataset-demo foggy-dataset-model addons/foggy-data-viewer
+    foggy-dataset-demo foggy-dataset-model-engine addons/foggy-data-viewer
     addons/foggy-dataset-model-mongo
   )
   for module in "${modules[@]}"; do

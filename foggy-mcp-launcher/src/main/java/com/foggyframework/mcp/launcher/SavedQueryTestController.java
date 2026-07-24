@@ -1,7 +1,7 @@
 package com.foggyframework.mcp.launcher;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.model.spi.SecurityIdentityResolver;
+import com.foggyframework.dataset.model.spi.SecurityIdentityResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

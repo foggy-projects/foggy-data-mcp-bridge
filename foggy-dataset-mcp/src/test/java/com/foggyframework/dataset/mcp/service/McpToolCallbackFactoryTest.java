@@ -2,7 +2,7 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.mcp.spi.McpTool;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

@@ -1,11 +1,11 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.semantic.port.ComposeCaller;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionException;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionRequest;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionResult;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
+import com.foggyframework.dataset.model.semantic.port.ComposeCaller;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionException;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionRequest;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionResult;
+import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory.RuntimeComposeContext;
 import com.foggyframework.runtime.api.service.RuntimeComposeDialectResolver.ResolvedDialect;
 import org.junit.jupiter.api.Test;

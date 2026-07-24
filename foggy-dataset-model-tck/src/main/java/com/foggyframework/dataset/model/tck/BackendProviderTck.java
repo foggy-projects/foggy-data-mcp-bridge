@@ -4,6 +4,10 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.AtomicRefreshBackendProvider;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
+import com.foggyframework.dataset.model.api.backend.ModelLoadBackendProvider;
+import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import com.foggyframework.dataset.model.core.backend.BackendProviderCatalog;
 import com.foggyframework.dataset.model.core.backend.DuplicateBackendProviderException;
 import com.foggyframework.dataset.model.core.backend.MissingBackendProviderException;
@@ -58,9 +62,11 @@ public abstract class BackendProviderTck<P extends BackendProvider> {
         BackendProviderCatalog catalog = BackendProviderCatalog.of(List.of(provider));
 
         assertSame(provider, catalog.require(expectedBackendId()));
+        assertTrue(expectedProviderRole().isInstance(provider),
+                "provider must implement its declared primary TCK role");
         for (BackendCapability capability : expectedCapabilities()) {
             assertSame(provider, catalog.require(
-                    expectedBackendId(), capability, expectedProviderRole()));
+                    expectedBackendId(), capability, requiredRole(capability)));
         }
         verifyOperationalPort(provider);
     }
@@ -86,5 +92,14 @@ public abstract class BackendProviderTck<P extends BackendProvider> {
         assertEquals(expectedBackendId(), error.backendId());
         assertEquals(unsupported, error.capability());
         assertTrue(catalog.find(expectedBackendId()).isPresent());
+    }
+
+    private static Class<? extends BackendProvider> requiredRole(BackendCapability capability) {
+        return switch (capability) {
+            case QUERY -> QueryBackendProvider.class;
+            case MODEL_LOAD -> ModelLoadBackendProvider.class;
+            case ATOMIC_REFRESH -> AtomicRefreshBackendProvider.class;
+            case CACHE_INVALIDATION -> CacheInvalidationBackendProvider.class;
+        };
     }
 }

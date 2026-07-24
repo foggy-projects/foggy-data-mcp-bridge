@@ -3,7 +3,7 @@ package com.foggyframework.dataset.mcp.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,6 +1,6 @@
 package com.foggyframework.mcp.launcher;
 
-import com.foggyframework.dataset.db.model.spi.SecurityIdentityResolver;
+import com.foggyframework.dataset.model.spi.SecurityIdentityResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;

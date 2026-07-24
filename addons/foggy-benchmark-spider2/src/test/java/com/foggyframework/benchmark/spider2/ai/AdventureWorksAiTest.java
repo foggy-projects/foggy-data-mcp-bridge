@@ -5,8 +5,9 @@ import com.foggyframework.benchmark.spider2.Spider2BenchmarkApplication;
 import com.foggyframework.benchmark.spider2.config.Spider2Properties;
 import com.foggyframework.benchmark.spider2.loader.Spider2TestCaseLoader;
 import com.foggyframework.benchmark.spider2.model.Spider2TestCase;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataRequest;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.service.McpToolCallbackFactory;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
@@ -387,7 +388,8 @@ class AdventureWorksAiTest {
 
 
             // 使用版本解析器获取元数据
-            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, "markdown");
+            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(
+                    request, "markdown", SemanticRequestContext.empty());
             sb.append(response.getContent());
         }
 

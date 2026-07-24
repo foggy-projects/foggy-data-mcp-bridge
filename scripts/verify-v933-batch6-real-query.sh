@@ -10,9 +10,9 @@ REDIS_IMAGE="redis:7-alpine"
 REDIS_PREFIX="v933:real-query:$RUN_ID:"
 REDIS_STARTED=false
 
-MODEL_LIFECYCLE_FQCN="com.foggyframework.dataset.db.model.lifecycle.realquery.ModelLifecycleRealQueryIT"
-DB_PARITY_FQCN="com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT"
-CACHE_FQCN="com.foggyframework.dataset.db.model.cache.lifecycle.realquery.QueryCacheLifecycleRealQueryIT"
+MODEL_LIFECYCLE_FQCN="com.foggyframework.dataset.model.lifecycle.realquery.ModelLifecycleRealQueryIT"
+DB_PARITY_FQCN="com.foggyframework.dataset.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT"
+CACHE_FQCN="com.foggyframework.dataset.model.cache.lifecycle.realquery.QueryCacheLifecycleRealQueryIT"
 
 fail() {
   echo "[v933-real-query] ERROR: $*" >&2
@@ -212,35 +212,35 @@ printf 'lane\tprobe\n' > "$RUN_ROOT/environment/database-probes.tsv"
 git -C "$ROOT_DIR" rev-parse HEAD > "$RUN_ROOT/source-audit/git-head.txt"
 git -C "$ROOT_DIR" status --short > "$RUN_ROOT/source-audit/git-status.txt"
 
-MODEL_LIFECYCLE_SOURCE="foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/realquery/ModelLifecycleRealQueryIT.java"
-DB_PARITY_SOURCE="foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/realquery/RequiredDatabaseQueryFacadeParityIT.java"
-CACHE_SOURCE="addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/lifecycle/realquery/QueryCacheLifecycleRealQueryIT.java"
+MODEL_LIFECYCLE_SOURCE="foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/lifecycle/realquery/ModelLifecycleRealQueryIT.java"
+DB_PARITY_SOURCE="foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/lifecycle/realquery/RequiredDatabaseQueryFacadeParityIT.java"
+CACHE_SOURCE="addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/lifecycle/realquery/QueryCacheLifecycleRealQueryIT.java"
 CACHE_POM="addons/foggy-dataset-model-cache/pom.xml"
 SOURCE_FILES=(
   "$MODEL_LIFECYCLE_SOURCE"
   "$DB_PARITY_SOURCE"
   "$CACHE_SOURCE"
   "$CACHE_POM"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/QueryFacadeImpl.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotPipeline.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/config/QueryCacheAutoConfiguration.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/CaffeineQueryCacheProvider.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/RedisQueryCacheProvider.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/QueryCacheKeyBuilder.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/service/impl/QueryFacadeImpl.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotPipeline.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/config/QueryCacheAutoConfiguration.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/CaffeineQueryCacheProvider.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/RedisQueryCacheProvider.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/QueryCacheKeyBuilder.java"
   "pom.xml"
   "foggy-core/pom.xml"
   "foggy-bean-copy/pom.xml"
   "foggy-fsscript/pom.xml"
   "foggy-dataset/pom.xml"
   "foggy-dataset-demo/pom.xml"
-  "foggy-dataset-model/pom.xml"
+  "foggy-dataset-model-engine/pom.xml"
   "scripts/assert-v933-test-report.sh"
   "scripts/verify-v933-batch6-real-query.sh"
 )
 while IFS= read -r -d '' resource_file; do
   SOURCE_FILES+=("${resource_file#$ROOT_DIR/}")
 done < <(find \
-  "$ROOT_DIR/foggy-dataset-model/src/test/resources" \
+  "$ROOT_DIR/foggy-dataset-model-engine/src/test/resources" \
   "$ROOT_DIR/foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce" \
   "$ROOT_DIR/foggy-dataset-demo/docker/mysql/init" \
   "$ROOT_DIR/foggy-dataset-demo/docker/postgres/init" \
@@ -315,20 +315,20 @@ initial_key_count=0
 REDIS
 
 run_lane model-lifecycle-sqlite "$MODEL_LIFECYCLE_FQCN" 4 \
-  -pl foggy-dataset-model -am -P'!multi-db,model-lifecycle' \
+  -pl foggy-dataset-model-engine -am -P'!multi-db,model-lifecycle' \
   -Dfailsafe.failIfNoSpecifiedTests=false -Dspring.profiles.active=sqlite
 run_lane database-sqlite "$DB_PARITY_FQCN" 1 \
-  -pl foggy-dataset-model -am -P'!multi-db,model-lifecycle' \
+  -pl foggy-dataset-model-engine -am -P'!multi-db,model-lifecycle' \
   -Dfailsafe.failIfNoSpecifiedTests=false -Dspring.profiles.active=sqlite \
   -Dv933.expectedDatabase=sqlite
 capture_database_probe database-sqlite sqlite SQLite '3\.[0-9]+' '<none>' '<none>'
 run_lane database-mysql57 "$DB_PARITY_FQCN" 1 \
-  -pl foggy-dataset-model -am -P'!multi-db,model-lifecycle' \
+  -pl foggy-dataset-model-engine -am -P'!multi-db,model-lifecycle' \
   -Dfailsafe.failIfNoSpecifiedTests=false -Dspring.profiles.active=docker \
   -Dv933.expectedDatabase=mysql57
 capture_database_probe database-mysql57 mysql57 MySQL '5\.7' foggy_test '<none>'
 run_lane database-postgres15 "$DB_PARITY_FQCN" 1 \
-  -pl foggy-dataset-model -am -P'!multi-db,model-lifecycle' \
+  -pl foggy-dataset-model-engine -am -P'!multi-db,model-lifecycle' \
   -Dfailsafe.failIfNoSpecifiedTests=false -Dspring.profiles.active=postgres \
   -Dv933.expectedDatabase=postgres15
 capture_database_probe database-postgres15 postgres15 PostgreSQL '15\.[0-9]+' foggy_test public

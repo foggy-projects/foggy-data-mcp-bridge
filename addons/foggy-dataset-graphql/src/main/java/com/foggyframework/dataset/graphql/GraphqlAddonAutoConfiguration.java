@@ -27,7 +27,7 @@ import org.springframework.web.servlet.DispatcherServlet;
 @Slf4j
 @AutoConfiguration(
         after = JacksonAutoConfiguration.class,
-        afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
+        afterName = "com.foggyframework.dataset.model.DbModelAutoConfiguration")
 @ConditionalOnProperty(name = "foggy.dataset.graphql.enabled", havingValue = "true", matchIfMissing = true)
 public class GraphqlAddonAutoConfiguration {
 

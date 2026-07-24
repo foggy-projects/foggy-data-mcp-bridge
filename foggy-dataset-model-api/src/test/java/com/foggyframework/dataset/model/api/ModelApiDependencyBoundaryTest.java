@@ -4,8 +4,12 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.AtomicRefreshBackendProvider;
+import com.foggyframework.dataset.model.api.backend.AtomicRefreshPort;
 import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
 import com.foggyframework.dataset.model.api.backend.CacheInvalidationPort;
+import com.foggyframework.dataset.model.api.backend.ModelLoadBackendProvider;
+import com.foggyframework.dataset.model.api.backend.ModelLoadPort;
 import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import org.junit.jupiter.api.Test;
 
@@ -35,8 +39,20 @@ class ModelApiDependencyBoundaryTest {
         assertEquals(CacheInvalidationPort.class, cacheProviderMethods[0].getReturnType());
         assertEquals(2, CacheInvalidationPort.class.getDeclaredMethods().length);
 
+        Method[] modelLoadMethods = ModelLoadBackendProvider.class.getDeclaredMethods();
+        assertEquals(1, modelLoadMethods.length);
+        assertEquals(ModelLoadPort.class, modelLoadMethods[0].getReturnType());
+        assertEquals(1, ModelLoadPort.class.getDeclaredMethods().length);
+
+        Method[] atomicRefreshMethods = AtomicRefreshBackendProvider.class.getDeclaredMethods();
+        assertEquals(1, atomicRefreshMethods.length);
+        assertEquals(AtomicRefreshPort.class, atomicRefreshMethods[0].getReturnType());
+        assertEquals(1, AtomicRefreshPort.class.getDeclaredMethods().length);
+
         Set<Class<?>> apiTypes = Set.of(BackendId.class, BackendDescriptor.class,
                 BackendCapability.class, BackendProvider.class, QueryBackendProvider.class,
+                ModelLoadBackendProvider.class, ModelLoadPort.class,
+                AtomicRefreshBackendProvider.class, AtomicRefreshPort.class,
                 CacheInvalidationBackendProvider.class, CacheInvalidationPort.class);
         apiTypes.forEach(type -> Arrays.stream(type.getDeclaredFields())
                 .filter(field -> !field.isSynthetic())

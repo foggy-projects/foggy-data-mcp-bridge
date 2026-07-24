@@ -91,7 +91,7 @@ expected_report_paths() {
   python3 - "$REPO_ROOT/scripts/v934/successor/step2/source-inventory.tsv" \
     "$REPO_ROOT/scripts/v934/successor/step2/execution-inventory.tsv" \
     "$REPO_ROOT/scripts/v934/successor/step2/structural-report-inventory.tsv" \
-    "$REPO_ROOT/foggy-dataset-model/target/${runner}-reports" "$runner" "$selectors" <<'PY'
+    "$REPO_ROOT/foggy-dataset-model-engine/target/${runner}-reports" "$runner" "$selectors" <<'PY'
 import csv
 import pathlib
 import sys
@@ -101,9 +101,9 @@ selected = {value.split("#", 1)[0].split("$", 1)[0].rsplit(".", 1)[-1] for value
 with open(sources_path, encoding="utf-8", newline="") as stream:
     source_by_id = {row["source_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
 with open(execution_path, encoding="utf-8", newline="") as stream:
-    positive = [row for row in csv.DictReader(stream, delimiter="\t") if row["owner"] == "foggy-dataset-model" and row["runner"] == runner]
+    positive = [row for row in csv.DictReader(stream, delimiter="\t") if row["owner"] == "foggy-dataset-model-engine" and row["runner"] == runner]
 with open(structural_path, encoding="utf-8", newline="") as stream:
-    structural = [row for row in csv.DictReader(stream, delimiter="\t") if row["module"] == "foggy-dataset-model" and row["runner"] == runner]
+    structural = [row for row in csv.DictReader(stream, delimiter="\t") if row["module"] == "foggy-dataset-model-engine" and row["runner"] == runner]
 rows = [
     ("positive", source_by_id[row["source_id"]]["top_level_fqcn"], row["report_fqcn"])
     for row in positive
@@ -161,7 +161,7 @@ run_field_permission_units() {
   shift 2
   reset_reports surefire "$FIELD_PERMISSION_UNIT_TESTS"
   run_step "$name" \
-    mvn -pl foggy-dataset-model -am "$@" test \
+    mvn -pl foggy-dataset-model-engine -am "$@" test \
       -Dspring.profiles.active="$profile" \
       -Dtest="$FIELD_PERMISSION_UNIT_TESTS" \
       -DskipITs=true \
@@ -175,7 +175,7 @@ run_field_permission_it() {
   local profile="$2"
   reset_reports failsafe "$FIELD_PERMISSION_IT_TESTS"
   run_step "$name" \
-    mvn -pl foggy-dataset-model -am verify \
+    mvn -pl foggy-dataset-model-engine -am verify \
       -Dspring.profiles.active="$profile" \
       -Dit.test="$FIELD_PERMISSION_IT_TESTS" \
       -DskipUnitTests=true \

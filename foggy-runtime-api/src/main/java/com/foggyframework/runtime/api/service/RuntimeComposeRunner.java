@@ -1,9 +1,9 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionException;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionResult;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionException;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionResult;
+import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.runtime.api.dto.ComposeResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory.RuntimeComposeContext;

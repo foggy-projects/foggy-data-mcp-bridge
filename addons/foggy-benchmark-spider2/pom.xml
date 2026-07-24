@@ -8,6 +8,7 @@
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
         <version>9.1.0.beta</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>foggy-benchmark-spider2</artifactId>
@@ -33,7 +34,7 @@
         <!-- Foggy Dataset 核心模块 -->
         <dependency>
             <groupId>com.foggysource</groupId>
-            <artifactId>foggy-dataset-model</artifactId>
+            <artifactId>foggy-dataset-model-engine</artifactId>
         </dependency>
 
         <!-- MCP 工具模块 -->

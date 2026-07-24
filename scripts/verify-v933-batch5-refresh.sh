@@ -20,15 +20,15 @@ command -v sha256sum >/dev/null 2>&1 || fail "required command is missing: sha25
 mkdir -p "$RUN_ROOT"
 
 MODEL_SPECS=(
-  'com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinatorContractTest|4'
-  'com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCandidateContractTest|4'
-  'com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogAdmissionContractTest|4'
-  'com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinatorBehaviorTest|11'
-  'com.foggyframework.dataset.db.model.lifecycle.refresh.FileChangeRefreshScopeTest|4'
-  'com.foggyframework.dataset.db.model.lifecycle.refresh.BundleLifecycleRefreshTest|3'
+  'com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCoordinatorContractTest|4'
+  'com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCandidateContractTest|4'
+  'com.foggyframework.dataset.model.lifecycle.refresh.CatalogAdmissionContractTest|4'
+  'com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCoordinatorBehaviorTest|11'
+  'com.foggyframework.dataset.model.lifecycle.refresh.FileChangeRefreshScopeTest|4'
+  'com.foggyframework.dataset.model.lifecycle.refresh.BundleLifecycleRefreshTest|3'
 )
 MODEL_IT_SPECS=(
-  'com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshQueryIT|2'
+  'com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshQueryIT|2'
 )
 FSSCRIPT_SPECS=(
   'com.foggyframework.bundle.lifecycle.BundleSourceCommitOrderingTest|3'
@@ -202,7 +202,7 @@ run_model_lane() {
   : > "$lane_dir/.run-start"
 
   echo "[v933-batch5] running model refresh/admission contract"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model -am \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine -am \
       -P'!multi-db,model-lifecycle' \
       -DskipITs=true \
       -Dtest='CatalogRefreshCoordinatorContractTest,CatalogRefreshCandidateContractTest,CatalogAdmissionContractTest,CatalogRefreshCoordinatorBehaviorTest,FileChangeRefreshScopeTest,BundleLifecycleRefreshTest' \
@@ -222,11 +222,11 @@ run_model_it_lane() {
   : > "$lane_dir/.run-start"
 
   echo "[v933-batch5] running real SQLite atomic refresh IT"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model -am \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine -am \
       -P'!multi-db,model-lifecycle' \
       -DskipUnitTests=true \
       -DskipITs=false \
-      -Dit.test=com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshQueryIT \
+      -Dit.test=com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshQueryIT \
       -Dfailsafe.failIfNoSpecifiedTests=false \
       -Dspring.profiles.active=sqlite \
       -Dv933.reportsDirectory="$lane_dir" \
@@ -297,7 +297,7 @@ assert_rg_absent() {
 
 audit_sources() {
   local audit_dir="$RUN_ROOT/source-audit"
-  local refresh_main="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/refresh"
+  local refresh_main="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/refresh"
   local batch6_green="$ROOT_DIR/foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/spi/impl/CatalogNamespaceAuthorityTest.java"
   local spec fqcn
   local -a frozen_test_sources=()
@@ -308,7 +308,7 @@ audit_sources() {
   assert_rg_absent "a promoted RedBaseline source remains" \
     "$audit_dir/remaining-red-sources.txt" \
     'class[[:space:]]+[A-Za-z0-9_]*RedBaseline' \
-    "$ROOT_DIR/foggy-dataset-model/src/test/java" \
+    "$ROOT_DIR/foggy-dataset-model-engine/src/test/java" \
     "$ROOT_DIR/foggy-runtime-api/src/test/java" \
     "$ROOT_DIR/foggy-fsscript/src/test/java" \
     "$ROOT_DIR/foggy-dataset-mcp/src/test/java"
@@ -317,10 +317,10 @@ audit_sources() {
 
   assert_test_source_counts \
     "$audit_dir/model-test-inventory.tsv" \
-    foggy-dataset-model "${MODEL_SPECS[@]}"
+    foggy-dataset-model-engine "${MODEL_SPECS[@]}"
   assert_test_source_counts \
     "$audit_dir/model-it-inventory.tsv" \
-    foggy-dataset-model "${MODEL_IT_SPECS[@]}"
+    foggy-dataset-model-engine "${MODEL_IT_SPECS[@]}"
   assert_test_source_counts \
     "$audit_dir/fsscript-test-inventory.tsv" \
     foggy-fsscript "${FSSCRIPT_SPECS[@]}"
@@ -334,12 +334,12 @@ audit_sources() {
   for spec in "${MODEL_SPECS[@]}"; do
     fqcn="${spec%|*}"
     frozen_test_sources+=(
-      "$ROOT_DIR/foggy-dataset-model/src/test/java/${fqcn//./\/}.java")
+      "$ROOT_DIR/foggy-dataset-model-engine/src/test/java/${fqcn//./\/}.java")
   done
   for spec in "${MODEL_IT_SPECS[@]}"; do
     fqcn="${spec%|*}"
     frozen_test_sources+=(
-      "$ROOT_DIR/foggy-dataset-model/src/test/java/${fqcn//./\/}.java")
+      "$ROOT_DIR/foggy-dataset-model-engine/src/test/java/${fqcn//./\/}.java")
   done
   for spec in "${FSSCRIPT_SPECS[@]}"; do
     fqcn="${spec%|*}"
@@ -366,8 +366,8 @@ audit_sources() {
     "$audit_dir/production-runtime-event-clear-first.txt" \
     '\.(clearAll|clearByNamespace|clearNamespace)\(' \
     "$ROOT_DIR/foggy-runtime-api/src/main/java" \
-    "$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/DbModelFileChangeHandler.java" \
-    "$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/event/BundleLifecycleListener.java" \
+    "$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/query_model/DbModelFileChangeHandler.java" \
+    "$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/event/BundleLifecycleListener.java" \
     "$ROOT_DIR/foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/datasource/DataSourceManager.java"
 
   assert_rg_absent "promoted Batch 5 red baseline remains" \
@@ -375,7 +375,7 @@ audit_sources() {
     'RuntimeLifecycleDtoContractRedBaseline|RuntimeModelLifecycleRedBaseline|BundleSourceCommitOrderingRedBaseline|FileChangeNamespaceScopeRedBaseline' \
     "$ROOT_DIR/scripts/verify-v933-batch1-red-baselines.sh" \
     "$ROOT_DIR/foggy-fsscript/src/test/java" \
-    "$ROOT_DIR/foggy-dataset-model/src/test/java" \
+    "$ROOT_DIR/foggy-dataset-model-engine/src/test/java" \
     "$ROOT_DIR/foggy-runtime-api/src/test/java" \
     "$ROOT_DIR/foggy-dataset-mcp/src/test/java"
 

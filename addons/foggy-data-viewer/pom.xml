@@ -29,7 +29,7 @@
         </dependency>
         <dependency>
             <groupId>com.foggysource</groupId>
-            <artifactId>foggy-dataset-model</artifactId>
+            <artifactId>foggy-dataset-model-engine</artifactId>
         </dependency>
 
         <!-- Spring Boot Web -->

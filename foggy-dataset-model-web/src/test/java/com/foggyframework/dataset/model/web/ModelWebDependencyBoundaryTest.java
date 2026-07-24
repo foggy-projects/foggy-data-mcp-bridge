@@ -12,6 +12,6 @@ class ModelWebDependencyBoundaryTest {
         assertThrows(ClassNotFoundException.class, () -> classLoader.loadClass(
                 "com.foggyframework.dataset.model.jdbc.JdbcQueryBackendProvider"));
         assertThrows(ClassNotFoundException.class, () -> classLoader.loadClass(
-                "com.foggyframework.dataset.db.model.config.DbModelAutoConfiguration"));
+                "com.foggyframework.dataset.model.config.DbModelAutoConfiguration"));
     }
 }

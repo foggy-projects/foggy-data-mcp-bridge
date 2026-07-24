@@ -1,7 +1,7 @@
 package com.foggyframework.runtime.api.controller;
 
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.dto.SqlColumnInfo;

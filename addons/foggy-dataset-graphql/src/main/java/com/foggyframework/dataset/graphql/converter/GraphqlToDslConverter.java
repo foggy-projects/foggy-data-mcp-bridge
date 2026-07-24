@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.api.QueryFacadeRequest;
 import graphql.language.*;
 import graphql.parser.Parser;

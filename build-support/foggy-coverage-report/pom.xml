@@ -43,7 +43,7 @@
         <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-mcp</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-memory-grid-bridge</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-memory-grid-duckdb</artifactId><version>${project.version}</version></dependency>
-        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-model</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>com.foggysource</groupId><artifactId>foggy-dataset-model-engine</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>com.foggysource</groupId><artifactId>foggy-fsscript</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>com.foggysource</groupId><artifactId>foggy-mcp-launcher</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>com.foggysource</groupId><artifactId>foggy-mcp-spi</artifactId><version>${project.version}</version></dependency>

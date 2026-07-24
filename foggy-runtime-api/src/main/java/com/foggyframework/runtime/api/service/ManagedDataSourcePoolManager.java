@@ -1,7 +1,7 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.lifecycle.port.BindingAdmissionState;
-import com.foggyframework.dataset.db.model.lifecycle.port.RevokeMode;
+import com.foggyframework.dataset.model.lifecycle.port.BindingAdmissionState;
+import com.foggyframework.dataset.model.lifecycle.port.RevokeMode;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.RuntimeDatasourceRecord;
 import jakarta.annotation.PostConstruct;

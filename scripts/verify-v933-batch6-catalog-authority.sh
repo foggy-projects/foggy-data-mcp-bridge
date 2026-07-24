@@ -21,7 +21,7 @@ command -v sha256sum >/dev/null 2>&1 || fail "required command is missing: sha25
 mkdir -p "$RUN_ROOT"
 
 MODEL_SPECS=(
-  'com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogServiceTest|11'
+  'com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogServiceTest|11'
 )
 MCP_SPECS=(
   'com.foggyframework.dataset.mcp.spi.impl.CatalogNamespaceAuthorityTest|5'
@@ -131,10 +131,10 @@ extract_java_method() {
 
 audit_sources() {
   local audit_dir="$RUN_ROOT/source-audit"
-  local model_service="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/SemanticModelCatalogService.java"
+  local model_service="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/semantic/service/SemanticModelCatalogService.java"
   local mcp_resolver="$ROOT_DIR/foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/spi/impl/SemanticServiceResolverImpl.java"
   local mcp_catalog="$ROOT_DIR/foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/service/ModelCatalogService.java"
-  local model_test="$ROOT_DIR/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/service/SemanticModelCatalogServiceTest.java"
+  local model_test="$ROOT_DIR/foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/semantic/service/SemanticModelCatalogServiceTest.java"
   local authority_test="$ROOT_DIR/foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/spi/impl/CatalogNamespaceAuthorityTest.java"
   local spring_wiring_test="$ROOT_DIR/foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/spi/impl/CatalogAuthoritySpringWiringTest.java"
   local resolver_test="$ROOT_DIR/foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/spi/impl/SemanticServiceResolverImplTest.java"
@@ -279,7 +279,7 @@ audit_sources() {
 
   mapfile -d '' red_sources < <(
     find \
-      "$ROOT_DIR/foggy-dataset-model/src/test/java" \
+      "$ROOT_DIR/foggy-dataset-model-engine/src/test/java" \
       "$ROOT_DIR/foggy-runtime-api/src/test/java" \
       "$ROOT_DIR/foggy-fsscript/src/test/java" \
       "$ROOT_DIR/foggy-dataset-mcp/src/test/java" \
@@ -320,7 +320,7 @@ run_model_lane() {
   : > "$lane_dir/.run-start"
 
   echo "[v933-batch6-catalog] running model catalog authority"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model -am \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine -am \
       -P'!multi-db,model-lifecycle' \
       -DskipITs=true \
       -Dtest=SemanticModelCatalogServiceTest \

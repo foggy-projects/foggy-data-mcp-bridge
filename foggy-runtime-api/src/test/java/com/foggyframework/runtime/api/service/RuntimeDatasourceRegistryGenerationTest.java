@@ -2,9 +2,9 @@ package com.foggyframework.runtime.api.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingGeneration;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.RuntimeDatasourceRecord;
 import org.junit.jupiter.api.Test;

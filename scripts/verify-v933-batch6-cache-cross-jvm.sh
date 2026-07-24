@@ -65,16 +65,16 @@ docker image inspect "$REDIS_IMAGE" > /dev/null 2>&1 || \
   fail "required local Redis image is unavailable: $REDIS_IMAGE"
 mkdir -p "$RUN_ROOT/source-audit" "$RUN_ROOT/surefire-reports"
 
-TEST_SOURCE="$ROOT_DIR/addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java"
-KEY_BUILDER="$ROOT_DIR/addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/QueryCacheKeyBuilder.java"
-REDIS_PROVIDER="$ROOT_DIR/addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/RedisQueryCacheProvider.java"
-AUTO_CONFIGURATION="$ROOT_DIR/addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/config/QueryCacheAutoConfiguration.java"
-CATALOG_STORE="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStore.java"
-CATALOG_SNAPSHOT="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshot.java"
-CATALOG_CANDIDATE="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogCandidate.java"
-MODEL_PROVENANCE="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/ModelProvenance.java"
-MODEL_RESULT_CONTEXT="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/ModelResultContext.java"
-OWNING_REPORT="$ROOT_DIR/addons/foggy-dataset-model-cache/target/surefire-reports/TEST-com.foggyframework.dataset.db.model.cache.provider.RedisCrossJvmCacheIT.xml"
+TEST_SOURCE="$ROOT_DIR/addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/provider/RedisCrossJvmCacheIT.java"
+KEY_BUILDER="$ROOT_DIR/addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/QueryCacheKeyBuilder.java"
+REDIS_PROVIDER="$ROOT_DIR/addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/RedisQueryCacheProvider.java"
+AUTO_CONFIGURATION="$ROOT_DIR/addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/config/QueryCacheAutoConfiguration.java"
+CATALOG_STORE="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/CatalogSnapshotStore.java"
+CATALOG_SNAPSHOT="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/CatalogSnapshot.java"
+CATALOG_CANDIDATE="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/CatalogCandidate.java"
+MODEL_PROVENANCE="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/ModelProvenance.java"
+MODEL_RESULT_CONTEXT="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/plugins/result_set_filter/ModelResultContext.java"
+OWNING_REPORT="$ROOT_DIR/addons/foggy-dataset-model-cache/target/surefire-reports/TEST-com.foggyframework.dataset.model.cache.provider.RedisCrossJvmCacheIT.xml"
 RUN_MARKER="$RUN_ROOT/.run-start"
 MAVEN_LOG="$RUN_ROOT/maven.log"
 KEY_PREFIX="v933:$RUN_ID:"
@@ -82,15 +82,15 @@ KEY_PREFIX="v933:$RUN_ID:"
 SOURCE_FILES=(
   "scripts/verify-v933-batch6-cache-cross-jvm.sh"
   "addons/foggy-dataset-model-cache/pom.xml"
-  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisCrossJvmCacheIT.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/config/QueryCacheAutoConfiguration.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/QueryCacheKeyBuilder.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/RedisQueryCacheProvider.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshotStore.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogSnapshot.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogCandidate.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/ModelProvenance.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/ModelResultContext.java"
+  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/provider/RedisCrossJvmCacheIT.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/config/QueryCacheAutoConfiguration.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/QueryCacheKeyBuilder.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/RedisQueryCacheProvider.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/CatalogSnapshotStore.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/CatalogSnapshot.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/CatalogCandidate.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/ModelProvenance.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/plugins/result_set_filter/ModelResultContext.java"
 )
 for source_file in "${SOURCE_FILES[@]}"; do
   [[ -f "$ROOT_DIR/$source_file" ]] || fail "evidence source is missing: $source_file"
@@ -211,7 +211,7 @@ cp "$OWNING_REPORT" "$RUN_ROOT/surefire-reports/"
 V933_RUN_MARKER="$RUN_MARKER" \
   "$REPORT_ASSERTION" \
   "$RUN_ROOT/surefire-reports" \
-  'com.foggyframework.dataset.db.model.cache.provider.RedisCrossJvmCacheIT' \
+  'com.foggyframework.dataset.model.cache.provider.RedisCrossJvmCacheIT' \
   1
 
 PROBE_RAW="$RUN_ROOT/child-probes.raw"

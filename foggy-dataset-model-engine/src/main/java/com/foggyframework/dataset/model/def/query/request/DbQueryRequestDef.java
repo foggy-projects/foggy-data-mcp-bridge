@@ -1,0 +1,123 @@
+package com.foggyframework.dataset.model.def.query.request;
+
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.foggyframework.dataset.model.def.query.request.deserializer.GroupRequestDefListDeserializer;
+import com.foggyframework.dataset.model.def.query.request.deserializer.OrderRequestDefListDeserializer;
+import com.foggyframework.dataset.model.def.query.request.deserializer.SliceRequestDefListDeserializer;
+import com.foggyframework.dataset.model.spi.DbQueryRequest;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+import java.util.List;
+import java.util.Optional;
+
+@Data
+public class DbQueryRequestDef implements DbQueryRequest {
+
+    @ApiModelProperty(value = "查询列", notes = "为未传，或为空，则查出当前操作人有权限的所有列")
+    List<String> columns;
+
+    @ApiModelProperty(value = "排除列", notes = "注意，排除后，将不会将该列的数据在columns返回")
+    List<String> exColumns;
+
+    @ApiModelProperty(value = "查询模型", notes = "需要查询的【查询模型】名称")
+    String queryModel;
+
+    @ApiModelProperty(value = "过滤条件", notes = "过滤条件，使用方式见https://sdsh.yuque.com/xl6fiq/mbuyho/pq81w1gpz4k3mysk?singleDoc# 《后端Api》")
+    @JsonDeserialize(using = SliceRequestDefListDeserializer.class)
+    List<SliceRequestDef> slice;
+
+    @ApiModelProperty(value = "聚合后过滤条件", notes = "仅用于 groupBy/聚合后的 HAVING；聚合 measure 不应放入 slice")
+    @JsonDeserialize(using = SliceRequestDefListDeserializer.class)
+    List<SliceRequestDef> having;
+
+    @ApiModelProperty(value = "结果阶段过滤条件", notes = "仅用于窗口计算字段或 postAggregateCalculations 生成的外层结果别名过滤；普通明细字段过滤继续使用 slice")
+    @JsonDeserialize(using = SliceRequestDefListDeserializer.class)
+    List<SliceRequestDef> postSlice;
+
+    @ApiModelProperty(value = "", notes = "排序，使用方式见https://sdsh.yuque.com/xl6fiq/mbuyho/pq81w1gpz4k3mysk?singleDoc# 《后端Api》")
+    @JsonDeserialize(using = OrderRequestDefListDeserializer.class)
+    List<OrderRequestDef> orderBy;
+
+    @ApiModelProperty(value = "", notes = "分组")
+    @JsonDeserialize(using = GroupRequestDefListDeserializer.class)
+    List<GroupRequestDef> groupBy;
+
+    @ApiModelProperty(value = "动态计算字段", notes = "在查询时定义的计算字段，可在 columns/groupBy 中引用")
+    List<CalculatedFieldDef> calculatedFields;
+
+    @ApiModelProperty(value = "聚合后计算字段", notes = "在 groupBy 聚合结果外层计算，首期支持 ratioToTotal")
+    List<PostAggregateCalculationDef> postAggregateCalculations;
+
+    @ApiModelProperty("是否返回总数及合计")
+    boolean returnTotal;
+
+    @ApiModelProperty("是否启用 DISTINCT 去重（与 groupBy 互斥）")
+    boolean distinct;
+
+    @ApiModelProperty("是否追加小计/总计行（仅 groupBy 查询有效）")
+    boolean withSubtotals;
+
+    /**
+     * @deprecated 已废弃，系统始终自动处理 groupBy。此字段保留仅为 API 兼容性。
+     */
+    @ApiModelProperty(value = "自动补充groupBy（已废弃）", notes = "此参数已废弃，系统始终自动处理 groupBy")
+    @Deprecated
+    boolean autoGroupBy;
+
+    /**
+     * 是否启用自动 GroupBy 处理
+     * <p>
+     * 始终返回 true。系统会自动分析 columns 中的聚合表达式，
+     * 并将非聚合列自动加入 groupBy。
+     * </p>
+     *
+     * @return 始终为 true
+     */
+    public boolean isAutoGroupBy() {
+        return true;
+    }
+
+    @ApiModelProperty("查询扩展数据，前后端约定后，由前端传入")
+    Object extData;
+
+    String queryId;
+
+    @ApiModelProperty("严格按columns中的列返回")
+    @Deprecated
+    boolean strictColumns;
+
+    @ApiModelProperty("当查询中的维度不带$caption或$id时，自动加入$caption")
+    @Deprecated
+    boolean autoFixDimCaption;
+
+    @ApiModelProperty(value = "是否优化聚合SQL", notes = "null或true表示启用优化（精简聚合子查询），false表示使用原始完整子查询")
+    Boolean optimizeAggSql;
+
+    /**
+     * 是否启用聚合SQL优化
+     * <p>
+     * 当启用时，系统会分析聚合查询只需要哪些字段和表关联，
+     * 生成精简的子查询而非使用完整的明细查询SQL。
+     * </p>
+     *
+     * @return true 表示启用优化（默认），false 表示禁用
+     */
+    public boolean isOptimizeAggSqlEnabled() {
+        return optimizeAggSql == null || optimizeAggSql;
+    }
+
+    public boolean hasGroupBy() {
+        return groupBy != null && !groupBy.isEmpty();
+    }
+
+    public Object getSliceValueByName(String name, boolean errorIfNotFound) {
+        Optional<SliceRequestDef> opt = slice.stream().filter(s -> s.field.equals(name)).findFirst();
+
+        if (errorIfNotFound) {
+            return opt.orElseThrow(() -> new RuntimeException("slice not found: " + name)).getValue();
+        } else {
+            return opt.orElse(null);
+        }
+    }
+}

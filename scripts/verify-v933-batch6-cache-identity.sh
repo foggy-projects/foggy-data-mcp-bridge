@@ -9,7 +9,7 @@ LOCK_FILE="$TARGET_ROOT/.authority.lock"
 LATEST_RUN_ID="$TARGET_ROOT/latest-run-id"
 LATEST_TMP="$TARGET_ROOT/.latest-run-id.$RUN_ID.tmp"
 REPORT_ASSERTION="$ROOT_DIR/scripts/assert-v933-test-report.sh"
-MODEL_MODULE="$ROOT_DIR/foggy-dataset-model"
+MODEL_MODULE="$ROOT_DIR/foggy-dataset-model-engine"
 CACHE_MODULE="$ROOT_DIR/addons/foggy-dataset-model-cache"
 MODEL_REPORT_DIR="$MODEL_MODULE/target/surefire-reports"
 CACHE_REPORT_DIR="$CACHE_MODULE/target/surefire-reports"
@@ -74,8 +74,8 @@ mkdir -p \
   "$RUN_ROOT/source-audit"
 printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RUN_ROOT/started-at.txt"
 
-MODEL_TEST="$MODEL_MODULE/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
-CACHE_TEST_ROOT="$CACHE_MODULE/src/test/java/com/foggyframework/dataset/db/model/cache/provider"
+MODEL_TEST="$MODEL_MODULE/src/test/java/com/foggyframework/dataset/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
+CACHE_TEST_ROOT="$CACHE_MODULE/src/test/java/com/foggyframework/dataset/model/cache/provider"
 STRONG_KEY_TEST="$CACHE_TEST_ROOT/QueryCacheKeyBuilderStrongIdentityTest.java"
 CAFFEINE_TEST="$CACHE_TEST_ROOT/CaffeineQueryCacheProviderTest.java"
 REDIS_TEST="$CACHE_TEST_ROOT/RedisQueryCacheProviderTest.java"
@@ -84,33 +84,33 @@ CROSS_CONTEXT_TEST="$CACHE_TEST_ROOT/QueryCacheKeyCrossApplicationContextTest.ja
 
 SOURCE_FILES=(
   "pom.xml"
-  "foggy-dataset-model/pom.xml"
+  "foggy-dataset-model-engine/pom.xml"
   "addons/foggy-dataset-model-cache/pom.xml"
   "scripts/assert-v933-test-report.sh"
   "scripts/verify-v933-batch6-cache-identity.sh"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/QueryFacadeImpl.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/ModelResultContext.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog/CatalogResolution.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/identity/CatalogGeneration.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/identity/CatalogIdentity.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/identity/SourceRevision.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/identity/DatasourceBindingGeneration.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/lifecycle/identity/DatasourceBindingIdentity.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/config/QueryCacheAutoConfiguration.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/config/QueryCacheProperties.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/fingerprint/QueryFingerprint.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/fingerprint/QueryFingerprintBuilder.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/fingerprint/SecurityPolicyFingerprint.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/fingerprint/StableCanonicalEncoder.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/QueryCacheKeyBuilder.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/CaffeineQueryCacheProvider.java"
-  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/db/model/cache/provider/RedisQueryCacheProvider.java"
-  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/QueryCacheKeyBuilderStrongIdentityTest.java"
-  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/CaffeineQueryCacheProviderTest.java"
-  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/RedisQueryCacheProviderTest.java"
-  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/CaffeineQueryCacheProviderDataSourceIsolationIntegrationTest.java"
-  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/db/model/cache/provider/QueryCacheKeyCrossApplicationContextTest.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/service/impl/QueryFacadeImpl.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/plugins/result_set_filter/ModelResultContext.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog/CatalogResolution.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/identity/CatalogGeneration.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/identity/CatalogIdentity.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/identity/SourceRevision.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/identity/DatasourceBindingGeneration.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/lifecycle/identity/DatasourceBindingIdentity.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/config/QueryCacheAutoConfiguration.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/config/QueryCacheProperties.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/fingerprint/QueryFingerprint.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/fingerprint/QueryFingerprintBuilder.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/fingerprint/SecurityPolicyFingerprint.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/fingerprint/StableCanonicalEncoder.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/QueryCacheKeyBuilder.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/CaffeineQueryCacheProvider.java"
+  "addons/foggy-dataset-model-cache/src/main/java/com/foggyframework/dataset/model/cache/provider/RedisQueryCacheProvider.java"
+  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/provider/QueryCacheKeyBuilderStrongIdentityTest.java"
+  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/provider/CaffeineQueryCacheProviderTest.java"
+  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/provider/RedisQueryCacheProviderTest.java"
+  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/provider/CaffeineQueryCacheProviderDataSourceIsolationIntegrationTest.java"
+  "addons/foggy-dataset-model-cache/src/test/java/com/foggyframework/dataset/model/cache/provider/QueryCacheKeyCrossApplicationContextTest.java"
 )
 for source_file in "${SOURCE_FILES[@]}"; do
   [[ -f "$ROOT_DIR/$source_file" ]] || fail "evidence source is missing: $source_file"
@@ -153,11 +153,11 @@ if rg -n '@Disabled|Assumptions|Thread\.sleep|TimeUnit\.[A-Za-z]+\.sleep|\bassum
   fail "cache identity evidence contains a skip or sleep shortcut"
 fi
 
-KEY_BUILDER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/db/model/cache/provider/QueryCacheKeyBuilder.java"
-CAFFEINE_PROVIDER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/db/model/cache/provider/CaffeineQueryCacheProvider.java"
-REDIS_PROVIDER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/db/model/cache/provider/RedisQueryCacheProvider.java"
-STABLE_ENCODER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/db/model/cache/fingerprint/StableCanonicalEncoder.java"
-QUERY_FACADE="$MODEL_MODULE/src/main/java/com/foggyframework/dataset/db/model/service/impl/QueryFacadeImpl.java"
+KEY_BUILDER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/model/cache/provider/QueryCacheKeyBuilder.java"
+CAFFEINE_PROVIDER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/model/cache/provider/CaffeineQueryCacheProvider.java"
+REDIS_PROVIDER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/model/cache/provider/RedisQueryCacheProvider.java"
+STABLE_ENCODER="$CACHE_MODULE/src/main/java/com/foggyframework/dataset/model/cache/fingerprint/StableCanonicalEncoder.java"
+QUERY_FACADE="$MODEL_MODULE/src/main/java/com/foggyframework/dataset/model/service/impl/QueryFacadeImpl.java"
 if rg -n 'InstanceIdentityRegistry|System\.identityHashCode|UUID\.randomUUID|resolveDataSourceIdentity' \
     "$KEY_BUILDER" > "$RUN_ROOT/source-audit/forbidden-process-local-key.txt"; then
   fail "cache key builder contains a process-local/object-identity fallback"
@@ -249,13 +249,13 @@ assert_lane_log() {
     fail "lane $(basename "$lane_dir") running classes=$running_count, expected=$expected_classes"
 }
 
-MODEL_FQCN='com.foggyframework.dataset.db.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest'
+MODEL_FQCN='com.foggyframework.dataset.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest'
 MODEL_LANE="$RUN_ROOT/lanes/model-pin"
 rm -f "$MODEL_REPORT_DIR/TEST-$MODEL_FQCN.xml"
 : > "$MODEL_LANE/.run-start"
 echo "[v933-cache-identity] running Step 2 model pin lane"
 if ! (cd "$ROOT_DIR" && mvn -B \
-    -pl foggy-dataset-model -am \
+    -pl foggy-dataset-model-engine -am \
     -P'!multi-db' \
     -DskipITs=true \
     -Dtest=QueryFacadeCatalogIdentityTest \
@@ -271,10 +271,10 @@ assert_lane_log "$MODEL_LANE" 1
   fail "Step 2 model report count drifted"
 
 ADDON_SPECS=(
-  'com.foggyframework.dataset.db.model.cache.provider.QueryCacheKeyBuilderStrongIdentityTest:12'
-  'com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProviderTest:30'
-  'com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProviderTest:25'
-  'com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProviderDataSourceIsolationIntegrationTest:1'
+  'com.foggyframework.dataset.model.cache.provider.QueryCacheKeyBuilderStrongIdentityTest:12'
+  'com.foggyframework.dataset.model.cache.provider.CaffeineQueryCacheProviderTest:30'
+  'com.foggyframework.dataset.model.cache.provider.RedisQueryCacheProviderTest:25'
+  'com.foggyframework.dataset.model.cache.provider.CaffeineQueryCacheProviderDataSourceIsolationIntegrationTest:1'
 )
 ADDON_LANE="$RUN_ROOT/lanes/addon-strong-key"
 for specification in "${ADDON_SPECS[@]}"; do
@@ -301,7 +301,7 @@ assert_lane_log "$ADDON_LANE" 4
 [[ "$(find "$ADDON_LANE/surefire-reports" -maxdepth 1 -type f -name 'TEST-*.xml' | wc -l)" -eq 4 ]] || \
   fail "Step 2 addon report count drifted"
 
-CROSS_FQCN='com.foggyframework.dataset.db.model.cache.provider.QueryCacheKeyCrossApplicationContextTest'
+CROSS_FQCN='com.foggyframework.dataset.model.cache.provider.QueryCacheKeyCrossApplicationContextTest'
 CROSS_LANE="$RUN_ROOT/lanes/cross-application-context"
 rm -f "$CACHE_REPORT_DIR/TEST-$CROSS_FQCN.xml"
 : > "$CROSS_LANE/.run-start"

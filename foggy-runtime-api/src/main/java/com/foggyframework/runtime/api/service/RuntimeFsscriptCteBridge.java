@@ -1,6 +1,6 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
+import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.fsscript.exp.PropertyFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.PropertyHolder;

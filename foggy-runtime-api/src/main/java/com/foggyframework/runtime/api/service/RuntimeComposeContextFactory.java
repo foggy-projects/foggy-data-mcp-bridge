@@ -1,10 +1,10 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeCaller;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionRequest;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.dataset.model.semantic.port.ComposeCaller;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionRequest;
+import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;

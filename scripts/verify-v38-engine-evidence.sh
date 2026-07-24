@@ -80,7 +80,7 @@ run_step() {
 reset_model_reports() {
   local runner="$1"
   local selectors="$2"
-  local dir="$REPO_ROOT/foggy-dataset-model/target/${runner}-reports"
+  local dir="$REPO_ROOT/foggy-dataset-model-engine/target/${runner}-reports"
   [[ "$DRY_RUN" -eq 1 || ! -d "$dir" ]] && return 0
   local selector
   IFS=',' read -r -a selected <<< "$selectors"
@@ -93,7 +93,7 @@ assert_model_reports() {
   local runner="$1"
   local selectors="$2"
   [[ "$DRY_RUN" -eq 1 ]] && return 0
-  local dir="$REPO_ROOT/foggy-dataset-model/target/${runner}-reports"
+  local dir="$REPO_ROOT/foggy-dataset-model-engine/target/${runner}-reports"
   local selector report found
   IFS=',' read -r -a selected <<< "$selectors"
   for selector in "${selected[@]}"; do
@@ -116,7 +116,7 @@ run_model_units() {
   local tests="$2"
   reset_model_reports surefire "$tests"
   run_step "$name" \
-    mvn -pl foggy-dataset-model -am test \
+    mvn -pl foggy-dataset-model-engine -am test \
       -Dtest="$tests" \
       -Dspring.profiles.active=postgres \
       -DskipITs=true \
@@ -130,7 +130,7 @@ run_model_its() {
   local tests="$2"
   reset_model_reports failsafe "$tests"
   run_step "$name" \
-    mvn -pl foggy-dataset-model -am verify \
+    mvn -pl foggy-dataset-model-engine -am verify \
       -Dit.test="$tests" \
       -Dspring.profiles.active=postgres \
       -DskipUnitTests=true \

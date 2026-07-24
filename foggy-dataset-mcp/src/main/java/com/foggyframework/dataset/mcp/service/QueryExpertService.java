@@ -2,7 +2,7 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryRequest;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryResponse;

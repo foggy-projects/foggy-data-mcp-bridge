@@ -2,8 +2,8 @@ package com.foggyframework.dataset.mcp.validation;
 
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
-import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
-import com.foggyframework.dataset.db.model.validation.DetachedModelValidationSession;
+import com.foggyframework.dataset.model.validation.DetachedModelValidationFactory;
+import com.foggyframework.dataset.model.validation.DetachedModelValidationSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

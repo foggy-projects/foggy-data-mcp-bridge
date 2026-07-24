@@ -1,14 +1,14 @@
 package com.foggyframework.dataset.mcp.tools;
 
-import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeCompileException;
-import com.foggyframework.dataset.db.model.engine.compose.authority.AuthorityBindingResolver;
-import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRuntime;
-import com.foggyframework.dataset.db.model.engine.compose.sandbox.ComposeSandboxViolationException;
-import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolutionException;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.engine.compose.compilation.ComposeCompileException;
+import com.foggyframework.dataset.model.engine.compose.authority.AuthorityBindingResolver;
+import com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.model.engine.compose.runtime.ScriptRuntime;
+import com.foggyframework.dataset.model.engine.compose.sandbox.ComposeSandboxViolationException;
+import com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaException;
+import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolutionException;
+import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;

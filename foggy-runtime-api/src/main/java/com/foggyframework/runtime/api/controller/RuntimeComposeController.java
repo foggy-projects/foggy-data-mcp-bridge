@@ -1,6 +1,6 @@
 package com.foggyframework.runtime.api.controller;
 
-import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
+import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.ComposeRequest;
 import com.foggyframework.runtime.api.dto.ComposeResponse;

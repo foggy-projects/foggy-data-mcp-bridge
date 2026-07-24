@@ -65,7 +65,7 @@ run_model_lane() {
   : > "$lane_dir/.run-start"
 
   echo "[v933-batch3] running $lane_name"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model -am \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine -am \
       -P'!multi-db,model-lifecycle' \
       -DskipITs=true \
       -Dtest="$test_filter" \
@@ -121,7 +121,7 @@ run_standard_lane() {
 
 audit_sources() {
   local audit_dir="$RUN_ROOT/source-audit"
-  local model_main="$ROOT_DIR/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model"
+  local model_main="$ROOT_DIR/foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model"
   mkdir -p "$audit_dir"
 
   if rg -n 'name2JdbcModel|namespaceCaches|\bdimIdx\b|\bmodelIdx\b' \
@@ -132,7 +132,7 @@ audit_sources() {
   fi
 
   if rg -n 'Thread\.sleep|TimeUnit\.sleep' \
-      "$ROOT_DIR/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog" \
+      "$ROOT_DIR/foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/lifecycle/catalog" \
       "$ROOT_DIR/foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/service/RuntimeDatasourceBindingLifecycleTest.java" \
       "$ROOT_DIR/foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/service/RuntimeDatasourceRegistryGenerationTest.java" \
       "$ROOT_DIR/foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/service/RuntimeNamedDataSourceResolverBindingTest.java" \
@@ -164,23 +164,23 @@ audit_sources() {
 
 run_model_lane catalog-authority \
   'CatalogSnapshotTest,CatalogSnapshotStoreTest,QueryModelDiscoveryAuthorityTest,SemanticMetadataCatalogIdentityTest,JdbcQueryModelCompletenessTest,QueryFacadeCatalogIdentityTest,TableModelLoaderManagerImplDataSourceResolutionTest,DbModelAutoConfigurationTest' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotTest|5' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStoreTest|16' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.QueryModelDiscoveryAuthorityTest|3' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.SemanticMetadataCatalogIdentityTest|3' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.JdbcQueryModelCompletenessTest|2' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest|6' \
-  'com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImplDataSourceResolutionTest|14' \
-  'com.foggyframework.dataset.db.model.config.DbModelAutoConfigurationTest|8'
+  'com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotTest|5' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStoreTest|16' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.QueryModelDiscoveryAuthorityTest|3' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.SemanticMetadataCatalogIdentityTest|3' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.JdbcQueryModelCompletenessTest|2' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest|6' \
+  'com.foggyframework.dataset.model.impl.loader.TableModelLoaderManagerImplDataSourceResolutionTest|14' \
+  'com.foggyframework.dataset.model.config.DbModelAutoConfigurationTest|8'
 
 run_model_lane sqlite-consumer-regression \
   'QueryModelAliasDeterminismTest,SyntheticMemberQueryModelLifecycleTest,QueryFacadeImplTest,SemanticServiceV3Test' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.QueryModelAliasDeterminismTest|1' \
-  'com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelLifecycleTest|4' \
-  'com.foggyframework.dataset.db.model.service.QueryFacadeImplTest|5' \
-  'com.foggyframework.dataset.db.model.semantic.SemanticServiceV3Test|14' \
-  'com.foggyframework.dataset.db.model.semantic.SemanticServiceV3Test$MetadataFieldAccessTests|5' \
-  'com.foggyframework.dataset.db.model.semantic.SemanticServiceV3Test$MetadataPhysicalTablesTests|4'
+  'com.foggyframework.dataset.model.lifecycle.catalog.QueryModelAliasDeterminismTest|1' \
+  'com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelLifecycleTest|4' \
+  'com.foggyframework.dataset.model.service.QueryFacadeImplTest|5' \
+  'com.foggyframework.dataset.model.semantic.SemanticServiceV3Test|14' \
+  'com.foggyframework.dataset.model.semantic.SemanticServiceV3Test$MetadataFieldAccessTests|5' \
+  'com.foggyframework.dataset.model.semantic.SemanticServiceV3Test$MetadataPhysicalTablesTests|4'
 
 run_standard_lane runtime-binding foggy-runtime-api \
   'RuntimeDatasourceBindingLifecycleTest,RuntimeDatasourceRegistryGenerationTest,RuntimeNamedDataSourceResolverBindingTest,ManagedDataSourcePoolManagerTest' \
@@ -195,7 +195,7 @@ run_standard_lane mcp-binding foggy-dataset-mcp \
 
 run_standard_lane cache-identity addons/foggy-dataset-model-cache \
   'CaffeineQueryCacheProviderTest' \
-  'com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProviderTest|30'
+  'com.foggyframework.dataset.model.cache.provider.CaffeineQueryCacheProviderTest|30'
 
 audit_sources
 

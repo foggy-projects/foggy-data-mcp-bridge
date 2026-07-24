@@ -1,6 +1,6 @@
 package io.foggytest.launcher;
 
-import com.foggyframework.dataset.db.model.semantic.controller.SemanticServiceV3TestController;
+import com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestController;
 import com.foggyframework.dataset.mcp.controller.DevToolsController;
 import com.foggyframework.mcp.launcher.DemoSecurityIdentityResolver;
 import com.foggyframework.mcp.launcher.McpLauncherApplication;
@@ -25,14 +25,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "spring.main.allow-bean-definition-overriding=false",
                 "spring.autoconfigure.exclude="
                         + "com.foggyframework.dataset.mongo.DataSetMongoAutoConfiguration,"
-                        + "com.foggyframework.dataset.db.model.mongo.MongoModelAutoConfiguration,"
+                        + "com.foggyframework.dataset.model.mongo.MongoModelAutoConfiguration,"
                         + "com.foggyframework.dataset.vector.DataSetVectorAutoConfiguration,"
-                        + "com.foggyframework.dataset.db.model.vector.VectorModelAutoConfiguration,"
-                        + "com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration,"
-                        + "com.foggyframework.dataset.db.model.cache.config.QueryCacheEvictionAutoConfiguration,"
-                        + "com.foggyframework.dataset.db.model.cache.config.QueryCacheWebAutoConfiguration,"
+                        + "com.foggyframework.dataset.model.vector.VectorModelAutoConfiguration,"
+                        + "com.foggyframework.dataset.model.cache.config.QueryCacheAutoConfiguration,"
+                        + "com.foggyframework.dataset.model.cache.config.QueryCacheEvictionAutoConfiguration,"
+                        + "com.foggyframework.dataset.model.cache.config.QueryCacheWebAutoConfiguration,"
                         + "com.foggyframework.dataset.graphql.GraphqlAddonAutoConfiguration,"
-                        + "com.foggyframework.dataset.db.model.preagg.config.PreAggAutoConfiguration,"
+                        + "com.foggyframework.dataset.model.preagg.config.PreAggAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration",

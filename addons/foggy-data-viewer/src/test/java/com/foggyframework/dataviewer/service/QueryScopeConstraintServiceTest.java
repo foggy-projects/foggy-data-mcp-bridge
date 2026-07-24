@@ -1,7 +1,7 @@
 package com.foggyframework.dataviewer.service;
 
 import com.foggyframework.dataviewer.config.DataViewerProperties;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

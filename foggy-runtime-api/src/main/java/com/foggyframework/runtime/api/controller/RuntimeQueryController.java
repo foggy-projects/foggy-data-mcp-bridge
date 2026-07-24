@@ -2,12 +2,12 @@ package com.foggyframework.runtime.api.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;

@@ -12,7 +12,7 @@ SHARED_CONTEXT_LIB="$STEP3_DIR/external_shared_context.sh"
 COVERAGE_RUNNER_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 DEFERRED_INVENTORY="$ROOT_DIR/scripts/v934/successor/step2/deferred-step3.tsv"
 REPORTS_DIR="$ROOT_DIR/addons/foggy-dataset-model-cache/target/failsafe-reports"
-CLEAN_MODULES="foggy-bean-copy,foggy-core,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model,addons/foggy-dataset-model-cache"
+CLEAN_MODULES="foggy-bean-copy,foggy-core,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model-engine,addons/foggy-dataset-model-cache"
 
 RUNNER_NAME="failsafe"
 LANE="external-redis"
@@ -75,8 +75,8 @@ inputs = (
     "foggy-dataset/src/main",
     "foggy-dataset-demo/pom.xml",
     "foggy-dataset-demo/src/main",
-    "foggy-dataset-model/pom.xml",
-    "foggy-dataset-model/src/main",
+    "foggy-dataset-model-engine/pom.xml",
+    "foggy-dataset-model-engine/src/main",
     "foggy-fsscript/pom.xml",
     "foggy-fsscript/src/main",
 )
@@ -124,7 +124,7 @@ assert_clean_targets_absent() {
   local module
   local -a modules=(
     foggy-bean-copy foggy-core foggy-fsscript foggy-dataset
-    foggy-dataset-demo foggy-dataset-model addons/foggy-dataset-model-cache
+    foggy-dataset-demo foggy-dataset-model-engine addons/foggy-dataset-model-cache
   )
   for module in "${modules[@]}"; do
     [[ ! -e "$ROOT_DIR/$module/target" ]] || \
@@ -144,7 +144,7 @@ root = Path(sys.argv[1]).resolve(strict=True)
 output = Path(sys.argv[2])
 modules = (
     "foggy-bean-copy", "foggy-core", "foggy-fsscript", "foggy-dataset",
-    "foggy-dataset-demo", "foggy-dataset-model",
+    "foggy-dataset-demo", "foggy-dataset-model-engine",
     "addons/foggy-dataset-model-cache",
 )
 rows = []
@@ -647,7 +647,7 @@ fi
 PHASE="variant-redis7"
 run_variant \
   redis7 \
-  com.foggyframework.dataset.db.model.cache.provider.RedisCrossJvmCacheIT \
+  com.foggyframework.dataset.model.cache.provider.RedisCrossJvmCacheIT \
   "v934:$RUN_ID:redis7:"
 redis7_key_count="$(docker exec "$REDIS_CONTAINER" redis-cli --scan --pattern "v934:$RUN_ID:redis7:*" | sed '/^$/d' | wc -l | tr -d ' ')"
 [[ "$redis7_key_count" == 4 ]] || fail "Redis cross-JVM variant must leave exactly four run-owned keys"
@@ -655,7 +655,7 @@ redis7_key_count="$(docker exec "$REDIS_CONTAINER" redis-cli --scan --pattern "v
 PHASE="variant-redis7-sqlite"
 run_variant \
   redis7-sqlite \
-  com.foggyframework.dataset.db.model.cache.lifecycle.realquery.QueryCacheLifecycleRealQueryIT \
+  com.foggyframework.dataset.model.cache.lifecycle.realquery.QueryCacheLifecycleRealQueryIT \
   "v934:$RUN_ID:redis7-sqlite:"
 redis_lifecycle_key_count="$(docker exec "$REDIS_CONTAINER" redis-cli --scan --pattern "v934:$RUN_ID:redis7-sqlite:*" | sed '/^$/d' | wc -l | tr -d ' ')"
 [[ "$redis_lifecycle_key_count" == 0 ]] || fail "Redis lifecycle variant did not evict its run-owned keys"

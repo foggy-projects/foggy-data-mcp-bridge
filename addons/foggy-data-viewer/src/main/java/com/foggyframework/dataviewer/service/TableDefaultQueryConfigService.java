@@ -4,8 +4,8 @@ import com.foggyframework.dataviewer.domain.ListPresetDef;
 import com.foggyframework.dataviewer.domain.TableDefaultQueryConfig;
 import com.foggyframework.dataviewer.domain.TableDefaultQueryConfigRequest;
 import com.foggyframework.dataviewer.service.tabledefault.TableDefaultQueryConfigProvider;
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 
 import java.util.ArrayList;
 import java.util.List;

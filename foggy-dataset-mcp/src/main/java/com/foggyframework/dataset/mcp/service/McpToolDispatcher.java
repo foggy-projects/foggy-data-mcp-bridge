@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.mcp.service;
 
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.mcp.audit.ToolAuditService;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.mcp.spi.McpTool;

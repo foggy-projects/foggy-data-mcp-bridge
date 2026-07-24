@@ -5,15 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.annotates.EnableFoggyFramework;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.NamedDataSourceResolver;
+import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataviewer.service.MemberQueryService;
 import com.foggyframework.dataviewer.service.QueryCacheService;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.model.service.AdvancedQueryFacade;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -451,7 +451,7 @@ class DataViewerApiSmokeTest {
         }
 
         @Bean
-        MemberQueryService memberQueryService(QueryFacade queryFacade) {
+        MemberQueryService memberQueryService(AdvancedQueryFacade queryFacade) {
             return new MemberQueryService(queryFacade);
         }
 
@@ -477,7 +477,7 @@ class DataViewerApiSmokeTest {
 
         @Bean
         ViewerApiController viewerApiController(QueryCacheService cacheService,
-                                                QueryFacade queryFacade,
+                                                AdvancedQueryFacade queryFacade,
                                                 DatasetProperties datasetProperties,
                                                 MemberQueryService memberQueryService) {
             return new ViewerApiController(cacheService, queryFacade, datasetProperties, memberQueryService);

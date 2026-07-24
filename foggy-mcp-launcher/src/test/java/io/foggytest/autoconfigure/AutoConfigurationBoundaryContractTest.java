@@ -1,6 +1,6 @@
 package io.foggytest.autoconfigure;
 
-import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
+import com.foggyframework.dataset.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.mcp.DatasetMcpAutoConfiguration;
 import com.foggyframework.mcp.launcher.McpLauncherApplication;
 import org.junit.jupiter.api.Test;

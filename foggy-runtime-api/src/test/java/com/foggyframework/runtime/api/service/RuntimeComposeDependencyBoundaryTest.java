@@ -1,6 +1,6 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.runtime.api.controller.RuntimeComposeController;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 class RuntimeComposeDependencyBoundaryTest {
 
     private static final String ENGINE_COMPOSE_PACKAGE =
-            "com.foggyframework.dataset.db.model.engine.compose";
+            "com.foggyframework.dataset.model.engine.compose";
 
     @Test
     void runtimeComposeUsesTheModelSidePortWithoutEngineComposeTypes() throws Exception {

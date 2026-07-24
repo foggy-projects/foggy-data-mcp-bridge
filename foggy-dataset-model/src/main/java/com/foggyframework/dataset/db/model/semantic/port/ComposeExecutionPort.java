@@ -1,8 +1,0 @@
-package com.foggyframework.dataset.db.model.semantic.port;
-
-/** Small model-side boundary for restricted Compose execution. */
-@FunctionalInterface
-public interface ComposeExecutionPort {
-
-    ComposeExecutionResult execute(ComposeExecutionRequest request);
-}

@@ -17,7 +17,7 @@ mkdir -p "$RUN_ROOT"
 printf 'step\tcase\tmodule\tclass\ttests\tresult\n' > "$SUMMARY"
 
 RED_SOURCE_DIRS=(
-  "$ROOT_DIR/foggy-dataset-model/src/test/java"
+  "$ROOT_DIR/foggy-dataset-model-engine/src/test/java"
   "$ROOT_DIR/foggy-runtime-api/src/test/java"
   "$ROOT_DIR/foggy-fsscript/src/test/java"
   "$ROOT_DIR/foggy-dataset-mcp/src/test/java"

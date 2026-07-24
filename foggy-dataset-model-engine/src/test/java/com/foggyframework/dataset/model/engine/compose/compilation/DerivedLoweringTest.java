@@ -1,0 +1,866 @@
+package com.foggyframework.dataset.model.engine.compose.compilation;
+
+import com.foggyframework.dataset.model.engine.compose.ComposedSql;
+import com.foggyframework.dataset.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
+import com.foggyframework.dataset.model.engine.compose.plan.BaseModelPlan;
+import com.foggyframework.dataset.model.engine.compose.plan.DerivedQueryPlan;
+import com.foggyframework.dataset.model.engine.compose.plan.Dsl;
+import com.foggyframework.dataset.model.engine.compose.plan.JoinOn;
+import com.foggyframework.dataset.model.engine.compose.plan.JoinPlan;
+import com.foggyframework.dataset.model.engine.compose.plan.ProjectedColumn;
+import com.foggyframework.dataset.model.engine.compose.plan.QueryPlan;
+import com.foggyframework.dataset.model.engine.compose.plan.expr.BinaryExpr;
+import com.foggyframework.dataset.model.engine.compose.plan.expr.ColumnExpr;
+import com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaErrorCodes;
+import com.foggyframework.dataset.model.engine.compose.schema.ComposeSchemaException;
+import com.foggyframework.dataset.model.engine.compose.security.ModelBinding;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Derived plan lowering (M6 · 6.1) · {@code SELECT ... FROM (<inner>) AS t}.
+ */
+class DerivedLoweringTest {
+
+    private static ComposedSql compile(com.foggyframework.dataset.model.engine.compose.plan.QueryPlan plan,
+                                       FakeSemanticService svc,
+                                       Map<String, ModelBinding> bindings,
+                                       String dialect) {
+        return ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .dialect(dialect)
+                        .build());
+    }
+
+    @Test
+    @DisplayName("DerivedQueryPlan 基础 · SELECT cols FROM (inner) AS alias")
+    void derivedBasicShape() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id"))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("SELECT id"));
+        assertTrue(sql.getSql().contains("FROM (SELECT id, amount FROM tbl)"));
+    }
+
+    @Test
+    @DisplayName("DISTINCT 列前缀")
+    void distinctEmitted() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id")).distinct(true).build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("SELECT DISTINCT id"));
+    }
+
+    @Test
+    @DisplayName("WHERE 条件使用 {field, op, value} dict 构造")
+    void whereFromFullDict() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .slice(List.of(Map.of("field", "amount", "op", ">", "value", 100)))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("WHERE cte_0.amount > ?"));
+        assertEquals(List.of(100), sql.getParams());
+    }
+
+    @Test
+    @DisplayName("WHERE 单键速写 {field: value} 默认 op =")
+    void whereShortcutShape() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "status");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .slice(List.of(Map.of("status", "open")))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("WHERE cte_0.status = ?"));
+        assertEquals(List.of("open"), sql.getParams());
+    }
+
+    @Test
+    @DisplayName("GROUP BY 透传")
+    void groupByEmitted() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "dept");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("dept"))
+                .groupBy(List.of("dept"))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("GROUP BY dept"));
+    }
+
+    @Test
+    @DisplayName("ORDER BY 'name:desc' → ORDER BY name DESC")
+    void orderByDescEmitted() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .orderBy(List.of("name:desc"))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("ORDER BY name DESC"));
+    }
+
+    @Test
+    @DisplayName("ORDER BY bare 名称 → ORDER BY name （不加 ASC 标注）")
+    void orderByBareEmitted() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .orderBy(List.of("name"))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("ORDER BY name"));
+    }
+
+    @Test
+    @DisplayName("LIMIT + OFFSET 内联整数")
+    void limitOffsetInlined() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .limit(50).start(100).build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("LIMIT 50 OFFSET 100"));
+    }
+
+    @Test
+    @DisplayName("Postgres LIMIT + OFFSET remains LIMIT syntax")
+    void postgresLimitOffsetUsesLimitSyntax() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .limit(50).start(100).build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+        assertTrue(sql.getSql().contains("LIMIT 50 OFFSET 100"));
+    }
+
+    @Test
+    @DisplayName("SQL Server LIMIT renders as TOP")
+    void sqlServerLimitUsesTop() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, delta FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "delta");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "delta"))
+                .orderBy(List.of("delta:asc"))
+                .limit(10)
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlserver");
+        assertTrue(sql.getSql().contains("SELECT TOP (10) id, delta"));
+        assertTrue(sql.getSql().contains("ORDER BY delta ASC"));
+        assertFalse(sql.getSql().contains("LIMIT"));
+    }
+
+    @Test
+    @DisplayName("SQL Server LIMIT + OFFSET renders as OFFSET FETCH")
+    void sqlServerLimitOffsetUsesOffsetFetch() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, name FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "name"))
+                .orderBy(List.of("name:asc"))
+                .limit(10)
+                .start(20)
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlserver");
+        assertTrue(sql.getSql().contains("ORDER BY name ASC"));
+        assertTrue(sql.getSql().contains("OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY"));
+        assertFalse(sql.getSql().contains("LIMIT"));
+    }
+
+    @Test
+    @DisplayName("SQL Server OFFSET without ORDER BY fails")
+    void sqlServerOffsetWithoutOrderByFails() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, name FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "name"))
+                .limit(10)
+                .start(20)
+                .build();
+
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlserver"));
+
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+        assertTrue(ex.getMessage().contains("SQL Server OFFSET pagination requires an ORDER BY clause"));
+    }
+
+    @Test
+    @DisplayName("参数顺序：inner params 先于 outer params")
+    void paramOrderingInnerBeforeOuter() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl WHERE inner_flag = ?", 1);
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "outer_flag");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .slice(List.of(Map.of("field", "outer_flag", "op", "=", "value", 2)))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertEquals(List.of(1, 2), sql.getParams());
+    }
+
+    @Test
+    @DisplayName("WHERE QueryPlan value lowers to SQL subquery for IN/NOT IN")
+    void whereQueryPlanValueLowersToSqlSubquery() {
+        for (String op : List.of("in", "not in")) {
+            FakeSemanticService svc = new FakeSemanticService();
+            svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+            svc.stub("PriorM", "SELECT id FROM prior_tbl WHERE flag = ?", 100);
+            BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+            BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id");
+            DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                    .source(current)
+                    .columns(List.of("id", "amount"))
+                    .slice(List.of(Map.of("field", "id", "op", op, "value", prior)))
+                    .build();
+
+            ComposedSql sql = compile(derived, svc,
+                    Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                            "PriorM", CompileTestHelpers.emptyBinding()),
+                    "sqlite");
+
+            assertTrue(sql.getSql().contains(op.toUpperCase() + " (SELECT"));
+            assertTrue(sql.getSql().contains("prior_tbl"));
+            assertTrue(sql.getSql().contains("IS NOT NULL)"));
+            assertEquals(List.of(100), sql.getParams());
+        }
+    }
+
+    @Test
+    @DisplayName("WHERE explicit subquery(plan, field) lowers multi-column plan")
+    void whereExplicitSubqueryFieldLowersMultiColumnPlan() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+        svc.stub("PriorM", "SELECT id, name FROM prior_tbl");
+        BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(current)
+                .columns(List.of("id", "amount"))
+                .slice(List.of(Map.of(
+                        "field", "id",
+                        "op", "not in",
+                        "value", Dsl.subquery(prior, "id"))))
+                .build();
+
+        ComposedSql sql = compile(derived, svc,
+                Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                        "PriorM", CompileTestHelpers.emptyBinding()),
+                "sqlite");
+
+        assertTrue(sql.getSql().contains("NOT IN (SELECT"));
+        assertTrue(sql.getSql().contains("prior_tbl"));
+        assertTrue(sql.getSql().contains("IS NOT NULL)"));
+    }
+
+    @Test
+    @DisplayName("WHERE implicit multi-column QueryPlan requires subquery field")
+    void whereImplicitMultiColumnPlanRequiresSubqueryField() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+        svc.stub("PriorM", "SELECT id, name FROM prior_tbl");
+        BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(current)
+                .columns(List.of("id"))
+                .slice(List.of(Map.of("field", "id", "op", "in", "value", prior)))
+                .build();
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(derived, svc,
+                        Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                                "PriorM", CompileTestHelpers.emptyBinding()),
+                        "sqlite"));
+        assertTrue(ex.getMessage().contains("COMPOSE_SUBQUERY_FIELD_AMBIGUOUS"));
+    }
+
+    @Test
+    @DisplayName("WHERE explicit subquery field must exist")
+    void whereExplicitSubqueryFieldMustExist() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+        svc.stub("PriorM", "SELECT id FROM prior_tbl");
+        BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(current)
+                .columns(List.of("id"))
+                .slice(List.of(Map.of(
+                        "field", "id",
+                        "op", "in",
+                        "value", Dsl.subquery(prior, "missing"))))
+                .build();
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(derived, svc,
+                        Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                                "PriorM", CompileTestHelpers.emptyBinding()),
+                        "sqlite"));
+        assertTrue(ex.getMessage().contains("COMPOSE_SUBQUERY_FIELD_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("base having QueryPlan value fails stable at compile preflight")
+    void baseHavingQueryPlanValueFailsStableAtCompilePreflight() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id FROM current_tbl");
+        svc.stub("PriorM", "SELECT id FROM prior_tbl");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id");
+        BaseModelPlan current = BaseModelPlan.builder()
+                .model("CurrentM")
+                .columns(List.of("id"))
+                .having(List.of(Map.of("field", "id", "op", "in", "value", prior)))
+                .build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> compile(current, svc,
+                        Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                                "PriorM", CompileTestHelpers.emptyBinding()),
+                        "sqlite"));
+        assertTrue(ex.getMessage().contains(QueryPlan.SUBQUERY_VALUE_UNSUPPORTED_CODE));
+        assertFalse(ex.getMessage().contains("unhashable type"));
+    }
+
+    @Test
+    @DisplayName("WHERE 支持 {'$field': rhs} 字段对字段比较")
+    void whereSupportsFieldReferenceValue() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT left_amount, right_amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "left_amount", "right_amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("left_amount", "right_amount"))
+                .slice(List.of(Map.of(
+                        "field", "left_amount",
+                        "op", "<",
+                        "value", Map.of("$field", "right_amount"))))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("cte_0.left_amount < cte_0.right_amount"));
+        assertTrue(sql.getParams().stream().noneMatch(Map.class::isInstance));
+    }
+
+    @Test
+    @DisplayName("WHERE 拒绝 {'$expr': ...} 对象 value")
+    void whereRejectsExpressionObjectValue() {
+        BaseModelPlan base = CompileTestHelpers.base("M", "sales_amount");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> DerivedQueryPlan.builder()
+                        .source(base)
+                        .columns(List.of("sales_amount"))
+                        .slice(List.of(Map.of(
+                                "field", "sales_amount",
+                                "op", ">",
+                                "value", Map.of("$expr", "COALESCE(arOverdueAmount, 0) * 3"))))
+                        .build());
+        assertTrue(ex.getMessage().contains(QueryPlan.SLICE_VALUE_UNSUPPORTED_CODE));
+        assertTrue(ex.getMessage().contains("$field"));
+        assertTrue(!ex.getMessage().contains("unhashable type"));
+    }
+
+    @Test
+    @DisplayName("derived ratio expression wraps denominator with NULLIF")
+    void derivedRatioExpressionWrapsDenominatorWithNullif() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT customer_name, sales_amount, overdue_amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "customer_name", "sales_amount", "overdue_amount");
+        DerivedQueryPlan withRatio = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of(
+                        "customer_name",
+                        "sales_amount",
+                        "overdue_amount",
+                        "sales_amount / overdue_amount AS sales_to_overdue_ratio"))
+                .build();
+        DerivedQueryPlan result = DerivedQueryPlan.builder()
+                .source(withRatio)
+                .columns(List.of("customer_name", "sales_to_overdue_ratio"))
+                .slice(List.of(Map.of("field", "sales_to_overdue_ratio", "op", ">", "value", 3)))
+                .build();
+
+        ComposedSql sql = compile(result, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+
+        assertTrue(sql.getSql().contains("sales_amount / NULLIF(overdue_amount, 0)"));
+        assertTrue(!sql.getSql().toLowerCase().contains("division by zero"));
+        assertEquals(List.of(3), sql.getParams());
+    }
+
+    @Test
+    @DisplayName("derived ratio expression keeps existing NULLIF")
+    void derivedRatioExpressionKeepsExistingNullif() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT customer_name, sales_amount, overdue_amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "customer_name", "sales_amount", "overdue_amount");
+        DerivedQueryPlan withRatio = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of(
+                        "customer_name",
+                        "sales_amount",
+                        "overdue_amount",
+                        "sales_amount / NULLIF(overdue_amount, 0) AS sales_to_overdue_ratio"))
+                .build();
+
+        ComposedSql sql = compile(withRatio, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+
+        assertEquals(1, countOccurrences(sql.getSql().toUpperCase(), "NULLIF("));
+        assertTrue(!sql.getSql().toUpperCase().contains("NULLIF(NULLIF"));
+    }
+
+    @Test
+    @DisplayName("derived ROUND expression lowers without quoting the function")
+    void derivedRoundExpressionLowersWithoutQuotingFunction() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("ROUND(amount, 2) AS roundedAmount"))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(sql.getSql().contains("ROUND(amount, 2)"));
+        assertTrue(!sql.getSql().contains("\"ROUND\""));
+    }
+
+    @Test
+    @DisplayName("同一层新建 alias 不能立刻用于 slice")
+    void sameStageAliasSliceRejectedAtCompile() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT partner_id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "partner_id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("partner_id", "amount - 100 AS decrease_amount"))
+                .slice(List.of(Map.of("field", "decrease_amount", "op", ">", "value", 0)))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS, ex.code());
+        assertEquals("decrease_amount", ex.offendingField());
+    }
+
+    @Test
+    @DisplayName("derived orderBy 未知字段在编译期拒绝")
+    void unknownOrderByFieldRejectedBeforeSql() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "amount"))
+                .orderBy(List.of("collection_rate ASC"))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
+        assertEquals("collection_rate", ex.offendingField());
+        assertTrue(ex.getMessage().contains("order_by"));
+    }
+
+    @Test
+    @DisplayName("derived-over-derived 链式嵌套支持")
+    void chainedDerivedSupported() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        DerivedQueryPlan d1 = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id")).build();
+        DerivedQueryPlan d2 = DerivedQueryPlan.builder()
+                .source(d1).columns(List.of("id")).build();
+
+        ComposedSql sql = compile(d2, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        // outer wraps inner which wraps the base SQL
+        int first = sql.getSql().indexOf("SELECT id");
+        int second = sql.getSql().indexOf("SELECT id", first + 1);
+        assertTrue(second > first, "outer + inner SELECTs should be distinct");
+    }
+
+    @Test
+    @DisplayName("slice entry 类型错误 → UNSUPPORTED_PLAN_SHAPE")
+    void sliceNotMapRejected() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .slice(List.of("not a map"))
+                .build();
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite"));
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+    }
+
+    @Test
+    @DisplayName("single-key shortcut 但 key 数 > 1 → UNSUPPORTED_PLAN_SHAPE")
+    void sliceShortcutMultiKeyRejected() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        Map<String, Object> bad = Map.of("a", 1, "b", 2);
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .slice(List.of(bad))
+                .build();
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite"));
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+    }
+
+    @Test
+    @DisplayName("multi slice entry 用 AND 连接")
+    void multipleSliceEntriesAndConnected() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "a", "b");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base).columns(List.of("id"))
+                .slice(List.of(
+                        Map.of("field", "a", "op", "=", "value", 1),
+                        Map.of("field", "b", "op", "=", "value", 2)))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("cte_0.a = ? AND cte_0.b = ?"));
+    }
+
+    @Test
+    @DisplayName("derived 引用不存在的 $ 字段时编译期拒绝")
+    void unknownDollarFieldRejectedBeforeSql() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("salesperson$id"))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
+        assertEquals("salesperson$id", ex.offendingField());
+    }
+
+    @Test
+    @DisplayName("derived ProjectedColumn(BinaryExpr) 校验表达式操作数而不是对象 toString")
+    void projectedBinaryExprValidatesOperandsInsteadOfClassName() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT amount, tax FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "amount", "tax");
+        ProjectedColumn total = new ProjectedColumn(
+                new BinaryExpr(new ColumnExpr("amount"), "+", new ColumnExpr("tax")),
+                "total",
+                null);
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of(total))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+
+        assertTrue(sql.getSql().contains("(amount + tax) AS total"));
+    }
+
+    @Test
+    @DisplayName("derived slice IN 列表展开为多个占位符")
+    void sliceInListExpandsPlaceholders() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, status FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "status");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id"))
+                .slice(List.of(Map.of(
+                        "field", "status",
+                        "op", "in",
+                        "value", List.of("draft", "done"))))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(sql.getSql().contains("status IN (?, ?)"));
+        assertTrue(!sql.getSql().contains(" IN ?"));
+        assertEquals(List.of("draft", "done"), sql.getParams());
+    }
+
+    @Test
+    @DisplayName("IS NULL operator generates no parameters")
+    void derivedSliceIsNullAddsNoParam() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, status FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "status");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id"))
+                .slice(List.of(Map.of("field", "status", "op", "is null")))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(sql.getSql().contains("IS NULL"));
+        assertTrue(!sql.getSql().contains("IS NULL ?"));
+        assertTrue(sql.getParams().isEmpty());
+    }
+
+    @Test
+    @DisplayName("rejects unresolved dotted alias fields in derived slice")
+    void derivedSliceRejectsUnresolvedQualifiedDollarRef() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT partner_id FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "partner_id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("partner_id"))
+                .slice(List.of(Map.of("field", "priorOrders.partner$id", "op", "is null")))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
+        assertEquals("priorOrders", ex.offendingField());
+    }
+
+    @Test
+    @DisplayName("derived alias output schema uses alias in join projection")
+    void derivedAliasOutputSchemaUsesAliasInJoinProjection() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT status FROM tbl");
+        BaseModelPlan left = CompileTestHelpers.base("M", "status AS current_status");
+        DerivedQueryPlan right = DerivedQueryPlan.builder()
+                .source(CompileTestHelpers.base("M", "status"))
+                .columns(List.of("status as prior_status"))
+                .build();
+        JoinPlan joined = JoinPlan.builder()
+                .left(left)
+                .right(right)
+                .type("left")
+                .on(List.of(JoinOn.of("current_status", "=", "prior_status")))
+                .build();
+
+        ComposedSql sql = compile(joined, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(!sql.getSql().contains("cte_2.\"status as prior_status\""));
+        assertTrue(sql.getSql().contains("cte_2.prior_status"));
+    }
+
+    @Test
+    @DisplayName("nested logical slice condition with is null")
+    void derivedSliceNestedOrWithIsNull() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT a, b FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "a", "b");
+        JoinPlan joined = JoinPlan.builder()
+                .left(base)
+                .right(base)
+                .type("left")
+                .on(List.of(JoinOn.of("a", "=", "a")))
+                .build();
+        
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(joined)
+                .columns(List.of("a", "b"))
+                .slice(List.of(Map.of(
+                        "$or", List.of(
+                                Map.of("field", "b", "op", "=", "value", 0),
+                                Map.of("field", "b", "op", "is null")
+                        )
+                )))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(sql.getSql().contains("OR"));
+        assertTrue(sql.getSql().contains("IS NULL"));
+        assertTrue(!sql.getSql().contains("$or"));
+        assertEquals(1, sql.getParams().size());
+        assertEquals(0, sql.getParams().get(0));
+
+        DerivedQueryPlan derivedBad = DerivedQueryPlan.builder()
+                .source(joined)
+                .columns(List.of("a", "b"))
+                .slice(List.of(Map.of(
+                        "$or", List.of(
+                                Map.of("field", "b", "op", "=", "value", 0),
+                                Map.of("field", "unknownField", "op", "is null")
+                        )
+                )))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derivedBad, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
+        assertEquals("unknownField", ex.offendingField());
+    }
+
+    @Test
+    @DisplayName("$and slice operator renders AND-joined predicates")
+    void derivedSliceAndOperator() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT a, b FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "a", "b");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("a", "b"))
+                .slice(List.of(Map.of(
+                        "$and", List.of(
+                                Map.of("field", "a", "op", ">", "value", 10),
+                                Map.of("field", "b", "op", "<", "value", 100)
+                        )
+                )))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(sql.getSql().contains("AND"), "$and should produce AND in SQL");
+        assertTrue(!sql.getSql().contains("$and"), "DSL token should not leak into SQL");
+        assertEquals(2, sql.getParams().size());
+        assertEquals(10, sql.getParams().get(0));
+        assertEquals(100, sql.getParams().get(1));
+    }
+
+    @Test
+    @DisplayName("$and wrapping $or renders nested (a OR b) AND (c)")
+    void derivedSliceNestedOrInsideAnd() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT a, b, c FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "a", "b", "c");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("a", "b", "c"))
+                .slice(List.of(Map.of(
+                        "$and", List.of(
+                                // inner $or
+                                Map.of("$or", List.of(
+                                        Map.of("field", "a", "op", "=", "value", 1),
+                                        Map.of("field", "b", "op", "is null")
+                                )),
+                                Map.of("field", "c", "op", "=", "value", 99)
+                        )
+                )))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        String sqlStr = sql.getSql();
+        assertTrue(sqlStr.contains("OR"), "Inner $or should produce OR");
+        assertTrue(sqlStr.contains("AND"), "Outer $and should produce AND");
+        assertTrue(sqlStr.contains("IS NULL"), "is null should render without param");
+        assertTrue(!sqlStr.contains("$or") && !sqlStr.contains("$and"), "DSL tokens must not leak");
+        // params: a=1 and c=99; b IS NULL has no param
+        assertEquals(2, sql.getParams().size());
+        assertEquals(1, sql.getParams().get(0));
+        assertEquals(99, sql.getParams().get(1));
+    }
+
+    @Test
+    @DisplayName("$not wraps single condition as NOT (...)")
+    void derivedSliceNotOperator() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT a, b FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "a", "b");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("a", "b"))
+                .slice(List.of(Map.of(
+                        "$not", Map.of("field", "a", "op", "=", "value", 42)
+                )))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "mysql8");
+
+        assertTrue(sql.getSql().contains("NOT ("), "$not should wrap condition in NOT (...)");
+        assertTrue(!sql.getSql().contains("$not"), "DSL token must not leak");
+        assertEquals(1, sql.getParams().size());
+        assertEquals(42, sql.getParams().get(0));
+    }
+
+    @Test
+    @DisplayName("empty $or block is skipped — no WHERE clause generated")
+    void derivedSliceEmptyLogicalBlockIsSkipped() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT a, b FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "a", "b");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("a", "b"))
+                // $or with empty list should be a no-op, not a SQL syntax error
+                .slice(List.of(Map.of("$or", List.of())))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "mysql8");
+
+        assertTrue(!sql.getSql().contains("WHERE"), "Empty $or must not emit a WHERE clause");
+        assertTrue(sql.getParams().isEmpty(), "No params from empty logical block");
+    }
+
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
+    }
+}

@@ -51,7 +51,7 @@
         <module>foggy-dataset-model-starter</module>
         <module>foggy-dataset-model-web</module>
         <module>foggy-dataset-model-tck</module>
-        <module>foggy-dataset-model</module>
+        <module>foggy-dataset-model-engine</module>
         <module>foggy-runtime-api</module>
         <module>foggy-dataset-memory-grid-bridge</module>
         <module>foggy-dataset-memory-grid-duckdb</module>
@@ -182,7 +182,7 @@
             </dependency>
             <dependency>
                 <groupId>com.foggysource</groupId>
-                <artifactId>foggy-dataset-model</artifactId>
+                <artifactId>foggy-dataset-model-engine</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>

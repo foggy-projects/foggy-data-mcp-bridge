@@ -286,27 +286,27 @@ run_model_tests() {
   local it_tests="$3"
   local profile="$4"
   if [[ -n "$unit_tests" ]]; then
-    reset_reports foggy-dataset-model surefire "$unit_tests"
+    reset_reports foggy-dataset-model-engine surefire "$unit_tests"
     run_step "$name — unit" \
-      mvn -pl foggy-dataset-model -am test \
+      mvn -pl foggy-dataset-model-engine -am test \
         -Dtest="$unit_tests" \
         -Dspring.profiles.active="$profile" \
         -DskipITs=true \
         -Dsurefire.failIfNoSpecifiedTests=false \
         -P!multi-db
-    assert_reports foggy-dataset-model surefire "$unit_tests"
+    assert_reports foggy-dataset-model-engine surefire "$unit_tests"
   fi
   if [[ -n "$it_tests" ]]; then
-    reset_reports foggy-dataset-model failsafe "$it_tests"
+    reset_reports foggy-dataset-model-engine failsafe "$it_tests"
     run_step "$name — integration" \
-      mvn -pl foggy-dataset-model -am verify \
+      mvn -pl foggy-dataset-model-engine -am verify \
         -Dit.test="$it_tests" \
         -Dspring.profiles.active="$profile" \
         -DskipUnitTests=true \
         -DskipITs=false \
         -Dfailsafe.failIfNoSpecifiedTests=false \
         -P!multi-db
-    assert_reports foggy-dataset-model failsafe "$it_tests"
+    assert_reports foggy-dataset-model-engine failsafe "$it_tests"
   fi
 }
 

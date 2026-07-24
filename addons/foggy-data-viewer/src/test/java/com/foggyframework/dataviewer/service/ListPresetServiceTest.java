@@ -5,7 +5,7 @@ import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.ListPresetDef;
 import com.foggyframework.dataviewer.service.listpreset.FileSystemListPresetStore;
 import com.foggyframework.dataviewer.service.listpreset.ListPresetFieldValidator;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -160,8 +160,8 @@ class ListPresetServiceTest {
             ListPresetDef created = service.create("u1", "TicketModel", "ticket-list", request("列表", false));
             service = new ListPresetService(store, allowedFieldValidator());
             ListPresetService.SaveListPresetRequest update = new ListPresetService.SaveListPresetRequest();
-            com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef order =
-                    new com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef();
+            com.foggyframework.dataset.model.def.query.request.OrderRequestDef order =
+                    new com.foggyframework.dataset.model.def.query.request.OrderRequestDef();
             order.setField("unknownField");
             order.setDir("desc");
             update.setQuery(new ListPresetDef.QueryConditionPreset(List.of(), List.of(order)));

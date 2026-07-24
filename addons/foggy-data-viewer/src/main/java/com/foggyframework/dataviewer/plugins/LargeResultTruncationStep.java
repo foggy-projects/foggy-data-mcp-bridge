@@ -3,8 +3,8 @@ package com.foggyframework.dataviewer.plugins;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
-import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStep;
-import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultStep;
+import com.foggyframework.dataset.model.plugins.result_set_filter.ModelResultContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

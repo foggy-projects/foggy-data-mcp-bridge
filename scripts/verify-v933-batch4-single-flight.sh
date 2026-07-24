@@ -67,7 +67,7 @@ run_model_lane() {
   : > "$lane_dir/.run-start"
 
   echo "[v933-batch4] running $lane_name"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model -am \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine -am \
       -P'!multi-db,model-lifecycle' \
       -DskipITs=true \
       -Dtest="$test_filter" \
@@ -140,14 +140,14 @@ assert_rg_absent() {
 
 audit_sources() {
   local audit_dir="$RUN_ROOT/source-audit"
-  local model_root="$ROOT_DIR/foggy-dataset-model"
+  local model_root="$ROOT_DIR/foggy-dataset-model-engine"
   mkdir -p "$audit_dir"
 
   assert_rg_absent "sleep-driven Batch 4 test detected" \
       "$audit_dir/sleep-driven-tests.txt" \
       'Thread\.sleep|TimeUnit\.sleep' \
-      "$model_root/src/test/java/com/foggyframework/dataset/db/model/lifecycle/concurrent" \
-      "$model_root/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog" \
+      "$model_root/src/test/java/com/foggyframework/dataset/model/lifecycle/concurrent" \
+      "$model_root/src/test/java/com/foggyframework/dataset/model/lifecycle/catalog" \
       "$ROOT_DIR/foggy-runtime-api/src/test/java/com/foggyframework/runtime/api/service/RuntimeNamedDataSourceResolverBindingTest.java" \
       "$ROOT_DIR/foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/datasource/DataSourceManagerBindingLifecycleTest.java"
 
@@ -160,12 +160,12 @@ audit_sources() {
   assert_rg_absent "legacy catalog build lock remains" \
       "$audit_dir/long-build-lock.txt" \
       '\bbuildLock\b' \
-      "$model_root/src/main/java/com/foggyframework/dataset/db/model/lifecycle/catalog"
+      "$model_root/src/main/java/com/foggyframework/dataset/model/lifecycle/catalog"
 
   assert_rg_absent "single-flight owns a thread or executor" \
       "$audit_dir/owned-executor.txt" \
       'Executors\.|\bnew\s+Thread\s*\(' \
-      "$model_root/src/main/java/com/foggyframework/dataset/db/model/lifecycle/concurrent"
+      "$model_root/src/main/java/com/foggyframework/dataset/model/lifecycle/concurrent"
 
   printf '%s\n' \
     'sleep-driven Batch 4 tests: 0' \
@@ -177,35 +177,35 @@ audit_sources() {
 
 run_model_lane single-flight-core \
   'ModelBuildKeyTest,ModelBuildSingleFlightTest,TableModelLoaderSingleFlightTest,QueryModelLoaderSingleFlightTest,CatalogSnapshotStoreTest,CatalogSnapshotTest,DatasourceBindingResolverCurrentnessTest' \
-  'com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildKeyTest|4' \
-  'com.foggyframework.dataset.db.model.lifecycle.concurrent.ModelBuildSingleFlightTest|17' \
-  'com.foggyframework.dataset.db.model.lifecycle.concurrent.TableModelLoaderSingleFlightTest|4' \
-  'com.foggyframework.dataset.db.model.lifecycle.concurrent.QueryModelLoaderSingleFlightTest|3' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStoreTest|16' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotTest|5' \
-  'com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolverCurrentnessTest|2'
+  'com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildKeyTest|4' \
+  'com.foggyframework.dataset.model.lifecycle.concurrent.ModelBuildSingleFlightTest|17' \
+  'com.foggyframework.dataset.model.lifecycle.concurrent.TableModelLoaderSingleFlightTest|4' \
+  'com.foggyframework.dataset.model.lifecycle.concurrent.QueryModelLoaderSingleFlightTest|3' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStoreTest|16' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotTest|5' \
+  'com.foggyframework.dataset.model.lifecycle.port.DatasourceBindingResolverCurrentnessTest|2'
 
 run_model_lane catalog-regression \
   'QueryModelDiscoveryAuthorityTest,SemanticMetadataCatalogIdentityTest,JdbcQueryModelCompletenessTest,QueryFacadeCatalogIdentityTest,TableModelLoaderManagerImplDataSourceResolutionTest,DbModelAutoConfigurationTest' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.QueryModelDiscoveryAuthorityTest|3' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.SemanticMetadataCatalogIdentityTest|3' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.JdbcQueryModelCompletenessTest|2' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest|6' \
-  'com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImplDataSourceResolutionTest|14' \
-  'com.foggyframework.dataset.db.model.config.DbModelAutoConfigurationTest|8'
+  'com.foggyframework.dataset.model.lifecycle.catalog.QueryModelDiscoveryAuthorityTest|3' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.SemanticMetadataCatalogIdentityTest|3' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.JdbcQueryModelCompletenessTest|2' \
+  'com.foggyframework.dataset.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest|6' \
+  'com.foggyframework.dataset.model.impl.loader.TableModelLoaderManagerImplDataSourceResolutionTest|14' \
+  'com.foggyframework.dataset.model.config.DbModelAutoConfigurationTest|8'
 
 run_model_lane sqlite-consumer-regression \
   'QueryModelAliasDeterminismTest,SyntheticMemberQueryModelLifecycleTest,QueryFacadeImplTest,SemanticServiceV3Test' \
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.QueryModelAliasDeterminismTest|1' \
-  'com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelLifecycleTest|4' \
-  'com.foggyframework.dataset.db.model.service.QueryFacadeImplTest|5' \
-  'com.foggyframework.dataset.db.model.semantic.SemanticServiceV3Test|14' \
-  'com.foggyframework.dataset.db.model.semantic.SemanticServiceV3Test$MetadataFieldAccessTests|5' \
-  'com.foggyframework.dataset.db.model.semantic.SemanticServiceV3Test$MetadataPhysicalTablesTests|4'
+  'com.foggyframework.dataset.model.lifecycle.catalog.QueryModelAliasDeterminismTest|1' \
+  'com.foggyframework.dataset.model.semantic.member.SyntheticMemberQueryModelLifecycleTest|4' \
+  'com.foggyframework.dataset.model.service.QueryFacadeImplTest|5' \
+  'com.foggyframework.dataset.model.semantic.SemanticServiceV3Test|14' \
+  'com.foggyframework.dataset.model.semantic.SemanticServiceV3Test$MetadataFieldAccessTests|5' \
+  'com.foggyframework.dataset.model.semantic.SemanticServiceV3Test$MetadataPhysicalTablesTests|4'
 
 run_model_lane namespace-regression \
   'QueryModelLoaderNamespaceScopeTest' \
-  'com.foggyframework.dataset.db.model.lifecycle.namespace.QueryModelLoaderNamespaceScopeTest|3'
+  'com.foggyframework.dataset.model.lifecycle.namespace.QueryModelLoaderNamespaceScopeTest|3'
 
 run_standard_lane runtime-binding-guard foggy-runtime-api \
   'RuntimeNamedDataSourceResolverBindingTest' \

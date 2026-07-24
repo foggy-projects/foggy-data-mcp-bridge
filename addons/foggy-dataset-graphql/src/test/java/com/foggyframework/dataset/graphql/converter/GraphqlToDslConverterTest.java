@@ -2,8 +2,8 @@ package com.foggyframework.dataset.graphql.converter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.api.QueryFacadeRequest;
 import org.junit.jupiter.api.Test;
 

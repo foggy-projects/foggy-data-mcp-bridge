@@ -25,7 +25,7 @@ COPY foggy-core/pom.xml foggy-core/
 COPY foggy-bean-copy/pom.xml foggy-bean-copy/
 COPY foggy-dataset/pom.xml foggy-dataset/
 COPY foggy-dataset-demo/pom.xml foggy-dataset-demo/
-COPY foggy-dataset-model/pom.xml foggy-dataset-model/
+COPY foggy-dataset-model-engine/pom.xml foggy-dataset-model-engine/
 COPY foggy-dataset-mcp/pom.xml foggy-dataset-mcp/
 COPY foggy-mcp-launcher/pom.xml foggy-mcp-launcher/
 COPY foggy-mcp-spi/pom.xml foggy-mcp-spi/
@@ -50,7 +50,7 @@ RUN mvn dependency:go-offline -B -pl foggy-mcp-launcher -am -DskipTests
 COPY foggy-core/src foggy-core/src
 COPY foggy-bean-copy/src foggy-bean-copy/src
 COPY foggy-dataset/src foggy-dataset/src
-COPY foggy-dataset-model/src foggy-dataset-model/src
+COPY foggy-dataset-model-engine/src foggy-dataset-model-engine/src
 COPY foggy-dataset-mcp/src foggy-dataset-mcp/src
 COPY foggy-mcp-launcher/src foggy-mcp-launcher/src
 COPY foggy-mcp-spi/src foggy-mcp-spi/src

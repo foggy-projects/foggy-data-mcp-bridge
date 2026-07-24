@@ -1,0 +1,205 @@
+package com.foggyframework.dataset.model.engine.expression;
+
+import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.model.spi.DbQueryColumn;
+import com.foggyframework.dataset.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.model.spi.support.CalculatedDbColumn;
+import lombok.Data;
+import org.springframework.context.ApplicationContext;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * SQL 表达式执行上下文
+ * <p>
+ * 提供列解析、方言转换等能力，在 SqlExp 执行时使用。
+ * </p>
+ *
+ * @author Foggy
+ * @since 1.0
+ */
+@Data
+public class SqlExpContext {
+
+    /**
+     * 上下文在 ExpEvaluator 中的 key
+     */
+    public static final String CONTEXT_KEY = "__sqlExpContext";
+
+    /**
+     * 查询模型（用于解析列）
+     */
+    private final JdbcQueryModel queryModel;
+
+    /**
+     * 数据库方言（用于函数转换）
+     */
+    private final FDialect dialect;
+
+    /**
+     * Spring 上下文（用于 getDeclare 调用）
+     */
+    private final ApplicationContext appCtx;
+
+    /**
+     * 已注册的计算字段
+     * <p>
+     * 使用 LinkedHashMap 保持插入顺序，支持后面的计算字段引用前面的。
+     * </p>
+     */
+    private final Map<String, CalculatedDbColumn> calculatedColumns = new LinkedHashMap<>();
+
+    /**
+     * Query context required by restricted CALCULATE lowering.
+     */
+    private CalculateQueryContext calculateQueryContext;
+
+    /**
+     * When compiling a grouped formula metric, measure references should resolve
+     * to their grouped aggregate SQL, for example salesAmount -> SUM(t.amount).
+     */
+    private boolean aggregateMeasureReferences;
+
+    /**
+     * Depth of aggregate function argument evaluation.
+     * <p>
+     * Grouped formula lowering needs to distinguish a bare aggregate alias
+     * reference ({@code totalAmount}) from the same alias used as an aggregate
+     * argument ({@code SUM(totalAmount)}). The bare form should resolve to the
+     * grouped aggregate SQL, while aggregate arguments should keep the alias'
+     * base expression so the outer aggregate function can wrap it once.
+     * </p>
+     */
+    private int aggregateFunctionArgumentDepth;
+
+    public SqlExpContext(JdbcQueryModel queryModel, FDialect dialect, ApplicationContext appCtx) {
+        this.queryModel = queryModel;
+        this.dialect = dialect;
+        this.appCtx = appCtx;
+    }
+
+    /**
+     * 解析列名
+     * <p>
+     * 支持:
+     * <ul>
+     *     <li>已注册的计算字段</li>
+     *     <li>模型中的普通列</li>
+     *     <li>维度列: dimension$caption, dimension$id</li>
+     *     <li>带 formulaDef 的列</li>
+     * </ul>
+     * </p>
+     *
+     * @param columnName 列名
+     * @return 对应的 JdbcQueryColumn
+     * @throws RuntimeException 如果列不存在
+     */
+    public DbQueryColumn resolveColumn(String columnName) {
+        // 1. 先查找计算字段
+        CalculatedDbColumn calculated = calculatedColumns.get(columnName);
+        if (calculated != null) {
+            return calculated;
+        }
+
+        // 2. 从查询模型中查找
+        return queryModel.findJdbcColumnForSelectByName(columnName, true);
+    }
+
+    /**
+     * 尝试解析列名（不抛异常）
+     *
+     * @param columnName 列名
+     * @return 对应的 JdbcQueryColumn，如果不存在返回 null
+     */
+    public DbQueryColumn tryResolveColumn(String columnName) {
+        // 1. 先查找计算字段
+        CalculatedDbColumn calculated = calculatedColumns.get(columnName);
+        if (calculated != null) {
+            return calculated;
+        }
+
+        // 2. 从查询模型中查找（不抛异常）
+        return queryModel.findJdbcColumnForSelectByName(columnName, false);
+    }
+
+    /**
+     * 尝试只从查询模型解析列名，不查找已注册的计算字段。
+     * <p>
+     * 当内联聚合别名与模型字段同名时，后续 {@code SUM(field)} 的参数需要优先解析为模型字段，
+     * 避免把已注册的聚合别名再次传入外层聚合函数。
+     * </p>
+     */
+    public DbQueryColumn tryResolveModelColumn(String columnName) {
+        return queryModel.findJdbcColumnForSelectByName(columnName, false);
+    }
+
+    /**
+     * 检查列是否存在
+     */
+    public boolean hasColumn(String columnName) {
+        return tryResolveColumn(columnName) != null;
+    }
+
+    /**
+     * 注册计算字段
+     * <p>
+     * 支持计算字段之间的依赖顺序。
+     * </p>
+     *
+     * @param name   字段名
+     * @param column 计算字段列
+     */
+    public void registerCalculatedColumn(String name, CalculatedDbColumn column) {
+        calculatedColumns.put(name, column);
+    }
+
+    /**
+     * 获取列的表别名
+     * <p>
+     * 从 JdbcQueryModel 的 JoinGraph 中获取正确的别名，而不是 TableModel 本身的别名。
+     * 这在 V2 格式中尤其重要，因为 JoinGraph 会重新分配表别名。
+     * </p>
+     *
+     * @param column 列对象
+     * @return 表别名
+     */
+    public String getAlias(DbQueryColumn column) {
+        if (column == null || column.getQueryObject() == null) {
+            return null;
+        }
+        // 从 JdbcQueryModel 获取正确的别名（JoinGraph 分配的别名）
+        return queryModel.getAlias(column.getQueryObject());
+    }
+
+    /**
+     * 根据方言转换函数名
+     * <p>
+     * 用于处理不同数据库之间的函数差异。
+     * 例如：MySQL 的 IFNULL vs PostgreSQL 的 COALESCE
+     * </p>
+     *
+     * @param funcName 标准函数名
+     * @return 方言特定的函数名
+     */
+    public String translateFunction(String funcName) {
+        if (dialect == null) {
+            return funcName;
+        }
+        return dialect.translateFunction(funcName);
+    }
+
+    public void enterAggregateFunctionArgument() {
+        aggregateFunctionArgumentDepth++;
+    }
+
+    public void exitAggregateFunctionArgument() {
+        if (aggregateFunctionArgumentDepth > 0) {
+            aggregateFunctionArgumentDepth--;
+        }
+    }
+
+    public boolean isInsideAggregateFunctionArgument() {
+        return aggregateFunctionArgumentDepth > 0;
+    }
+}

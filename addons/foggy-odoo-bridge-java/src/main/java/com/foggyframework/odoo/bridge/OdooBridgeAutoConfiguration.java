@@ -52,7 +52,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
  * @author foggy-framework
  * @since 8.2.0
  */
-@AutoConfiguration(afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
+@AutoConfiguration(afterName = "com.foggyframework.dataset.model.DbModelAutoConfiguration")
 @ConditionalOnProperty(prefix = "foggy.odoo", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableFoggyFramework(bundleName = "odoo", namespace = "odoo")
 public class OdooBridgeAutoConfiguration {

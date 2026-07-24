@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.mcp.config;
 
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import com.foggyframework.dataset.mcp.spi.impl.LocalDatasetAccessor;

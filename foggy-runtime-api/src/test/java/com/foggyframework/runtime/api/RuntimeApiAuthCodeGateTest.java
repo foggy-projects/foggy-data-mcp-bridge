@@ -3,13 +3,13 @@ package com.foggyframework.runtime.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
-import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
+import com.foggyframework.dataset.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.validation.DetachedModelValidationFactory;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.security.RuntimeApiAuthInterceptor;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
                 "foggy.runtime-api.auth-code=runtime-secret",
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-auth-test-bundles-${random.uuid}.json",
                 "foggy.runtime-api.datasource-registry.path=target/runtime-api-auth-test-datasources-${random.uuid}.json",
-                "spring.autoconfigure.exclude=com.foggyframework.dataset.db.model.DbModelAutoConfiguration,"
+                "spring.autoconfigure.exclude=com.foggyframework.dataset.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
 )

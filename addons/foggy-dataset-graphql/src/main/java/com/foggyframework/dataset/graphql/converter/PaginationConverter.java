@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.graphql.converter;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
 import graphql.language.Argument;
 import graphql.language.IntValue;
 import graphql.language.StringValue;

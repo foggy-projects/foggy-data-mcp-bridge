@@ -2,7 +2,7 @@ package com.foggyframework.dataviewer.service;
 
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.config.DataViewerProperties.ModelScopeConstraint;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

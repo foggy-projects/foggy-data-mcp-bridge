@@ -76,7 +76,7 @@ prepare_current_reactor() {
   mkdir -p "$lane_dir"
 
   echo "[v933-batch2-namespace] installing current reactor dependencies"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model -am \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine -am \
       -P'!multi-db,model-lifecycle' \
       -DskipTests \
       install -l "$log_file"); then
@@ -91,7 +91,7 @@ run_default_discovery() {
   : > "$lane_dir/.run-start"
 
   echo "[v933-batch2-namespace] running default lifecycle discovery"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine \
       -P'!multi-db,model-lifecycle' \
       -DskipITs=true \
       -Dv933.reportsDirectory="$lane_dir" \
@@ -100,11 +100,11 @@ run_default_discovery() {
   fi
 
   V933_ALLOW_EXTRA_REPORTS=1 assert_report_set "$lane_dir" \
-    'com.foggyframework.dataset.db.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeTest|1' \
-    'com.foggyframework.dataset.db.model.lifecycle.namespace.NamespaceScopeTest|9' \
-    'com.foggyframework.dataset.db.model.lifecycle.namespace.NamespaceProductionEntryRestorationTest|11' \
-    'com.foggyframework.dataset.db.model.lifecycle.namespace.SemanticServiceNamespaceScopeTest|2' \
-    'com.foggyframework.dataset.db.model.lifecycle.namespace.QueryModelLoaderNamespaceScopeTest|3'
+    'com.foggyframework.dataset.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeTest|1' \
+    'com.foggyframework.dataset.model.lifecycle.namespace.NamespaceScopeTest|9' \
+    'com.foggyframework.dataset.model.lifecycle.namespace.NamespaceProductionEntryRestorationTest|11' \
+    'com.foggyframework.dataset.model.lifecycle.namespace.SemanticServiceNamespaceScopeTest|2' \
+    'com.foggyframework.dataset.model.lifecycle.namespace.QueryModelLoaderNamespaceScopeTest|3'
   DEFAULT_DISCOVERY_REPORTS="$(find "$lane_dir/surefire-reports" -maxdepth 1 \
     -type f -name 'TEST-*.xml' | wc -l)"
 }
@@ -112,12 +112,12 @@ run_default_discovery() {
 run_compatibility() {
   local lane_dir="$RUN_ROOT/legacy-compatibility"
   local log_file="$lane_dir/maven.log"
-  local fqcn='com.foggyframework.dataset.db.model.namespace.NamespaceContextTest'
+  local fqcn='com.foggyframework.dataset.model.namespace.NamespaceContextTest'
   mkdir -p "$lane_dir"
   : > "$lane_dir/.run-start"
 
   echo "[v933-batch2-namespace] running legacy NamespaceContext compatibility"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine \
       -P'!multi-db,model-lifecycle' \
       -DskipITs=true \
       -Dtest="$fqcn" \
@@ -136,7 +136,7 @@ audit_sources() {
   local status
   set +e
   rg -n 'NamespaceContext\.(setNamespace|clear)\(' \
-    "$ROOT_DIR/foggy-dataset-model/src/main/java" --glob '*.java' \
+    "$ROOT_DIR/foggy-dataset-model-engine/src/main/java" --glob '*.java' \
     > "$audit_dir/production-legacy-mutations.txt"
   status=$?
   set -e
@@ -148,8 +148,8 @@ audit_sources() {
 
   set +e
   rg -n 'Thread\.sleep|TimeUnit\.sleep' \
-    "$ROOT_DIR/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/namespace" \
-    "$ROOT_DIR/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/namespace/NamespaceContextTest.java" \
+    "$ROOT_DIR/foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/lifecycle/namespace" \
+    "$ROOT_DIR/foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/namespace/NamespaceContextTest.java" \
     > "$audit_dir/sleep-driven-tests.txt"
   status=$?
   set -e

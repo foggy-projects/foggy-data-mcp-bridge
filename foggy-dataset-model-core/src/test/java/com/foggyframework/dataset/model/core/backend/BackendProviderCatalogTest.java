@@ -4,7 +4,9 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.AtomicRefreshBackendProvider;
 import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
+import com.foggyframework.dataset.model.api.backend.ModelLoadBackendProvider;
 import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import org.junit.jupiter.api.Test;
 
@@ -90,14 +92,15 @@ class BackendProviderCatalogTest {
 
     @Test
     void typedResolutionRejectsCapabilityOnlyImpostors() {
-        BackendProvider provider = provider(MYSQL, BackendCapability.MODEL_LOAD);
+        BackendProvider provider = queryProvider(MYSQL);
         BackendProviderCatalog catalog = BackendProviderCatalog.of(List.of(provider));
 
         BackendProviderTypeMismatchException mismatch = assertThrows(
                 BackendProviderTypeMismatchException.class,
-                () -> catalog.require(MYSQL, BackendCapability.MODEL_LOAD, QueryBackendProvider.class));
+                () -> catalog.require(
+                        MYSQL, BackendCapability.QUERY, ModelLoadBackendProvider.class));
         assertEquals(MYSQL, mismatch.backendId());
-        assertEquals(QueryBackendProvider.class, mismatch.requiredType());
+        assertEquals(ModelLoadBackendProvider.class, mismatch.requiredType());
     }
 
     @Test
@@ -113,6 +116,18 @@ class BackendProviderCatalogTest {
                 () -> BackendProviderCatalog.of(List.of(
                         provider(MYSQL, BackendCapability.CACHE_INVALIDATION))));
         assertEquals(CacheInvalidationBackendProvider.class, cacheMismatch.requiredType());
+
+        BackendProviderTypeMismatchException loadMismatch = assertThrows(
+                BackendProviderTypeMismatchException.class,
+                () -> BackendProviderCatalog.of(List.of(
+                        provider(MYSQL, BackendCapability.MODEL_LOAD))));
+        assertEquals(ModelLoadBackendProvider.class, loadMismatch.requiredType());
+
+        BackendProviderTypeMismatchException refreshMismatch = assertThrows(
+                BackendProviderTypeMismatchException.class,
+                () -> BackendProviderCatalog.of(List.of(
+                        provider(MYSQL, BackendCapability.ATOMIC_REFRESH))));
+        assertEquals(AtomicRefreshBackendProvider.class, refreshMismatch.requiredType());
     }
 
     private QueryBackendProvider queryProvider(BackendId backendId) {

@@ -1,9 +1,9 @@
 package io.foggytest.autoconfigure.cache;
 
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheBackendProviderAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.provider.QueryCacheBackendProvider;
-import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
+import com.foggyframework.dataset.model.cache.config.QueryCacheAutoConfiguration;
+import com.foggyframework.dataset.model.cache.config.QueryCacheBackendProviderAutoConfiguration;
+import com.foggyframework.dataset.model.cache.provider.QueryCacheBackendProvider;
+import com.foggyframework.dataset.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
 import com.foggyframework.dataset.model.core.backend.BackendProviderCatalog;

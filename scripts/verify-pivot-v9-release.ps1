@@ -31,11 +31,11 @@ function Invoke-PivotParityIT {
         [Parameter(Mandatory = $true)][string]$Profile
     )
 
-    $report = Join-Path $repoRoot "foggy-dataset-model/target/failsafe-reports/TEST-com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT.xml"
+    $report = Join-Path $repoRoot "foggy-dataset-model-engine/target/failsafe-reports/TEST-com.foggyframework.dataset.model.engine.pivot.PivotSqlParityIT.xml"
     Remove-Item -Force -ErrorAction SilentlyContinue $report
     Invoke-ReleaseStep $Name @(
         "verify",
-        "-pl", "foggy-dataset-model",
+        "-pl", "foggy-dataset-model-engine",
         "-am",
         "-Dit.test=PivotSqlParityIT",
         "-Dspring.profiles.active=$Profile",
