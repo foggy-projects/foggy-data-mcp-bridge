@@ -193,6 +193,15 @@ open_questions: []
   - 修复后 focused launcher smoke：27/27 reactor modules success，
     `DataViewerApiSmokeTest` 6 tests 全通过；完整制品
     `verify -Dmaven.test.skip=true -DskipITs` 32/32 modules success。
+  - final release authority candidate `57766a778138059853cb73a7dea215e8b7c0221c`：
+    post-fix root `clean verify -DskipITs` 32/32 modules success，6 分 13 秒。
+  - SQLite semantic replay：63 tests，F0/E0/S0；portable replay self-test：
+    same-filesystem 2、cross-filesystem 1、negative probes 9/9。
+  - database compatibility replay：SQLite 50、MySQL 5.7 50、MySQL 8 50+55、
+    PostgreSQL 15 50+65、SQL Server 2022 50；合计 7/7 variants、370 tests，
+    F0/E0/S0。四个外部 cell 的 fixture 前后哈希一致，cleanup passed。
+  - extended source seal：4426 files，before/after SHA-256 均为
+    `725da8d3f32dcd70ab29ddd6f94bf7c7df0cf562df22937848eaf5ec92b09521`。
 - validation_commands:
   ```bash
   mvn -pl foggy-dataset-model-api,foggy-dataset-model-core,foggy-dataset-model-tck,foggy-dataset-model-engine \
@@ -221,15 +230,17 @@ open_questions: []
   二参 resolver 调用，已按当前显式 `SemanticRequestContext` 契约修正。顶层验证脚本同步迁移
   新模块路径/FQCN；历史 `scripts/v934/**` source-sealed 证据保持不改。
 - residual_risks:
-  外部调用方存在有意的 Maven/source/binary breaking；大型 authority/replay 未运行；
-  独立 pivot 模块当前无 Java 源码；历史 sealed 脚本不是 9.5.0 可执行入口。
+  外部调用方存在有意的 Maven/source/binary breaking；独立 pivot 模块当前无 Java 源码；
+  历史 9.3.4 database/portable authority 工具仍绑定旧聚合与 24-module/artifact schema，
+  不是 canonical 9.5.0 可执行入口；本次未形成真正的 9.5.0 portable archive replay。
 - reused_evidence:
   9.4.1 已签收的 stable QueryFacade、JDBC QUERY、query-cache invalidation、
   duplicate/missing/unsupported/role mismatch 与 launcher boundary 证据。
 - omitted_validation_and_reason:
-  按 owner 明确预算未运行 `mvn install`、Step 5/7、扩展 semantic/portable replay、
-  source-seal、通用五库矩阵、GitHub CI、tag/release/publish；test-only 修复后也未重复完整
-  root `clean verify`。这些排除项不得被描述为已验证。
+  未运行 `mvn install`、完整 Step 5/7、真正的 9.5.0 portable archive replay、
+  GitHub CI、tag/release/publish。历史 9.3.4 database collector 与 portable schema 无法对删除
+  旧聚合后的 9.5.0 图生成 canonical pointer；数据库 current-layout replay、semantic replay、
+  source-seal 和 post-fix root authority 已实际完成，不能与未执行项混淆。
 - readiness:
   `ACCEPTED_WITH_RISKS`；最终实现和 test-only authority 修复已在固定提交上完成 review、
   零守卫、focused smoke 与完整制品复核。正式记录见
@@ -252,9 +263,9 @@ open_questions: []
   engine 的同名 JDBC provider 优先发布 QUERY/MODEL_LOAD/ATOMIC_REFRESH，
   fallback adapter 不会覆盖真实角色。catalog/TCK 对四类 capability-role mismatch 均 fail closed。
 - residual_signoff_risk:
-  外部 Maven/source/binary breaking 是本版本有意影响；没有一条 post-fix 完整 root
-  `clean verify` 绿线，接受证据由原 authority 的 modules 1-28、修复后 launcher focused smoke
-  与 32-module artifact verify 组合而成；semantic/portable replay、source-seal 与通用数据库矩阵未运行。
+  外部 Maven/source/binary breaking 是本版本有意影响；post-fix root、semantic、五数据库
+  compatibility replay 与 source seal 已通过。剩余风险是 signoff 同 session、历史 authority
+  tooling 未升级为 9.5.0 canonical schema，以及真正的 portable archive replay 未执行。
 
 ## Acceptance Status
 

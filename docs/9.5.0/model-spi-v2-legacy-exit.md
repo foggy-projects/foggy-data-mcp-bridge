@@ -126,13 +126,19 @@ field access、physical denied columns 和 datasource currentness 规则未放�
 
 ## 8. Signoff result and residual gap
 
-最终候选已按 `ACCEPTED_WITH_RISKS` 签收。owner 批准的一次 lean root authority 在前 28 个模块
-通过后，发现 launcher smoke 的 test-only fixture 路径漏改；修复后 focused smoke 和完整制品
-reactor 均通过，但没有重复一条完整 post-fix root `clean verify`。
+最终候选已按 `ACCEPTED_WITH_RISKS` 签收。owner 批准的一次 lean root authority 发现 launcher
+smoke 的 test-only fixture 路径漏改；修复后最终候选完成一条完整 post-fix root
+`clean verify -DskipITs` 绿线：32/32 modules SUCCESS。
 
-本次签收仍未覆盖 semantic/portable replay、source seal 或通用数据库矩阵。tag/release/publish
-前若需要提高对查询语义、可移植回放和数据库差异的置信度，建议另行批准扩展 authority：
+扩展 authority 已覆盖 SQLite semantic replay、五种数据库的 7 个 variant（370 tests）和
+4426 文件 source seal。portable 工具的 same/cross-filesystem 与 negative self-test 通过。
 
-- semantic/portable replay 加完整数据库矩阵：预计 2–4 小时，另计外部 fixture 启动时间；
-- 决策价值：发现包/坐标迁移后反射配置、跨数据库 SQL 和可移植回放中 compile/focused tests
-  无法覆盖的集成缺陷。
+残余 gap 是历史 authority 工具契约本身：
+
+- database collector 和 SQLite helper 仍绑定已删除的旧聚合路径/24-module 图；
+- portable archive replay schema 仍绑定 9.3.4 旧 artifact 集合；
+- 因此本次数据库证据是 current-layout compatibility replay，portable 证据不等于真正的
+  9.5.0 archive replay。
+
+tag/release/publish 前如需 canonical release pointer，应先升级 authority tooling，再执行真正的
+9.5.0 portable archive replay；工具契约可用后预计 1–2 小时，决策价值是可复现的正式发布证据。

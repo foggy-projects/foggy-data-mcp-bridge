@@ -61,14 +61,22 @@ duplicate identity、missing provider、unsupported capability 和 capability-ro
 本候选运行了受影响 Maven reactor 的 compile、test-compile、focused unit/context/TCK 和独立 addon
 test-compile；全部使用 `-pl ... -am`，未运行 `mvn install`。
 
-Owner 批准的一次 lean root authority 在前 28 个模块完成 4945 tests 后，由 launcher smoke
-残留的旧 SQLite fixture 路径触发 1 个 test-context error。该 test-only 缺陷修复后，
-`DataViewerApiSmokeTest` 6/6、受影响 reactor 27/27 及 32-module artifact verify 均通过。
-没有重复完整 root `clean verify`，因此签收证据是最小失效半径组合证据，不描述为完整 post-fix
-authority 绿线。
+Owner 批准的一次 lean root authority 在 launcher smoke 发现残留旧 SQLite fixture 路径。
+该 test-only 缺陷修复后，最终候选重新完成完整 root
+`clean verify -DskipITs`：32/32 modules SUCCESS，6 分 13 秒。
 
-Step 5/Step 7、semantic/portable replay、source-seal、通用五库矩阵、GitHub CI、tag、release 和
-publish 均未运行。正式结论为 `ACCEPTED_WITH_RISKS`。
+扩展 authority 还完成：
+
+- SQLite semantic replay 63/63；
+- portable replay self-test：2 个同文件系统、1 个跨文件系统、9/9 negative probes；
+- SQLite、MySQL 5.7、MySQL 8、PostgreSQL 15、SQL Server 2022 共 7/7 variants、
+  370/370 tests；
+- 4426 文件 source seal 前后 SHA-256 完全一致。
+
+历史 9.3.4 authority collector/portable archive schema 仍冻结在已删除的旧聚合与 24-module 图，
+因此数据库结果是 current-layout compatibility evidence，不伪装为 canonical 9.3.4 authority
+pointer；也不声称完成真正的 9.5.0 portable archive replay。GitHub CI、tag、release 和 publish
+均未运行。正式结论保持 `ACCEPTED_WITH_RISKS`。
 
 ## 文档入口
 
