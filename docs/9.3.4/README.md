@@ -5,7 +5,7 @@ version: 9.3.4
 status: in-progress
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-23
+updated_at: 2026-07-24
 ---
 
 # 9.3.4 测试与 CI 证据链
@@ -634,7 +634,7 @@ updated_at: 2026-07-23
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | ACCEPTED / replacement candidate-passed / old r2 historical accepted | replacement r1 at `b9b8adfd…` completed once with exit 0；budget consumed；candidate pointer exact；owner signoff 2026-07-24；final pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
-| 7 | clean-commit 本地权威回放与后置门 | NEEDS_REPLAN / repair ACCEPTED | old r1 consumed and remains candidate-only；final pointer absent；replacement Step 5 and new Step 7 remain；no-CI/tag/release/publish |
+| 7 | clean-commit 本地权威回放与后置门 | ACTIVATING_REPLACEMENT / preflight-passed | PR #125 merge=`b3b252c1…`；planned run=`step7-semantic-authority-20260724-r1`；new budget 1 remains unconsumed until tmux launch；final pointer absent；no-CI/tag/release/publish |
 
 Steps 1–5 未满足 exit 不进入下一步；Step 6 不再是执行或签收依赖；Step 7 只在
 Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run 不得拼接为
@@ -668,10 +668,17 @@ Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run �
   2026-07-24 明确签收为 `ACCEPTED`。candidate pointer 精确存在；三个
   final/authority pointer 均不存在。签收记录：
   [step5-semantic-replay-replacement-r1-signoff-20260724.md](acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md)。
-- 新 Step 7 预算仍为唯一一次且未消耗，必须先将 exact accepted branch
-  合入 clean `origin/main`，再完成独立 activation/preflight、冻结契约和再次
-  核对 attempt ledger。
+- accepted repair/signoff branch 已通过 PR #125 以 merge commit
+  `b3b252c1…` 合入 clean `origin/main`。新的 private full clone preflight 已通过：
+  runtime source=`13/1411/10757069`，Step 4/5/6 manifests=`63/8/16`，
+  portable replay=`2 same / 1 cross / 9 negatives`，artifact/package/pointer=
+  `105/120/5`，coverage contract/XML=`28/130`，CI static=`86`。
+- 新 Step 7 run 已冻结为 `step7-semantic-authority-20260724-r1`；预算仍为唯一
+  一次且未消耗。docs-only activation 必须先成为 remote-exact `main`，随后再次
+  核对 identity/attempt ledger，才允许新的 private tmux owner 启动。
   semantic replay 与 ordered review chain 完成前不得生成 final authority pointer。
+- Step 7 activation evidence:
+  [step7-semantic-authority-preflight-20260724.md](evidence/step-7/step7-semantic-authority-preflight-20260724.md)。
 - execution evidence:
   [step5-semantic-replay-replacement-r1-passed-20260723.md](evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md)。
 

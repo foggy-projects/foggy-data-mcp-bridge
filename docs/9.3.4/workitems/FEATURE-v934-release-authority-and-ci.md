@@ -11,7 +11,7 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: semantic-replay replacement Step 5 accepted; exact-main merge and separately frozen new Step 7 activation are next; no CI, tag, release or publish
+active_scope: exact-main semantic-replay replacement Step 7 preflight passed; one authority attempt is authorized after the docs-only activation becomes remote-exact main; no CI, tag, release or publish
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
@@ -58,6 +58,15 @@ semantic_replay_replacement_step5_acceptance_record: docs/9.3.4/acceptance/step5
 semantic_replay_replacement_step5_evidence: docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md
 semantic_replay_replacement_step7_attempt_budget: 1
 semantic_replay_replacement_step7_attempt_consumed: false
+semantic_replay_replacement_step7_run_id: step7-semantic-authority-20260724-r1
+semantic_replay_replacement_step7_merge_pr: 125
+semantic_replay_replacement_step7_merge_commit: b3b252c1a657f61feccca3ed9316216758c19e96
+semantic_replay_replacement_step7_preflight_commit: b3b252c1a657f61feccca3ed9316216758c19e96
+semantic_replay_replacement_step7_preflight_receipt_sha256: e1fef990d5a57084c568119108e9ac39ae4c4faf7e9ba08215f22c97e36005d6
+semantic_replay_replacement_step7_activation_status: authorized-pending-remote-exact-main
+semantic_replay_replacement_step7_authorized_at: 2026-07-24
+semantic_replay_replacement_step7_authorized_by: repository-owner-via-user-approval
+semantic_replay_replacement_step7_preflight_evidence: docs/9.3.4/evidence/step-7/step7-semantic-authority-preflight-20260724.md
 open_questions: []
 ---
 
@@ -392,6 +401,33 @@ open_questions: []
   change, verifier relaxation or final authority pointer creation。
 - acceptance_record:
   `docs/9.3.4/acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md`.
+
+## Semantic Replay Replacement Step 7 Activation — 2026-07-24
+
+- entry: repair/signoff PR #125 merged exact base=`62bf3fe1…`, head=
+  `4124bdcf…`, merge commit=`b3b252c1…`；the new private full clone is clean,
+  non-shallow and remote-exact at that merge commit。
+- owner_authorization: replacement Step 5 is accepted and the repository owner
+  explicitly authorized continuation。
+- planned_run: `step7-semantic-authority-20260724-r1`。
+- attempt_ledger: historical Step 7 consumed=`true`; replacement Step 5
+  consumed=`true`; replacement Step 7 budget=`1`, consumed=`false`。
+- runtime_source: `13` modules / `1411` files / `10757069` bytes, set SHA-256=
+  `22670362fff8f063791129e1e875768d6b1b44286ec8237591f458b5486b07f8`。
+- focused_checks: Step 4/5/6 manifests=`63/8/16`; artifact=`105`; portable
+  replay=`2 same / 1 cross / 9 negatives`; package=`120`; pointer=`5`;
+  coverage contract/XML=`28/130`; CI static=`86`, all passed。
+- runtime_preconditions: pinned OCI index/manifest/config exact；required ports
+  free；planned target/pointers/run/Docker namespace absent；historical tmux
+  panes dead；Actions disabled with no queued or in-progress run。
+- activation_gate: this docs-only activation commit must be clean and
+  fast-forwarded onto unchanged `origin/main`；after fetch,
+  `HEAD == origin/main == ls-remote refs/heads/main` must be exact before the
+  tmux owner starts the only authority attempt。
+- unchanged_boundaries: no GitHub CI, tag, release, publish, production API/SPI
+  change, verifier relaxation or final authority pointer creation。
+- evidence:
+  `docs/9.3.4/evidence/step-7/step7-semantic-authority-preflight-20260724.md`.
 
 ## Ultra Execution Contract
 
