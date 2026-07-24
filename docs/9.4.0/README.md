@@ -23,6 +23,10 @@ recorded_at: 2026-07-24
 当前切片证据：API 单元/边界测试 4/4、旧聚合 facade compatibility/boundary 测试 3/3，受影响的
 12-module reactor package 成功；API 与旧聚合 JAR 不含重复 facade class。
 
+第二个切片已经建立纯 JDK `foggy-dataset-model-core` provider catalog。provider descriptor 在发现时
+快照化；重复 identity、缺失 provider、未声明 capability 均显式 fail closed。API+core tests 8/8，
+core compile dependency tree 仅含 API，旧聚合及其 9-module upstream reactor package 成功。
+
 ## 开工依赖
 
 1. 9.3.4 已由 owner carry forward；

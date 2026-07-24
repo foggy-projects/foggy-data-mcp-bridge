@@ -46,6 +46,7 @@
         <module>foggy-dataset-demo</module>
         <module>foggy-dataset-mcp</module>
         <module>foggy-dataset-model-api</module>
+        <module>foggy-dataset-model-core</module>
         <module>foggy-dataset-model</module>
         <module>foggy-runtime-api</module>
         <module>foggy-dataset-memory-grid-bridge</module>
@@ -147,6 +148,11 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-model-api</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-core</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>

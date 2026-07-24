@@ -1,7 +1,7 @@
 ---
 doc_role: modularization_inventory_and_progress
 version: 9.4.0
-status: implementation-in-progress / model-api-established
+status: implementation-in-progress / model-api-core-established
 baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
 implementation_base_commit: 3b1c7249ba75b3bab54cb0f898ea1c198e5303d4
 recorded_at: 2026-07-20
@@ -87,3 +87,8 @@ compatibility plan before modules are extracted.
   JDBC、implementation 或 web。
 - 验证证据：API tests 4/4、旧聚合 facade compatibility/boundary tests 3/3、受影响 12-module
   reactor package 成功，API/旧聚合 JAR 无重复 facade class。
+- 已新增第 27 个 active module `foggy-dataset-model-core`，依赖方向为
+  `model-core -> model-api`；其 compile dependency tree 不含 Spring、JDBC、web 或旧聚合。
+- core 提供不可变 `BackendProviderCatalog` 与 typed resolution errors。provider descriptor 在 discovery
+  时快照；duplicate/missing/unsupported capability 均 fail closed，不以顺序或默认 provider 回退。
+- API+core tests 8/8，旧聚合及其 9-module upstream reactor package 成功。
