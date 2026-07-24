@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.4.1
 ticket: v941-spi-v2-adoption-hardening
-status: READY_FOR_SIGNOFF
+status: SIGNED_OFF
 canonical: true
 execution_mode: ultra
 assurance_level: standard
@@ -154,3 +154,13 @@ open_questions: []
 - requirement / issue: user-approved 9.4.1 SPI v2 adoption/hardening continuation
 - architecture / glossary: `docs/9.4.0/model-spi-v2-migration.md`
 - related work items: `docs/9.4.0/workitems/FEATURE-v934-v940-speed-forward.md`
+
+## Acceptance Status
+
+- status: signed-off
+- decision: accepted-with-risks
+- reviewed_candidate: `b5ac732f3e6af07205a708c3a57e48972b8b8c9a`
+- acceptance_record: `docs/9.4.1/acceptance/version-signoff.md`
+- independent_review: false
+- core_blocking_items: none
+- follow_up: `docs/9.4.1/9.5.0-entry-assessment.md`

@@ -2,7 +2,7 @@
 doc_role: version-readme
 version: 9.4.1
 theme: spi-v2-adoption-hardening
-status: READY_FOR_SIGNOFF
+status: SIGNED_OFF
 recorded_at: 2026-07-24
 ---
 

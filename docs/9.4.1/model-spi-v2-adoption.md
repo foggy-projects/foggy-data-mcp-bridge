@@ -1,7 +1,7 @@
 ---
 doc_role: model-spi-v2-adoption-inventory
 version: 9.4.1
-status: READY_FOR_SIGNOFF
+status: SIGNED_OFF
 recorded_at: 2026-07-24
 baseline: 15-direct-dependencies-12-modules-114-files
 current: 14-direct-dependencies-11-modules-110-files
