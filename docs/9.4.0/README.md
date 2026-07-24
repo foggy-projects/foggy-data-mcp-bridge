@@ -15,7 +15,13 @@ recorded_at: 2026-07-24
 实施按小切片推进，每个切片通过受影响测试即可继续；只在全部 9.4.0 开发目标完成后
 安排一次跨版本整体验收。
 
-9.3.5 已完成并通过收口 boundary/compatibility/phase tests，当前进入模块与 SPI v2 起始盘点。
+9.3.5 已完成并通过收口 boundary/compatibility/phase tests。首个 9.4.0 切片已经建立
+`foggy-dataset-model-api`：稳定 `QueryFacade`/DTO 保持原包名与 JVM 名称物理迁入，旧
+`foggy-dataset-model` 通过 Maven 依赖继续提供传递兼容；同时新增最小 provider identity/capability
+契约，且 API 主代码 compile classpath 为零第三方依赖。
+
+当前切片证据：API 单元/边界测试 4/4、旧聚合 facade compatibility/boundary 测试 3/3，受影响的
+12-module reactor package 成功；API 与旧聚合 JAR 不含重复 facade class。
 
 ## 开工依赖
 

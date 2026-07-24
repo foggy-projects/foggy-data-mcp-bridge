@@ -41,37 +41,14 @@ public final class QueryFacadeRequest {
         return new Builder(query);
     }
 
-    public Map<String, Object> getQuery() {
-        return query;
-    }
-
-    public Integer getPage() {
-        return page;
-    }
-
-    public Integer getPageSize() {
-        return pageSize;
-    }
-
-    public Integer getStart() {
-        return start;
-    }
-
-    public Integer getLimit() {
-        return limit;
-    }
-
-    public String getAuthorization() {
-        return authorization;
-    }
-
-    public String getNamespace() {
-        return namespace;
-    }
-
-    public boolean isNamespaceProvided() {
-        return namespaceProvided;
-    }
+    public Map<String, Object> getQuery() { return query; }
+    public Integer getPage() { return page; }
+    public Integer getPageSize() { return pageSize; }
+    public Integer getStart() { return start; }
+    public Integer getLimit() { return limit; }
+    public String getAuthorization() { return authorization; }
+    public String getNamespace() { return namespace; }
+    public boolean isNamespaceProvided() { return namespaceProvided; }
 
     public static final class Builder {
         private final Map<String, Object> query;
@@ -87,30 +64,11 @@ public final class QueryFacadeRequest {
             this.query = query;
         }
 
-        public Builder page(Integer page) {
-            this.page = page;
-            return this;
-        }
-
-        public Builder pageSize(Integer pageSize) {
-            this.pageSize = pageSize;
-            return this;
-        }
-
-        public Builder start(Integer start) {
-            this.start = start;
-            return this;
-        }
-
-        public Builder limit(Integer limit) {
-            this.limit = limit;
-            return this;
-        }
-
-        public Builder authorization(String authorization) {
-            this.authorization = authorization;
-            return this;
-        }
+        public Builder page(Integer page) { this.page = page; return this; }
+        public Builder pageSize(Integer pageSize) { this.pageSize = pageSize; return this; }
+        public Builder start(Integer start) { this.start = start; return this; }
+        public Builder limit(Integer limit) { this.limit = limit; return this; }
+        public Builder authorization(String authorization) { this.authorization = authorization; return this; }
 
         /**
          * Selects an explicit namespace. A null/blank value means the default
@@ -123,8 +81,6 @@ public final class QueryFacadeRequest {
             return this;
         }
 
-        public QueryFacadeRequest build() {
-            return new QueryFacadeRequest(this);
-        }
+        public QueryFacadeRequest build() { return new QueryFacadeRequest(this); }
     }
 }

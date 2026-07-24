@@ -1,19 +1,22 @@
 ---
-doc_role: read_only_modularization_inventory
+doc_role: modularization_inventory_and_progress
 version: 9.4.0
-status: baseline-only / no-module-extraction-authority
+status: implementation-in-progress / model-api-established
 baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
+implementation_base_commit: 3b1c7249ba75b3bab54cb0f898ea1c198e5303d4
 recorded_at: 2026-07-20
+updated_at: 2026-07-24
 ---
 
 # 9.4.0 SPI v2 与模块化静态基线
 
 ## 观察边界
 
-此记录来自 baseline commit 的 Maven/source-only 盘点。它不创建目标模块、不定义最终 API、不改变
-现有 addon contract，也不把名称相似的 SPI 视为同一个抽取候选。
+初始记录来自 baseline commit 的 Maven/source-only 盘点；实施开始时已在精确
+`origin/main` 基线 `3b1c7249ba75b3bab54cb0f898ea1c198e5303d4` 复算。下列“初始基线”保留历史计数，
+“当前实现”记录已落地的物理边界与兼容证据。
 
-## 当前模块与泄漏面
+## 初始模块与泄漏面
 
 - 根 POM 当前声明 25 个 active reactor modules；目标 `model-api`、`model-core`、`model-jdbc`、
   `model-starter`、`model-web` 目前均不存在。
@@ -68,3 +71,19 @@ rg -n '^[[:space:]]*<module>[^<]+</module>' pom.xml
 
 Recompute these baselines on the exact implementation start commit; changed counts or paths require an updated
 compatibility plan before modules are extracted.
+
+## 当前实现进度
+
+- 实施基线复算得到 25 个 active reactor modules、52 个 legacy model SPI types、46 个模型模块外
+  main-source importer；importer 相比旧盘点的 44 个发生漂移，因此后续迁移以 46 个为准。
+- 已新增第 26 个 active module `foggy-dataset-model-api`。它不继承会注入 Spring/实现依赖的旧
+  repository parent，而以独立、JDK-only POM 参与根 reactor；compile dependency tree 只有模块自身。
+- `QueryFacade`、`QueryFacadeRequest`、`QueryFacadeResult` 保持
+  `com.foggyframework.dataset.model.api` 包名和二进制名称迁入新模块；旧聚合依赖新 API 模块，
+  因此既有消费者无需立即修改 Maven 坐标。
+- 新增最小 `BackendId`、`BackendCapability`、`BackendDescriptor`、`BackendProvider` 契约；identity
+  采用稳定小写标识并 fail closed，capabilities 为不可变显式集合，不提供未知能力 fallback。
+- 当前依赖方向为 `foggy-dataset-model -> foggy-dataset-model-api`；API 不反向依赖旧聚合、Spring、
+  JDBC、implementation 或 web。
+- 验证证据：API tests 4/4、旧聚合 facade compatibility/boundary tests 3/3、受影响 12-module
+  reactor package 成功，API/旧聚合 JAR 无重复 facade class。

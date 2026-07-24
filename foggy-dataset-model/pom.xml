@@ -27,6 +27,11 @@
 
         <dependency>
             <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset</artifactId>
         </dependency>
 
