@@ -1,7 +1,7 @@
 ---
 doc_role: modularization_inventory_and_progress
 version: 9.4.0
-status: implementation-in-progress / target-modules-established
+status: READY_FOR_SIGNOFF / target-modules-validated
 baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
 implementation_base_commit: 3b1c7249ba75b3bab54cb0f898ea1c198e5303d4
 recorded_at: 2026-07-20
@@ -135,3 +135,7 @@ compatibility plan before modules are extracted.
 - launcher 跳过测试的独立 production package 成功。Boot JAR 精确包含旧兼容聚合与
   `model-api/core/jdbc/starter/web`，不包含 test-only `model-tck`，也不包含 launcher 中 test-scope 的
   query-cache addon；测试依赖没有改变生产制品的 scope mediation。
+- 最终候选复证再次通过六个新模块 tests 26/26、旧 facade compatibility/boundary tests 6/6、cache
+  TCK/context tests 23/23 和 launcher smoke 4/4。六个新构件的 compile dependency tree 只出现
+  `core -> api`、`jdbc -> core`、`starter -> jdbc`、`web -> core`、`tck -> core`，未出现回边或生产模块
+  指向 TCK；因此当前目标模块图满足单向无环约束。

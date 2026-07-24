@@ -2,7 +2,7 @@
 doc_role: model_spi_v2_migration_guide
 version: 9.4.0
 compatibility_window: one-release-cycle
-status: implemented-candidate
+status: READY_FOR_SIGNOFF
 recorded_at: 2026-07-24
 ---
 

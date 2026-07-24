@@ -1,7 +1,7 @@
 ---
 doc_role: version_execution_index
 version: 9.4.0
-status: implementation-in-progress / speed-forward
+status: READY_FOR_SIGNOFF / speed-forward
 entry_gate: 9.3.5-development-complete
 validation_mode: affected-tests-then-one-integrated-acceptance
 recorded_at: 2026-07-24
@@ -15,7 +15,8 @@ recorded_at: 2026-07-24
 实施按小切片推进，每个切片通过受影响测试即可继续；只在全部 9.4.0 开发目标完成后
 安排一次跨版本整体验收。
 
-9.3.5 已完成并通过收口 boundary/compatibility/phase tests。首个 9.4.0 切片已经建立
+9.3.5 与 9.4.0 开发目标均已完成，当前候选为 `READY_FOR_SIGNOFF`，尚未签署 `ACCEPTED`。
+首个 9.4.0 切片建立
 `foggy-dataset-model-api`：稳定 `QueryFacade`/DTO 保持原包名与 JVM 名称物理迁入，旧
 `foggy-dataset-model` 通过 Maven 依赖继续提供传递兼容；同时新增最小 provider identity/capability
 契约，且 API 主代码 compile classpath 为零第三方依赖。
@@ -56,6 +57,12 @@ API/core/TCK tests 12/12，cache TCK、自动配置及既有 context tests 23/23
 outside-package smoke 合计 4/4；launcher 生产包包含兼容聚合及 API/core/JDBC/starter/web，不包含
 测试构件 TCK，也不把 test-scope query-cache addon 带入运行时 JAR。SPI v2 迁移说明同步冻结了一个
 兼容周期、provider 实现步骤、fail-closed 错误语义与各消费场景的目标 Maven 坐标。
+
+最终候选窄范围复证：六个新模块 tests 26/26、旧 facade compatibility/boundary tests 6/6、cache
+TCK/context tests 23/23、launcher smoke 4/4；目标模块 compile dependency tree 为
+`starter -> jdbc -> core -> api`、`web -> core -> api`、`tck -> core -> api`，无反向边。
+launcher production package 再次成功并确认 TCK/cache 未进入运行时 JAR。跨版本整体验收仍等待
+owner 明确批准后执行。
 
 ## 开工依赖
 

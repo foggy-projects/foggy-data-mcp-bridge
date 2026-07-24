@@ -3,14 +3,14 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4-to-9.4.0
 ticket: v934-v940-speed-forward
-status: APPROVED
+status: READY_FOR_SIGNOFF
 canonical: true
 assurance_level: standard
 execution_mode: speed-first
 approved_by: repository-owner-via-user-request
 approved_at: 2026-07-24
 supersedes_active_release_authority_gates: true
-final_integrated_acceptance: deferred-until-9.4.0-development-complete
+final_integrated_acceptance: awaiting-owner-approval
 open_questions: []
 ---
 
@@ -90,11 +90,11 @@ open_questions: []
 
 ### 9.4.0 Development Complete
 
-- [ ] 目标模块已按单向依赖顺序建立，依赖图无环。
-- [ ] `model-api` 依赖边界满足约束。
-- [ ] SPI/provider 迁移具有兼容转发层和迁移文档。
-- [ ] 与实际改动对应的 Addon TCK、starter context、launcher smoke 通过。
-- [ ] 达到 `READY_FOR_SIGNOFF`，随后才启动一次整体验收。
+- [x] 目标模块已按单向依赖顺序建立，依赖图无环。
+- [x] `model-api` 依赖边界满足约束。
+- [x] SPI/provider 迁移具有兼容转发层和迁移文档。
+- [x] 与实际改动对应的 Addon TCK、starter context、launcher smoke 通过。
+- [x] 达到 `READY_FOR_SIGNOFF`，随后才启动一次整体验收。
 
 ## Validation Budget
 
@@ -136,7 +136,10 @@ open_questions: []
 ## Implementation Result
 
 - contract_frozen_at: 2026-07-24
-- repository_state: 基于当日最新 `origin/main` 的独立 speed-forward 工作树。
-- production_changes: none
-- tests: docs-only contract change；未运行产品测试。
-- readiness: `APPROVED` for implementation；9.3.4 已允许 carry-forward，9.3.5 可开始。
+- implementation_base: `3b1c7249ba75b3bab54cb0f898ea1c198e5303d4`
+- repository_state: 独立 worktree 分支 `codex/v940-speed-forward`；原工作区未提交内容未被修改。
+- production_changes: 9.3.5 classification/API/port/bypass/dependency debt closed；9.4.0 API/core/JDBC/starter/web/TCK、cache compatibility adapter 与 launcher assembly 已实现。
+- compatibility: 旧 `foggy-dataset-model` 聚合/legacy facade 保留一个周期，稳定 facade JVM 名称不变；迁移说明已冻结。
+- tests: 最终窄范围复证通过新模块 26/26、legacy facade 6/6、cache 23/23、launcher 4/4；launcher production package 成功，模块依赖树单向无环。
+- excluded: 未运行全 reactor、数据库/外部整体验收、Step 5/Step 7 authority、semantic/portable replay、source seal、GitHub CI、tag/release/publish。
+- readiness: `READY_FOR_SIGNOFF`；等待 owner 批准一次最终跨版本整体验收，不自行签署 `ACCEPTED`。
