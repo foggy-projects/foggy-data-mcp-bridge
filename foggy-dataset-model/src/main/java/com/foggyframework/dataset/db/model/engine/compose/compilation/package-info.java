@@ -26,7 +26,7 @@
  * <h2>v1.3 reuse</h2>
  * <p>{@code fieldAccess} / {@code deniedColumns} / {@code systemSlice} are
  * injected into each per-base request through
- * {@link com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3#generateSql}
+ * {@link com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort#generateComposeSql}
  * — M6 does not re-implement the governance steps. v1.3's
  * {@code beforeQuery} pipeline
  * ({@code PhysicalColumnPermissionStep} / {@code FieldAccessPermissionStep})

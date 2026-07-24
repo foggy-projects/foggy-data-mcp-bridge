@@ -4,6 +4,7 @@ import com.foggyframework.dataset.db.model.engine.compose.authority.ModelInfoPro
 import com.foggyframework.dataset.db.model.engine.compose.plan.TimeWindowDef;
 import com.foggyframework.dataset.db.model.engine.compose.relation.RelationPermissionState;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.Set;
 public final class RelationCompileOptions {
 
     private final SemanticQueryServiceV3 semanticService;
+    private final ComposeSemanticPlanningPort planningPort;
     private final Map<String, ModelBinding> bindings;
     private final ModelInfoProvider modelInfoProvider;
     private final Map<String, Optional<String>> datasourceIds;
@@ -40,6 +42,7 @@ public final class RelationCompileOptions {
 
     private RelationCompileOptions(Builder b) {
         this.semanticService = b.semanticService;
+        this.planningPort = b.planningPort != null ? b.planningPort : b.semanticService;
         this.bindings = b.bindings;
         this.modelInfoProvider = b.modelInfoProvider;
         this.datasourceIds = b.datasourceIds;
@@ -55,6 +58,7 @@ public final class RelationCompileOptions {
     }
 
     public SemanticQueryServiceV3 semanticService() { return semanticService; }
+    public ComposeSemanticPlanningPort planningPort() { return planningPort; }
     public Map<String, ModelBinding> bindings() { return bindings; }
     public ModelInfoProvider modelInfoProvider() { return modelInfoProvider; }
     public Map<String, Optional<String>> datasourceIds() { return datasourceIds; }
@@ -70,6 +74,7 @@ public final class RelationCompileOptions {
 
     public static final class Builder {
         private SemanticQueryServiceV3 semanticService;
+        private ComposeSemanticPlanningPort planningPort;
         private Map<String, ModelBinding> bindings;
         private ModelInfoProvider modelInfoProvider;
         private Map<String, Optional<String>> datasourceIds;
@@ -81,7 +86,12 @@ public final class RelationCompileOptions {
         private List<String> dimensionFields;
         private Set<String> measureFields;
 
-        public Builder semanticService(SemanticQueryServiceV3 v) { this.semanticService = v; return this; }
+        public Builder semanticService(SemanticQueryServiceV3 v) {
+            this.semanticService = v;
+            this.planningPort = v;
+            return this;
+        }
+        public Builder planningPort(ComposeSemanticPlanningPort v) { this.planningPort = v; return this; }
         public Builder bindings(Map<String, ModelBinding> v) { this.bindings = v; return this; }
         public Builder modelInfoProvider(ModelInfoProvider v) { this.modelInfoProvider = v; return this; }
         public Builder datasourceIds(Map<String, Optional<String>> v) { this.datasourceIds = v; return this; }

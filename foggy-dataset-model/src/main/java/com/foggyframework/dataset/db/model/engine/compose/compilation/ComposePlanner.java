@@ -4,7 +4,6 @@ import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
 import com.foggyframework.dataset.db.model.engine.compose.ComposeOrderByNormalizer;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
-import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.plan.*;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
@@ -16,7 +15,8 @@ import com.foggyframework.dataset.db.model.engine.compose.schema.SchemaDerivatio
 import com.foggyframework.dataset.db.model.engine.compose.security.ComposePlanAwarePermissionValidator;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.engine.compose.security.PlanFieldAccessContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -907,7 +907,7 @@ public final class ComposePlanner {
 
     static final class CompileState {
         final Map<String, ModelBinding> bindings;
-        final SemanticQueryServiceV3 semanticService;
+        final ComposeSemanticPlanningPort planningPort;
         final String namespace;
         /** Dialect lower-cased once at construction; downstream comparisons
          *  ({@code "sqlite"} SQLite full-outer guard, CTE detection) read this
@@ -936,9 +936,9 @@ public final class ComposePlanner {
         /** Full-mode dedup: structurally equal plan subtrees share a CteUnit. */
         final Map<List<Object>, CteUnit> hashCache = new HashMap<>();
         /** {@code (model, identityOf(binding))} → cached
-         *  {@link SqlGenerationResult}. Skips re-running v1.3 governance for
+         *  {@link ComposeSqlGeneration}. Skips re-running governed SQL generation for
          *  self-join / self-union cases. */
-        final Map<String, SqlGenerationResult> governanceCache = new HashMap<>();
+        final Map<String, ComposeSqlGeneration> governanceCache = new HashMap<>();
         /**
          * <b>G10 PR3</b> · Plan-tree → CTE/subquery alias mapping.
          *
@@ -964,11 +964,11 @@ public final class ComposePlanner {
         final List<CteUnit> prerequisiteCtes = new ArrayList<>();
         int currentDepth = 0;
 
-        CompileState(Map<String, ModelBinding> bindings, SemanticQueryServiceV3 semanticService,
+        CompileState(Map<String, ModelBinding> bindings, ComposeSemanticPlanningPort planningPort,
                      String namespace, String dialect,
                      Map<String, Optional<String>> datasourceIds) {
             this.bindings = bindings;
-            this.semanticService = semanticService;
+            this.planningPort = planningPort;
             this.namespace = namespace;
             this.dialect = dialect.toLowerCase(Locale.ROOT);
             this.useCte = dialectSupportsCte(this.dialect);
@@ -1005,13 +1005,13 @@ public final class ComposePlanner {
     static ComposedSql compileToComposedSql(
             QueryPlan plan,
             Map<String, ModelBinding> bindings,
-            SemanticQueryServiceV3 semanticService,
+            ComposeSemanticPlanningPort planningPort,
             String namespace,
             String dialect,
             Map<String, Optional<String>> datasourceIds) {
 
         assertDialect(dialect);
-        CompileState state = new CompileState(bindings, semanticService, namespace, dialect,
+        CompileState state = new CompileState(bindings, planningPort, namespace, dialect,
                 datasourceIds);
         if (planContainsSliceSubquery(plan)) {
             checkCrossDatasource(plan, state, "slice subquery");
@@ -1228,7 +1228,7 @@ public final class ComposePlanner {
         String alias = state.nextAlias();
         registerPlanAlias(state, plan, alias);
         List<CteUnit> units = PerBaseCompiler.compileBaseModel(
-                perBasePlan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
+                perBasePlan, binding, state.planningPort, state.namespace, alias, state.governanceCache);
         if (!slicePartition.subquerySlices().isEmpty()) {
             units = injectBaseSubquerySlices(units, slicePartition.subquerySlices(), plan, binding, state);
         }
@@ -1371,12 +1371,12 @@ public final class ComposePlanner {
                     "COMPOSE_SUBQUERY_FIELD_NOT_FOUND: base model subquery slice field '"
                             + field + "' is not visible on model '" + plan.model() + "'.");
         }
-        Optional<String> resolved = state.semanticService.resolveFieldSqlExpression(
+        Optional<String> resolved = state.planningPort.resolveFieldSqlExpression(
                 plan.model(), field, state.namespace);
         if (resolved.isPresent()) {
             return resolved.get();
         }
-        if (semanticServiceOverridesFieldResolver(state.semanticService)) {
+        if (state.planningPort.supportsFieldSqlResolution()) {
             throw new ComposeCompileException(
                     ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
                     ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
@@ -1384,16 +1384,6 @@ public final class ComposePlanner {
                             + field + "' cannot be resolved on model '" + plan.model() + "'.");
         }
         return quoteColumnExpr(unquoteIdentifier(field), state.dialect);
-    }
-
-    private static boolean semanticServiceOverridesFieldResolver(SemanticQueryServiceV3 service) {
-        try {
-            return service.getClass()
-                    .getMethod("resolveFieldSqlExpression", String.class, String.class, String.class)
-                    .getDeclaringClass() != SemanticQueryServiceV3.class;
-        } catch (NoSuchMethodException e) {
-            return false;
-        }
     }
 
     private static WhereInjection injectWhereFragmentsAtPosition(String baseSql, List<String> fragments) {

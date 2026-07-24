@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryCo
 import com.foggyframework.dataset.db.model.engine.compose.normalization.PlanNormalizePipeline;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.Map;
@@ -70,7 +71,7 @@ public final class ComposeSqlCompiler {
         if (opts == null) {
             throw new IllegalArgumentException("compilePlanToSql: opts must not be null");
         }
-        if (opts.semanticService == null) {
+        if (opts.planningPort == null) {
             throw new IllegalArgumentException("CompileOptions.semanticService is required");
         }
         QueryPlan effectivePlan = opts.normalizePlan
@@ -98,7 +99,7 @@ public final class ComposeSqlCompiler {
 
         String namespace = context == null ? null : context.namespace();
         return ComposePlanner.compileToComposedSql(
-                effectivePlan, bindings, opts.semanticService, namespace, opts.dialect,
+                effectivePlan, bindings, opts.planningPort, namespace, opts.dialect,
                 datasourceIds);
     }
 
@@ -113,6 +114,16 @@ public final class ComposeSqlCompiler {
                 CompileOptions.builder().semanticService(semanticService).build());
     }
 
+    /** Narrow-port convenience overload for callers that do not need the
+     * legacy semantic service surface. */
+    public static ComposedSql compilePlanToSql(
+            QueryPlan plan,
+            ComposeQueryContext context,
+            ComposeSemanticPlanningPort planningPort) {
+        return compilePlanToSql(plan, context,
+                CompileOptions.builder().planningPort(planningPort).build());
+    }
+
     // ------------------------------------------------------------------
     // CompileOptions (Builder mirrors Python kw-only params)
     // ------------------------------------------------------------------
@@ -123,9 +134,11 @@ public final class ComposeSqlCompiler {
      *  {@code semantic_service / bindings / model_info_provider / datasource_ids / dialect / normalize_plan}. */
     public static final class CompileOptions {
 
-        /** Required — the v1.3 semantic-query service that owns the
-         *  per-model SQL build path. */
+        /** Compatibility reference retained for existing callers. */
         private final SemanticQueryServiceV3 semanticService;
+
+        /** Required narrow planning capability used by the compiler core. */
+        private final ComposeSemanticPlanningPort planningPort;
 
         /** Optional — when non-null, the internal authority-resolve path
          *  is skipped (two-step pattern). */
@@ -151,6 +164,7 @@ public final class ComposeSqlCompiler {
 
         private CompileOptions(Builder b) {
             this.semanticService = b.semanticService;
+            this.planningPort = b.planningPort != null ? b.planningPort : b.semanticService;
             this.bindings = b.bindings;
             this.modelInfoProvider = b.modelInfoProvider;
             this.datasourceIds = b.datasourceIds;
@@ -159,6 +173,7 @@ public final class ComposeSqlCompiler {
         }
 
         public SemanticQueryServiceV3 semanticService() { return semanticService; }
+        public ComposeSemanticPlanningPort planningPort() { return planningPort; }
         public Map<String, ModelBinding> bindings() { return bindings; }
         public ModelInfoProvider modelInfoProvider() { return modelInfoProvider; }
         public Map<String, Optional<String>> datasourceIds() { return datasourceIds; }
@@ -169,6 +184,7 @@ public final class ComposeSqlCompiler {
 
         public static final class Builder {
             private SemanticQueryServiceV3 semanticService;
+            private ComposeSemanticPlanningPort planningPort;
             private Map<String, ModelBinding> bindings;
             private ModelInfoProvider modelInfoProvider;
             private Map<String, Optional<String>> datasourceIds;
@@ -177,6 +193,12 @@ public final class ComposeSqlCompiler {
 
             public Builder semanticService(SemanticQueryServiceV3 v) {
                 this.semanticService = v;
+                this.planningPort = v;
+                return this;
+            }
+
+            public Builder planningPort(ComposeSemanticPlanningPort v) {
+                this.planningPort = v;
                 return this;
             }
 

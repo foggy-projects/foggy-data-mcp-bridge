@@ -82,7 +82,7 @@ public final class ComposeRelationCompiler {
             throw new IllegalArgumentException(
                     "compileToRelation: opts must not be null");
         }
-        if (opts.semanticService() == null) {
+        if (opts.planningPort() == null) {
             throw new IllegalArgumentException(
                     "RelationCompileOptions.semanticService is required");
         }
@@ -118,7 +118,7 @@ public final class ComposeRelationCompiler {
         // ---- 5. Compile plan to ComposedSql ----
         String namespace = context == null ? null : context.namespace();
         ComposedSql composedSql = ComposePlanner.compileToComposedSql(
-                effectivePlan, bindings, opts.semanticService(), namespace, dialect,
+                effectivePlan, bindings, opts.planningPort(), namespace, dialect,
                 datasourceIds);
 
         String sql = composedSql.getSql();

@@ -49,6 +49,11 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   编排只消费中立视图，具体 Pivot plan、builder、renderer 和 ext-data key 均保持原行为。旧
   `getDomainTransportPlans()/withDomainTransportPlans(...)` 源码与 JVM 签名保留一个兼容周期，
   避免现有链式调用方发生无过渡期破坏。
+- Compose compiler/planner core 已改为依赖 `ComposeSemanticPlanningPort` 与 engine-neutral
+  `ComposeSqlGeneration`，不再持有完整 `SemanticQueryServiceV3` 或带 JDBC engine 的 legacy
+  `SqlGenerationResult`。旧 compiler/relation options、便捷 overload 和 semantic service 方法均保留
+  兼容桥接；per-request authority、CTE stages、diagnostics、null bind 参数和字段解析 fail-closed
+  语义保持不变。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
   33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
@@ -57,9 +62,11 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   自动配置 16/16、runtime runner/HTTP/CTE bridge/依赖边界 17/17 通过；Pivot semantic-port
   切片 reactor 编译通过，边界/cache/pipeline validation/自动配置 36/36、non-additive
   UNION ALL SQLite 集成路径 1/1 通过；domain transport contract/renderer/rollup 41/41、
-  大域 transport/diagnostics/SQL parity SQLite 集成路径 3/3 通过。
-- 当前执行切片：拆解 compose compiler/planner 对完整 `SemanticQueryServiceV3` 的剩余依赖，
-  保持 per-request authority 与字段表达式解析能力不降级。
+  大域 transport/diagnostics/SQL parity SQLite 集成路径 3/3 通过；Compose planning-port/compiler
+  定向回归 198/198，通过 fail-closed 收紧后的核心复跑 57/57，真实 DSL→Compose→SQLite 执行
+  集成路径 1/1 通过。
+- 当前执行切片：继续盘点 Compose runtime/executor 对完整 semantic service 的剩余依赖，优先拆分
+  SQL planning 与 raw execution 能力，同时保持现有 runtime authority 注入和异常映射不变。
 
 ## 已确认目标
 

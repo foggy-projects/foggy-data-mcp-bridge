@@ -8,12 +8,15 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +24,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -127,6 +131,33 @@ class ComposeSqlCompilerTest {
                 svc);
         // default dialect "mysql" → subquery (no WITH prefix)
         assertFalse(sql.getSql().startsWith("WITH "));
+    }
+
+    @Test
+    @DisplayName("narrow planning port 可独立编译且保留 null bind 参数")
+    void narrowPlanningPortCompilesWithoutLegacySemanticService() {
+        ComposeSemanticPlanningPort planningPort = (model, request, context) ->
+                new ComposeSqlGeneration(
+                        "SELECT id FROM t WHERE deleted_at IS ?",
+                        Arrays.asList((Object) null),
+                        List.of(),
+                        Map.of());
+        Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+        ComposeSqlCompiler.CompileOptions opts = ComposeSqlCompiler.CompileOptions.builder()
+                .planningPort(planningPort)
+                .bindings(bindings)
+                .dialect("sqlite")
+                .build();
+        ComposedSql sql = ComposeSqlCompiler.compilePlanToSql(
+                CompileTestHelpers.base("M", "id"),
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                opts);
+
+        assertEquals(planningPort, opts.planningPort());
+        assertNull(opts.semanticService());
+        assertEquals(1, sql.getParams().size());
+        assertNull(sql.getParams().get(0));
     }
 
     @Test

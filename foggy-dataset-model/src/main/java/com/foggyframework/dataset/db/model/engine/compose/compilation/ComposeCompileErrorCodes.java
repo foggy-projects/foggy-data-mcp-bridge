@@ -72,7 +72,7 @@ public final class ComposeCompileErrorCodes {
     public static final String MISSING_BINDING =
             "compose-compile-error/missing-binding";
 
-    /** {@code SemanticQueryServiceV3.generateSql} raised while compiling a
+    /** Governed semantic SQL generation raised while compiling a
      *  {@code BaseModelPlan}. The original exception is kept on
      *  {@link Throwable#getCause()}; the M6 wrapper only adds enough context
      *  (model name) to route the error without forcing callers to parse

@@ -2,12 +2,12 @@ package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
 import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
 import com.foggyframework.dataset.db.model.engine.compose.ComposeOrderByNormalizer;
-import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -18,8 +18,8 @@ import java.util.Set;
 /**
  * Per-BaseModelPlan SQL compilation (M6 · 6.1).
  *
- * <p>Delegates to {@link SemanticQueryServiceV3#generateSql} — the v1.3
- * public entry-point that already runs the {@code beforeQuery} pipeline
+ * <p>Delegates to {@link ComposeSemanticPlanningPort#generateComposeSql} —
+ * the governed entry-point that already runs the {@code beforeQuery} pipeline
  * (physical-column permission, field-access whitelist, system-slice
  * injection) and returns {@code (sql, params)} without executing. Binding's
  * {@code fieldAccess} / {@code systemSlice} / {@code deniedColumns} are
@@ -34,7 +34,7 @@ import java.util.Set;
  * <p>Cross-repo invariant: mirrors Python
  * {@code foggy.dataset_model.engine.compose.compilation.per_base.compile_base_model}.
  * Python's new public method {@code build_query_with_governance} maps to
- * the existing Java {@link SemanticQueryServiceV3#generateSql} — both run
+ * the existing Java semantic SQL generation path — both run
  * {@code getModel → applyGovernance → validate → buildSql} internally. No
  * new Java public method was needed (decision recorded in progress.md
  * 2026-04-22).</p>
@@ -50,13 +50,13 @@ final class PerBaseCompiler {
      *
      * @param plan             plan whose {@code .model()} keys the binding lookup
      * @param binding          authority binding injected into the per-base request
-     * @param semanticService  v1.3 service offering {@code generateSql}
+     * @param planningPort     narrow governed SQL planning port
      * @param namespace        namespace forwarded to semantic service;
      *                         typically {@code ComposeQueryContext.namespace()}
      * @param alias            alias for the resulting {@link CteUnit}
      *                         (caller owns numbering)
      * @param governanceCache  optional cache; {@code (model, identityOf(binding),
-     *                         planHash)} → cached {@link SqlGenerationResult}.
+     *                         planHash)} → cached {@link ComposeSqlGeneration}.
      *                         Skips re-running v1.3 governance for identical
      *                         base query shapes within a single compile pass.
      * @return {@link CteUnit} carrying {@code alias}, {@code sql}, {@code params}
@@ -74,14 +74,14 @@ final class PerBaseCompiler {
     static List<CteUnit> compileBaseModel(
             BaseModelPlan plan,
             ModelBinding binding,
-            SemanticQueryServiceV3 semanticService,
+            ComposeSemanticPlanningPort planningPort,
             String namespace,
             String alias,
-            Map<String, SqlGenerationResult> governanceCache) {
+            Map<String, ComposeSqlGeneration> governanceCache) {
 
         String cacheKey = plan.model() + ":" + System.identityHashCode(binding)
                 + ":" + PlanHash.planHash(plan);
-        SqlGenerationResult buildResult = null;
+        ComposeSqlGeneration buildResult = null;
         if (governanceCache != null) {
             buildResult = governanceCache.get(cacheKey);
         }
@@ -90,7 +90,7 @@ final class PerBaseCompiler {
             SemanticQueryRequest request = buildRequest(plan);
             SemanticRequestContext reqContext = buildContext(namespace, binding);
             try {
-                buildResult = semanticService.generateSql(plan.model(), request, reqContext);
+                buildResult = planningPort.generateComposeSql(plan.model(), request, reqContext);
             } catch (RuntimeException ex) {
                 if (isModelNotFound(ex)) {
                     throw new ComposeCompileException(
@@ -119,7 +119,7 @@ final class PerBaseCompiler {
         // ── CTE Wrapping: return flattened sibling CteUnits when structured stages exist ──
         if (buildResult.hasCteStages()) {
             List<CteUnit> units = new ArrayList<>();
-            for (SqlGenerationResult.CteStage stage : buildResult.getCteStages()) {
+            for (ComposeSqlGeneration.CteStage stage : buildResult.cteStages()) {
                 // Prerequisite CTE: alias is scoped to the base plan (e.g., cte_0_stage1)
                 String stageAlias = alias + "_" + stage.alias();
                 List<Object> stageParams = new ArrayList<>();
@@ -127,8 +127,8 @@ final class PerBaseCompiler {
                 units.add(new CteUnit(stageAlias, stage.sql(), stageParams, List.of()));
             }
             // Outer SELECT: replace the original stage alias references with the scoped alias
-            String outerSql = buildResult.getSql();
-            for (SqlGenerationResult.CteStage stage : buildResult.getCteStages()) {
+            String outerSql = buildResult.sql();
+            for (ComposeSqlGeneration.CteStage stage : buildResult.cteStages()) {
                 String scopedAlias = alias + "_" + stage.alias();
                 // Replace references: FROM stage1 → FROM cte_0_stage1, stage1."col" → cte_0_stage1."col"
                 // Using regex \b to prevent partial substring matches (e.g. percent_stage1)
@@ -138,20 +138,18 @@ final class PerBaseCompiler {
                         "FROM " + java.util.regex.Matcher.quoteReplacement(scopedAlias));
             }
             List<Object> outerParams = new ArrayList<>();
-            if (buildResult.getParams() != null) outerParams.addAll(buildResult.getParams());
+            outerParams.addAll(buildResult.params());
             units.add(new CteUnit(alias, outerSql, outerParams, selectColumns));
             return units;
         }
 
         // ── Legacy single-pass: return single CteUnit ──
         List<Object> params = new ArrayList<>();
-        if (buildResult.getParams() != null) {
-            params.addAll(buildResult.getParams());
-        }
+        params.addAll(buildResult.params());
 
         return List.of(new CteUnit(
                 alias,
-                buildResult.getSql(),
+                buildResult.sql(),
                 params,
                 selectColumns));
     }

@@ -4,6 +4,8 @@ import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 import com.foggyframework.dataset.db.model.semantic.port.PivotOuterCacheEvictionPort;
 import com.foggyframework.dataset.db.model.semantic.port.PivotRollupExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.port.SemanticSqlGeneration;
@@ -28,7 +30,8 @@ import java.util.Optional;
  *   <li>groupBy: 直接使用字段名分组</li>
  * </ul>
  */
-public interface SemanticQueryServiceV3 extends PivotRollupExecutionPort, PivotOuterCacheEvictionPort {
+public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort,
+        PivotRollupExecutionPort, PivotOuterCacheEvictionPort {
 
     /**
      * 执行语义查询（V3版本）
@@ -69,6 +72,21 @@ public interface SemanticQueryServiceV3 extends PivotRollupExecutionPort, PivotO
                                     SemanticRequestContext context);
 
     @Override
+    default ComposeSqlGeneration generateComposeSql(
+            String model, SemanticQueryRequest request, SemanticRequestContext context) {
+        SqlGenerationResult result = generateSql(model, request, context);
+        if (result == null) {
+            return null;
+        }
+        List<ComposeSqlGeneration.CteStage> stages = result.getCteStages().stream()
+                .map(stage -> new ComposeSqlGeneration.CteStage(
+                        stage.alias(), stage.sql(), stage.params()))
+                .toList();
+        return new ComposeSqlGeneration(
+                result.getSql(), result.getParams(), stages, result.getDiagnostics());
+    }
+
+    @Override
     default SemanticSqlGeneration generateRollupSql(String model, SemanticQueryRequest request,
                                                     SemanticRequestContext context) {
         SqlGenerationResult result = generateSql(model, request, context);
@@ -84,8 +102,20 @@ public interface SemanticQueryServiceV3 extends PivotRollupExecutionPort, PivotO
      * implementations should fail closed by returning empty when the field is
      * unknown.</p>
      */
+    @Override
     default Optional<String> resolveFieldSqlExpression(String model, String field, String namespace) {
         return Optional.empty();
+    }
+
+    @Override
+    default boolean supportsFieldSqlResolution() {
+        try {
+            return getClass()
+                    .getMethod("resolveFieldSqlExpression", String.class, String.class, String.class)
+                    .getDeclaringClass() != SemanticQueryServiceV3.class;
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
     }
 
     /**
