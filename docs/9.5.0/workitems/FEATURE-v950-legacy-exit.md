@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.5.0
 ticket: v950-legacy-exit
-status: READY_FOR_REVIEW
+status: READY_FOR_SIGNOFF
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -223,8 +223,27 @@ open_questions: []
   semantic/portable replay、source-seal、通用五库矩阵、GitHub CI、tag/release/publish；
   这些排除项不得被描述为已验证。
 - readiness:
-  `READY_FOR_REVIEW`；完成候选提交后的独立 code review 与最终零守卫复核后，才更新为
-  `READY_FOR_SIGNOFF`，不自行声明 `ACCEPTED`。
+  `READY_FOR_SIGNOFF`；实现已在固定提交上完成 code review 与最终零守卫复核。
+  大型 authority/replay 仍未获批且未运行，因此不自行声明 `ACCEPTED`。
+
+## Code Review Result
+
+- reviewed_implementation_sha: `45a7300da32e2deea1575753034e8a67d5dd5893`
+- reviewed_range: `63a8f15ff870ee40c83c458d7db455d6b5977deb..45a7300da32e2deea1575753034e8a67d5dd5893`
+- conclusion:
+  未发现核心 blocker；未发现未授权的查询语义、权限、namespace isolation、数据正确性或不可逆迁移变化。
+  Maven/Java/bridge breaking 与已批准 Gate P0 契约一致。
+- final_guard_review:
+  旧 POM artifact 0、旧 root module 0、生产旧包 0、runtime metadata 旧包 0、
+  `LegacyQueryFacadeAdapter` 0、旧 engine `service/QueryFacade.java` 0、
+  顶层脚本旧模块/旧 FQCN 0、`.github` diff 0；`git diff --check` 与顶层脚本 `bash -n` 通过。
+- provider_review:
+  starter auto-configuration 明确在 engine auto-configuration 之后执行；
+  engine 的同名 JDBC provider 优先发布 QUERY/MODEL_LOAD/ATOMIC_REFRESH，
+  fallback adapter 不会覆盖真实角色。catalog/TCK 对四类 capability-role mismatch 均 fail closed。
+- residual_signoff_risk:
+  外部 Maven/source/binary breaking 是本版本有意影响；release-governance authority、
+  semantic/portable replay、source-seal 与通用数据库矩阵未运行。
 
 ## References
 

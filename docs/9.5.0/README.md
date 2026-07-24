@@ -2,7 +2,7 @@
 doc_role: version-readme
 version: 9.5.0
 theme: model-legacy-exit
-status: READY_FOR_REVIEW
+status: READY_FOR_SIGNOFF
 recorded_at: 2026-07-24
 ---
 

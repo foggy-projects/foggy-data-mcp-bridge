@@ -1,7 +1,7 @@
 ---
 doc_role: migration-guide
 version: 9.5.0
-status: READY_FOR_REVIEW
+status: READY_FOR_SIGNOFF
 recorded_at: 2026-07-24
 ---
 
