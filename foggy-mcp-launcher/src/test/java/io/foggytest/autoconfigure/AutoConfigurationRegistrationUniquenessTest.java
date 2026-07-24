@@ -33,8 +33,11 @@ class AutoConfigurationRegistrationUniquenessTest {
             "com.foggyframework.dataset.vector.DataSetVectorAutoConfiguration",
             "com.foggyframework.dataset.db.model.vector.VectorModelAutoConfiguration",
             "com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration",
+            "com.foggyframework.dataset.db.model.cache.config.QueryCacheBackendProviderAutoConfiguration",
             "com.foggyframework.dataset.db.model.cache.config.QueryCacheEvictionAutoConfiguration",
             "com.foggyframework.dataset.db.model.cache.config.QueryCacheWebAutoConfiguration",
+            "com.foggyframework.dataset.model.starter.ModelBackendAutoConfiguration",
+            "com.foggyframework.dataset.model.web.ModelBackendWebAutoConfiguration",
             "com.foggyframework.dataset.graphql.GraphqlAddonAutoConfiguration",
             "com.foggyframework.dataset.db.model.preagg.config.PreAggAutoConfiguration");
 
