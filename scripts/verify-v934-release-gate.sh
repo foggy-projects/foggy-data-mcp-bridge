@@ -10,6 +10,7 @@ CONTRACT_FREEZE="$ROOT_DIR/scripts/v934/contract-freeze.json"
 ARTIFACT_TOOL="$ROOT_DIR/scripts/v934/step5/release_artifact_tool.py"
 PACKAGE_TOOL="$ROOT_DIR/scripts/v934/step5/release_package_tool.py"
 POINTER_TOOL="$ROOT_DIR/scripts/v934/step5/pointer_tool.py"
+PORTABLE_REPLAY_TOOL="$ROOT_DIR/scripts/v934/step5/portable_replay_tool.py"
 TOOLING_MANIFEST="$ROOT_DIR/scripts/v934/step5/SHA256SUMS"
 TARGET_ROOT="$ROOT_DIR/target/v934-release-gate"
 RUNS_ROOT="$TARGET_ROOT/runs"
@@ -440,6 +441,8 @@ python3 "$ARTIFACT_TOOL" scan-runtime-source --repo-root "$ROOT_DIR" \
 PHASE=negative-self-tests
 mkdir "$RUN_ROOT/negative"
 python3 "$ARTIFACT_TOOL" self-test > "$RUN_ROOT/negative/artifact-self-test.json"
+python3 "$PORTABLE_REPLAY_TOOL" self-test \
+  > "$RUN_ROOT/negative/portable-replay-self-test.json"
 python3 "$PACKAGE_TOOL" negative --repo-root "$ROOT_DIR" \
   --output-dir "$RUN_ROOT/negative/package" > "$RUN_ROOT/negative/package-negative.json"
 python3 "$POINTER_TOOL" negative \
