@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -157,6 +158,88 @@ class ReleaseAuthorityToolTest(unittest.TestCase):
             value = tool.root_summary(log, jar, "0" * 40, receipt)
             self.assertEqual(32, value["projects"])
             self.assertEqual("passed", value["status"])
+
+    def test_reuse_requires_direct_parent_and_governance_only_delta(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(
+                ["git", "-C", str(root), "config", "user.email", "test@example.invalid"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(root), "config", "user.name", "Authority Test"],
+                check=True,
+            )
+            script = root / "scripts/v950/tool.py"
+            script.parent.mkdir(parents=True)
+            script.write_text("version = 1\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
+            source_candidate = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+            script.write_text("version = 2\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "tool fix"], check=True)
+            candidate = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+            source = root / "root-receipt.reused-source.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "kind": "v950-root-reactor-receipt",
+                        "candidate": source_candidate,
+                        "contract_sha256": tool.sha256_file(tool.CONTRACT_PATH),
+                        "projects": 32,
+                        "status": "passed",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = root / "root-receipt.json"
+            value = tool.reuse_receipt(root, source, "root", candidate, output)
+            self.assertEqual([str(script.relative_to(root))], value["changed_paths"])
+
+            docs = root / "docs/status.md"
+            docs.parent.mkdir()
+            docs.write_text("changed\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "docs"], check=True)
+            next_candidate = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+            next_source = root / "next-receipt.reused-source.json"
+            next_source.write_text(
+                json.dumps(
+                    {
+                        "kind": "v950-root-reactor-receipt",
+                        "candidate": candidate,
+                        "contract_sha256": tool.sha256_file(tool.CONTRACT_PATH),
+                        "projects": 32,
+                        "status": "passed",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaises(tool.AuthorityError):
+                tool.reuse_receipt(
+                    root,
+                    next_source,
+                    "root",
+                    next_candidate,
+                    root / "next-receipt.json",
+                )
 
     def test_final_manifest_requires_complete_receipt_set(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

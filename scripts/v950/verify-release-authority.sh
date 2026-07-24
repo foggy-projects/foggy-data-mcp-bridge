@@ -22,11 +22,15 @@ fail() {
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/v950/verify-release-authority.sh [RUN_ID]
+  scripts/v950/verify-release-authority.sh [--resume-from PRIOR_RUN_ROOT] [RUN_ID]
 
 Runs one canonical 9.5.0 release-authority attempt. The candidate must be a
 clean committed HEAD based on current origin/main. This command never installs,
 deploys, tags, publishes, or changes a remote.
+
+--resume-from is fail-closed recovery for a direct-parent candidate whose
+committed delta is restricted to scripts/v950/** and does not change the
+frozen contract. It may reuse only passed root, semantic, and SQLite receipts.
 EOF
 }
 
@@ -35,7 +39,7 @@ EOF
   exit 0
 }
 
-for command_name in bash cp date dirname docker find git jq mkdir mktemp mv mvn python3 rm sha256sum unzip; do
+for command_name in bash cp date dirname docker find git jq mkdir mktemp mv mvn python3 rm sed sha256sum unzip; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command missing: $command_name"
 done
 
@@ -96,7 +100,7 @@ run_variant() {
 }
 
 run_external_callback() {
-  local run_id="$1" database="$2" run_root="$3" candidate="$4"
+  local run_id="$1" database="$2" run_root="$3" candidate="$4" compat_root="$5"
   local expected_profile
   case "$database" in
     mysql57) expected_profile=docker ;;
@@ -107,7 +111,7 @@ run_external_callback() {
   esac
   [[ "${V934_DB_KIND:-}" == "$database" ]] || fail "callback database identity differs"
   [[ "${V934_DB_PROFILE:-}" == "$expected_profile" ]] || fail "callback profile differs"
-  [[ "${V934_DB_CELL_ROOT:-}" == "$run_root/database/cells/$database" ]] || \
+  [[ "${V934_DB_CELL_ROOT:-}" == "$compat_root/cells/$database" ]] || \
     fail "callback cell root differs"
   run_variant "$run_root" "$candidate" "db-$database" "$database" "$expected_profile" "$STANDARD_SELECTORS"
   case "$database" in
@@ -121,13 +125,32 @@ run_external_callback() {
 }
 
 if [[ "${1:-}" == "--internal-database-callback" ]]; then
-  [[ "$#" -eq 5 ]] || fail "invalid internal callback arguments"
-  run_external_callback "$2" "$3" "$4" "$5"
+  [[ "$#" -eq 6 ]] || fail "invalid internal callback arguments"
+  run_external_callback "$2" "$3" "$4" "$5" "$6"
   exit 0
 fi
 
-[[ "$#" -le 1 ]] || fail "too many arguments"
-RUN_ID="${1:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+RESUME_FROM=""
+RUN_ID=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --resume-from)
+      [[ -z "$RESUME_FROM" && "$#" -ge 2 ]] || fail "invalid --resume-from"
+      [[ -d "$2" && ! -L "$2" ]] || fail "prior run root missing or unsafe: $2"
+      RESUME_FROM="$(cd "$2" && pwd -P)"
+      shift 2
+      ;;
+    -*)
+      fail "unknown option: $1"
+      ;;
+    *)
+      [[ -z "$RUN_ID" ]] || fail "too many run ids"
+      RUN_ID="$1"
+      shift
+      ;;
+  esac
+done
+RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ && "$RUN_ID" != "." && "$RUN_ID" != ".." ]] || \
   fail "unsafe run id: $RUN_ID"
 
@@ -146,6 +169,7 @@ CANDIDATE="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 STAGING_ROOT="$(mktemp -d "/tmp/foggy-v950-authority-${RUN_ID}.XXXXXX")"
 PORTABLE_PARENT=""
 RUN_ROOT="$TARGET_ROOT/runs/$RUN_ID"
+V934_COMPAT_ROOT="$ROOT_DIR/target/v934-step3-database-matrix/runs/$RUN_ID"
 TRACKED_TARGET_BACKUP="$STAGING_ROOT/tracked-target"
 RESTORE_REQUIRED=false
 PHASE=bootstrap
@@ -200,66 +224,124 @@ python3 "$TOOL" source-seal \
   --output "$STAGING_ROOT/source-before.tsv" \
   > "$STAGING_ROOT/source-before.json"
 
-PHASE=root-clean-verify
-echo "[v950-release-authority] root clean verify candidate=$CANDIDATE"
-(
-  cd "$ROOT_DIR"
-  mvn -B -ntp clean verify -DskipITs \
-    -Dsurefire.failIfNoTests=false \
-    -Dfailsafe.failIfNoTests=false
-) > "$STAGING_ROOT/root-clean-verify.log" 2>&1
-restore_tracked_target
+if [[ -n "$RESUME_FROM" ]]; then
+  PHASE=resume-validation
+  [[ ! -e "$RUN_ROOT" && ! -L "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
+  mkdir -p "$RUN_ROOT"
+  mv -- "$STAGING_ROOT/source-before.tsv" "$RUN_ROOT/source-before.tsv"
+  mv -- "$STAGING_ROOT/source-before.json" "$RUN_ROOT/source-before.json"
+  [[ "$(jq -r '.candidate' "$RESUME_FROM/source-before.json")" == \
+    "$(jq -r '.candidate' "$RESUME_FROM/root-receipt.json")" ]] || \
+    fail "prior run candidate bindings differ"
+  [[ "$(sed -n 's/^status=//p' "$RESUME_FROM/run-status.env")" == "failed" ]] || \
+    fail "prior run is not a recorded failed attempt"
+  [[ "$(sed -n 's/^phase=//p' "$RESUME_FROM/run-status.env")" == database-* ]] || \
+    fail "prior run did not reach database execution"
+  mkdir -p "$RUN_ROOT/reused/root" "$RUN_ROOT/reused/semantic" \
+    "$RUN_ROOT/reused/db-sqlite" "$RUN_ROOT/semantic" \
+    "$RUN_ROOT/database/variants/db-sqlite" "$RUN_ROOT/database/cells/sqlite"
+  cp -p -- "$RESUME_FROM/root-clean-verify.log" "$RUN_ROOT/reused/root/"
+  cp -p -- "$RESUME_FROM/root-receipt.json" \
+    "$RUN_ROOT/root-receipt.reused-source.json"
+  cp -a -- "$RESUME_FROM/semantic/." "$RUN_ROOT/reused/semantic/"
+  cp -p -- "$RESUME_FROM/semantic/receipt.json" \
+    "$RUN_ROOT/semantic/receipt.reused-source.json"
+  cp -a -- "$RESUME_FROM/database/variants/db-sqlite/." \
+    "$RUN_ROOT/reused/db-sqlite/"
+  cp -p -- "$RESUME_FROM/database/variants/db-sqlite/receipt.json" \
+    "$RUN_ROOT/database/variants/db-sqlite/receipt.reused-source.json"
+  python3 "$TOOL" reuse-receipt \
+    --repo-root "$ROOT_DIR" \
+    --source-receipt "$RUN_ROOT/root-receipt.reused-source.json" \
+    --evidence-key root \
+    --candidate "$CANDIDATE" \
+    --output "$RUN_ROOT/root-receipt.json"
+  python3 "$TOOL" reuse-receipt \
+    --repo-root "$ROOT_DIR" \
+    --source-receipt "$RUN_ROOT/semantic/receipt.reused-source.json" \
+    --evidence-key semantic \
+    --candidate "$CANDIDATE" \
+    --output "$RUN_ROOT/semantic/receipt.json"
+  python3 "$TOOL" reuse-receipt \
+    --repo-root "$ROOT_DIR" \
+    --source-receipt \
+      "$RUN_ROOT/database/variants/db-sqlite/receipt.reused-source.json" \
+    --evidence-key db-sqlite \
+    --candidate "$CANDIDATE" \
+    --output "$RUN_ROOT/database/variants/db-sqlite/receipt.json"
+  printf 'database=sqlite\nstatus=passed\nreused_from=%s\n' \
+    "$RESUME_FROM" > "$RUN_ROOT/database/cells/sqlite/status.env"
+  restore_tracked_target
+else
+  PHASE=root-clean-verify
+  echo "[v950-release-authority] root clean verify candidate=$CANDIDATE"
+  (
+    cd "$ROOT_DIR"
+    mvn -B -ntp clean verify -DskipITs \
+      -Dsurefire.failIfNoTests=false \
+      -Dfailsafe.failIfNoTests=false
+  ) > "$STAGING_ROOT/root-clean-verify.log" 2>&1
+  restore_tracked_target
+  [[ ! -e "$RUN_ROOT" && ! -L "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
+  mkdir -p "$RUN_ROOT"
+  mv -- "$STAGING_ROOT/source-before.tsv" "$RUN_ROOT/source-before.tsv"
+  mv -- "$STAGING_ROOT/source-before.json" "$RUN_ROOT/source-before.json"
+  mv -- "$STAGING_ROOT/root-clean-verify.log" "$RUN_ROOT/root-clean-verify.log"
 
-[[ ! -e "$RUN_ROOT" && ! -L "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
-mkdir -p "$RUN_ROOT"
-mv -- "$STAGING_ROOT/source-before.tsv" "$RUN_ROOT/source-before.tsv"
-mv -- "$STAGING_ROOT/source-before.json" "$RUN_ROOT/source-before.json"
-mv -- "$STAGING_ROOT/root-clean-verify.log" "$RUN_ROOT/root-clean-verify.log"
+  PHASE=root-summary
+  python3 "$TOOL" root-summary \
+    --log "$RUN_ROOT/root-clean-verify.log" \
+    --jar "$ROOT_DIR/$(jq -r '.root_verify.launcher_jar' "$CONTRACT")" \
+    --candidate "$CANDIDATE" \
+    --output "$RUN_ROOT/root-receipt.json"
 
-PHASE=root-summary
-python3 "$TOOL" root-summary \
-  --log "$RUN_ROOT/root-clean-verify.log" \
-  --jar "$ROOT_DIR/$(jq -r '.root_verify.launcher_jar' "$CONTRACT")" \
-  --candidate "$CANDIDATE" \
-  --output "$RUN_ROOT/root-receipt.json"
+  PHASE=semantic-replay
+  mkdir -p "$RUN_ROOT/semantic"
+  rm -rf -- "$REPORTS_DIR"
+  : > "$RUN_ROOT/semantic/marker"
+  echo "[v950-release-authority] SQLite semantic replay"
+  (
+    cd "$ROOT_DIR"
+    mvn -B -ntp \
+      -P'!multi-db,!model-lifecycle,!query-cache-real-query' \
+      -pl foggy-dataset-model-engine -am \
+      -Dit.test="$SEMANTIC_SELECTORS" \
+      -Dspring.profiles.active=sqlite,v934-sqlite \
+      -DskipUnitTests=true \
+      -DskipITs=false \
+      -Dfailsafe.failIfNoTests=false \
+      -Dfailsafe.failIfNoSpecifiedTests=false \
+      verify
+  ) > "$RUN_ROOT/semantic/maven.log" 2>&1
+  copy_reports "$RUN_ROOT/semantic/raw-reports"
+  python3 "$TOOL" junit-summary \
+    --reports-dir "$RUN_ROOT/semantic/raw-reports" \
+    --lane semantic \
+    --candidate "$CANDIDATE" \
+    --marker "$RUN_ROOT/semantic/marker" \
+    --output "$RUN_ROOT/semantic/receipt.json"
 
-PHASE=semantic-replay
-mkdir -p "$RUN_ROOT/semantic"
-rm -rf -- "$REPORTS_DIR"
-: > "$RUN_ROOT/semantic/marker"
-echo "[v950-release-authority] SQLite semantic replay"
-(
-  cd "$ROOT_DIR"
-  mvn -B -ntp \
-    -P'!multi-db,!model-lifecycle,!query-cache-real-query' \
-    -pl foggy-dataset-model-engine -am \
-    -Dit.test="$SEMANTIC_SELECTORS" \
-    -Dspring.profiles.active=sqlite,v934-sqlite \
-    -DskipUnitTests=true \
-    -DskipITs=false \
-    -Dfailsafe.failIfNoTests=false \
-    -Dfailsafe.failIfNoSpecifiedTests=false \
-    verify
-) > "$RUN_ROOT/semantic/maven.log" 2>&1
-copy_reports "$RUN_ROOT/semantic/raw-reports"
-python3 "$TOOL" junit-summary \
-  --reports-dir "$RUN_ROOT/semantic/raw-reports" \
-  --lane semantic \
-  --candidate "$CANDIDATE" \
-  --marker "$RUN_ROOT/semantic/marker" \
-  --output "$RUN_ROOT/semantic/receipt.json"
+  PHASE=database-sqlite
+  mkdir -p "$RUN_ROOT/database/cells/sqlite"
+  run_variant "$RUN_ROOT" "$CANDIDATE" db-sqlite sqlite sqlite,v934-sqlite "$STANDARD_SELECTORS"
+  printf 'database=sqlite\nstatus=passed\n' > "$RUN_ROOT/database/cells/sqlite/status.env"
+fi
 
-PHASE=database-sqlite
-mkdir -p "$RUN_ROOT/database/cells/sqlite"
-run_variant "$RUN_ROOT" "$CANDIDATE" db-sqlite sqlite sqlite,v934-sqlite "$STANDARD_SELECTORS"
-printf 'database=sqlite\nstatus=passed\n' > "$RUN_ROOT/database/cells/sqlite/status.env"
+[[ ! -e "$V934_COMPAT_ROOT" && ! -L "$V934_COMPAT_ROOT" ]] || \
+  fail "v934 compatibility root already exists: $V934_COMPAT_ROOT"
+mkdir -p "$V934_COMPAT_ROOT/preflight" "$V934_COMPAT_ROOT/cells"
+for database in mysql57 mysql8 postgres15 sqlserver2022; do
+  PHASE="database-preflight-$database"
+  "$PROVISIONER" check "$database" "$RUN_ID" "$V934_COMPAT_ROOT/preflight/$database"
+done
 
 for database in mysql57 mysql8 postgres15 sqlserver2022; do
   PHASE="database-$database"
   echo "[v950-release-authority] provision database=$database"
-  "$PROVISIONER" run "$database" "$RUN_ID" "$RUN_ROOT/database/cells/$database" -- \
+  "$PROVISIONER" run "$database" "$RUN_ID" "$V934_COMPAT_ROOT/cells/$database" -- \
     "$SCRIPT_PATH" --internal-database-callback \
-    "$RUN_ID" "$database" "$RUN_ROOT" "$CANDIDATE"
+    "$RUN_ID" "$database" "$RUN_ROOT" "$CANDIDATE" "$V934_COMPAT_ROOT"
+  cp -a -- "$V934_COMPAT_ROOT/cells/$database" "$RUN_ROOT/database/cells/$database"
   python3 "$TOOL" cell-summary \
     --cell-root "$RUN_ROOT/database/cells/$database" \
     --database "$database" \

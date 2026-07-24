@@ -501,6 +501,149 @@ def root_summary(
     return value
 
 
+def reuse_changed_paths(
+    repo_root: Path, source_candidate: str, candidate: str
+) -> list[str]:
+    require(HEX40.fullmatch(source_candidate) is not None, "invalid source candidate")
+    require(HEX40.fullmatch(candidate) is not None, "invalid reuse candidate")
+    require(git_head(repo_root) == candidate, "reuse candidate differs from HEAD")
+    parent = str(run_git(repo_root, "rev-parse", f"{candidate}^"))
+    require(parent == source_candidate, "reused evidence must come from the direct parent")
+    raw = run_git(
+        repo_root,
+        "diff",
+        "--name-only",
+        "-z",
+        source_candidate,
+        candidate,
+        binary=True,
+    )
+    assert isinstance(raw, bytes)
+    paths = [
+        item.decode("utf-8")
+        for item in raw.split(b"\0")
+        if item
+    ]
+    require(paths, "reuse candidate has no committed delta")
+    require(
+        all(path.startswith("scripts/v950/") for path in paths),
+        "reuse candidate changes files outside scripts/v950",
+    )
+    require(
+        "scripts/v950/release-authority-contract.json" not in paths,
+        "release authority contract changes forbid evidence reuse",
+    )
+    return sorted(paths)
+
+
+def validate_reuse_source(
+    value: dict[str, Any], evidence_key: str, source_candidate: str
+) -> None:
+    expected_kinds = {
+        "root": "v950-root-reactor-receipt",
+        "semantic": "v950-junit-receipt",
+        "db-sqlite": "v950-junit-receipt",
+    }
+    require(evidence_key in expected_kinds, f"unsupported reused evidence: {evidence_key}")
+    require(value.get("status") == "passed", "reused source receipt is not passed")
+    require(value.get("candidate") == source_candidate, "reused source candidate differs")
+    require(value.get("kind") == expected_kinds[evidence_key], "reused source kind differs")
+    require(
+        value.get("contract_sha256") == sha256_file(CONTRACT_PATH),
+        "reused source contract differs",
+    )
+    if evidence_key == "root":
+        require(value.get("projects") == 32, "reused root project count differs")
+    else:
+        lane = "semantic" if evidence_key == "semantic" else "db-sqlite"
+        _reports, expected_total = resolved_reports(contract(), lane)
+        require(value.get("lane") == lane, "reused JUnit lane differs")
+        totals = value.get("totals")
+        require(type(totals) is dict, "reused JUnit totals missing")
+        require(totals.get("tests") == expected_total, "reused JUnit total differs")
+        require(
+            totals.get("failures") == totals.get("errors") == totals.get("skipped") == 0,
+            "reused JUnit receipt contains non-passing outcomes",
+        )
+
+
+def reuse_receipt(
+    repo_root: Path,
+    source_receipt: Path,
+    evidence_key: str,
+    candidate: str,
+    output: Path,
+) -> dict[str, Any]:
+    require(
+        source_receipt.parent.resolve() == output.parent.resolve(),
+        "reused source receipt must be stored beside its wrapper",
+    )
+    source = load_json(source_receipt)
+    source_candidate = source.get("candidate")
+    require(type(source_candidate) is str, "reused source candidate missing")
+    validate_reuse_source(source, evidence_key, source_candidate)
+    changed_paths = reuse_changed_paths(repo_root, source_candidate, candidate)
+    value = {
+        "schema_version": 1,
+        "kind": "v950-reused-authority-receipt",
+        "evidence_key": evidence_key,
+        "candidate": candidate,
+        "contract_sha256": sha256_file(CONTRACT_PATH),
+        "source_candidate": source_candidate,
+        "source_kind": source["kind"],
+        "source_receipt": source_receipt.name,
+        "source_receipt_sha256": sha256_file(source_receipt),
+        "allowed_delta": "scripts/v950/** excluding release-authority-contract.json",
+        "changed_paths": changed_paths,
+        "status": "passed",
+    }
+    write_json(output, value)
+    return value
+
+
+def validate_reused_wrapper(
+    wrapper_path: Path,
+    value: dict[str, Any],
+    evidence_key: str,
+    candidate: str,
+) -> None:
+    require(value.get("evidence_key") == evidence_key, "reused evidence key differs")
+    require(value.get("candidate") == candidate, "reused wrapper candidate differs")
+    require(
+        value.get("contract_sha256") == sha256_file(CONTRACT_PATH),
+        "reused wrapper contract differs",
+    )
+    source_name = value.get("source_receipt")
+    require(
+        type(source_name) is str
+        and source_name
+        and Path(source_name).name == source_name,
+        "unsafe reused source receipt name",
+    )
+    source_path = wrapper_path.parent / source_name
+    source = load_json(source_path)
+    require(
+        sha256_file(source_path) == value.get("source_receipt_sha256"),
+        "reused source receipt digest differs",
+    )
+    source_candidate = value.get("source_candidate")
+    require(type(source_candidate) is str, "reused wrapper source candidate missing")
+    validate_reuse_source(source, evidence_key, source_candidate)
+    require(source.get("kind") == value.get("source_kind"), "reused source kind binding differs")
+    changed_paths = value.get("changed_paths")
+    require(
+        type(changed_paths) is list
+        and changed_paths
+        and all(
+            type(path) is str
+            and path.startswith("scripts/v950/")
+            and path != "scripts/v950/release-authority-contract.json"
+            for path in changed_paths
+        ),
+        "reused wrapper changed path set differs",
+    )
+
+
 def read_env(path: Path) -> dict[str, str]:
     require(path.is_file() and not path.is_symlink(), f"unsafe/missing env file: {path}")
     values: dict[str, str] = {}
@@ -587,6 +730,25 @@ def finalize(
         "source seal changed during authority",
     )
     loaded: dict[str, dict[str, Any]] = {}
+    expected_kinds = {
+        "root": "v950-root-reactor-receipt",
+        "semantic": "v950-junit-receipt",
+        "archive": "v950-source-archive",
+        "archive-extraction": "v950-source-archive-extraction",
+        "portable": "v950-junit-receipt",
+        "db-sqlite": "v950-junit-receipt",
+        "db-mysql57": "v950-junit-receipt",
+        "db-mysql8": "v950-junit-receipt",
+        "mysql8-targeted": "v950-junit-receipt",
+        "db-postgres15": "v950-junit-receipt",
+        "postgres15-targeted": "v950-junit-receipt",
+        "db-sqlserver2022": "v950-junit-receipt",
+        "mysql57-cell": "v950-database-cell-receipt",
+        "mysql8-cell": "v950-database-cell-receipt",
+        "postgres15-cell": "v950-database-cell-receipt",
+        "sqlserver2022-cell": "v950-database-cell-receipt",
+        "sensitive-scan": "v950-evidence-sensitive-scan",
+    }
     for item in receipts:
         require("=" in item, f"invalid receipt binding: {item}")
         key, raw_path = item.split("=", 1)
@@ -597,6 +759,17 @@ def finalize(
         require(value.get("status") == "passed", f"receipt not passed: {key}")
         if "candidate" in value:
             require(value["candidate"] == candidate, f"receipt candidate differs: {key}")
+        if value.get("kind") == "v950-reused-authority-receipt":
+            require(
+                key in {"root", "semantic", "db-sqlite"},
+                f"receipt cannot be reused: {key}",
+            )
+            validate_reused_wrapper(path, value, key, candidate)
+        else:
+            require(
+                value.get("kind") == expected_kinds.get(key),
+                f"receipt kind differs: {key}",
+            )
         loaded[key] = {
             "kind": value.get("kind"),
             "path": str(path),
@@ -689,6 +862,13 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--candidate", required=True)
     root.add_argument("--output", type=Path, required=True)
 
+    reuse = sub.add_parser("reuse-receipt")
+    reuse.add_argument("--repo-root", type=Path, required=True)
+    reuse.add_argument("--source-receipt", type=Path, required=True)
+    reuse.add_argument("--evidence-key", required=True)
+    reuse.add_argument("--candidate", required=True)
+    reuse.add_argument("--output", type=Path, required=True)
+
     cell = sub.add_parser("cell-summary")
     cell.add_argument("--cell-root", type=Path, required=True)
     cell.add_argument("--database", required=True)
@@ -723,6 +903,14 @@ def main() -> int:
             value = junit_summary(args.reports_dir, args.lane, args.candidate, args.marker, args.output)
         elif args.command == "root-summary":
             value = root_summary(args.log, args.jar, args.candidate, args.output)
+        elif args.command == "reuse-receipt":
+            value = reuse_receipt(
+                args.repo_root.resolve(),
+                args.source_receipt,
+                args.evidence_key,
+                args.candidate,
+                args.output,
+            )
         elif args.command == "cell-summary":
             value = cell_summary(
                 args.cell_root, args.database, args.candidate, args.output
