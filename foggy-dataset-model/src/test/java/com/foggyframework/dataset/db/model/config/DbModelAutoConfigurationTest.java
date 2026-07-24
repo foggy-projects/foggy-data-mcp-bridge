@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResu
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
+import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,14 @@ class DbModelAutoConfigurationTest {
     void testQueryModelLoaderRegistered() {
         QueryModelLoader loader = applicationContext.getBean(QueryModelLoader.class);
         assertNotNull(loader, "QueryModelLoader should be registered");
+    }
+
+    @Test
+    @DisplayName("DetachedModelValidationFactory Bean 已注册")
+    void testDetachedModelValidationFactoryRegistered() {
+        DetachedModelValidationFactory factory =
+                applicationContext.getBean(DetachedModelValidationFactory.class);
+        assertNotNull(factory, "DetachedModelValidationFactory should be registered");
     }
 
     @Test

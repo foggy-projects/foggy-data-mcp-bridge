@@ -2,11 +2,10 @@ package com.foggyframework.dataset.mcp.validation;
 
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
-import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
-import jakarta.annotation.Resource;
+import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
+import com.foggyframework.dataset.db.model.validation.DetachedModelValidationSession;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -16,14 +15,13 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 语义层验证服务
  *
  * <p>提供语义层文件（TM/QM）的验证功能，支持：
  * <ul>
- *   <li>动态注册外部Bundle</li>
+ *   <li>创建请求级隔离的外部 Bundle</li>
  *   <li>验证TM模型文件</li>
  *   <li>验证QM查询模型文件</li>
  *   <li>收集错误和警告信息</li>
@@ -36,14 +34,20 @@ import java.util.stream.Collectors;
 @Service
 public class SemanticLayerValidationService {
 
-    @Resource
-    private SystemBundlesContext systemBundlesContext;
+    private final DetachedModelValidationFactory detachedModelValidationFactory;
 
-    @Resource
-    private TableModelLoaderManager tableModelLoaderManager;
+    @Autowired
+    public SemanticLayerValidationService(
+            DetachedModelValidationFactory detachedModelValidationFactory
+    ) {
+        this.detachedModelValidationFactory = detachedModelValidationFactory;
+    }
 
-    @Resource
-    private QueryModelLoader queryModelLoader;
+    /** Compatibility constructor for legacy reflective callers. */
+    @Deprecated(since = "9.3.5", forRemoval = false)
+    public SemanticLayerValidationService() {
+        this.detachedModelValidationFactory = null;
+    }
 
     /**
      * 验证外部语义层文件夹
@@ -72,46 +76,41 @@ public class SemanticLayerValidationService {
         }
 
         try {
-            // 2. 注册外部Bundle
+            if (detachedModelValidationFactory == null) {
+                return createErrorResult(
+                        request.getNamespace(),
+                        "Detached model validation factory is unavailable",
+                        startTime);
+            }
+
+            // 2. 打开请求级隔离验证会话；watch/clearExisting 仅保留请求兼容，
+            // 不再把临时 bundle 注册到 live context。
             String bundleName = generateBundleName(request.getNamespace());
+            try (DetachedModelValidationSession validationSession =
+                         detachedModelValidationFactory.open(
+                                 bundleName,
+                                 request.getNamespace(),
+                                 request.getPath())) {
+                Bundle bundle = validationSession.sourceBundle();
+                if (bundle == null) {
+                    return createErrorResult(
+                            request.getNamespace(),
+                            "无法创建隔离验证Bundle: " + bundleName,
+                            startTime);
+                }
 
-            // 如果已存在同名Bundle，先移除
-            if (request.isClearExisting() && systemBundlesContext.containBundle(bundleName)) {
-                log.info("检测到已存在的Bundle: {}，将被移除", bundleName);
-                // 移除Bundle（会自动触发BundleRemovedEvent，由BundleLifecycleListener清理缓存）
-                systemBundlesContext.removeBundle(bundleName);
+                // 3. 验证TM和QM文件
+                ValidationResult result = performValidation(
+                        validationSession, bundle, request);
+
+                // 4. 设置耗时
+                result.setDurationMs(System.currentTimeMillis() - startTime);
+
+                log.info("验证完成: namespace={}, totalFiles={}, validFiles={}, errors={}",
+                        request.getNamespace(), result.getTotalFiles(), result.getValidFiles(), result.getErrors().size());
+
+                return result;
             }
-
-            // 注册新Bundle
-            boolean registered = systemBundlesContext.addExternalBundle(
-                    bundleName,
-                    request.getNamespace(),
-                    request.getPath(),
-                    request.isWatch()
-            );
-
-            if (!registered) {
-                return createErrorResult(request.getNamespace(), "Bundle注册失败", startTime);
-            }
-
-            log.info("Bundle注册成功: name={}, namespace={}", bundleName, request.getNamespace());
-
-            // 3. 获取注册的Bundle
-            Bundle bundle = systemBundlesContext.getBundleByName(bundleName);
-            if (bundle == null) {
-                return createErrorResult(request.getNamespace(), "无法获取已注册的Bundle: " + bundleName, startTime);
-            }
-
-            // 4. 验证TM和QM文件
-            ValidationResult result = performValidation(bundle, request);
-
-            // 5. 设置耗时
-            result.setDurationMs(System.currentTimeMillis() - startTime);
-
-            log.info("验证完成: namespace={}, totalFiles={}, validFiles={}, errors={}",
-                    request.getNamespace(), result.getTotalFiles(), result.getValidFiles(), result.getErrors().size());
-
-            return result;
 
         } catch (Exception e) {
             log.error("验证过程发生异常: namespace={}, error={}", request.getNamespace(), e.getMessage(), e);
@@ -122,7 +121,11 @@ public class SemanticLayerValidationService {
     /**
      * 执行验证
      */
-    private ValidationResult performValidation(Bundle bundle, ValidationRequest request) {
+    private ValidationResult performValidation(
+            DetachedModelValidationSession validationSession,
+            Bundle bundle,
+            ValidationRequest request
+    ) {
         List<ValidationError> errors = new ArrayList<>();
         List<ValidationWarning> warnings = new ArrayList<>();
         Set<String> failedTmNames = new HashSet<>();
@@ -137,7 +140,7 @@ public class SemanticLayerValidationService {
 
                 for (BundleResource tmResource : tmResources) {
                     int beforeSize = errors.size();
-                    validateTmFile(tmResource, request, errors);
+                    validateTmFile(validationSession, tmResource, request, errors);
                     if (errors.size() > beforeSize) {
                         String modelName = extractModelName(getRelativePath(tmResource));
                         failedTmNames.add(modelName);
@@ -157,7 +160,7 @@ public class SemanticLayerValidationService {
 
                 for (BundleResource qmResource : qmResources) {
                     int beforeSize = errors.size();
-                    validateQmFile(qmResource, request, errors);
+                    validateQmFile(validationSession, qmResource, request, errors);
                     // 检查新增的QM错误是否由上游TM失败导致
                     if (errors.size() > beforeSize && !failedTmNames.isEmpty()) {
                         for (int i = beforeSize; i < errors.size(); i++) {
@@ -210,15 +213,17 @@ public class SemanticLayerValidationService {
     /**
      * 验证单个TM文件
      */
-    private void validateTmFile(BundleResource tmResource, ValidationRequest request, List<ValidationError> errors) {
+    private void validateTmFile(
+            DetachedModelValidationSession validationSession,
+            BundleResource tmResource,
+            ValidationRequest request,
+            List<ValidationError> errors
+    ) {
         String fileName = getRelativePath(tmResource);
         log.debug("验证TM文件: {}", fileName);
 
         try {
-            // 提取模型名称（去掉 .tm 后缀）
-            String modelName = extractModelName(fileName);
-
-            tableModelLoaderManager.load(modelName, request.getNamespace());
+            validationSession.validateTableModel(tmResource, request.getNamespace());
 
             log.debug("TM文件验证通过: {}", fileName);
 
@@ -243,13 +248,18 @@ public class SemanticLayerValidationService {
     /**
      * 验证单个QM文件
      */
-    private void validateQmFile(BundleResource qmResource, ValidationRequest request, List<ValidationError> errors) {
+    private void validateQmFile(
+            DetachedModelValidationSession validationSession,
+            BundleResource qmResource,
+            ValidationRequest request,
+            List<ValidationError> errors
+    ) {
         String fileName = getRelativePath(qmResource);
         log.debug("验证QM文件: {}", fileName);
 
         try {
             // 尝试加载查询模型
-            queryModelLoader.loadJdbcQueryModel(qmResource);
+            validationSession.validateQueryModel(qmResource);
 
             log.debug("QM文件验证通过: {}", fileName);
 

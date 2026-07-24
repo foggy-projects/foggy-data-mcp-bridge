@@ -31,10 +31,15 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
 - MCP `ToolConfigLoader` 的未调用 QM 扫描已删除；model discovery/catalog 的 Spring 生产构造器
   不再注入 `QueryModelLoader`，统一消费共享 catalog authority。旧构造签名保留一个兼容周期并
   标记 deprecated。
+- runtime/MCP 目录校验已统一下沉到 `DetachedModelValidationFactory/Session`；临时 bundle、
+  script cache 和 catalog 均为请求级隔离状态，不再把校验资源注册到 live context。Runtime 旧 loader
+  构造签名保留 deprecated 兼容转发，MCP 生产校验路径不再直接依赖 live loader。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
-  33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过。
-- 当前执行切片：将 MCP/runtime detached validation 从 live loader wiring 下沉到验证 port。
+  33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
+  reactor 编译通过，模型自动配置 9/9、MCP 校验 5/5、Runtime 校验/刷新兼容 6/6 通过。
+- 当前执行切片：完成剩余 controller/runtime/addon bypass 分类与清理，然后继续
+  pivot/compose/semantic 反向依赖拆解。
 
 ## 已确认目标
 

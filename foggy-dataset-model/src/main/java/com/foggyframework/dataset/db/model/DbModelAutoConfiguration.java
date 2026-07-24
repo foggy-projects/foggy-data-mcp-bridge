@@ -31,6 +31,8 @@ import com.foggyframework.dataset.db.model.spi.DbModelLoadProcessor;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.db.model.validation.DefaultDetachedModelValidationFactory;
+import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -158,6 +160,17 @@ public class DbModelAutoConfiguration {
                                                      CatalogSnapshotStore catalogSnapshotStore) {
         return new QueryModelLoaderImpl(tableModelLoaderManager, systemBundlesContext, fileFsscriptLoader,
                 queryModelBuilders, catalogSnapshotStore);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(DetachedModelValidationFactory.class)
+    public DetachedModelValidationFactory detachedModelValidationFactory(
+            SystemBundlesContext systemBundlesContext,
+            TableModelLoaderManager tableModelLoaderManager,
+            QueryModelLoaderImpl queryModelLoader
+    ) {
+        return new DefaultDetachedModelValidationFactory(
+                systemBundlesContext, tableModelLoaderManager, queryModelLoader);
     }
 
     @Bean

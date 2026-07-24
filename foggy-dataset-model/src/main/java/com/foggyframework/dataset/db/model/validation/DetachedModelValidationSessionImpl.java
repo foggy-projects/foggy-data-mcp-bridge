@@ -1,4 +1,4 @@
-package com.foggyframework.runtime.api.service;
+package com.foggyframework.dataset.db.model.validation;
 
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
@@ -43,7 +43,8 @@ import java.util.Map;
  * request-local, so successful and failed validation cannot publish aliases,
  * names, models, or generations into the running application.</p>
  */
-final class RuntimeDetachedModelValidator implements AutoCloseable {
+final class DetachedModelValidationSessionImpl
+        implements DetachedModelValidationSession {
 
     private static final String VALIDATION_CONTEXT_BEAN =
             "runtimeDetachedValidationSystemBundlesContext";
@@ -59,7 +60,7 @@ final class RuntimeDetachedModelValidator implements AutoCloseable {
     private TableModelLoaderManager detachedTableModelLoaderManager;
     private QueryModelLoader detachedQueryModelLoader;
 
-    RuntimeDetachedModelValidator(
+    DetachedModelValidationSessionImpl(
             SystemBundlesContext liveBundlesContext,
             TableModelLoaderManager liveTableModelLoaderManager,
             QueryModelLoader liveQueryModelLoader,
@@ -86,11 +87,13 @@ final class RuntimeDetachedModelValidator implements AutoCloseable {
         this.detachedBundlesContext.attach(sourceBundle);
     }
 
-    Bundle sourceBundle() {
+    @Override
+    public Bundle sourceBundle() {
         return sourceBundle;
     }
 
-    void validateTableModel(BundleResource resource, String namespace) {
+    @Override
+    public void validateTableModel(BundleResource resource, String namespace) {
         ensureLoaders();
         if (detachedTableModelLoaderManager != null) {
             detachedTableModelLoaderManager.load(modelName(resource, ".tm"), namespace);
@@ -99,7 +102,8 @@ final class RuntimeDetachedModelValidator implements AutoCloseable {
         validateTableDefinition(resource);
     }
 
-    void validateQueryModel(BundleResource resource) {
+    @Override
+    public void validateQueryModel(BundleResource resource) {
         ensureLoaders();
         if (detachedQueryModelLoader != null) {
             detachedQueryModelLoader.loadJdbcQueryModel(resource);
