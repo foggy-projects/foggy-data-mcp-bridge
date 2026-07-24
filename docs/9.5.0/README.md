@@ -61,25 +61,31 @@ duplicate identity、missing provider、unsupported capability 和 capability-ro
 本候选运行了受影响 Maven reactor 的 compile、test-compile、focused unit/context/TCK 和独立 addon
 test-compile；全部使用 `-pl ... -am`，未运行 `mvn install`。
 
-Owner 批准的一次 lean root authority 在 launcher smoke 发现残留旧 SQLite fixture 路径。
-该 test-only 缺陷修复后，最终候选重新完成完整 root
-`clean verify -DskipITs`：32/32 modules SUCCESS，6 分 13 秒。
+`scripts/v950/**` 已新增当前布局的 canonical release authority，并在候选
+`bbd8601df80e1734927eeac7351fe295cb75d74f` 上形成最终 manifest：
 
-扩展 authority 还完成：
-
+- root reactor 32/32 projects 与 launcher JAR 边界通过；
 - SQLite semantic replay 63/63；
-- portable replay self-test：2 个同文件系统、1 个跨文件系统、9/9 negative probes；
-- SQLite、MySQL 5.7、MySQL 8、PostgreSQL 15、SQL Server 2022 共 7/7 variants、
-  370/370 tests；
-- 4426 文件 source seal 前后 SHA-256 完全一致。
+- SQLite、MySQL 5.7、MySQL 8、PostgreSQL 15、SQL Server 2022 共
+  7/7 variants、370/370 tests；
+- 四个外部数据库 fixture seal 前后一致且 cleanup passed；
+- 4431 个 tracked files 的确定性源码归档在 `/dev/shm` 跨文件系统解压；
+- archive portable replay 63/63；
+- source seal 前后 SHA-256 完全一致；
+- 最终 17 个收据绑定、敏感证据扫描和 manifest 均通过。
 
-历史 9.3.4 authority collector/portable archive schema 仍冻结在已删除的旧聚合与 24-module 图，
-因此数据库结果是 current-layout compatibility evidence，不伪装为 canonical 9.3.4 authority
-pointer；也不声称完成真正的 9.5.0 portable archive replay。GitHub CI、tag、release 和 publish
-均未运行。正式结论保持 `ACCEPTED_WITH_RISKS`。
+执行链并非一次无中断直通：root/semantic/SQLite 收据来自冻结契约未变化的直接父候选，
+其余数据库与 portable archive 在最终候选上新跑；敏感扫描还要求隔离一个包含公开测试夹具
+凭据的冗余旧 root 日志副本。核心产品和制品证据充分，但恢复路径打包、finalizer
+defense-in-depth 与同会话 review 仍是发布前风险，因此正式结论保持
+`ACCEPTED_WITH_RISKS` / `READY_WITH_RISKS`。
+
+GitHub CI、tag、release、publish 和 remote push 均未运行。
 
 ## 文档入口
 
 - canonical workitem：`docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
+- release authority workitem：
+  `docs/9.5.0/workitems/FEATURE-v950-release-authority-modernization.md`
 - migration / breaking / rollback：`docs/9.5.0/model-spi-v2-legacy-exit.md`
 - acceptance：`docs/9.5.0/acceptance/version-signoff.md`

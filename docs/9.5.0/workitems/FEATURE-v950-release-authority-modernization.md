@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: release-governance
 version: 9.5.0
 ticket: v950-release-authority-modernization
-status: ULTRA_EXECUTING
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -61,17 +61,19 @@ fail-closed authority that binds one clean candidate SHA to:
 
 ## Acceptance Criteria
 
-- [ ] AC-1: contract validation proves the exact active reactor and rejects
+- [x] AC-1: contract validation proves the exact active reactor and rejects
   legacy aggregate/package identities in the v950 authority contract.
-- [ ] AC-2: focused self-tests cover contract drift, JUnit report mismatch,
+- [x] AC-2: focused self-tests cover contract drift, JUnit report mismatch,
   unsafe archive paths, archive tamper, and final-manifest incompleteness.
-- [ ] AC-3: one clean candidate completes root verify, semantic replay,
+- [x] AC-3: one clean candidate completes root verify, semantic replay,
   seven database variants, cross-filesystem archive replay, source seal, and
-  sensitive-evidence scan.
-- [ ] AC-4: final manifest binds all receipts to one candidate SHA and reports
+  sensitive-evidence scan. Root, semantic and SQLite evidence came from the
+  direct parent and was rebound under the documented governance-only recovery
+  rule; the remaining lanes and archive replay ran on the final candidate.
+- [x] AC-4: final manifest binds all receipts to one candidate SHA and reports
   zero failures/errors/skips.
-- [ ] AC-5: original dirty workspace remains exact and untouched.
-- [ ] AC-6: final review updates the canonical signoff without tagging,
+- [x] AC-5: original dirty workspace remains exact and untouched.
+- [x] AC-6: final review updates the canonical signoff without tagging,
   publishing, or claiming organizational independence.
 
 ## Validation Budget
@@ -84,18 +86,58 @@ fail-closed authority that binds one clean candidate SHA to:
 
 ## Implementation Result
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- deviations: pending
-- residual_risks: pending
-- readiness: pending
+- implementation_summary: added a 9.5.0-native frozen authority contract,
+  evidence utility, fail-closed runner, focused self-tests, current-reactor
+  root/JAR validation, exact JUnit receipts, seven-variant database lifecycle,
+  deterministic source archive, cross-filesystem replay, source seal,
+  sensitive scan and final manifest.
+- changed_paths:
+  `scripts/v950/release-authority-contract.json`,
+  `scripts/v950/release_authority_tool.py`,
+  `scripts/v950/tests/test_release_authority_tool.py`,
+  `scripts/v950/verify-release-authority.sh`, and this canonical record.
+- tests_and_results:
+  - focused tool validation: 8/8 passed; contract reports 31 modules,
+    32 projects, semantic 63 and database 7 variants / 370 tests;
+  - root clean verify source receipt: 32/32 projects and launcher JAR boundary
+    passed on direct-parent candidate `6a3c3bb3dd0d650ee0a514187f802d2e66ee9c60`;
+  - semantic source receipt: 63 tests, F0/E0/S0 on the same direct parent;
+  - database matrix: SQLite source receipt 50 plus fresh MySQL 5.7 50,
+    MySQL 8 50+55, PostgreSQL 15 50+65 and SQL Server 2022 50;
+    total 7 variants / 370 tests, F0/E0/S0;
+  - all four external cells: fixture before/after SHA equal and cleanup passed;
+  - final candidate archive: 4431 tracked files, SHA-256
+    `2224675a2af18cf626e871a2b2ca376861f012deed890807c25f2e7780283883`;
+  - cross-filesystem portable replay: 63 tests, F0/E0/S0;
+  - final manifest:
+    `target/v950-release-authority/runs/v950-release-authority-20260724-r3/final-manifest.json`,
+    candidate `bbd8601df80e1734927eeac7351fe295cb75d74f`, status passed.
+- deviations:
+  - r1 and r2 stopped on authority-tool defects after preserving their actual
+    passed evidence; neither is represented as a passed authority run;
+  - r3 used fail-closed direct-parent evidence reuse because the candidate
+    delta was exactly three `scripts/v950/**` files and did not change the
+    frozen contract;
+  - r3 initially stopped at sensitive scan because a redundant copied root
+    Maven log contained a known test-fixture credential. The log was moved to
+    a repository-external quarantine, the bound source receipt remained, and
+    sensitive scan plus finalization were rerun without product-test reruns.
+- residual_risks:
+  - the final evidence is a recovered authority chain, not one uninterrupted
+    successful runner invocation;
+  - the current resume path copies the redundant prior root log and can require
+    the same evidence-packaging recovery when that log contains fixture
+    credentials;
+  - review is evidence-first in the same Codex session, not organizationally
+    independent.
+- readiness: READY_FOR_SIGNOFF
 
 ## Acceptance Status
 
-- acceptance_status: pending
-- acceptance_decision: pending
-- signed_off_by: pending
-- signed_off_at: pending
+- acceptance_status: signed-off
+- acceptance_decision: accepted-with-risks
+- signed_off_by: codex-reviewer
+- signed_off_at: 2026-07-24
 - acceptance_record: `docs/9.5.0/acceptance/version-signoff.md`
-
+- blocking_items: none
+- follow_up_required: yes-before-tag-release-publish

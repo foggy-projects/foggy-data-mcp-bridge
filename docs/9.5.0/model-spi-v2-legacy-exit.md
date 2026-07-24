@@ -124,21 +124,32 @@ field access、physical denied columns 和 datasource currentness 规则未放�
 
 不支持在同一进程同时加载 9.4.1 旧包和 9.5.0 新包；避免混用两代制品。
 
-## 8. Signoff result and residual gap
+## 8. Signoff result and release authority
 
-最终候选已按 `ACCEPTED_WITH_RISKS` 签收。owner 批准的一次 lean root authority 发现 launcher
-smoke 的 test-only fixture 路径漏改；修复后最终候选完成一条完整 post-fix root
-`clean verify -DskipITs` 绿线：32/32 modules SUCCESS。
+最终版本继续按 `ACCEPTED_WITH_RISKS` 签收。新的 `scripts/v950/**` authority 已冻结当前
+31-module / 32-project reactor，并覆盖：
 
-扩展 authority 已覆盖 SQLite semantic replay、五种数据库的 7 个 variant（370 tests）和
-4426 文件 source seal。portable 工具的 same/cross-filesystem 与 negative self-test 通过。
+- root reactor 和 launcher JAR 边界；
+- SQLite semantic 63；
+- 五种数据库的 7 个 variant / 370 tests；
+- 四个外部数据库的 fixture seal 与 cleanup；
+- 4431 文件确定性源码归档及跨文件系统解压；
+- 归档副本上的 portable semantic 63；
+- source seal、敏感证据扫描和 17-receipt final manifest。
 
-残余 gap 是历史 authority 工具契约本身：
+历史 9.3.4 collector 不再作为 9.5.0 pointer；v950 authority 仅以固定 SHA 复用其外部数据库
+provisioner。
 
-- database collector 和 SQLite helper 仍绑定已删除的旧聚合路径/24-module 图；
-- portable archive replay schema 仍绑定 9.3.4 旧 artifact 集合；
-- 因此本次数据库证据是 current-layout compatibility replay，portable 证据不等于真正的
-  9.5.0 archive replay。
+残余风险位于治理工具而非产品语义：
 
-tag/release/publish 前如需 canonical release pointer，应先升级 authority tooling，再执行真正的
-9.5.0 portable archive replay；工具契约可用后预计 1–2 小时，决策价值是可复现的正式发布证据。
+- authority 通过直接父候选的严格脚本-only delta 规则复用了 root、semantic 和 SQLite
+  收据，其余 lane 在最终候选上新跑；
+- recovery evidence 曾复制包含公开测试夹具凭据的冗余 root 日志，敏感扫描正确失败后将其
+  隔离，再完成扫描与 manifest；
+- finalizer 已校验 key/kind/candidate/status/hash，但仍可加强每个非复用收据的 lane/total
+  和跨收据语义复核；
+- review 与实现处于同一 Codex 会话，不具备组织独立性。
+
+因此发布标签是 `READY_WITH_RISKS`，不是无条件 `READY_FOR_TAG`。tag/release/publish 前由
+release owner 明确接受上述限制，或先完成对应工具 hardening；不应默认重跑未受影响的完整
+产品矩阵。

@@ -1,7 +1,7 @@
 ---
 acceptance_scope: version
 version: 9.5.0
-target: 57766a778138059853cb73a7dea215e8b7c0221c
+target: bbd8601df80e1734927eeac7351fe295cb75d74f
 doc_role: acceptance-record
 status: signed-off
 decision: accepted-with-risks
@@ -11,190 +11,180 @@ reviewed_by: codex-same-implementation-session
 independent_review: false
 blocking_items: []
 follow_up_required: yes-before-tag-release-publish
+evidence_count: 17
 assurance_level: elevated
 ---
 
-# 9.5.0 Model Legacy Exit Version Signoff
+# 9.5.0 Version and Release Authority Signoff
 
 ## Document Purpose
 
 - intended_for: release-owner / reviewer / project-root-session
-- purpose: 对 9.5.0 第一方 model legacy exit、SPI v2 role truthfulness、breaking 边界和
-  owner 批准的 lean authority 形成正式结论。
+- purpose: 对 9.5.0 legacy exit、SPI v2 边界以及新增 canonical release
+  authority 的实现与证据形成正式结论。
 
 ## Acceptance Basis
 
-- canonical spec: `docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
-- authority-found bug: `docs/9.5.0/workitems/BUG-launcher-smoke-sqlite-fixture-path.md`
-- base commit / current `origin/main`: `63a8f15ff870ee40c83c458d7db455d6b5977deb`
-- pre-authority candidate: `954539716c4e657f78d75a0ac8c8299644fea2be`
-- accepted implementation candidate: `00e4f090ca868e22d7e386e86ebfa4c01272e0bc`
-- final authority candidate: `57766a778138059853cb73a7dea215e8b7c0221c`
-- branch: `codex/v950-legacy-exit`
-- candidate delta: 1338 paths, 7763 insertions, 6717 deletions
-- environment: independent Git worktree, JDK 17, Maven reactor
+- version implementation:
+  `docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
+- authority modernization:
+  `docs/9.5.0/workitems/FEATURE-v950-release-authority-modernization.md`
+- authority candidate:
+  `bbd8601df80e1734927eeac7351fe295cb75d74f`
+- current `origin/main`:
+  `212fea674a2f0a37eebe7435abbc7cf92f2417c4`
+- branch: `codex/v950-release-authority-modernization`
+- frozen contract SHA-256:
+  `282d06d79456406224d7810400c11c030f31f10e7d17a2fb0848486f926cd9e0`
+- final manifest:
+  `target/v950-release-authority/runs/v950-release-authority-20260724-r3/final-manifest.json`
+- environment: independent Git worktree, JDK 17, Maven, Docker
 - original dirty workspace: read-only and unchanged
 
 ## Version Goal Conformance
 
 | Goal / Criterion | Delivered | Evidence | Result |
 |---|---|---|---|
-| legacy coordinate exit | first-party old aggregate artifact/module `14 -> 0` | architecture guard + final inventory | pass |
-| old package exit | production/runtime old package `11 modules / 110 files -> 0` | compile + tracked source guard | pass |
-| bridge/bypass exit | legacy adapter and governed direct query bypass allowlist both 0 | `LegacyExitArchitectureTest` + review | pass |
-| SPI v2 roles | real MODEL_LOAD and ATOMIC_REFRESH ports backed by engine operations | API/core/engine focused tests | pass |
-| capability truthfulness | QUERY/MODEL_LOAD/ATOMIC_REFRESH/CACHE_INVALIDATION role mismatch fails closed | catalog/TCK/JDBC/cache tests | pass |
-| provider boundaries | JDBC engine claims real roles; cache remains invalidation-only; other addons do not overclaim | provider/context/TCK evidence | pass |
-| compatibility contract | stable model-api QueryFacade retained; approved Maven/package/legacy bridge break documented | public API tests + migration guide | pass-with-intentional-break |
-| reactor/artifact | changed consumers compile; launcher artifact contains new engine identity only | affected reactors + artifact inspection | pass |
-| governance docs | canonical, migration, breaking, rollback, BUG and acceptance record synchronized | document review | pass |
+| 9.5.0 legacy exit | old aggregate/package/bridge/bypass zero guards and SPI v2 roles retained from accepted mainline | existing version signoff evidence plus unchanged product tree | pass |
+| current reactor authority | frozen 31-module / 32-project contract and launcher boundary | contract validation and root receipt | pass-with-reuse |
+| semantic and database compatibility | semantic 63; seven database variants / 370 tests | exact JUnit receipts, F0/E0/S0 | pass |
+| provider fixture integrity | four external database fixture seals unchanged and cleanup passed | cell receipts | pass |
+| portable source artifact | deterministic archive, candidate marker and `/dev/shm` replay | archive/extraction receipts and portable 63 | pass |
+| evidence integrity | before/after source seal, sensitive scan and 17-receipt final manifest | final manifest and independent hash recomputation | pass-with-process-risk |
+| protected boundaries | no `scripts/v934/**`, `.github/**` or protected `docs/9.3.5/**` change | Git diff and dirty-workspace checks | pass |
 
-## Lean Authority, Remediation and Final Release Authority
+## Authority Execution Record
 
-The owner-approved command was:
+The successful evidence chain is intentionally recorded as recovered rather
+than represented as one uninterrupted runner invocation:
 
-```bash
-mvn -B -ntp clean verify -DskipITs \
-  -Dsurefire.failIfNoTests=false \
-  -Dfailsafe.failIfNoTests=false
-```
+1. `r1`, candidate `c9286d7a`, completed root `clean verify` with 32/32
+   projects, then stopped on root receipt regex and launcher-path defects.
+2. `r2`, candidate `6a3c3bb3`, produced passed root, semantic 63 and SQLite
+   database 50 receipts, then stopped before MySQL 5.7 because the sealed v934
+   provisioner requires its historical cell-root layout.
+3. `r3`, candidate `bbd8601d`, is the direct child of `r2`; its committed delta
+   is exactly three `scripts/v950/**` files and does not change the frozen
+   contract. Fail-closed reuse wrappers bound the three passed source receipts
+   to the final candidate. All remaining database lanes, archive creation,
+   extraction and portable replay ran fresh on `bbd8601d`.
+4. `r3` initially stopped at sensitive scan because a redundant copied r2 root
+   Maven log contained a known test-fixture credential. The log was moved to a
+   repository-external quarantine; the bound root receipt remained. The scan
+   and finalization were rerun without re-running or relabelling product tests.
 
-It ran on pre-authority candidate `954539716c4e657f78d75a0ac8c8299644fea2be`:
+No failed run is described as passed. The final `r3` status explicitly records
+the evidence-packaging recovery.
 
-- reactor modules 1-28: all SUCCESS;
-- exact module summaries: 4960 tests, 0 failures, 1 launcher error, 2 skipped;
-- the two skipped tests were existing `ScriptRuntimeTest` cases;
-- launcher `DataViewerApiSmokeTest` failed Spring context initialization because its test fixture lookup still named
-  deleted path `foggy-dataset-model/src/test/resources/sqlite`;
-- client and coverage tail modules were skipped after the launcher failure.
+## Evidence Coverage Summary
 
-The finding was test-only and did not invalidate modules 1-28 product evidence. It was frozen and fixed under
-`BUG-launcher-smoke-sqlite-fixture-path`:
+| Area | Classification | Required | Evidence | Reused / New | Gaps | Result |
+|---|---|---|---|---|---|---|
+| root reactor and launcher | core-blocker | 32 projects and JAR boundary | root source receipt + strict wrapper | direct-parent reuse | not fresh on final script-only delta | pass-with-risk |
+| semantic replay | core-blocker | exact 63, F0/E0/S0 | semantic source receipt + wrapper | direct-parent reuse | none affecting product tree | pass-with-risk |
+| database matrix | core-blocker | 7 variants / 370, F0/E0/S0 | exact lane receipts | SQLite reused; 6 lanes fresh | none | pass |
+| database lifecycle | core-blocker | fixture seal and cleanup | four cell receipts | new | none | pass |
+| archive portability | core-blocker | exact candidate and cross-filesystem replay | 4431-file archive + portable 63 | new | none | pass |
+| source/evidence integrity | core-blocker | stable source seal and complete manifest | seals, scan, 17 receipt hashes | new | recovered scan packaging | pass-with-risk |
+| organizational review | process-gap | no false independence claim | same-session evidence review | new | not organizationally independent | risk |
 
-- fixture candidates now point to `foggy-dataset-model-engine`;
-- focused launcher command: 27/27 reactor modules SUCCESS;
-- `DataViewerApiSmokeTest`: 6 tests, 0 failures/errors/skips, 9.018 seconds;
-- full artifact command with tests explicitly skipped: 32/32 reactor modules SUCCESS in 1 minute 59 seconds;
-- launcher fat JAR, FSScript client, dataset client and coverage aggregator completed.
+## Executed Evidence
 
-The owner then explicitly approved final release authority on
-`57766a778138059853cb73a7dea215e8b7c0221c`. The post-fix root command was rerun once:
-
-```bash
-mvn -B -ntp clean verify -DskipITs \
-  -Dsurefire.failIfNoTests=false \
-  -Dfailsafe.failIfNoTests=false
-```
-
-- 32/32 reactor modules SUCCESS;
-- BUILD SUCCESS in 6 minutes 13 seconds;
-- launcher smoke, client modules, coverage aggregator and final artifact assembly all completed;
-- no `mvn install` was used.
-
-This closes the earlier missing post-fix root green line.
-
-## Extended Final Authority Evidence
-
-- SQLite semantic replay: 7 selected semantic/query integration classes, 63 tests,
-  0 failures/errors/skips; 13/13 reactor modules SUCCESS.
-- portable replay tooling self-test: same-filesystem 2, cross-filesystem 1 and negative probes 9/9 passed.
-  A true 9.5.0 archive replay was not claimed because the retained portable tool is frozen to the 9.3.4
-  artifact schema and old aggregate identity.
-- database compatibility replay:
-  - SQLite standard: 50 tests;
-  - MySQL 5.7 standard: 50 tests;
-  - MySQL 8 standard + targeted pivot: 50 + 55 tests;
-  - PostgreSQL 15 standard + targeted pivot/semantic: 50 + 65 tests;
-  - SQL Server 2022 standard: 50 tests;
-  - total: 7/7 variants, 370 tests, 0 failures/errors/skips.
-- all four external database provisioned cells verified canonical fixtures before and after execution and reported
-  cleanup passed; no run-owned container, volume or network remained.
-- extended source seal before/after:
-  4426 files, SHA-256
-  `725da8d3f32dcd70ab29ddd6f94bf7c7df0cf562df22937848eaf5ec92b09521`,
-  exact match on the final authority candidate.
-
-The database behavior is valid current-layout product evidence, but not a canonical 9.3.4 authority pointer:
-
-- the historical top-level matrix and report collector require the removed 24-module/old-aggregate manifest;
-- the historical SQLite helper still names
-  `foggy-dataset-model/src/test/resources/sqlite`;
-- external database tests therefore ran inside the sealed provisioner through direct current-engine Maven callbacks;
-- SQLite ran with the same current selectors and an explicit runtime initialization list for authority fixtures
-  `10` through `13`.
-
-The first unprepared SQLite attempt produced 1 failure and 2 errors because those authority-only fixtures were
-absent. The first MySQL 5.7 callback stopped before product tests because the old collector could not resolve the
-removed aggregate POM. Both were classified as harness incompatibilities; neither result is presented as product
-evidence, and both successful replacement executions are recorded above.
-
-## Additional Executed Evidence
-
-- focused API/core/TCK/engine reactor: 13/13 modules success; API 6, core 6, TCK 3, engine 16 tests.
-- JDBC engine operational provider/TCK: 5 tests; 13/13 modules success.
-- affected production compile: 30/30 modules success.
-- launcher/client affected test-compile: 28/28 modules success.
-- JDBC/cache/engine/launcher provider, context and assembly slice: 27/27 modules success;
-  cache 23, launcher 7 and selected engine/JDBC tests passed.
-- standalone pivot/benchmark test-compile: pivot has no Java source; benchmark 13 main and 2 test sources compiled.
-- final static review:
-  old POM artifact 0, old root module 0, production/runtime old package 0,
-  `LegacyQueryFacadeAdapter` 0, active old fixture path 0, active script old path/FQCN 0,
-  `.github` diff 0, protected `docs/9.3.5` diff 0.
-- top-level changed shell scripts passed `bash -n`; `git diff --check` passed.
-- launcher JAR:
-  Spring Boot `JarLauncher`, expected `McpLauncherApplication`, 17 nested Foggy JARs,
-  exactly one engine JAR, no old aggregate and no TCK JAR.
-
-No command used `mvn install`.
+- focused authority self-tests: 8/8 passed.
+- contract validation: 31 modules, 32 projects, semantic 63,
+  database 7 variants / 370 tests.
+- root source receipt: 32/32 projects and launcher JAR boundary passed.
+- semantic source receipt: 63 tests, 0 failures/errors/skips.
+- database:
+  - SQLite standard: 50;
+  - MySQL 5.7 standard: 50;
+  - MySQL 8 standard + targeted: 50 + 55;
+  - PostgreSQL 15 standard + targeted: 50 + 65;
+  - SQL Server 2022 standard: 50;
+  - total: 7 variants / 370 tests, 0 failures/errors/skips.
+- external cells: identical fixture SHA before/after and cleanup passed for
+  MySQL 5.7, MySQL 8, PostgreSQL 15 and SQL Server 2022.
+- deterministic archive: 4431 tracked files, 131030501 bytes, SHA-256
+  `2224675a2af18cf626e871a2b2ca376861f012deed890807c25f2e7780283883`.
+- extraction: candidate marker matched and `cross_filesystem=true`.
+- portable archive replay: 63 tests, 0 failures/errors/skips.
+- source seal: 4431 files, before/after inventory SHA-256
+  `3fc5e0d41276ac4af10fcfa70badaafb7b33d5ddc37e98159305a88a4d6c1e45`.
+- sensitive scan: 129 evidence files, three patterns, passed; the bound archive
+  is excluded because it intentionally contains public test fixtures.
+- reviewer recomputed all 17 manifest receipt hashes and the archive hash;
+  all matched.
+- no run-owned database container remained.
+- no command used `mvn install`; GitHub CI, tag, release, publish and remote
+  push were not performed.
 
 ## Review Findings
 
-- No unauthorized query semantic, namespace isolation, permission, datasource-currentness, data-correctness or
-  irreversible migration change was found.
-- Stable `model-api QueryFacade` remains the public query contract; engine advanced query ownership is internal.
-- MODEL_LOAD and ATOMIC_REFRESH claims correspond to callable roles and existing namespace-aware loader/atomic
-  catalog publication behavior.
-- Duplicate identity, missing provider, unsupported capability and capability-role mismatch remain fail closed.
-- The launcher fixture omission was a core signoff finding until fixed; the accepted candidate includes the fix.
-- Maven artifact removal, Java package rename and deprecated bridge deletion are intentional, explicitly approved
-  source/binary breaking changes.
+- The changed implementation surface is limited to new `scripts/v950/**` and
+  its canonical governance record. No product/API/SPI/data behavior changed.
+- The active root reactor, database totals, selected report identities,
+  provisioner digest, source archive identity and cleanup state are frozen and
+  fail closed at receipt creation.
+- Missing, extra, stale, failed or skipped JUnit evidence is rejected.
+- Archive traversal, candidate tamper, unsafe extraction and incomplete final
+  receipt sets have focused negative tests.
+- The resume path currently copies a redundant historical root Maven log into
+  the evidence tree. When that log contains the known fixture credential, the
+  sensitive scan correctly fails and manual evidence quarantine is required.
+- The finalizer validates receipt keys, kinds, candidates, status and hashes,
+  but does not independently repeat every lane/total/cross-receipt semantic
+  check for non-reused receipts. The reviewer therefore recomputed and checked
+  the actual receipt set; this is a hardening gap in the one-command authority,
+  not evidence of a product failure.
+- Review was performed in the implementation session and is not
+  organizationally independent.
 
 ## Evidence Sufficiency
 
 - assurance_level: elevated
-- sufficient_for_scope: yes; all non-waivable legacy zero guards and provider truthfulness checks pass, all changed
-  production modules compile, affected behavior has focused tests, and the authority-found test defect is closed.
-- not_sufficient_for: claiming a canonical 9.3.4 release-gate pointer, a true 9.5.0 portable archive replay,
-  organizationally independent review or release publication assurance.
-- omitted_validation: full Step 5/Step 7 authority, true 9.5.0 portable archive replay,
-  GitHub CI, tag, release and publish.
+- sufficient_for_scope: yes; product correctness, current artifact identity,
+  database compatibility, portable archive replay, source stability and
+  cleanup have concrete passed evidence.
+- not_sufficient_for: claiming a clean one-command release pointer without
+  recovery, organizationally independent approval, or completed
+  tag/release/publish operations.
+- new_validation_that_could_change_decision: none for product behavior.
+  Tool-only hardening would require focused authority-tool tests and an
+  evidence re-finalization policy, not another full product matrix by default.
 
-## Accepted Risks
+## Waivers
 
-- Review and signoff were performed in the same Codex session and are not organizationally independent.
-- External Maven/source/binary consumers must migrate coordinates, imports, reflection/configuration strings and
-  removed bridge usage before adopting 9.5.0.
-- Static guards cannot prove every third-party reflective or serialized type-name dependency.
-- Historical 9.3.4 authority tooling is not executable as a canonical 9.5.0 gate after removal of the old aggregate;
-  database evidence used current-layout callbacks, and portable coverage is self-test plus semantic replay rather
-  than a true 9.5.0 archive replay.
+| Waived Item | Authority | Reason | Bounded Impact | Non-Waivable Guards | Follow-up |
+|---|---|---|---|---|---|
+| recovered authority chain rather than one uninterrupted runner success | repository owner via approved 1–5 execution scope | all interruptions were authority-tool/evidence-packaging defects and passed product receipts remained verifiable | release-governance ergonomics and reproducibility only | exact candidate/source binding, F0/E0/S0, archive identity, fixture seals, cleanup and source seal remain mandatory | harden resume packaging before treating it as a clean one-command pointer |
+| same-session review | repository owner via explicit non-independence boundary | no organizational reviewer was requested | process independence only | evidence-first review and truthful disclosure | optional independent release-owner review before publish |
 
-None is a core blocker for the approved 9.5.0 legacy-exit scope. They remain release-owner considerations before
-tag/release/publish.
+## Blocking Items
+
+- none for preserving the accepted 9.5.0 product result.
+
+## Risks / Follow-ups
+
+- Before tag/release/publish, the release owner should either:
+  - accept the recovered-chain limitation explicitly; or
+  - remove redundant reused logs from canonical evidence packaging and
+    strengthen finalizer lane/total/cross-receipt validation.
+- If the authority tool is changed, do not automatically rerun the complete
+  product matrix. Reuse remains acceptable only when the candidate delta,
+  frozen contract and source receipts are explicitly rebound and verified.
+- An organizationally independent reviewer remains recommended for external
+  publication, but its absence does not invalidate the product evidence.
 
 ## Final Decision
 
 - decision: `accepted-with-risks`
-- core blocking items: none
-- rationale: all approved legacy-exit and SPI v2 hardening criteria pass; the lean-authority defect was test-only
-  and fixed, the post-fix root reactor is green, semantic and five-database behavior passed, and the source seal
-  remained exact. Remaining gaps are authority-tool modernization, true portable archive replay, independent review
-  and intentional external compatibility risks.
-- follow-up: before tag/release/publish, modernize or replace the frozen 9.3.4 authority collectors for the 9.5.0
-  module graph and decide whether a true 9.5.0 portable archive replay plus independent organizational review is
-  required. Estimated wall time is 1-2 hours after the tooling contract is available; decision value is a canonical,
-  reproducible release pointer rather than additional product behavior coverage.
+- release readiness label: `READY_WITH_RISKS`
+- rationale: all product, artifact, portability, database and source-integrity
+  results required by the elevated scope are present and independently
+  rechecked. The remaining gaps are bounded to recovery ergonomics,
+  finalizer defense-in-depth and review independence.
+- blocking_items: none
+- follow_up_owner_and_due: release owner, before tag/release/publish
 
 ## Signoff Marker
 
