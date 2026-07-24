@@ -10,6 +10,7 @@ import tarfile
 import tempfile
 import time
 import unittest
+import zipfile
 
 
 TOOL_PATH = Path(__file__).resolve().parents[1] / "release_authority_tool.py"
@@ -132,6 +133,30 @@ class ReleaseAuthorityToolTest(unittest.TestCase):
                         elif path.is_dir():
                             path.rmdir()
                     destination.rmdir()
+
+    def test_root_summary_requires_exact_reactor_and_jar_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            log = root / "root.log"
+            lines = [
+                f"[INFO] project-{index:02d} ........................ SUCCESS [  0.100 s]"
+                for index in range(32)
+            ]
+            lines.append("[INFO] BUILD SUCCESS")
+            log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            jar = root / "launcher.jar"
+            with zipfile.ZipFile(jar, "w") as archive:
+                archive.writestr(
+                    "BOOT-INF/lib/foggy-dataset-model-engine-9.1.0.beta.jar", b"engine"
+                )
+                archive.writestr(
+                    "org/springframework/boot/loader/launch/JarLauncher.class",
+                    b"loader",
+                )
+            receipt = root / "receipt.json"
+            value = tool.root_summary(log, jar, "0" * 40, receipt)
+            self.assertEqual(32, value["projects"])
+            self.assertEqual("passed", value["status"])
 
     def test_final_manifest_requires_complete_receipt_set(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

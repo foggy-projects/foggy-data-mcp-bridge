@@ -475,7 +475,7 @@ def root_summary(
     require(log.is_file() and not log.is_symlink(), "root Maven log missing")
     text = log.read_text(encoding="utf-8", errors="replace")
     require("[INFO] BUILD SUCCESS" in text, "root Maven build did not report success")
-    summary_lines = re.findall(r"^\[INFO\] .+? \\.{3,} SUCCESS \\[", text, re.MULTILINE)
+    summary_lines = re.findall(r"^\[INFO\] .+? \.{3,} SUCCESS \[", text, re.MULTILINE)
     expected = release_contract["root_verify"]["expected_project_count"]
     require(len(summary_lines) == expected, f"root reactor success count differs: {len(summary_lines)}")
     require(jar.is_file() and not jar.is_symlink(), "launcher JAR missing")

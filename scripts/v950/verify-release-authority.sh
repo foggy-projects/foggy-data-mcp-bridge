@@ -219,7 +219,7 @@ mv -- "$STAGING_ROOT/root-clean-verify.log" "$RUN_ROOT/root-clean-verify.log"
 PHASE=root-summary
 python3 "$TOOL" root-summary \
   --log "$RUN_ROOT/root-clean-verify.log" \
-  --jar "$ROOT_DIR/foggy-mcp-launcher/target/foggy-mcp-launcher.jar" \
+  --jar "$ROOT_DIR/$(jq -r '.root_verify.launcher_jar' "$CONTRACT")" \
   --candidate "$CANDIDATE" \
   --output "$RUN_ROOT/root-receipt.json"
 

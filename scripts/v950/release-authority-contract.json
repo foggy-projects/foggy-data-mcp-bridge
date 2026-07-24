@@ -40,7 +40,7 @@
   },
   "root_verify": {
     "expected_project_count": 32,
-    "launcher_jar": "foggy-mcp-launcher/target/foggy-mcp-launcher.jar",
+    "launcher_jar": "foggy-mcp-launcher/target/foggy-mcp-launcher-9.1.0.beta.jar",
     "required_archive_entries": [
       "BOOT-INF/lib/foggy-dataset-model-engine-9.1.0.beta.jar",
       "org/springframework/boot/loader/launch/JarLauncher.class"
