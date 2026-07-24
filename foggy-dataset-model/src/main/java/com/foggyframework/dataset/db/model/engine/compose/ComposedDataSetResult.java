@@ -5,6 +5,8 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.ColumnObjectNormalizer;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import com.foggyframework.dataset.utils.DbUtils;
@@ -22,7 +24,7 @@ import java.util.*;
  * <p>由 {@link DataSetResult#withJoin} 创建，在首次调用 {@code toList()} / {@code execute()}
  * 时触发：
  * <ol>
- *   <li>对左右两个 QM 分别调用 {@code generateSql()} 获取 SQL + params</li>
+ *   <li>通过 semantic planning port 为左右两个 QM 获取 SQL + params</li>
  *   <li>{@link CteComposer#compose} 拼接为 CTE（或子查询）</li>
  *   <li>通过 {@link DataSource} 执行最终 SQL</li>
  *   <li>返回 {@link DataSetResult}</li>
@@ -37,7 +39,7 @@ public class ComposedDataSetResult implements PropertyFunction {
 
     private static final Logger logger = LoggerFactory.getLogger(ComposedDataSetResult.class);
 
-    private final SemanticQueryServiceV3 queryService;
+    private final ComposeSemanticPlanningPort planningPort;
     private final SemanticRequestContext requestContext;
     private final DataSource dataSource;
 
@@ -69,7 +71,18 @@ public class ComposedDataSetResult implements PropertyFunction {
                                  Map<String, Object> rightParams,
                                  String joinType,
                                  String joinKey) {
-        this.queryService = queryService;
+        this((ComposeSemanticPlanningPort) queryService, requestContext, dataSource,
+                leftParams, rightParams, joinType, joinKey);
+    }
+
+    public ComposedDataSetResult(ComposeSemanticPlanningPort planningPort,
+                                 SemanticRequestContext requestContext,
+                                 DataSource dataSource,
+                                 Map<String, Object> leftParams,
+                                 Map<String, Object> rightParams,
+                                 String joinType,
+                                 String joinKey) {
+        this.planningPort = planningPort;
         this.requestContext = requestContext;
         this.dataSource = dataSource;
         this.leftParams = leftParams;
@@ -102,15 +115,17 @@ public class ComposedDataSetResult implements PropertyFunction {
 
         // 1. 生成左侧 SQL
         SemanticQueryRequest leftRequest = buildSemanticRequest(leftParams);
-        SqlGenerationResult leftSql = queryService.generateSql(leftModel, leftRequest, requestContext);
+        ComposeSqlGeneration leftSql = planningPort.generateComposeSql(
+                leftModel, leftRequest, requestContext);
 
         // 2. 生成右侧 SQL
         SemanticQueryRequest rightRequest = buildSemanticRequest(rightParams);
-        SqlGenerationResult rightSql = queryService.generateSql(rightModel, rightRequest, requestContext);
+        ComposeSqlGeneration rightSql = planningPort.generateComposeSql(
+                rightModel, rightRequest, requestContext);
 
         // 3. 构建 CTE 单元
-        CteUnit leftUnit = new CteUnit("cte_0", leftSql.getSql(), leftSql.getParams(), null);
-        CteUnit rightUnit = new CteUnit("cte_1", rightSql.getSql(), rightSql.getParams(), null);
+        CteUnit leftUnit = new CteUnit("cte_0", leftSql.sql(), leftSql.params(), null);
+        CteUnit rightUnit = new CteUnit("cte_1", rightSql.sql(), rightSql.params(), null);
 
         // 4. 构建 JoinSpec
         JoinSpec joinSpec = new JoinSpec(joinType, joinKey, joinKey, null, null);

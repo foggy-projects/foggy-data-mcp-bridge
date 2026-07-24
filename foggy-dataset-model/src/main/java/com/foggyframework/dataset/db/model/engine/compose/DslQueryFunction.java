@@ -5,6 +5,8 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.ColumnObjectNorma
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.SemanticQueryExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.fsscript.parser.spi.Exp;
@@ -34,7 +36,7 @@ import java.util.*;
  * <p>与 {@code LoadTableModelFunction} 的关键区别：
  * <ul>
  *   <li>非单例 -- 每次执行创建新实例，携带请求级上下文</li>
- *   <li>执行实际查询 -- 调用 {@link SemanticQueryServiceV3} 执行 SQL</li>
+ *   <li>执行实际查询 -- 通过窄 semantic execution port 执行</li>
  *   <li>返回结果集 -- 返回 {@link DataSetResult} 而非模型定义</li>
  * </ul>
  *
@@ -50,7 +52,8 @@ public class DslQueryFunction implements FsscriptFunction {
      */
     private static final int MAX_QUERY_COUNT = 20;
 
-    private final SemanticQueryServiceV3 queryService;
+    private final SemanticQueryExecutionPort queryExecutionPort;
+    private final ComposeSemanticPlanningPort planningPort;
     private final SemanticRequestContext requestContext;
 
     /**
@@ -80,7 +83,15 @@ public class DslQueryFunction implements FsscriptFunction {
     public DslQueryFunction(SemanticQueryServiceV3 queryService,
                             SemanticRequestContext requestContext,
                             DataSource dataSource) {
-        this.queryService = queryService;
+        this(queryService, queryService, requestContext, dataSource);
+    }
+
+    public DslQueryFunction(SemanticQueryExecutionPort queryExecutionPort,
+                            ComposeSemanticPlanningPort planningPort,
+                            SemanticRequestContext requestContext,
+                            DataSource dataSource) {
+        this.queryExecutionPort = queryExecutionPort;
+        this.planningPort = planningPort;
         this.requestContext = requestContext;
         this.dataSource = dataSource;
     }
@@ -117,7 +128,8 @@ public class DslQueryFunction implements FsscriptFunction {
         logger.debug("dsl() executing query #{}: model={}, columns={}, limit={}",
                 queryCount, model, request.getColumns(), request.getLimit());
 
-        SemanticQueryResponse response = queryService.queryModel(model, request, "execute", requestContext);
+        SemanticQueryResponse response = queryExecutionPort.queryModel(
+                model, request, "execute", requestContext);
 
         logger.debug("dsl() query #{} completed: model={}, rows={}",
                 queryCount, model, response.getItems() != null ? response.getItems().size() : 0);
@@ -129,7 +141,8 @@ public class DslQueryFunction implements FsscriptFunction {
 
         // 设置 compose 上下文（供 withJoin 使用）
         if (dataSource != null) {
-            result.setComposeContext(new DataSetResult.ComposeContext(queryService, requestContext, dataSource));
+            result.setComposeContext(new DataSetResult.ComposeContext(
+                    planningPort, requestContext, dataSource));
         }
 
         return result;

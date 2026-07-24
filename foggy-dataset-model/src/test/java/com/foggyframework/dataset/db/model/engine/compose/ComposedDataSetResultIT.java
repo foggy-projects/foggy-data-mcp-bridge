@@ -2,6 +2,8 @@ package com.foggyframework.dataset.db.model.engine.compose;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.SemanticQueryExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
@@ -81,8 +83,10 @@ class ComposedDataSetResultIT extends EcommerceTestSupport {
     }
 
     private DataSetResult dsl(Map<String, Object> params) {
+        SemanticQueryExecutionPort executionPort = semanticQueryServiceV3::queryModel;
+        ComposeSemanticPlanningPort planningPort = semanticQueryServiceV3::generateComposeSql;
         DslQueryFunction function = new DslQueryFunction(
-                semanticQueryServiceV3, SemanticRequestContext.empty(), dataSource);
+                executionPort, planningPort, SemanticRequestContext.empty(), dataSource);
         return (DataSetResult) function.executeFunction(null, params);
     }
 

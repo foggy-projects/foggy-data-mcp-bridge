@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.compose;
 
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.PropertyFunction;
@@ -71,10 +72,12 @@ public class DataSetResult implements PropertyFunction {
     }
 
     /**
-     * Compose 上下文 -- 持有 withJoin 所需的服务引用
+     * Compose 上下文 -- 持有 withJoin 所需的 planning port 与 DataSource
      */
     public static class ComposeContext {
+        /** Compatibility reference retained for existing callers. */
         private final SemanticQueryServiceV3 queryService;
+        private final ComposeSemanticPlanningPort planningPort;
         private final SemanticRequestContext requestContext;
         private final DataSource dataSource;
 
@@ -82,11 +85,22 @@ public class DataSetResult implements PropertyFunction {
                               SemanticRequestContext requestContext,
                               DataSource dataSource) {
             this.queryService = queryService;
+            this.planningPort = queryService;
+            this.requestContext = requestContext;
+            this.dataSource = dataSource;
+        }
+
+        public ComposeContext(ComposeSemanticPlanningPort planningPort,
+                              SemanticRequestContext requestContext,
+                              DataSource dataSource) {
+            this.queryService = null;
+            this.planningPort = planningPort;
             this.requestContext = requestContext;
             this.dataSource = dataSource;
         }
 
         public SemanticQueryServiceV3 getQueryService() { return queryService; }
+        public ComposeSemanticPlanningPort getPlanningPort() { return planningPort; }
         public SemanticRequestContext getRequestContext() { return requestContext; }
         public DataSource getDataSource() { return dataSource; }
     }
@@ -248,7 +262,7 @@ public class DataSetResult implements PropertyFunction {
         }
 
         return new ComposedDataSetResult(
-                composeContext.getQueryService(),
+                composeContext.getPlanningPort(),
                 composeContext.getRequestContext(),
                 composeContext.getDataSource(),
                 this.dslParams,

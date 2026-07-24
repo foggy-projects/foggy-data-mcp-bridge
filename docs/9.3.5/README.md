@@ -60,6 +60,10 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
 - Compose runtime bundle、`QueryPlan` 与 script orchestration 已改为内部持有 planning/raw-execution
   双端口；脚本 request 可以分别注入两个窄口，旧 semantic service getter、builder 和 `runScript`
   overload 仍保留兼容。ambient bundle、preview/execute 行为、normalize-plan 与既有异常文本保持不变。
+- Legacy `DslQueryFunction` 的普通查询已改用 `SemanticQueryExecutionPort`，`withJoin` SQL 生成链改用
+  `ComposeSemanticPlanningPort` 与 engine-neutral `ComposeSqlGeneration`；`DataSetResult.ComposeContext`
+  内部传递 planning port，旧 semantic service 构造和 getter 继续兼容，DataSource 方言选择与组合 SQL
+  执行行为未改变。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
   33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
@@ -72,9 +76,10 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   定向回归 198/198，通过 fail-closed 收紧后的核心复跑 57/57，真实 DSL→Compose→SQLite 执行
   集成路径 1/1 通过；PlanExecution 双端口/兼容定向回归 24/24，derived/join/union SQLite
   real-SQL parity 3/3 通过；Compose runtime 双端口切片定向回归 64/64，脚本资源、快照与
-  derived/join/union SQLite real-SQL parity 7/7 通过。
-- 当前执行切片：收敛 legacy `DataSetResult`/`ComposedDataSetResult`/DSL query bridge 的完整
-  semantic service 依赖，保留旧构造与公开 getter 的兼容转发。
+  derived/join/union SQLite real-SQL parity 7/7 通过；legacy DataSetResult/DSL bridge 窄口切片编译
+  通过，unit/compatibility 73/73，真实 SQLite withJoin 与 F4 column-object 路径 19/19 通过。
+- 当前执行切片：复核 Compose/Pivot/Semantic 的残余依赖方向和包循环，关闭 9.3.5 反向依赖目标
+  后进入 9.4.0 SPI v2 模块化切片。
 
 ## 已确认目标
 
