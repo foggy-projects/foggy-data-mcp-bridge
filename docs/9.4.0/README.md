@@ -1,7 +1,7 @@
 ---
 doc_role: version_execution_index
 version: 9.4.0
-status: READY_FOR_SIGNOFF / speed-forward
+status: SIGNED_OFF / accepted-with-risks
 entry_gate: 9.3.5-development-complete
 validation_mode: affected-tests-then-one-integrated-acceptance
 recorded_at: 2026-07-24
@@ -15,7 +15,10 @@ recorded_at: 2026-07-24
 实施按小切片推进，每个切片通过受影响测试即可继续；只在全部 9.4.0 开发目标完成后
 安排一次跨版本整体验收。
 
-9.3.5 与 9.4.0 开发目标均已完成，当前候选为 `READY_FOR_SIGNOFF`，尚未签署 `ACCEPTED`。
+9.3.5 与 9.4.0 开发目标均已完成。候选已基于最新 `origin/main`
+`20ef23e8d3e00f05c9864f2ec1bd3bd2785fbf6b` 完成 review 和跨版本整体验收，结论为
+`ACCEPTED_WITH_RISKS`。风险来自同一实施会话内的非独立 review，以及 owner 明确排除的
+Step 5/Step 7 authority、semantic/portable replay、source seal 和 GitHub CI；不存在核心功能阻断。
 首个 9.4.0 切片建立
 `foggy-dataset-model-api`：稳定 `QueryFacade`/DTO 保持原包名与 JVM 名称物理迁入，旧
 `foggy-dataset-model` 通过 Maven 依赖继续提供传递兼容；同时新增最小 provider identity/capability
@@ -61,8 +64,18 @@ outside-package smoke 合计 4/4；launcher 生产包包含兼容聚合及 API/c
 最终候选窄范围复证：六个新模块 tests 26/26、旧 facade compatibility/boundary tests 6/6、cache
 TCK/context tests 23/23、launcher smoke 4/4；目标模块 compile dependency tree 为
 `starter -> jdbc -> core -> api`、`web -> core -> api`、`tck -> core -> api`，无反向边。
-launcher production package 再次成功并确认 TCK/cache 未进入运行时 JAR。跨版本整体验收仍等待
-owner 明确批准后执行。
+launcher production package 再次成功并确认 TCK/cache 未进入运行时 JAR。
+
+最终跨版本整体验收于 2026-07-24 完成：
+
+- 根 reactor `mvn clean verify -DskipITs ...` 的 32 个模块全部成功，耗时 6 分 11 秒；
+- Gate 0 缺失配置按预期 fail-closed，受控 MySQL 5.7 lane 为 7 份报告、12 个测试，F0/E0/S0；
+- 依赖树复证 `core -> api`、`jdbc -> core -> api`、`starter -> jdbc -> core -> api`、
+  `web/tck -> core -> api`，无目标模块反向生产依赖；
+- launcher 运行时 JAR 包含兼容聚合及 API/core/JDBC/starter/web，不包含 TCK/cache；
+- 验收过程未执行 `mvn install`，未接入 CI，未 tag、release 或 publish。
+
+正式记录见 [9.4.0 version signoff](acceptance/version-signoff.md)。
 
 ## 开工依赖
 
@@ -92,5 +105,6 @@ owner 明确批准后执行。
 开发阶段要求 Maven 依赖单向无环，`model-api` 无 Spring/JDBC/impl/web 依赖；每个切片只运行
 受影响 reactor/module、compatibility、TCK、starter context 或 launcher smoke。
 
-全部目标完成后形成 `READY_FOR_SIGNOFF` 候选，再执行一次跨版本整体验收。该验收不复活
-9.3.4 Step 5/Step 7 authority、portable replay pointer 或 GitHub CI。
+全部目标完成后形成 `READY_FOR_SIGNOFF` 候选，再执行一次跨版本整体验收。该验收已完成并签署
+`ACCEPTED_WITH_RISKS`，且未复活 9.3.4 Step 5/Step 7 authority、portable replay pointer 或
+GitHub CI。

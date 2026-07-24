@@ -3,14 +3,16 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4-to-9.4.0
 ticket: v934-v940-speed-forward
-status: READY_FOR_SIGNOFF
+status: SIGNED_OFF
 canonical: true
 assurance_level: standard
 execution_mode: speed-first
 approved_by: repository-owner-via-user-request
 approved_at: 2026-07-24
 supersedes_active_release_authority_gates: true
-final_integrated_acceptance: awaiting-owner-approval
+final_integrated_acceptance: passed-with-accepted-risks
+accepted_at: 2026-07-24
+acceptance_record: ../acceptance/version-signoff.md
 open_questions: []
 ---
 
@@ -137,9 +139,11 @@ open_questions: []
 
 - contract_frozen_at: 2026-07-24
 - implementation_base: `3b1c7249ba75b3bab54cb0f898ea1c198e5303d4`
+- final_main_base: `20ef23e8d3e00f05c9864f2ec1bd3bd2785fbf6b`
+- accepted_candidate: `9d02808e141f2fed7eba8bb9d0bebb7c84a206db`
 - repository_state: 独立 worktree 分支 `codex/v940-speed-forward`；原工作区未提交内容未被修改。
 - production_changes: 9.3.5 classification/API/port/bypass/dependency debt closed；9.4.0 API/core/JDBC/starter/web/TCK、cache compatibility adapter 与 launcher assembly 已实现。
 - compatibility: 旧 `foggy-dataset-model` 聚合/legacy facade 保留一个周期，稳定 facade JVM 名称不变；迁移说明已冻结。
-- tests: 最终窄范围复证通过新模块 26/26、legacy facade 6/6、cache 23/23、launcher 4/4；launcher production package 成功，模块依赖树单向无环。
-- excluded: 未运行全 reactor、数据库/外部整体验收、Step 5/Step 7 authority、semantic/portable replay、source seal、GitHub CI、tag/release/publish。
-- readiness: `READY_FOR_SIGNOFF`；等待 owner 批准一次最终跨版本整体验收，不自行签署 `ACCEPTED`。
+- tests: 最终根 reactor `clean verify` 的 32 个模块全部成功，耗时 6 分 11 秒；Gate 0 MySQL 5.7 负向配置门禁及 7 份 Failsafe 报告/12 个测试通过，F0/E0/S0；目标模块依赖树、launcher production package 与 smoke 均通过。
+- excluded: 按 owner 决定未复活 Step 5/Step 7 authority、semantic/portable replay、source seal、五库通用矩阵、GitHub CI、tag/release/publish。
+- readiness: `SIGNED_OFF / ACCEPTED_WITH_RISKS`；无核心阻断。保留非独立 review、明确排除的大型 authority/replay 流程，以及旧聚合兼容层一个周期等已接受风险。
