@@ -28,10 +28,13 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
 - context/SQL generation 已下沉 `InternalQueryExecutionPort`，managed relation 已下沉
   `ManagedRelationExecutionPort`；semantic 只依赖组合 advanced port，pivot 只依赖 managed-relation
   窄口，稳定 facade 未新增引擎类型。
+- MCP `ToolConfigLoader` 的未调用 QM 扫描已删除；model discovery/catalog 的 Spring 生产构造器
+  不再注入 `QueryModelLoader`，统一消费共享 catalog authority。旧构造签名保留一个兼容周期并
+  标记 deprecated。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
-  33/33 通过。
-- 当前执行切片：清点并移除 controller/runtime/addon 未批准 loader/query bypass。
+  33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过。
+- 当前执行切片：将 MCP/runtime detached validation 从 live loader wiring 下沉到验证 port。
 
 ## 已确认目标
 

@@ -57,6 +57,23 @@ public class SemanticServiceResolverImpl implements SemanticServiceResolver,
             SemanticServiceV3 semanticServiceV3,
             SemanticQueryServiceV3 semanticQueryServiceV3,
             SystemBundlesContext systemBundlesContext,
+            SemanticModelCatalogService semanticModelCatalogService) {
+        this.semanticServiceV3 = semanticServiceV3;
+        this.semanticQueryServiceV3 = semanticQueryServiceV3;
+        this.systemBundlesContext = systemBundlesContext;
+        this.queryModelLoader = null;
+        this.semanticModelCatalogService = semanticModelCatalogService;
+    }
+
+    /**
+     * Compatibility constructor retained for callers compiled against the old
+     * Spring wiring shape.
+     */
+    @Deprecated(since = "9.3.5", forRemoval = false)
+    public SemanticServiceResolverImpl(
+            SemanticServiceV3 semanticServiceV3,
+            SemanticQueryServiceV3 semanticQueryServiceV3,
+            SystemBundlesContext systemBundlesContext,
             QueryModelLoader queryModelLoader,
             SemanticModelCatalogService semanticModelCatalogService) {
         this.semanticServiceV3 = semanticServiceV3;
@@ -67,13 +84,17 @@ public class SemanticServiceResolverImpl implements SemanticServiceResolver,
     }
 
     /** Compatibility constructor for non-Spring callers. */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     public SemanticServiceResolverImpl(
             SemanticServiceV3 semanticServiceV3,
             SemanticQueryServiceV3 semanticQueryServiceV3,
             SystemBundlesContext systemBundlesContext,
             QueryModelLoader queryModelLoader) {
-        this(semanticServiceV3, semanticQueryServiceV3, systemBundlesContext,
-                queryModelLoader, null);
+        this.semanticServiceV3 = semanticServiceV3;
+        this.semanticQueryServiceV3 = semanticQueryServiceV3;
+        this.systemBundlesContext = systemBundlesContext;
+        this.queryModelLoader = queryModelLoader;
+        this.semanticModelCatalogService = null;
     }
 
     @PostConstruct

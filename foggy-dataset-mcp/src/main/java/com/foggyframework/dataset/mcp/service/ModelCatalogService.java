@@ -46,6 +46,25 @@ public class ModelCatalogService {
     @Autowired
     public ModelCatalogService(
             SemanticServiceResolver semanticServiceResolver,
+            ObjectMapper objectMapper,
+            McpProperties mcpProperties,
+            SemanticModelCatalogService semanticModelCatalogService
+    ) {
+        this.semanticServiceResolver = semanticServiceResolver;
+        this.queryModelLoader = null;
+        this.objectMapper = objectMapper;
+        this.mcpProperties = mcpProperties;
+        this.semanticModelCatalogService = semanticModelCatalogService;
+    }
+
+    /**
+     * Compatibility constructor retained for callers compiled against the old
+     * Spring wiring shape. New Spring wiring uses the shared catalog authority
+     * and does not inject a model loader into this addon service.
+     */
+    @Deprecated(since = "9.3.5", forRemoval = false)
+    public ModelCatalogService(
+            SemanticServiceResolver semanticServiceResolver,
             QueryModelLoader queryModelLoader,
             ObjectMapper objectMapper,
             McpProperties mcpProperties,
@@ -58,6 +77,8 @@ public class ModelCatalogService {
         this.semanticModelCatalogService = semanticModelCatalogService;
     }
 
+    /** Compatibility constructor for callers without the shared catalog authority. */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     public ModelCatalogService(
             SemanticServiceResolver semanticServiceResolver,
             QueryModelLoader queryModelLoader,
@@ -68,6 +89,8 @@ public class ModelCatalogService {
                 mcpProperties, null);
     }
 
+    /** Compatibility constructor for callers without the shared catalog authority. */
+    @Deprecated(since = "9.3.5", forRemoval = false)
     public ModelCatalogService(
             SemanticServiceResolver semanticServiceResolver,
             QueryModelLoader queryModelLoader,

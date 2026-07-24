@@ -74,7 +74,6 @@ class SemanticServiceResolverImplTest {
                 semanticServiceV3,
                 semanticQueryServiceV3,
                 systemBundlesContext,
-                queryModelLoader,
                 semanticModelCatalogService
         );
     }
