@@ -1,8 +1,11 @@
 package com.foggyframework.runtime.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.foggyframework.bundle.Bundle;
+import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
+import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionState;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
@@ -32,6 +35,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -54,6 +58,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -808,6 +813,56 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
+    void shouldRejectDuplicateModelNamesAcrossBundlesWithoutMutatingRuntime()
+            throws Exception {
+        Path existingModel = Files.createTempFile("runtime-existing-order", ".tm");
+        Path existingQuery = Files.createTempFile("runtime-existing-order", ".qm");
+        Bundle existingBundle = modelBundle(
+                "runtime-existing",
+                "dev",
+                existingModel,
+                existingQuery
+        );
+        when(systemBundlesContext.getBundleList()).thenReturn(List.of(existingBundle));
+
+        Path candidate = Files.createTempDirectory("runtime-conflicting-models");
+        Files.writeString(candidate.resolve(existingModel.getFileName()), "candidate tm");
+        Files.writeString(candidate.resolve(existingQuery.getFileName()), "candidate qm");
+
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                Map.of(
+                        "name", "runtime-conflict",
+                        "namespace", "dev",
+                        "path", candidate.toString()
+                ),
+                JsonNode.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(body.path("error").path("code").asText())
+                .isEqualTo("BUNDLE_MODEL_NAME_CONFLICT");
+        assertThat(body.path("error").path("phase").asText())
+                .isEqualTo("bundles.add");
+        assertThat(body.path("error").path("message").asText())
+                .contains("runtime-existing");
+        verify(systemBundlesContext, never())
+                .addExternalBundle(eq("runtime-conflict"), eq("dev"),
+                        eq(candidate.toString()), anyBoolean());
+        verify(systemBundlesContext, never()).removeBundle(anyString());
+
+        ResponseEntity<JsonNode> listResponse = restTemplate.getForEntity(
+                "http://localhost:" + port + "/api/v1/bundles",
+                JsonNode.class
+        );
+        assertThat(listResponse.getBody().path("data").path("bundles"))
+                .noneMatch(bundle -> "runtime-conflict".equals(bundle.path("name").asText()));
+    }
+
+    @Test
     void shouldRestoreExistingRuntimeManagedBundleWhenUpdateRegistrationFails() throws Exception {
         Path oldModelsDir = Files.createTempDirectory("runtime-api-bundle-rollback-old");
         Path newModelsDir = Files.createTempDirectory("runtime-api-bundle-rollback-new");
@@ -867,6 +922,34 @@ class RuntimeCapabilitiesControllerEnabledTest {
         }
         assertThat(restoredBundle).isNotNull();
         assertThat(restoredBundle.path("path").asText()).isEqualTo(oldModelsDir.toString());
+    }
+
+    private static Bundle modelBundle(
+            String name,
+            String namespace,
+            Path... resources
+    ) {
+        BundleDefinition definition = mock(BundleDefinition.class);
+        when(definition.getNamespace()).thenReturn(namespace);
+        Bundle bundle = mock(Bundle.class);
+        when(bundle.getName()).thenReturn(name);
+        when(bundle.getDefinition()).thenReturn(definition);
+        when(bundle.findBundleResources("**/*.tm")).thenReturn(
+                modelResources(bundle, resources, ".tm"));
+        when(bundle.findBundleResources("**/*.qm")).thenReturn(
+                modelResources(bundle, resources, ".qm"));
+        return bundle;
+    }
+
+    private static BundleResource[] modelResources(
+            Bundle bundle,
+            Path[] resources,
+            String suffix
+    ) {
+        return java.util.Arrays.stream(resources)
+                .filter(path -> path.getFileName().toString().endsWith(suffix))
+                .map(path -> new BundleResource(bundle, new FileSystemResource(path)))
+                .toArray(BundleResource[]::new);
     }
 
     @Test

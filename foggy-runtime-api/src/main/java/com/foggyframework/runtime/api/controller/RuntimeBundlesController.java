@@ -10,6 +10,8 @@ import com.foggyframework.runtime.api.dto.BundleMutationResponse;
 import com.foggyframework.runtime.api.dto.BundleRequest;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
+import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector;
+import com.foggyframework.runtime.api.service.RuntimeBundleModelConflictDetector.ModelNameConflict;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,15 +39,18 @@ public class RuntimeBundlesController {
     private final RuntimeApiResponseFactory responses;
     private final SystemBundlesContext systemBundlesContext;
     private final RuntimeBundleRegistryService registryService;
+    private final RuntimeBundleModelConflictDetector modelConflictDetector;
 
     public RuntimeBundlesController(
             RuntimeApiResponseFactory responses,
             SystemBundlesContext systemBundlesContext,
-            RuntimeBundleRegistryService registryService
+            RuntimeBundleRegistryService registryService,
+            RuntimeBundleModelConflictDetector modelConflictDetector
     ) {
         this.responses = responses;
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
+        this.modelConflictDetector = modelConflictDetector;
     }
 
     @GetMapping(RuntimeApiRoutes.V1.BUNDLES)
@@ -143,6 +148,38 @@ public class RuntimeBundlesController {
             return fail("BUNDLE_ALREADY_EXISTS", "bundles.add", "Runtime-managed bundle already exists: " + name,
                     "Use replace=true or bundles update.", true);
         }
+
+        String namespace = stringOr(
+                request != null ? request.namespace() : null,
+                stringOr(headerNamespace, existingRecord != null ? existingRecord.namespace() : "")
+        );
+        boolean watch = booleanOr(request != null ? request.watch() : null, existingRecord != null && existingRecord.watch());
+        boolean enabled = booleanOr(request != null ? request.enabled() : null, true);
+        if (enabled) {
+            List<ModelNameConflict> conflicts;
+            try {
+                conflicts = modelConflictDetector.findConflicts(
+                        name,
+                        namespace,
+                        path,
+                        replace ? name : null
+                );
+            } catch (RuntimeException inspectionFailure) {
+                return fail("BUNDLE_MODEL_CONFLICT_CHECK_FAILED",
+                        update ? "bundles.update" : "bundles.add",
+                        "Unable to verify model-name ownership before bundle registration.",
+                        "Check that the candidate and active bundle resources are readable, then retry.",
+                        false);
+            }
+            if (!conflicts.isEmpty()) {
+                return fail("BUNDLE_MODEL_NAME_CONFLICT",
+                        update ? "bundles.update" : "bundles.add",
+                        conflictMessage(namespace, conflicts),
+                        "Rename the conflicting TM/QM resources or remove the existing owning bundle.",
+                        false);
+            }
+        }
+
         boolean removedExisting = false;
         if (existsInRuntime) {
             if (!systemBundlesContext.removeBundle(name)) {
@@ -153,12 +190,6 @@ public class RuntimeBundlesController {
             removedExisting = true;
         }
 
-        String namespace = stringOr(
-                request != null ? request.namespace() : null,
-                stringOr(headerNamespace, existingRecord != null ? existingRecord.namespace() : "")
-        );
-        boolean watch = booleanOr(request != null ? request.watch() : null, existingRecord != null && existingRecord.watch());
-        boolean enabled = booleanOr(request != null ? request.enabled() : null, true);
         boolean registered = !enabled || systemBundlesContext.addExternalBundle(name, namespace, path, watch);
         if (!registered) {
             restoreRemovedExistingBundle(removedExisting, existingRecord);
@@ -178,6 +209,25 @@ public class RuntimeBundlesController {
         }
         BundleInfo info = infoFromRecord(record, enabled ? "active" : "disabled", null);
         return responses.ok(new BundleMutationResponse(info, warnings));
+    }
+
+    private static String conflictMessage(
+            String namespace,
+            List<ModelNameConflict> conflicts
+    ) {
+        List<String> descriptions = new ArrayList<>(conflicts.size());
+        for (ModelNameConflict conflict : conflicts) {
+            String ownerDescription = conflict.existingBundleNames().isEmpty()
+                    ? "duplicated within candidate bundle"
+                    : "owned by bundle(s) " + String.join(", ", conflict.existingBundleNames());
+            descriptions.add(conflict.type() + " " + conflict.modelName()
+                    + " (" + ownerDescription + ")");
+        }
+        String displayNamespace = StringUtils.hasText(namespace)
+                ? namespace.trim()
+                : "<default>";
+        return "Model-name conflict in namespace '" + displayNamespace + "': "
+                + String.join("; ", descriptions);
     }
 
     private void restoreRemovedExistingBundle(boolean removedExisting, RuntimeBundleRecord existingRecord) {
