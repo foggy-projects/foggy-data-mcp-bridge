@@ -43,10 +43,18 @@ public final class ComposeRuntimeBundle {
                 "ComposeRuntimeBundle.ctx is required");
         this.semanticService = b.semanticService;
         this.planningPort = Objects.requireNonNull(
-                b.planningPort != null ? b.planningPort : b.semanticService,
+                b.planningPort != null
+                        ? b.planningPort
+                        : b.semanticService == null
+                                ? null
+                                : SemanticQueryServiceV3.composePlanningPort(b.semanticService),
                 "ComposeRuntimeBundle.semanticService is required");
         this.executionPort = Objects.requireNonNull(
-                b.executionPort != null ? b.executionPort : b.semanticService,
+                b.executionPort != null
+                        ? b.executionPort
+                        : b.semanticService == null
+                                ? null
+                                : SemanticQueryServiceV3.composeExecutionPort(b.semanticService),
                 "ComposeRuntimeBundle.semanticService is required");
         this.dialect = b.dialect == null ? "mysql" : b.dialect;
         this.normalizePlan = b.normalizePlan;
@@ -72,8 +80,8 @@ public final class ComposeRuntimeBundle {
         public Builder ctx(ComposeQueryContext v) { this.ctx = v; return this; }
         public Builder semanticService(SemanticQueryServiceV3 v) {
             this.semanticService = v;
-            this.planningPort = v;
-            this.executionPort = v;
+            this.planningPort = v == null ? null : SemanticQueryServiceV3.composePlanningPort(v);
+            this.executionPort = v == null ? null : SemanticQueryServiceV3.composeExecutionPort(v);
             return this;
         }
         public Builder planningPort(ComposeSemanticPlanningPort v) { this.planningPort = v; return this; }

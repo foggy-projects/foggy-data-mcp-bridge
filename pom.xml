@@ -87,6 +87,7 @@
         <!-- Default fail-closed; authority runners may relax upstream selector misses,
              while the report verifier still enforces the exact target report set. -->
         <surefire.failIfNoTests>true</surefire.failIfNoTests>
+        <surefire.failIfNoSpecifiedTests>true</surefire.failIfNoSpecifiedTests>
         <failsafe.failIfNoTests>true</failsafe.failIfNoTests>
         <failsafe.failIfNoSpecifiedTests>true</failsafe.failIfNoSpecifiedTests>
         <maven-surefire-plugin.version>3.5.3</maven-surefire-plugin.version>
@@ -424,7 +425,7 @@
                         <exclude>**/MultiDatabaseQueryTest$*.java</exclude>
                     </excludes>
                     <failIfNoTests>${surefire.failIfNoTests}</failIfNoTests>
-                    <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+                    <failIfNoSpecifiedTests>${surefire.failIfNoSpecifiedTests}</failIfNoSpecifiedTests>
                 </configuration>
             </plugin>
             <plugin>

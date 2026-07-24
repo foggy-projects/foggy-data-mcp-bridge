@@ -145,7 +145,12 @@ public final class ScriptRuntime {
             CapabilityPolicy capabilityPolicy,
             SuspensionManager suspensionManager,
             boolean normalizePlan) {
-        return runScript(script, ctx, semanticService, semanticService, dialect,
+        if (semanticService == null) {
+            throw new IllegalArgumentException("semanticService must not be null");
+        }
+        return runScript(script, ctx,
+                SemanticQueryServiceV3.composePlanningPort(semanticService),
+                SemanticQueryServiceV3.composeExecutionPort(semanticService), dialect,
                 previewMode, capabilityRegistry, capabilityPolicy, suspensionManager, normalizePlan);
     }
 

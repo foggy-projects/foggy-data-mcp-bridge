@@ -71,7 +71,7 @@ public class ComposedDataSetResult implements PropertyFunction {
                                  Map<String, Object> rightParams,
                                  String joinType,
                                  String joinKey) {
-        this((ComposeSemanticPlanningPort) queryService, requestContext, dataSource,
+        this(SemanticQueryServiceV3.composePlanningPort(queryService), requestContext, dataSource,
                 leftParams, rightParams, joinType, joinKey);
     }
 

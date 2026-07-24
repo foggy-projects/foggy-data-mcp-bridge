@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -48,6 +49,22 @@ class DefaultComposeExecutionPortTest {
                     assertThat(e.kind()).isEqualTo(ComposeExecutionException.Kind.SANDBOX);
                     assertThat(e.code()).startsWith("compose-sandbox-violation/");
                 });
+    }
+
+    @Test
+    void requestParamsPreserveJsonNullValuesInAnImmutableSnapshot() {
+        Map<String, Object> source = new LinkedHashMap<>();
+        source.put("optionalFilter", null);
+
+        ComposeExecutionRequest request = request(
+                ComposeOperation.EXECUTE,
+                "return param('optionalFilter');",
+                source);
+        source.put("optionalFilter", "changed");
+
+        assertThat(request.params()).containsEntry("optionalFilter", null);
+        assertThatThrownBy(() -> request.params().put("other", 1))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private static ComposeExecutionRequest request(

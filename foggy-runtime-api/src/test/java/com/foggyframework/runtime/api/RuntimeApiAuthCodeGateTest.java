@@ -3,11 +3,13 @@ package com.foggyframework.runtime.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.security.RuntimeApiAuthInterceptor;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
@@ -61,6 +63,12 @@ class RuntimeApiAuthCodeGateTest {
 
     @MockitoBean
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @MockitoBean
+    private ComposeExecutionPort composeExecutionPort;
+
+    @MockitoBean
+    private DetachedModelValidationFactory detachedModelValidationFactory;
 
     @MockitoBean
     private SystemBundlesContext systemBundlesContext;

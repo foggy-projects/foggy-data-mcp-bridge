@@ -80,6 +80,24 @@ class TableModelProxyTest {
     }
 
     @Test
+    @DisplayName("aggregate relation as - 保留运行时 alias 但不改变公开字段名")
+    void testAggregateRelationAliasDoesNotQualifyPublicSchema() {
+        AggregateRelationProxy proxy = new AggregateRelationProxy("FactSalesModel");
+
+        Object result = proxy.invoke(null, "as", new Object[]{"salesByOrder"});
+
+        assertSame(proxy, result);
+        assertEquals("salesByOrder", proxy.getAlias());
+        assertFalse(proxy.hasExplicitAlias());
+        assertNull(proxy.getPublicQualifier());
+
+        DimensionProxy field = (DimensionProxy) proxy.getProperty("salesAmount");
+        ColumnRef ref = field.toColumnRef();
+        assertEquals("salesAmount", ref.getQualifiedAliasRef());
+        assertEquals("salesByOrder", ref.getTableAlias());
+    }
+
+    @Test
     @DisplayName("hasAlias - 空字符串视为无别名")
     void testHasAliasEmptyString() {
         TableModelProxy proxy = new TableModelProxy("FactOrderModel", "");

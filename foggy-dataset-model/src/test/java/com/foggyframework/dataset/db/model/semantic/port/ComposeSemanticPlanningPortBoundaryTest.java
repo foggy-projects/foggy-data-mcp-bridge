@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Answers.CALLS_REAL_METHODS;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -109,6 +111,19 @@ class ComposeSemanticPlanningPortBoundaryTest {
         assertEquals("stage1", bridged.cteStages().get(0).alias());
         assertTrue(bridged.diagnostics().containsKey("trace"));
         assertFalse(service.supportsFieldSqlResolution());
+    }
+
+    @Test
+    void legacyAdapterDoesNotDependOnDefaultMethodDispatch() {
+        SemanticQueryServiceV3 service = mock(SemanticQueryServiceV3.class);
+        when(service.generateSql(anyString(), any(), any()))
+                .thenReturn(new SqlGenerationResult("select 1", List.of(), null));
+
+        ComposeSqlGeneration generated = SemanticQueryServiceV3.composePlanningPort(service)
+                .generateComposeSql(
+                        "SalesQM", new SemanticQueryRequest(), SemanticRequestContext.empty());
+
+        assertEquals("select 1", generated.sql());
     }
 
     private static void assertFieldType(

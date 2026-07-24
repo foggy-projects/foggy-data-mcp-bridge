@@ -42,7 +42,11 @@ public final class RelationCompileOptions {
 
     private RelationCompileOptions(Builder b) {
         this.semanticService = b.semanticService;
-        this.planningPort = b.planningPort != null ? b.planningPort : b.semanticService;
+        this.planningPort = b.planningPort != null
+                ? b.planningPort
+                : b.semanticService == null
+                        ? null
+                        : SemanticQueryServiceV3.composePlanningPort(b.semanticService);
         this.bindings = b.bindings;
         this.modelInfoProvider = b.modelInfoProvider;
         this.datasourceIds = b.datasourceIds;
@@ -88,7 +92,7 @@ public final class RelationCompileOptions {
 
         public Builder semanticService(SemanticQueryServiceV3 v) {
             this.semanticService = v;
-            this.planningPort = v;
+            this.planningPort = v == null ? null : SemanticQueryServiceV3.composePlanningPort(v);
             return this;
         }
         public Builder planningPort(ComposeSemanticPlanningPort v) { this.planningPort = v; return this; }

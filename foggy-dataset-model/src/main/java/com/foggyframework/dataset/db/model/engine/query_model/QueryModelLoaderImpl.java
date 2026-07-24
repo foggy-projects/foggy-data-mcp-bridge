@@ -37,6 +37,7 @@ import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
 import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
 import com.foggyframework.dataset.db.model.lifecycle.port.StaleDatasourceBindingException;
+import com.foggyframework.dataset.db.model.proxy.AggregateRelationProxy;
 import com.foggyframework.dataset.db.model.proxy.ColumnRef;
 import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import com.foggyframework.dataset.db.model.proxy.JoinBuilder;
@@ -1095,8 +1096,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 if (scanGroup.getItems() == null) continue;
                 for (SelectColumnDef scanItem : scanGroup.getItems()) {
                     if (scanItem == null || StringUtils.isNotEmpty(scanItem.getFormula())) continue;
-                    String scanAliasRef = scanItem.getRefAsString();
-                    String scanLookupRef = scanItem.getRefForLookup();
+                    String scanAliasRef = getPublicAliasRef(qm, scanItem);
+                    String scanLookupRef = getPublicLookupRef(qm, scanItem);
                     boolean scanHasRef = StringUtils.isNotEmpty(scanAliasRef);
                     String scanDimRef = scanHasRef ? scanLookupRef : scanItem.getName();
                     String scanColumnName = scanHasRef ? scanAliasRef : scanItem.getName();
@@ -1155,9 +1156,9 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
                     // V2 格式：ref 可能是 ColumnRef 对象
                     // aliasRef: 使用 _ 分隔，用于列名/别名和列查找
-                    String aliasRef = item.getRefAsString();
+                    String aliasRef = getPublicAliasRef(qm, item);
                     // lookupRef: 使用 . 分隔，用于在 TableModel 中查找维度
-                    String lookupRef = item.getRefForLookup();
+                    String lookupRef = getPublicLookupRef(qm, item);
                     boolean hasRef = StringUtils.isNotEmpty(aliasRef);
 
                     // 如果有 ref 且没有显式指定 name/alias，使用 aliasRef 作为默认值
@@ -1193,6 +1194,43 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             qm.setColumnGroups(columnGroups);
             qm.setPredefinedCalculatedFields(predefined);
         }
+    }
+
+    /**
+     * Aggregate relation aliases are primarily SQL/runtime aliases.  Preserve the
+     * historical unqualified public schema unless more than one instance of the
+     * same source TableModel participates in the QM, where qualification is
+     * required to keep the fields unambiguous.
+     */
+    private String getPublicAliasRef(QueryModelSupport qm, SelectColumnDef item) {
+        ColumnRef ref = item.getRefAsColumnRef();
+        if (!requiresAggregateRelationQualifier(qm, ref)) {
+            return item.getRefAsString();
+        }
+        return ref.getTableAlias() + "." + ref.getAliasRef();
+    }
+
+    private String getPublicLookupRef(QueryModelSupport qm, SelectColumnDef item) {
+        ColumnRef ref = item.getRefAsColumnRef();
+        if (!requiresAggregateRelationQualifier(qm, ref)) {
+            return item.getRefForLookup();
+        }
+        return ref.getTableAlias() + "." + ref.getFullRef();
+    }
+
+    private boolean requiresAggregateRelationQualifier(QueryModelSupport qm, ColumnRef ref) {
+        if (ref == null
+                || !(ref.getTableModelProxy() instanceof AggregateRelationProxy)
+                || StringUtils.isEmpty(ref.getTableAlias())
+                || qm.getJdbcModelList() == null) {
+            return false;
+        }
+        long sameModelParticipants = qm.getJdbcModelList().stream()
+                .filter(Objects::nonNull)
+                .filter(model -> StringUtils.equals(model.getName(), ref.getModelName()))
+                .limit(2)
+                .count();
+        return sameModelParticipants > 1;
     }
 
     /**

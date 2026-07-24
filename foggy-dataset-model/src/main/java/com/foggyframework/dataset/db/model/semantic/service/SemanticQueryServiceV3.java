@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.semantic.port.SemanticSqlGeneration;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -72,10 +73,51 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, Com
     SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                     SemanticRequestContext context);
 
+    /**
+     * Adapt the legacy service contract to the narrow Compose planning port.
+     *
+     * <p>The adapter calls {@link #generateSql} explicitly instead of relying
+     * on interface-default dispatch. This keeps existing mocks and dynamic
+     * proxies compatible when callers enter through a legacy
+     * {@code SemanticQueryServiceV3} overload.</p>
+     */
+    static ComposeSemanticPlanningPort composePlanningPort(SemanticQueryServiceV3 service) {
+        Objects.requireNonNull(service, "semanticService must not be null");
+        return new ComposeSemanticPlanningPort() {
+            @Override
+            public ComposeSqlGeneration generateComposeSql(
+                    String model, SemanticQueryRequest request, SemanticRequestContext context) {
+                return toComposeSqlGeneration(service.generateSql(model, request, context));
+            }
+
+            @Override
+            public Optional<String> resolveFieldSqlExpression(
+                    String model, String field, String namespace) {
+                return service.resolveFieldSqlExpression(model, field, namespace);
+            }
+
+            @Override
+            public boolean supportsFieldSqlResolution() {
+                return service.supportsFieldSqlResolution();
+            }
+        };
+    }
+
+    /**
+     * Adapt the legacy raw-SQL method to the narrow Compose execution port.
+     */
+    static ComposeSqlExecutionPort composeExecutionPort(SemanticQueryServiceV3 service) {
+        Objects.requireNonNull(service, "semanticService must not be null");
+        return service::executeSql;
+    }
+
     @Override
     default ComposeSqlGeneration generateComposeSql(
             String model, SemanticQueryRequest request, SemanticRequestContext context) {
-        SqlGenerationResult result = generateSql(model, request, context);
+        return toComposeSqlGeneration(generateSql(model, request, context));
+    }
+
+    private static ComposeSqlGeneration toComposeSqlGeneration(SqlGenerationResult result) {
         if (result == null) {
             return null;
         }

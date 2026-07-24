@@ -116,8 +116,16 @@ public final class ComposeScriptService {
             this.script = b.script;
             this.ctx = b.ctx;
             this.semanticService = b.semanticService;
-            this.planningPort = b.planningPort != null ? b.planningPort : b.semanticService;
-            this.executionPort = b.executionPort != null ? b.executionPort : b.semanticService;
+            this.planningPort = b.planningPort != null
+                    ? b.planningPort
+                    : b.semanticService == null
+                            ? null
+                            : SemanticQueryServiceV3.composePlanningPort(b.semanticService);
+            this.executionPort = b.executionPort != null
+                    ? b.executionPort
+                    : b.semanticService == null
+                            ? null
+                            : SemanticQueryServiceV3.composeExecutionPort(b.semanticService);
             this.dialect = b.dialect;
             this.capabilityRegistry = b.capabilityRegistry;
             this.capabilityPolicy = b.capabilityPolicy;
@@ -157,8 +165,8 @@ public final class ComposeScriptService {
             public Builder ctx(ComposeQueryContext v) { this.ctx = v; return this; }
             public Builder semanticService(SemanticQueryServiceV3 v) {
                 this.semanticService = v;
-                this.planningPort = v;
-                this.executionPort = v;
+                this.planningPort = v == null ? null : SemanticQueryServiceV3.composePlanningPort(v);
+                this.executionPort = v == null ? null : SemanticQueryServiceV3.composeExecutionPort(v);
                 return this;
             }
             public Builder planningPort(ComposeSemanticPlanningPort v) { this.planningPort = v; return this; }

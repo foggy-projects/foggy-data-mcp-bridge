@@ -109,6 +109,14 @@ final class PerBaseCompiler {
                         ex);
             }
 
+            if (buildResult == null) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.PER_BASE_COMPILE_FAILED,
+                        ComposeCompileErrorCodes.PHASE_COMPILE,
+                        "v1.3 engine build failed for model '" + plan.model()
+                                + "': semantic planning port returned null");
+            }
+
             if (governanceCache != null) {
                 governanceCache.put(cacheKey, buildResult);
             }

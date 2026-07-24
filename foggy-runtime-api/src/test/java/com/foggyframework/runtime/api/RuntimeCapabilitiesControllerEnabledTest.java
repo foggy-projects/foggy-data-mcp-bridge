@@ -25,7 +25,7 @@ import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
-import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
+import com.foggyframework.dataset.db.model.validation.DefaultDetachedModelValidationFactory;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
@@ -104,9 +104,6 @@ class RuntimeCapabilitiesControllerEnabledTest {
 
     @MockitoBean
     private CatalogRefreshCoordinator catalogRefreshCoordinator;
-
-    @MockitoBean
-    private DetachedModelValidationFactory detachedModelValidationFactory;
 
     @Autowired
     private NamedDataSourceResolver namedDataSourceResolver;
@@ -1835,7 +1832,10 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @SpringBootApplication(scanBasePackages = "com.foggyframework.runtime.api")
-    @Import(DefaultComposeExecutionPort.class)
+    @Import({
+            DefaultComposeExecutionPort.class,
+            DefaultDetachedModelValidationFactory.class
+    })
     static class TestApplication {
     }
 }

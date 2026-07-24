@@ -1,4 +1,4 @@
-package com.foggyframework.runtime.api.service;
+package com.foggyframework.dataset.db.model.validation;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -17,7 +17,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-class RuntimeDetachedModelValidatorBuilderTest {
+class DetachedModelValidationSessionBuilderTest {
 
     @Test
     void mixedRegistryCopiesJdbcBuilderAndIgnoresUnrelatedBuilder() {
@@ -42,7 +42,7 @@ class RuntimeDetachedModelValidatorBuilderTest {
         QueryModelBuilder unrelated = (definition, fsscript) -> null;
 
         List<QueryModelBuilder> detached =
-                RuntimeDetachedModelValidator.detachedQueryModelBuilders(
+                DetachedModelValidationSessionImpl.detachedQueryModelBuilders(
                         List.of(unrelated, liveJdbc),
                         detachedTableManager,
                         detachedBundlesContext,
