@@ -9,11 +9,11 @@ import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.dataset.db.model.def.DbModelDef;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
-import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelBuilder;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
 import com.foggyframework.dataset.db.model.proxy.LoadTableModelFunction;
+import com.foggyframework.dataset.db.model.spi.DetachedQueryModelBuilderFactory;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoader;
@@ -22,7 +22,6 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.loadder.RootFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.springframework.beans.DirectFieldAccessor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.Resource;
@@ -181,12 +180,12 @@ final class RuntimeDetachedModelValidator implements AutoCloseable {
             TableModelLoaderManagerImpl detachedTableManager,
             CatalogSnapshotStore detachedCatalog
     ) {
-        List<QueryModelBuilder> builders = new ArrayList<>();
-        if (live.getQueryModelBuilders() != null) {
-            for (QueryModelBuilder builder : live.getQueryModelBuilders()) {
-                builders.add(detachedQueryModelBuilder(builder, detachedTableManager));
-            }
-        }
+        List<QueryModelBuilder> builders = detachedQueryModelBuilders(
+                live.getQueryModelBuilders(),
+                detachedTableManager,
+                detachedBundlesContext,
+                fileFsscriptLoader
+        );
         QueryModelLoaderImpl detached = new QueryModelLoaderImpl(
                 detachedTableManager,
                 detachedBundlesContext,
@@ -200,33 +199,33 @@ final class RuntimeDetachedModelValidator implements AutoCloseable {
         return detached;
     }
 
-    private QueryModelBuilder detachedQueryModelBuilder(
-            QueryModelBuilder live,
-            TableModelLoaderManager detachedTableManager
+    static List<QueryModelBuilder> detachedQueryModelBuilders(
+            List<QueryModelBuilder> liveBuilders,
+            TableModelLoaderManager detachedTableManager,
+            SystemBundlesContext detachedBundlesContext,
+            FileFsscriptLoader detachedFileFsscriptLoader
     ) {
-        if (!(live instanceof JdbcQueryModelBuilder)) {
-            throw new IllegalStateException(
-                    "QueryModelBuilder does not support detached Runtime validation: "
-                            + live.getClass().getName());
+        if (liveBuilders == null || liveBuilders.isEmpty()) {
+            return List.of();
         }
-
-        JdbcQueryModelBuilder detached = new JdbcQueryModelBuilder();
-        DirectFieldAccessor source = new DirectFieldAccessor(live);
-        DirectFieldAccessor target = new DirectFieldAccessor(detached);
-        target.setPropertyValue("tableModelLoaderManager", detachedTableManager);
-        copyField(source, target, "sqlFormulaService");
-        copyField(source, target, "defaultDataSource");
-        copyField(source, target, "sqlLoggingInterceptor");
-        copyField(source, target, "queryExecutionStepExecutor");
-        return detached;
-    }
-
-    private static void copyField(
-            DirectFieldAccessor source,
-            DirectFieldAccessor target,
-            String field
-    ) {
-        target.setPropertyValue(field, source.getPropertyValue(field));
+        List<QueryModelBuilder> detachedBuilders = new ArrayList<>();
+        for (QueryModelBuilder liveBuilder : liveBuilders) {
+            if (!(liveBuilder instanceof DetachedQueryModelBuilderFactory factory)) {
+                continue;
+            }
+            QueryModelBuilder detached = factory.createDetachedQueryModelBuilder(
+                    detachedTableManager,
+                    detachedBundlesContext,
+                    detachedFileFsscriptLoader
+            );
+            if (detached == null) {
+                throw new IllegalStateException(
+                        "Detached QueryModelBuilder factory returned null: "
+                                + liveBuilder.getClass().getName());
+            }
+            detachedBuilders.add(detached);
+        }
+        return List.copyOf(detachedBuilders);
     }
 
     private void validateTableDefinition(BundleResource resource) {

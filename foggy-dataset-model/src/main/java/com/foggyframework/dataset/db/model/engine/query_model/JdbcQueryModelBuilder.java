@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.query_model;
 
+import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
@@ -11,6 +12,7 @@ import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.db.model.proxy.*;
 import com.foggyframework.dataset.db.model.spi.*;
+import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import jakarta.annotation.Resource;
 import jakarta.persistence.criteria.JoinType;
@@ -48,7 +50,7 @@ import java.util.*;
 @Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
-public class JdbcQueryModelBuilder implements QueryModelBuilder {
+public class JdbcQueryModelBuilder implements QueryModelBuilder, DetachedQueryModelBuilderFactory {
 
     @Resource
     private TableModelLoaderManager tableModelLoaderManager;
@@ -74,6 +76,21 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
      * 错误收集器
      */
     private final ThreadLocal<List<String>> errorsLocal = ThreadLocal.withInitial(ArrayList::new);
+
+    @Override
+    public QueryModelBuilder createDetachedQueryModelBuilder(
+            TableModelLoaderManager tableModelLoaderManager,
+            SystemBundlesContext systemBundlesContext,
+            FileFsscriptLoader fileFsscriptLoader
+    ) {
+        JdbcQueryModelBuilder detached = new JdbcQueryModelBuilder();
+        detached.tableModelLoaderManager = tableModelLoaderManager;
+        detached.sqlFormulaService = sqlFormulaService;
+        detached.defaultDataSource = defaultDataSource;
+        detached.sqlLoggingInterceptor = sqlLoggingInterceptor;
+        detached.queryExecutionStepExecutor = queryExecutionStepExecutor;
+        return detached;
+    }
 
     @Override
     public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript) {

@@ -10,9 +10,11 @@ import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
+import com.foggyframework.dataset.db.model.spi.DetachedQueryModelBuilderFactory;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModelLoader;
+import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import com.mongodb.client.MongoClient;
@@ -33,7 +35,8 @@ import java.util.Set;
  * 目前 mongo 不考虑维度的实现。
  */
 @Slf4j
-public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader, QueryModelBuilder {
+public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader,
+        QueryModelBuilder, DetachedQueryModelBuilderFactory {
 
     @Resource
     DataSource defaultDataSource;
@@ -124,6 +127,22 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
     @Override
     public String getTypeName() {
         return "mongo";
+    }
+
+    @Override
+    public QueryModelBuilder createDetachedQueryModelBuilder(
+            TableModelLoaderManager tableModelLoaderManager,
+            SystemBundlesContext systemBundlesContext,
+            FileFsscriptLoader fileFsscriptLoader
+    ) {
+        TmMongoModelLoaderImpl detached = new TmMongoModelLoaderImpl(
+                systemBundlesContext,
+                fileFsscriptLoader
+        );
+        detached.defaultDataSource = defaultDataSource;
+        detached.defaultMongoTemplate = defaultMongoTemplate;
+        detached.defaultMongoClient = defaultMongoClient;
+        return detached;
     }
 
     private String fixName(String column, String name) {

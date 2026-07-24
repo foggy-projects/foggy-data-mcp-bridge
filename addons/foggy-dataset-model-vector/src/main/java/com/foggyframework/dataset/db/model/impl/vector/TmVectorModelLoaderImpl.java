@@ -11,9 +11,11 @@ import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.spi.DbModelType;
+import com.foggyframework.dataset.db.model.spi.DetachedQueryModelBuilderFactory;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.TableModelLoader;
+import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +42,8 @@ import java.util.Set;
  * @since 1.0.0
  */
 @Slf4j
-public class TmVectorModelLoaderImpl extends LoaderSupport implements TableModelLoader, QueryModelBuilder {
+public class TmVectorModelLoaderImpl extends LoaderSupport implements TableModelLoader,
+        QueryModelBuilder, DetachedQueryModelBuilderFactory {
 
     @Value("${foggy.vector.host:localhost}")
     private String vectorHost;
@@ -190,6 +193,32 @@ public class TmVectorModelLoaderImpl extends LoaderSupport implements TableModel
     @Override
     public String getTypeName() {
         return "vector";
+    }
+
+    @Override
+    public QueryModelBuilder createDetachedQueryModelBuilder(
+            TableModelLoaderManager tableModelLoaderManager,
+            SystemBundlesContext systemBundlesContext,
+            FileFsscriptLoader fileFsscriptLoader
+    ) {
+        TmVectorModelLoaderImpl detached = new TmVectorModelLoaderImpl(
+                systemBundlesContext,
+                fileFsscriptLoader
+        );
+        detached.vectorHost = vectorHost;
+        detached.vectorPort = vectorPort;
+        detached.vectorDatabase = vectorDatabase;
+        detached.vectorUsername = vectorUsername;
+        detached.vectorPassword = vectorPassword;
+        detached.autoDiscovery = autoDiscovery;
+        detached.poolSize = poolSize;
+        detached.poolMaxWaitMs = poolMaxWaitMs;
+        detached.embeddingType = embeddingType;
+        detached.embeddingBaseUrl = embeddingBaseUrl;
+        detached.embeddingApiKey = embeddingApiKey;
+        detached.embeddingModel = embeddingModel;
+        detached.embeddingDimensions = embeddingDimensions;
+        return detached;
     }
 
     @Override
