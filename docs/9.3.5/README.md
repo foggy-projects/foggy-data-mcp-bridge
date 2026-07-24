@@ -38,6 +38,9 @@ classification-debt migration 是 9.3.5 的第一项执行工作；其 closure �
 
 - [只读代码与 API 基线](code-inventory.md)
 - [Gate 0 分类债务决策包](gate-0-classification-decision-record.md)
+- [v934 Release Gate dry-run/canary、checkpoint/resume 与 WSL execution capsule](workitems/OPT-v934-release-gate-checkpoint-resume-wsl-capsule.md)：
+  已批准的 9.3.5 build/release 优化契约；包含无副作用预检、固定样本 canary、断点恢复、单 run 编译检查点、WSL 不可变数据库 seed 和隔离执行；仅在 9.3.4 version signoff、Gate 0 关闭且 v934 runner
+  无并行 owner 后实施，不改变当前 planning-only 状态。
 - 版本路线图：[9.3.1 → 9.4.0 迭代顺序评审](../9.3.1/roadmap-9.3.1-to-9.4.0.md)
 - Gate 0 债务：[Unit MySQL 5.7 fixture 分类迁移](../9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md)
 
