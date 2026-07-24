@@ -1,6 +1,13 @@
 package com.foggyframework.dataset.db.model.semantic.port;
 
+import com.foggyframework.dataset.db.model.engine.compose.ComposedDataSetResult;
+import com.foggyframework.dataset.db.model.engine.compose.DataSetResult;
+import com.foggyframework.dataset.db.model.engine.compose.DslQueryFunction;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler;
+import com.foggyframework.dataset.db.model.engine.compose.compilation.RelationCompileOptions;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
@@ -38,6 +45,26 @@ class ComposeSemanticPlanningPortBoundaryTest {
         Field service = compileState.getDeclaredField("planningPort");
 
         assertEquals(ComposeSemanticPlanningPort.class, service.getType());
+    }
+
+    @Test
+    void composeCompilerRuntimeAndLegacyBridgeStoreOnlyNarrowPlanningPorts() throws Exception {
+        assertFieldType(ComposeSqlCompiler.CompileOptions.class,
+                "planningPort", ComposeSemanticPlanningPort.class);
+        assertFieldType(RelationCompileOptions.class,
+                "planningPort", ComposeSemanticPlanningPort.class);
+        assertFieldType(ComposeRuntimeBundle.class,
+                "planningPort", ComposeSemanticPlanningPort.class);
+        assertFieldType(ComposeScriptService.ComposeScriptRequest.class,
+                "planningPort", ComposeSemanticPlanningPort.class);
+        assertFieldType(ComposedDataSetResult.class,
+                "planningPort", ComposeSemanticPlanningPort.class);
+        assertFieldType(DataSetResult.ComposeContext.class,
+                "planningPort", ComposeSemanticPlanningPort.class);
+        assertFieldType(DslQueryFunction.class,
+                "planningPort", ComposeSemanticPlanningPort.class);
+        assertFieldType(DslQueryFunction.class,
+                "queryExecutionPort", SemanticQueryExecutionPort.class);
     }
 
     @Test
@@ -82,5 +109,11 @@ class ComposeSemanticPlanningPortBoundaryTest {
         assertEquals("stage1", bridged.cteStages().get(0).alias());
         assertTrue(bridged.diagnostics().containsKey("trace"));
         assertFalse(service.supportsFieldSqlResolution());
+    }
+
+    private static void assertFieldType(
+            Class<?> owner, String fieldName, Class<?> expectedType) throws Exception {
+        assertEquals(expectedType, owner.getDeclaredField(fieldName).getType(),
+                owner.getName() + "#" + fieldName);
     }
 }

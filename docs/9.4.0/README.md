@@ -1,7 +1,7 @@
 ---
 doc_role: version_execution_index
 version: 9.4.0
-status: queued-behind-9.3.5-development / speed-forward
+status: implementation-in-progress / speed-forward
 entry_gate: 9.3.5-development-complete
 validation_mode: affected-tests-then-one-integrated-acceptance
 recorded_at: 2026-07-24
@@ -14,6 +14,8 @@ recorded_at: 2026-07-24
 9.4.0 在 9.3.5 开发目标完成后立即开始，不等待独立的 9.3.5 version acceptance。
 实施按小切片推进，每个切片通过受影响测试即可继续；只在全部 9.4.0 开发目标完成后
 安排一次跨版本整体验收。
+
+9.3.5 已完成并通过收口 boundary/compatibility/phase tests，当前进入模块与 SPI v2 起始盘点。
 
 ## 开工依赖
 

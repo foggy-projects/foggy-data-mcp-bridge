@@ -84,8 +84,9 @@ open_questions: []
 
 - [x] classification debt 关闭，临时例外删除，相关测试通过。
 - [x] 外部查询入口和 DTO 收敛，未批准 bypass 清零。
-- [ ] 无新增包循环；pivot/compose/semantic 的目标反向依赖已拆除。
-- [ ] 受影响模块测试、公共 API compatibility tests 和阶段轨迹回归通过。
+- [x] 未形成第二个新增 cyclic SCC；pivot/compose/semantic 的目标核心反向依赖已拆除，旧完整
+  service 引用仅保留在兼容签名。既有单体 SCC 的物理切断进入 9.4.0 模块抽取。
+- [x] 受影响模块测试、公共 API compatibility tests 和阶段轨迹回归通过。
 
 ### 9.4.0 Development Complete
 

@@ -1,7 +1,7 @@
 ---
 doc_role: version_execution_index
 version: 9.3.5
-status: ready / speed-forward
+status: development-complete / speed-forward
 entry_gate: 9.3.4-owner-carried-forward
 first_execution_gate: Gate-0-classification-debt-migration-closed
 validation_mode: affected-tests
@@ -15,7 +15,8 @@ recorded_at: 2026-07-24
 
 9.3.5 已按 repository owner 的 speed-forward 决定开放实施。9.3.4 使用既有证据
 carry forward，不再等待 replacement Step 7、final authority pointer 或独立 version signoff。
-Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内部端口收敛。
+Gate 0 已通过受影响测试关闭，公共 API、内部端口、bypass 与目标反向依赖切片均已完成；
+9.3.5 不单独等待版本级验收，现已进入 9.4.0 模块化实施。
 
 ## 当前进度
 
@@ -64,6 +65,13 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   `ComposeSemanticPlanningPort` 与 engine-neutral `ComposeSqlGeneration`；`DataSetResult.ComposeContext`
   内部传递 planning port，旧 semantic service 构造和 getter 继续兼容，DataSource 方言选择与组合 SQL
   执行行为未改变。
+- Compose compiler/planner/runtime、legacy DSL bridge 与 Pivot pipeline 的核心存储字段已通过反射式
+  architecture tests 锁定为窄端口；完整 `SemanticQueryServiceV3` 残留仅位于 deprecated/compatibility
+  构造、builder、getter 或 overload，不再作为目标核心路径依赖。
+- 基于 Java import package graph 对 `3b1c7249...` 与当前源码进行差分：两者均只有 1 个继承自
+  `foggy-dataset-model` 单体结构的 cyclic SCC，未形成第二个新增循环。新端口包暂时并入该既有 SCC；
+  其物理切断由紧随其后的 9.4.0 `model-api/core/jdbc/starter/web` 单向模块抽取完成，不在 9.3.5
+  通过破坏兼容签名或机械搬包伪造去环。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
   33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
@@ -78,8 +86,10 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   real-SQL parity 3/3 通过；Compose runtime 双端口切片定向回归 64/64，脚本资源、快照与
   derived/join/union SQLite real-SQL parity 7/7 通过；legacy DataSetResult/DSL bridge 窄口切片编译
   通过，unit/compatibility 73/73，真实 SQLite withJoin 与 F4 column-object 路径 19/19 通过。
-- 当前执行切片：复核 Compose/Pivot/Semantic 的残余依赖方向和包循环，关闭 9.3.5 反向依赖目标
-  后进入 9.4.0 SPI v2 模块化切片。
+- 9.3.5 收口复跑：公共 facade/Compose/Pivot architecture boundary、legacy DSL port 与
+  `QueryExecutionPhase` phase/loop/order 轨迹共 30/30 通过。
+- 当前执行切片：9.4.0 模块与 SPI v2 实施起始盘点，随后按
+  `model-api → model-core → model-jdbc → model-starter → model-web` 渐进抽取。
 
 ## 已确认目标
 
