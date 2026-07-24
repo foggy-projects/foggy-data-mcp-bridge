@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.PivotOuterCacheEvictionPort;
 import org.springframework.beans.factory.ObjectProvider;
 
 /**
@@ -8,11 +8,11 @@ import org.springframework.beans.factory.ObjectProvider;
  */
 public class LocalPivotOuterCacheInvalidationBroadcaster implements PivotOuterCacheInvalidationBroadcaster {
 
-    private final ObjectProvider<SemanticQueryServiceV3> semanticQueryServiceProvider;
+    private final ObjectProvider<PivotOuterCacheEvictionPort> evictionPortProvider;
 
     public LocalPivotOuterCacheInvalidationBroadcaster(
-            ObjectProvider<SemanticQueryServiceV3> semanticQueryServiceProvider) {
-        this.semanticQueryServiceProvider = semanticQueryServiceProvider;
+            ObjectProvider<PivotOuterCacheEvictionPort> evictionPortProvider) {
+        this.evictionPortProvider = evictionPortProvider;
     }
 
     @Override
@@ -24,11 +24,11 @@ public class LocalPivotOuterCacheInvalidationBroadcaster implements PivotOuterCa
     public PivotOuterCacheInvalidationResult evict(PivotOuterCacheInvalidationEvent event) {
         PivotOuterCacheInvalidationEvent scoped =
                 event == null ? PivotOuterCacheInvalidationEvent.all() : event;
-        SemanticQueryServiceV3 service = semanticQueryServiceProvider.getIfAvailable();
-        if (service == null) {
-            return PivotOuterCacheInvalidationResult.unavailable("SemanticQueryServiceV3 is unavailable");
+        PivotOuterCacheEvictionPort evictionPort = evictionPortProvider.getIfAvailable();
+        if (evictionPort == null) {
+            return PivotOuterCacheInvalidationResult.unavailable("PivotOuterCacheEvictionPort is unavailable");
         }
         return PivotOuterCacheInvalidationResult.local(
-                service.evictPivotOuterCache(scoped.namespace(), scoped.model()));
+                evictionPort.evictPivotOuterCache(scoped.namespace(), scoped.model()));
     }
 }

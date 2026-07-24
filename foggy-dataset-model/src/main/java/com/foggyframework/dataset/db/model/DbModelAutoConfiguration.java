@@ -14,6 +14,7 @@ import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeH
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
 import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.PivotOuterCacheEvictionPort;
 import com.foggyframework.dataset.db.model.semantic.service.DefaultComposeExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.impl.loader.JdbcTableModelLoaderImpl;
@@ -246,8 +247,8 @@ public class DbModelAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(PivotOuterCacheInvalidationBroadcaster.class)
     public PivotOuterCacheInvalidationBroadcaster pivotOuterCacheInvalidationBroadcaster(
-            ObjectProvider<SemanticQueryServiceV3> semanticQueryServiceProvider) {
-        return new LocalPivotOuterCacheInvalidationBroadcaster(semanticQueryServiceProvider);
+            ObjectProvider<PivotOuterCacheEvictionPort> evictionPortProvider) {
+        return new LocalPivotOuterCacheInvalidationBroadcaster(evictionPortProvider);
     }
 
     @Bean

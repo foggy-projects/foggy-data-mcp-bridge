@@ -22,7 +22,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.pivot.MetricFilter;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.PivotRollupExecutionPort;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
@@ -53,7 +53,7 @@ public class PivotPipeline {
     private static final Logger logger = LoggerFactory.getLogger(PivotPipeline.class);
     private static final int AXIS_DOMAIN_TRANSPORT_THRESHOLD = 500;
 
-    private final SemanticQueryServiceV3 semanticQueryService;
+    private final PivotRollupExecutionPort pivotRollupExecutionPort;
     private final CardinalityBreaker cardinalityBreaker;
     private final QueryModelLoader queryModelLoader;
     private final ManagedRelationExecutionPort queryFacade;
@@ -61,44 +61,46 @@ public class PivotPipeline {
     private final OuterCacheOptions outerCacheOptions;
     private final PivotOuterCacheModelIdentityProvider modelIdentityProvider;
 
-    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService) {
-        this(semanticQueryService, new CardinalityBreaker(), null, null);
+    public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort) {
+        this(pivotRollupExecutionPort, new CardinalityBreaker(), null, null);
     }
 
-    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService, CardinalityBreaker cardinalityBreaker) {
-        this(semanticQueryService, cardinalityBreaker, null, null);
+    public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort,
+                         CardinalityBreaker cardinalityBreaker) {
+        this(pivotRollupExecutionPort, cardinalityBreaker, null, null);
     }
 
-    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
+    public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader) {
-        this(semanticQueryService, cardinalityBreaker, queryModelLoader, null);
+        this(pivotRollupExecutionPort, cardinalityBreaker, queryModelLoader, null);
     }
 
-    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
+    public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader,
                          ManagedRelationExecutionPort queryFacade) {
-        this(semanticQueryService, cardinalityBreaker, queryModelLoader, queryFacade, OuterCacheOptions.disabled());
+        this(pivotRollupExecutionPort, cardinalityBreaker, queryModelLoader, queryFacade,
+                OuterCacheOptions.disabled());
     }
 
-    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
+    public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader,
                          ManagedRelationExecutionPort queryFacade,
                          OuterCacheOptions outerCacheOptions) {
-        this(semanticQueryService, cardinalityBreaker, queryModelLoader, queryFacade, outerCacheOptions,
+        this(pivotRollupExecutionPort, cardinalityBreaker, queryModelLoader, queryFacade, outerCacheOptions,
                 PivotOuterCacheModelIdentityProvider.empty(), null);
     }
 
-    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
+    public PivotPipeline(PivotRollupExecutionPort pivotRollupExecutionPort,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader,
                          ManagedRelationExecutionPort queryFacade,
                          OuterCacheOptions outerCacheOptions,
                          PivotOuterCacheModelIdentityProvider modelIdentityProvider,
                          PivotOuterCacheProvider outerResponseCache) {
-        this.semanticQueryService = semanticQueryService;
+        this.pivotRollupExecutionPort = pivotRollupExecutionPort;
         this.cardinalityBreaker = cardinalityBreaker;
         this.queryModelLoader = queryModelLoader;
         this.queryFacade = queryFacade;
@@ -431,7 +433,7 @@ public class PivotPipeline {
                 List<RollupGrain> grains = RollupGrainEnumerator.enumerate(rowFields, colFields, options);
                 logger.debug("[Pivot] Phase 2.4: Auxiliary rollup queries, {} grains", grains.size());
 
-                NonAdditiveRollupExecutor executor = new NonAdditiveRollupExecutor(semanticQueryService);
+                NonAdditiveRollupExecutor executor = new NonAdditiveRollupExecutor(pivotRollupExecutionPort);
                 try {
                     rollupCache = executor.execute(model, request, context,
                             grains, rollupPlans, rowFields, colFields, rowDomain, colDomain);
@@ -744,7 +746,7 @@ public class PivotPipeline {
         flatRequest.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT * CardinalityBreaker.DEFAULT_COL_LIMIT);
         flatRequest.setReturnTotal(false);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(model, flatRequest, "execute", context);
+        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, flatRequest, "execute", context);
         return response.getItems() != null ? response.getItems() : Collections.emptyList();
     }
 
@@ -969,7 +971,7 @@ public class PivotPipeline {
         domainRequest.setLimit(applyWindow ? resolveAxisDomainQueryLimit(axisField) : CardinalityBreaker.DEFAULT_ROW_LIMIT);
         domainRequest.setReturnTotal(false);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(model, domainRequest, "execute", context);
+        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(model, domainRequest, "execute", context);
         List<Map<String, Object>> domainRows = response.getItems() != null
                 ? new ArrayList<>(response.getItems())
                 : new ArrayList<>();
@@ -1576,7 +1578,7 @@ public class PivotPipeline {
 
             logger.debug("[Pivot] Property lookup: dim={}, fields={}", dimName, selectFields);
 
-            SemanticQueryResponse response = semanticQueryService.queryModel(
+            SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(
                     model, lookupRequest, "execute", context);
 
             List<Map<String, Object>> lookupRows = response.getItems() != null
@@ -1615,7 +1617,7 @@ public class PivotPipeline {
         logger.debug("[Pivot] Hierarchy skeleton: SELECT DISTINCT {}, {} FROM {}",
                 idField, parentField, model);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(
+        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(
                 model, skeletonRequest, "execute", context);
 
         List<Map<String, Object>> rows = response.getItems() != null

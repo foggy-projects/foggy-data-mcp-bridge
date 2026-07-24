@@ -3,7 +3,7 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.PivotOuterCacheEvictionPort;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import org.junit.jupiter.api.DisplayName;
@@ -53,21 +53,15 @@ class PivotOuterCacheOperationalSpiTest {
     }
 
     @Test
-    @DisplayName("local invalidation broadcaster delegates to semantic service")
-    void testLocalInvalidationBroadcasterDelegatesToSemanticService() {
-        SemanticQueryServiceV3 service = (SemanticQueryServiceV3) Proxy.newProxyInstance(
-                SemanticQueryServiceV3.class.getClassLoader(),
-                new Class<?>[]{SemanticQueryServiceV3.class},
-                (proxy, method, args) -> {
-                    if ("evictPivotOuterCache".equals(method.getName())) {
-                        assertEquals("ns-a", args[0]);
-                        assertEquals("SalesQM", args[1]);
-                        return 7;
-                    }
-                    throw new UnsupportedOperationException(method.getName());
-                });
+    @DisplayName("local invalidation broadcaster delegates to eviction port")
+    void testLocalInvalidationBroadcasterDelegatesToEvictionPort() {
+        PivotOuterCacheEvictionPort evictionPort = (namespace, model) -> {
+            assertEquals("ns-a", namespace);
+            assertEquals("SalesQM", model);
+            return 7;
+        };
         LocalPivotOuterCacheInvalidationBroadcaster broadcaster =
-                new LocalPivotOuterCacheInvalidationBroadcaster(provider(service));
+                new LocalPivotOuterCacheInvalidationBroadcaster(provider(evictionPort));
 
         assertEquals(7, broadcaster.evict("ns-a", "SalesQM"));
     }
@@ -85,7 +79,7 @@ class PivotOuterCacheOperationalSpiTest {
         assertEquals(1, result.attemptedNodes());
         assertEquals(0, result.succeededNodes());
         assertEquals(1, result.failedNodes());
-        assertTrue(result.errors().get(0).contains("SemanticQueryServiceV3"));
+        assertTrue(result.errors().get(0).contains("PivotOuterCacheEvictionPort"));
     }
 
     private SystemBundlesContext bundleContext(Map<String, String> resources) {
@@ -152,26 +146,26 @@ class PivotOuterCacheOperationalSpiTest {
                 });
     }
 
-    private ObjectProvider<SemanticQueryServiceV3> provider(SemanticQueryServiceV3 service) {
+    private ObjectProvider<PivotOuterCacheEvictionPort> provider(PivotOuterCacheEvictionPort evictionPort) {
         return new ObjectProvider<>() {
             @Override
-            public SemanticQueryServiceV3 getObject(Object... args) {
-                return service;
+            public PivotOuterCacheEvictionPort getObject(Object... args) {
+                return evictionPort;
             }
 
             @Override
-            public SemanticQueryServiceV3 getIfAvailable() {
-                return service;
+            public PivotOuterCacheEvictionPort getIfAvailable() {
+                return evictionPort;
             }
 
             @Override
-            public SemanticQueryServiceV3 getIfUnique() {
-                return service;
+            public PivotOuterCacheEvictionPort getIfUnique() {
+                return evictionPort;
             }
 
             @Override
-            public SemanticQueryServiceV3 getObject() {
-                return service;
+            public PivotOuterCacheEvictionPort getObject() {
+                return evictionPort;
             }
         };
     }

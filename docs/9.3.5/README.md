@@ -41,13 +41,20 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   resolver、sandbox/schema/compiler 异常映射均封装在 model 默认适配器，runtime compose controller、
   runner 与 fsscript CTE bridge 不再暴露 `engine.compose` 或 `SemanticQueryServiceV3` 类型；默认端口
   通过 `@ConditionalOnMissingBean` 提供，保留宿主替换能力。
+- Pivot pipeline、non-additive rollup 和本地 outer-cache invalidation 已改用
+  `PivotRollupExecutionPort/PivotOuterCacheEvictionPort`；rollup SQL 通过 engine-neutral DTO 桥接，
+  Pivot 主实现不再直接依赖 `semantic.service` 或 `engine.compose`。旧 `SemanticQueryServiceV3`
+  继续提供兼容桥接，不改变 governed SQL、raw execution 或 serial fallback 行为。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
   33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
   reactor 编译通过，模型自动配置 9/9、MCP 校验 5/5、Runtime 校验/刷新兼容 6/6 通过；catalog
   read-port 切片受影响测试 54/54 通过；Compose port 切片 reactor 编译通过，model 端口/适配器/
-  自动配置 16/16、runtime runner/HTTP/CTE bridge/依赖边界 17/17 通过。
-- 当前执行切片：pivot/semantic 剩余反向依赖拆解。
+  自动配置 16/16、runtime runner/HTTP/CTE bridge/依赖边界 17/17 通过；Pivot semantic-port
+  切片 reactor 编译通过，边界/cache/pipeline validation/自动配置 36/36、non-additive
+  UNION ALL SQLite 集成路径 1/1 通过。
+- 当前执行切片：迁移 semantic request context 中的 Pivot transport DTO，并继续拆解 compose
+  compiler 对完整 semantic service 的剩余依赖。
 
 ## 已确认目标
 

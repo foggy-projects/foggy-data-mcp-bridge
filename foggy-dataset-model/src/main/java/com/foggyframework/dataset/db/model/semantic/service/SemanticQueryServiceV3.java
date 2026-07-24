@@ -4,6 +4,9 @@ import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.PivotOuterCacheEvictionPort;
+import com.foggyframework.dataset.db.model.semantic.port.PivotRollupExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.SemanticSqlGeneration;
 
 import java.util.List;
 import java.util.Map;
@@ -25,7 +28,7 @@ import java.util.Optional;
  *   <li>groupBy: 直接使用字段名分组</li>
  * </ul>
  */
-public interface SemanticQueryServiceV3 {
+public interface SemanticQueryServiceV3 extends PivotRollupExecutionPort, PivotOuterCacheEvictionPort {
 
     /**
      * 执行语义查询（V3版本）
@@ -36,6 +39,7 @@ public interface SemanticQueryServiceV3 {
      * @param context 请求上下文（命名空间 + 安全信息），不可为 null，可用 {@link SemanticRequestContext#empty()}
      * @return 查询响应
      */
+    @Override
     SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                      SemanticRequestContext context);
 
@@ -64,6 +68,13 @@ public interface SemanticQueryServiceV3 {
     SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                     SemanticRequestContext context);
 
+    @Override
+    default SemanticSqlGeneration generateRollupSql(String model, SemanticQueryRequest request,
+                                                    SemanticRequestContext context) {
+        SqlGenerationResult result = generateSql(model, request, context);
+        return result == null ? null : new SemanticSqlGeneration(result.getSql(), result.getParams());
+    }
+
     /**
      * Resolve a semantic QM field to the physical SQL expression used inside
      * base-model SQL, for compose-side expression injection.
@@ -86,6 +97,7 @@ public interface SemanticQueryServiceV3 {
      *
      * @return number of local entries removed by this service instance
      */
+    @Override
     default int evictPivotOuterCache(String namespace, String model) {
         return 0;
     }
@@ -110,4 +122,10 @@ public interface SemanticQueryServiceV3 {
      *         when executor not configured / SQL syntax error / DB connection error
      */
     List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel);
+
+    @Override
+    default List<Map<String, Object>> executeRollupSql(
+            String sql, List<Object> params, String routeModel) {
+        return executeSql(sql, params, routeModel);
+    }
 }

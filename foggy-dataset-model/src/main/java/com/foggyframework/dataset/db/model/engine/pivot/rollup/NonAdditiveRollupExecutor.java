@@ -1,6 +1,5 @@
 package com.foggyframework.dataset.db.model.engine.pivot.rollup;
 
-import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker;
 import com.foggyframework.dataset.db.model.engine.pivot.PivotTelemetry;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
@@ -9,7 +8,8 @@ import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTranspor
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.PivotRollupExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.SemanticSqlGeneration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,10 +42,10 @@ public class NonAdditiveRollupExecutor {
     /** 单次 UNION ALL 最多合并的 grain 数量，超出部分分批 */
     private static final int MAX_GRAINS_PER_BATCH = 20;
 
-    private final SemanticQueryServiceV3 semanticQueryService;
+    private final PivotRollupExecutionPort pivotRollupExecutionPort;
 
-    public NonAdditiveRollupExecutor(SemanticQueryServiceV3 semanticQueryService) {
-        this.semanticQueryService = semanticQueryService;
+    public NonAdditiveRollupExecutor(PivotRollupExecutionPort pivotRollupExecutionPort) {
+        this.pivotRollupExecutionPort = pivotRollupExecutionPort;
     }
 
     /**
@@ -225,7 +225,7 @@ public class NonAdditiveRollupExecutor {
                 parts.size(), mergedParams.size(), finalSql.length());
 
         // 3. 执行合并 SQL
-        List<Map<String, Object>> rows = semanticQueryService.executeSql(
+        List<Map<String, Object>> rows = pivotRollupExecutionPort.executeRollupSql(
                 finalSql, mergedParams, model);
 
         // 4. 按 grain_idx 分桶，写入 cache
@@ -278,15 +278,14 @@ public class NonAdditiveRollupExecutor {
                 survivingRowDomain, survivingColDomain, domainTransportPlans);
         logDomainTransportPlans(model, domainTransportPlans);
 
-        SqlGenerationResult sqlResult = semanticQueryService.generateSql(model, auxRequest,
+        SemanticSqlGeneration sqlResult = pivotRollupExecutionPort.generateRollupSql(model, auxRequest,
                 withDomainTransportPlans(context, domainTransportPlans));
-        if (sqlResult == null || sqlResult.getSql() == null || sqlResult.getSql().isBlank()) {
+        if (sqlResult == null || sqlResult.sql() == null || sqlResult.sql().isBlank()) {
             logger.warn("[Pivot] generateSql returned null for grain={}", grain.getGrainKey());
             return null;
         }
 
-        return new GrainSqlPart(grain, grainIndex, sqlResult.getSql(),
-                sqlResult.getParams() != null ? sqlResult.getParams() : Collections.emptyList());
+        return new GrainSqlPart(grain, grainIndex, sqlResult.sql(), sqlResult.params());
     }
 
     /**
@@ -365,7 +364,7 @@ public class NonAdditiveRollupExecutor {
 
         logger.debug("[Pivot] Serial aux query: grain={}, fields={}", grain.getGrainKey(), grain.getGroupByFields());
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(
+        SemanticQueryResponse response = pivotRollupExecutionPort.queryModel(
                 model, auxRequest, "execute", withDomainTransportPlans(context, domainTransportPlans));
 
         List<Map<String, Object>> rows = response.getItems() != null
