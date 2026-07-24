@@ -2,7 +2,7 @@
 doc_role: version-readme
 version: 9.5.0
 theme: model-legacy-exit
-status: ACCEPTED_WITH_RISKS
+status: ACCEPTED
 recorded_at: 2026-07-24
 ---
 
@@ -61,24 +61,29 @@ duplicate identity、missing provider、unsupported capability 和 capability-ro
 本候选运行了受影响 Maven reactor 的 compile、test-compile、focused unit/context/TCK 和独立 addon
 test-compile；全部使用 `-pl ... -am`，未运行 `mvn install`。
 
-`scripts/v950/**` 已新增当前布局的 canonical release authority，并在候选
-`bbd8601df80e1734927eeac7351fe295cb75d74f` 上形成最终 manifest：
+`scripts/v950/**` 已新增并加固当前布局的 canonical release authority。最终 authority
+候选为 `03af64da7330d70d3364c9e92992710a2ed3a111`：
 
 - root reactor 32/32 projects 与 launcher JAR 边界通过；
 - SQLite semantic replay 63/63；
 - SQLite、MySQL 5.7、MySQL 8、PostgreSQL 15、SQL Server 2022 共
   7/7 variants、370/370 tests；
 - 四个外部数据库 fixture seal 前后一致且 cleanup passed；
-- 4431 个 tracked files 的确定性源码归档在 `/dev/shm` 跨文件系统解压；
+- 4432 个 tracked files 的确定性源码归档在 `/dev/shm` 跨文件系统解压；
 - archive portable replay 63/63；
 - source seal 前后 SHA-256 完全一致；
 - 最终 17 个收据绑定、敏感证据扫描和 manifest 均通过。
 
-执行链并非一次无中断直通：root/semantic/SQLite 收据来自冻结契约未变化的直接父候选，
-其余数据库与 portable archive 在最终候选上新跑；敏感扫描还要求隔离一个包含公开测试夹具
-凭据的冗余旧 root 日志副本。核心产品和制品证据充分，但恢复路径打包、finalizer
-defense-in-depth 与同会话 review 仍是发布前风险，因此正式结论保持
-`ACCEPTED_WITH_RISKS` / `READY_WITH_RISKS`。
+本次 authority hardening 仅修改治理脚本、聚焦测试和对应 BUG workitem。root、semantic、
+七个数据库 variant 与四个数据库 cell 从产品树未变化的已通过祖先候选复用；wrapper 对祖先
+关系、完整 changed-path allowlist、源 receipt hash 与精确语义重新绑定。归档、跨文件系统
+解压、portable replay、source seal、敏感扫描和 final manifest 均在最终候选上新跑。
+新证据包不复制复用 lane 的 Maven 日志或原始报告。
+
+finalizer 现已精确校验 lane/database、JUnit report identity 与 totals、fixture seal/cleanup、
+archive/extraction/source-seal 交叉绑定及完整 17-receipt 集合；14/14 聚焦工具测试通过。
+正式结论为 `ACCEPTED` / `READY_FOR_TAG`。review 与实现位于同一 Codex 会话，不声明组织
+独立性；这属于可选流程选择，不是当前批准范围内的技术 blocker。
 
 GitHub CI、tag、release、publish 和 remote push 均未运行。
 
@@ -87,5 +92,7 @@ GitHub CI、tag、release、publish 和 remote push 均未运行。
 - canonical workitem：`docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
 - release authority workitem：
   `docs/9.5.0/workitems/FEATURE-v950-release-authority-modernization.md`
+- authority hardening workitem：
+  `docs/9.5.0/workitems/BUG-v950-release-authority-evidence-hardening.md`
 - migration / breaking / rollback：`docs/9.5.0/model-spi-v2-legacy-exit.md`
 - acceptance：`docs/9.5.0/acceptance/version-signoff.md`

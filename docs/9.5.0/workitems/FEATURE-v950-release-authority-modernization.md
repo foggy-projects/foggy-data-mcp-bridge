@@ -64,12 +64,15 @@ fail-closed authority that binds one clean candidate SHA to:
 - [x] AC-1: contract validation proves the exact active reactor and rejects
   legacy aggregate/package identities in the v950 authority contract.
 - [x] AC-2: focused self-tests cover contract drift, JUnit report mismatch,
-  unsafe archive paths, archive tamper, and final-manifest incompleteness.
+  unsafe archive paths, archive tamper, final-manifest incompleteness,
+  governance-only ancestor reuse, swapped lane, tampered totals and
+  archive/extraction mismatch.
 - [x] AC-3: one clean candidate completes root verify, semantic replay,
   seven database variants, cross-filesystem archive replay, source seal, and
-  sensitive-evidence scan. Root, semantic and SQLite evidence came from the
-  direct parent and was rebound under the documented governance-only recovery
-  rule; the remaining lanes and archive replay ran on the final candidate.
+  sensitive-evidence scan. Passed product receipts were rebound from ancestor
+  candidates under the documented governance-only rule; archive, extraction,
+  portable replay, source seals, sensitive scan and final manifest ran fresh
+  on the final hardening candidate.
 - [x] AC-4: final manifest binds all receipts to one candidate SHA and reports
   zero failures/errors/skips.
 - [x] AC-5: original dirty workspace remains exact and untouched.
@@ -90,14 +93,17 @@ fail-closed authority that binds one clean candidate SHA to:
   evidence utility, fail-closed runner, focused self-tests, current-reactor
   root/JAR validation, exact JUnit receipts, seven-variant database lifecycle,
   deterministic source archive, cross-filesystem replay, source seal,
-  sensitive scan and final manifest.
+  sensitive scan and final manifest. Follow-up hardening removed raw reused
+  logs/reports from recovery packaging and made finalization repeat exact
+  lane/database/totals plus archive/source cross-receipt validation.
 - changed_paths:
   `scripts/v950/release-authority-contract.json`,
   `scripts/v950/release_authority_tool.py`,
   `scripts/v950/tests/test_release_authority_tool.py`,
-  `scripts/v950/verify-release-authority.sh`, and this canonical record.
+  `scripts/v950/verify-release-authority.sh`, this canonical record, and
+  `docs/9.5.0/workitems/BUG-v950-release-authority-evidence-hardening.md`.
 - tests_and_results:
-  - focused tool validation: 8/8 passed; contract reports 31 modules,
+  - final focused tool validation: 14/14 passed; contract reports 31 modules,
     32 projects, semantic 63 and database 7 variants / 370 tests;
   - root clean verify source receipt: 32/32 projects and launcher JAR boundary
     passed on direct-parent candidate `6a3c3bb3dd0d650ee0a514187f802d2e66ee9c60`;
@@ -106,12 +112,14 @@ fail-closed authority that binds one clean candidate SHA to:
     MySQL 8 50+55, PostgreSQL 15 50+65 and SQL Server 2022 50;
     total 7 variants / 370 tests, F0/E0/S0;
   - all four external cells: fixture before/after SHA equal and cleanup passed;
-  - final candidate archive: 4431 tracked files, SHA-256
-    `2224675a2af18cf626e871a2b2ca376861f012deed890807c25f2e7780283883`;
-  - cross-filesystem portable replay: 63 tests, F0/E0/S0;
+  - hardening candidate archive: 4432 tracked files, 131034459 bytes,
+    SHA-256
+    `45bd6d33d7f2c5b17295c8cf9a28bc14bb4e1060bcc738fabe99c941e23cc945`;
+  - cross-filesystem portable replay on the hardening candidate:
+    63 tests, F0/E0/S0;
   - final manifest:
-    `target/v950-release-authority/runs/v950-release-authority-20260724-r3/final-manifest.json`,
-    candidate `bbd8601df80e1734927eeac7351fe295cb75d74f`, status passed.
+    `target/v950-release-authority/runs/v950-release-authority-hardening-20260724-r1/final-manifest.json`,
+    candidate `03af64da7330d70d3364c9e92992710a2ed3a111`, status passed.
 - deviations:
   - r1 and r2 stopped on authority-tool defects after preserving their actual
     passed evidence; neither is represented as a passed authority run;
@@ -122,22 +130,21 @@ fail-closed authority that binds one clean candidate SHA to:
     Maven log contained a known test-fixture credential. The log was moved to
     a repository-external quarantine, the bound source receipt remained, and
     sensitive scan plus finalization were rerun without product-test reruns.
+  - the follow-up BUG removed that packaging defect, strengthened finalizer
+    semantics and completed one uninterrupted partial authority in 1 minute
+    31 seconds without Docker or product-matrix execution.
 - residual_risks:
-  - the final evidence is a recovered authority chain, not one uninterrupted
-    successful runner invocation;
-  - the current resume path copies the redundant prior root log and can require
-    the same evidence-packaging recovery when that log contains fixture
-    credentials;
-  - review is evidence-first in the same Codex session, not organizationally
-    independent.
-- readiness: READY_FOR_SIGNOFF
+  - review is evidence-first in the same Codex session and does not claim
+    organizational independence; this is an explicitly excluded process
+    property, not a technical authority gap.
+- readiness: READY_FOR_TAG
 
 ## Acceptance Status
 
 - acceptance_status: signed-off
-- acceptance_decision: accepted-with-risks
+- acceptance_decision: accepted
 - signed_off_by: codex-reviewer
 - signed_off_at: 2026-07-24
 - acceptance_record: `docs/9.5.0/acceptance/version-signoff.md`
 - blocking_items: none
-- follow_up_required: yes-before-tag-release-publish
+- follow_up_required: no

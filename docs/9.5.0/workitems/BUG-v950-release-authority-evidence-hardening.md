@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.5.0
 ticket: v950-release-authority-evidence-hardening
-status: ULTRA_EXECUTING
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: standard
@@ -62,13 +62,13 @@ open_questions: []
 
 ## Acceptance Criteria
 
-- [ ] AC-1: resume/reuse 不复制 Maven 日志、原始 test report 目录或数据库原始输出。
-- [ ] AC-2: 复用只接受祖先候选，且整段 diff 全部属于冻结治理 allowlist；contract 或其他路径变化 fail closed。
-- [ ] AC-3: finalizer 对每个 key 的 kind、lane/database、tests/failures/errors/skipped、candidate 和 contract digest 精确校验。
-- [ ] AC-4: source-before/source-after 的 kind/status/candidate/count/digest 一致；archive 与 extraction 的 hash、文件数和源码封印一致。
-- [ ] AC-5: 负向单测覆盖 swapped lane、tampered totals、archive mismatch、越界复用和最小证据打包。
-- [ ] AC-6: 聚焦工具验证通过；新候选上的受控 authority manifest passed，且未启动产品 Maven/DB matrix 重跑。
-- [ ] AC-7: 原始脏工作区保持精确不变；无 install、CI、tag、release、publish、push。
+- [x] AC-1: resume/reuse 不复制 Maven 日志、原始 test report 目录或数据库原始输出。
+- [x] AC-2: 复用只接受祖先候选，且整段 diff 全部属于冻结治理 allowlist；contract 或其他路径变化 fail closed。
+- [x] AC-3: finalizer 对每个 key 的 kind、lane/database、tests/failures/errors/skipped、candidate 和 contract digest 精确校验。
+- [x] AC-4: source-before/source-after 的 kind/status/candidate/count/digest 一致；archive 与 extraction 的 hash、文件数和源码封印一致。
+- [x] AC-5: 负向单测覆盖 swapped lane、tampered totals、archive mismatch、越界复用和最小证据打包。
+- [x] AC-6: 聚焦工具验证通过；新候选上的受控 authority manifest passed，且未启动产品 Maven/DB matrix 重跑。
+- [x] AC-7: 原始脏工作区保持精确不变；无 install、CI、tag、release、publish、push。
 
 ## Contract / Data / Security Constraints
 
@@ -138,15 +138,83 @@ open_questions: []
 
 ## Implementation Result
 
-- implementation_summary: pending
-- changed_paths: pending
-- tests_and_results: pending
-- manual_or_experience_evidence: pending
-- deviations: pending
-- residual_risks: pending
-- reused_evidence: pending
-- omitted_validation_and_reason: pending
-- readiness: pending
+- implementation_summary:
+  - `--resume-from` 只复制最小源 JSON receipt，不再复制 root Maven 日志、semantic/SQLite
+    raw reports 或数据库原始输出；
+  - 新增 `--reuse-product-from`，只复用 root、semantic、七个数据库 variant 和四个
+    database cell 的 passed receipt，归档、解包、portable、source seal、敏感扫描和最终
+    manifest 始终重新生成；
+  - 复用候选从 direct-parent 扩展为 ancestor，但整段 diff 必须严格命中
+    `scripts/v950/**`（冻结 contract 除外）和本 BUG workitem；
+  - finalizer 对有效源 receipt 的 key/kind/lane/database/report set/totals/candidate/contract
+    逐项复核，并交叉绑定 source seal、archive 和 extraction 的 hash 与文件数。
+- changed_paths:
+  `scripts/v950/release_authority_tool.py`,
+  `scripts/v950/verify-release-authority.sh`,
+  `scripts/v950/tests/test_release_authority_tool.py` 和本 BUG workitem。
+- tests_and_results:
+  - `python3 -m py_compile scripts/v950/release_authority_tool.py
+    scripts/v950/tests/test_release_authority_tool.py`：passed；
+  - `bash -n scripts/v950/verify-release-authority.sh`：passed；
+  - `python3 -m unittest -v scripts.v950.tests.test_release_authority_tool`：
+    14/14 passed；覆盖 ancestor allowlist、contract 变化拒绝、最小 JSON 打包、
+    swapped lane、tampered totals、archive/extraction mismatch 和完整 manifest；
+  - contract validation：31 modules、32 projects、semantic 63、database 7 variants /
+    370 tests，contract SHA-256
+    `282d06d79456406224d7810400c11c030f31f10e7d17a2fb0848486f926cd9e0`；
+  - 新 finalizer 对原 r3 的真实 17-receipt corpus 复核通过；
+  - partial authority：
+    `target/v950-release-authority/runs/v950-release-authority-hardening-20260724-r1`
+    在候选 `03af64da7330d70d3364c9e92992710a2ed3a111` passed；
+    portable 63 tests，F0/E0/S0，最终 17-receipt manifest passed。
+- manual_or_experience_evidence:
+  新 run 的复用产品证据仅含 13 个 wrapper 与 13 个 `.reused-source.json`；
+  没有复制 root/semantic/database Maven 日志或 raw report 目录。fresh portable evidence
+  保留自己的 Maven 日志和 11 个 JUnit XML。敏感扫描检查 46 个文件、3 个 pattern，
+  只排除一个 hash-bound source archive，并通过。
+- deviations:
+  批准预算为 `20-40m`；实际 partial authority 在 warm Maven cache 下从
+  `2026-07-24T14:57:08Z` 到 `14:58:39Z`，约 1 分 31 秒。未启动 Docker 或数据库
+  provisioner，也未发生额外 authority 尝试。
+- residual_risks:
+  技术证据缺口已关闭；最终 review 仍在同一 Codex 会话执行，不声称组织独立性。
+- reused_evidence:
+  `v950-release-authority-20260724-r3` 的 passed root、semantic、七个 database variant
+  和四个 external database cell receipt。root/semantic/SQLite 原始产品证据候选为
+  `6a3c3bb3dd0d650ee0a514187f802d2e66ee9c60`；其余产品证据候选为
+  `bbd8601df80e1734927eeac7351fe295cb75d74f`。两者到新候选的全部变化均通过治理
+  allowlist 复核，frozen contract 未变。
+- omitted_validation_and_reason:
+  未重跑 root reactor、semantic、SQLite/外部数据库矩阵、Step 5/7、GitHub CI、
+  `mvn install`、tag/release/publish/push；本 BUG 只改变 receipt packaging 与
+  finalizer，产品证据前提未变化，批准的 partial authority 已重新生成所有直接受影响证据。
+- readiness:
+  `ACCEPTED`；AC-1 至 AC-7 已由 focused tests、真实 r3 corpus 复核、partial
+  authority、clean-state、独立 hash audit 和原始工作区检查覆盖。
+
+## Code Review Result
+
+- reviewed_candidate:
+  `03af64da7330d70d3364c9e92992710a2ed3a111`
+- reviewed_range:
+  `bbd8601df80e1734927eeac7351fe295cb75d74f..03af64da7330d70d3364c9e92992710a2ed3a111`
+- changed_surface:
+  本 BUG workitem 和三个 `scripts/v950` 文件；无产品、contract、`scripts/v934`、CI、
+  API/SPI、数据或安全路径变化。
+- findings:
+  - reuse wrapper 在创建和 finalization 时都重算 ancestor 关系与完整 changed-path set；
+  - source receipt 的 report identity、lane/database、totals、contract、candidate 和 digest
+    均 fail closed；
+  - archive/extraction/source seal 的 hash 与文件数形成双向一致性约束；
+  - runner 的复用路径只复制 JSON receipt；fresh portable evidence 保留自己的日志和报告；
+  - 未发现 debug、测试绕过、未解释 TODO、contract 漂移或越界兼容放宽。
+- evidence_audit:
+  final manifest 17/17 receipt SHA-256 独立重算一致；archive SHA-256
+  `45bd6d33d7f2c5b17295c8cf9a28bc14bb4e1060bcc738fabe99c941e23cc945`
+  一致；source-before/source-after 4432-file inventory 字节级一致。
+- conclusion:
+  所有 must-pass 项满足；同会话 review 是已披露的过程属性，不影响本 tooling-only
+  standard assurance 结论，也不声称组织独立性。
 
 ## References
 
@@ -156,8 +224,10 @@ open_questions: []
 
 ## Acceptance Status
 
-- acceptance_status: pending
-- acceptance_decision: pending
-- signed_off_by: pending
-- signed_off_at: pending
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex-reviewer
+- signed_off_at: 2026-07-24
 - acceptance_record: `docs/9.5.0/acceptance/version-signoff.md`
+- blocking_items: none
+- follow_up_required: no

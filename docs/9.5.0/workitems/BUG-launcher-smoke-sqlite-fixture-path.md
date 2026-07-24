@@ -148,8 +148,8 @@ open_questions: []
   `No tests to run`；这是命令属性选择偏差，不是候选缺陷。改用
   `-Dmaven.test.skip=true` 后 32/32 制品构建通过。
 - residual_risks:
-  未再次执行完整 root `clean verify`；修复是测试夹具路径更新，按一次完整 authority 预算只重验
-  受影响 smoke 和完整制品尾部。
+  本 BUG 当时未单独重跑完整 root `clean verify`；该暂留风险已由后续 canonical v950
+  authority 的 32/32 root、semantic、数据库、portable 和 source-seal 证据覆盖。
 - reused_evidence:
   2026-07-24 root authority 在原候选上完成的前 28 个模块：
   modules 1-28 共 4945 tests，0 failures/errors，engine 有 2 个既有 skipped；launcher 随后执行
@@ -157,9 +157,10 @@ open_questions: []
 - omitted_validation_and_reason:
   未重跑完整 authority、数据库矩阵、semantic/portable replay、source-seal、Step 5/7、CI、
   tag/release/publish；均超出本 test-only 修复和 owner 批准的一次 lean authority 预算。
+  除 Step 5/7、CI 和发布操作外，这些产品与制品验证已在后续 canonical authority 完成。
 - readiness:
-  `READY_FOR_SIGNOFF`；AC-1 至 AC-4 已由 focused smoke、32-module artifact verify、静态检查和
-  changed-path review 覆盖。
+  `ACCEPTED`；AC-1 至 AC-4 已由 focused smoke、32-module artifact verify、静态检查、
+  changed-path review 和后续 canonical authority 覆盖。
 
 ## References
 
@@ -170,9 +171,9 @@ open_questions: []
 ## Acceptance Status
 
 - acceptance_status: signed-off
-- acceptance_decision: accepted-with-risks
+- acceptance_decision: accepted
 - signed_off_by: codex-reviewer
 - signed_off_at: 2026-07-24
 - acceptance_record: `docs/9.5.0/acceptance/version-signoff.md`
 - blocking_items: none
-- follow_up_required: covered-by-version-residual-risks
+- follow_up_required: no

@@ -1,7 +1,7 @@
 ---
 doc_role: migration-guide
 version: 9.5.0
-status: ACCEPTED_WITH_RISKS
+status: ACCEPTED
 recorded_at: 2026-07-24
 ---
 
@@ -126,30 +126,33 @@ field access、physical denied columns 和 datasource currentness 规则未放�
 
 ## 8. Signoff result and release authority
 
-最终版本继续按 `ACCEPTED_WITH_RISKS` 签收。新的 `scripts/v950/**` authority 已冻结当前
-31-module / 32-project reactor，并覆盖：
+最终版本按 `ACCEPTED` 签收。新的 `scripts/v950/**` authority 已冻结当前
+31-module / 32-project reactor，并在最终候选
+`03af64da7330d70d3364c9e92992710a2ed3a111` 上覆盖：
 
 - root reactor 和 launcher JAR 边界；
 - SQLite semantic 63；
 - 五种数据库的 7 个 variant / 370 tests；
 - 四个外部数据库的 fixture seal 与 cleanup；
-- 4431 文件确定性源码归档及跨文件系统解压；
+- 4432 文件确定性源码归档及跨文件系统解压；
 - 归档副本上的 portable semantic 63；
 - source seal、敏感证据扫描和 17-receipt final manifest。
 
 历史 9.3.4 collector 不再作为 9.5.0 pointer；v950 authority 仅以固定 SHA 复用其外部数据库
 provisioner。
 
-残余风险位于治理工具而非产品语义：
+authority hardening 已关闭恢复证据打包与 finalizer defense-in-depth 缺口：
 
-- authority 通过直接父候选的严格脚本-only delta 规则复用了 root、semantic 和 SQLite
-  收据，其余 lane 在最终候选上新跑；
-- recovery evidence 曾复制包含公开测试夹具凭据的冗余 root 日志，敏感扫描正确失败后将其
-  隔离，再完成扫描与 manifest；
-- finalizer 已校验 key/kind/candidate/status/hash，但仍可加强每个非复用收据的 lane/total
-  和跨收据语义复核；
-- review 与实现处于同一 Codex 会话，不具备组织独立性。
+- 复用只允许来自产品树未变化的祖先候选，完整 diff 必须命中明确的治理 allowlist，且冻结
+  contract 不得变化；
+- 新证据包只携带有效 JSON receipt，不复制复用 lane 的 Maven 日志或原始 JUnit 报告；
+- root、semantic、七个数据库 variant 和四个 database cell receipt 均重新绑定源 hash、
+  candidate、祖先关系、完整 changed paths 与精确语义；
+- archive、cross-filesystem extraction、portable semantic 63、source seal、敏感扫描和
+  17-receipt final manifest 在最终候选上新跑并通过；
+- finalizer 精确验证 lane/database、report identity/totals、fixture seal/cleanup 及
+  archive/extraction/source-seal 的交叉一致性；14/14 聚焦工具测试通过。
 
-因此发布标签是 `READY_WITH_RISKS`，不是无条件 `READY_FOR_TAG`。tag/release/publish 前由
-release owner 明确接受上述限制，或先完成对应工具 hardening；不应默认重跑未受影响的完整
-产品矩阵。
+因此发布标签为 `READY_FOR_TAG`。review 与实现处于同一 Codex 会话，不声明组织独立性；
+release owner 如有额外政策要求仍可安排独立复核，但这不是当前技术签收的缺口。
+tag/release/publish/push 尚未执行，仍需其各自的明确仓库权限。

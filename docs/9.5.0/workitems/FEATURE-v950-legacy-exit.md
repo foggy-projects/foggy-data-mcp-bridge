@@ -232,18 +232,21 @@ open_questions: []
 - residual_risks:
   外部调用方存在有意的 Maven/source/binary breaking；独立 pivot 模块当前无 Java 源码；
   历史 9.3.4 database/portable authority 工具仍绑定旧聚合与 24-module/artifact schema，
-  不是 canonical 9.5.0 可执行入口；本次未形成真正的 9.5.0 portable archive replay。
+  不是 canonical 9.5.0 可执行入口。canonical v950 authority 已形成真正的跨文件系统
+  portable archive replay，并通过 evidence hardening。
 - reused_evidence:
   9.4.1 已签收的 stable QueryFacade、JDBC QUERY、query-cache invalidation、
   duplicate/missing/unsupported/role mismatch 与 launcher boundary 证据。
 - omitted_validation_and_reason:
-  未运行 `mvn install`、完整 Step 5/7、真正的 9.5.0 portable archive replay、
-  GitHub CI、tag/release/publish。历史 9.3.4 database collector 与 portable schema 无法对删除
+  未运行 `mvn install`、完整 Step 5/7、GitHub CI、tag/release/publish/push。
+  历史 9.3.4 database collector 与 portable schema 无法对删除
   旧聚合后的 9.5.0 图生成 canonical pointer；数据库 current-layout replay、semantic replay、
-  source-seal 和 post-fix root authority 已实际完成，不能与未执行项混淆。
+  跨文件系统 portable replay、source-seal 和 post-fix root authority 已实际完成，不能与
+  未执行项混淆。
 - readiness:
-  `ACCEPTED_WITH_RISKS`；最终实现和 test-only authority 修复已在固定提交上完成 review、
-  零守卫、focused smoke 与完整制品复核。正式记录见
+  `ACCEPTED` / `READY_FOR_TAG`；最终实现、launcher test-only 修复与 authority hardening
+  已在固定提交上完成 review、零守卫、focused smoke、完整制品和 canonical authority 复核。
+  正式记录见
   `docs/9.5.0/acceptance/version-signoff.md`。
 
 ## Code Review Result
@@ -264,18 +267,20 @@ open_questions: []
   fallback adapter 不会覆盖真实角色。catalog/TCK 对四类 capability-role mismatch 均 fail closed。
 - residual_signoff_risk:
   外部 Maven/source/binary breaking 是本版本有意影响；post-fix root、semantic、五数据库
-  compatibility replay 与 source seal 已通过。剩余风险是 signoff 同 session、历史 authority
-  tooling 未升级为 9.5.0 canonical schema，以及真正的 portable archive replay 未执行。
+  compatibility replay、跨文件系统 portable replay 与 source seal 已通过。当前
+  `scripts/v950/**` 是冻结 31-module / 32-project 图的 canonical authority，恢复证据打包和
+  finalizer 语义缺口已加固。signoff 与实现位于同一 Codex 会话，不声明组织独立性；这是
+  可选流程选择，不是当前批准范围内的技术 blocker。
 
 ## Acceptance Status
 
 - acceptance_status: signed-off
-- acceptance_decision: accepted-with-risks
+- acceptance_decision: accepted
 - signed_off_by: codex-reviewer
 - signed_off_at: 2026-07-24
 - acceptance_record: `docs/9.5.0/acceptance/version-signoff.md`
 - blocking_items: none
-- follow_up_required: yes-before-tag-release-publish
+- follow_up_required: no
 
 ## References
 
