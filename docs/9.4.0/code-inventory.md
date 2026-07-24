@@ -1,7 +1,7 @@
 ---
 doc_role: modularization_inventory_and_progress
 version: 9.4.0
-status: implementation-in-progress / model-api-core-jdbc-established
+status: implementation-in-progress / model-api-core-jdbc-starter-established
 baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
 implementation_base_commit: 3b1c7249ba75b3bab54cb0f898ea1c198e5303d4
 recorded_at: 2026-07-20
@@ -100,3 +100,12 @@ compatibility plan before modules are extracted.
   旧 JDBC 执行实现仍由兼容聚合承载，新 SPI 不反向依赖旧聚合。
 - API+core+JDBC tests 11/11；JDBC compile dependency tree 仅含 core/API，旧聚合及其 10-module
   upstream reactor package 成功。
+- 已新增第 29 个 active module `foggy-dataset-model-starter`，依赖图继续单向为
+  `model-starter -> model-jdbc -> model-core -> model-api`；starter 不依赖旧聚合或 web。
+- starter 在稳定 `QueryFacade` 存在时提供默认 JDBC adapter，并发现全部 `BackendProvider` 构建
+  immutable catalog。其他 backend 与 JDBC 共存；只有同名 `jdbcQueryBackendProvider` 覆盖默认
+  adapter，用户自定义 catalog 仍按 Spring Boot back-off 规则优先。
+- filtered-classloader、缺失 facade、用户 provider/catalog、跨 backend 共存、JDBC override、重复
+  identity fail-closed 场景均由 context tests 覆盖。API+core+JDBC+starter tests 18/18，旧聚合
+  `DbModelAutoConfigurationTest` 11/11；starter compile dependency tree 仅增加 Spring Boot
+  auto-configuration，不含旧聚合或 web。

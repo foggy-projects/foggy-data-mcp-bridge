@@ -37,6 +37,10 @@
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-model-jdbc</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-starter</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.foggysource</groupId>

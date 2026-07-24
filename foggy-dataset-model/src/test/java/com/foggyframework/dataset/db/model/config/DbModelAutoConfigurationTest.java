@@ -8,6 +8,11 @@ import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import com.foggyframework.dataset.db.model.validation.DetachedModelValidationFactory;
+import com.foggyframework.dataset.model.api.QueryFacade;
+import com.foggyframework.dataset.model.api.backend.BackendCapability;
+import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
+import com.foggyframework.dataset.model.core.backend.BackendProviderCatalog;
+import com.foggyframework.dataset.model.jdbc.JdbcQueryBackendProvider;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,6 +88,18 @@ class DbModelAutoConfigurationTest {
     void testQueryExecutionStepExecutorRegistered() {
         QueryExecutionStepExecutor executor = applicationContext.getBean(QueryExecutionStepExecutor.class);
         assertNotNull(executor, "QueryExecutionStepExecutor should be registered");
+    }
+
+    @Test
+    @DisplayName("SPI v2 JDBC provider wraps the governed QueryFacade")
+    void testBackendProviderCatalogRegistered() {
+        BackendProviderCatalog catalog = applicationContext.getBean(BackendProviderCatalog.class);
+        QueryBackendProvider provider = catalog.require(
+                JdbcQueryBackendProvider.JDBC,
+                BackendCapability.QUERY,
+                QueryBackendProvider.class);
+
+        assertSame(applicationContext.getBean(QueryFacade.class), provider.queryFacade());
     }
 
     // ==========================================

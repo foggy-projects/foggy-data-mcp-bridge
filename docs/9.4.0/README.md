@@ -32,6 +32,12 @@ core compile dependency tree 仅含 API，旧聚合及其 9-module upstream reac
 provider。JDBC adapter 包装稳定 facade 并支持显式 dialect identity。API+core+JDBC tests 11/11，
 依赖树为 `jdbc -> core -> api`，旧聚合及其 10-module upstream reactor package 成功。
 
+第四个切片已经建立 `foggy-dataset-model-starter`。auto-configuration 在稳定 `QueryFacade` 存在时
+装配默认 JDBC provider，并从全部有序 provider 构建 fail-closed catalog；其他 backend 可与 JDBC
+共存，同名 `jdbcQueryBackendProvider` 可显式覆盖默认 adapter，用户 catalog 继续 back off。
+API+core+JDBC+starter tests 18/18，旧聚合 `DbModelAutoConfigurationTest` 11/11；starter compile
+依赖树为 `starter -> jdbc -> core -> api` 加 Spring Boot auto-configuration，不含旧聚合或 web。
+
 ## 开工依赖
 
 1. 9.3.4 已由 owner carry forward；
