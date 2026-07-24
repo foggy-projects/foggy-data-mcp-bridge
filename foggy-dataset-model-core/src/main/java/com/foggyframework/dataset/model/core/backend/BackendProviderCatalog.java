@@ -77,5 +77,12 @@ public final class BackendProviderCatalog {
                 .toList());
     }
 
+    /** Immutable discovery-time descriptors for diagnostics and adapter views. */
+    public List<BackendDescriptor> descriptors() {
+        return Collections.unmodifiableList(providers.values().stream()
+                .map(RegisteredProvider::descriptor)
+                .toList());
+    }
+
     private record RegisteredProvider(BackendProvider provider, BackendDescriptor descriptor) { }
 }

@@ -1,7 +1,7 @@
 ---
 doc_role: modularization_inventory_and_progress
 version: 9.4.0
-status: implementation-in-progress / model-api-core-jdbc-starter-established
+status: implementation-in-progress / target-modules-established
 baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
 implementation_base_commit: 3b1c7249ba75b3bab54cb0f898ea1c198e5303d4
 recorded_at: 2026-07-20
@@ -109,3 +109,13 @@ compatibility plan before modules are extracted.
   identity fail-closed 场景均由 context tests 覆盖。API+core+JDBC+starter tests 18/18，旧聚合
   `DbModelAutoConfigurationTest` 11/11；starter compile dependency tree 仅增加 Spring Boot
   auto-configuration，不含旧聚合或 web。
+- 已新增第 30 个 active module `foggy-dataset-model-web`，五个目标模块均已物理建立。web 依赖
+  `model-core -> model-api`，以及 Spring Boot auto-configuration、Spring MVC、Jackson；不依赖
+  starter、JDBC adapter 或旧聚合，也不携带 embedded server。
+- web diagnostics 默认关闭；只在 servlet context、provider catalog 与
+  `foggy.model.backends.web.enabled=true` 同时满足时注册 `/foggy/model/backends`。endpoint 使用 catalog
+  的 discovery-time descriptor snapshot，不重新读取可变 provider，实现类也不进入 HTTP DTO。
+- API/core/web tests 14/14、旧聚合 `DbModelAutoConfigurationTest` 11/11；web context/MockMvc、用户
+  controller back-off、missing-core、classpath boundary 与 compile dependency tree 验证均通过。
+- 当前新模块有向边为 `core -> api`、`jdbc -> core`、`starter -> jdbc`、`web -> core`；旧
+  `foggy-dataset-model` 作为兼容聚合依赖五个新模块，五个新模块均不反向依赖旧聚合。

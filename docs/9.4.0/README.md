@@ -38,6 +38,13 @@ provider。JDBC adapter 包装稳定 facade 并支持显式 dialect identity。A
 API+core+JDBC+starter tests 18/18，旧聚合 `DbModelAutoConfigurationTest` 11/11；starter compile
 依赖树为 `starter -> jdbc -> core -> api` 加 Spring Boot auto-configuration，不含旧聚合或 web。
 
+第五个切片已经建立 `foggy-dataset-model-web`，目标五模块全部存在。web 只依赖 core/API 与最小
+Spring MVC/Jackson 边界，不依赖 starter、JDBC adapter 或旧聚合；只在 servlet application、catalog
+存在且 `foggy.model.backends.web.enabled=true` 时暴露只读 `/foggy/model/backends`。返回值来自
+catalog 的 discovery-time descriptor snapshot，按 backend identity/capability 稳定排序。API/core/web
+tests 14/14、旧聚合 context tests 11/11，web dependency tree 与 classpath boundary tests 均确认未
+引入 JDBC/legacy implementation。
+
 ## 开工依赖
 
 1. 9.3.4 已由 owner carry forward；
@@ -46,7 +53,8 @@ API+core+JDBC+starter tests 18/18，旧聚合 `DbModelAutoConfigurationTest` 11/
 
 ## 已确认目标模块顺序
 
-`model-api → model-core → model-jdbc → model-starter → model-web`
+物理建立顺序为 `model-api → model-core → model-jdbc → model-starter → model-web`。运行时依赖图为
+`starter → jdbc → core → api` 与 `web → core → api` 两条单向分支，避免 web 反向引入 JDBC。
 
 旧 `foggy-dataset-model` 只在兼容期保留为聚合/转发层。后续不得先物理拆分再定义 API，或让
 `model-api` 引入 Spring、JDBC、implementation 或 web 依赖。

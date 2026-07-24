@@ -73,6 +73,8 @@ class BackendProviderCatalogTest {
         current.set(new BackendDescriptor(MYSQL, Set.of()));
 
         assertSame(provider, catalog.require(MYSQL, BackendCapability.QUERY));
+        assertEquals(List.of(queryDescriptor), catalog.descriptors());
+        assertThrows(UnsupportedOperationException.class, () -> catalog.descriptors().clear());
     }
 
     @Test
