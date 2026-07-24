@@ -2,13 +2,26 @@
 doc_role: version_execution_index
 doc_purpose: Index the executable 9.3.4 test and CI evidence-chain plan.
 version: 9.3.4
-status: in-progress
+status: development-complete / owner-carried-forward
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
 updated_at: 2026-07-24
 ---
 
 # 9.3.4 测试与 CI 证据链
+
+## Speed-Forward 决定（2026-07-24）
+
+- 9.3.4 的开发目标以现有 Step 1–5、数据库矩阵、覆盖率和 semantic replay repair
+  证据结束；状态为 `development-complete / owner-carried-forward`。
+- repository owner 明确豁免 replacement Step 7、final authority pointer、portable
+  replay authority 和 ordered review chain；不再启动大型 Step 5/Step 7 run。
+- 9.3.5 entry 已解除。最终跨版本验收统一延后到 9.4.0 开发目标完成后执行一次。
+- 本目录旧的 attempt budget、`must rerun`、pointer 和 gate 语句仅是历史记录，不再支配后续执行。
+- 当前 canonical 契约：
+  [9.3.4 → 9.4.0 Speed-Forward](../9.4.0/workitems/FEATURE-v934-v940-speed-forward.md)。
+
+该决定不创建 release authority、不自签 `ACCEPTED`，也不授权 GitHub CI、tag、release 或 publish。
 
 ## 文档作用
 
@@ -634,11 +647,10 @@ updated_at: 2026-07-24
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
 | 5 | 单一 authority runner 与 immutable evidence rehearsal | ACCEPTED / replacement candidate-passed / old r2 historical accepted | replacement r1 at `b9b8adfd…` completed once with exit 0；budget consumed；candidate pointer exact；owner signoff 2026-07-24；final pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
-| 7 | clean-commit 本地权威回放与后置门 | ACTIVATING_REPLACEMENT / preflight-passed | PR #125 merge=`b3b252c1…`；planned run=`step7-semantic-authority-20260724-r1`；new budget 1 remains unconsumed until tmux launch；final pointer absent；no-CI/tag/release/publish |
+| 7 | clean-commit 本地权威回放与后置门 | owner-waived / superseded | 不再执行 replacement authority；final pointer 保持不存在；最终整体验收延后到 9.4.0 |
 
-Steps 1–5 未满足 exit 不进入下一步；Step 6 不再是执行或签收依赖；Step 7 只在
-Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run 不得拼接为
-绿色 authority。
+Steps 1–5 的历史 exit 保持不变；Step 6–7 均不再是后续开发或最终整体验收的 entry gate。
+expected-negative、diagnostic 和 superseded run 仍不得被描述为从未取得的 release authority。
 
 ## Step 7 semantic portable replay 最小重规划实施结果（2026-07-23）
 
