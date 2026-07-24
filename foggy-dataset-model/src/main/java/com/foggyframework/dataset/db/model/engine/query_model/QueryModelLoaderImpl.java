@@ -37,6 +37,8 @@ import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
 import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
 import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
 import com.foggyframework.dataset.db.model.lifecycle.port.StaleDatasourceBindingException;
+import com.foggyframework.dataset.db.model.proxy.ColumnRef;
+import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import com.foggyframework.dataset.db.model.proxy.JoinBuilder;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
 import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelDescriptor;
@@ -1063,7 +1065,14 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         if (orders != null) {
             for (int i = 0; i < orders.size(); i++) {
                 OrderDef d = orders.get(i);
-                qm.addOrder(qm.findJdbcQueryColumnByName(d.getName(), true).getSelectColumn(), d);
+                ColumnRef ref = toColumnRef(d.getRef());
+                if (ref != null) {
+                    DbColumn ownerColumn = ColumnRefResolver.resolveColumn(qm, ref);
+                    RX.notNull(ownerColumn, "排序字段不存在于 ColumnRef 所属 TableModel: " + ref);
+                    qm.addOrder(ownerColumn, d);
+                } else {
+                    qm.addOrder(qm.findJdbcQueryColumnByName(d.getName(), true).getSelectColumn(), d);
+                }
             }
         }
     }
@@ -1091,7 +1100,15 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     boolean scanHasRef = StringUtils.isNotEmpty(scanAliasRef);
                     String scanDimRef = scanHasRef ? scanLookupRef : scanItem.getName();
                     String scanColumnName = scanHasRef ? scanAliasRef : scanItem.getName();
-                    if (qm.findDimension(scanDimRef) != null) {
+                    // A ColumnRef such as product$brand carries a dimension path,
+                    // but it is an explicit property column, not an instruction to
+                    // expand product.  Resolve an exact owner column before asking
+                    // for a dimension so explicit-property detection remains intact.
+                    DbColumn scanColumn = resolveColumnForItem(qm, scanItem, scanColumnName);
+                    DbDimension scanDimension = scanColumn == null
+                            ? resolveDimensionForItem(qm, scanItem, scanDimRef)
+                            : null;
+                    if (scanDimension != null) {
                         explicitDimensionRefs.add(scanDimRef);
                     } else {
                         explicitColumnNames.add(scanColumnName);
@@ -1158,13 +1175,17 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     // 使用 aliasRef 作为列名和列查找（使用 _ 分隔，因为列索引用alias格式）
                     String columnName = hasRef ? aliasRef : item.getName();
 
-                    DbColumn exactColumn = qm.findJdbcColumn(columnName);
-                    DbDimension dimension = exactColumn == null ? qm.findDimension(dimRef) : null;
+                    DbColumn exactColumn = resolveColumnForItem(qm, item, columnName);
+                    DbDimension dimension = exactColumn == null
+                            ? resolveDimensionForItem(qm, item, dimRef)
+                            : null;
                     if (dimension != null) {
+                        TableModel ownerModel = resolveOwnerModelForItem(qm, item);
                         //维度，自动展开 $id + $caption + 所有属性 + 嵌套子维度（递归）
-                        expandDimension(qm, group, dimension, columnName, item, hasRef, explicitColumnNames, explicitDimensionRefs);
+                        expandDimension(qm, group, ownerModel, dimension, columnName, item, hasRef,
+                                explicitColumnNames, explicitDimensionRefs);
                     } else {
-                        addColumn(qm, group, columnName, item, hasRef);
+                        addColumn(qm, group, columnName, item, hasRef, exactColumn);
                     }
                 }
                 columnGroups.add(group);
@@ -1209,18 +1230,27 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
      *   若 QM 已显式引用了部分属性（如 fo.customer$gender），说明作者有意选择，不再自动补全
      * - 嵌套子维度：若子维度已被 QM 显式引用（如 fo.product.category），则跳过（由其自身的 ref 展开）
      */
-    private void expandDimension(QueryModelSupport qm, QueryColumnGroup group,
+    private void expandDimension(QueryModelSupport qm, QueryColumnGroup group, TableModel ownerModel,
                                   DbDimension dimension, String columnName,
                                   SelectColumnDef item, boolean hasRef,
                                   Set<String> explicitColumnNames,
                                   Set<String> explicitDimensionRefs) {
         // 1. $id + $caption（必加）
-        addColumn(qm, group, columnName + "$id", item, hasRef);
-        addColumn(qm, group, columnName + "$caption", item, hasRef);
+        String idColumnName = columnName + "$id";
+        String captionColumnName = columnName + "$caption";
+        addColumn(qm, group, idColumnName, createExpandedDimensionItem(item, idColumnName), hasRef,
+                findDimensionColumn(ownerModel, dimension, columnName + "$id"));
+        addColumn(qm, group, captionColumnName, createExpandedDimensionItem(item, captionColumnName), hasRef,
+                findDimensionColumn(ownerModel, dimension, columnName + "$caption"));
 
         // 2. 展开属性：仅当该维度没有任何显式属性引用时
         if (dimension instanceof DbDimensionSupport) {
-            String basePath = dimension.getFullPathForAlias();
+            // columnName is the public path for this QM item.  For an explicitly
+            // aliased TableModel it already carries that qualifier (for example
+            // rightOrder.openingOrg); falling back to DbDimension's cached path
+            // would expose a bare openingOrg$property and make two TM instances
+            // collide in the public QM schema.
+            String basePath = columnName;
             // 检查是否有任何该维度的显式属性引用
             String propPrefix = basePath + "$";
             boolean hasExplicitProps = explicitColumnNames.stream()
@@ -1230,7 +1260,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 // 无显式属性引用 → 自动展开全部属性
                 for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
                     String propColumnName = basePath + "$" + prop.getName();
-                    addColumn(qm, group, propColumnName, createAutoExpandedPropertyItem(item, propColumnName), hasRef);
+                    addColumn(qm, group, propColumnName, createAutoExpandedPropertyItem(item, propColumnName), hasRef,
+                            findDimensionColumn(ownerModel, dimension, propColumnName));
                 }
             }
         }
@@ -1238,20 +1269,102 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         // 3. 递归展开嵌套子维度（跳过已被 QM 显式引用的子维度）
         if (dimension.hasChildDimensions()) {
             for (DbDimension child : dimension.getChildDimensions()) {
-                String childDimPath = child.getFullPath();
+                String childDimPath = publicDimensionPath(columnName, dimension, child.getFullPath());
                 if (explicitDimensionRefs.contains(childDimPath)) {
                     // 该子维度已被 QM 显式引用，由其自身的 ref 展开，此处跳过
                     continue;
                 }
-                String childColumnName = child.getFullPathForAlias();
-                expandDimension(qm, group, child, childColumnName, item, hasRef, explicitColumnNames, explicitDimensionRefs);
+                String childColumnName = publicDimensionPath(columnName, dimension, child.getFullPathForAlias());
+                expandDimension(qm, group, ownerModel, child, childColumnName, item, hasRef,
+                        explicitColumnNames, explicitDimensionRefs);
             }
         }
     }
 
-    private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String columnName, SelectColumnDef item, boolean hasRef) {
+    /**
+     * Reuse the public table qualifier already present on {@code currentColumnName}
+     * when recursing into a nested dimension.  The cached DbDimension only knows its
+     * TM-local path, so it must not decide the public schema of an explicit QM alias.
+     */
+    private String publicDimensionPath(String currentColumnName, DbDimension currentDimension, String targetPath) {
+        if (StringUtils.isEmpty(currentColumnName) || currentDimension == null || StringUtils.isEmpty(targetPath)) {
+            return targetPath;
+        }
+        String currentLocalPath = currentDimension.getFullPathForAlias();
+        if (StringUtils.isEmpty(currentLocalPath) || !currentColumnName.endsWith(currentLocalPath)) {
+            return targetPath;
+        }
+        return currentColumnName.substring(0, currentColumnName.length() - currentLocalPath.length()) + targetPath;
+    }
+
+    private DbColumn resolveColumnForItem(QueryModelSupport qm, SelectColumnDef item, String columnName) {
+        ColumnRef ref = item.getRefAsColumnRef();
+        if (ref != null) {
+            return ColumnRefResolver.resolveColumn(qm, ref);
+        }
+        return qm.findJdbcColumn(columnName);
+    }
+
+    private DbDimension resolveDimensionForItem(QueryModelSupport qm, SelectColumnDef item, String dimensionName) {
+        ColumnRef ref = item.getRefAsColumnRef();
+        if (ref != null) {
+            return ColumnRefResolver.resolveDimension(qm, ref);
+        }
+        return qm.findDimension(dimensionName);
+    }
+
+    private TableModel resolveOwnerModelForItem(QueryModelSupport qm, SelectColumnDef item) {
+        ColumnRef ref = item.getRefAsColumnRef();
+        if (ref == null) {
+            return null;
+        }
+        List<TableModel> owners = ColumnRefResolver.resolveOwnerModels(qm, ref);
+        return owners.isEmpty() ? null : owners.get(0);
+    }
+
+    private DbColumn findDimensionColumn(TableModel ownerModel, DbDimension dimension, String columnName) {
+        if (ownerModel != null) {
+            DbColumn ownerColumn = ownerModel.findJdbcColumnByName(
+                    stripOwnerQualifier(ownerModel, columnName));
+            if (ownerColumn != null) {
+                return ownerColumn;
+            }
+        }
+        if (dimension == null || dimension.getAllDbColumns() == null) {
+            return null;
+        }
+        for (DbColumn column : dimension.getAllDbColumns()) {
+            if (column != null && StringUtils.equals(columnName, column.getName())) {
+                return column;
+            }
+        }
+        return null;
+    }
+
+    private String stripOwnerQualifier(TableModel ownerModel, String columnName) {
+        if (ownerModel == null || StringUtils.isEmpty(columnName)) {
+            return columnName;
+        }
+        String prefix = ownerModel.getAlias() + ".";
+        return columnName.startsWith(prefix) ? columnName.substring(prefix.length()) : columnName;
+    }
+
+    private ColumnRef toColumnRef(Object ref) {
+        if (ref instanceof ColumnRef columnRef) {
+            return columnRef;
+        }
+        if (ref instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.toColumnRef();
+        }
+        return null;
+    }
+
+    private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String columnName, SelectColumnDef item,
+                           boolean hasRef, DbColumn resolvedColumn) {
         // columnName 使用 alias 格式（_ 分隔），因为列在 TableModel 中以 alias 格式索引
-        DbColumn jdbcColumn = qm.findJdbcColumnForCond(columnName, true);
+        DbColumn jdbcColumn = resolvedColumn != null
+                ? resolvedColumn
+                : qm.findJdbcColumnForCond(columnName, true);
 
         /**
          * 创建 DbQueryColumn 并设置字段名相关属性：
@@ -1281,6 +1394,14 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         // 自动展开属性应回落到各自列的 caption，不能复用维度入口列的 caption。
         autoExpandedItem.setCaption(null);
         return autoExpandedItem;
+    }
+
+    private SelectColumnDef createExpandedDimensionItem(SelectColumnDef item, String columnName) {
+        SelectColumnDef expandedItem = new SelectColumnDef();
+        BeanUtils.copyProperties(item, expandedItem);
+        expandedItem.setName(columnName);
+        expandedItem.setAlias(columnName);
+        return expandedItem;
     }
 
     private void fixJdbcQueryCond(QueryModelSupport qm, DbQueryConditionImpl jdbcQueryCond, DbColumn selectColumn) {

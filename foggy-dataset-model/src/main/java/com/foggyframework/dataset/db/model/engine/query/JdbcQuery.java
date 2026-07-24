@@ -5,6 +5,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
+import com.foggyframework.dataset.db.model.engine.query_model.ColumnRefResolver;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
@@ -255,13 +256,10 @@ public class JdbcQuery {
     private DbColumn resolveDbColumn(ColumnRef columnRef) {
         RX.notNull(queryModel, "使用字段引用需要先设置 queryModel");
 
-        // 获取字段的完整引用名（如 salesTeamId 或 customer$memberLevel）
-        String fieldName = columnRef.getFullRef();
-
-        // 通过 QueryModel 查找对应的 DbColumn
-        DbColumn dbColumn = queryModel.findJdbcColumn(fieldName);
+        DbColumn dbColumn = ColumnRefResolver.resolveColumn(queryModel, columnRef);
         if (dbColumn == null) {
-            throw RX.throwAUserTip("字段 [" + fieldName + "] 在 QueryModel [" + queryModel.getName() + "] 中不存在");
+            throw RX.throwAUserTip("字段 [" + columnRef.getFullRef() + "] 在 ColumnRef 所属 TableModel 中不存在: "
+                    + columnRef.getModelName());
         }
         return dbColumn;
     }

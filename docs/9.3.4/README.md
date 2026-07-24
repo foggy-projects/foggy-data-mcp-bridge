@@ -636,6 +636,8 @@ updated_at: 2026-07-24
   [coverage/step4-coverage-gate-coverage-audit.md](coverage/step4-coverage-gate-coverage-audit.md)
 - Step 4 feature acceptance：
   [acceptance/step4-coverage-gate-acceptance.md](acceptance/step4-coverage-gate-acceptance.md)
+- QM v2 ColumnRef owner/alias B600：
+  [workitems/BUG-qm-v2-columnref-owner-b600.md](workitems/BUG-qm-v2-columnref-owner-b600.md)
 
 ## 1~7 顺序
 

@@ -1,0 +1,38 @@
+/**
+ * B600 owner-aware ColumnRef 回归探针。
+ *
+ * @description 模拟 TerminalFulfillmentOrderListQuery：根库存模型已经有 sourceOrder
+ * 维度，但仍显式 join 运单模型。无显式别名的 fo.* 必须稳定归属到显式 join 的运单模型。
+ */
+const si = loadTableModel('FactOrderB600StockItemProbeModel');
+const fo = loadTableModel('FactOrderB600ExpressOrderProbeModel');
+
+export const queryModel = {
+    name: 'TerminalFulfillmentB600OwnerRefProbeQueryModel',
+    caption: 'B600 到货履约 owner ref 探针',
+    model: si,
+
+    joins: [
+        si.leftJoin(fo).on(si.orderId, fo.expressOrderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '库存与显式运单',
+            items: [
+                { ref: si.stockItemId },
+                { ref: fo.orderNo },
+                { ref: fo.tenantId },
+                { ref: fo.openingOrg$caption }
+            ]
+        }
+    ],
+
+    accesses: [{
+        property: 'tenantId',
+        queryBuilder: (context) => {
+            context.query.and(fo.tenant$id, 20240101);
+            context.query.getWhere().and(fo.openingOrg$caption, '杭州西湖店1');
+        }
+    }]
+};
