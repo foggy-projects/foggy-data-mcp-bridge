@@ -54,6 +54,9 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   `SqlGenerationResult`。旧 compiler/relation options、便捷 overload 和 semantic service 方法均保留
   兼容桥接；per-request authority、CTE stages、diagnostics、null bind 参数和字段解析 fail-closed
   语义保持不变。
+- Compose `PlanExecution` 已拆分使用 planning port 与独立 `ComposeSqlExecutionPort`，编译阶段和
+  raw SQL 执行阶段不再要求同一个完整 service 类型；旧 `executePlan(..., SemanticQueryServiceV3, ...)`
+  overload 继续兼容转发，route model 选择和 execute-phase 异常前缀保持不变。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
   33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
@@ -64,9 +67,10 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
   UNION ALL SQLite 集成路径 1/1 通过；domain transport contract/renderer/rollup 41/41、
   大域 transport/diagnostics/SQL parity SQLite 集成路径 3/3 通过；Compose planning-port/compiler
   定向回归 198/198，通过 fail-closed 收紧后的核心复跑 57/57，真实 DSL→Compose→SQLite 执行
-  集成路径 1/1 通过。
-- 当前执行切片：继续盘点 Compose runtime/executor 对完整 semantic service 的剩余依赖，优先拆分
-  SQL planning 与 raw execution 能力，同时保持现有 runtime authority 注入和异常映射不变。
+  集成路径 1/1 通过；PlanExecution 双端口/兼容定向回归 24/24，derived/join/union SQLite
+  real-SQL parity 3/3 通过。
+- 当前执行切片：将 Compose runtime bundle/script orchestration 改为内部持有 planning/raw-execution
+  双端口，同时保留完整 semantic service 的公开构造和 builder 兼容入口。
 
 ## 已确认目标
 

@@ -6,6 +6,8 @@ import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSql
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.List;
@@ -50,15 +52,38 @@ public final class PlanExecution {
             SemanticQueryServiceV3 semanticService,
             String dialect,
             boolean normalizePlan) {
+        return executePlan(
+                plan, ctx, semanticService, semanticService, dialect, normalizePlan);
+    }
+
+    /** Execute using independently supplied planning and raw-SQL capabilities. */
+    public static List<Map<String, Object>> executePlan(
+            QueryPlan plan,
+            ComposeQueryContext ctx,
+            ComposeSemanticPlanningPort planningPort,
+            ComposeSqlExecutionPort executionPort,
+            String dialect) {
+        return executePlan(plan, ctx, planningPort, executionPort, dialect, false);
+    }
+
+    /** Execute using independently supplied planning and raw-SQL capabilities. */
+    public static List<Map<String, Object>> executePlan(
+            QueryPlan plan,
+            ComposeQueryContext ctx,
+            ComposeSemanticPlanningPort planningPort,
+            ComposeSqlExecutionPort executionPort,
+            String dialect,
+            boolean normalizePlan) {
         ComposedSql composed = ComposeSqlCompiler.compilePlanToSql(plan, ctx,
                 ComposeSqlCompiler.CompileOptions.builder()
-                        .semanticService(semanticService)
+                        .planningPort(planningPort)
                         .dialect(dialect)
                         .normalizePlan(normalizePlan)
                         .build());
         String routeModel = pickRouteModel(plan);
         try {
-            return semanticService.executeSql(composed.getSql(), composed.getParams(), routeModel);
+            return executionPort.executeComposeSql(
+                    composed.getSql(), composed.getParams(), routeModel);
         } catch (Exception exc) {
             throw new RuntimeException(
                     "Plan execution failed at execute phase: " + exc.getMessage(), exc);

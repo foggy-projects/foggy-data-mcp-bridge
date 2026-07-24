@@ -7,6 +7,9 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
 import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import org.junit.jupiter.api.*;
 
@@ -128,6 +131,31 @@ class PlanExecutionTest {
                 .build();
 
         List<Map<String, Object>> result = PlanExecution.executePlan(plan, ctx(), fakeSvc, "mysql");
+        assertEquals(expectedRows, result);
+    }
+
+    @Test
+    @DisplayName("narrow planning/execution ports execute without legacy semantic service")
+    void executePlan_narrowPorts_returnsRows() {
+        List<Map<String, Object>> expectedRows = List.of(Map.of("amount", 300));
+        ComposeSemanticPlanningPort planningPort = (model, request, context) ->
+                new ComposeSqlGeneration(
+                        "SELECT amount FROM sale_order WHERE state = ?",
+                        List.of("paid"), List.of(), Map.of());
+        ComposeSqlExecutionPort executionPort = (sql, params, routeModel) -> {
+            assertTrue(sql.contains("sale_order"));
+            assertEquals(List.of("paid"), params);
+            assertEquals("SaleOrderQM", routeModel);
+            return expectedRows;
+        };
+        QueryPlan plan = BaseModelPlan.builder()
+                .model("SaleOrderQM")
+                .columns(List.of("amount"))
+                .build();
+
+        List<Map<String, Object>> result = PlanExecution.executePlan(
+                plan, ctx(), planningPort, executionPort, "mysql");
+
         assertEquals(expectedRows, result);
     }
 

@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 import com.foggyframework.dataset.db.model.semantic.port.PivotOuterCacheEvictionPort;
 import com.foggyframework.dataset.db.model.semantic.port.PivotRollupExecutionPort;
@@ -30,7 +31,7 @@ import java.util.Optional;
  *   <li>groupBy: 直接使用字段名分组</li>
  * </ul>
  */
-public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort,
+public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort, ComposeSqlExecutionPort,
         PivotRollupExecutionPort, PivotOuterCacheEvictionPort {
 
     /**
@@ -152,6 +153,12 @@ public interface SemanticQueryServiceV3 extends ComposeSemanticPlanningPort,
      *         when executor not configured / SQL syntax error / DB connection error
      */
     List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel);
+
+    @Override
+    default List<Map<String, Object>> executeComposeSql(
+            String sql, List<Object> params, String routeModel) {
+        return executeSql(sql, params, routeModel);
+    }
 
     @Override
     default List<Map<String, Object>> executeRollupSql(
