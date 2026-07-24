@@ -11,7 +11,7 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: semantic-replay replacement Step 5 completed and READY_FOR_SIGNOFF; new Step 7 remains closed pending explicit Step 5 acceptance and exact-main activation; no CI, tag, release or publish
+active_scope: semantic-replay replacement Step 5 accepted; exact-main merge and separately frozen new Step 7 activation are next; no CI, tag, release or publish
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
@@ -49,8 +49,12 @@ semantic_replay_replacement_step5_activation_status: completed
 semantic_replay_replacement_step5_runner_status: candidate-passed
 semantic_replay_replacement_step5_tested_commit: b9b8adfd725399cf069dd4165582b7d2e8af4b39
 semantic_replay_replacement_step5_completed_at: 2026-07-23
-semantic_replay_replacement_step5_readiness: READY_FOR_SIGNOFF
-semantic_replay_replacement_step5_acceptance_status: pending-explicit-signoff
+semantic_replay_replacement_step5_readiness: ACCEPTED
+semantic_replay_replacement_step5_acceptance_status: signed-off
+semantic_replay_replacement_step5_acceptance_decision: accepted
+semantic_replay_replacement_step5_accepted_at: 2026-07-24
+semantic_replay_replacement_step5_accepted_by: repository-owner-via-user-approval
+semantic_replay_replacement_step5_acceptance_record: docs/9.3.4/acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md
 semantic_replay_replacement_step5_evidence: docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md
 semantic_replay_replacement_step7_attempt_budget: 1
 semantic_replay_replacement_step7_attempt_consumed: false
@@ -368,6 +372,26 @@ open_questions: []
   final authority pointer may be created.
 - evidence:
   `docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md`.
+
+## Semantic Replay Replacement Step 5 Acceptance — 2026-07-24
+
+- acceptance_scope: semantic-replay replacement Step 5 only。
+- acceptance_decision: `accepted` by explicit repository-owner approval after
+  the delivery-signoff evidence audit。
+- accepted_identity: run=
+  `step5-semantic-replay-replacement-20260723-r1`; tested commit=
+  `b9b8adfd725399cf069dd4165582b7d2e8af4b39`; candidate pointer verification
+  remains `passed`。
+- boundary: this acceptance does not sign new Step 7 or 9.3.4 final authority。
+  The parent feature remains `NEEDS_REPLAN`; the new Step 7 attempt budget is
+  still `1`, consumed=`false`。
+- next_gate: merge the exact accepted branch through an audited no-CI path,
+  create a fresh private full clone at exact clean `origin/main`, then freeze
+  and verify the new Step 7 activation before its only tmux-owned attempt。
+- unchanged_boundaries: no GitHub CI, tag, release, publish, production API/SPI
+  change, verifier relaxation or final authority pointer creation。
+- acceptance_record:
+  `docs/9.3.4/acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md`.
 
 ## Ultra Execution Contract
 

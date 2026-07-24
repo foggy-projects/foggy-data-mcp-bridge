@@ -632,7 +632,7 @@ updated_at: 2026-07-23
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | READY_FOR_SIGNOFF / replacement candidate-passed / old r2 historical accepted | replacement r1 at `b9b8adfd…` completed once with exit 0；budget consumed；candidate pointer exact；final pointer absent；awaiting explicit signoff；no-CI |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | ACCEPTED / replacement candidate-passed / old r2 historical accepted | replacement r1 at `b9b8adfd…` completed once with exit 0；budget consumed；candidate pointer exact；owner signoff 2026-07-24；final pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
 | 7 | clean-commit 本地权威回放与后置门 | NEEDS_REPLAN / repair ACCEPTED | old r1 consumed and remains candidate-only；final pointer absent；replacement Step 5 and new Step 7 remain；no-CI/tag/release/publish |
 
@@ -664,10 +664,13 @@ Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run �
   `23/48`、required=`774+59/5709/F0E0S0`，portable replay self-test=
   `2 same-filesystem / 1 cross-filesystem / 9 negatives`，JAR=image=
   `ed48e51…`，archive=`613e1cac…`。
-- replacement Step 5 现只推进到 `READY_FOR_SIGNOFF`，不得自行标记
-  `ACCEPTED`。candidate pointer 精确存在；三个 final/authority pointer 均不存在。
-  新 Step 7 预算仍为唯一一次且未消耗，必须等待 Step 5 明确签收、repair bytes
-  合入 exact clean `origin/main`、独立 activation/preflight 与再次执行授权。
+- replacement Step 5 已在 delivery-signoff audit 后由 repository owner 于
+  2026-07-24 明确签收为 `ACCEPTED`。candidate pointer 精确存在；三个
+  final/authority pointer 均不存在。签收记录：
+  [step5-semantic-replay-replacement-r1-signoff-20260724.md](acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md)。
+- 新 Step 7 预算仍为唯一一次且未消耗，必须先将 exact accepted branch
+  合入 clean `origin/main`，再完成独立 activation/preflight、冻结契约和再次
+  核对 attempt ledger。
   semantic replay 与 ordered review chain 完成前不得生成 final authority pointer。
 - execution evidence:
   [step5-semantic-replay-replacement-r1-passed-20260723.md](evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md)。
