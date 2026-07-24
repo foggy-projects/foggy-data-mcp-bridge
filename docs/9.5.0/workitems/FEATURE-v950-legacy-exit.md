@@ -1,0 +1,187 @@
+---
+doc_type: delivery-spec
+delivery_type: cross-module
+version: 9.5.0
+ticket: v950-legacy-exit
+status: APPROVED
+canonical: true
+execution_mode: ultra
+assurance_level: elevated
+approved_by: repository-owner-via-user-request
+approved_at: 2026-07-24
+open_questions: []
+---
+
+# Delivery Spec: 9.5.0 Model Legacy Exit
+
+## Document Purpose
+
+- intended_for: ultra-implementation / independent-signoff
+- purpose: 冻结 9.5.0 旧聚合坐标、旧包根、兼容查询桥和 SPI v1 退出的唯一执行边界。
+- canonical_path: `docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
+
+## Goal
+
+- version_goal: 在 9.4.0/9.4.1 已完成 SPI v2 建立与采用后，结束一个兼容周期并完成第一方 legacy exit。
+- target_outcome: 第一方构建不再依赖 `foggy-dataset-model` 聚合坐标，生产源码不再引用
+  `com.foggyframework.dataset.db.model.*`，provider capability 与实际角色一致，旧查询兼容桥退出。
+- critical_outcomes:
+  - 14 个第一方旧聚合直接依赖归零；
+  - 聚合之外 11 模块/110 文件的旧包生产导入归零，旧包根从新引擎源码中消失；
+  - `DatasetClientProxy` 不再计入 model SPI 查询 bypass，治理守卫变为零 allowlist；
+  - MODEL_LOAD 有稳定小型 port；namespace isolation 固化为所有 load/query/refresh 的非可选请求维度，
+    不作为可虚报的独立 capability；ATOMIC_REFRESH 只在真实原子切换 adapter 存在时声明；
+  - duplicate/missing/unsupported/role mismatch 继续 fail closed，TCK 只验证真实发布的角色。
+- success_is_sufficient_when: 新模块图可由 reactor 构建，旧坐标/旧包/旧 bridge 守卫为零，focused 与
+  affected tests 通过，迁移文档、breaking 清单和实施证据完整并进入 `READY_FOR_SIGNOFF`。
+
+## Scope
+
+- in_scope:
+  - 将旧 `foggy-dataset-model` 实现模块物理归位为 `foggy-dataset-model-engine`；
+  - 将旧包根 `com.foggyframework.dataset.db.model` 迁移到
+    `com.foggyframework.dataset.model` 下的 `config/def/engine/lifecycle/semantic/spi` 等真实所有权；
+  - 更新第一方 POM、源码、测试、Spring 元数据、反射字符串、发布/检查脚本及文档中的受影响身份；
+  - API 增加 JDK-only model-load 与 atomic-refresh port/DTO；core discovery 校验 capability-role；
+  - engine/starter 为已有 JDBC loader/catalog refresh 路径发布真实 provider 角色；
+  - 删除 `LegacyQueryFacadeAdapter`；将引擎高级查询方法保留为 engine-internal advanced port，
+    稳定公共入口仍为 `model-api QueryFacade/DTO`；
+  - 将 9.4.1 allowlist 守卫升级为旧坐标、旧包导入、兼容 adapter 和治理 bypass 全部为零；
+  - 同步 9.5.0 README、迁移表、breaking/rollback 说明和 workitem 实施结果。
+- affected_modules:
+  `foggy-dataset-model-api`, `-core`, `-jdbc`, `-starter`, `-web`, `-tck`,
+  new `foggy-dataset-model-engine`, runtime/MCP/memory-grid/launcher and all model addons.
+- external_dependencies: none; external consumers must migrate source and Maven dependencies before adopting 9.5.0.
+
+## Non-Goals
+
+- out_of_scope:
+  - 数据库 schema、数据搬迁或不可逆运行时迁移；
+  - 新增 backend 功能、改变查询语义、放宽 namespace/security/field-access/physical-column 权限；
+  - 为没有真实原子切换语义的 Mongo/vector/cache/preagg provider 虚报 ATOMIC_REFRESH；
+  - GitHub CI、tag、release、publish、Step 5/7、authority/replay/source-seal 或通用五库矩阵。
+- do_not_touch:
+  原始脏工作区及其中 `docs/9.3.5/README.md`、`docs/9.3.5/workitems/` 用户内容；
+  `foggy-dataset` 的 `.ds/.ms` DatasetClient 查询机制不改产品语义。
+- non_blocking_or_waivable_items:
+  非 9.3.5 查询桥用途的历史 `@Deprecated` 方法不要求在本版本机械删除；必须记录剩余项但不得冒充
+  SPI v2 公共契约。
+
+## Confirmed Decisions
+
+| Decision | Rationale | Compatibility / Constraint |
+|---|---|---|
+| 删除旧 Maven 坐标并引入 `foggy-dataset-model-engine` | 旧坐标是传递聚合，已完成一个兼容周期 | 外部 POM 必须显式迁移；不发布同名空壳或静默转发 |
+| 旧 Java 包根整体退出，目标根为 `com.foggyframework.dataset.model` | 包名必须反映 model v2 所有权，避免继续把内部类型当旧 SPI | 这是明确授权的 source/binary breaking change |
+| engine 统一承载 JDBC/semantic/lifecycle/pivot/compose 实现 | 当前 612 个实现文件高度内聚，先结束聚合/包债务，避免在同一版本制造循环拆分 | API/core 保持 JDK-only/adapter-free；addon 实现继续归各 addon |
+| namespace isolation 是请求与 catalog identity 的不变量，不增加可选 capability | 可选 capability 会允许 provider 暗示可关闭隔离 | 缺 namespace/currentness 处理必须 fail closed |
+| MODEL_LOAD 与 ATOMIC_REFRESH 使用独立小角色 | capability 必须对应可调用 port | 只有 engine 的真实 loader/atomic catalog swap 可声明 |
+| 删除 `LegacyQueryFacadeAdapter`，稳定 facade 保持 | 一个兼容周期已结束 | engine 内部高级端口可保留，但不再以 legacy bridge 对外 |
+| 不改变查询、权限或数据结果语义 | 本版本是物理/SPI exit | 任何语义放宽或数据迁移触发 `NEEDS_REPLAN` |
+
+## Acceptance Criteria
+
+- [ ] AC-1: reactor、dependency management、第一方 POM 中没有旧
+  `com.foggysource:foggy-dataset-model` 模块或依赖；目标依赖显式指向 API/core/engine/adapter。
+- [ ] AC-2: tracked production Java 与 Spring/runtime 元数据中没有
+  `com.foggyframework.dataset.db.model`；新 engine 源码路径与包声明一致。
+- [ ] AC-3: architecture guard 要求旧坐标、旧包 import/FQCN、`LegacyQueryFacadeAdapter` 与 model-query
+  bypass 均为零，不保留 legacy allowlist。
+- [ ] AC-4: `ModelLoadBackendProvider` 对应真实 load port；namespace 作为必填/显式默认 identity 维度；
+  engine 只有在现有 catalog 原子切换路径可验证时声明 ATOMIC_REFRESH。
+- [ ] AC-5: core/TCK 对 MODEL_LOAD/QUERY/ATOMIC_REFRESH/CACHE_INVALIDATION 的 capability-role overclaim
+  在 discovery fail closed，descriptor/identity 仍不可变且唯一。
+- [ ] AC-6: JDBC/query-cache 现有能力不扩大；Mongo/vector/preagg 未接入的能力保持不声明。
+- [ ] AC-7: `LegacyQueryFacadeAdapter` 及其 compatibility test 删除；公共查询控制器和消费者直接使用
+  stable QueryFacade DTO 或 engine-internal mapper/port。
+- [ ] AC-8: runtime/MCP/memory-grid/launcher/addons 在新模块图上 compile，focused unit/context/TCK 与
+  affected reactor tests 实际通过。
+- [ ] AC-9: 9.5.0 README/migration/breaking/rollback 和本 workitem 记录精确命令、结果、偏差及残余风险；
+  完成 review 后状态为 `READY_FOR_SIGNOFF`，不得自行伪造 `ACCEPTED`。
+
+## Contract / Data / Security Constraints
+
+- API or event contract: 9.5.0 明确允许删除旧 Maven/Java/bridge SPI；稳定
+  `com.foggyframework.dataset.model.api.QueryFacade` 请求/结果契约不得破坏。
+- data and migration: 无数据库 DDL/DML；不得进行不可逆数据迁移。
+- compatibility and rollback: 外部升级需一次性替换坐标与 import；回滚方式为回退 9.5.0 提交并恢复
+  9.4.1 制品，不提供双包运行时。迁移清单必须可机械检查。
+- permissions and secrets: 不涉及凭据；namespace、field access、physical denied columns、datasource
+  currentness 和 fail-closed 错误不得降低。
+
+## Test and Evidence Obligations
+
+| Item | Classification | Risk | Required Validation | Reusable Evidence | Required Evidence |
+|---|---|---|---|---|---|
+| AC-1/2/3 | must-pass | critical | architecture test + inventory commands | 9.4.1 14/110/1 baseline | zero-count output |
+| AC-4/5/6 | must-pass | critical | API/core/TCK/JDBC/cache/engine provider tests | 9.4.1 QUERY/cache TCK | exact Maven results |
+| AC-7 | must-pass | major | facade/controller focused tests and removed-class guard | 9.4.1 facade tests | exact Maven results |
+| AC-8 | must-pass | critical | affected reactor compile/test slices with `-pl ... -am` | unchanged semantic behavior evidence | module/test totals |
+| external binary compatibility | intentional break | major | documented removed/renamed surface; no compatibility claim | 9.4.1 assessment | migration table |
+| large authority/replay | approval-required | major | not run in implementation scope | earlier 9.4 evidence only | explicit omitted reason |
+
+## Validation Budget and Evidence Sufficiency
+
+- assurance_level: elevated
+- lightweight_validation: inventory, architecture tests and focused API/core/TCK tests, each expected `<5m`.
+- medium_validation: engine and addon/runtime affected reactor slices, expected `5-30m` each.
+- expensive_validation: one full release-governance authority is recommended only after a final candidate.
+- large_authority_or_replay_policy: prohibited-unless-user-approved
+- full_chain_recommendation_trigger: final breaking candidate before tag/release/publish.
+- estimated_full_chain_wall_clock: lean `60-120m`; semantic/portable replay plus full DB matrix `2-4h`,
+  based on 9.4.1 entry assessment and prior authority history.
+- full_chain_prerequisites: final candidate SHA, database fixtures, runtime dependencies and explicit user approval.
+- user_approval_status: not-requested
+- decision_if_not_approved: finish implementation with focused/affected evidence and report authority as signoff prerequisite.
+- expensive_validation_trigger: only the final candidate and explicit approval; maximum one attempt.
+- maximum_expensive_attempts: 1 after approval; two non-product failures would require `NEEDS_REPLAN`.
+- reusable_evidence: 9.4.1 accepted provider/catalog behavior and unchanged query/security semantic tests.
+- stop_when_evidence_is_sufficient: zero legacy guards pass, all changed modules compile, focused provider/bridge and
+  affected runtime/addon tests pass, review finds no unauthorized semantic/security change.
+- validation_not_required: `mvn install`, generic five-DB matrix, Step 5/7, CI changes, tag/release/publish.
+
+## Waiver Policy
+
+- waivable_items: non-bridge historical deprecations and unexecuted large authority before signoff.
+- authorized_role: repository owner.
+- non_waivable_guards: zero old coordinate/package/bridge, capability truthfulness, namespace/security/data correctness,
+  stable model-api QueryFacade compatibility and no irreversible migration.
+- required_risk_record: exact remaining symbol, owner, reason, migration target and signoff impact.
+
+## Risks and Open Questions
+
+- known_risks:
+  broad package/Maven renaming intentionally breaks external source/binary compatibility; reflection/configuration
+  strings can evade Java compile checks, so tracked-text guards and launcher/context tests are required.
+- open_questions: none
+
+## Ultra Execution Contract
+
+- 先读取本文件、根 `CLAUDE.md`、9.4.0 migration、9.4.1 adoption/assessment；仓库未发现 `AGENTS.md`。
+- 在 scope 内自主决定局部移动顺序；先 mechanical identity migration，再 provider role，再 bridge cleanup。
+- 使用 Maven reactor `-pl ... -am`；不得运行 `mvn install`。
+- 如需改变查询语义、权限、数据正确性、不可逆迁移或本契约 breaking 边界，设置 `NEEDS_REPLAN` 并停止。
+- 未经再次明确批准，不得运行大型 authority/replay/rehearsal/source-seal/full-chain。
+- 达到 evidence sufficiency 后停止，填写 Implementation Result 并设为 `READY_FOR_SIGNOFF`。
+
+## Implementation Result
+
+> 由执行会话填写。
+
+- implementation_summary:
+- changed_paths:
+- tests_and_results:
+- manual_or_experience_evidence:
+- deviations: none
+- residual_risks:
+- reused_evidence:
+- omitted_validation_and_reason:
+- readiness:
+
+## References
+
+- requirement / issue: user-approved sequential execution of 9.4.1 landing, 9.5.0 Gate P0 and implementation
+- architecture / glossary: `docs/9.4.0/model-spi-v2-migration.md`
+- related work items:
+  `docs/9.4.1/workitems/FEATURE-v941-spi-v2-adoption-hardening.md`,
+  `docs/9.4.1/9.5.0-entry-assessment.md`
