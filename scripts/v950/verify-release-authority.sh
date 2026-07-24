@@ -22,15 +22,22 @@ fail() {
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/v950/verify-release-authority.sh [--resume-from PRIOR_RUN_ROOT] [RUN_ID]
+  scripts/v950/verify-release-authority.sh \
+    [--resume-from PRIOR_FAILED_RUN_ROOT | --reuse-product-from PRIOR_PASSED_RUN_ROOT] \
+    [RUN_ID]
 
 Runs one canonical 9.5.0 release-authority attempt. The candidate must be a
 clean committed HEAD based on current origin/main. This command never installs,
 deploys, tags, publishes, or changes a remote.
 
---resume-from is fail-closed recovery for a direct-parent candidate whose
-committed delta is restricted to scripts/v950/** and does not change the
-frozen contract. It may reuse only passed root, semantic, and SQLite receipts.
+--resume-from is fail-closed recovery from a failed database-phase attempt. It
+reuses only passed root, semantic, and SQLite JSON receipts.
+
+--reuse-product-from reuses only passed product JSON receipts (root, semantic,
+seven database variants, and four database cells) from a passed authority.
+Archive, extraction, portable replay, source seals, sensitive scan, and final
+manifest are always regenerated. Reuse requires an ancestor source candidate
+and a governance-only committed delta that leaves the frozen contract intact.
 EOF
 }
 
@@ -131,6 +138,7 @@ if [[ "${1:-}" == "--internal-database-callback" ]]; then
 fi
 
 RESUME_FROM=""
+REUSE_PRODUCT_FROM=""
 RUN_ID=""
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -138,6 +146,13 @@ while [[ "$#" -gt 0 ]]; do
       [[ -z "$RESUME_FROM" && "$#" -ge 2 ]] || fail "invalid --resume-from"
       [[ -d "$2" && ! -L "$2" ]] || fail "prior run root missing or unsafe: $2"
       RESUME_FROM="$(cd "$2" && pwd -P)"
+      shift 2
+      ;;
+    --reuse-product-from)
+      [[ -z "$REUSE_PRODUCT_FROM" && "$#" -ge 2 ]] || \
+        fail "invalid --reuse-product-from"
+      [[ -d "$2" && ! -L "$2" ]] || fail "prior run root missing or unsafe: $2"
+      REUSE_PRODUCT_FROM="$(cd "$2" && pwd -P)"
       shift 2
       ;;
     -*)
@@ -150,6 +165,8 @@ while [[ "$#" -gt 0 ]]; do
       ;;
   esac
 done
+[[ -z "$RESUME_FROM" || -z "$REUSE_PRODUCT_FROM" ]] || \
+  fail "--resume-from and --reuse-product-from are mutually exclusive"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ && "$RUN_ID" != "." && "$RUN_ID" != ".." ]] || \
   fail "unsafe run id: $RUN_ID"
@@ -166,6 +183,34 @@ git -C "$ROOT_DIR" merge-base --is-ancestor origin/main HEAD || \
 
 CANDIDATE="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]] || fail "invalid candidate SHA"
+
+reuse_receipt_from_run() {
+  local prior_root="$1" evidence_key="$2" relative="$3"
+  local prior_receipt="$prior_root/$relative"
+  local output="$RUN_ROOT/$relative"
+  local source_output="${output%.json}.reused-source.json"
+  local source_receipt="$prior_receipt"
+  local source_name
+  [[ -f "$prior_receipt" && ! -L "$prior_receipt" ]] || \
+    fail "prior receipt missing or unsafe: $relative"
+  if [[ "$(jq -r '.kind' "$prior_receipt")" == "v950-reused-authority-receipt" ]]; then
+    source_name="$(jq -r '.source_receipt' "$prior_receipt")"
+    [[ "$source_name" =~ ^[A-Za-z0-9._-]+$ ]] || \
+      fail "unsafe prior source receipt name: $relative"
+    source_receipt="$(dirname "$prior_receipt")/$source_name"
+  fi
+  [[ -f "$source_receipt" && ! -L "$source_receipt" ]] || \
+    fail "prior source receipt missing or unsafe: $relative"
+  mkdir -p "$(dirname "$output")"
+  cp -p -- "$source_receipt" "$source_output"
+  python3 "$TOOL" reuse-receipt \
+    --repo-root "$ROOT_DIR" \
+    --source-receipt "$source_output" \
+    --evidence-key "$evidence_key" \
+    --candidate "$CANDIDATE" \
+    --output "$output"
+}
+
 STAGING_ROOT="$(mktemp -d "/tmp/foggy-v950-authority-${RUN_ID}.XXXXXX")"
 PORTABLE_PARENT=""
 RUN_ROOT="$TARGET_ROOT/runs/$RUN_ID"
@@ -224,53 +269,65 @@ python3 "$TOOL" source-seal \
   --output "$STAGING_ROOT/source-before.tsv" \
   > "$STAGING_ROOT/source-before.json"
 
-if [[ -n "$RESUME_FROM" ]]; then
-  PHASE=resume-validation
+if [[ -n "$RESUME_FROM" || -n "$REUSE_PRODUCT_FROM" ]]; then
+  PHASE=reuse-validation
   [[ ! -e "$RUN_ROOT" && ! -L "$RUN_ROOT" ]] || fail "run root already exists: $RUN_ROOT"
   mkdir -p "$RUN_ROOT"
   mv -- "$STAGING_ROOT/source-before.tsv" "$RUN_ROOT/source-before.tsv"
   mv -- "$STAGING_ROOT/source-before.json" "$RUN_ROOT/source-before.json"
-  [[ "$(jq -r '.candidate' "$RESUME_FROM/source-before.json")" == \
-    "$(jq -r '.candidate' "$RESUME_FROM/root-receipt.json")" ]] || \
-    fail "prior run candidate bindings differ"
-  [[ "$(sed -n 's/^status=//p' "$RESUME_FROM/run-status.env")" == "failed" ]] || \
-    fail "prior run is not a recorded failed attempt"
-  [[ "$(sed -n 's/^phase=//p' "$RESUME_FROM/run-status.env")" == database-* ]] || \
-    fail "prior run did not reach database execution"
-  mkdir -p "$RUN_ROOT/reused/root" "$RUN_ROOT/reused/semantic" \
-    "$RUN_ROOT/reused/db-sqlite" "$RUN_ROOT/semantic" \
-    "$RUN_ROOT/database/variants/db-sqlite" "$RUN_ROOT/database/cells/sqlite"
-  cp -p -- "$RESUME_FROM/root-clean-verify.log" "$RUN_ROOT/reused/root/"
-  cp -p -- "$RESUME_FROM/root-receipt.json" \
-    "$RUN_ROOT/root-receipt.reused-source.json"
-  cp -a -- "$RESUME_FROM/semantic/." "$RUN_ROOT/reused/semantic/"
-  cp -p -- "$RESUME_FROM/semantic/receipt.json" \
-    "$RUN_ROOT/semantic/receipt.reused-source.json"
-  cp -a -- "$RESUME_FROM/database/variants/db-sqlite/." \
-    "$RUN_ROOT/reused/db-sqlite/"
-  cp -p -- "$RESUME_FROM/database/variants/db-sqlite/receipt.json" \
-    "$RUN_ROOT/database/variants/db-sqlite/receipt.reused-source.json"
-  python3 "$TOOL" reuse-receipt \
-    --repo-root "$ROOT_DIR" \
-    --source-receipt "$RUN_ROOT/root-receipt.reused-source.json" \
-    --evidence-key root \
-    --candidate "$CANDIDATE" \
-    --output "$RUN_ROOT/root-receipt.json"
-  python3 "$TOOL" reuse-receipt \
-    --repo-root "$ROOT_DIR" \
-    --source-receipt "$RUN_ROOT/semantic/receipt.reused-source.json" \
-    --evidence-key semantic \
-    --candidate "$CANDIDATE" \
-    --output "$RUN_ROOT/semantic/receipt.json"
-  python3 "$TOOL" reuse-receipt \
-    --repo-root "$ROOT_DIR" \
-    --source-receipt \
-      "$RUN_ROOT/database/variants/db-sqlite/receipt.reused-source.json" \
-    --evidence-key db-sqlite \
-    --candidate "$CANDIDATE" \
-    --output "$RUN_ROOT/database/variants/db-sqlite/receipt.json"
-  printf 'database=sqlite\nstatus=passed\nreused_from=%s\n' \
-    "$RESUME_FROM" > "$RUN_ROOT/database/cells/sqlite/status.env"
+  if [[ -n "$RESUME_FROM" ]]; then
+    [[ "$(jq -r '.candidate' "$RESUME_FROM/source-before.json")" == \
+      "$(jq -r '.candidate' "$RESUME_FROM/root-receipt.json")" ]] || \
+      fail "prior run candidate bindings differ"
+    [[ "$(sed -n 's/^status=//p' "$RESUME_FROM/run-status.env")" == "failed" ]] || \
+      fail "prior run is not a recorded failed attempt"
+    [[ "$(sed -n 's/^phase=//p' "$RESUME_FROM/run-status.env")" == database-* ]] || \
+      fail "prior run did not reach database execution"
+    reuse_receipt_from_run "$RESUME_FROM" root root-receipt.json
+    reuse_receipt_from_run "$RESUME_FROM" semantic semantic/receipt.json
+    reuse_receipt_from_run \
+      "$RESUME_FROM" db-sqlite database/variants/db-sqlite/receipt.json
+  else
+    [[ -f "$REUSE_PRODUCT_FROM/final-manifest.json" && \
+      ! -L "$REUSE_PRODUCT_FROM/final-manifest.json" ]] || \
+      fail "prior passed final manifest missing or unsafe"
+    [[ "$(jq -r '.status' "$REUSE_PRODUCT_FROM/final-manifest.json")" == "passed" ]] || \
+      fail "prior final manifest is not passed"
+    [[ "$(jq -r '.contract_sha256' "$REUSE_PRODUCT_FROM/final-manifest.json")" == \
+      "$(sha256sum "$CONTRACT" | sed 's/ .*//')" ]] || \
+      fail "prior final manifest contract differs"
+    [[ "$(sed -n 's/^status=//p' "$REUSE_PRODUCT_FROM/run-status.env")" == "passed" ]] || \
+      fail "prior run is not recorded as passed"
+    [[ "$(sed -n 's/^candidate=//p' "$REUSE_PRODUCT_FROM/run-status.env")" == \
+      "$(jq -r '.candidate' "$REUSE_PRODUCT_FROM/final-manifest.json")" ]] || \
+      fail "prior passed candidate bindings differ"
+    [[ "$(jq '.receipts | length' "$REUSE_PRODUCT_FROM/final-manifest.json")" == "17" ]] || \
+      fail "prior final manifest receipt set differs"
+    reuse_receipt_from_run "$REUSE_PRODUCT_FROM" root root-receipt.json
+    reuse_receipt_from_run "$REUSE_PRODUCT_FROM" semantic semantic/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" db-sqlite database/variants/db-sqlite/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" db-mysql57 database/variants/db-mysql57/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" db-mysql8 database/variants/db-mysql8/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" mysql8-targeted database/variants/mysql8-targeted/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" db-postgres15 database/variants/db-postgres15/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" postgres15-targeted database/variants/postgres15-targeted/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" db-sqlserver2022 database/variants/db-sqlserver2022/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" mysql57-cell database/cells/mysql57/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" mysql8-cell database/cells/mysql8/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" postgres15-cell database/cells/postgres15/receipt.json
+    reuse_receipt_from_run \
+      "$REUSE_PRODUCT_FROM" sqlserver2022-cell database/cells/sqlserver2022/receipt.json
+  fi
   restore_tracked_target
 else
   PHASE=root-clean-verify
@@ -327,27 +384,29 @@ else
   printf 'database=sqlite\nstatus=passed\n' > "$RUN_ROOT/database/cells/sqlite/status.env"
 fi
 
-[[ ! -e "$V934_COMPAT_ROOT" && ! -L "$V934_COMPAT_ROOT" ]] || \
-  fail "v934 compatibility root already exists: $V934_COMPAT_ROOT"
-mkdir -p "$V934_COMPAT_ROOT/preflight" "$V934_COMPAT_ROOT/cells"
-for database in mysql57 mysql8 postgres15 sqlserver2022; do
-  PHASE="database-preflight-$database"
-  "$PROVISIONER" check "$database" "$RUN_ID" "$V934_COMPAT_ROOT/preflight/$database"
-done
+if [[ -z "$REUSE_PRODUCT_FROM" ]]; then
+  [[ ! -e "$V934_COMPAT_ROOT" && ! -L "$V934_COMPAT_ROOT" ]] || \
+    fail "v934 compatibility root already exists: $V934_COMPAT_ROOT"
+  mkdir -p "$V934_COMPAT_ROOT/preflight" "$V934_COMPAT_ROOT/cells"
+  for database in mysql57 mysql8 postgres15 sqlserver2022; do
+    PHASE="database-preflight-$database"
+    "$PROVISIONER" check "$database" "$RUN_ID" "$V934_COMPAT_ROOT/preflight/$database"
+  done
 
-for database in mysql57 mysql8 postgres15 sqlserver2022; do
-  PHASE="database-$database"
-  echo "[v950-release-authority] provision database=$database"
-  "$PROVISIONER" run "$database" "$RUN_ID" "$V934_COMPAT_ROOT/cells/$database" -- \
-    "$SCRIPT_PATH" --internal-database-callback \
-    "$RUN_ID" "$database" "$RUN_ROOT" "$CANDIDATE" "$V934_COMPAT_ROOT"
-  cp -a -- "$V934_COMPAT_ROOT/cells/$database" "$RUN_ROOT/database/cells/$database"
-  python3 "$TOOL" cell-summary \
-    --cell-root "$RUN_ROOT/database/cells/$database" \
-    --database "$database" \
-    --candidate "$CANDIDATE" \
-    --output "$RUN_ROOT/database/cells/$database/receipt.json"
-done
+  for database in mysql57 mysql8 postgres15 sqlserver2022; do
+    PHASE="database-$database"
+    echo "[v950-release-authority] provision database=$database"
+    "$PROVISIONER" run "$database" "$RUN_ID" "$V934_COMPAT_ROOT/cells/$database" -- \
+      "$SCRIPT_PATH" --internal-database-callback \
+      "$RUN_ID" "$database" "$RUN_ROOT" "$CANDIDATE" "$V934_COMPAT_ROOT"
+    cp -a -- "$V934_COMPAT_ROOT/cells/$database" "$RUN_ROOT/database/cells/$database"
+    python3 "$TOOL" cell-summary \
+      --cell-root "$RUN_ROOT/database/cells/$database" \
+      --database "$database" \
+      --candidate "$CANDIDATE" \
+      --output "$RUN_ROOT/database/cells/$database/receipt.json"
+  done
+fi
 
 PHASE=create-archive
 mkdir -p "$RUN_ROOT/portable"
@@ -413,6 +472,7 @@ python3 "$TOOL" scan-evidence \
 
 PHASE=finalize
 python3 "$TOOL" finalize \
+  --repo-root "$ROOT_DIR" \
   --candidate "$CANDIDATE" \
   --source-before "$RUN_ROOT/source-before.json" \
   --source-after "$RUN_ROOT/source-after.json" \
