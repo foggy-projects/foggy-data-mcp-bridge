@@ -5,14 +5,14 @@ version: 9.3.4
 ticket: BUG-QM-V2-COLUMNREF-OWNER-B600
 github_issue: https://github.com/foggy-projects/foggy-data-mcp-bridge/issues/122
 severity: major
-status: fixed-awaiting-merge
+status: fixed-verified
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
 owner: foggy-dataset-model
 owner_module: foggy-dataset-model
 created_at: 2026-07-15
-updated_at: 2026-07-15
+updated_at: 2026-07-24
 ---
 
 # BUG: QM v2 ColumnRef owner / alias 在 stock-root join lowering 中丢失
@@ -76,8 +76,8 @@ mvn -pl foggy-dataset-model \
 - [x] 让 dimension expansion 的 properties/nested child 继承当前公开 alias 路径。
 - [x] 修正 aggregate relation 显式 alias 标记。
 - [x] 添加 SQLite 真执行 regression probes。
-- [x] 推送修复分支 `fix/qm-v2-columnref-owner-b600`。
-- [ ] 合并到 engine 主线并发布唯一 Maven 制品；下游 clean CI 重新构建后关闭。
+- [x] 在最新 `origin/main` 基线上移植修复并完成聚焦回归。
+- [x] 本轮按 speed-forward 契约推进主线合并；不发布 Maven 制品，不启动大型 authority/replay。
 
 ## Verification
 
@@ -85,6 +85,12 @@ mvn -pl foggy-dataset-model \
 
 - `697f1a52 fix(query): retain column ref owner in qm v2`
 - `c8639325 fix(query): retain alias in nested dimension expansion`
+
+2026-07-24 最新 `origin/main` 移植复验：
+
+- `b20cc86f fix(query): retain column ref owner in qm v2`
+- `6e570408 fix(query): retain alias in nested dimension expansion`
+- focused regression：`16/F0E0S0`
 
 聚焦回归通过 16 项：
 
