@@ -52,6 +52,11 @@ typed catalog resolution 与 duplicate/missing/unsupported fail-closed 契约；
 API/core/TCK tests 12/12，cache TCK、自动配置及既有 context tests 23/23；TCK 与 starter 在 addon 中
 均为 test scope，未扩大 cache 运行时依赖边界。
 
+第七个切片完成 launcher 装配与制品边界复证。全 addon auto-configuration smoke、注册唯一性和
+outside-package smoke 合计 4/4；launcher 生产包包含兼容聚合及 API/core/JDBC/starter/web，不包含
+测试构件 TCK，也不把 test-scope query-cache addon 带入运行时 JAR。SPI v2 迁移说明同步冻结了一个
+兼容周期、provider 实现步骤、fail-closed 错误语义与各消费场景的目标 Maven 坐标。
+
 ## 开工依赖
 
 1. 9.3.4 已由 owner carry forward；
@@ -69,6 +74,7 @@ API/core/TCK tests 12/12，cache TCK、自动配置及既有 context tests 23/23
 ## 基线材料
 
 - [模块与 SPI 静态盘点](code-inventory.md)
+- [Model SPI v2 迁移说明](model-spi-v2-migration.md)
 - 版本路线图：[9.3.1 → 9.4.0 迭代顺序评审](../9.3.1/roadmap-9.3.1-to-9.4.0.md)
 - 9.3.5 前置：[引擎阶段与公共 API 基线](../9.3.5/README.md)
 - Canonical 交付契约：

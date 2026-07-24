@@ -129,3 +129,9 @@ compatibility plan before modules are extracted.
   identity fail-before-delegate、Spring auto-configuration/back-off 与既有 cache context 兼容。
 - API/core/TCK tests 12/12；cache addon 定向 TCK/auto-configuration/既有 context tests 23/23。
   TCK compile dependency tree 只有 core/API 与 JUnit；cache 的 TCK/starter 依赖均为 test scope。
+- launcher 的 full-addon assembly、auto-configuration registration uniqueness 与 outside-package smoke
+  合计 4/4。装配测试从 catalog 以 `query-cache` + `CACHE_INVALIDATION` + 小角色类型解析真实 cache
+  adapter，确认 provider 发布顺序和角色解析同时成立。
+- launcher 跳过测试的独立 production package 成功。Boot JAR 精确包含旧兼容聚合与
+  `model-api/core/jdbc/starter/web`，不包含 test-only `model-tck`，也不包含 launcher 中 test-scope 的
+  query-cache addon；测试依赖没有改变生产制品的 scope mediation。
