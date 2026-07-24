@@ -7,6 +7,7 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.SemanticModelCatalogReadPort;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticQueryPayloadMapper;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionBlockedException;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
@@ -38,7 +39,7 @@ import java.util.Set;
  */
 @Slf4j
 @Service
-public class SemanticModelCatalogService {
+public class SemanticModelCatalogService implements SemanticModelCatalogReadPort {
 
     private static final int MAX_CATALOG_BUILD_ATTEMPTS = 3;
 
@@ -281,6 +282,7 @@ public class SemanticModelCatalogService {
      * model objects from one final snapshot. Legacy/custom loaders remain
      * uncached and expose a null identity.
      */
+    @Override
     public NamespaceCatalogView namespaceCatalogView(String namespace) {
         String canonicalNamespace = CatalogIdentity.canonicalNamespace(namespace);
         if (catalogSnapshotStore != null
