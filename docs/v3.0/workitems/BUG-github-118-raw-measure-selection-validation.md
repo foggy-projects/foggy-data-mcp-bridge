@@ -6,10 +6,10 @@ ticket: BUG-github-118-raw-measure-selection-validation
 github_issue: https://github.com/foggy-projects/foggy-data-mcp-bridge/issues/118
 bug_source: user-report
 severity: major
-status: ready-for-verification
+status: fixed-verified
 owner: runtime-query-validation
 created_at: 2026-07-08
-updated_at: 2026-07-08
+updated_at: 2026-07-24
 ---
 
 # BUG: Raw Measure Selection Without Aggregate Validation
@@ -72,6 +72,12 @@ expressions. The diagnostic should tell callers to either:
 |---|---|---|
 | `mvn -pl foggy-dataset-model -Dtest=SemanticQueryServiceV3ValidatePipelineTest test` | passed | Covers raw measure warning, detail-anchor opt-out, and explicit aggregate opt-out. |
 | `mvn -pl foggy-runtime-api -Dtest=RuntimeCapabilitiesControllerEnabledTest test` | passed | Covers Runtime API mapping from validation warning to query error envelope. |
+
+Current-main re-verification on 2026-07-24:
+
+- `SemanticQueryServiceV3ValidatePipelineTest`: `4/F0E0S0`
+- `RuntimeCapabilitiesControllerEnabledTest`: `48/F0E0S0`
+- GitHub issue #118: closed
 
 ## Residual Risk
 
