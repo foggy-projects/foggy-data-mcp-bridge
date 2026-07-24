@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.db.model.port.ManagedRelationExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -22,7 +23,6 @@ import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
@@ -56,7 +56,7 @@ public class PivotPipeline {
     private final SemanticQueryServiceV3 semanticQueryService;
     private final CardinalityBreaker cardinalityBreaker;
     private final QueryModelLoader queryModelLoader;
-    private final QueryFacade queryFacade;
+    private final ManagedRelationExecutionPort queryFacade;
     private final PivotOuterCacheProvider outerResponseCache;
     private final OuterCacheOptions outerCacheOptions;
     private final PivotOuterCacheModelIdentityProvider modelIdentityProvider;
@@ -78,14 +78,14 @@ public class PivotPipeline {
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader,
-                         QueryFacade queryFacade) {
+                         ManagedRelationExecutionPort queryFacade) {
         this(semanticQueryService, cardinalityBreaker, queryModelLoader, queryFacade, OuterCacheOptions.disabled());
     }
 
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader,
-                         QueryFacade queryFacade,
+                         ManagedRelationExecutionPort queryFacade,
                          OuterCacheOptions outerCacheOptions) {
         this(semanticQueryService, cardinalityBreaker, queryModelLoader, queryFacade, outerCacheOptions,
                 PivotOuterCacheModelIdentityProvider.empty(), null);
@@ -94,7 +94,7 @@ public class PivotPipeline {
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader,
-                         QueryFacade queryFacade,
+                         ManagedRelationExecutionPort queryFacade,
                          OuterCacheOptions outerCacheOptions,
                          PivotOuterCacheModelIdentityProvider modelIdentityProvider,
                          PivotOuterCacheProvider outerResponseCache) {

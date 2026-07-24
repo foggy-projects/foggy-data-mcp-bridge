@@ -25,9 +25,13 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
 - fresh 受治理 MySQL 5.7 run 为 7 reports / 12 nodes / F0E0S0。
 - 稳定 `QueryFacade` request/result DTO 已建立；model controller、Data Viewer 和 GraphQL
   执行入口已改用 DTO-only facade，旧 9 方法 facade 保留 deprecated 兼容转发层。
+- context/SQL generation 已下沉 `InternalQueryExecutionPort`，managed relation 已下沉
+  `ManagedRelationExecutionPort`；semantic 只依赖组合 advanced port，pivot 只依赖 managed-relation
+  窄口，稳定 facade 未新增引擎类型。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
-  及既有 `QueryExecutionPhase` 回归均通过。
-- 当前执行切片：context、SQL generation 和 managed relation 下沉 internal/advanced ports。
+  及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
+  33/33 通过。
+- 当前执行切片：清点并移除 controller/runtime/addon 未批准 loader/query bypass。
 
 ## 已确认目标
 

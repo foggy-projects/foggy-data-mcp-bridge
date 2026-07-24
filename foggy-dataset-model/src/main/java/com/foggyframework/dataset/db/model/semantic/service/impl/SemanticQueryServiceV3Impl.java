@@ -25,6 +25,7 @@ import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTranspor
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationDiagnostic;
 import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
+import com.foggyframework.dataset.db.model.port.AdvancedQueryExecutionPort;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
@@ -45,7 +46,6 @@ import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelist
 import com.foggyframework.dataset.db.model.semantic.support.SemanticRequestNormalizer;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
@@ -95,7 +95,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             "stddev_pop", "stddev_samp", "var_pop", "var_samp");
 
     @Resource
-    private QueryFacade queryFacade;
+    private AdvancedQueryExecutionPort queryFacade;
 
     @Resource
     private QueryModelLoader queryModelLoader;
