@@ -4,6 +4,7 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -72,6 +73,18 @@ class BackendProviderCatalogTest {
         current.set(new BackendDescriptor(MYSQL, Set.of()));
 
         assertSame(provider, catalog.require(MYSQL, BackendCapability.QUERY));
+    }
+
+    @Test
+    void typedResolutionRejectsCapabilityOnlyImpostors() {
+        BackendProvider provider = provider(MYSQL, BackendCapability.QUERY);
+        BackendProviderCatalog catalog = BackendProviderCatalog.of(List.of(provider));
+
+        BackendProviderTypeMismatchException mismatch = assertThrows(
+                BackendProviderTypeMismatchException.class,
+                () -> catalog.require(MYSQL, BackendCapability.QUERY, QueryBackendProvider.class));
+        assertEquals(MYSQL, mismatch.backendId());
+        assertEquals(QueryBackendProvider.class, mismatch.requiredType());
     }
 
     private BackendProvider provider(BackendId backendId, BackendCapability... capabilities) {

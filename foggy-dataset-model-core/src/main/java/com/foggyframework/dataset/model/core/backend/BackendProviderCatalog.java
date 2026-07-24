@@ -61,6 +61,16 @@ public final class BackendProviderCatalog {
         return registered.provider();
     }
 
+    public <P extends BackendProvider> P require(
+            BackendId backendId, BackendCapability capability, Class<P> providerType) {
+        Objects.requireNonNull(providerType, "providerType must not be null");
+        BackendProvider provider = require(backendId, capability);
+        if (!providerType.isInstance(provider)) {
+            throw new BackendProviderTypeMismatchException(backendId, providerType);
+        }
+        return providerType.cast(provider);
+    }
+
     public List<BackendProvider> providers() {
         return Collections.unmodifiableList(providers.values().stream()
                 .map(RegisteredProvider::provider)

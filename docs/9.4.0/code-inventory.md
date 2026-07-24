@@ -1,7 +1,7 @@
 ---
 doc_role: modularization_inventory_and_progress
 version: 9.4.0
-status: implementation-in-progress / model-api-core-established
+status: implementation-in-progress / model-api-core-jdbc-established
 baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
 implementation_base_commit: 3b1c7249ba75b3bab54cb0f898ea1c198e5303d4
 recorded_at: 2026-07-20
@@ -92,3 +92,11 @@ compatibility plan before modules are extracted.
 - core 提供不可变 `BackendProviderCatalog` 与 typed resolution errors。provider descriptor 在 discovery
   时快照；duplicate/missing/unsupported capability 均 fail closed，不以顺序或默认 provider 回退。
 - API+core tests 8/8，旧聚合及其 9-module upstream reactor package 成功。
+- 已新增第 28 个 active module `foggy-dataset-model-jdbc`，依赖图继续单向为
+  `model-jdbc -> model-core -> model-api`。
+- API 新增单方法 `QueryBackendProvider` 小角色，未扩张基础 provider；core typed resolver 同时验证
+  capability 与角色类型，防止 capability-only impostor 被调用方强转。
+- JDBC compatibility adapter 将稳定 `QueryFacade` 发布为 `jdbc` 或显式 dialect backend identity。
+  旧 JDBC 执行实现仍由兼容聚合承载，新 SPI 不反向依赖旧聚合。
+- API+core+JDBC tests 11/11；JDBC compile dependency tree 仅含 core/API，旧聚合及其 10-module
+  upstream reactor package 成功。

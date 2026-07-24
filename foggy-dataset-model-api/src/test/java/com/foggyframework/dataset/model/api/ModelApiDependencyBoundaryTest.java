@@ -4,6 +4,7 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -23,8 +24,12 @@ class ModelApiDependencyBoundaryTest {
         assertEquals(1, methods.length);
         assertEquals(BackendDescriptor.class, methods[0].getReturnType());
 
+        Method[] queryMethods = QueryBackendProvider.class.getDeclaredMethods();
+        assertEquals(1, queryMethods.length);
+        assertEquals(QueryFacade.class, queryMethods[0].getReturnType());
+
         Set<Class<?>> apiTypes = Set.of(BackendId.class, BackendDescriptor.class,
-                BackendCapability.class, BackendProvider.class);
+                BackendCapability.class, BackendProvider.class, QueryBackendProvider.class);
         apiTypes.forEach(type -> Arrays.stream(type.getDeclaredFields())
                 .filter(field -> !field.isSynthetic())
                 .forEach(field -> assertFalse(isForbidden(field.getType()),

@@ -27,6 +27,11 @@ recorded_at: 2026-07-24
 快照化；重复 identity、缺失 provider、未声明 capability 均显式 fail closed。API+core tests 8/8，
 core compile dependency tree 仅含 API，旧聚合及其 9-module upstream reactor package 成功。
 
+第三个切片已经建立 `foggy-dataset-model-jdbc` v2 adapter。`QueryBackendProvider` 是独立于基础
+`BackendProvider` 的单方法角色；core 类型化解析会拒绝只宣称 QUERY capability、却未实现该角色的
+provider。JDBC adapter 包装稳定 facade 并支持显式 dialect identity。API+core+JDBC tests 11/11，
+依赖树为 `jdbc -> core -> api`，旧聚合及其 10-module upstream reactor package 成功。
+
 ## 开工依赖
 
 1. 9.3.4 已由 owner carry forward；
