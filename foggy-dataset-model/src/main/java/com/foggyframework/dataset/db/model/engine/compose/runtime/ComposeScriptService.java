@@ -3,6 +3,8 @@ package com.foggyframework.dataset.db.model.engine.compose.runtime;
 import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityPolicy;
 import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityRegistry;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.List;
@@ -79,7 +81,8 @@ public final class ComposeScriptService {
         ScriptRuntime.ScriptResult scriptResult = ScriptRuntime.runScript(
                 script,
                 request.ctx(),
-                request.semanticService(),
+                request.planningPort(),
+                request.executionPort(),
                 request.dialect(),
                 previewMode,
                 request.capabilityRegistry(),
@@ -98,7 +101,10 @@ public final class ComposeScriptService {
         private final Mode mode;
         private final String script;
         private final ComposeQueryContext ctx;
+        /** Compatibility reference retained for existing callers. */
         private final SemanticQueryServiceV3 semanticService;
+        private final ComposeSemanticPlanningPort planningPort;
+        private final ComposeSqlExecutionPort executionPort;
         private final String dialect;
         private final CapabilityRegistry capabilityRegistry;
         private final CapabilityPolicy capabilityPolicy;
@@ -110,6 +116,8 @@ public final class ComposeScriptService {
             this.script = b.script;
             this.ctx = b.ctx;
             this.semanticService = b.semanticService;
+            this.planningPort = b.planningPort != null ? b.planningPort : b.semanticService;
+            this.executionPort = b.executionPort != null ? b.executionPort : b.semanticService;
             this.dialect = b.dialect;
             this.capabilityRegistry = b.capabilityRegistry;
             this.capabilityPolicy = b.capabilityPolicy;
@@ -121,6 +129,8 @@ public final class ComposeScriptService {
         public String script() { return script; }
         public ComposeQueryContext ctx() { return ctx; }
         public SemanticQueryServiceV3 semanticService() { return semanticService; }
+        public ComposeSemanticPlanningPort planningPort() { return planningPort; }
+        public ComposeSqlExecutionPort executionPort() { return executionPort; }
         public String dialect() { return dialect; }
         public CapabilityRegistry capabilityRegistry() { return capabilityRegistry; }
         public CapabilityPolicy capabilityPolicy() { return capabilityPolicy; }
@@ -134,6 +144,8 @@ public final class ComposeScriptService {
             private String script;
             private ComposeQueryContext ctx;
             private SemanticQueryServiceV3 semanticService;
+            private ComposeSemanticPlanningPort planningPort;
+            private ComposeSqlExecutionPort executionPort;
             private String dialect;
             private CapabilityRegistry capabilityRegistry;
             private CapabilityPolicy capabilityPolicy;
@@ -143,7 +155,14 @@ public final class ComposeScriptService {
             public Builder mode(Mode v) { this.mode = v; return this; }
             public Builder script(String v) { this.script = v; return this; }
             public Builder ctx(ComposeQueryContext v) { this.ctx = v; return this; }
-            public Builder semanticService(SemanticQueryServiceV3 v) { this.semanticService = v; return this; }
+            public Builder semanticService(SemanticQueryServiceV3 v) {
+                this.semanticService = v;
+                this.planningPort = v;
+                this.executionPort = v;
+                return this;
+            }
+            public Builder planningPort(ComposeSemanticPlanningPort v) { this.planningPort = v; return this; }
+            public Builder executionPort(ComposeSqlExecutionPort v) { this.executionPort = v; return this; }
             public Builder dialect(String v) { this.dialect = v; return this; }
             public Builder capabilityRegistry(CapabilityRegistry v) { this.capabilityRegistry = v; return this; }
             public Builder capabilityPolicy(CapabilityPolicy v) { this.capabilityPolicy = v; return this; }

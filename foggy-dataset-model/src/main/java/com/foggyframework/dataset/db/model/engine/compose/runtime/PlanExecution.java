@@ -28,7 +28,7 @@ public final class PlanExecution {
 
     /**
      * Compile {@code plan} to SQL via M6 {@link ComposeSqlCompiler} and
-     * execute via {@link SemanticQueryServiceV3#executeSql}.
+     * execute via the configured raw-SQL execution capability.
      *
      * @param plan            the root plan node
      * @param ctx             compose query context (principal + resolver)

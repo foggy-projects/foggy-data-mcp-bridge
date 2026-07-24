@@ -8,7 +8,7 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpressi
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeHolder;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
 import com.foggyframework.fsscript.exp.PropertyFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.PropertyHolder;
@@ -437,7 +437,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
         }
         ComposeQueryContext effectiveCtx = explicitCtx != null ? explicitCtx : bundle.ctx();
         return PlanExecution.executePlan(
-                this, effectiveCtx, bundle.semanticService(), bundle.dialect(),
+                this, effectiveCtx, bundle.planningPort(), bundle.executionPort(), bundle.dialect(),
                 bundle.normalizePlan());
     }
 
@@ -449,7 +449,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
      * {@link #toSql(ComposeQueryContext)} or
      * {@link #toSql(ComposeQueryContext, String)}, an ambient
      * {@link ComposeRuntimeBundle} is still required to provide the
-     * {@link SemanticQueryServiceV3} for SQL generation. Call from inside
+     * governed semantic planning capability for SQL generation. Call from inside
      * {@code ScriptRuntime.runScript()}, or wrap manually via
      * {@code ComposeRuntimeHolder.setBundle(...)}.</p>
      *
@@ -465,7 +465,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
      * Compile this plan to SQL with an explicit context override.
      *
      * <p>An ambient {@link ComposeRuntimeBundle} is still required
-     * to provide the {@link SemanticQueryServiceV3}.</p>
+     * to provide the semantic planning port.</p>
      *
      * @param explicitCtx optional override context; when null, the
      *                    bundle's ctx is used
@@ -480,7 +480,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
      * Compile this plan to SQL with explicit context and dialect overrides.
      *
      * <p>An ambient {@link ComposeRuntimeBundle} is still required
-     * to provide the {@link SemanticQueryServiceV3}.</p>
+     * to provide the semantic planning port.</p>
      *
      * @param explicitCtx optional override context; when null, the
      *                    bundle's ctx is used
@@ -498,11 +498,11 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
         }
         ComposeQueryContext effectiveCtx = explicitCtx != null ? explicitCtx :
                 bundle.ctx();
-        SemanticQueryServiceV3 effectiveSvc =
-                bundle != null ? bundle.semanticService() : null;
+        ComposeSemanticPlanningPort effectivePlanningPort =
+                bundle != null ? bundle.planningPort() : null;
         String effectiveDialect = dialect != null ? dialect :
                 (bundle != null ? bundle.dialect() : "mysql");
-        if (effectiveSvc == null) {
+        if (effectivePlanningPort == null) {
             throw new RuntimeException(
                     "QueryPlan.toSql: semanticService unbound — an ambient "
                             + "ComposeRuntimeBundle is required even when explicitCtx is "
@@ -511,7 +511,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
         }
         return ComposeSqlCompiler.compilePlanToSql(this, effectiveCtx,
                 ComposeSqlCompiler.CompileOptions.builder()
-                        .semanticService(effectiveSvc)
+                        .planningPort(effectivePlanningPort)
                         .dialect(effectiveDialect)
                         .normalizePlan(bundle != null && bundle.normalizePlan())
                         .build());

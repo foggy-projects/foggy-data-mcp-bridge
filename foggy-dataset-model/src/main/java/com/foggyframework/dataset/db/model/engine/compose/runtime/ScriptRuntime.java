@@ -16,6 +16,8 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ExpressionWhitelistValidator;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ScriptSourceScanner;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.SecurityParamGuard;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
@@ -143,8 +145,25 @@ public final class ScriptRuntime {
             CapabilityPolicy capabilityPolicy,
             SuspensionManager suspensionManager,
             boolean normalizePlan) {
+        return runScript(script, ctx, semanticService, semanticService, dialect,
+                previewMode, capabilityRegistry, capabilityPolicy, suspensionManager, normalizePlan);
+    }
+
+    /** Execute with independently supplied semantic planning and raw-SQL ports. */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            ComposeSemanticPlanningPort planningPort,
+            ComposeSqlExecutionPort executionPort,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy,
+            SuspensionManager suspensionManager,
+            boolean normalizePlan) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
-        if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
+        if (planningPort == null) throw new IllegalArgumentException("semanticService must not be null");
+        if (executionPort == null) throw new IllegalArgumentException("semanticService must not be null");
 
         // P2.5: set up run context and manager
         ScriptRunContext runCtx = new ScriptRunContext();
@@ -156,7 +175,7 @@ public final class ScriptRuntime {
         }
 
         try {
-            return doRunScript(script, ctx, semanticService, dialect,
+            return doRunScript(script, ctx, planningPort, executionPort, dialect,
                     previewMode, capabilityRegistry, capabilityPolicy, suspensionManager, normalizePlan);
         } finally {
             if (suspensionManager != null) {
@@ -192,7 +211,8 @@ public final class ScriptRuntime {
     private static ScriptResult doRunScript(
             String script,
             ComposeQueryContext ctx,
-            SemanticQueryServiceV3 semanticService,
+            ComposeSemanticPlanningPort planningPort,
+            ComposeSqlExecutionPort executionPort,
             String dialect,
             boolean previewMode,
             CapabilityRegistry capabilityRegistry,
@@ -200,12 +220,14 @@ public final class ScriptRuntime {
             SuspensionManager suspensionManager,
             boolean normalizePlan) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
-        if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
+        if (planningPort == null) throw new IllegalArgumentException("semanticService must not be null");
+        if (executionPort == null) throw new IllegalArgumentException("semanticService must not be null");
 
         String effectiveDialect = dialect == null ? "mysql" : dialect;
         ComposeRuntimeBundle bundle = ComposeRuntimeBundle.builder()
                 .ctx(ctx)
-                .semanticService(semanticService)
+                .planningPort(planningPort)
+                .executionPort(executionPort)
                 .dialect(effectiveDialect)
                 .normalizePlan(normalizePlan)
                 .build();

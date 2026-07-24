@@ -3,6 +3,9 @@ package com.foggyframework.dataset.db.model.engine.compose.runtime;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.context.Principal;
 import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -51,6 +54,23 @@ class ComposeRuntimeHolderTest {
     @DisplayName("currentBundle() returns null when empty")
     void emptyDeque_returnsNull() {
         assertNull(ComposeRuntimeHolder.currentBundle());
+    }
+
+    @Test
+    void bundleAcceptsIndependentPlanningAndExecutionPorts() {
+        ComposeSemanticPlanningPort planningPort = (model, request, context) ->
+                new ComposeSqlGeneration("select 1", List.of(), List.of(), java.util.Map.of());
+        ComposeSqlExecutionPort executionPort = (sql, params, routeModel) -> List.of();
+
+        ComposeRuntimeBundle bundle = ComposeRuntimeBundle.builder()
+                .ctx(dummyCtx())
+                .planningPort(planningPort)
+                .executionPort(executionPort)
+                .build();
+
+        assertNull(bundle.semanticService());
+        assertSame(planningPort, bundle.planningPort());
+        assertSame(executionPort, bundle.executionPort());
     }
 
     @Test

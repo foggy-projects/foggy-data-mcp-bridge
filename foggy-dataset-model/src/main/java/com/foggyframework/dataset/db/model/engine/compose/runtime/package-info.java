@@ -5,13 +5,13 @@
  * {@code foggy.dataset_model.engine.compose.runtime} and provides:
  * <ul>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle}
- *       — immutable bag of ctx + semanticService + dialect</li>
+ *       — immutable bag of ctx + planning/execution ports + dialect</li>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeHolder}
  *       — {@code ThreadLocal<Deque>} for ambient bundle access</li>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.ContextBridge}
  *       — {@code ToolExecutionContext → ComposeQueryContext} bridge (embedded mode)</li>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution}
- *       — {@code QueryPlan → List<Map>} via compiler + executeSql</li>
+ *       — {@code QueryPlan → List<Map>} via planning + raw-SQL execution ports</li>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService}
  *       — host-facing validate/preview/execute facade over restricted fsscript</li>
  *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRuntime}

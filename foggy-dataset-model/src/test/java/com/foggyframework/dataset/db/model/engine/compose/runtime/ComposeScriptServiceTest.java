@@ -11,6 +11,9 @@ import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSemanticPlanningPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeSqlGeneration;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -238,6 +242,38 @@ class ComposeScriptServiceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> plans = (Map<String, Object>) value.get("plans");
         assertEquals(List.of(Map.of("amount", 100)), plans.get("summary"));
+    }
+
+    @Test
+    @DisplayName("request accepts independent planning/execution ports without legacy service")
+    void execute_acceptsIndependentPorts() {
+        AtomicInteger planningCount = new AtomicInteger();
+        AtomicInteger executionCount = new AtomicInteger();
+        ComposeSemanticPlanningPort planningPort = (model, request, context) -> {
+            planningCount.incrementAndGet();
+            return new ComposeSqlGeneration(
+                    "SELECT amount FROM sale_order", List.of(), List.of(), Map.of());
+        };
+        ComposeSqlExecutionPort executionPort = (sql, params, routeModel) -> {
+            executionCount.incrementAndGet();
+            return List.of(Map.of("amount", 100));
+        };
+        ComposeScriptService.ComposeScriptRequest request =
+                ComposeScriptService.ComposeScriptRequest.builder()
+                        .mode(ComposeScriptService.Mode.EXECUTE)
+                        .script(PLAN_SCRIPT)
+                        .ctx(ctx())
+                        .planningPort(planningPort)
+                        .executionPort(executionPort)
+                        .dialect("mysql")
+                        .build();
+
+        ComposeScriptService.ComposeScriptResult result = ComposeScriptService.run(request);
+
+        assertNull(request.semanticService());
+        assertEquals(1, planningCount.get());
+        assertEquals(1, executionCount.get());
+        assertTrue(result.executed());
     }
 
     @Test
