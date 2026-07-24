@@ -88,7 +88,7 @@ AI → JSON DSL 查询 → 语义层 → 安全 SQL → 数据库
 
 ### 📊 **数据可视化**
 - **自动图表生成** - 趋势图、柱状图、饼图等
-- **图表渲染服务** - 由 `chart-render-service` 扩展提供支持
+- **图表资源存储** - 可通过 `foggy-chart-storage-cloud` 扩展保存图表资源
 - **带图表导出** - 下载数据时附带可视化图表
 
 ### 🚀 **生产就绪**
@@ -212,18 +212,26 @@ foggy-data-mcp-bridge/
 ├── foggy-core/                    # 核心工具类
 ├── foggy-fsscript/                # FSScript 脚本引擎（类 JavaScript）
 ├── foggy-dataset/                 # 多数据库查询层（方言）
-├── foggy-dataset-model/           # 语义层引擎（TM/QM）
+├── foggy-dataset-model-api/       # 稳定 QueryFacade DTO 与 backend SPI
+├── foggy-dataset-model-core/      # Provider catalog 与 fail-closed 治理
+├── foggy-dataset-model-engine/    # 语义层引擎（TM/QM）
+├── foggy-runtime-api/             # Runtime 管理 API
 ├── foggy-dataset-mcp/             # MCP 服务端实现
+├── foggy-mcp-launcher/            # 可执行 Spring Boot 装配
 ├── foggy-dataset-demo/            # 演示：电商示例数据
 ├── foggy-bean-copy/               # Bean 映射工具
+├── docs/architecture/             # 当前 main 的 canonical 架构
 ├── docs-site/                     # 文档迁移提示；源码已迁移到 foggy-data-mcp-docs
 │
 └── addons/                        # 扩展模块
-    ├── chart-render-service/      # 图表生成服务
-    ├── foggy-benchmark-spider2/   # Spider2 基准测试
     ├── foggy-dataset-client/      # 数据集客户端 SDK
+    ├── foggy-dataset-model-cache/ # 查询缓存失效 provider
     ├── foggy-dataset-model-mongo/ # MongoDB 模型支持
     ├── foggy-dataset-mongo/       # MongoDB 查询层
+    ├── foggy-dataset-model-vector/# Vector 模型支持
+    ├── foggy-dataset-model-preagg/# 预聚合支持
+    ├── foggy-data-viewer/         # 数据浏览资源
+    ├── foggy-odoo-bridge-java/    # Odoo Java TM/QM 模型
     └── foggy-fsscript-client/     # FSScript 客户端工具
 ```
 
@@ -231,8 +239,11 @@ foggy-data-mcp-bridge/
 
 | 模块 | 说明 |
 |------|------|
-| **foggy-dataset-model** | 语义层引擎 - TM/QM 建模、DSL 查询执行 |
+| **foggy-dataset-model-api/core** | 稳定查询/backend 契约与 provider 治理 |
+| **foggy-dataset-model-engine** | 语义层引擎 - TM/QM 建模、DSL 查询执行 |
+| **foggy-runtime-api** | 数据源、namespace、Bundle、模型和查询管理 |
 | **foggy-dataset-mcp** | MCP 服务端 - AI 助手集成 |
+| **foggy-mcp-launcher** | 可执行 Spring Boot 产品装配 |
 | **foggy-dataset** | 数据库抽象 - MySQL、PostgreSQL、SQL Server、SQLite |
 | **foggy-fsscript** | 脚本引擎 - TM/QM 文件的 JavaScript 语法 |
 | **foggy-dataset-demo** | 示例项目 - 电商数据模型 |
@@ -241,13 +252,18 @@ foggy-data-mcp-bridge/
 
 | 扩展 | 用途 |
 |------|------|
-| **chart-render-service** | 从查询结果生成图表 |
 | **foggy-dataset-mongo** | MongoDB 支持（NoSQL） |
-| **foggy-benchmark-spider2** | Spider2 基准测试（Text-to-SQL 评估） |
+| **foggy-dataset-model-cache** | 查询缓存与失效集成 |
+| **foggy-dataset-model-vector / preagg** | 可选 Vector 与预聚合能力 |
+| **foggy-data-viewer / chart-storage-cloud** | 数据浏览与图表存储 |
+| **foggy-odoo-bridge-java** | 网关部署使用的 Odoo Java TM/QM 模型 |
 
 ---
 
 ## 📚 文档
+
+### 🏗️ 仓库架构
+- [当前架构](docs/architecture/README.md) - `main` 的 canonical 架构与模块边界
 
 ### 📘 快速开始指南
 - [简介](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/mcp/guide/introduction) - 什么是 Foggy MCP

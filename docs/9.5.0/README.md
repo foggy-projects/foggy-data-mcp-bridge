@@ -89,6 +89,8 @@ GitHub CI、tag、release、publish 和 remote push 均未运行。
 
 ## 文档入口
 
+- 当前 canonical 架构：[docs/architecture/README.md](../architecture/README.md)
+  （本目录只保留 9.5.0 的变更、迁移、验证与签收记录）
 - canonical workitem：`docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
 - release authority workitem：
   `docs/9.5.0/workitems/FEATURE-v950-release-authority-modernization.md`

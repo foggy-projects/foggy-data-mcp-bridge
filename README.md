@@ -263,18 +263,26 @@ foggy-data-mcp-bridge/
 ├── foggy-core/                    # Core utilities
 ├── foggy-fsscript/                # FSScript scripting engine (JavaScript-like)
 ├── foggy-dataset/                 # Multi-database query layer (Dialects)
-├── foggy-dataset-model/           # Semantic layer engine (TM/QM)
+├── foggy-dataset-model-api/       # Stable QueryFacade DTO and backend SPI
+├── foggy-dataset-model-core/      # Provider catalog and fail-closed governance
+├── foggy-dataset-model-engine/    # Semantic layer engine (TM/QM)
+├── foggy-runtime-api/             # Runtime management API
 ├── foggy-dataset-mcp/             # MCP server implementation
+├── foggy-mcp-launcher/            # Executable Spring Boot assembly
 ├── foggy-dataset-demo/            # Demo: E-commerce sample data
 ├── foggy-bean-copy/               # Bean mapping utilities
+├── docs/architecture/             # Canonical architecture for current main
 ├── docs-site/                     # Documentation migration notice; source moved to foggy-data-mcp-docs
 │
 └── addons/                        # Extension modules
-    ├── chart-render-service/      # Chart generation service
-    ├── foggy-benchmark-spider2/   # Spider2 benchmark testing
     ├── foggy-dataset-client/      # Dataset client SDK
+    ├── foggy-dataset-model-cache/ # Query cache invalidation provider
     ├── foggy-dataset-model-mongo/ # MongoDB model support
     ├── foggy-dataset-mongo/       # MongoDB query layer
+    ├── foggy-dataset-model-vector/# Vector model support
+    ├── foggy-dataset-model-preagg/# Pre-aggregation support
+    ├── foggy-data-viewer/         # Data viewer resources
+    ├── foggy-odoo-bridge-java/    # Odoo Java TM/QM models
     └── foggy-fsscript-client/     # FSScript client utilities
 ```
 
@@ -282,8 +290,11 @@ foggy-data-mcp-bridge/
 
 | Module | Description |
 |--------|-------------|
-| **foggy-dataset-model** | Semantic layer engine - TM/QM modeling, DSL query execution |
+| **foggy-dataset-model-api/core** | Stable query/backend contracts and provider governance |
+| **foggy-dataset-model-engine** | Semantic layer engine - TM/QM modeling, DSL query execution |
+| **foggy-runtime-api** | Datasource, namespace, bundle, model, and query management |
 | **foggy-dataset-mcp** | MCP server - AI assistant integration |
+| **foggy-mcp-launcher** | Executable Spring Boot product assembly |
 | **foggy-dataset** | Database abstraction - MySQL, PostgreSQL, SQL Server, SQLite |
 | **foggy-fsscript** | Scripting engine - JavaScript-like syntax for TM/QM files |
 | **foggy-dataset-demo** | Sample project - E-commerce data models |
@@ -292,13 +303,18 @@ foggy-data-mcp-bridge/
 
 | Addon | Purpose |
 |-------|---------|
-| **chart-render-service** | Generate charts from query results |
 | **foggy-dataset-mongo** | MongoDB support (NoSQL) |
-| **foggy-benchmark-spider2** | Spider2 benchmark for Text-to-SQL evaluation |
+| **foggy-dataset-model-cache** | Query cache and invalidation integration |
+| **foggy-dataset-model-vector / preagg** | Optional vector and pre-aggregation capabilities |
+| **foggy-data-viewer / chart-storage-cloud** | Data browsing and chart storage |
+| **foggy-odoo-bridge-java** | Odoo Java TM/QM models for gateway deployment |
 
 ---
 
 ## 📚 Documentation
+
+### 🏗️ Repository Architecture
+- [Current Architecture](docs/architecture/README.md) - Canonical architecture and module boundaries for `main`
 
 ### 📘 Getting Started
 - [MCP Introduction](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/guide/introduction) - What is Foggy MCP

@@ -1,296 +1,174 @@
-# Java Data MCP Bridge - Claude Memory
+# Foggy Data MCP Bridge Repository Guide
 
-> **开源项目，请勿上传私有 key、账号密码、token 等敏感信息。**
+> 开源仓库。禁止提交真实 key、账号密码、token、连接串或包含这些信息的日志与验收证据。
 
-## 项目结构
-- `foggy-core/` - 核心工具类库
-- `foggy-dataset/` - 数据库查询层（Dialect、DbUtils）
-- `foggy-dataset-model/` - 核心数据模型模块（TM/QM引擎）
-- `foggy-dataset-mcp/` - MCP服务模块（AI对接）
-- `foggy-dataset-demo/` - 示例项目（电商演示数据）
-- `foggy-fsscript/` - 脚本引擎（解析TM/QM文件）
-- `foggy-bean-copy/` - Bean拷贝工具
-- `docs-site/` - 文档站迁移提示；实际文档源已迁移到 `foggy-data-mcp-docs`
-- `addons/` - 扩展模块
-  - `foggy-odoo-bridge-java/` - Odoo TM/QM 模型模块（内置模型，打包进 JAR，网关模式用）
-  - `foggy-data-viewer/` - 数据浏览器组件
-  - `chart-render-service/` - 图表渲染服务
-  - `foggy-benchmark-spider2/` - Spider2基准测试
-  - `foggy-dataset-client/` - 数据集客户端
-  - `foggy-dataset-model-mongo/` - MongoDB模型支持
-  - `foggy-dataset-mongo/` - MongoDB数据层
-  - `foggy-fsscript-client/` - FSScript客户端
+本文是仓库开发导航，不复制完整架构。当前架构以
+[docs/architecture/README.md](docs/architecture/README.md) 为唯一入口。
 
-## Odoo Bridge
+## 1. 文档归属
 
-> **Odoo Python 插件已独立立项** → [foggy-odoo-bridge](https://github.com/foggy-projects/foggy-odoo-bridge)
->
-> 本仓库仅保留 `addons/foggy-odoo-bridge-java/`（Java TM/QM 模型，网关模式时打包进 JAR）。
+- `docs/architecture/`：`main` 上当前有效的整体架构、模块边界、生命周期和 SPI。
+- `docs/{version}/`：某个迭代的需求、workitem、差异设计、迁移、验证和验收历史。
+- `docs/design/`：不适合进入整体架构的专题设计。
+- `docs/dev-guide/`：开发与接口使用规则。
+- `docs-site/`：只保留迁移提示；用户文档源在独立 `foggy-data-mcp-docs` 仓库。
 
-### 架构概览
+架构发生变化时，在同一个变更集中更新 `docs/architecture/`。不要把新的整体架构只写进版本
+目录，也不要回写已经签收的历史验收结论。
 
-Odoo 插件支持双引擎模式：
+## 2. 技术与产品边界
 
-```
-模式 A（网关）：AI ──MCP──→ Odoo foggy_mcp ──HTTP──→ 本项目 Java Server ──SQL──→ PG
-模式 B（内嵌）：AI ──MCP──→ Odoo foggy_mcp（Python 引擎进程内运行）──SQL──→ PG
-```
+- Java 17
+- Spring Boot 3.4.5
+- Maven 多模块 reactor
+- Apache License 2.0
 
-### foggy-odoo-bridge-java（本仓库）
+系统把数据源与 TM/QM 语义模型暴露为 MCP 和 Runtime REST 能力，支持关系数据库，并通过
+addon 接入 Mongo、cache、vector、pre-aggregation、GraphQL、viewer、Odoo 等可选能力。
 
-Java TM/QM 模型模块，网关模式下打包进 JAR，提供 9 个 Odoo 业务模型。
+Odoo Python 插件已独立到 `foggy-odoo-bridge` 项目。本仓库只保留
+`addons/foggy-odoo-bridge-java`，用于网关模式下随 Java launcher 交付 TM/QM 模型。
 
-**位置**：`addons/foggy-odoo-bridge-java/`
+## 3. 当前模块地图
 
-**模型列表**：sale_order、sale_order_line、purchase_order、account_move、stock_picking、hr_employee、res_partner、res_company、crm_lead
+### Model SPI 与引擎
 
-## 闭包表引擎 (foggy-dataset-model)
+- `foggy-dataset-model-api`：JDK-only QueryFacade/DTO、backend SPI v2。
+- `foggy-dataset-model-core`：不可变 provider catalog 与 fail-closed 校验。
+- `foggy-dataset-model-jdbc`：最小 JDBC QUERY adapter。
+- `foggy-dataset-model-starter`：Spring 自动装配。
+- `foggy-dataset-model-web`：只读 provider/catalog diagnostics。
+- `foggy-dataset-model-tck`：provider 契约测试，不是生产运行时能力。
+- `foggy-dataset-model-engine`：TM/QM、loader、semantic、compose、pivot、refresh、SQL 和执行。
 
-**层级操作符**（`hierarchy/` 包）：
+9.5.0 已删除旧聚合模块 `foggy-dataset-model` 和旧包根
+`com.foggyframework.dataset.db.model.*`。不要恢复旧坐标、双包兼容层或
+`loader + model.query()` 旁路。
 
-| 操作符 | 方向 | 含自身 | SQL 效果 |
-|---|---|---|---|
-| `selfAndDescendantsOf` | 向下 | ✓ | `closure.parent_id = X` |
-| `descendantsOf` | 向下 | ✗ | `closure.parent_id = X AND distance > 0` |
-| `childrenOf` | 向下 | ✗ | `closure.parent_id = X AND distance = 1` |
-| `selfAndAncestorsOf` | 向上 | ✓ | `closure.child_id = X` |
-| `ancestorsOf` | 向上 | ✗ | `closure.child_id = X AND distance > 0` |
+只需要稳定查询能力的调用方依赖 `foggy-dataset-model-api` 的 QueryFacade/DTO。Engine 的
+高级类型留在 `com.foggyframework.dataset.model.*` 内部边界。
 
-**TM 维度闭包配置**：
-```javascript
-{
-    name: 'company',
-    closureTableName: 'res_company_closure',
-    parentKey: 'parent_id',
-    childKey: 'company_id'
-}
-```
+### 基础、接入与装配
 
-**引擎 JOIN 方向**（`JdbcModelQueryEngine`）：
-- 后代方向：`fact.FK = closure.childKey`，WHERE `closure.parentKey = value`
-- 祖先方向（`isAncestorDirection()`）：`fact.FK = closure.parentKey`，WHERE `closure.childKey = value`
+- `foggy-core`、`foggy-bean-copy`：通用基础。
+- `foggy-dataset`：JDBC 数据访问、方言与执行基础。
+- `foggy-fsscript`：TM/QM 使用的脚本引擎。
+- `foggy-mcp-spi`：MCP tool、category、context、progress 契约。
+- `foggy-dataset-mcp`：MCP controller、tool discovery/dispatch、审计与语义工具。
+- `foggy-runtime-api`：数据源、namespace、Bundle、模型、查询与 compose 管理 API。
+- `foggy-mcp-launcher`：可执行 Spring Boot JAR 和最终装配。
+- `foggy-dataset-memory-grid-*`：memory-grid 桥接与 DuckDB 实现。
+- `addons/*`：可选 backend、客户端、缓存、viewer、Odoo 等。
 
-## 多数据库支持 (foggy-dataset)
-已实现方言：MySQL 5.7+、PostgreSQL 12+、SQL Server 2012+、SQLite 3.30+
+精确职责和依赖方向见
+[模块边界](docs/architecture/module-boundaries.md)。
 
-关键类：`FDialect`（方言基类）、`DbType`（数据库类型）、`DbUtils.getDialect()`（方言检测）
+## 4. 架构不变量
 
-## MCP 端点 (foggy-dataset-mcp)
-按角色区分：
-- `/mcp/analyst/rpc` - 分析师（JSON-RPC，推荐）
-- `/mcp/analyst/stream` - 分析师（SSE流式）
-- `/mcp/admin/rpc` - 管理员（全部权限）
-- `/mcp/business/rpc` - 业务用户（仅查询）
+### Model SPI v2
 
-**Namespace 隔离**：通过 HTTP Header `X-NS` 传递命名空间，支持多环境模型隔离（详见 [Bundle & Namespace](docs/dev-guide/bundle-namespace.md)）
+- provider identity 必须唯一。
+- descriptor 和 capability 集合必须不可变。
+- capability 只能声明真实实现的 typed role/port。
+- duplicate、missing、unsupported capability、capability-role mismatch 全部显式失败。
+- namespace isolation 是 load/query/refresh 的强制不变量，不是可选 capability。
+- TCK 只验证已实现能力，生产模块不得依赖 TCK 作为运行时功能。
 
-> **已修复 — Namespace 传递链**：`X-NS` header → `AnalystMcpController` → `McpRequestContext` → `QueryModelTool` → `DatasetAccessor` → `SemanticQueryServiceV3Impl` → `queryModelLoader.getJdbcQueryModel(model, namespace)`。Odoo 集成使用 `namespace: odoo`，通过 `FoggyClient` 的 `X-NS: odoo` header 传递。
+当前能力真值：
 
-**动态 Bundle**：支持运行时添加/移除外部 Bundle（详见 [Bundle & Namespace](docs/dev-guide/bundle-namespace.md)）
+| Provider | QUERY | MODEL_LOAD | ATOMIC_REFRESH | CACHE_INVALIDATION |
+|---|---:|---:|---:|---:|
+| JDBC engine | yes | yes | yes | no |
+| minimal JDBC adapter | yes | no | no | no |
+| query-cache | no | no | no | yes |
+| Mongo/vector/preagg 等未接入 provider | no new claim | no | no | no new claim |
 
-## 运行时列权限 (fieldAccess)
+详见 [Model SPI v2 与扩展](docs/architecture/extension-spi.md)。
 
-**入口**：`SemanticRequestContext.of(namespace, securityContext, fieldAccess)`
+### Namespace、Bundle 与模型发布
 
-**传递链路**：`SemanticRequestContext.fieldAccess` → `ModelResultContext.fieldAccess` → `FieldAccessPermissionStep.beforeQuery()`
+- HTTP namespace 主要通过 `X-NS` 传递。
+- Dataset Native REST 的兼容优先级：
+  `X-NS > body.namespace > default-namespace > empty namespace`。
+- Bundle 注册、模型验证和模型刷新是独立动作。
+- 同一 namespace 内 TM/QM canonical name 冲突必须在修改前拒绝。
+- refresh 必须 candidate build/validate/admit 后原子发布；失败时保留已发布 generation。
+- catalog/cache identity 必须纳入 namespace、source/binding revision 和 generation。
 
-**校验范围**：columns / calculatedFields / slice / orderBy / groupBy（含内联表达式依赖提取和 fail-closed 策略）
+详见 [运行时与模型生命周期](docs/architecture/runtime-and-model-lifecycle.md) 与
+[Bundle & Namespace](docs/dev-guide/bundle-namespace.md)。
 
-**metadata 裁剪**：`SemanticServiceV3Impl` 按 fieldAccess 过滤 JSON 和 Markdown 输出（维度/属性/度量/计算字段）
+### 权限
 
-**安全机制**：
-- 防御性复制：`Set.copyOf` + `Collections.unmodifiableSet`
-- 表达式依赖级校验：`CalculatedFieldService.extractColumnReferences(String)`
-- 传递依赖展开：`CalculatedFieldService.resolveBaseColumnReferences(String, Map)` — 计算字段引用其他计算字段时递归解析到基础字段
-- fail-closed：无法解析的表达式拒绝而非放行
-- 维度后缀剥离：`salesDate$id` → `salesDate` 做白名单匹配
+- Runtime API auth code 保护管理接口，但不替代客户 IAM 或业务授权。
+- `fieldAccess` 是语义字段白名单，在查询规划前校验，无法解析时 fail closed。
+- `deniedColumns` 是物理列黑名单，在 SQL 构建后、执行前校验。
+- 新查询路径必须同时考虑语义字段和物理列边界，不得因新 controller、cache 或 backend 绕过。
 
-**与 visibleColumns 的关系**：
-- `fieldAccess`（运行时动态）在 @Order(-25) 全局校验
-- `visibleColumns`（QM 声明式）在 @Order(-20) 按维度成员收窄
-- 最终有效列 = intersection(fieldAccess, visibleColumns)
+### API 返回契约
 
-## 物理列级权限 (deniedColumns)
+- `foggy-runtime-api` 使用 `RuntimeEnvelope` 与稳定生命周期错误码。
+- 其他采用 `RX` 的既有 REST controller 继续遵循
+  [API Standards](docs/dev-guide/api-standards.md)。
+- 不要为了统一外观，在没有兼容性评估时把 Runtime API 改成 RX，或把既有 RX API 改成
+  `ResponseEntity`。
 
-**入口**：`SemanticRequestContext.ofDeniedColumns(namespace, securityContext, deniedColumns)`
+## 5. 主要接口
 
-**传递链路**：`SemanticRequestContext.deniedColumns` → `ModelResultContext.deniedColumns` → `PhysicalColumnPermissionStep.beforeExecute()`
+MCP：
 
-**检查时机**：`QueryExecutionStep` 接口，order=1100，在 JdbcQuery 构建完成后、SQL 执行前拦截（PreAggRewrite 和 L2Cache 之前）
+- `/mcp/analyst/rpc`、`/mcp/analyst/stream`
+- `/mcp/admin/rpc`、`/mcp/admin/stream`
+- `/mcp/business/rpc`、`/mcp/business/stream`
 
-**校验逻辑**：遍历 `JdbcQuery.select.columns`、`order`、`group` 中的 `DbColumn`，提取 `TableQueryObject.schema` + `tableName` + `sqlColumnName`，匹配 deniedColumns 黑名单
+Runtime API 统一前缀 `/api/v1`，覆盖 capabilities、datasources、namespace binding、
+bundles/resources、models validate/refresh、query、tables、compose 与 FSScript。
 
-**输入格式**：`List<DeniedPhysicalColumn>`，每条含 `schema`（可 null，null 匹配任意 schema）、`table`、`column`
+健康检查：`/healthz`、`/readyz`、`/info`。
 
-**metadata physicalTables**：JSON metadata 输出包含 `physicalTables` 字段，列出 QM 涉及的物理表（事实表 + 维度表）
+## 6. TM/QM 与数据库
 
-**与 fieldAccess 的关系**：
-- `fieldAccess` — QM 字段名白名单，在 beforeQuery 阶段检查（解析前）
-- `deniedColumns` — 物理列黑名单，在 beforeExecute 阶段检查（SQL 构建后）
-- 两套机制并存，互不干扰
+- 示例/测试 TM/QM：`foggy-dataset-demo/src/main/resources/foggy/templates/`
+- `.tm`：表模型；`.qm`：查询模型；语法由 FSScript 解析。
+- 关系方言实现位于 `foggy-dataset`，核心查询语义位于 model-engine。
+- 多数据库或 addon 测试环境见 `foggy-dataset-demo/docker/`。
+- 用户一键演示环境见 `docker/demo/`。
 
-## TM/QM 模型文件
-- 位置：`foggy-dataset-demo/src/main/resources/foggy/templates/`
-- `.tm` - 表模型（维度、属性、度量）
-- `.qm` - 查询模型（列组、权限、排序）
-- 语法：FSScript（类 ES6/JavaScript）
+闭包层级、pivot、compose、preagg 等专题规则优先以 model-engine 代码、测试和对应专题文档为准，
+不要把 engine 实现细节提升为公共 SPI。
 
-## JdbcColumnType 类型映射
-常用类型：`MONEY/NUMBER`（BigDecimal）、`TEXT/STRING`（String）、`INTEGER`（Integer）、`BIGINT`（Long）、`DAY`（Date）、`DATETIME`（Date）、`BOOL`（Boolean）、`DICT`（Integer/字典）
+## 7. 开发与验证
 
-## API 开发规范
-**必须使用 RX 统一返回**：所有 REST API 返回 `RX` 对象，禁止使用 `ResponseEntity`。详见 [API Standards](docs/dev-guide/api-standards.md)
-
-### RX 快速参考
-```java
-// 成功
-return RX.ok(data);
-
-// 错误
-return RX.failB("错误信息", errorData);
-return RX.notFound().build();
-
-// 前端解析（检查 code === 200）
-if (response.data.code !== 200) throw new Error(response.data.msg)
-const data = response.data.data
-```
-
-## MongoDB 可选架构
-`foggy-dataset-mcp` 的 MongoDB 依赖为 `optional`，仅审计日志功能需要。
-
-条件装配链路（`ToolAuditAutoConfiguration`）：
-1. `@ConditionalOnClass` — classpath 无 MongoDB 则整个配置跳过
-2. `@ConditionalOnProperty(foggy.mcp.audit.enabled=true)` — 默认关闭
-3. `@ConditionalOnBean(MongoTemplate)` — 需已配置 MongoDB 连接
-
-**极简模式**：`--spring.profiles.active=lite` 启动，排除 MongoDB 自动配置 + 关闭 data-viewer，仅保留核心 MCP + JDBC 能力。
-
-**Odoo 集成启动示例**（lite + odoo profile，模型已内置）：
-```bash
-java -jar foggy-mcp-launcher.jar \
-  --spring.profiles.active=lite,odoo \
-  --foggy.auth.token=your_token_here
-```
-
-数据源通过 Setup Wizard 动态配置，无需启动参数。
-
-## Docker 环境
-
-项目有两套独立 Docker 环境（Odoo 环境已随插件独立立项迁出）：
-
-| 环境 | 路径 | 用途 |
-|---|---|---|
-| **开发测试** | `foggy-dataset-demo/docker/` | 多方言测试基础设施（MySQL/PG/MSSQL/Mongo/Redis/Milvus） |
-| **用户体验** | `docker/demo/` | 一键演示包（MySQL + Foggy MCP + AI），面向外部用户 |
-
-**开发测试环境** — `foggy-dataset-demo/docker/`
-
-多数据库方言验证，被 `foggy-dataset-model` 单元测试 profile 直接引用。
-
-| 服务 | 端口 | 账号 |
-|---|---|---|
-| MySQL 5.7 | `13306` | foggy / foggy_test_123 |
-| PostgreSQL 15 | `15432` | foggy / foggy_test_123 |
-| SQL Server 2022 | `11433` | sa / Foggy_Test_123! |
-| MongoDB 6.0 | `17017` | — |
-| Redis 7 | `16379` | — |
-| Milvus 2.4 | `19530` | — |
-| Adminer | `18080` | — |
-
-**用户体验环境** — `docker/demo/`
-
-外部用户一键体验，自建 MySQL 镜像（init SQL 内置），含 Foggy MCP Java 服务 + AI 配置。
-
-| 服务 | 端口 |
-|---|---|
-| MySQL 5.7（自建镜像） | `13306` |
-| Foggy MCP 服务 | `7108` |
-| Adminer（optional profile） | `18080` |
-
-### 测试 Profile 与 Docker 端口对应
+优先使用 Maven reactor 解决模块依赖，不用 `mvn install` 写入本地仓库：
 
 ```bash
-# SQLite（内存，无需 Docker）
-mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite
-
-# MySQL（连 foggy-dataset-demo/docker 的 MySQL）
-mvn test -pl foggy-dataset-model -Dspring.profiles.active=docker
-
-# PostgreSQL
-mvn test -pl foggy-dataset-model -Dspring.profiles.active=postgres
-
-# SQL Server
-mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlserver
-
-# 跳过多数据库测试（仅 SQLite）
-mvn test -pl foggy-dataset-model -P!multi-db
+mvn -B -ntp -pl foggy-dataset-model-engine -am test -DskipITs
+mvn -B -ntp -pl foggy-runtime-api,foggy-dataset-mcp -am test -DskipITs
 ```
 
-## 开发约定
-- 不需要运行单元测试（`-DskipTests`）
-- i18n 资源：`foggy-dataset-model/src/main/resources/i18n/messages*.properties`（UTF-8）
-- 帮助手册：`foggy-data-mcp-docs` 仓库（VitePress 双语文档）；本仓库 `docs-site/` 仅保留迁移提示
+规则：
 
-## 集成测试规范：真实 SQL 数据比对
+- 修改代码后运行与风险相称的 compile、unit 和必要 compatibility/integration tests。
+- 使用 `-pl ... -am`，避免用过时本地 artifact 掩盖 reactor 问题。
+- 不默认跳过测试；只有任务明确只需编译或已有验证预算时才使用 `-DskipTests`。
+- 不把 `mvn install` 作为更新 demo fixture 或跨模块开发的常规步骤。
+- 查询链、权限注入、模型刷新和 namespace 隔离测试不能只断言 SQL 字符串或 mock 中间对象；
+  风险涉及真实执行结果时，应与真实 SQL/fixture 结果比对。
+- 不在普通变更中主动运行大型 release authority、全数据库矩阵、tag、release 或 publish；
+  这些流程应由版本 workitem/验收范围明确授权。
+- Spring context 测试要验证真实 bean/catalog 边界，provider 测试要覆盖 capability 与 fail-closed。
 
-涉及查询链路（QueryFacade、beforeQuery 步骤、权限注入、synthetic member-QM 等）的功能，集成测试**必须包含真实 SQL 数据比对**，不能只验证 SQL 字符串或中间对象。
+## 8. 版本化交付
 
-### 强制要求
+- 新功能、BUG、优化或重构先明确目标版本。
+- 迭代 workitem 放在 `docs/{version}/workitems/`。
+- 版本 README 汇总该版本结果并链接 canonical 架构，不复制完整系统说明。
+- 范围、兼容性、验证预算或风险变化时，先同步对应 workitem。
+- 正式签收写入 `docs/{version}/acceptance/`，只陈述实际证据，不因未运行的 authority 流程伪造
+  `ACCEPTED`。
 
-- 使用 `queryFacade.queryModelData()` 执行真实查询，获取实际返回数据
-- 编写等价的原生 SQL 作为基线，通过 `executeQuery()` 获取期望数据
-- 逐行比对实际结果与原生 SQL 结果（ID、字段值、排序、记录数）
-- 如果功能涉及过滤条件注入（如 forcedSlice），必须验证返回数据确实只包含符合条件的记录
-- 如果功能涉及列裁剪（如 visibleColumns），必须验证返回的每一行只包含允许的列
-- 如果功能涉及排序控制（如 forcedOrderBy），必须验证返回数据的实际排序
-- 如果功能涉及权限隔离，必须同时测试无权限模型不受限制
+## 9. 文档写作
 
-### 不允许
-
-- 仅用 `buildSqlOnly()` 检查 SQL 字符串包含/不包含某片段就认为测试通过
-- 仅检查中间对象（如 extData 中的 effective permission）就认为链路正确
-- 仅用 mock 对象构造的单元测试替代真实 TM/QM 文件的集成测试
-
-### 测试模型文件
-
-- 测试用 TM/QM 文件放在 `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/` 下
-- 新增测试模型文件后需 `mvn install -pl foggy-dataset-demo -DskipTests` 更新本地依赖
-- 集成测试继承 `EcommerceTestSupport`，使用 SQLite profile 运行
-
-### 参考模式
-
-```java
-// 1. 原生 SQL 基线
-String expectedSql = "SELECT ... FROM dim_xxx WHERE brand = 'Apple' ORDER BY ...";
-List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
-
-// 2. 通过 QueryFacade 执行查询
-DbQueryRequestDef queryRequest = new DbQueryRequestDef();
-queryRequest.setQueryModel("XxxQueryModel#dimension");
-queryRequest.setColumns(List.of("id", "caption", "brand"));
-PagingResultImpl result = queryFacade.queryModelData(PagingRequest.buildPagingRequest(queryRequest, 100));
-List<Map<String, Object>> items = castItems(result);
-
-// 3. 逐行比对
-assertEquals(expectedRows.size(), items.size());
-for (int i = 0; i < items.size(); i++) {
-    assertEquals(String.valueOf(expectedRows.get(i).get("id")), String.valueOf(items.get(i).get("id")));
-    assertEquals(expectedRows.get(i).get("brand"), items.get(i).get("brand"));
-}
-```
-
-## 版本化需求管理
-- 后续所有讨论中的新能力、需求、增强项、重构项，必须先明确目标版本，再进入设计、实现或验收。
-- 需求文档统一放在 `docs/{版本号}/` 目录下跟踪；如果目录不存在，先创建版本目录。
-- 需求文档命名规范：`docs/{版本号}/{需求等级}-${功能名称}-需求.md`
-- 推荐需求等级使用：`P0`（阻塞/紧急）、`P1`（高优先级）、`P2`（正常优先级）、`P3`（低优先级）
-- 如果某项需求尚未归属明确版本，默认视为“未进入实现阶段”，只能讨论，不进入开发。
-- 实现过程中涉及范围变更、延期、降级或拆分时，优先更新对应版本目录下的需求文档，再继续讨论或编码。
-
-## 文档生成原则
-- 大部分文档，都是为LLM生成，所以保持简洁高效
-- 避免token浪费及分散LLM注意力
-- 输出文档时减少不必要的铺垫、复述和解释，尽量言简意赅，直接给出结论、规则和可执行信息
-
-## License
-Apache License 2.0
+- 面向开发者和 LLM，优先写结论、边界、流程和可执行规则。
+- 避免复制代码即可表达的细节、过长背景和跨目录重复说明。
+- 当前事实更新 `docs/architecture/`；历史原因、迁移和验收保留在版本目录。
