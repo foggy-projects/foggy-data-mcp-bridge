@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: NEEDS_REPLAN
+status: SUPERSEDED_BY_SPEED_FORWARD
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -67,10 +67,27 @@ semantic_replay_replacement_step7_activation_status: authorized-pending-remote-e
 semantic_replay_replacement_step7_authorized_at: 2026-07-24
 semantic_replay_replacement_step7_authorized_by: repository-owner-via-user-approval
 semantic_replay_replacement_step7_preflight_evidence: docs/9.3.4/evidence/step-7/step7-semantic-authority-preflight-20260724.md
+speed_forward_override_at: 2026-07-24
+speed_forward_override_by: repository-owner-via-user-request
+speed_forward_contract: docs/9.4.0/workitems/FEATURE-v934-v940-speed-forward.md
+replacement_step7_required: false
+final_authority_pointer_required: false
 open_questions: []
 ---
 
 # Delivery Spec: 9.3.4 Local Release Authority and Version Closure
+
+## Speed-Forward Supersession — 2026-07-24
+
+Repository owner 已明确将后续工作切换为速度优先。9.3.4 既有成功证据被接受为开发阶段
+carry-forward 基线；不再启动 replacement Step 7，不生成 final authority pointer，也不继续
+portable replay/source-seal/ordered review authority 链。9.3.5 entry 已解除。
+
+本文件以下内容继续作为历史契约与运行记录，但所有尚未消费的 attempt、`must rerun`、
+final pointer、version signoff 和 downstream gate 语句不再是 active requirement。当前唯一
+跨版本交付契约为
+[`FEATURE-v934-v940-speed-forward.md`](../../9.4.0/workitems/FEATURE-v934-v940-speed-forward.md)。
+这项 owner waiver 不表示新签发 `ACCEPTED`，最终统一验收延后到 9.4.0 开发目标完成后。
 
 ## Document Purpose
 
