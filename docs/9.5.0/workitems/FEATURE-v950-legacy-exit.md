@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.5.0
 ticket: v950-legacy-exit
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: elevated
@@ -185,6 +185,14 @@ open_questions: []
     实际编译通过。
   - `LegacyExitArchitectureTest`、tracked-text inventory、`git diff --check`、top-level `bash -n`
     和 launcher JAR/assembly boundary 检查通过。
+  - owner 批准的 lean root authority：
+    `mvn -B -ntp clean verify -DskipITs -Dsurefire.failIfNoTests=false
+    -Dfailsafe.failIfNoTests=false` 在前 28 个模块完成 4960 tests，0 failures；
+    engine 有 2 个既有 skipped。launcher 因测试夹具仍指向已删除模块而产生 1 个 context error，
+    随后按 `BUG-launcher-smoke-sqlite-fixture-path` 最小修复。
+  - 修复后 focused launcher smoke：27/27 reactor modules success，
+    `DataViewerApiSmokeTest` 6 tests 全通过；完整制品
+    `verify -Dmaven.test.skip=true -DskipITs` 32/32 modules success。
 - validation_commands:
   ```bash
   mvn -pl foggy-dataset-model-api,foggy-dataset-model-core,foggy-dataset-model-tck,foggy-dataset-model-engine \
@@ -219,20 +227,22 @@ open_questions: []
   9.4.1 已签收的 stable QueryFacade、JDBC QUERY、query-cache invalidation、
   duplicate/missing/unsupported/role mismatch 与 launcher boundary 证据。
 - omitted_validation_and_reason:
-  按 owner 明确预算未运行 `mvn install`、Step 5/7、release-governance authority、
-  semantic/portable replay、source-seal、通用五库矩阵、GitHub CI、tag/release/publish；
-  这些排除项不得被描述为已验证。
+  按 owner 明确预算未运行 `mvn install`、Step 5/7、扩展 semantic/portable replay、
+  source-seal、通用五库矩阵、GitHub CI、tag/release/publish；test-only 修复后也未重复完整
+  root `clean verify`。这些排除项不得被描述为已验证。
 - readiness:
-  `READY_FOR_SIGNOFF`；实现已在固定提交上完成 code review 与最终零守卫复核。
-  大型 authority/replay 仍未获批且未运行，因此不自行声明 `ACCEPTED`。
+  `ACCEPTED_WITH_RISKS`；最终实现和 test-only authority 修复已在固定提交上完成 review、
+  零守卫、focused smoke 与完整制品复核。正式记录见
+  `docs/9.5.0/acceptance/version-signoff.md`。
 
 ## Code Review Result
 
-- reviewed_implementation_sha: `45a7300da32e2deea1575753034e8a67d5dd5893`
-- reviewed_range: `63a8f15ff870ee40c83c458d7db455d6b5977deb..45a7300da32e2deea1575753034e8a67d5dd5893`
+- reviewed_implementation_sha: `00e4f090ca868e22d7e386e86ebfa4c01272e0bc`
+- reviewed_range: `63a8f15ff870ee40c83c458d7db455d6b5977deb..00e4f090ca868e22d7e386e86ebfa4c01272e0bc`
 - conclusion:
   未发现核心 blocker；未发现未授权的查询语义、权限、namespace isolation、数据正确性或不可逆迁移变化。
-  Maven/Java/bridge breaking 与已批准 Gate P0 契约一致。
+  Maven/Java/bridge breaking 与已批准 Gate P0 契约一致。authority 发现的 launcher fixture
+  路径漏改为 test-only 缺陷，已在独立 BUG workitem 中修复并通过最小半径重验。
 - final_guard_review:
   旧 POM artifact 0、旧 root module 0、生产旧包 0、runtime metadata 旧包 0、
   `LegacyQueryFacadeAdapter` 0、旧 engine `service/QueryFacade.java` 0、
@@ -242,8 +252,19 @@ open_questions: []
   engine 的同名 JDBC provider 优先发布 QUERY/MODEL_LOAD/ATOMIC_REFRESH，
   fallback adapter 不会覆盖真实角色。catalog/TCK 对四类 capability-role mismatch 均 fail closed。
 - residual_signoff_risk:
-  外部 Maven/source/binary breaking 是本版本有意影响；release-governance authority、
-  semantic/portable replay、source-seal 与通用数据库矩阵未运行。
+  外部 Maven/source/binary breaking 是本版本有意影响；没有一条 post-fix 完整 root
+  `clean verify` 绿线，接受证据由原 authority 的 modules 1-28、修复后 launcher focused smoke
+  与 32-module artifact verify 组合而成；semantic/portable replay、source-seal 与通用数据库矩阵未运行。
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted-with-risks
+- signed_off_by: codex-reviewer
+- signed_off_at: 2026-07-24
+- acceptance_record: `docs/9.5.0/acceptance/version-signoff.md`
+- blocking_items: none
+- follow_up_required: yes-before-tag-release-publish
 
 ## References
 

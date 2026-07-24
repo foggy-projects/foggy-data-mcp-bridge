@@ -1,7 +1,7 @@
 ---
 doc_role: migration-guide
 version: 9.5.0
-status: READY_FOR_SIGNOFF
+status: ACCEPTED_WITH_RISKS
 recorded_at: 2026-07-24
 ---
 
@@ -124,11 +124,15 @@ field access、physical denied columns 和 datasource currentness 规则未放�
 
 不支持在同一进程同时加载 9.4.1 旧包和 9.5.0 新包；避免混用两代制品。
 
-## 8. Signoff gap
+## 8. Signoff result and residual gap
 
-focused/affected evidence 足以形成 `READY_FOR_SIGNOFF` 候选，但未覆盖完整 release-governance
-authority、semantic/portable replay、source seal 或通用数据库矩阵。breaking legacy exit 在
-tag/release/publish 前建议对最终 SHA 执行一次明确批准的 authority：
+最终候选已按 `ACCEPTED_WITH_RISKS` 签收。owner 批准的一次 lean root authority 在前 28 个模块
+通过后，发现 launcher smoke 的 test-only fixture 路径漏改；修复后 focused smoke 和完整制品
+reactor 均通过，但没有重复一条完整 post-fix root `clean verify`。
 
-- lean authority：预计 60–120 分钟；
-- 含 semantic/portable replay 与完整数据库矩阵：预计 2–4 小时，另计外部 fixture 启动时间。
+本次签收仍未覆盖 semantic/portable replay、source seal 或通用数据库矩阵。tag/release/publish
+前若需要提高对查询语义、可移植回放和数据库差异的置信度，建议另行批准扩展 authority：
+
+- semantic/portable replay 加完整数据库矩阵：预计 2–4 小时，另计外部 fixture 启动时间；
+- 决策价值：发现包/坐标迁移后反射配置、跨数据库 SQL 和可移植回放中 compile/focused tests
+  无法覆盖的集成缺陷。

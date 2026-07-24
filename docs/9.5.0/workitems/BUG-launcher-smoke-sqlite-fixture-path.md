@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: bug
 version: 9.5.0
 ticket: launcher-smoke-sqlite-fixture-path
-status: READY_FOR_SIGNOFF
+status: ACCEPTED
 canonical: true
 execution_mode: ultra
 assurance_level: standard
@@ -166,3 +166,13 @@ open_questions: []
 - requirement / issue: 9.5.0 lean authority failure on 2026-07-24.
 - architecture / glossary: `docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
 - related work items: `docs/9.5.0/workitems/FEATURE-v950-legacy-exit.md`
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted-with-risks
+- signed_off_by: codex-reviewer
+- signed_off_at: 2026-07-24
+- acceptance_record: `docs/9.5.0/acceptance/version-signoff.md`
+- blocking_items: none
+- follow_up_required: covered-by-version-residual-risks
