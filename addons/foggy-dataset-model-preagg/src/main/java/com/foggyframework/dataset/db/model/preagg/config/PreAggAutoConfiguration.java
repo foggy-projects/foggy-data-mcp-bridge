@@ -1,6 +1,5 @@
 package com.foggyframework.dataset.db.model.preagg.config;
 
-import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.db.model.preagg.controller.PreAggController;
 import com.foggyframework.dataset.db.model.preagg.refresh.PreAggRefreshService;
 import com.foggyframework.dataset.db.model.preagg.scheduler.PreAggScheduler;
@@ -27,7 +26,7 @@ import org.springframework.web.servlet.DispatcherServlet;
  * @since 8.2.0
  */
 @Slf4j
-@AutoConfiguration(after = DbModelAutoConfiguration.class)
+@AutoConfiguration(afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
 @ConditionalOnProperty(prefix = "foggy.preagg", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class PreAggAutoConfiguration {
 

@@ -24,9 +24,9 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataReque
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.service.LegacyQueryFacadeAdapter;
 import com.foggyframework.dataset.model.api.QueryFacade;
 import com.foggyframework.dataset.model.api.QueryFacadeResult;
+import com.foggyframework.dataviewer.service.StableQueryFacadeRequestMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -417,7 +417,7 @@ public class ViewerApiController {
             pagingRequest.setLimit(request.getLimit() != null ? request.getLimit() : 50);
 
             QueryFacadeResult result = queryFacade.query(
-                    LegacyQueryFacadeAdapter.toRequest(pagingRequest, authorization, namespace));
+                    StableQueryFacadeRequestMapper.from(pagingRequest, authorization, namespace));
 
             return RX.ok(ViewerDataResponse.success(
                     result.getItems(),
@@ -475,7 +475,7 @@ public class ViewerApiController {
 
             // 使用 QueryFacade 执行查询
             QueryFacadeResult result = queryFacade.query(
-                    LegacyQueryFacadeAdapter.toRequest(pagingRequest, effectiveAuthorization, namespace));
+                    StableQueryFacadeRequestMapper.from(pagingRequest, effectiveAuthorization, namespace));
 
             return RX.ok(ViewerDataResponse.success(
                     result.getItems(),

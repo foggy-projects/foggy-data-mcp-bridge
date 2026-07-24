@@ -4,6 +4,8 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
+import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -32,6 +34,7 @@ public final class BackendProviderCatalog {
             BackendDescriptor descriptor = Objects.requireNonNull(
                     provider.descriptor(), "provider descriptor must not be null");
             BackendId backendId = descriptor.backendId();
+            validateMigratedCapabilityRoles(provider, descriptor);
             if (indexed.putIfAbsent(backendId, new RegisteredProvider(provider, descriptor)) != null) {
                 throw new DuplicateBackendProviderException(backendId);
             }
@@ -82,6 +85,22 @@ public final class BackendProviderCatalog {
         return Collections.unmodifiableList(providers.values().stream()
                 .map(RegisteredProvider::descriptor)
                 .toList());
+    }
+
+    private static void validateMigratedCapabilityRoles(
+            BackendProvider provider,
+            BackendDescriptor descriptor
+    ) {
+        if (descriptor.supports(BackendCapability.QUERY)
+                && !(provider instanceof QueryBackendProvider)) {
+            throw new BackendProviderTypeMismatchException(
+                    descriptor.backendId(), QueryBackendProvider.class);
+        }
+        if (descriptor.supports(BackendCapability.CACHE_INVALIDATION)
+                && !(provider instanceof CacheInvalidationBackendProvider)) {
+            throw new BackendProviderTypeMismatchException(
+                    descriptor.backendId(), CacheInvalidationBackendProvider.class);
+        }
     }
 
     private record RegisteredProvider(BackendProvider provider, BackendDescriptor descriptor) { }

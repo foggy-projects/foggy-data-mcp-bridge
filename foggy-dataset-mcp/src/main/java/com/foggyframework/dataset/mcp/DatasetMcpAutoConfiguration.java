@@ -1,10 +1,9 @@
 package com.foggyframework.dataset.mcp;
 
-import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Import;
 
-@AutoConfiguration(after = DbModelAutoConfiguration.class)
+@AutoConfiguration(afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
 @Import({
         com.foggyframework.dataset.mcp.audit.ToolAuditAutoConfiguration.class,
         com.foggyframework.dataset.mcp.auth.AuthInterceptor.class,

@@ -2,11 +2,9 @@ package com.foggyframework.dataset.graphql.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.service.LegacyQueryFacadeAdapter;
 import com.foggyframework.dataset.graphql.converter.GraphqlToDslConverter;
 import com.foggyframework.dataset.model.api.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacadeRequest;
 import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -72,15 +70,15 @@ public class GraphqlEndpointController {
             log.info("收到 GraphQL 查询: {}", request.getQuery());
 
             // 1. 转换 GraphQL → DSL
-            PagingRequest<DbQueryRequestDef> dslRequest = converter.convert(
+            QueryFacadeRequest facadeRequest = converter.convertRequest(
                     request.getQuery(),
                     request.getVariables() != null ? request.getVariables() : new HashMap<>()
             );
 
-            log.debug("转换后的 DSL 请求: {}", objectMapper.writeValueAsString(dslRequest));
+            log.debug("转换后的稳定查询请求: {}", objectMapper.writeValueAsString(facadeRequest));
 
             // 2. 执行查询
-            QueryFacadeResult result = queryFacade.query(LegacyQueryFacadeAdapter.toRequest(dslRequest));
+            QueryFacadeResult result = queryFacade.query(facadeRequest);
 
             // 3. 包装为 GraphQL 响应格式
             Map<String, Object> response = new HashMap<>();

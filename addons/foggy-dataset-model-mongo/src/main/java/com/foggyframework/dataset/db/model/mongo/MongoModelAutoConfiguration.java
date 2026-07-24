@@ -1,7 +1,6 @@
 package com.foggyframework.dataset.db.model.mongo;
 
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.db.model.impl.mongo.TmMongoModelLoaderImpl;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -14,8 +13,8 @@ import org.springframework.context.annotation.Bean;
 import javax.sql.DataSource;
 
 @AutoConfiguration(
-        after = DbModelAutoConfiguration.class,
         afterName = {
+                "com.foggyframework.dataset.db.model.DbModelAutoConfiguration",
                 "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
                 "org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration",
                 "org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration",

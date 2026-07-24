@@ -38,6 +38,11 @@ class QueryCacheBackendProviderTckTest
         return CacheInvalidationBackendProvider.class;
     }
 
+    @Override
+    protected void verifyOperationalPort(CacheInvalidationBackendProvider provider) {
+        assertSame(provider, provider.cacheInvalidation());
+    }
+
     @Test
     void stableInvalidationPortDelegatesToLegacyProvider() {
         QueryCacheProvider delegate = mock(QueryCacheProvider.class);

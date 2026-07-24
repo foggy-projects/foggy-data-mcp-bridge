@@ -2,10 +2,14 @@ package com.foggyframework.dataset.model.web;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.dataset.model.api.QueryFacade;
 import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationPort;
+import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import com.foggyframework.dataset.model.core.backend.BackendProviderCatalog;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -88,7 +92,43 @@ class ModelBackendWebAutoConfigurationTest {
     private static BackendProvider provider(String id, BackendCapability... capabilities) {
         BackendDescriptor descriptor = new BackendDescriptor(
                 BackendId.of(id), Set.of(capabilities));
-        return () -> descriptor;
+        return new TestBackendProvider(descriptor);
+    }
+
+    private static final class TestBackendProvider
+            implements QueryBackendProvider, CacheInvalidationBackendProvider, CacheInvalidationPort {
+
+        private final BackendDescriptor descriptor;
+        private final QueryFacade queryFacade = request -> null;
+
+        private TestBackendProvider(BackendDescriptor descriptor) {
+            this.descriptor = descriptor;
+        }
+
+        @Override
+        public BackendDescriptor descriptor() {
+            return descriptor;
+        }
+
+        @Override
+        public QueryFacade queryFacade() {
+            return queryFacade;
+        }
+
+        @Override
+        public CacheInvalidationPort cacheInvalidation() {
+            return this;
+        }
+
+        @Override
+        public void evict(String modelName) {
+            // Snapshot fixture only.
+        }
+
+        @Override
+        public void evictAll() {
+            // Snapshot fixture only.
+        }
     }
 
     @Configuration(proxyBeanMethods = false)

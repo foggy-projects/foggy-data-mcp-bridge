@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider;
 import com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProvider;
-import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
@@ -38,8 +37,10 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
  */
 @Slf4j
 @AutoConfiguration(
-        after = DbModelAutoConfiguration.class,
-        afterName = "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration")
+        afterName = {
+                "com.foggyframework.dataset.db.model.DbModelAutoConfiguration",
+                "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration"
+        })
 @EnableConfigurationProperties(QueryCacheProperties.class)
 @ConditionalOnProperty(name = "foggy.query-cache.enabled", havingValue = "true", matchIfMissing = true)
 public class QueryCacheAutoConfiguration {

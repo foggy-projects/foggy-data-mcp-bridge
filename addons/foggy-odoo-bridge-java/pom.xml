@@ -16,12 +16,6 @@
     <description>Odoo MCP Gateway -内置 Odoo 数据模型，支持与 Odoo ERP 集成</description>
 
     <dependencies>
-        <!-- Foggy Dataset Model - 核心语义层引擎 -->
-        <dependency>
-            <groupId>com.foggysource</groupId>
-            <artifactId>foggy-dataset-model</artifactId>
-        </dependency>
-
         <!-- Foggy Dataset MCP - MCP 服务 -->
         <dependency>
             <groupId>com.foggysource</groupId>

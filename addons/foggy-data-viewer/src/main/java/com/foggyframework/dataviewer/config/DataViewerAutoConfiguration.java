@@ -24,7 +24,6 @@ import com.foggyframework.dataviewer.service.listpreset.MongoListPresetStore;
 import com.foggyframework.dataviewer.service.tabledefault.PropertiesTableDefaultQueryConfigProvider;
 import com.foggyframework.dataviewer.service.tabledefault.TableDefaultQueryConfigProvider;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.model.api.QueryFacade;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,7 +47,9 @@ import org.springframework.util.StringUtils;
  * <p>
  * 集成 QueryFacade 和使用类型安全的请求类
  */
-@AutoConfiguration(after = {DbModelAutoConfiguration.class, MongoAutoConfiguration.class, MongoDataAutoConfiguration.class})
+@AutoConfiguration(
+        after = {MongoAutoConfiguration.class, MongoDataAutoConfiguration.class},
+        afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
 @ConditionalOnClass(MongoTemplate.class)
 @ConditionalOnBean({MongoTemplate.class, QueryFacade.class})
 @ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)

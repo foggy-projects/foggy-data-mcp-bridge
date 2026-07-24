@@ -1,7 +1,6 @@
 package com.foggyframework.dataset.graphql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.db.model.DbModelAutoConfiguration;
 import com.foggyframework.dataset.model.api.QueryFacade;
 import com.foggyframework.dataset.graphql.controller.GraphqlEndpointController;
 import com.foggyframework.dataset.graphql.converter.GraphqlToDslConverter;
@@ -26,7 +25,9 @@ import org.springframework.web.servlet.DispatcherServlet;
  * @author Foggy Framework
  */
 @Slf4j
-@AutoConfiguration(after = {DbModelAutoConfiguration.class, JacksonAutoConfiguration.class})
+@AutoConfiguration(
+        after = JacksonAutoConfiguration.class,
+        afterName = "com.foggyframework.dataset.db.model.DbModelAutoConfiguration")
 @ConditionalOnProperty(name = "foggy.dataset.graphql.enabled", havingValue = "true", matchIfMissing = true)
 public class GraphqlAddonAutoConfiguration {
 

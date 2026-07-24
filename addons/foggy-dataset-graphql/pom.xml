@@ -19,7 +19,11 @@
     </properties>
 
     <dependencies>
-        <!-- 核心依赖 -->
+        <!-- Stable query boundary; legacy aggregate remains for public converter compatibility. -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-model</artifactId>

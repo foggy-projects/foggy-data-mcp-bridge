@@ -34,11 +34,20 @@ public abstract class BackendProviderTck<P extends BackendProvider> {
 
     protected abstract Class<P> expectedProviderRole();
 
+    /** Optional provider-specific assertion for the operational port. */
+    protected void verifyOperationalPort(P provider) {
+        // Default is intentionally empty for compatibility adapters whose
+        // operation already has a dedicated focused test.
+    }
+
     @Test
     public final void descriptorMatchesTheDeclaredMigrationSurface() {
-        BackendDescriptor descriptor = createProvider().descriptor();
+        P provider = createProvider();
+        BackendDescriptor descriptor = provider.descriptor();
         assertEquals(expectedBackendId(), descriptor.backendId());
         assertEquals(expectedCapabilities(), descriptor.capabilities());
+        assertEquals(descriptor, provider.descriptor(),
+                "provider descriptor must be deterministic across reads");
         assertThrows(UnsupportedOperationException.class,
                 () -> descriptor.capabilities().clear());
     }
@@ -53,6 +62,7 @@ public abstract class BackendProviderTck<P extends BackendProvider> {
             assertSame(provider, catalog.require(
                     expectedBackendId(), capability, expectedProviderRole()));
         }
+        verifyOperationalPort(provider);
     }
 
     @Test

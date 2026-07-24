@@ -11,7 +11,6 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataReque
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.service.LegacyQueryFacadeAdapter;
 import com.foggyframework.dataset.model.api.QueryFacade;
 import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import lombok.extern.slf4j.Slf4j;
@@ -89,7 +88,7 @@ public class MemberQueryService {
 
         try {
             QueryFacadeResult result = queryFacade.query(
-                    LegacyQueryFacadeAdapter.toRequest(pagingRequest, namespace));
+                    StableQueryFacadeRequestMapper.from(pagingRequest, namespace));
             items = mapItems(result.getItems(), mapping.hierarchyEnabled);
             total = result.getTotal() > 0 ? result.getTotal() : items.size();
         } catch (Exception e) {
@@ -183,7 +182,7 @@ public class MemberQueryService {
             pagingRequest.setLimit(selectedValues.size());
 
             QueryFacadeResult result = queryFacade.query(
-                    LegacyQueryFacadeAdapter.toRequest(pagingRequest, namespace));
+                    StableQueryFacadeRequestMapper.from(pagingRequest, namespace));
             return mapItems(result.getItems(), false);
         } catch (Exception e) {
             log.warn("Failed to resolve selected values for {}: {}", syntheticModelName, e.getMessage());

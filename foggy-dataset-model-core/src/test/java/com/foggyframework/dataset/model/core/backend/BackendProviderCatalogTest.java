@@ -4,6 +4,7 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
 import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class BackendProviderCatalogTest {
 
     @Test
     void resolvesExactlyOneProviderByIdentityAndCapability() {
-        BackendProvider provider = provider(MYSQL, BackendCapability.QUERY);
+        BackendProvider provider = queryProvider(MYSQL);
         BackendProviderCatalog catalog = BackendProviderCatalog.of(List.of(provider));
 
         assertSame(provider, catalog.require(MYSQL));
@@ -33,7 +34,7 @@ class BackendProviderCatalogTest {
 
     @Test
     void duplicateMissingAndUnsupportedRoutesFailClosed() {
-        BackendProvider provider = provider(MYSQL, BackendCapability.QUERY);
+        BackendProvider provider = queryProvider(MYSQL);
 
         DuplicateBackendProviderException duplicate = assertThrows(
                 DuplicateBackendProviderException.class,
@@ -67,7 +68,17 @@ class BackendProviderCatalogTest {
         BackendDescriptor queryDescriptor = new BackendDescriptor(
                 MYSQL, Set.of(BackendCapability.QUERY));
         AtomicReference<BackendDescriptor> current = new AtomicReference<>(queryDescriptor);
-        BackendProvider provider = current::get;
+        QueryBackendProvider provider = new QueryBackendProvider() {
+            @Override
+            public BackendDescriptor descriptor() {
+                return current.get();
+            }
+
+            @Override
+            public com.foggyframework.dataset.model.api.QueryFacade queryFacade() {
+                return request -> null;
+            }
+        };
 
         BackendProviderCatalog catalog = BackendProviderCatalog.of(List.of(provider));
         current.set(new BackendDescriptor(MYSQL, Set.of()));
@@ -79,14 +90,45 @@ class BackendProviderCatalogTest {
 
     @Test
     void typedResolutionRejectsCapabilityOnlyImpostors() {
-        BackendProvider provider = provider(MYSQL, BackendCapability.QUERY);
+        BackendProvider provider = provider(MYSQL, BackendCapability.MODEL_LOAD);
         BackendProviderCatalog catalog = BackendProviderCatalog.of(List.of(provider));
 
         BackendProviderTypeMismatchException mismatch = assertThrows(
                 BackendProviderTypeMismatchException.class,
-                () -> catalog.require(MYSQL, BackendCapability.QUERY, QueryBackendProvider.class));
+                () -> catalog.require(MYSQL, BackendCapability.MODEL_LOAD, QueryBackendProvider.class));
         assertEquals(MYSQL, mismatch.backendId());
         assertEquals(QueryBackendProvider.class, mismatch.requiredType());
+    }
+
+    @Test
+    void discoveryRejectsAdvertisedMigratedCapabilitiesWithoutTheirPorts() {
+        BackendProviderTypeMismatchException queryMismatch = assertThrows(
+                BackendProviderTypeMismatchException.class,
+                () -> BackendProviderCatalog.of(List.of(
+                        provider(MYSQL, BackendCapability.QUERY))));
+        assertEquals(QueryBackendProvider.class, queryMismatch.requiredType());
+
+        BackendProviderTypeMismatchException cacheMismatch = assertThrows(
+                BackendProviderTypeMismatchException.class,
+                () -> BackendProviderCatalog.of(List.of(
+                        provider(MYSQL, BackendCapability.CACHE_INVALIDATION))));
+        assertEquals(CacheInvalidationBackendProvider.class, cacheMismatch.requiredType());
+    }
+
+    private QueryBackendProvider queryProvider(BackendId backendId) {
+        BackendDescriptor descriptor = new BackendDescriptor(
+                backendId, Set.of(BackendCapability.QUERY));
+        return new QueryBackendProvider() {
+            @Override
+            public BackendDescriptor descriptor() {
+                return descriptor;
+            }
+
+            @Override
+            public com.foggyframework.dataset.model.api.QueryFacade queryFacade() {
+                return request -> null;
+            }
+        };
     }
 
     private BackendProvider provider(BackendId backendId, BackendCapability... capabilities) {

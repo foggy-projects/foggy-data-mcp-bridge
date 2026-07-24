@@ -119,3 +119,10 @@ catalog 在 discovery 时快照 descriptor，不会因 provider 后续返回可�
 旧 model SPI 中尚未迁移的 loader、engine、semantic、pivot/compose 等类型继续由兼容聚合承载；它们
 没有因 SPI v2 构件存在而自动成为稳定公共 API。一个兼容周期结束前，需要基于实际调用方盘点另行
 决定删除或继续保留旧桥接层，9.4.0 不执行无过渡期移除。
+
+## 9.4.1 continuation
+
+9.4.1 已执行无破坏 adoption/hardening：冻结直接聚合依赖和旧包导入、迁移安全的第一方查询入口，
+并对已实现的 QUERY/CACHE_INVALIDATION provider role 做 discovery fail-closed 加固。准确的剩余消费者、
+能力覆盖和 9.5.0 去向见 `docs/9.4.1/model-spi-v2-adoption.md`。9.4.1 仍保留本文件承诺的兼容聚合和
+deprecated bridge；该 continuation 不构成 legacy removal 授权。
