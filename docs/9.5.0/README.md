@@ -61,7 +61,7 @@ duplicate identity、missing provider、unsupported capability 和 capability-ro
 本候选运行了受影响 Maven reactor 的 compile、test-compile、focused unit/context/TCK 和独立 addon
 test-compile；全部使用 `-pl ... -am`，未运行 `mvn install`。
 
-Owner 批准的一次 lean root authority 在前 28 个模块完成 4960 tests 后，由 launcher smoke
+Owner 批准的一次 lean root authority 在前 28 个模块完成 4945 tests 后，由 launcher smoke
 残留的旧 SQLite fixture 路径触发 1 个 test-context error。该 test-only 缺陷修复后，
 `DataViewerApiSmokeTest` 6/6、受影响 reactor 27/27 及 32-module artifact verify 均通过。
 没有重复完整 root `clean verify`，因此签收证据是最小失效半径组合证据，不描述为完整 post-fix

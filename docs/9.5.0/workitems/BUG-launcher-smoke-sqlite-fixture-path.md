@@ -152,8 +152,8 @@ open_questions: []
   受影响 smoke 和完整制品尾部。
 - reused_evidence:
   2026-07-24 root authority 在原候选上完成的前 28 个模块：
-  4960 tests，0 failures，除 launcher fixture error 外无产品 error，engine 有 2 个既有 skipped；
-  其中 modules 1-28 全部 SUCCESS。
+  modules 1-28 共 4945 tests，0 failures/errors，engine 有 2 个既有 skipped；launcher 随后执行
+  15 tests 并因 fixture path 产生 1 个 context error。
 - omitted_validation_and_reason:
   未重跑完整 authority、数据库矩阵、semantic/portable replay、source-seal、Step 5/7、CI、
   tag/release/publish；均超出本 test-only 修复和 owner 批准的一次 lean authority 预算。

@@ -187,7 +187,7 @@ open_questions: []
     和 launcher JAR/assembly boundary 检查通过。
   - owner 批准的 lean root authority：
     `mvn -B -ntp clean verify -DskipITs -Dsurefire.failIfNoTests=false
-    -Dfailsafe.failIfNoTests=false` 在前 28 个模块完成 4960 tests，0 failures；
+    -Dfailsafe.failIfNoTests=false` 在前 28 个模块完成 4945 tests，0 failures；
     engine 有 2 个既有 skipped。launcher 因测试夹具仍指向已删除模块而产生 1 个 context error，
     随后按 `BUG-launcher-smoke-sqlite-fixture-path` 最小修复。
   - 修复后 focused launcher smoke：27/27 reactor modules success，
