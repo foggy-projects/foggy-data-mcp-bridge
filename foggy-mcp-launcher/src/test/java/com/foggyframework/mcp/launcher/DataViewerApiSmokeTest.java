@@ -393,8 +393,8 @@ class DataViewerApiSmokeTest {
 
         private static Path findSqliteDir() {
             List<Path> candidates = List.of(
-                    Paths.get("foggy-dataset-model", "src", "test", "resources", "sqlite"),
-                    Paths.get("..", "foggy-dataset-model", "src", "test", "resources", "sqlite")
+                    Paths.get("foggy-dataset-model-engine", "src", "test", "resources", "sqlite"),
+                    Paths.get("..", "foggy-dataset-model-engine", "src", "test", "resources", "sqlite")
             );
             for (Path candidate : candidates) {
                 if (Files.isRegularFile(candidate.resolve("01-schema.sql"))) {
