@@ -18,6 +18,10 @@
         <!-- 核心依赖 -->
         <dependency>
             <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-model</artifactId>
         </dependency>
 
@@ -77,6 +81,16 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-tck</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-starter</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -4,6 +4,8 @@ import com.foggyframework.dataset.model.api.backend.BackendCapability;
 import com.foggyframework.dataset.model.api.backend.BackendDescriptor;
 import com.foggyframework.dataset.model.api.backend.BackendId;
 import com.foggyframework.dataset.model.api.backend.BackendProvider;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationPort;
 import com.foggyframework.dataset.model.api.backend.QueryBackendProvider;
 import org.junit.jupiter.api.Test;
 
@@ -28,8 +30,14 @@ class ModelApiDependencyBoundaryTest {
         assertEquals(1, queryMethods.length);
         assertEquals(QueryFacade.class, queryMethods[0].getReturnType());
 
+        Method[] cacheProviderMethods = CacheInvalidationBackendProvider.class.getDeclaredMethods();
+        assertEquals(1, cacheProviderMethods.length);
+        assertEquals(CacheInvalidationPort.class, cacheProviderMethods[0].getReturnType());
+        assertEquals(2, CacheInvalidationPort.class.getDeclaredMethods().length);
+
         Set<Class<?>> apiTypes = Set.of(BackendId.class, BackendDescriptor.class,
-                BackendCapability.class, BackendProvider.class, QueryBackendProvider.class);
+                BackendCapability.class, BackendProvider.class, QueryBackendProvider.class,
+                CacheInvalidationBackendProvider.class, CacheInvalidationPort.class);
         apiTypes.forEach(type -> Arrays.stream(type.getDeclaredFields())
                 .filter(field -> !field.isSynthetic())
                 .forEach(field -> assertFalse(isForbidden(field.getType()),

@@ -50,6 +50,7 @@
         <module>foggy-dataset-model-jdbc</module>
         <module>foggy-dataset-model-starter</module>
         <module>foggy-dataset-model-web</module>
+        <module>foggy-dataset-model-tck</module>
         <module>foggy-dataset-model</module>
         <module>foggy-runtime-api</module>
         <module>foggy-dataset-memory-grid-bridge</module>
@@ -171,6 +172,11 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-model-web</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-tck</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>

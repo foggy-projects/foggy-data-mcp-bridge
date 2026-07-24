@@ -119,3 +119,13 @@ compatibility plan before modules are extracted.
   controller back-off、missing-core、classpath boundary 与 compile dependency tree 验证均通过。
 - 当前新模块有向边为 `core -> api`、`jdbc -> core`、`starter -> jdbc`、`web -> core`；旧
   `foggy-dataset-model` 作为兼容聚合依赖五个新模块，五个新模块均不反向依赖旧聚合。
+- 已新增第 31 个 active module `foggy-dataset-model-tck`。该模块是 addon 测试构件，依赖
+  `model-core -> model-api` 与 JUnit API；生产模块不依赖 TCK，addon 仅以 test scope 消费。
+- API 新增独立 `CacheInvalidationBackendProvider/CacheInvalidationPort` 小角色，未把缓存生命周期扩张到
+  基础 `BackendProvider`。query-cache addon 通过兼容 adapter 发布 backend identity `query-cache`，且只
+  声明实际可桥接的 `CACHE_INVALIDATION` capability。
+- TCK 自检覆盖 descriptor identity/capability 不可变性、catalog typed resolution，以及
+  duplicate/missing/unsupported fail-closed。真实 cache addon 另覆盖旧 SPI delegation、非法 model
+  identity fail-before-delegate、Spring auto-configuration/back-off 与既有 cache context 兼容。
+- API/core/TCK tests 12/12；cache addon 定向 TCK/auto-configuration/既有 context tests 23/23。
+  TCK compile dependency tree 只有 core/API 与 JUnit；cache 的 TCK/starter 依赖均为 test scope。

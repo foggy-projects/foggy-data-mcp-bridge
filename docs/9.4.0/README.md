@@ -45,6 +45,13 @@ catalog 的 discovery-time descriptor snapshot，按 backend identity/capability
 tests 14/14、旧聚合 context tests 11/11，web dependency tree 与 classpath boundary tests 均确认未
 引入 JDBC/legacy implementation。
 
+第六个切片已经建立独立 `foggy-dataset-model-tck`，并将 query-cache addon 的实际迁移面发布为
+`query-cache` backend 的 `CACHE_INVALIDATION` 小角色。TCK 复用 provider identity、不可变 capability、
+typed catalog resolution 与 duplicate/missing/unsupported fail-closed 契约；cache adapter 只桥接既有
+`QueryCacheProvider.evict/evictAll`，不虚报 model load、query、namespace 或 atomic refresh 能力。
+API/core/TCK tests 12/12，cache TCK、自动配置及既有 context tests 23/23；TCK 与 starter 在 addon 中
+均为 test scope，未扩大 cache 运行时依赖边界。
+
 ## 开工依赖
 
 1. 9.3.4 已由 owner carry forward；
