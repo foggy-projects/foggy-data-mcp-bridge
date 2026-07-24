@@ -1,8 +1,8 @@
 package io.foggytest.autoconfigure.modelvector;
 
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.impl.vector.TmVectorModelLoaderImpl;
-import com.foggyframework.dataset.db.model.vector.VectorModelAutoConfiguration;
+import com.foggyframework.dataset.model.impl.vector.TmVectorModelLoaderImpl;
+import com.foggyframework.dataset.model.vector.VectorModelAutoConfiguration;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -33,7 +33,7 @@ class VectorModelAutoConfigurationContractTest {
     @Test
     void bootThreeImportsRegistersTheModelVectorAutoConfiguration() throws IOException {
         assertThat(autoConfigurationImports())
-                .contains("com.foggyframework.dataset.db.model.vector.VectorModelAutoConfiguration");
+                .contains("com.foggyframework.dataset.model.vector.VectorModelAutoConfiguration");
     }
 
     @Test

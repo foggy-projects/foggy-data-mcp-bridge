@@ -1,10 +1,10 @@
 package com.foggyframework.dataviewer.domain;
 
-import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: "${V935_GATE0_MYSQL57_URL}"
+    username: "${V935_GATE0_MYSQL57_USERNAME}"
+    password: "${V935_GATE0_MYSQL57_PASSWORD}"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  test:
+    url: "${V935_GATE0_MYSQL57_URL}"
+    username: "${V935_GATE0_MYSQL57_USERNAME}"
+    password: "${V935_GATE0_MYSQL57_PASSWORD}"
+    driver-class-name: com.mysql.cj.jdbc.Driver

@@ -2,13 +2,26 @@
 doc_role: version_execution_index
 doc_purpose: Index the executable 9.3.4 test and CI evidence-chain plan.
 version: 9.3.4
-status: in-progress
+status: development-complete / owner-carried-forward
 predecessor: 9.3.3 signed-off / accepted-with-risks
 created_at: 2026-07-14
-updated_at: 2026-07-23
+updated_at: 2026-07-24
 ---
 
 # 9.3.4 测试与 CI 证据链
+
+## Speed-Forward 决定（2026-07-24）
+
+- 9.3.4 的开发目标以现有 Step 1–5、数据库矩阵、覆盖率和 semantic replay repair
+  证据结束；状态为 `development-complete / owner-carried-forward`。
+- repository owner 明确豁免 replacement Step 7、final authority pointer、portable
+  replay authority 和 ordered review chain；不再启动大型 Step 5/Step 7 run。
+- 9.3.5 entry 已解除。最终跨版本验收统一延后到 9.4.0 开发目标完成后执行一次。
+- 本目录旧的 attempt budget、`must rerun`、pointer 和 gate 语句仅是历史记录，不再支配后续执行。
+- 当前 canonical 契约：
+  [9.3.4 → 9.4.0 Speed-Forward](../9.4.0/workitems/FEATURE-v934-v940-speed-forward.md)。
+
+该决定不创建 release authority、不自签 `ACCEPTED`，也不授权 GitHub CI、tag、release 或 publish。
 
 ## 文档作用
 
@@ -623,6 +636,8 @@ updated_at: 2026-07-23
   [coverage/step4-coverage-gate-coverage-audit.md](coverage/step4-coverage-gate-coverage-audit.md)
 - Step 4 feature acceptance：
   [acceptance/step4-coverage-gate-acceptance.md](acceptance/step4-coverage-gate-acceptance.md)
+- QM v2 ColumnRef owner/alias B600：
+  [workitems/BUG-qm-v2-columnref-owner-b600.md](workitems/BUG-qm-v2-columnref-owner-b600.md)
 
 ## 1~7 顺序
 
@@ -632,13 +647,54 @@ updated_at: 2026-07-23
 | 2 | Surefire/Failsafe 全量分层 | passed | r8e confirmed；724 positive + 59 structural；5,205 testcase；F0/E0/S0；signal-safe status |
 | 3 | 五数据库与外部集成 required matrix | passed | r4 same-commit exact `45/446/F0E0S0`；DB state `18/18`、Redis state `4/4`；Addon companion `2/6`；feature accepted |
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r33 excluded / pending Cdiag | r32 remains non-freezable; r33 stopped before a Unit marker/lane and its fallback cleanup closure is unproven; next=docs-only Cdiag→governed readiness preflight→fresh r34→new candidate/Git-safe closure/dual review→direct-child Cfreeze→fresh formal→post gates |
-| 5 | 单一 authority runner 与 immutable evidence rehearsal | ACCEPTED / replacement r2 independently signed off | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
+| 5 | 单一 authority runner 与 immutable evidence rehearsal | ACCEPTED / replacement candidate-passed / old r2 historical accepted | replacement r1 at `b9b8adfd…` completed once with exit 0；budget consumed；candidate pointer exact；owner signoff 2026-07-24；final pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | 不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
-| 7 | clean-commit 本地权威回放与后置门 | APPROVED / merge-only authorization | Step 5 accepted；PR #124 复核后仅以 merge commit 建立 exact `origin/main` entry；authority runner 仍未授权 |
+| 7 | clean-commit 本地权威回放与后置门 | owner-waived / superseded | 不再执行 replacement authority；final pointer 保持不存在；最终整体验收延后到 9.4.0 |
 
-Steps 1–5 未满足 exit 不进入下一步；Step 6 不再是执行或签收依赖；Step 7 只在
-Step 5 accepted 后进入。expected-negative、diagnostic 和 superseded run 不得拼接为
-绿色 authority。
+Steps 1–5 的历史 exit 保持不变；Step 6–7 均不再是后续开发或最终整体验收的 entry gate。
+expected-negative、diagnostic 和 superseded run 仍不得被描述为从未取得的 release authority。
+
+## Step 7 semantic portable replay 最小重规划实施结果（2026-07-23）
+
+- old authority `step7-local-authority-20260723-r1` at `62bf3fe1…` 保持
+  immutable `candidate-passed`：candidate pointer 存在，final authority pointer
+  不存在。同文件系统 `E_RUN_CONTEXT` 与跨文件系统 `E_CHILD_LIFECYCLE` 均是
+  downstream semantic replay 的 fail-closed 契约冲突，不能把旧 candidate 提升为 final。
+- 修复将 canonical Step 4 evidence 与 tested classes 一律独立复制，禁止 hardlink，
+  并在独立 semantic target 中只恢复完整审计出的三项特殊权限：
+  `child-ready/{unit,integration,step3-required}.json` 从 artifact-normalized
+  `0644` 恢复为 verifier-required `0600`。extracted artifact 的字节与 metadata
+  快照保持不变，coverage verifier 安全检查未降低。
+- receipt 记录 named/versioned policy、evidence/classes copy count、总 copy
+  count、`hardlinks=0`、三项 permission restoration 与 applied count；同/跨文件系统
+  deterministic positives 以及 `9/9` replay negatives 均通过。artifact=`105`、
+  coverage XML=`130`、coverage contract=`28`、package=`120`、pointer=`5+66`、
+  CI static contract=`86` 的受影响回归也通过，Step 4/5/6 hash closure 已更新。
+- canonical repair BUG 已由 repository owner 明确批准，并在 delivery-signoff
+  audit 后记为 `ACCEPTED`；父 feature 继续 `NEEDS_REPLAN`。旧 Step 7 attempt 已
+  消耗。replacement Step 5 的唯一预算也已由
+  `step5-semantic-replay-replacement-20260723-r1` 消耗：tested commit=
+  `b9b8adfd…`，tmux exit=`0`，runner=`candidate-passed`，Step 4=
+  `23/48`、required=`774+59/5709/F0E0S0`，portable replay self-test=
+  `2 same-filesystem / 1 cross-filesystem / 9 negatives`，JAR=image=
+  `ed48e51…`，archive=`613e1cac…`。
+- replacement Step 5 已在 delivery-signoff audit 后由 repository owner 于
+  2026-07-24 明确签收为 `ACCEPTED`。candidate pointer 精确存在；三个
+  final/authority pointer 均不存在。签收记录：
+  [step5-semantic-replay-replacement-r1-signoff-20260724.md](acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md)。
+- accepted repair/signoff branch 已通过 PR #125 以 merge commit
+  `b3b252c1…` 合入 clean `origin/main`。新的 private full clone preflight 已通过：
+  runtime source=`13/1411/10757069`，Step 4/5/6 manifests=`63/8/16`，
+  portable replay=`2 same / 1 cross / 9 negatives`，artifact/package/pointer=
+  `105/120/5`，coverage contract/XML=`28/130`，CI static=`86`。
+- 新 Step 7 run 已冻结为 `step7-semantic-authority-20260724-r1`；预算仍为唯一
+  一次且未消耗。docs-only activation 必须先成为 remote-exact `main`，随后再次
+  核对 identity/attempt ledger，才允许新的 private tmux owner 启动。
+  semantic replay 与 ordered review chain 完成前不得生成 final authority pointer。
+- Step 7 activation evidence:
+  [step7-semantic-authority-preflight-20260724.md](evidence/step-7/step7-semantic-authority-preflight-20260724.md)。
+- execution evidence:
+  [step5-semantic-replay-replacement-r1-passed-20260723.md](evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md)。
 
 9.3.1–9.3.3 historical run/FQCN/count 保持封存；重命名后的 9.3.4 通过 reviewed
 predecessor migration manifest 和 successor current-source lanes 证明等价回归，

@@ -13,10 +13,28 @@
     <name>Foggy Dataset</name>
     <description>Database abstraction layer with multi-dialect support (MySQL, PostgreSQL, SQL Server, SQLite)</description>
 
+    <properties>
+        <skipITs>true</skipITs>
+    </properties>
+
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
         <plugins>
-
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludes combine.children="append">
+                        <exclude>**/FDialectTest.java</exclude>
+                        <exclude>**/DatasetJdbcUtilsTest.java</exclude>
+                        <exclude>**/JdbcTableUtilsTest.java</exclude>
+                        <exclude>**/SyncSqlTableTest.java</exclude>
+                        <exclude>**/JdbcUpdaterTest.java</exclude>
+                        <exclude>**/SqlTableRowEditorTest.java</exclude>
+                        <exclude>**/BugFixInsertUpdateMapTest.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
         </plugins>
 
 
@@ -42,8 +60,40 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 
+    <profiles>
+        <profile>
+            <id>mysql57-it</id>
+            <properties>
+                <skipITs>false</skipITs>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <includes combine.children="append">
+                                <include>**/FDialectTest.java</include>
+                                <include>**/DatasetJdbcUtilsTest.java</include>
+                                <include>**/JdbcTableUtilsTest.java</include>
+                                <include>**/SyncSqlTableTest.java</include>
+                                <include>**/JdbcUpdaterTest.java</include>
+                                <include>**/SqlTableRowEditorTest.java</include>
+                                <include>**/BugFixInsertUpdateMapTest.java</include>
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

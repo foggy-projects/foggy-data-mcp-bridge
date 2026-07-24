@@ -33,11 +33,11 @@ run_step() {
 run_pivot_parity_it() {
   local name="$1"
   local profile="$2"
-  local report="$REPO_ROOT/foggy-dataset-model/target/failsafe-reports/TEST-com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT.xml"
+  local report="$REPO_ROOT/foggy-dataset-model-engine/target/failsafe-reports/TEST-com.foggyframework.dataset.model.engine.pivot.PivotSqlParityIT.xml"
   rm -f "$report"
   run_step "$name" \
     verify \
-    -pl foggy-dataset-model \
+    -pl foggy-dataset-model-engine \
     -am \
     -Dit.test=PivotSqlParityIT \
     -Dspring.profiles.active="$profile" \

@@ -1,8 +1,8 @@
 package io.foggytest.autoconfigure.modelmongo;
 
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.impl.mongo.TmMongoModelLoaderImpl;
-import com.foggyframework.dataset.db.model.mongo.MongoModelAutoConfiguration;
+import com.foggyframework.dataset.model.impl.mongo.TmMongoModelLoaderImpl;
+import com.foggyframework.dataset.model.mongo.MongoModelAutoConfiguration;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.mongodb.client.MongoClient;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,7 @@ class MongoModelAutoConfigurationContractTest {
     @Test
     void bootThreeImportsRegistersTheModelMongoAutoConfiguration() throws IOException {
         assertThat(autoConfigurationImports())
-                .contains("com.foggyframework.dataset.db.model.mongo.MongoModelAutoConfiguration");
+                .contains("com.foggyframework.dataset.model.mongo.MongoModelAutoConfiguration");
     }
 
     @Test

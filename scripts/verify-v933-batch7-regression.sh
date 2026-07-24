@@ -351,9 +351,9 @@ assert_sqlite_skip_allowlist() {
     -print0 | LC_ALL=C sort -z)
   LC_ALL=C sort -o "$observed" "$observed"
   cat > "$expected" <<'SKIPS'
-com.foggyframework.dataset.db.model.ecommerce.CalculateMvpIntegrationTest#calculateFailsClosedForRuntimeUnsupportedDatabase
-com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIntegrationTest#testMysql57RowsCascadeFailsClosedWithoutMemoryFallback
-com.foggyframework.dataset.db.model.parity.JavaQueryModelAggregateJoinSnapshotTest#shouldProduceSnapshot
+com.foggyframework.dataset.model.ecommerce.CalculateMvpIntegrationTest#calculateFailsClosedForRuntimeUnsupportedDatabase
+com.foggyframework.dataset.model.engine.pivot.PivotCascadeGenerateSqlParityIntegrationTest#testMysql57RowsCascadeFailsClosedWithoutMemoryFallback
+com.foggyframework.dataset.model.parity.JavaQueryModelAggregateJoinSnapshotTest#shouldProduceSnapshot
 SKIPS
   LC_ALL=C sort -o "$expected" "$expected"
   diff -u "$expected" "$observed" > "$lane_dir/skipped-allowlist.diff" || \
@@ -513,7 +513,7 @@ run_sqlite_full_lane() {
   mkdir -p "$lane_dir/reports"
   : > "$lane_dir/.run-start"
   echo "[v933-batch7] running reviewed SQLite full suite tests=$SQLITE_EXPECTED_TESTS skips=3"
-  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model '-P!multi-db' \
+  if ! (cd "$ROOT_DIR" && mvn -B -pl foggy-dataset-model-engine '-P!multi-db' \
       -Dspring.profiles.active=sqlite \
       -Dsurefire.reportNameSuffix="$suffix" \
       test -l "$log_file"); then
@@ -521,7 +521,7 @@ run_sqlite_full_lane() {
   fi
   assert_maven_success "$log_file"
   collect_suffixed_reports "$lane_dir" "$suffix" \
-    "$ROOT_DIR/foggy-dataset-model" "$SQLITE_EXPECTED_REPORTS"
+    "$ROOT_DIR/foggy-dataset-model-engine" "$SQLITE_EXPECTED_REPORTS"
   actual_reports="$(assert_fresh_reports "$lane_dir" "$SQLITE_EXPECTED_REPORTS" \
     "$SQLITE_EXPECTED_TESTS" 3)"
   assert_sqlite_skip_allowlist "$lane_dir"
@@ -596,7 +596,7 @@ mapped_port=$port
 spring_profile=$profile
 catalog=$catalog
 schema=$schema
-config_sha256=$(sha256sum "$ROOT_DIR/foggy-dataset-model/src/test/resources/application-$profile.yml" | awk '{print $1}')
+config_sha256=$(sha256sum "$ROOT_DIR/foggy-dataset-model-engine/src/test/resources/application-$profile.yml" | awk '{print $1}')
 DATABASE
 }
 
@@ -651,7 +651,7 @@ run_multidb_lane() {
   local lane="multidb-$kind"
   local lane_dir="$RUN_ROOT/lanes/$lane"
   local log_file="$lane_dir/maven.log"
-  local fqcn="com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest"
+  local fqcn="com.foggyframework.dataset.model.multidb.MultiDatabaseQueryTest"
   local container_id_before image_id_before container_id_after image_id_after container
   local suffix="batch7-$RUN_ID-$ordinal"
   CURRENT_STEP="$ordinal-$lane"
@@ -663,7 +663,7 @@ run_multidb_lane() {
   container_id_before="$(env_value "$lane_dir/database.env" container_id)"
   image_id_before="$(env_value "$lane_dir/database.env" image_id)"
   echo "[v933-batch7] running MultiDatabaseQueryTest kind=$kind tests=18"
-  if ! (cd "$ROOT_DIR" && mvn -B test -pl foggy-dataset-model '-P!multi-db' \
+  if ! (cd "$ROOT_DIR" && mvn -B test -pl foggy-dataset-model-engine '-P!multi-db' \
       -Dtest=MultiDatabaseQueryTest \
       -Dspring.profiles.active="$profile" \
       -Dsurefire.reportNameSuffix="$suffix" \
@@ -672,7 +672,7 @@ run_multidb_lane() {
   fi
   assert_maven_success "$log_file"
   collect_suffixed_reports "$lane_dir" "$suffix" \
-    "$ROOT_DIR/foggy-dataset-model" 1
+    "$ROOT_DIR/foggy-dataset-model-engine" 1
   assert_fresh_reports "$lane_dir" 1 18 0 "$fqcn" >/dev/null
   case "$kind" in
     mysql57) container="foggy-demo-mysql" ;;
@@ -713,7 +713,7 @@ run_package_and_artifact_audit() {
   local -a candidates=() nested_entries=() local_matches=()
   local -a modules=(
     foggy-bean-copy foggy-core foggy-mcp-spi foggy-dataset foggy-dataset-demo
-    foggy-dataset-mcp foggy-dataset-model foggy-runtime-api
+    foggy-dataset-mcp foggy-dataset-model-engine foggy-runtime-api
     foggy-dataset-memory-grid-bridge foggy-dataset-memory-grid-duckdb
     foggy-fsscript foggy-mcp-launcher addons/foggy-fsscript-client
     addons/foggy-dataset-client addons/foggy-dataset-mongo
@@ -941,19 +941,19 @@ BINDING_FQCNS=(
   com.foggyframework.runtime.api.service.RuntimeNamedDataSourceResolverBindingTest
 )
 ISOLATION_FQCNS=(
-  com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilderTest
-  com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintTest
-  com.foggyframework.dataset.db.model.cache.fingerprint.StableCanonicalEncoderTest
-  com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProviderTest
-  com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProviderDataSourceIsolationIntegrationTest
-  com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProviderTest
-  com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImplDataSourceResolutionTest
-  com.foggyframework.dataset.db.model.config.DbModelAutoConfigurationTest
-  com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStepExecutorOrderingTest
-  com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepOrderingTest
-  com.foggyframework.dataset.db.model.preagg.PreAggregationL2CacheIntegrationTest
+  com.foggyframework.dataset.model.cache.fingerprint.QueryFingerprintBuilderTest
+  com.foggyframework.dataset.model.cache.fingerprint.QueryFingerprintTest
+  com.foggyframework.dataset.model.cache.fingerprint.StableCanonicalEncoderTest
+  com.foggyframework.dataset.model.cache.provider.CaffeineQueryCacheProviderTest
+  com.foggyframework.dataset.model.cache.provider.CaffeineQueryCacheProviderDataSourceIsolationIntegrationTest
+  com.foggyframework.dataset.model.cache.provider.RedisQueryCacheProviderTest
+  com.foggyframework.dataset.model.impl.loader.TableModelLoaderManagerImplDataSourceResolutionTest
+  com.foggyframework.dataset.model.config.DbModelAutoConfigurationTest
+  com.foggyframework.dataset.model.plugins.result_set_filter.DataSetResultStepExecutorOrderingTest
+  com.foggyframework.dataset.model.plugins.query_execution.QueryExecutionStepOrderingTest
+  com.foggyframework.dataset.model.preagg.PreAggregationL2CacheIntegrationTest
   com.foggyframework.dataset.mcp.controller.DevToolsControllerIsolationTest
-  com.foggyframework.dataset.db.model.semantic.controller.SemanticServiceV3TestControllerIsolationTest
+  com.foggyframework.dataset.model.semantic.controller.SemanticServiceV3TestControllerIsolationTest
 )
 AUTOCONFIG_FQCNS=(
   io.foggytest.autoconfigure.mongo.DataSetMongoAutoConfigurationContextTest
@@ -964,7 +964,7 @@ AUTOCONFIG_FQCNS=(
   com.foggyframework.dataset.graphql.GraphqlAddonAutoConfigurationTest
   com.foggyframework.dataset.mcp.storage.cloud.CloudStorageAutoConfigurationTest
   com.foggyframework.dataviewer.config.DataViewerAutoConfigurationContextTest
-  com.foggyframework.dataset.db.model.config.GlobalNamespaceFallbackRiskDiagnosticTest
+  com.foggyframework.dataset.model.config.GlobalNamespaceFallbackRiskDiagnosticTest
   io.foggytest.autoconfigure.AutoConfigurationBoundaryContractTest
   io.foggytest.autoconfigure.AutoConfigurationRegistrationUniquenessTest
   io.foggytest.autoconfigure.OutsidePackageCoreAutoConfigurationSmokeTest
@@ -1031,10 +1031,10 @@ run_multidb_lane 07 mysql57 docker
 run_multidb_lane 08 postgres15 postgres
 run_multidb_lane 09 sqlserver2022 sqlserver
 run_surefire_lane 10 isolation-main \
-  addons/foggy-dataset-model-cache,foggy-dataset-model,foggy-dataset-mcp \
+  addons/foggy-dataset-model-cache,foggy-dataset-model-engine,foggy-dataset-mcp \
   "$(join_csv "${ISOLATION_FQCNS[@]}")" 13 132 0 "${ISOLATION_FQCNS[@]}"
 run_surefire_lane 11 autoconfig-launcher \
-  addons/foggy-dataset-mongo,addons/foggy-dataset-model-mongo,addons/foggy-dataset-vector,addons/foggy-dataset-model-vector,addons/foggy-dataset-model-cache,addons/foggy-dataset-graphql,addons/foggy-chart-storage-cloud,addons/foggy-data-viewer,foggy-dataset-model,foggy-mcp-launcher \
+  addons/foggy-dataset-mongo,addons/foggy-dataset-model-mongo,addons/foggy-dataset-vector,addons/foggy-dataset-model-vector,addons/foggy-dataset-model-cache,addons/foggy-dataset-graphql,addons/foggy-chart-storage-cloud,addons/foggy-data-viewer,foggy-dataset-model-engine,foggy-mcp-launcher \
   "$(join_csv "${AUTOCONFIG_FQCNS[@]}")" 15 64 0 "${AUTOCONFIG_FQCNS[@]}"
 run_package_and_artifact_audit
 

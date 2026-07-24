@@ -11,7 +11,7 @@ import com.foggyframework.runtime.api.dto.NamespaceDatasourceRequest;
 import com.foggyframework.runtime.api.dto.NamespaceDatasourceResponse;
 import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
-import com.foggyframework.dataset.db.model.lifecycle.port.RevokeMode;
+import com.foggyframework.dataset.model.lifecycle.port.RevokeMode;
 import com.foggyframework.runtime.api.service.ManagedDataSourcePoolManager;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService.ResolvedDatasource;

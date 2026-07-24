@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.mcp.tools;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;

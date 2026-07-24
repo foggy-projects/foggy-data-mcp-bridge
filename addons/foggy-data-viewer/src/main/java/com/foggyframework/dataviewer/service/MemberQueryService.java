@@ -4,15 +4,15 @@ import com.foggyframework.dataviewer.domain.MemberQueryRequest;
 import com.foggyframework.dataviewer.domain.MemberQueryResponse;
 import com.foggyframework.dataviewer.domain.MemberQueryResponse.MemberOption;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
-import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.api.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacadeResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -87,7 +87,8 @@ public class MemberQueryService {
         pagingRequest.setLimit(limit);
 
         try {
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, namespace);
+            QueryFacadeResult result = queryFacade.query(
+                    StableQueryFacadeRequestMapper.from(pagingRequest, namespace));
             items = mapItems(result.getItems(), mapping.hierarchyEnabled);
             total = result.getTotal() > 0 ? result.getTotal() : items.size();
         } catch (Exception e) {
@@ -180,7 +181,8 @@ public class MemberQueryService {
             pagingRequest.setStart(0);
             pagingRequest.setLimit(selectedValues.size());
 
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, namespace);
+            QueryFacadeResult result = queryFacade.query(
+                    StableQueryFacadeRequestMapper.from(pagingRequest, namespace));
             return mapItems(result.getItems(), false);
         } catch (Exception e) {
             log.warn("Failed to resolve selected values for {}: {}", syntheticModelName, e.getMessage());

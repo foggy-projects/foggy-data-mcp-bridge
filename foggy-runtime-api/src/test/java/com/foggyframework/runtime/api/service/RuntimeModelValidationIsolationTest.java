@@ -1,13 +1,13 @@
 package com.foggyframework.runtime.api.service;
 
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.AbstractFileFsscriptLoader;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.runtime.api.dto.ModelValidateRequest;

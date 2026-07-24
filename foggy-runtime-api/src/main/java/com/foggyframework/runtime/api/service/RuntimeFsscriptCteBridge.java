@@ -1,6 +1,6 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
+import com.foggyframework.dataset.model.semantic.port.ComposeOperation;
 import com.foggyframework.fsscript.exp.PropertyFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.PropertyHolder;
@@ -44,11 +44,11 @@ public class RuntimeFsscriptCteBridge {
             String headerNamespace,
             String authorization,
             Map<String, String> headers,
-            ComposeScriptService.Mode mode,
+            ComposeOperation operation,
             String phase,
             Object[] args
     ) {
-        RuntimeComposeRunResult result = composeRunner.run(mode, phase,
+        RuntimeComposeRunResult result = composeRunner.run(operation, phase,
                 RuntimeComposeInvocation.fromFsscriptCteArgs(
                         fsscriptRequest, headerNamespace, authorization, headers, args, phase));
         return result.response();
@@ -87,15 +87,15 @@ public class RuntimeFsscriptCteBridge {
         public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
             if ("validate".equals(methodName)) {
                 return invokeCte(request, headerNamespace, authorization, headers,
-                        ComposeScriptService.Mode.VALIDATE, "compose.validate", args);
+                        ComposeOperation.VALIDATE, "compose.validate", args);
             }
             if ("preview".equals(methodName)) {
                 return invokeCte(request, headerNamespace, authorization, headers,
-                        ComposeScriptService.Mode.PREVIEW, "compose.preview", args);
+                        ComposeOperation.PREVIEW, "compose.preview", args);
             }
             if ("execute".equals(methodName)) {
                 return invokeCte(request, headerNamespace, authorization, headers,
-                        ComposeScriptService.Mode.EXECUTE, "compose.execute", args);
+                        ComposeOperation.EXECUTE, "compose.execute", args);
             }
             throw new CteBridgeDeniedException("Unsupported foggy.cte function: " + methodName);
         }

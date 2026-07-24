@@ -3,10 +3,10 @@ package com.foggyframework.dataviewer.service;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
-import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -4,9 +4,9 @@ import com.foggyframework.dataviewer.domain.ListPresetDef;
 import com.foggyframework.dataviewer.domain.QueryVisibility;
 import com.foggyframework.dataviewer.service.listpreset.ListPresetFieldValidator;
 import com.foggyframework.dataviewer.service.listpreset.ListPresetStore;
-import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.CondRequestDef;
+import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 

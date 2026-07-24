@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "kind": "v950-release-authority-contract",
+  "version": "9.5.0",
+  "reactor": {
+    "project_count": 32,
+    "modules": [
+      "foggy-bean-copy",
+      "foggy-core",
+      "foggy-mcp-spi",
+      "foggy-dataset",
+      "foggy-dataset-demo",
+      "foggy-dataset-mcp",
+      "foggy-dataset-model-api",
+      "foggy-dataset-model-core",
+      "foggy-dataset-model-jdbc",
+      "foggy-dataset-model-starter",
+      "foggy-dataset-model-web",
+      "foggy-dataset-model-tck",
+      "foggy-dataset-model-engine",
+      "foggy-runtime-api",
+      "foggy-dataset-memory-grid-bridge",
+      "foggy-dataset-memory-grid-duckdb",
+      "foggy-fsscript",
+      "foggy-mcp-launcher",
+      "addons/foggy-fsscript-client",
+      "addons/foggy-dataset-client",
+      "addons/foggy-dataset-mongo",
+      "addons/foggy-dataset-model-mongo",
+      "addons/foggy-dataset-model-cache",
+      "addons/foggy-dataset-model-vector",
+      "addons/foggy-data-viewer",
+      "addons/foggy-chart-storage-cloud",
+      "addons/foggy-dataset-vector",
+      "addons/foggy-dataset-graphql",
+      "addons/foggy-dataset-model-preagg",
+      "addons/foggy-odoo-bridge-java",
+      "build-support/foggy-coverage-report"
+    ]
+  },
+  "root_verify": {
+    "expected_project_count": 32,
+    "launcher_jar": "foggy-mcp-launcher/target/foggy-mcp-launcher-9.1.0.beta.jar",
+    "required_archive_entries": [
+      "BOOT-INF/lib/foggy-dataset-model-engine-9.1.0.beta.jar",
+      "org/springframework/boot/loader/launch/JarLauncher.class"
+    ],
+    "forbidden_archive_fragments": [
+      "foggy-dataset-model-9.1.0.beta.jar",
+      "foggy-dataset-model-tck"
+    ]
+  },
+  "semantic_replay": {
+    "profile": "sqlite,v934-sqlite",
+    "selectors": [
+      "com.foggyframework.dataset.model.semantic.ComparativeExecutionIT",
+      "com.foggyframework.dataset.model.semantic.TimeWindowExecutionIT",
+      "com.foggyframework.dataset.model.semantic.DslCteCrmFunnelFixtureIT",
+      "com.foggyframework.dataset.model.semantic.DslCteRelationMetricFixtureIT",
+      "com.foggyframework.dataset.model.semantic.DslCteResultStageWindowIT",
+      "com.foggyframework.dataset.model.semantic.DslCteSlaFixtureIT",
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT"
+    ],
+    "reports": {
+      "com.foggyframework.dataset.model.semantic.ComparativeExecutionIT": 2,
+      "com.foggyframework.dataset.model.semantic.TimeWindowExecutionIT": 9,
+      "com.foggyframework.dataset.model.semantic.DslCteCrmFunnelFixtureIT": 14,
+      "com.foggyframework.dataset.model.semantic.DslCteRelationMetricFixtureIT": 9,
+      "com.foggyframework.dataset.model.semantic.DslCteResultStageWindowIT": 1,
+      "com.foggyframework.dataset.model.semantic.DslCteSlaFixtureIT": 14,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT": 0,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$LoaderTests": 3,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$MergeRuleE2ETests": 2,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$QueryFacadeTests": 5,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$RealDataTests": 4
+    },
+    "expected_testcases": 63
+  },
+  "database_replay": {
+    "provisioner": {
+      "path": "scripts/v934/step3/provision-database-cell.sh",
+      "sha256": "74d00d79628b0df9d438f1623d53e2617cc73c01c74a91a2c21cccdf2ea884e6"
+    },
+    "standard_reports": {
+      "com.foggyframework.dataset.model.engine.pivot.PivotSqlParityIT": 23,
+      "com.foggyframework.dataset.model.multidb.MultiDatabaseQueryTest": 18,
+      "com.foggyframework.dataset.model.lifecycle.gate.RequiredDatabasePreflightIT": 1,
+      "com.foggyframework.dataset.model.engine.pivot.PivotCascadeGenerateSqlParityIT": 7,
+      "com.foggyframework.dataset.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT": 1
+    },
+    "variants": [
+      {
+        "key": "db-sqlite",
+        "database": "sqlite",
+        "profile": "sqlite,v934-sqlite",
+        "report_set": "standard",
+        "expected_testcases": 50
+      },
+      {
+        "key": "db-mysql57",
+        "database": "mysql57",
+        "profile": "docker",
+        "report_set": "standard",
+        "expected_testcases": 50
+      },
+      {
+        "key": "db-mysql8",
+        "database": "mysql8",
+        "profile": "mysql8",
+        "report_set": "standard",
+        "expected_testcases": 50
+      },
+      {
+        "key": "mysql8-targeted",
+        "database": "mysql8",
+        "profile": "mysql8",
+        "reports": {
+          "com.foggyframework.dataset.model.engine.pivot.PivotIT": 55
+        },
+        "expected_testcases": 55
+      },
+      {
+        "key": "db-postgres15",
+        "database": "postgres15",
+        "profile": "postgres",
+        "report_set": "standard",
+        "expected_testcases": 50
+      },
+      {
+        "key": "postgres15-targeted",
+        "database": "postgres15",
+        "profile": "postgres",
+        "reports": {
+          "com.foggyframework.dataset.model.engine.pivot.PivotIT": 55,
+          "com.foggyframework.dataset.model.semantic.DslCteResultStageWindowIT": 1,
+          "com.foggyframework.dataset.model.semantic.DslCteRelationMetricFixtureIT": 9
+        },
+        "expected_testcases": 65
+      },
+      {
+        "key": "db-sqlserver2022",
+        "database": "sqlserver2022",
+        "profile": "sqlserver",
+        "report_set": "standard",
+        "expected_testcases": 50
+      }
+    ],
+    "expected_variants": 7,
+    "expected_testcases": 370
+  },
+  "portable_replay": {
+    "archive_name": "foggy-data-mcp-bridge-9.5.0-source.tar.gz",
+    "required_cross_filesystem": true,
+    "profile": "sqlite,v934-sqlite",
+    "reports": {
+      "com.foggyframework.dataset.model.semantic.ComparativeExecutionIT": 2,
+      "com.foggyframework.dataset.model.semantic.TimeWindowExecutionIT": 9,
+      "com.foggyframework.dataset.model.semantic.DslCteCrmFunnelFixtureIT": 14,
+      "com.foggyframework.dataset.model.semantic.DslCteRelationMetricFixtureIT": 9,
+      "com.foggyframework.dataset.model.semantic.DslCteResultStageWindowIT": 1,
+      "com.foggyframework.dataset.model.semantic.DslCteSlaFixtureIT": 14,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT": 0,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$LoaderTests": 3,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$MergeRuleE2ETests": 2,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$QueryFacadeTests": 5,
+      "com.foggyframework.dataset.model.semantic.member.permission.SyntheticMemberPermissionIT$RealDataTests": 4
+    },
+    "expected_testcases": 63
+  },
+  "forbidden": {
+    "maven_goal_tokens": [
+      "install",
+      "deploy"
+    ],
+    "remote_operations": [
+      "git push",
+      "git tag",
+      "gh release"
+    ],
+    "legacy_contract_tokens": [
+      "foggy-dataset-model/src",
+      "com.foggyframework.dataset.db.model"
+    ]
+  }
+}

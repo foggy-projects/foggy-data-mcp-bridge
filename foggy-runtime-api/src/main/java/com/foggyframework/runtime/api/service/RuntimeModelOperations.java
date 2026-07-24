@@ -3,28 +3,31 @@ package com.foggyframework.runtime.api.service;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionBlockedException;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionState;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.ModelProvenance;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshDiagnostic;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshException;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshRequest;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshResult;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshTrigger;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionBlockedException;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionState;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogModelKey;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.model.lifecycle.catalog.ModelProvenance;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshDiagnostic;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshException;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshRequest;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshResult;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshTrigger;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.validation.DefaultDetachedModelValidationFactory;
+import com.foggyframework.dataset.model.validation.DetachedModelValidationFactory;
+import com.foggyframework.dataset.model.validation.DetachedModelValidationSession;
 import com.foggyframework.runtime.api.dto.DatasourceBindingGenerationSummary;
 import com.foggyframework.runtime.api.dto.ModelDescribeRequest;
 import com.foggyframework.runtime.api.dto.ModelDescribeResponse;
@@ -64,13 +67,12 @@ public class RuntimeModelOperations {
 
     private final SemanticModelCatalogService catalogService;
     private final SemanticServiceV3 semanticServiceV3;
-    private final SystemBundlesContext systemBundlesContext;
-    private final QueryModelLoader queryModelLoader;
-    private final TableModelLoaderManager tableModelLoaderManager;
+    private final DetachedModelValidationFactory detachedModelValidationFactory;
     private final DatasetProperties datasetProperties;
     private final CatalogSnapshotStore catalogSnapshotStore;
     private final CatalogRefreshCoordinator catalogRefreshCoordinator;
 
+    @Deprecated(since = "9.3.5", forRemoval = false)
     public RuntimeModelOperations(
             SemanticModelCatalogService catalogService,
             SemanticServiceV3 semanticServiceV3,
@@ -91,6 +93,7 @@ public class RuntimeModelOperations {
         );
     }
 
+    @Deprecated(since = "9.3.5", forRemoval = false)
     public RuntimeModelOperations(
             SemanticModelCatalogService catalogService,
             SemanticServiceV3 semanticServiceV3,
@@ -112,7 +115,7 @@ public class RuntimeModelOperations {
         );
     }
 
-    @Autowired
+    @Deprecated(since = "9.3.5", forRemoval = false)
     public RuntimeModelOperations(
             SemanticModelCatalogService catalogService,
             SemanticServiceV3 semanticServiceV3,
@@ -123,11 +126,31 @@ public class RuntimeModelOperations {
             ObjectProvider<CatalogSnapshotStore> catalogSnapshotStoreProvider,
             ObjectProvider<CatalogRefreshCoordinator> catalogRefreshCoordinatorProvider
     ) {
+        this(
+                catalogService,
+                semanticServiceV3,
+                new DefaultDetachedModelValidationFactory(
+                        systemBundlesContext,
+                        tableModelLoaderManager,
+                        queryModelLoader),
+                datasetPropertiesProvider,
+                catalogSnapshotStoreProvider,
+                catalogRefreshCoordinatorProvider
+        );
+    }
+
+    @Autowired
+    public RuntimeModelOperations(
+            SemanticModelCatalogService catalogService,
+            SemanticServiceV3 semanticServiceV3,
+            DetachedModelValidationFactory detachedModelValidationFactory,
+            ObjectProvider<DatasetProperties> datasetPropertiesProvider,
+            ObjectProvider<CatalogSnapshotStore> catalogSnapshotStoreProvider,
+            ObjectProvider<CatalogRefreshCoordinator> catalogRefreshCoordinatorProvider
+    ) {
         this.catalogService = catalogService;
         this.semanticServiceV3 = semanticServiceV3;
-        this.systemBundlesContext = systemBundlesContext;
-        this.queryModelLoader = queryModelLoader;
-        this.tableModelLoaderManager = tableModelLoaderManager;
+        this.detachedModelValidationFactory = detachedModelValidationFactory;
         this.datasetProperties = datasetPropertiesProvider.getIfAvailable();
         this.catalogSnapshotStore = catalogSnapshotStoreProvider == null
                 ? null
@@ -742,10 +765,7 @@ public class RuntimeModelOperations {
     ) {
         Instant startedAt = Instant.now();
         CatalogObservation before = observeCatalog(namespace);
-        try (RuntimeDetachedModelValidator validator = new RuntimeDetachedModelValidator(
-                systemBundlesContext,
-                tableModelLoaderManager,
-                queryModelLoader,
+        try (DetachedModelValidationSession validator = detachedModelValidationFactory.open(
                 validationBundleName(namespace),
                 namespace,
                 path
@@ -805,7 +825,7 @@ public class RuntimeModelOperations {
     }
 
     private void validateTmResource(
-            RuntimeDetachedModelValidator validator,
+            DetachedModelValidationSession validator,
             BundleResource tmResource,
             String namespace,
             boolean includeStackTrace,
@@ -820,7 +840,7 @@ public class RuntimeModelOperations {
     }
 
     private void validateQmResource(
-            RuntimeDetachedModelValidator validator,
+            DetachedModelValidationSession validator,
             BundleResource qmResource,
             boolean includeStackTrace,
             List<ModelValidateIssue> errors

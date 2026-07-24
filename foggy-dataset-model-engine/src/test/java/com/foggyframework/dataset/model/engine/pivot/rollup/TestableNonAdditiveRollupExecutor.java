@@ -1,0 +1,42 @@
+package com.foggyframework.dataset.model.engine.pivot.rollup;
+
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.model.engine.pivot.transport.DomainTransportPlan;
+
+import java.util.*;
+
+/**
+ * 测试辅助类：暴露 NonAdditiveRollupExecutor 的 package-private 方法
+ *
+ * <p>Stage 4 语义修正：addAxisDomainSlice 不再需要 grainFields 参数，
+ * WHERE 约束始终基于完整的 axisFields tuple。</p>
+ */
+public class TestableNonAdditiveRollupExecutor {
+
+    /**
+     * 暴露 addAxisDomainSlice 以便单元测试直接调用
+     */
+    public static List<SemanticQueryRequest.SliceItem> exposedAddAxisDomainSlice(
+            List<String> axisFields,
+            Set<List<Object>> domain) {
+
+        List<SemanticQueryRequest.SliceItem> sliceItems = new ArrayList<>();
+        NonAdditiveRollupExecutor.addAxisDomainSlice(sliceItems, axisFields, domain);
+        return sliceItems;
+    }
+
+    public static DomainConstraintResult exposedAddAxisDomainConstraint(
+            List<String> axisFields,
+            Set<List<Object>> domain) {
+
+        List<SemanticQueryRequest.SliceItem> sliceItems = new ArrayList<>();
+        List<DomainTransportPlan> transportPlans = new ArrayList<>();
+        NonAdditiveRollupExecutor.addAxisDomainConstraint(sliceItems, axisFields, domain, transportPlans);
+        return new DomainConstraintResult(sliceItems, transportPlans);
+    }
+
+    public record DomainConstraintResult(
+            List<SemanticQueryRequest.SliceItem> sliceItems,
+            List<DomainTransportPlan> transportPlans) {
+    }
+}

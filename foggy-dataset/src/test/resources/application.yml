@@ -1,11 +1,12 @@
 spring:
   datasource:
-    url: "${V934_UNIT_MYSQL57_URL:jdbc:mysql://127.0.0.1:13306/foggy_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&enabledTLSProtocols=TLSv1.2}"
-    username: "${V934_UNIT_MYSQL57_USERNAME:foggy}"
-    password: "${V934_UNIT_MYSQL57_PASSWORD:foggy_test_123}"
+    url: "jdbc:h2:mem:foggy_unit;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false"
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
 
   test:
-    url: "${V934_UNIT_MYSQL57_URL:jdbc:mysql://127.0.0.1:13306/foggy_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&enabledTLSProtocols=TLSv1.2}"
-    username: "${V934_UNIT_MYSQL57_USERNAME:foggy}"
-    password: "${V934_UNIT_MYSQL57_PASSWORD:foggy_test_123}"
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: "jdbc:h2:mem:foggy_unit_secondary;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false"
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver

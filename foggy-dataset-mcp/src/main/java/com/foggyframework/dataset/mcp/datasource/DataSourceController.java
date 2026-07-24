@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.mcp.datasource;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.model.lifecycle.port.RevokeMode;
+import com.foggyframework.dataset.model.lifecycle.port.RevokeMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;

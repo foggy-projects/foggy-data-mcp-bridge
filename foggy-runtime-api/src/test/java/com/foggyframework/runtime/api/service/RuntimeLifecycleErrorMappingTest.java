@@ -1,6 +1,6 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionBlockedException;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionBlockedException;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.controller.RuntimeModelsController;
 import com.foggyframework.runtime.api.dto.DatasourceBindingGenerationSummary;

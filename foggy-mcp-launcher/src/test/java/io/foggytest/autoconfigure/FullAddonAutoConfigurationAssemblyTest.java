@@ -2,26 +2,32 @@ package io.foggytest.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheEvictionAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheWebAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.controller.QueryCacheController;
-import com.foggyframework.dataset.db.model.cache.eviction.CacheEvictionAspect;
-import com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider;
-import com.foggyframework.dataset.db.model.impl.mongo.TmMongoModelLoaderImpl;
-import com.foggyframework.dataset.db.model.impl.vector.TmVectorModelLoaderImpl;
-import com.foggyframework.dataset.db.model.mongo.MongoModelAutoConfiguration;
-import com.foggyframework.dataset.db.model.preagg.config.PreAggAutoConfiguration;
-import com.foggyframework.dataset.db.model.preagg.refresh.PreAggRefreshService;
-import com.foggyframework.dataset.db.model.preagg.scheduler.PreAggScheduler;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
-import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
-import com.foggyframework.dataset.db.model.vector.VectorModelAutoConfiguration;
+import com.foggyframework.dataset.model.cache.config.QueryCacheAutoConfiguration;
+import com.foggyframework.dataset.model.cache.config.QueryCacheBackendProviderAutoConfiguration;
+import com.foggyframework.dataset.model.cache.config.QueryCacheEvictionAutoConfiguration;
+import com.foggyframework.dataset.model.cache.config.QueryCacheWebAutoConfiguration;
+import com.foggyframework.dataset.model.cache.controller.QueryCacheController;
+import com.foggyframework.dataset.model.cache.eviction.CacheEvictionAspect;
+import com.foggyframework.dataset.model.cache.provider.CaffeineQueryCacheProvider;
+import com.foggyframework.dataset.model.cache.provider.QueryCacheBackendProvider;
+import com.foggyframework.dataset.model.impl.mongo.TmMongoModelLoaderImpl;
+import com.foggyframework.dataset.model.impl.vector.TmVectorModelLoaderImpl;
+import com.foggyframework.dataset.model.mongo.MongoModelAutoConfiguration;
+import com.foggyframework.dataset.model.preagg.config.PreAggAutoConfiguration;
+import com.foggyframework.dataset.model.preagg.refresh.PreAggRefreshService;
+import com.foggyframework.dataset.model.preagg.scheduler.PreAggScheduler;
+import com.foggyframework.dataset.model.service.AdvancedQueryFacade;
+import com.foggyframework.dataset.model.spi.QueryCacheProvider;
+import com.foggyframework.dataset.model.vector.VectorModelAutoConfiguration;
 import com.foggyframework.dataset.graphql.GraphqlAddonAutoConfiguration;
 import com.foggyframework.dataset.graphql.controller.GraphqlEndpointController;
 import com.foggyframework.dataset.graphql.converter.GraphqlToDslConverter;
 import com.foggyframework.dataset.mongo.DataSetMongoAutoConfiguration;
 import com.foggyframework.dataset.mongo.funs.MongoFileFsscriptLoader;
+import com.foggyframework.dataset.model.api.backend.BackendCapability;
+import com.foggyframework.dataset.model.api.backend.CacheInvalidationBackendProvider;
+import com.foggyframework.dataset.model.core.backend.BackendProviderCatalog;
+import com.foggyframework.dataset.model.starter.ModelBackendAutoConfiguration;
 import com.foggyframework.dataset.vector.DataSetVectorAutoConfiguration;
 import com.foggyframework.dataset.vector.funs.VectorFileFsscriptLoader;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
@@ -48,8 +54,10 @@ class FullAddonAutoConfigurationAssemblyTest {
                     DataSetVectorAutoConfiguration.class,
                     VectorModelAutoConfiguration.class,
                     QueryCacheAutoConfiguration.class,
+                    QueryCacheBackendProviderAutoConfiguration.class,
                     QueryCacheEvictionAutoConfiguration.class,
                     QueryCacheWebAutoConfiguration.class,
+                    ModelBackendAutoConfiguration.class,
                     GraphqlAddonAutoConfiguration.class,
                     PreAggAutoConfiguration.class))
             .withPropertyValues(
@@ -70,7 +78,7 @@ class FullAddonAutoConfigurationAssemblyTest {
             .withBean(MongoDatabaseFactory.class, () -> mock(MongoDatabaseFactory.class))
             .withBean(MongoTemplate.class, () -> mock(MongoTemplate.class))
             .withBean(VectorStore.class, () -> mock(VectorStore.class))
-            .withBean(QueryFacade.class, () -> mock(QueryFacade.class))
+            .withBean(AdvancedQueryFacade.class, () -> mock(AdvancedQueryFacade.class))
             .withBean(ObjectMapper.class, ObjectMapper::new);
 
     @Test
@@ -85,6 +93,13 @@ class FullAddonAutoConfigurationAssemblyTest {
 
             assertThat(context).hasSingleBean(QueryCacheProvider.class);
             assertThat(context).hasSingleBean(CaffeineQueryCacheProvider.class);
+            assertThat(context).hasSingleBean(QueryCacheBackendProvider.class);
+            BackendProviderCatalog catalog = context.getBean(BackendProviderCatalog.class);
+            assertThat(catalog.require(
+                    QueryCacheBackendProvider.QUERY_CACHE,
+                    BackendCapability.CACHE_INVALIDATION,
+                    CacheInvalidationBackendProvider.class))
+                    .isSameAs(context.getBean(QueryCacheBackendProvider.class));
             assertThat(context).hasSingleBean(QueryCacheController.class);
             assertThat(context).hasSingleBean(CacheEvictionAspect.class);
 

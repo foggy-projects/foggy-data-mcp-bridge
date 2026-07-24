@@ -3,7 +3,7 @@ doc_type: delivery-spec
 delivery_type: cross-module
 version: 9.3.4
 ticket: v934-local-release-authority
-status: APPROVED
+status: SUPERSEDED_BY_SPEED_FORWARD
 canonical: true
 execution_mode: ultra
 approved_by: repository-owner-via-user-request
@@ -11,7 +11,7 @@ approved_at: 2026-07-23
 replan_approved_at: 2026-07-23
 activated_at: 2026-07-23
 activation_parent: 22e737e09bb3e283aa21894d3f0b92ef205ff6b9
-active_scope: Step 7 minimum contract freeze and PR #124 merge only; authority runner remains separately authorized
+active_scope: exact-main semantic-replay replacement Step 7 preflight passed; one authority attempt is authorized after the docs-only activation becomes remote-exact main; no CI, tag, release or publish
 replan_resolution: private full clone plus pre-activation scan-runtime-source
 replacement_preflight_receipt_sha256: 5445b2593e5c6f3d929a7bbf2a7dc6ab3eb53cd6ea8c7c4c354d1475847019f9
 replacement_run_id: step5-local-rehearsal-20260723-no-ci-fullclone-r2
@@ -24,12 +24,70 @@ acceptance_record: docs/9.3.4/acceptance/step5-local-rehearsal-no-ci-fullclone-r
 step7_contract_approved_at: 2026-07-23
 step7_contract_approved_by: repository-owner-via-user-request
 step7_merge_authorized: true
-step7_authority_runner_authorized: false
+step7_authority_runner_authorized: true
 step7_entry_pr: 124
+step7_merge_commit: 0c0e7a2921d7a7f10f9a3640b08d015cce5c45db
+step7_authority_authorized_at: 2026-07-23
+step7_activation_parent: 0c0e7a2921d7a7f10f9a3640b08d015cce5c45db
+step7_preflight_receipt_sha256: 095621143a34e15c9c90e987eb8406e8f8ee9b0800a20fc6721ea33ef49894ea
+step7_run_id: step7-local-authority-20260723-r1
+step7_attempt_budget: 1
+step7_attempt_consumed: true
+step7_runner_status: candidate-passed
+step7_semantic_replay_status: failed-closed
+step7_replan_ticket: v934-step7-semantic-portable-replay
+step7_replan_approved_at: 2026-07-23
+step7_replan_approved_by: repository-owner-via-user-request
+step7_replan_implementation_status: ACCEPTED
+step7_replan_review_chain_status: accepted-by-repository-owner
+semantic_replay_replacement_step5_attempt_budget: 1
+semantic_replay_replacement_step5_attempt_consumed: true
+semantic_replay_replacement_step5_run_id: step5-semantic-replay-replacement-20260723-r1
+semantic_replay_replacement_step5_preflight_commit: 1e068cd5d8e0fd6bce5afdaa33e4472261b81729
+semantic_replay_replacement_step5_preflight_receipt_sha256: 76313f97925f44bb695546307d69b6ad4f775b500e652bbb62ff6f74b1550404
+semantic_replay_replacement_step5_activation_status: completed
+semantic_replay_replacement_step5_runner_status: candidate-passed
+semantic_replay_replacement_step5_tested_commit: b9b8adfd725399cf069dd4165582b7d2e8af4b39
+semantic_replay_replacement_step5_completed_at: 2026-07-23
+semantic_replay_replacement_step5_readiness: ACCEPTED
+semantic_replay_replacement_step5_acceptance_status: signed-off
+semantic_replay_replacement_step5_acceptance_decision: accepted
+semantic_replay_replacement_step5_accepted_at: 2026-07-24
+semantic_replay_replacement_step5_accepted_by: repository-owner-via-user-approval
+semantic_replay_replacement_step5_acceptance_record: docs/9.3.4/acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md
+semantic_replay_replacement_step5_evidence: docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md
+semantic_replay_replacement_step7_attempt_budget: 1
+semantic_replay_replacement_step7_attempt_consumed: false
+semantic_replay_replacement_step7_run_id: step7-semantic-authority-20260724-r1
+semantic_replay_replacement_step7_merge_pr: 125
+semantic_replay_replacement_step7_merge_commit: b3b252c1a657f61feccca3ed9316216758c19e96
+semantic_replay_replacement_step7_preflight_commit: b3b252c1a657f61feccca3ed9316216758c19e96
+semantic_replay_replacement_step7_preflight_receipt_sha256: e1fef990d5a57084c568119108e9ac39ae4c4faf7e9ba08215f22c97e36005d6
+semantic_replay_replacement_step7_activation_status: authorized-pending-remote-exact-main
+semantic_replay_replacement_step7_authorized_at: 2026-07-24
+semantic_replay_replacement_step7_authorized_by: repository-owner-via-user-approval
+semantic_replay_replacement_step7_preflight_evidence: docs/9.3.4/evidence/step-7/step7-semantic-authority-preflight-20260724.md
+speed_forward_override_at: 2026-07-24
+speed_forward_override_by: repository-owner-via-user-request
+speed_forward_contract: docs/9.4.0/workitems/FEATURE-v934-v940-speed-forward.md
+replacement_step7_required: false
+final_authority_pointer_required: false
 open_questions: []
 ---
 
 # Delivery Spec: 9.3.4 Local Release Authority and Version Closure
+
+## Speed-Forward Supersession — 2026-07-24
+
+Repository owner 已明确将后续工作切换为速度优先。9.3.4 既有成功证据被接受为开发阶段
+carry-forward 基线；不再启动 replacement Step 7，不生成 final authority pointer，也不继续
+portable replay/source-seal/ordered review authority 链。9.3.5 entry 已解除。
+
+本文件以下内容继续作为历史契约与运行记录，但所有尚未消费的 attempt、`must rerun`、
+final pointer、version signoff 和 downstream gate 语句不再是 active requirement。当前唯一
+跨版本交付契约为
+[`FEATURE-v934-v940-speed-forward.md`](../../9.4.0/workitems/FEATURE-v934-v940-speed-forward.md)。
+这项 owner waiver 不表示新签发 `ACCEPTED`，最终统一验收延后到 9.4.0 开发目标完成后。
 
 ## Document Purpose
 
@@ -39,6 +97,8 @@ open_questions: []
 - compatibility_note: 文件名为历史稳定路径，不再表示 GitHub CI 接线属于当前交付范围。
 - scope_revision: 2026-07-23 owner 明确移除原 Step 6 GitHub CI 接线；本文件取代 2026-07-18 的 CI-including 契约。
 - step7_revision: 2026-07-23 owner 批准冻结 Step 7 最小契约，并授权在实时复核后以 merge commit 合并 PR #124；本次不授权 Step 7 authority runner。
+- step7_activation_revision: 2026-07-23 owner 在 PR #124 合并后明确授权继续；exact-main private-full-clone preflight 已通过，现激活 exactly one Step 7 authority attempt。
+- step7_replan_revision: 2026-07-23 downstream semantic portable replay 证明现有 replay/release-tool 契约互相冲突；旧 runner 只保留 `candidate-passed` 机械事实，不能生成 final authority pointer。总 feature 进入 `NEEDS_REPLAN`，修复契约由 `BUG-step7-semantic-portable-replay-tool-contract.md` 唯一承载。
 
 ## Goal
 
@@ -87,7 +147,7 @@ open_questions: []
 ## Acceptance Criteria
 
 - [x] AC-1: 单一 `verify-v934-release-gate.sh rehearsal` 串联 inventory、unit、integration、five-DB/external、9.3.1–9.3.3 successor regression、coverage collect/check、package/Launcher audit，且每个 owning suite 只执行一次。
-- [x] AC-2: candidate run root 具备 source/environment/inventory/report/DB/coverage/regression/JAR/image manifests、inner/outer hashes、deterministic archive/digest；异目录 verify、portable replay 与 image `/app/app.jar` SHA 复算通过。
+- [ ] AC-2: candidate run root 具备 source/environment/inventory/report/DB/coverage/regression/JAR/image manifests、inner/outer hashes、deterministic archive/digest；旧 run 只完成 byte-level 异目录 verify，semantic portable replay 已 fail closed，必须由 repair 后 replacement Step 5 和新 Step 7 重新证明；image `/app/app.jar` SHA 历史复算保持有效但不能替代新 source seal。
 - [x] AC-3: skip flags、missing/stale/tampered artifacts、report/skip/migration/hash/source/JAR/image drift、failed pointer publication 和 credential scan 命中等 expected-negative 全部 fail closed。
 - [x] AC-4: 原 Step 6 明确记录为 `owner-waived / out-of-scope`；本交付未启用 Actions、未运行或接入 GitHub required gate、未修改 branch protection/required checks，且这些项目不再阻断 Step 7。
 - [ ] AC-5: `verify-v934-release-gate.sh authority` 在 exact clean `origin/main` commit 取得单一 fresh local authority；inventory、required S0、五库/external、coverage critical gates、successor regression、package/Launcher、archive 和 same-JAR 全绿，无跨 run 拼接。
@@ -158,35 +218,233 @@ open_questions: []
 
 ## Active Execution Authorization
 
-- authorized_stage: docs-only Step 7 contract freeze、推送至 PR #124、实时复核，
-  以及复核全绿后以 merge commit 合并 PR #124。
-- merge_gate:
-  - exact PR head 必须等于本契约提交后的 pushed branch head；
-  - base 必须是复核时 exact `origin/main`，且 PR 相对 main 无反向 divergence；
-  - PR 必须 `OPEN`、non-draft、`MERGEABLE/CLEAN`；
-  - Actions 必须保持 `enabled=false`，status checks 为空，queued/in-progress run
-    均为 `0`；
-  - 本契约提交只能包含 `docs/9.3.4`，不得包含原工作区 `docs/9.3.5` dirty baseline。
-- merge_method: merge commit only；禁止 squash、rebase、force push 或删除审计提交。
-- post_merge_read_only_checks:
-  - PR 状态为 `MERGED`，merge commit 必须精确有两个父提交，分别为复核过的
-    base 和 head；
-  - `origin/main` 必须精确等于 merge commit，PR head 必须是其 ancestor；
-  - Actions 仍 disabled，且无 queued/in-progress run；
-  - 原工作区 HEAD 与 `docs/9.3.5` dirty baseline 保持不变。
-- explicitly_not_authorized: Step 7 preflight、Step 7 authority runner、tag、
-  release、publish 或任何 9.3.5/9.4.0 production change。
-- stop_rule: 任一 merge gate 不满足即停止并请求重规划；合并和只读核验完成后停止，
-  等待 Step 7 下一阶段单独授权。
+- authorized_stage: 在 activation commit 推送并精确成为 `origin/main` 后，以
+  `step7-local-authority-20260723-r1` 启动 exactly one Step 7 authority runner。
+- clone_identity:
+  - private parent=`/tmp/foggy-v934-step7-authority-20260723.LwJ1DR`，mode=`0700`；
+  - clone `.git` 为 real directory、clean、non-shallow、canonical SSH origin；
+  - activation parent 和 preflight tested commit 均为 merge commit
+    `0c0e7a2921d7a7f10f9a3640b08d015cce5c45db`。
+- preflight_gate:
+  - `scan-runtime-source`=`passed`，modules=`13`、files=`1411`、
+    set SHA-256=`22670362fff8f063791129e1e875768d6b1b44286ec8237591f458b5486b07f8`；
+  - Step4/5/6 manifests=`63/8/16`，Bash=`19`、Python=`21`，artifact/package/
+    pointer negatives=`105/120/5`；
+  - runtime base index/manifest/config 精确等于冻结 digest；
+  - ports `13306/13307/15432/11433/17017/16379/19530` 全部 free；
+  - target/pointers/runs root 和 future run slug Docker residue 均 absent；
+  - 两个历史 tmux pane 均为 `pane_dead=1`，无活动 Maven/JVM/Step4/release child；
+  - PR #124=`MERGED`，Actions=`enabled=false`，checks 为空，queued/in-progress=`0/0`。
+- activation_gate: 本 docs-only activation commit 必须先推送并满足 clean
+  `HEAD == origin/main == ls-remote refs/heads/main`；runner 才能启动。
+- process_owner: 新的 private `0700` tmux control directory；启动后当前会话只作
+  observer，不向 pane 写入、不抢占 Maven/JVM/Docker/process ownership。
+- launch_environment: 必须 `env -u` 清除 `MAVEN_ARGS`、`MAVEN_BASEDIR`、
+  `MAVEN_CONFIG`、`MAVEN_OPTS`、`MAVEN_SKIP_RC`、`JAVA_TOOL_OPTIONS`、
+  `JDK_JAVA_OPTIONS`、`_JAVA_OPTIONS`。宿主继承的 `MAVEN_OPTS` 当前非空，
+  因此禁止省略该清理。
+- attempt_budget: exactly one；runner 启动即把本次 attempt 视为 consumed。
+- stop_rule: activation identity 不满足则不启动；runner 启动后的任何失败均保留
+  immutable evidence、将本 work item 设置为 `NEEDS_REPLAN` 并停止，不自动重试。
+- explicitly_not_authorized: GitHub Actions/Step 6、tag、release、publish、
+  final version acceptance 或任何 9.3.5/9.4.0 production change。
 
 ## Risks and Open Questions
 
 - known_risks:
   - 不接入 required CI/branch protection 后，未来 PR/merge 不具备自动 fail-closed 保障；这是 owner 明确接受的流程风险，不是本地 9.3.4 authority blocker。
   - 完整 authority 成本高；必须先用 contract/negative/focused preflight 收敛，再各执行唯一一次 Step 5 和 Step 7。
-  - PR #124 合并后 `origin/main` 将形成新的 merge commit；在 Step 7 authority 运行并独立签收前，该 commit 只是 authority entry，不是已验收版本。
-  - 本次只授权 merge，不授权 Step 7 preflight/runner、tag、release 或 publish。
+  - PR #124 已形成 merge commit；在 Step 7 authority 运行并独立签收前，该 commit
+    及其 docs-only activation child 只是 authority input，不是已验收版本。
+  - Step 7 runner 已获 exactly-one 授权；tag、release、publish 和最终签收仍未授权。
 - open_questions: none
+
+## Step 7 Semantic Replay Replan Hold — 2026-07-23
+
+- historical_run: `step7-local-authority-20260723-r1` at tested commit
+  `62bf3fe1456af01179f09e2a9a80c3d229e2435f` completed its repository runner as
+  `candidate-passed`; the candidate pointer exists and the final authority
+  pointer remains absent.
+- downstream_failures:
+  - same-filesystem replay failed closed with `E_RUN_CONTEXT` because canonical
+    evidence was hardlinked while the verifier requires a regular single-link
+    inode;
+  - cross-filesystem replay failed closed with `E_CHILD_LIFECYCLE` because the
+    release artifact normalized ordinary files to `0644` while canonical
+    `child-ready/*.json` evidence requires verifier-private mode `0600`.
+- authority_effect: the old Step 7 attempt is consumed and immutable. Its
+  runner success, byte-level archive verification and candidate pointer are not
+  final authority and must not be promoted, amended, retried in place or
+  combined with replacement evidence.
+- approved_minimum_replan: canonical evidence and tested classes must be copied
+  into independent inodes; semantic replay must restore the complete audited
+  set of canonical verifier-required modes without mutating extracted artifact
+  bytes or metadata; receipt must record copy counts and the explicit mode
+  policy; deterministic positive and negative regressions are mandatory.
+- replacement_radius: because governed tool bytes and source seal change, one
+  replacement Step 5 rehearsal and one new Step 7 authority are required after
+  the repair reaches `READY_FOR_SIGNOFF` and the frozen contract/attempt budgets
+  are rechecked. Neither long run may start from this hold section alone.
+- unchanged_boundaries: no GitHub CI/Step 6, tag, release or publish; no coverage
+  verifier weakening; no production API/SPI change; no final authority pointer
+  before semantic replay and the ordered review chain pass.
+
+## Step 7 Semantic Replay Repair Implementation Checkpoint — 2026-07-23
+
+- repair_status: the canonical BUG is `ACCEPTED` by explicit repository-owner
+  approval after delivery-signoff audit；this parent feature remains
+  `NEEDS_REPLAN` until replacement Step 5 and a new Step 7 authority complete.
+- implementation: canonical evidence and tested classes are copied into
+  independent inodes only; hardlinks are prohibited. The exact audited
+  permission restoration set is limited to
+  `child-ready/{unit,integration,step3-required}.json: 0644 -> 0600` in the
+  separate semantic target. The extracted artifact is not mutated.
+- receipt: named/versioned policy, per-tree and total copies, zero hardlinks and
+  the three permission restoration items/counts are recorded and verified.
+- focused_evidence: same-filesystem and cross-filesystem positives passed;
+  replay mutation negatives=`9/9`, artifact negatives=`105`, coverage XML=`130`,
+  coverage contract=`28`, package=`120`, pointer=`5+66`, CI static contract=`86`.
+  Step 4/5/6 hash closure and unchanged workflow validation pass.
+- scope_audit: `release_artifact_tool.py` and `coverage_xml_tool.py` were audited
+  but their normalization and verifier safety semantics were not weakened or
+  changed. No production API/SPI, POM behavior or GitHub workflow was modified.
+- attempt_ledger: historical Step 7 r1 consumed=`true`; semantic-replay
+  replacement Step 5 budget=`1`, consumed=`false`; replacement Step 7
+  budget=`1`, consumed=`false`.
+- long_run_gate: neither replacement run may start until the repair receives
+  independent signoff, its exact bytes are clean/pushed, the frozen contract
+  and attempt ledger are rechecked, and a private tmux owner is established.
+  The replacement Step 7 additionally requires accepted replacement Step 5 and
+  a separately frozen exact-main activation.
+- pointer_state: historical candidate pointer exists; final authority pointer
+  remains absent and must remain absent through semantic replay and the ordered
+  review chain.
+
+## Semantic Replay Replacement Step 5 Activation — 2026-07-23
+
+- activation_decision: the accepted repair, frozen minimum replan and attempt
+  ledger were rechecked at clean pushed commit
+  `1e068cd5d8e0fd6bce5afdaa33e4472261b81729`. Exactly one replacement Step 5
+  rehearsal is authorized after this docs-only activation commit is pushed and
+  the branch identity is reverified.
+- planned_run:
+  `step5-semantic-replay-replacement-20260723-r1`.
+- preflight: private full clone, real `.git`, non-shallow, canonical SSH origin,
+  clean remote-exact branch, parent mode `0700`; runtime-source scan passed for
+  `13` modules / `1411` files / `10757069` bytes with set SHA-256
+  `22670362fff8f063791129e1e875768d6b1b44286ec8237591f458b5486b07f8`.
+- focused_checks: Step 4/5/6 manifests=`63/8/16`; changed Python consumers and
+  release runner syntax passed; artifact negatives=`105`, portable replay
+  same-/cross-filesystem checks=`2/1` with negatives=`9`, package=`120` and
+  pointer=`5`, all passed.
+- runtime_environment: frozen OCI index/manifest/config identities match;
+  required ports `13306/13308/15432/11433/17017/16379/19530` are free;
+  future run target and Docker namespace are absent; historical v934 owners are
+  retained only as dead panes; GitHub Actions remains disabled with no queued
+  or in-progress run.
+- process_owner: a fresh private `0700` tmux control directory owns the runner.
+  After launch this session is observer-only and does not write to the pane or
+  take Maven/JVM/Docker/process ownership.
+- launch_environment: clear `MAVEN_ARGS`, `MAVEN_BASEDIR`, `MAVEN_CONFIG`,
+  `MAVEN_OPTS`, `MAVEN_SKIP_RC`, `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` and
+  `_JAVA_OPTIONS`.
+- attempt_boundary: the attempt remains unconsumed until runner launch. Launch
+  consumes the only budget. Any runner failure is immutable, sets this feature
+  back to a stopped `NEEDS_REPLAN` condition and forbids an automatic retry.
+- unchanged_boundaries: this activation does not authorize Step 7, a main
+  merge, GitHub CI, tag, release, publish, verifier relaxation, production
+  API/SPI change or final authority pointer creation.
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-preflight-20260723.md`.
+
+## Semantic Replay Replacement Step 5 Result — 2026-07-23
+
+- execution: the exact pushed activation commit
+  `b9b8adfd725399cf069dd4165582b7d2e8af4b39` was run once as
+  `step5-semantic-replay-replacement-20260723-r1` by the frozen private tmux
+  owner. The pane terminated with status `0`; no retry was started and the
+  replacement Step 5 budget is consumed.
+- runner_result: release summary=`candidate-passed`; Step 4=`release-passed`;
+  source and runtime-source before/after seals are exact. The candidate pointer
+  binds this run and commit; final/authority pointers remain absent.
+- lane_result: aggregate=`23 exec / 48 sessions`; required=
+  `774 positive + 59 structural / 5709 testcase / F0E0S0`; Unit=
+  `682+55 / 4943`; Integration=`47+4 / 320`; five-DB=`29/370`; external=
+  `16/76`; Addon=`2/6`, all F0E0S0. Coverage line=`54630/76834` and branch=
+  `26117/44876`, exactly meeting the frozen minima.
+- replay_regression: same-filesystem=`2`, cross-filesystem=`1`, negatives=
+  `9/9`; policy remains independent-copy-only with the exact three
+  `child-ready/*.json: 0644 -> 0600` restorations and an unchanged extracted
+  source tree. The Step 5 summary intentionally keeps
+  `portable_semantic_replay=required-downstream`.
+- artifact_identity: JAR=image `/app/app.jar` SHA-256=
+  `ed48e51e3ab57e86f67d04ed2ed12e812acf29e7da7153b11c7930fa0e14ecae`;
+  archive SHA-256=
+  `613e1cacbbb08494dfb45fe049cf1b89b5c0c2f5e5bd01211be6314474e73ade`;
+  archive build, verify and independent extract-verify all passed.
+- cleanup_and_boundaries: run-owned container/network/volume residue=`0/0/0`;
+  all required ports are free. Actions remains disabled with no queued or
+  in-progress run. No CI, main merge, tag, release, publish, production API/SPI
+  change, verifier relaxation or final pointer creation occurred.
+- protected_workspace: the original user workspace remains at
+  `9743f97d9d935d5e26311b78c158755bca51f17a` with its pre-existing
+  `docs/9.3.5` changes untouched.
+- clock_note: generated host-local file timestamps that display `2026-07-24`
+  are future clock/timezone artifacts. The governed UTC run interval and all
+  manual records use the authoritative date `2026-07-23`.
+- readiness: `READY_FOR_SIGNOFF` for semantic-replay replacement Step 5 only.
+  This result is not self-signed `ACCEPTED`; the parent feature remains
+  `NEEDS_REPLAN`, replacement Step 7 remains unconsumed and closed, and no
+  final authority pointer may be created.
+- evidence:
+  `docs/9.3.4/evidence/step-5/step5-semantic-replay-replacement-r1-passed-20260723.md`.
+
+## Semantic Replay Replacement Step 5 Acceptance — 2026-07-24
+
+- acceptance_scope: semantic-replay replacement Step 5 only。
+- acceptance_decision: `accepted` by explicit repository-owner approval after
+  the delivery-signoff evidence audit。
+- accepted_identity: run=
+  `step5-semantic-replay-replacement-20260723-r1`; tested commit=
+  `b9b8adfd725399cf069dd4165582b7d2e8af4b39`; candidate pointer verification
+  remains `passed`。
+- boundary: this acceptance does not sign new Step 7 or 9.3.4 final authority。
+  The parent feature remains `NEEDS_REPLAN`; the new Step 7 attempt budget is
+  still `1`, consumed=`false`。
+- next_gate: merge the exact accepted branch through an audited no-CI path,
+  create a fresh private full clone at exact clean `origin/main`, then freeze
+  and verify the new Step 7 activation before its only tmux-owned attempt。
+- unchanged_boundaries: no GitHub CI, tag, release, publish, production API/SPI
+  change, verifier relaxation or final authority pointer creation。
+- acceptance_record:
+  `docs/9.3.4/acceptance/step5-semantic-replay-replacement-r1-signoff-20260724.md`.
+
+## Semantic Replay Replacement Step 7 Activation — 2026-07-24
+
+- entry: repair/signoff PR #125 merged exact base=`62bf3fe1…`, head=
+  `4124bdcf…`, merge commit=`b3b252c1…`；the new private full clone is clean,
+  non-shallow and remote-exact at that merge commit。
+- owner_authorization: replacement Step 5 is accepted and the repository owner
+  explicitly authorized continuation。
+- planned_run: `step7-semantic-authority-20260724-r1`。
+- attempt_ledger: historical Step 7 consumed=`true`; replacement Step 5
+  consumed=`true`; replacement Step 7 budget=`1`, consumed=`false`。
+- runtime_source: `13` modules / `1411` files / `10757069` bytes, set SHA-256=
+  `22670362fff8f063791129e1e875768d6b1b44286ec8237591f458b5486b07f8`。
+- focused_checks: Step 4/5/6 manifests=`63/8/16`; artifact=`105`; portable
+  replay=`2 same / 1 cross / 9 negatives`; package=`120`; pointer=`5`;
+  coverage contract/XML=`28/130`; CI static=`86`, all passed。
+- runtime_preconditions: pinned OCI index/manifest/config exact；required ports
+  free；planned target/pointers/run/Docker namespace absent；historical tmux
+  panes dead；Actions disabled with no queued or in-progress run。
+- activation_gate: this docs-only activation commit must be clean and
+  fast-forwarded onto unchanged `origin/main`；after fetch,
+  `HEAD == origin/main == ls-remote refs/heads/main` must be exact before the
+  tmux owner starts the only authority attempt。
+- unchanged_boundaries: no GitHub CI, tag, release, publish, production API/SPI
+  change, verifier relaxation or final authority pointer creation。
+- evidence:
+  `docs/9.3.4/evidence/step-7/step7-semantic-authority-preflight-20260724.md`.
 
 ## Ultra Execution Contract
 

@@ -1,0 +1,562 @@
+package com.foggyframework.dataset.model.semantic;
+
+import com.foggyframework.dataset.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.*;
+
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * 语义查询校验测试
+ *
+ * <p>测试 SemanticQueryServiceV3 的参数校验和自动补全功能：
+ * 1. columns 和 groupBy 的自动对齐补全
+ * 2. 错误列名的校验
+ * 3. 维度字段后缀的校验
+ * </p>
+ *
+ * @author foggy-dataset
+ * @since 1.0.0
+ */
+@Slf4j
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@DisplayName("语义查询校验测试 - SemanticQueryServiceV3")
+class SemanticQueryValidationTest extends EcommerceTestSupport {
+
+    @Resource
+    private SemanticQueryServiceV3 semanticQueryService;
+
+    private static final String TEST_MODEL = "FactOrderQueryModel";
+
+    // ==========================================
+    // columns 和 groupBy 自动对齐测试
+    // ==========================================
+
+    @Test
+    @Order(1)
+    @DisplayName("自动补全 - columns有$caption，groupBy有$id，应自动对齐")
+    void testAutoAlign_ColumnsCaptionGroupById() {
+        // columns: ["customer$caption", "amount"]
+        // groupBy: [{name:"customer$id"}]
+        // 期望补全后：
+        // columns: ["customer$caption", "amount", "customer$id"]
+        // groupBy: [{name:"customer$id"}, {name:"customer$caption"}]
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
+
+        SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
+        groupByItem.setField("customer$id");
+        request.setGroupBy(Collections.singletonList(groupByItem));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        assertNotNull(response.getWarnings(), "应有警告信息");
+
+        // 检查警告中包含自动补全的信息
+        String warningsStr = String.join(", ", response.getWarnings());
+        log.info("自动补全警告: {}", warningsStr);
+
+        assertTrue(warningsStr.contains("自动补充"), "应包含自动补充的警告");
+    }
+
+    @Test
+    @Order(2)
+    @DisplayName("自动补全 - columns有$id，groupBy有$caption，应双向补全")
+    void testAutoAlign_ColumnsIdGroupByCaption() {
+        // columns: ["customer$id", "amount"]
+        // groupBy: [{name:"customer$caption"}]
+        //
+        // V3 实现逻辑：
+        // - columns 有 customer$id，groupBy 有 customer$caption
+        // - alignColumnsAndGroupBy 会检测到不对齐
+        // - 应该补全 customer$caption 到 columns，customer$id 到 groupBy
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$id", "amount"));
+
+        SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
+        groupByItem.setField("customer$caption");
+        request.setGroupBy(Collections.singletonList(groupByItem));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        // V3 会触发双向补全
+        assertNotNull(response.getWarnings(), "应有警告信息");
+
+        String warningsStr = String.join(", ", response.getWarnings());
+        log.info("警告信息: {}", warningsStr);
+
+        // 验证双向补全警告
+        assertTrue(warningsStr.contains("columns 自动补充字段 customer$caption"),
+                "应补充 customer$caption 到 columns");
+        assertTrue(warningsStr.contains("groupBy 自动补充字段 customer$id"),
+                "应补充 customer$id 到 groupBy");
+
+        // 验证查询成功返回数据
+        assertNotNull(response.getItems(), "应返回数据");
+        log.info("查询返回 {} 条数据", response.getItems().size());
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("自动补全 - columns有$caption，groupBy有$id，应触发双向补全")
+    void testAutoAlign_RealAlignment() {
+        // columns: ["customer$caption", "amount"]
+        // groupBy: [{name:"customer$id"}]  (注意：不是 $caption，所以 normalizeGroupBy 不会自动添加)
+        //
+        // 这个场景会真正触发 alignColumnsAndGroupBy：
+        // - columns 有 customer$caption (suffix = "caption")
+        // - groupBy 有 customer$id (suffix = "id")
+        // 应该补全：
+        // - customer$id 到 columns
+        // - customer$caption 到 groupBy
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
+
+        SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
+        groupByItem.setField("customer$id");
+        request.setGroupBy(Collections.singletonList(groupByItem));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        assertNotNull(response.getWarnings(), "应有警告信息");
+
+        String warningsStr = String.join(", ", response.getWarnings());
+        log.info("自动补全警告: {}", warningsStr);
+
+        // 验证双向补全警告
+        assertTrue(warningsStr.contains("columns 自动补充字段 customer$id"),
+                "应补充 customer$id 到 columns");
+        assertTrue(warningsStr.contains("groupBy 自动补充字段 customer$caption"),
+                "应补充 customer$caption 到 groupBy");
+    }
+
+    @Test
+    @Order(4)
+    @DisplayName("自动补全 - 度量字段不需要出现在columns中")
+    void testAutoAlign_MeasureFieldNotRequired() {
+        // columns: ["customer$caption"]
+        // groupBy: [{name:"customer$id"}, {name:"amount", type:"SUM"}]
+        // 度量字段 amount 有聚合类型，不需要出现在 columns 中
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$caption"));
+
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+
+        SemanticQueryRequest.GroupByItem dimensionItem = new SemanticQueryRequest.GroupByItem();
+        dimensionItem.setField("customer$id");
+        groupByItems.add(dimensionItem);
+
+        SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
+        measureItem.setField("amount");
+        measureItem.setAgg("SUM");
+        groupByItems.add(measureItem);
+
+        request.setGroupBy(groupByItems);
+        request.setLimit(10);
+
+        // 不应抛出异常，度量字段不需要在 columns 中
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        log.info("度量字段测试通过，返回 {} 条数据", response.getItems() != null ? response.getItems().size() : 0);
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("自动补全 - 已对齐的字段不应重复补全")
+    void testAutoAlign_AlreadyAligned() {
+        // columns: ["customer$caption", "customer$id", "amount"]
+        // groupBy: [{name:"customer$id"}, {name:"customer$caption"}]
+        // 已经对齐，不应有补全警告
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$caption", "customer$id", "amount"));
+
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+
+        SemanticQueryRequest.GroupByItem idItem = new SemanticQueryRequest.GroupByItem();
+        idItem.setField("customer$id");
+        groupByItems.add(idItem);
+
+        SemanticQueryRequest.GroupByItem captionItem = new SemanticQueryRequest.GroupByItem();
+        captionItem.setField("customer$caption");
+        groupByItems.add(captionItem);
+
+        request.setGroupBy(groupByItems);
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+
+        // 检查是否没有自动补全的警告
+        if (response.getWarnings() != null) {
+            String warningsStr = String.join(", ", response.getWarnings());
+            log.info("警告信息: {}", warningsStr);
+            assertFalse(warningsStr.contains("自动补充字段 customer"), "已对齐的字段不应有补全警告");
+        }
+    }
+
+    // ==========================================
+    // groupBy 字段缺失校验测试
+    // ==========================================
+
+    @Test
+    @Order(10)
+    @DisplayName("校验失败 - groupBy字段不在columns中")
+    void testValidation_GroupByFieldMissingInColumns() {
+        // columns: ["amount"]  (没有 product 字段)
+        // groupBy: [{name:"product$id"}]
+        // 应抛出异常
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("amount"));
+
+        SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
+        groupByItem.setField("product$id");
+        request.setGroupBy(Collections.singletonList(groupByItem));
+        request.setLimit(10);
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+        });
+
+        String errorMsg = exception.getMessage();
+        log.info("预期的错误信息: {}", errorMsg);
+
+        assertTrue(errorMsg.contains("groupBy") && errorMsg.contains("columns"),
+                "错误信息应包含 groupBy 和 columns 关键字");
+        assertTrue(errorMsg.contains("product"), "错误信息应包含缺失的字段名");
+    }
+
+    // ==========================================
+    // 错误列名校验测试
+    // ==========================================
+
+    @Test
+    @Order(20)
+    @DisplayName("校验失败 - 列名不存在")
+    void testValidation_InvalidColumnName() {
+        // columns 中包含不存在的列名
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("amount", "nonExistentColumn"));
+        request.setLimit(10);
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+        });
+
+        String errorMsg = exception.getMessage();
+        log.info("预期的错误信息: {}", errorMsg);
+
+        assertTrue(errorMsg.contains("nonExistentColumn") || errorMsg.toLowerCase().contains("not found")
+                || errorMsg.contains("不存在") || errorMsg.contains("找不到"),
+                "错误信息应指明无效的列名");
+    }
+
+    @Test
+    @Order(21)
+    @DisplayName("校验失败 - groupBy列名不存在")
+    void testValidation_InvalidGroupByColumnName() {
+        // groupBy 中包含不存在的列名
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("amount", "invalidField$id"));
+
+        SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
+        groupByItem.setField("invalidField$id");
+        request.setGroupBy(Collections.singletonList(groupByItem));
+        request.setLimit(10);
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+        });
+
+        String errorMsg = exception.getMessage();
+        log.info("预期的错误信息: {}", errorMsg);
+
+        assertTrue(errorMsg.contains("invalidField") || errorMsg.toLowerCase().contains("not found")
+                || errorMsg.contains("不存在") || errorMsg.contains("找不到"),
+                "错误信息应指明无效的字段名");
+    }
+
+    @Test
+    @Order(22)
+    @DisplayName("校验失败 - slice条件列名不存在")
+    void testValidation_InvalidSliceColumnName() {
+        // slice 中包含不存在的列名
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("amount"));
+
+        SemanticQueryRequest.SliceItem sliceItem = new SemanticQueryRequest.SliceItem();
+        sliceItem.setField("nonExistentField");
+        sliceItem.setOp("=");
+        sliceItem.setValue("test");
+        request.setSlice(Collections.singletonList(sliceItem));
+        request.setLimit(10);
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+        });
+
+        String errorMsg = exception.getMessage();
+        log.info("预期的错误信息: {}", errorMsg);
+
+        assertTrue(errorMsg.contains("nonExistentField") || errorMsg.toLowerCase().contains("not found")
+                || errorMsg.contains("不存在") || errorMsg.contains("找不到"),
+                "错误信息应指明无效的过滤条件字段名");
+    }
+
+    // ==========================================
+    // 维度字段后缀校验测试
+    // ==========================================
+
+    @Test
+    @Order(30)
+    @DisplayName("维度字段无后缀 - orderBy自动补充$id")
+    void testDimensionSuffix_OrderByAutoAddId() {
+        // orderBy 中维度字段没有后缀，应自动补充 $id
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
+
+        SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
+        orderItem.setField("customer");  // 没有 $id 或 $caption 后缀
+        orderItem.setDir("ASC");
+        request.setOrderBy(Collections.singletonList(orderItem));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+
+        // 检查警告信息中是否包含自动补充的说明
+        if (response.getWarnings() != null) {
+            String warningsStr = String.join(", ", response.getWarnings());
+            log.info("警告信息: {}", warningsStr);
+            assertTrue(warningsStr.contains("orderBy") && warningsStr.contains("自动补充"),
+                    "应有 orderBy 自动补充的警告");
+        }
+    }
+
+    @Test
+    @Order(31)
+    @DisplayName("度量字段无后缀 - orderBy保持原样")
+    void testMeasureSuffix_OrderByKeepOriginal() {
+        // orderBy 中度量字段没有后缀，应保持原样（度量不需要后缀）
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
+
+        SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
+        orderItem.setField("amount");  // 度量字段，不需要后缀
+        orderItem.setDir("DESC");
+        request.setOrderBy(Collections.singletonList(orderItem));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+
+        // 度量字段不应有自动补充的警告
+        if (response.getWarnings() != null) {
+            String warningsStr = String.join(", ", response.getWarnings());
+            log.info("警告信息: {}", warningsStr);
+            assertFalse(warningsStr.contains("amount") && warningsStr.contains("自动补充"),
+                    "度量字段不应被自动补充后缀");
+        }
+    }
+
+    // ==========================================
+    // 正常查询场景（确保不影响正常功能）
+    // ==========================================
+
+    @Test
+    @Order(100)
+    @DisplayName("正常查询 - 简单明细查询")
+    void testNormalQuery_SimpleDetail() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("orderId", "customer$caption", "amount"));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        assertNotNull(response.getItems(), "数据项不应为空");
+        assertTrue(response.getItems().size() > 0, "应返回数据");
+
+        log.info("简单查询返回 {} 条数据", response.getItems().size());
+    }
+
+    @Test
+    @Order(101)
+    @DisplayName("正常查询 - 分组聚合查询")
+    void testNormalQuery_GroupByAggregation() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("customer$caption", "customer$id"));
+
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+
+        SemanticQueryRequest.GroupByItem dimItem = new SemanticQueryRequest.GroupByItem();
+        dimItem.setField("customer$id");
+        groupByItems.add(dimItem);
+
+        SemanticQueryRequest.GroupByItem dimCaptionItem = new SemanticQueryRequest.GroupByItem();
+        dimCaptionItem.setField("customer$caption");
+        groupByItems.add(dimCaptionItem);
+
+        SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
+        measureItem.setField("amount");
+        measureItem.setAgg("SUM");
+        groupByItems.add(measureItem);
+
+        request.setGroupBy(groupByItems);
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        assertNotNull(response.getItems(), "数据项不应为空");
+
+        log.info("分组聚合查询返回 {} 条数据", response.getItems().size());
+    }
+
+    // ==========================================
+    // #Issue3: groupBy 别名匹配 inline expression
+    // ==========================================
+
+    @Test
+    @Order(110)
+    @DisplayName("YEAR(orderTime) as year — 端到端：DSL 结果与 SQL 基线对比")
+    void testInlineExpressionAlias_GroupByMatch() {
+        // DSL 查询：YEAR(orderTime) as year, SUM(amount) GROUP BY year
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("YEAR(orderTime) as year", "amount"));
+
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+        SemanticQueryRequest.GroupByItem yearItem = new SemanticQueryRequest.GroupByItem();
+        yearItem.setField("year");
+        groupByItems.add(yearItem);
+        SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
+        measureItem.setField("amount");
+        measureItem.setAgg("SUM");
+        groupByItems.add(measureItem);
+        request.setGroupBy(groupByItems);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        assertNotNull(response.getItems(), "items 不应为空");
+        assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
+
+        // SQL 基线查询（等价 SQL，直接查 fact_order 表）
+        String yearFunc = switch (getDialectKey()) {
+            case "sqlite" -> "CAST(strftime('%Y', order_time) AS INTEGER)";
+            case "postgresql" -> "EXTRACT(YEAR FROM order_time)::INTEGER";
+            default -> "YEAR(order_time)";  // MySQL, SQL Server
+        };
+        String baselineSql = "SELECT " + yearFunc + " AS yr, SUM(total_amount) AS amt "
+                + "FROM fact_order GROUP BY " + yearFunc + " ORDER BY yr";
+        List<Map<String, Object>> baseline = executeQuery(baselineSql);
+
+        log.info("DSL 结果 ({} 行): {}", response.getItems().size(), response.getItems());
+        log.info("SQL 基线 ({} 行): {}", baseline.size(), baseline);
+
+        // 对比行数
+        assertEquals(baseline.size(), response.getItems().size(),
+                "DSL 与 SQL 基线行数应一致");
+
+        // 逐行对比（按 year 排序匹配）
+        Map<Integer, Double> dslMap = new LinkedHashMap<>();
+        for (Map<String, Object> item : response.getItems()) {
+            assertTrue(item.containsKey("year"), "DSL 结果应包含 'year' 列");
+            dslMap.put(((Number) item.get("year")).intValue(),
+                    ((Number) item.get("amount")).doubleValue());
+        }
+        for (Map<String, Object> row : baseline) {
+            int yr = ((Number) row.get("yr")).intValue();
+            double expectedAmt = ((Number) row.get("amt")).doubleValue();
+            assertTrue(dslMap.containsKey(yr), "DSL 结果应包含 year=" + yr);
+            assertEquals(expectedAmt, dslMap.get(yr), 0.01,
+                    "year=" + yr + " 的 SUM(amount) 应与 SQL 基线一致");
+        }
+    }
+
+    @Test
+    @Order(111)
+    @DisplayName("MONTH(orderTime) as month — 端到端：DSL 结果与 SQL 基线对比")
+    void testInlineExpressionAlias_MonthGroupBy() {
+        // DSL 查询：MONTH(orderTime) as month, SUM(amount) GROUP BY month
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("MONTH(orderTime) as month", "amount"));
+
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+        SemanticQueryRequest.GroupByItem monthItem = new SemanticQueryRequest.GroupByItem();
+        monthItem.setField("month");
+        groupByItems.add(monthItem);
+        SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
+        measureItem.setField("amount");
+        measureItem.setAgg("SUM");
+        groupByItems.add(measureItem);
+        request.setGroupBy(groupByItems);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        assertNotNull(response.getItems(), "items 不应为空");
+        assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
+
+        // SQL 基线查询
+        String monthFunc = switch (getDialectKey()) {
+            case "sqlite" -> "CAST(strftime('%m', order_time) AS INTEGER)";
+            case "postgresql" -> "EXTRACT(MONTH FROM order_time)::INTEGER";
+            default -> "MONTH(order_time)";  // MySQL, SQL Server
+        };
+        String baselineSql = "SELECT " + monthFunc + " AS mo, SUM(total_amount) AS amt "
+                + "FROM fact_order GROUP BY " + monthFunc + " ORDER BY mo";
+        List<Map<String, Object>> baseline = executeQuery(baselineSql);
+
+        log.info("DSL 结果 ({} 行): {}", response.getItems().size(), response.getItems());
+        log.info("SQL 基线 ({} 行): {}", baseline.size(), baseline);
+
+        // 对比行数
+        assertEquals(baseline.size(), response.getItems().size(),
+                "DSL 与 SQL 基线行数应一致");
+
+        // 逐行对比
+        Map<Integer, Double> dslMap = new LinkedHashMap<>();
+        for (Map<String, Object> item : response.getItems()) {
+            assertTrue(item.containsKey("month"), "DSL 结果应包含 'month' 列");
+            dslMap.put(((Number) item.get("month")).intValue(),
+                    ((Number) item.get("amount")).doubleValue());
+        }
+        for (Map<String, Object> row : baseline) {
+            int mo = ((Number) row.get("mo")).intValue();
+            double expectedAmt = ((Number) row.get("amt")).doubleValue();
+            assertTrue(dslMap.containsKey(mo), "DSL 结果应包含 month=" + mo);
+            assertEquals(expectedAmt, dslMap.get(mo), 0.01,
+                    "month=" + mo + " 的 SUM(amount) 应与 SQL 基线一致");
+        }
+    }
+}

@@ -1,0 +1,40 @@
+/**
+ * B600 explicit-alias/self-join probe.
+ *
+ * The right-side openingOrg dimension is deliberately referenced as a dimension
+ * (rather than only as an already-expanded property), so the test covers owner
+ * propagation through automatic dimension expansion as well as public aliases.
+ */
+const leftOrder = loadTableModel('FactOrderB600ExpressOrderProbeModel', 'leftOrder');
+const rightOrder = loadTableModel('FactOrderB600ExpressOrderProbeModel').as('rightOrder');
+
+export const queryModel = {
+    name: 'TerminalFulfillmentB600ExplicitAliasSelfJoinProbeQueryModel',
+    caption: 'B600 显式别名自连接探针',
+    model: leftOrder,
+
+    joins: [
+        leftOrder.leftJoin(rightOrder).on(leftOrder.expressOrderId, rightOrder.expressOrderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '显式别名与遗留字段',
+            items: [
+                { ref: leftOrder.orderNo },
+                { ref: rightOrder.tenantId },
+                { ref: rightOrder.openingOrg },
+                // Legacy V1 string ref deliberately remains root-first.
+                { ref: 'tenantId' }
+            ]
+        }
+    ],
+
+    accesses: [{
+        property: 'tenantId',
+        queryBuilder: (context) => {
+            context.query.and(rightOrder.tenant$id, 20240101);
+            context.query.getWhere().and(rightOrder.openingOrg$caption, '杭州西湖店1');
+        }
+    }]
+};

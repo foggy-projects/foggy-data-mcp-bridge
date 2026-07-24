@@ -1,12 +1,12 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
-import com.foggyframework.dataset.db.model.lifecycle.port.DatasourceBindingResolver;
-import com.foggyframework.dataset.db.model.lifecycle.port.ResolvedDatasourceBinding;
-import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
-import com.foggyframework.dataset.db.model.spi.ProcessLocalDefaultDataSourceResolver;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingGeneration;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.model.lifecycle.port.DatasourceBindingResolver;
+import com.foggyframework.dataset.model.lifecycle.port.ResolvedDatasourceBinding;
+import com.foggyframework.dataset.model.spi.NamedDataSourceResolver;
+import com.foggyframework.dataset.model.spi.ProcessLocalDefaultDataSourceResolver;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

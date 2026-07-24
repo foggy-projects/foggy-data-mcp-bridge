@@ -2727,7 +2727,7 @@ done
 PHASE=model-external-gate
 (cd "$ROOT_DIR" && command mvn -q \
   -f "$ROOT_DIR/pom.xml" \
-  -pl foggy-dataset-model -am \
+  -pl foggy-dataset-model-engine -am \
   '-P!coverage,!v934-coverage,!release,v934-coverage-model-check' \
   -DskipTests=true \
   -DskipUnitTests=true \

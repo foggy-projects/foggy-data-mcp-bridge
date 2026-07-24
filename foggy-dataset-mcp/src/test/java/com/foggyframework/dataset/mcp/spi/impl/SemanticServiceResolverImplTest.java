@@ -3,16 +3,16 @@ package com.foggyframework.dataset.mcp.spi.impl;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.spi.NamespaceContext;
-import com.foggyframework.dataset.db.model.spi.NamespaceScope;
-import com.foggyframework.dataset.db.model.spi.QueryModel;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.spi.NamespaceContext;
+import com.foggyframework.dataset.model.spi.NamespaceScope;
+import com.foggyframework.dataset.model.spi.QueryModel;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.fsscript.loadder.FsscriptRemoveEvent;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import org.junit.jupiter.api.*;
@@ -74,7 +74,6 @@ class SemanticServiceResolverImplTest {
                 semanticServiceV3,
                 semanticQueryServiceV3,
                 systemBundlesContext,
-                queryModelLoader,
                 semanticModelCatalogService
         );
     }

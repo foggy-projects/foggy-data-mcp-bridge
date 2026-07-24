@@ -1,9 +1,9 @@
 package com.foggyframework.mcp.launcher;
 
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
-import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolution;
+import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.mcp.tools.ComposeScriptTool;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;

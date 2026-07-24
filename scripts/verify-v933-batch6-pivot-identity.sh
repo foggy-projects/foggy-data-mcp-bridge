@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_ID="${1:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 RUN_ROOT="$ROOT_DIR/target/v933-batch6-pivot/runs/$RUN_ID"
 REPORT_ASSERTION="$ROOT_DIR/scripts/assert-v933-test-report.sh"
-MODULE_DIR="$ROOT_DIR/foggy-dataset-model"
+MODULE_DIR="$ROOT_DIR/foggy-dataset-model-engine"
 REPORT_DIR="$MODULE_DIR/target/surefire-reports"
 
 fail() {
@@ -79,46 +79,46 @@ mkdir -p \
   "$RUN_ROOT/supporting/surefire-reports" \
   "$RUN_ROOT/source-audit"
 
-PIVOT_PIPELINE="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotPipeline.java"
-PIVOT_STRONG_IDENTITY="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheStrongIdentity.java"
-PIVOT_TELEMETRY="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetry.java"
-PIVOT_DIAGNOSTICS="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotDiagnosticCollector.java"
-PIVOT_PUBLIC_IDENTITY="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentity.java"
-PIVOT_PUBLIC_PROVIDER="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentityProvider.java"
-SEMANTIC_CONTEXT="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/semantic/domain/SemanticRequestContext.java"
-SEMANTIC_SERVICE="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/semantic/service/impl/SemanticQueryServiceV3Impl.java"
-QUERY_FACADE="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/service/impl/QueryFacadeImpl.java"
-MODEL_RESULT_CONTEXT="$MODULE_DIR/src/main/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/ModelResultContext.java"
+PIVOT_PIPELINE="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotPipeline.java"
+PIVOT_STRONG_IDENTITY="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheStrongIdentity.java"
+PIVOT_TELEMETRY="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheTelemetry.java"
+PIVOT_DIAGNOSTICS="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotDiagnosticCollector.java"
+PIVOT_PUBLIC_IDENTITY="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheModelIdentity.java"
+PIVOT_PUBLIC_PROVIDER="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheModelIdentityProvider.java"
+SEMANTIC_CONTEXT="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/semantic/domain/SemanticRequestContext.java"
+SEMANTIC_SERVICE="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/semantic/service/impl/SemanticQueryServiceV3Impl.java"
+QUERY_FACADE="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/service/impl/QueryFacadeImpl.java"
+MODEL_RESULT_CONTEXT="$MODULE_DIR/src/main/java/com/foggyframework/dataset/model/plugins/result_set_filter/ModelResultContext.java"
 
-DIRECT_STRONG="$MODULE_DIR/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheStrongIdentityTest.java"
-DIRECT_PIPELINE="$MODULE_DIR/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotPipelineCatalogIdentityTest.java"
-DIRECT_FACADE="$MODULE_DIR/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
-DIRECT_CONTEXT="$MODULE_DIR/src/test/java/com/foggyframework/dataset/db/model/semantic/domain/SemanticRequestContextTest.java"
-SUPPORT_TELEMETRY="$MODULE_DIR/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetryTest.java"
-SUPPORT_OPERATIONAL="$MODULE_DIR/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheOperationalSpiTest.java"
-SUPPORT_INTEGRATION="$MODULE_DIR/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIntegrationTest.java"
+DIRECT_STRONG="$MODULE_DIR/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheStrongIdentityTest.java"
+DIRECT_PIPELINE="$MODULE_DIR/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotPipelineCatalogIdentityTest.java"
+DIRECT_FACADE="$MODULE_DIR/src/test/java/com/foggyframework/dataset/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
+DIRECT_CONTEXT="$MODULE_DIR/src/test/java/com/foggyframework/dataset/model/semantic/domain/SemanticRequestContextTest.java"
+SUPPORT_TELEMETRY="$MODULE_DIR/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheTelemetryTest.java"
+SUPPORT_OPERATIONAL="$MODULE_DIR/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheOperationalSpiTest.java"
+SUPPORT_INTEGRATION="$MODULE_DIR/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotIntegrationTest.java"
 
 SOURCE_FILES=(
   "scripts/verify-v933-batch6-pivot-identity.sh"
   "scripts/assert-v933-test-report.sh"
-  "foggy-dataset-model/pom.xml"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotPipeline.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheStrongIdentity.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetry.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotDiagnosticCollector.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentity.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheModelIdentityProvider.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/domain/SemanticRequestContext.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/impl/SemanticQueryServiceV3Impl.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/QueryFacadeImpl.java"
-  "foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/ModelResultContext.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheStrongIdentityTest.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotPipelineCatalogIdentityTest.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/domain/SemanticRequestContextTest.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheTelemetryTest.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotOuterCacheOperationalSpiTest.java"
-  "foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIntegrationTest.java"
+  "foggy-dataset-model-engine/pom.xml"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotPipeline.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheStrongIdentity.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheTelemetry.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotDiagnosticCollector.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheModelIdentity.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheModelIdentityProvider.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/semantic/domain/SemanticRequestContext.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/semantic/service/impl/SemanticQueryServiceV3Impl.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/service/impl/QueryFacadeImpl.java"
+  "foggy-dataset-model-engine/src/main/java/com/foggyframework/dataset/model/plugins/result_set_filter/ModelResultContext.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheStrongIdentityTest.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotPipelineCatalogIdentityTest.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/lifecycle/catalog/QueryFacadeCatalogIdentityTest.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/semantic/domain/SemanticRequestContextTest.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheTelemetryTest.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotOuterCacheOperationalSpiTest.java"
+  "foggy-dataset-model-engine/src/test/java/com/foggyframework/dataset/model/engine/pivot/PivotIntegrationTest.java"
 )
 for source_file in "${SOURCE_FILES[@]}"; do
   [[ -f "$ROOT_DIR/$source_file" ]] || fail "evidence source is missing: $source_file"
@@ -188,15 +188,15 @@ printf '%s\n' \
   > "$RUN_ROOT/source-audit/summary.txt"
 
 DIRECT_FQCNS=(
-  'com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheStrongIdentityTest:4'
-  'com.foggyframework.dataset.db.model.engine.pivot.PivotPipelineCatalogIdentityTest:8'
-  'com.foggyframework.dataset.db.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest:6'
-  'com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContextTest:20'
+  'com.foggyframework.dataset.model.engine.pivot.PivotOuterCacheStrongIdentityTest:4'
+  'com.foggyframework.dataset.model.engine.pivot.PivotPipelineCatalogIdentityTest:8'
+  'com.foggyframework.dataset.model.lifecycle.catalog.QueryFacadeCatalogIdentityTest:6'
+  'com.foggyframework.dataset.model.semantic.domain.SemanticRequestContextTest:20'
 )
 SUPPORT_FQCNS=(
-  'com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheTelemetryTest:3'
-  'com.foggyframework.dataset.db.model.engine.pivot.PivotOuterCacheOperationalSpiTest:3'
-  'com.foggyframework.dataset.db.model.engine.pivot.PivotIntegrationTest:55'
+  'com.foggyframework.dataset.model.engine.pivot.PivotOuterCacheTelemetryTest:3'
+  'com.foggyframework.dataset.model.engine.pivot.PivotOuterCacheOperationalSpiTest:3'
+  'com.foggyframework.dataset.model.engine.pivot.PivotIntegrationTest:55'
 )
 
 for specification in "${DIRECT_FQCNS[@]}"; do
@@ -207,7 +207,7 @@ DIRECT_MARKER="$RUN_ROOT/direct/.run-start"
 : > "$DIRECT_MARKER"
 echo "[v933-pivot-identity] running direct Pivot/catalog identity lane"
 (cd "$ROOT_DIR" && mvn -B \
-  -pl foggy-dataset-model \
+  -pl foggy-dataset-model-engine \
   -P'!multi-db' \
   -DskipITs=true \
   -Dtest=PivotOuterCacheStrongIdentityTest,PivotPipelineCatalogIdentityTest,QueryFacadeCatalogIdentityTest,SemanticRequestContextTest \
@@ -229,7 +229,7 @@ SUPPORT_MARKER="$RUN_ROOT/supporting/.run-start"
 : > "$SUPPORT_MARKER"
 echo "[v933-pivot-identity] running supporting Pivot behavior lane"
 (cd "$ROOT_DIR" && mvn -B \
-  -pl foggy-dataset-model \
+  -pl foggy-dataset-model-engine \
   -P'!multi-db' \
   -DskipITs=true \
   -Dtest=PivotOuterCacheTelemetryTest,PivotOuterCacheOperationalSpiTest,PivotIntegrationTest \

@@ -19,11 +19,11 @@ COVERAGE_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 SQLITE_JAR="$HOME/.m2/repository/org/xerial/sqlite-jdbc/3.42.0.0/sqlite-jdbc-3.42.0.0.jar"
 RUNNER_NAME="failsafe"
 LANE="database-contract-matrix"
-REPORTS_DIR="$ROOT_DIR/foggy-dataset-model/target/failsafe-reports"
+REPORTS_DIR="$ROOT_DIR/foggy-dataset-model-engine/target/failsafe-reports"
 
-STANDARD_SELECTORS="com.foggyframework.dataset.db.model.engine.pivot.PivotSqlParityIT,com.foggyframework.dataset.db.model.multidb.MultiDatabaseQueryTest,com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT,com.foggyframework.dataset.db.model.engine.pivot.PivotCascadeGenerateSqlParityIT,com.foggyframework.dataset.db.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT"
-MYSQL8_TARGETED_SELECTORS="com.foggyframework.dataset.db.model.engine.pivot.PivotIT"
-POSTGRES15_TARGETED_SELECTORS="com.foggyframework.dataset.db.model.engine.pivot.PivotIT,com.foggyframework.dataset.db.model.semantic.DslCteResultStageWindowIT,com.foggyframework.dataset.db.model.semantic.DslCteRelationMetricFixtureIT"
+STANDARD_SELECTORS="com.foggyframework.dataset.model.engine.pivot.PivotSqlParityIT,com.foggyframework.dataset.model.multidb.MultiDatabaseQueryTest,com.foggyframework.dataset.model.lifecycle.gate.RequiredDatabasePreflightIT,com.foggyframework.dataset.model.engine.pivot.PivotCascadeGenerateSqlParityIT,com.foggyframework.dataset.model.lifecycle.realquery.RequiredDatabaseQueryFacadeParityIT"
+MYSQL8_TARGETED_SELECTORS="com.foggyframework.dataset.model.engine.pivot.PivotIT"
+POSTGRES15_TARGETED_SELECTORS="com.foggyframework.dataset.model.engine.pivot.PivotIT,com.foggyframework.dataset.model.semantic.DslCteResultStageWindowIT,com.foggyframework.dataset.model.semantic.DslCteRelationMetricFixtureIT"
 
 SENSITIVE_PATTERNS=(
   'foggy_test_123'
@@ -146,7 +146,7 @@ run_variant() {
   v934_coverage_configure it "$variant"
   (cd "$ROOT_DIR" && mvn -q \
     -P'!multi-db,!model-lifecycle,!query-cache-real-query' \
-    -pl foggy-dataset-model -am \
+    -pl foggy-dataset-model-engine -am \
     -Dit.test="$selectors" \
     -Dspring.profiles.active="$profile" \
     -Dv934.expectedDatabase="$database" \
@@ -454,7 +454,7 @@ done
 PHASE="test-compile"
 (cd "$ROOT_DIR" && mvn -q \
   -P'!multi-db,!model-lifecycle,!query-cache-real-query' \
-  -pl foggy-dataset-model -am \
+  -pl foggy-dataset-model-engine -am \
   -DskipUnitTests=true \
   -DskipITs=true \
   test-compile)

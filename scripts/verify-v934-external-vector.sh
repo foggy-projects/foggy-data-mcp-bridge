@@ -13,7 +13,7 @@ COVERAGE_RUNNER_LIB="$ROOT_DIR/scripts/v934/step4/coverage_runner_lib.sh"
 DEFERRED_INVENTORY="$ROOT_DIR/scripts/v934/successor/step2/deferred-step3.tsv"
 MODEL_REPORTS="$ROOT_DIR/addons/foggy-dataset-model-vector/target/failsafe-reports"
 STORE_REPORTS="$ROOT_DIR/addons/foggy-dataset-vector/target/failsafe-reports"
-CLEAN_MODULES="foggy-core,foggy-bean-copy,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model,addons/foggy-dataset-vector,addons/foggy-dataset-model-vector"
+CLEAN_MODULES="foggy-core,foggy-bean-copy,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model-engine,addons/foggy-dataset-vector,addons/foggy-dataset-model-vector"
 
 RUNNER_NAME="failsafe"
 LANE="external-vector"
@@ -82,7 +82,7 @@ assert_clean_targets_absent() {
   local module
   local -a modules=(
     foggy-core foggy-bean-copy foggy-fsscript foggy-dataset foggy-dataset-demo
-    foggy-dataset-model addons/foggy-dataset-vector addons/foggy-dataset-model-vector
+    foggy-dataset-model-engine addons/foggy-dataset-vector addons/foggy-dataset-model-vector
   )
   for module in "${modules[@]}"; do
     [[ ! -e "$ROOT_DIR/$module/target" ]] || \

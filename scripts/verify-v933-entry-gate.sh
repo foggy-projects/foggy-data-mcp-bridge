@@ -24,13 +24,13 @@ fail() {
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
-MODEL_MODULE="foggy-dataset-model"
+MODEL_MODULE="foggy-dataset-model-engine"
 COMPOSE_FILE="$REPO_ROOT/foggy-dataset-demo/docker/docker-compose.yml"
 REPORT_ASSERTION="$SCRIPT_DIR/assert-v933-test-report.sh"
 
-UNIT_FQCN="com.foggyframework.dataset.db.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeTest"
-IT_FQCN="com.foggyframework.dataset.db.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeIT"
-PREFLIGHT_FQCN="com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT"
+UNIT_FQCN="com.foggyframework.dataset.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeTest"
+IT_FQCN="com.foggyframework.dataset.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeIT"
+PREFLIGHT_FQCN="com.foggyframework.dataset.model.lifecycle.gate.RequiredDatabasePreflightIT"
 
 for command_name in mvn docker sha256sum; do
   command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
@@ -98,10 +98,10 @@ assert_unit_runner_skipped() {
   local lane_dir="$1"
   local log_file="$lane_dir/maven.log"
   assert_execution_count "$log_file" \
-    'maven-surefire-plugin:[^:]+:test \(default-test\) @ foggy-dataset-model' 1 \
+    'maven-surefire-plugin:[^:]+:test \(default-test\) @ foggy-dataset-model-engine' 1 \
     "owning Surefire skipped lane"
   grep -A4 -E -- \
-    'maven-surefire-plugin:[^:]+:test \(default-test\) @ foggy-dataset-model' \
+    'maven-surefire-plugin:[^:]+:test \(default-test\) @ foggy-dataset-model-engine' \
     "$log_file" | grep -q 'Tests are skipped' || \
     fail "owning Surefire did not prove its controlled skip; log=$log_file"
   if find "$lane_dir/surefire-reports" -maxdepth 1 -type f -name 'TEST-*.xml' \
@@ -152,13 +152,13 @@ run_probe_pair() {
   assert_success_report "$lane_dir" failsafe "$IT_FQCN"
   assert_failsafe_summary "$lane_dir"
   assert_execution_count "$log_file" \
-    'maven-surefire-plugin:[^:]+:test \(default-test\) @ foggy-dataset-model' 1 \
+    'maven-surefire-plugin:[^:]+:test \(default-test\) @ foggy-dataset-model-engine' 1 \
     "owning Surefire"
   assert_execution_count "$log_file" \
-    'maven-failsafe-plugin:[^:]+:integration-test \(default\) @ foggy-dataset-model' 1 \
+    'maven-failsafe-plugin:[^:]+:integration-test \(default\) @ foggy-dataset-model-engine' 1 \
     "owning Failsafe integration-test"
   assert_execution_count "$log_file" \
-    'maven-failsafe-plugin:[^:]+:verify \(default\) @ foggy-dataset-model' 1 \
+    'maven-failsafe-plugin:[^:]+:verify \(default\) @ foggy-dataset-model-engine' 1 \
     "owning Failsafe verify"
   assert_no_multi_db_executions "$log_file"
 }
@@ -188,10 +188,10 @@ run_db_preflight() {
   assert_failsafe_summary "$lane_dir"
   assert_unit_runner_skipped "$lane_dir"
   assert_execution_count "$log_file" \
-    'maven-failsafe-plugin:[^:]+:integration-test \(default\) @ foggy-dataset-model' 1 \
+    'maven-failsafe-plugin:[^:]+:integration-test \(default\) @ foggy-dataset-model-engine' 1 \
     "owning Failsafe integration-test ($lane)"
   assert_execution_count "$log_file" \
-    'maven-failsafe-plugin:[^:]+:verify \(default\) @ foggy-dataset-model' 1 \
+    'maven-failsafe-plugin:[^:]+:verify \(default\) @ foggy-dataset-model-engine' 1 \
     "owning Failsafe verify ($lane)"
   assert_no_multi_db_executions "$log_file"
 }
@@ -216,7 +216,7 @@ run_missing_unit_negative() {
       test -l "$log_file"; then
     fail "missing owning unit class unexpectedly passed; log=$log_file"
   fi
-  grep -Eq 'on project foggy-dataset-model: No tests matching pattern "DefinitelyMissingV933UnitTest"' "$log_file" || \
+  grep -Eq 'on project foggy-dataset-model-engine: No tests matching pattern "DefinitelyMissingV933UnitTest"' "$log_file" || \
     fail "missing unit failure reason was not observed; log=$log_file"
   assert_no_test_xml "$lane_dir"
 }
@@ -235,7 +235,7 @@ run_missing_it_negative() {
       verify -l "$log_file"; then
     fail "missing owning IT class unexpectedly passed; log=$log_file"
   fi
-  grep -Eq 'on project foggy-dataset-model: No tests matching pattern "DefinitelyMissingV933IT"' "$log_file" || \
+  grep -Eq 'on project foggy-dataset-model-engine: No tests matching pattern "DefinitelyMissingV933IT"' "$log_file" || \
     fail "missing IT failure reason was not observed; log=$log_file"
   assert_unit_runner_skipped "$lane_dir"
   assert_no_test_xml "$lane_dir"

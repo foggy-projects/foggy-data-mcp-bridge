@@ -2,8 +2,9 @@ package com.foggyframework.dataset.graphql.converter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.api.QueryFacadeRequest;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -182,6 +183,25 @@ public class GraphqlToDslConverterTest {
         assertEquals(40, result.getStart());
 
         System.out.println("转换结果: " + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(result));
+    }
+
+    @Test
+    public void convertsExecutionPathToStableQueryFacadeRequest() {
+        String graphqlQuery = """
+                query {
+                    factOrder(limit: 20, offset: 40) {
+                        orderId
+                    }
+                }
+                """;
+
+        QueryFacadeRequest result = converter.convertRequest(graphqlQuery, Map.of());
+
+        assertEquals("FactOrderQueryModel", result.getQuery().get("queryModel"));
+        assertEquals(20, result.getLimit());
+        assertEquals(40, result.getStart());
+        assertThrows(UnsupportedOperationException.class,
+                () -> result.getQuery().put("queryModel", "mutated"));
     }
 
     @Test

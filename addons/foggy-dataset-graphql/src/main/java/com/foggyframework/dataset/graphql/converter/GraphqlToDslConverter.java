@@ -1,7 +1,12 @@
 package com.foggyframework.dataset.graphql.converter;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.api.QueryFacadeRequest;
 import graphql.language.*;
 import graphql.parser.Parser;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +25,11 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class GraphqlToDslConverter {
+
+    private static final ObjectMapper QUERY_MAPPER = new ObjectMapper()
+            .setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.NONE)
+            .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+    private static final TypeReference<Map<String, Object>> QUERY_MAP = new TypeReference<>() { };
 
     private final SelectionSetConverter selectionSetConverter = new SelectionSetConverter();
     private final ArgumentConverter argumentConverter = new ArgumentConverter();
@@ -99,6 +109,24 @@ public class GraphqlToDslConverter {
                 rootField.getName(), queryModelName, queryRequest.getColumns());
 
         return pagingRequest;
+    }
+
+    /**
+     * Converts GraphQL directly to the stable model-api query boundary.
+     *
+     * <p>The legacy conversion method remains public for source and binary
+     * compatibility, while first-party execution paths use this DTO-only
+     * request.</p>
+     */
+    public QueryFacadeRequest convertRequest(String graphqlQuery, Map<String, Object> variables) {
+        PagingRequest<DbQueryRequestDef> legacy = convert(graphqlQuery, variables);
+        Map<String, Object> query = QUERY_MAPPER.convertValue(legacy.getParam(), QUERY_MAP);
+        return QueryFacadeRequest.builder(query)
+                .page(legacy.getPage())
+                .pageSize(legacy.getPageSize())
+                .start(legacy.getStart())
+                .limit(legacy.getLimit())
+                .build();
     }
 
     /**

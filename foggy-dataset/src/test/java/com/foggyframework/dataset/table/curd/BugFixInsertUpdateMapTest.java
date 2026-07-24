@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 
 @SpringBootTest(classes = FoggyFrameworkDataSetTestApplication.class)
+@ActiveProfiles("mysql57-it")
 class BugFixInsertUpdateMapTest {
 
     @Autowired

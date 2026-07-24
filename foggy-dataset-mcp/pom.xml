@@ -49,7 +49,7 @@
 
         <dependency>
             <groupId>com.foggysource</groupId>
-            <artifactId>foggy-dataset-model</artifactId>
+            <artifactId>foggy-dataset-model-engine</artifactId>
         </dependency>
 
         <!-- MCP SPI 接口（用于扩展模块的工具发现） -->

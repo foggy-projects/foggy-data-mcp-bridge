@@ -13,19 +13,20 @@ import com.foggyframework.dataviewer.service.FrontendMetaConverter;
 import com.foggyframework.dataviewer.service.MemberQueryService;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
-import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
-import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.service.QueryFacade;
-import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetRequestNamespaceResolver;
+import com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.api.QueryFacade;
+import com.foggyframework.dataset.model.api.QueryFacadeResult;
+import com.foggyframework.dataviewer.service.StableQueryFacadeRequestMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -415,7 +416,8 @@ public class ViewerApiController {
             pagingRequest.setStart(request.getStart() != null ? request.getStart() : 0);
             pagingRequest.setLimit(request.getLimit() != null ? request.getLimit() : 50);
 
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, authorization, namespace);
+            QueryFacadeResult result = queryFacade.query(
+                    StableQueryFacadeRequestMapper.from(pagingRequest, authorization, namespace));
 
             return RX.ok(ViewerDataResponse.success(
                     result.getItems(),
@@ -472,7 +474,8 @@ public class ViewerApiController {
             pagingRequest.setLimit(request.getLimit());
 
             // 使用 QueryFacade 执行查询
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, effectiveAuthorization, namespace);
+            QueryFacadeResult result = queryFacade.query(
+                    StableQueryFacadeRequestMapper.from(pagingRequest, effectiveAuthorization, namespace));
 
             return RX.ok(ViewerDataResponse.success(
                     result.getItems(),

@@ -22,7 +22,7 @@
         <!-- 核心依赖 -->
         <dependency>
             <groupId>com.foggysource</groupId>
-            <artifactId>foggy-dataset-model</artifactId>
+            <artifactId>foggy-dataset-model-engine</artifactId>
         </dependency>
         <dependency>
             <groupId>com.foggysource</groupId>

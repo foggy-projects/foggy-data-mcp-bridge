@@ -21,22 +21,25 @@ class AutoConfigurationRegistrationUniquenessTest {
 
     private static final List<String> AUTO_CONFIGURATIONS = List.of(
             "com.foggyframework.dataset.DataSetAutoConfiguration",
-            "com.foggyframework.dataset.db.model.DbModelAutoConfiguration",
+            "com.foggyframework.dataset.model.DbModelAutoConfiguration",
             "com.foggyframework.dataset.mcp.DatasetMcpAutoConfiguration",
-            "com.foggyframework.dataset.db.model.demo.JdbcModelDemoAutoConfiguration",
-            "com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridBridgeConfiguration",
+            "com.foggyframework.dataset.model.demo.JdbcModelDemoAutoConfiguration",
+            "com.foggyframework.dataset.model.memorygrid.bridge.MemoryGridBridgeConfiguration",
             "com.foggyframework.odoo.bridge.OdooBridgeAutoConfiguration",
             "com.foggyframework.dataviewer.config.DataViewerAutoConfiguration",
             "com.foggyframework.dataset.mcp.storage.cloud.CloudStorageAutoConfiguration",
             "com.foggyframework.dataset.mongo.DataSetMongoAutoConfiguration",
-            "com.foggyframework.dataset.db.model.mongo.MongoModelAutoConfiguration",
+            "com.foggyframework.dataset.model.mongo.MongoModelAutoConfiguration",
             "com.foggyframework.dataset.vector.DataSetVectorAutoConfiguration",
-            "com.foggyframework.dataset.db.model.vector.VectorModelAutoConfiguration",
-            "com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration",
-            "com.foggyframework.dataset.db.model.cache.config.QueryCacheEvictionAutoConfiguration",
-            "com.foggyframework.dataset.db.model.cache.config.QueryCacheWebAutoConfiguration",
+            "com.foggyframework.dataset.model.vector.VectorModelAutoConfiguration",
+            "com.foggyframework.dataset.model.cache.config.QueryCacheAutoConfiguration",
+            "com.foggyframework.dataset.model.cache.config.QueryCacheBackendProviderAutoConfiguration",
+            "com.foggyframework.dataset.model.cache.config.QueryCacheEvictionAutoConfiguration",
+            "com.foggyframework.dataset.model.cache.config.QueryCacheWebAutoConfiguration",
+            "com.foggyframework.dataset.model.starter.ModelBackendAutoConfiguration",
+            "com.foggyframework.dataset.model.web.ModelBackendWebAutoConfiguration",
             "com.foggyframework.dataset.graphql.GraphqlAddonAutoConfiguration",
-            "com.foggyframework.dataset.db.model.preagg.config.PreAggAutoConfiguration");
+            "com.foggyframework.dataset.model.preagg.config.PreAggAutoConfiguration");
 
     @Test
     void eachAutoConfigurationHasExactlyOneBootThreeImportsEntry() throws IOException {

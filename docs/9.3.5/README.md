@@ -1,20 +1,95 @@
 ---
-doc_role: version_preexecution_index
+doc_role: version_execution_index
 version: 9.3.5
-status: queued / planning-baseline-only
-entry_gate: 9.3.4-version-signoff
-first_execution_gate: Gate-0-classification-debt-migration
-baseline_commit: 26081a3b4853914de8e6effe9a21b1353d590917
-recorded_at: 2026-07-20
+status: development-complete / speed-forward
+entry_gate: 9.3.4-owner-carried-forward
+first_execution_gate: Gate-0-classification-debt-migration-closed
+validation_mode: affected-tests
+final_acceptance: deferred-to-9.4.0-integrated-acceptance
+recorded_at: 2026-07-24
 ---
 
 # 9.3.5 引擎阶段与公共 API
 
 ## 当前决定
 
-本目录只记录只读代码基线和未来验收边界，**不**授权修改生产代码、测试 lane、POM、执行库存或模块边界。
-9.3.5 仍为 `queued`：必须先完成 9.3.4 version signoff。届时 Gate 0 的 Unit MySQL fixture
-classification-debt migration 是 9.3.5 的第一项执行工作；其 closure 是 version acceptance 前的硬门。
+9.3.5 已按 repository owner 的 speed-forward 决定开放实施。9.3.4 使用既有证据
+carry forward，不再等待 replacement Step 7、final authority pointer 或独立 version signoff。
+Gate 0 已通过受影响测试关闭，公共 API、内部端口、bypass 与目标反向依赖切片均已完成；
+9.3.5 不单独等待版本级验收，现已进入 9.4.0 模块化实施。
+
+## 当前进度
+
+- Gate 0 已选择 Option A 并关闭：7 个真实 DB suite / 12 个 node 已迁入 Failsafe
+  `mysql57-it` lane。
+- 默认 Unit datasource 已恢复为 hermetic H2；专用 MySQL profile 缺少配置时 fail closed。
+- fresh 受治理 MySQL 5.7 run 为 7 reports / 12 nodes / F0E0S0。
+- 稳定 `QueryFacade` request/result DTO 已建立；model controller、Data Viewer 和 GraphQL
+  执行入口已改用 DTO-only facade，旧 9 方法 facade 保留 deprecated 兼容转发层。
+- context/SQL generation 已下沉 `InternalQueryExecutionPort`，managed relation 已下沉
+  `ManagedRelationExecutionPort`；semantic 只依赖组合 advanced port，pivot 只依赖 managed-relation
+  窄口，稳定 facade 未新增引擎类型。
+- MCP `ToolConfigLoader` 的未调用 QM 扫描已删除；model discovery/catalog 的 Spring 生产构造器
+  不再注入 `QueryModelLoader`，统一消费共享 catalog authority。旧构造签名保留一个兼容周期并
+  标记 deprecated。
+- runtime/MCP 目录校验已统一下沉到 `DetachedModelValidationFactory/Session`；临时 bundle、
+  script cache 和 catalog 均为请求级隔离状态，不再把校验资源注册到 live context。Runtime 旧 loader
+  构造签名保留 deprecated 兼容转发，MCP 生产校验路径不再直接依赖 live loader。
+- controller/runtime/addon bypass 盘点已关闭：MCP model discovery/catalog 只消费
+  `SemanticModelCatalogReadPort`，legacy loader 行为收口在 model 模块适配器；外部模块已无直接
+  `loadJdbcQueryModel/getJdbcQueryModel` 调用，残留 `QueryModelLoader` 引用仅为 deprecated 构造签名。
+- runtime/native Compose 已统一改用 DTO-only `ComposeExecutionPort`；engine mode、context、authority
+  resolver、sandbox/schema/compiler 异常映射均封装在 model 默认适配器，runtime compose controller、
+  runner 与 fsscript CTE bridge 不再暴露 `engine.compose` 或 `SemanticQueryServiceV3` 类型；默认端口
+  通过 `@ConditionalOnMissingBean` 提供，保留宿主替换能力。
+- Pivot pipeline、non-additive rollup 和本地 outer-cache invalidation 已改用
+  `PivotRollupExecutionPort/PivotOuterCacheEvictionPort`；rollup SQL 通过 engine-neutral DTO 桥接，
+  Pivot 主实现不再直接依赖 `semantic.service` 或 `engine.compose`。旧 `SemanticQueryServiceV3`
+  继续提供兼容桥接，不改变 governed SQL、raw execution 或 serial fallback 行为。
+- semantic request context 内部改为持有 engine-neutral `DomainTransportPlanSpec`；semantic SQL
+  编排只消费中立视图，具体 Pivot plan、builder、renderer 和 ext-data key 均保持原行为。旧
+  `getDomainTransportPlans()/withDomainTransportPlans(...)` 源码与 JVM 签名保留一个兼容周期，
+  避免现有链式调用方发生无过渡期破坏。
+- Compose compiler/planner core 已改为依赖 `ComposeSemanticPlanningPort` 与 engine-neutral
+  `ComposeSqlGeneration`，不再持有完整 `SemanticQueryServiceV3` 或带 JDBC engine 的 legacy
+  `SqlGenerationResult`。旧 compiler/relation options、便捷 overload 和 semantic service 方法均保留
+  兼容桥接；per-request authority、CTE stages、diagnostics、null bind 参数和字段解析 fail-closed
+  语义保持不变。
+- Compose `PlanExecution` 已拆分使用 planning port 与独立 `ComposeSqlExecutionPort`，编译阶段和
+  raw SQL 执行阶段不再要求同一个完整 service 类型；旧 `executePlan(..., SemanticQueryServiceV3, ...)`
+  overload 继续兼容转发，route model 选择和 execute-phase 异常前缀保持不变。
+- Compose runtime bundle、`QueryPlan` 与 script orchestration 已改为内部持有 planning/raw-execution
+  双端口；脚本 request 可以分别注入两个窄口，旧 semantic service getter、builder 和 `runScript`
+  overload 仍保留兼容。ambient bundle、preview/execute 行为、normalize-plan 与既有异常文本保持不变。
+- Legacy `DslQueryFunction` 的普通查询已改用 `SemanticQueryExecutionPort`，`withJoin` SQL 生成链改用
+  `ComposeSemanticPlanningPort` 与 engine-neutral `ComposeSqlGeneration`；`DataSetResult.ComposeContext`
+  内部传递 planning port，旧 semantic service 构造和 getter 继续兼容，DataSource 方言选择与组合 SQL
+  执行行为未改变。
+- Compose compiler/planner/runtime、legacy DSL bridge 与 Pivot pipeline 的核心存储字段已通过反射式
+  architecture tests 锁定为窄端口；完整 `SemanticQueryServiceV3` 残留仅位于 deprecated/compatibility
+  构造、builder、getter 或 overload，不再作为目标核心路径依赖。
+- 基于 Java import package graph 对 `3b1c7249...` 与当前源码进行差分：两者均只有 1 个继承自
+  `foggy-dataset-model` 单体结构的 cyclic SCC，未形成第二个新增循环。新端口包暂时并入该既有 SCC；
+  其物理切断由紧随其后的 9.4.0 `model-api/core/jdbc/starter/web` 单向模块抽取完成，不在 9.3.5
+  通过破坏兼容签名或机械搬包伪造去环。
+- DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
+  及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
+  33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
+  reactor 编译通过，模型自动配置 9/9、MCP 校验 5/5、Runtime 校验/刷新兼容 6/6 通过；catalog
+  read-port 切片受影响测试 54/54 通过；Compose port 切片 reactor 编译通过，model 端口/适配器/
+  自动配置 16/16、runtime runner/HTTP/CTE bridge/依赖边界 17/17 通过；Pivot semantic-port
+  切片 reactor 编译通过，边界/cache/pipeline validation/自动配置 36/36、non-additive
+  UNION ALL SQLite 集成路径 1/1 通过；domain transport contract/renderer/rollup 41/41、
+  大域 transport/diagnostics/SQL parity SQLite 集成路径 3/3 通过；Compose planning-port/compiler
+  定向回归 198/198，通过 fail-closed 收紧后的核心复跑 57/57，真实 DSL→Compose→SQLite 执行
+  集成路径 1/1 通过；PlanExecution 双端口/兼容定向回归 24/24，derived/join/union SQLite
+  real-SQL parity 3/3 通过；Compose runtime 双端口切片定向回归 64/64，脚本资源、快照与
+  derived/join/union SQLite real-SQL parity 7/7 通过；legacy DataSetResult/DSL bridge 窄口切片编译
+  通过，unit/compatibility 73/73，真实 SQLite withJoin 与 F4 column-object 路径 19/19 通过。
+- 9.3.5 收口复跑：公共 facade/Compose/Pivot architecture boundary、legacy DSL port 与
+  `QueryExecutionPhase` phase/loop/order 轨迹共 30/30 通过。
+- 当前执行切片：9.4.0 模块与 SPI v2 实施起始盘点，随后按
+  `model-api → model-core → model-jdbc → model-starter → model-web` 渐进抽取。
 
 ## 已确认目标
 
@@ -25,14 +100,15 @@ classification-debt migration 是 9.3.5 的第一项执行工作；其 closure �
 - 通过 port 拆解 pivot/compose/semantic 的反向依赖，并按
   planner/compiler/executor/catalog/adapters 组织实现。
 
-## 硬门与禁止项
+## 推进顺序
 
-1. Step 4 feature signoff 只是 9.3.4 的前置；9.3.5 开工仍须等待 **9.3.4 version signoff**。
-2. Gate 0 是开工后的首个强制执行门，必须在 9.3.5 version acceptance 前完成：将已知 DB consumers
-   迁入受治理 DB lane，或去除它们的外部 DB 依赖，并删除临时例外。
-3. 在 9.3.4 version signoff 前，不得改动 QueryFacade 签名、迁移调用路径、引入 phase/stage、改变测试
-   执行库存，或把任何结果宣称为 9.3.5 实现完成；进入 9.3.5 后，Gate 0 之外的更广 API 工作仍须等待
-   Gate 0 的受治理证据和批准的实现契约。
+1. 关闭 Gate 0：将已知 DB consumers 迁入受治理 DB lane，或去除外部 DB 依赖，并删除临时例外。
+2. 收敛 QueryFacade request/result DTO 和外部调用入口。
+3. 下沉 internal/advanced ports，清除 controller/runtime/addon bypass。
+4. 拆解 pivot/compose/semantic 反向依赖和过大的实现边界。
+
+每个切片运行受影响模块的编译、单元测试、必要集成测试；涉及公共签名或依赖方向时，
+加跑对应 compatibility/architecture tests。测试通过即进入下一切片，不等待大型 authority。
 
 ## 基线材料
 
@@ -41,10 +117,13 @@ classification-debt migration 是 9.3.5 的第一项执行工作；其 closure �
 - [v934 Release Gate dry-run/canary、checkpoint/resume 与 WSL execution capsule](workitems/OPT-v934-release-gate-checkpoint-resume-wsl-capsule.md)：
   已批准的 9.3.5 build/release 优化契约；包含无副作用预检、固定样本 canary、断点恢复、单 run 编译检查点、WSL 不可变数据库 seed 和隔离执行；仅在 9.3.4 version signoff、Gate 0 关闭且 v934 runner
   无并行 owner 后实施，不改变当前 planning-only 状态。
+- [Bypass 分类关闭记录](bypass-classification-record.md)
 - 版本路线图：[9.3.1 → 9.4.0 迭代顺序评审](../9.3.1/roadmap-9.3.1-to-9.4.0.md)
 - Gate 0 债务：[Unit MySQL 5.7 fixture 分类迁移](../9.3.4/workitems/DEBT-unit-mysql57-fixture-classification-migration.md)
+- Canonical 交付契约：
+  [9.3.4 → 9.4.0 Speed-Forward](../9.4.0/workitems/FEATURE-v934-v940-speed-forward.md)
 
-## 将来的准出
+## 开发完成条件
 
-无未批准 bypass、无新增包循环、公共 API compatibility test 与阶段轨迹回归全绿；这些都是将来
-9.3.5 实施后的验收项，而非本次静态基线的结论。
+classification debt 关闭；无未批准 bypass、无新增包循环；公共 API compatibility test、
+阶段轨迹回归和受影响测试通过。达到这些条件后直接进入 9.4.0，不单独启动版本级大型验收。

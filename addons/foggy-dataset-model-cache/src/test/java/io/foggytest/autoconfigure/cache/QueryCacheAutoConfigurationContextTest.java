@@ -1,13 +1,13 @@
 package io.foggytest.autoconfigure.cache;
 
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheEvictionAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.config.QueryCacheWebAutoConfiguration;
-import com.foggyframework.dataset.db.model.cache.controller.QueryCacheController;
-import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
-import com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider;
-import com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProvider;
-import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
+import com.foggyframework.dataset.model.cache.config.QueryCacheAutoConfiguration;
+import com.foggyframework.dataset.model.cache.config.QueryCacheEvictionAutoConfiguration;
+import com.foggyframework.dataset.model.cache.config.QueryCacheWebAutoConfiguration;
+import com.foggyframework.dataset.model.cache.controller.QueryCacheController;
+import com.foggyframework.dataset.model.cache.fingerprint.QueryFingerprintBuilder;
+import com.foggyframework.dataset.model.cache.provider.CaffeineQueryCacheProvider;
+import com.foggyframework.dataset.model.cache.provider.RedisQueryCacheProvider;
+import com.foggyframework.dataset.model.spi.QueryCacheProvider;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

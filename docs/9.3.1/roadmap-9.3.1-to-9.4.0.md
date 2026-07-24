@@ -3,10 +3,23 @@ doc_role: root_plan_review
 doc_purpose: Record the reviewed dependency order and release gates from 9.3.1 through 9.4.0.
 status: active
 created_at: 2026-07-13
-updated_at: 2026-07-20
+updated_at: 2026-07-24
 ---
 
 # 9.3.1 → 9.4.0 迭代顺序评审
+
+## Speed-Forward Override（2026-07-24）
+
+Repository owner 已将 9.3.4→9.4.0 改为速度优先：
+
+- 9.3.4 使用既有成功证据结束开发阶段，不再运行 replacement Step 7 或生成 final pointer；
+- 9.3.5、9.4.0 按开发切片推进，受影响测试通过即可进入下一切片；
+- 版本间不再设置大型 authority 或独立签收门；
+- 只在 9.4.0 开发目标完成后安排一次跨版本整体验收。
+
+本节和
+[`FEATURE-v934-v940-speed-forward.md`](../9.4.0/workitems/FEATURE-v934-v940-speed-forward.md)
+覆盖本文后续历史段落中与之冲突的 active gate、必须重跑和 next-action 语句。
 
 ## 评审结论
 
@@ -30,9 +43,9 @@ updated_at: 2026-07-20
 | 9.3.1 | signed-off (`accepted-with-risks`) | 声明范围已交付，无 blocker/high；后续风险已分配到 9.3.2–9.3.4 |
 | 9.3.2 | signed-off (`accepted-with-risks`) | feature scope 已签收，无 blocker/high；保留项已记录到 acceptance |
 | 9.3.3 | signed-off (`accepted-with-risks`) | replacement authority `20260714T084351Z-3271604`：3824 tests / 519 reports / F0/E0/S3 exact SQLite allowlist；ordered quality→coverage→acceptance completed，无 blocker/high/medium |
-| 9.3.4 | in-progress / r33 excluded / r34 pending | [执行文档包](../9.3.4/README.md)；formal-r9、r30、r31、r33 均 permanent excluded；r29 与 r32=`non-freezable`。r33 在 Unit pre-marker 区间 fail-closed，cleanup closure 未获证明；当前主线为 docs-only Cdiag→governed readiness preflight→fresh r34→new review/Cfreeze→fresh formal→post gates |
-| 9.3.5 | queued | 仅在 9.3.4 version signoff 后标 ready；开工先执行 Gate 0 classification-debt migration |
-| 9.4.0 | queued | 依赖 9.3.5 public API/去环结果，不提前拆生产模块 |
+| 9.3.4 | development-complete / owner-carried-forward | 既有 Step 1–5 与 semantic replay repair 证据保留；Step 7/final pointer 已 owner-waived |
+| 9.3.5 | ready / speed-forward | 先关闭 Gate 0，然后按 API/去环切片推进；affected tests 通过即继续 |
+| 9.4.0 | queued behind 9.3.5 development | 9.3.5 开发目标完成后立即进入；完成后执行一次跨版本整体验收 |
 
 ## 版本边界与完成门
 

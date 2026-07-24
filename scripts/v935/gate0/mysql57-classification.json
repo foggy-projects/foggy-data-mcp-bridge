@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "kind": "v935-gate0-mysql57-classification",
+  "status": "closed-option-a-governed-db-lane",
+  "baseline_commit": "3b1c7249ba75b3bab54cb0f898ea1c198e5303d4",
+  "module": "foggy-dataset",
+  "default_unit_lane": {
+    "runner": "surefire",
+    "db_kind": "h2-memory",
+    "infra_kind": "hermetic",
+    "external_database_required": false
+  },
+  "database_lane": {
+    "runner": "failsafe",
+    "maven_profile": "mysql57-it",
+    "spring_profile": "mysql57-it",
+    "db_kind": "mysql57",
+    "infra_kind": "run-owned-database",
+    "environment_keys": [
+      "V935_GATE0_MYSQL57_URL",
+      "V935_GATE0_MYSQL57_USERNAME",
+      "V935_GATE0_MYSQL57_PASSWORD"
+    ],
+    "ambient_fallback": "forbidden",
+    "reports": 7,
+    "testcase_nodes": 12,
+    "consumers": [
+      {
+        "class": "com.foggyframework.dataset.db.dialect.FDialectTest",
+        "source": "foggy-dataset/src/test/java/com/foggyframework/dataset/db/dialect/FDialectTest.java",
+        "testcase_nodes": 2
+      },
+      {
+        "class": "com.foggyframework.dataset.fun.DatasetJdbcUtilsTest",
+        "source": "foggy-dataset/src/test/java/com/foggyframework/dataset/fun/DatasetJdbcUtilsTest.java",
+        "testcase_nodes": 1
+      },
+      {
+        "class": "com.foggyframework.dataset.db.utils.JdbcTableUtilsTest",
+        "source": "foggy-dataset/src/test/java/com/foggyframework/dataset/db/utils/JdbcTableUtilsTest.java",
+        "testcase_nodes": 4
+      },
+      {
+        "class": "com.foggyframework.dataset.db.fsscript.SyncSqlTableTest",
+        "source": "foggy-dataset/src/test/java/com/foggyframework/dataset/db/fsscript/SyncSqlTableTest.java",
+        "testcase_nodes": 1
+      },
+      {
+        "class": "com.foggyframework.dataset.db.table.dll.JdbcUpdaterTest",
+        "source": "foggy-dataset/src/test/java/com/foggyframework/dataset/db/table/dll/JdbcUpdaterTest.java",
+        "testcase_nodes": 2
+      },
+      {
+        "class": "com.foggyframework.dataset.db.data.dll.SqlTableRowEditorTest",
+        "source": "foggy-dataset/src/test/java/com/foggyframework/dataset/db/data/dll/SqlTableRowEditorTest.java",
+        "testcase_nodes": 1
+      },
+      {
+        "class": "com.foggyframework.dataset.table.curd.BugFixInsertUpdateMapTest",
+        "source": "foggy-dataset/src/test/java/com/foggyframework/dataset/table/curd/BugFixInsertUpdateMapTest.java",
+        "testcase_nodes": 1
+      }
+    ]
+  },
+  "historical_contract": "scripts/v934/step4/unit-mysql57-fixture-contract.json",
+  "verification": "scripts/v935/gate0/verify-mysql57-classification.sh"
+}

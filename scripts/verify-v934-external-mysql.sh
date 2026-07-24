@@ -16,7 +16,7 @@ DIRECT_REPORT="$ROOT_DIR/foggy-dataset-mcp/target/ai-test-report-summary.json"
 DIRECT_CASES="$ROOT_DIR/foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json"
 INIT_ROOT="$ROOT_DIR/foggy-dataset-demo/docker/mysql/init"
 ECOMMERCE_SOURCE="$ROOT_DIR/foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce"
-CLEAN_MODULES="foggy-core,foggy-bean-copy,foggy-mcp-spi,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model,foggy-dataset-mcp"
+CLEAN_MODULES="foggy-core,foggy-bean-copy,foggy-mcp-spi,foggy-fsscript,foggy-dataset,foggy-dataset-demo,foggy-dataset-model-engine,foggy-dataset-mcp"
 
 RUNNER_NAME="failsafe"
 LANE="external-mysql"
@@ -71,7 +71,7 @@ assert_clean_targets_absent() {
   local module
   local -a modules=(
     foggy-core foggy-bean-copy foggy-mcp-spi foggy-fsscript foggy-dataset
-    foggy-dataset-demo foggy-dataset-model foggy-dataset-mcp
+    foggy-dataset-demo foggy-dataset-model-engine foggy-dataset-mcp
   )
   for module in "${modules[@]}"; do
     [[ ! -e "$ROOT_DIR/$module/target" ]] || \

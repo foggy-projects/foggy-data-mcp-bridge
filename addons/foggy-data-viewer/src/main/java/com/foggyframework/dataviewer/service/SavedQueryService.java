@@ -4,8 +4,8 @@ import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.QueryVisibility;
 import com.foggyframework.dataviewer.domain.SavedQueryDef;
 import com.foggyframework.dataviewer.repository.SavedQueryRepository;
-import com.foggyframework.dataset.db.model.spi.SecurityIdentityResolver;
-import com.foggyframework.dataset.db.model.spi.SecurityIdentityResolver.ResolvedIdentity;
+import com.foggyframework.dataset.model.spi.SecurityIdentityResolver;
+import com.foggyframework.dataset.model.spi.SecurityIdentityResolver.ResolvedIdentity;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -150,10 +150,10 @@ public class SavedQueryService {
         private String title;
         private String description;
         private List<String> columns;
-        private List<com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef> slice;
-        private List<com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef> orderBy;
-        private List<com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef> groupBy;
-        private List<com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef> calculatedFields;
+        private List<com.foggyframework.dataset.model.def.query.request.SliceRequestDef> slice;
+        private List<com.foggyframework.dataset.model.def.query.request.OrderRequestDef> orderBy;
+        private List<com.foggyframework.dataset.model.def.query.request.GroupRequestDef> groupBy;
+        private List<com.foggyframework.dataset.model.def.query.request.CalculatedFieldDef> calculatedFields;
         private QueryVisibility visibility;
     }
 }

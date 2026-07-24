@@ -5,7 +5,7 @@ import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.BeforeEach;

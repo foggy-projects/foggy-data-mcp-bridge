@@ -1,12 +1,12 @@
 package com.foggyframework.dataset.mcp.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.db.model.impl.AiObject;
-import com.foggyframework.dataset.db.model.spi.DbDimension;
-import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
-import com.foggyframework.dataset.db.model.spi.QueryModel;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.impl.AiObject;
+import com.foggyframework.dataset.model.spi.DbDimension;
+import com.foggyframework.dataset.model.spi.DbQueryDimension;
+import com.foggyframework.dataset.model.spi.QueryModel;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.service.ModelCatalogService;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;

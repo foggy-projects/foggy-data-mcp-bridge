@@ -6,27 +6,29 @@ import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.core.bundle.BundleDefinition;
-import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionState;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
-import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogGeneration;
-import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshDiagnostic;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshException;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshRequest;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshResult;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshScope;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionState;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogModelKey;
+import com.foggyframework.dataset.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshDiagnostic;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshException;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshRequest;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshResult;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshScope;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.service.DefaultComposeExecutionPort;
+import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.spi.NamedDataSourceResolver;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.validation.DefaultDetachedModelValidationFactory;
 import com.foggyframework.runtime.api.service.RuntimeDatasourceRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -74,7 +77,7 @@ import static org.mockito.Mockito.when;
                 "foggy.runtime-api.enabled=true",
                 "foggy.runtime-api.bundle-registry.path=target/runtime-api-test-bundles-${random.uuid}.json",
                 "foggy.runtime-api.datasource-registry.path=target/runtime-api-test-datasources-${random.uuid}.json",
-                "spring.autoconfigure.exclude=com.foggyframework.dataset.db.model.DbModelAutoConfiguration,"
+                "spring.autoconfigure.exclude=com.foggyframework.dataset.model.DbModelAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
         }
 )
@@ -1912,6 +1915,10 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @SpringBootApplication(scanBasePackages = "com.foggyframework.runtime.api")
+    @Import({
+            DefaultComposeExecutionPort.class,
+            DefaultDetachedModelValidationFactory.class
+    })
     static class TestApplication {
     }
 }

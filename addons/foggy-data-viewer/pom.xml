@@ -22,10 +22,14 @@
             <artifactId>foggy-mcp-spi</artifactId>
         </dependency>
 
-        <!-- Foggy Dataset Model - for query execution -->
+        <!-- Stable query boundary; legacy aggregate remains for semantic/DTO compatibility. -->
         <dependency>
             <groupId>com.foggysource</groupId>
-            <artifactId>foggy-dataset-model</artifactId>
+            <artifactId>foggy-dataset-model-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model-engine</artifactId>
         </dependency>
 
         <!-- Spring Boot Web -->

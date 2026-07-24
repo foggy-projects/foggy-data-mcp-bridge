@@ -71,7 +71,7 @@ discovery container 与未来 actual testcase count 是三个不同口径。
 | 4 | JaCoCo unit+IT 聚合与关键类门 | in-progress / r38 historical / TTL-oracle Cdiag pending | Step 3 exit passed | r38 remains accepted for its exact runner bytes; test-source remediation requires a new clean Cdiag and full replacement chain |
 | 5 | authority runner rehearsal / immutable candidate | ACCEPTED / replacement r2 independently signed off | accepted current Step 4 and package remediations | exact candidate/archive/JAR/image identity passed；Step4 `774+59/5709/F0E0S0` + Addon `2/6`；final authority pointer absent；no-CI |
 | 6 | PR/main/release CI 接线 | owner-waived / out-of-scope | N/A | owner decision：不启用 Actions、不配置 required check/branch protection、不执行 GitHub release dry-run |
-| 7 | clean-commit 本地权威回放与后置门 | APPROVED / merge-only authorization | Step 5 accepted；PR #124 实时复核后以 merge commit 建立 exact `origin/main` entry | authority preflight/runner 尚未授权；后续仍需 full local authority + quality→coverage→acceptance signed-off |
+| 7 | clean-commit 本地权威回放与后置门 | ULTRA_EXECUTING / r1 authorized | merge commit `0c0e7a29…` + exact-main private-full-clone preflight passed | exactly one authority attempt；成功后仍需 quality→coverage→acceptance signed-off |
 
 Steps 1–5 未记录 exit=`passed`，后一步不得改为 in-progress；Step 6 不再是
 Step 7 prerequisite。
@@ -178,6 +178,27 @@ Step 7 prerequisite。
   9.3.4 version acceptance。
 - Step 7 preflight/authority runner、tag、release、publish 仍未授权；合并后只执行
   PR/merge-parent/main/no-CI/original-workspace 的只读核验并停止。
+
+## Execution Check-in — Step 7 exact-main authority activation（2026-07-23）
+
+- PR #124 已以 merge commit
+  `0c0e7a2921d7a7f10f9a3640b08d015cce5c45db` 合入 `main`；父提交精确为
+  `9cf8d617…` 和 PR head `bae26655…`。
+- owner 已授权继续 Step 7。新的 private full clone 位于 mode=`0700` 父目录，
+  `.git` 为 real directory、clean、non-shallow，preflight HEAD 精确等于
+  `origin/main` 和 remote `refs/heads/main`。
+- direct runtime-source=`13 modules / 1411 files / passed`；Step4/5/6 manifests=
+  `63/8/16`；Bash/Python=`19/21`；artifact/package/pointer negatives=
+  `105/120/5`。
+- 七个 required ports 全部 free；runtime base index/manifest/config digest 精确；
+  future run target/pointers/Docker residue absent；历史 tmux pane 均 dead，无活动
+  Maven/JVM/Step4/release child。
+- Actions=`enabled=false`、checks 为空、queued/in-progress=`0/0`。宿主
+  `MAVEN_OPTS` 非空，runner 必须使用冻结的完整 `env -u` 清理列表。
+- 现激活 run=`step7-local-authority-20260723-r1` 的 exactly one attempt。runner
+  启动后任何失败均 `NEEDS_REPLAN` 并停止；不自动重试。
+- evidence:
+  `docs/9.3.4/evidence/step-7/step7-local-authority-preflight-20260723.md`
 
 ## Execution Check-in — r37 reviewed Cfreeze authorization（2026-07-20）
 

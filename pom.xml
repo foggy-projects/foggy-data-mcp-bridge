@@ -45,7 +45,13 @@
         <module>foggy-dataset</module>
         <module>foggy-dataset-demo</module>
         <module>foggy-dataset-mcp</module>
-        <module>foggy-dataset-model</module>
+        <module>foggy-dataset-model-api</module>
+        <module>foggy-dataset-model-core</module>
+        <module>foggy-dataset-model-jdbc</module>
+        <module>foggy-dataset-model-starter</module>
+        <module>foggy-dataset-model-web</module>
+        <module>foggy-dataset-model-tck</module>
+        <module>foggy-dataset-model-engine</module>
         <module>foggy-runtime-api</module>
         <module>foggy-dataset-memory-grid-bridge</module>
         <module>foggy-dataset-memory-grid-duckdb</module>
@@ -81,6 +87,7 @@
         <!-- Default fail-closed; authority runners may relax upstream selector misses,
              while the report verifier still enforces the exact target report set. -->
         <surefire.failIfNoTests>true</surefire.failIfNoTests>
+        <surefire.failIfNoSpecifiedTests>true</surefire.failIfNoSpecifiedTests>
         <failsafe.failIfNoTests>true</failsafe.failIfNoTests>
         <failsafe.failIfNoSpecifiedTests>true</failsafe.failIfNoSpecifiedTests>
         <maven-surefire-plugin.version>3.5.3</maven-surefire-plugin.version>
@@ -145,7 +152,37 @@
             </dependency>
             <dependency>
                 <groupId>com.foggysource</groupId>
-                <artifactId>foggy-dataset-model</artifactId>
+                <artifactId>foggy-dataset-model-api</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-core</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-jdbc</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-starter</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-web</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-tck</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model-engine</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>
@@ -388,7 +425,7 @@
                         <exclude>**/MultiDatabaseQueryTest$*.java</exclude>
                     </excludes>
                     <failIfNoTests>${surefire.failIfNoTests}</failIfNoTests>
-                    <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+                    <failIfNoSpecifiedTests>${surefire.failIfNoSpecifiedTests}</failIfNoSpecifiedTests>
                 </configuration>
             </plugin>
             <plugin>

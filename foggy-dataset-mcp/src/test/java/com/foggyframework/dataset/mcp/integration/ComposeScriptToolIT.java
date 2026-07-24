@@ -1,13 +1,13 @@
 package com.foggyframework.dataset.mcp.integration;
 
-import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
-import com.foggyframework.dataset.db.model.engine.compose.context.Principal;
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle;
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeHolder;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
-import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.model.engine.compose.context.Principal;
+import com.foggyframework.dataset.model.engine.compose.runtime.ComposeRuntimeBundle;
+import com.foggyframework.dataset.model.engine.compose.runtime.ComposeRuntimeHolder;
+import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolution;
+import com.foggyframework.dataset.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.mcp.tools.ComposeScriptTool;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.DisplayName;

@@ -1,3 +1,4 @@
-com.foggyframework.dataset.db.model.cache.config.QueryCacheAutoConfiguration
-com.foggyframework.dataset.db.model.cache.config.QueryCacheEvictionAutoConfiguration
-com.foggyframework.dataset.db.model.cache.config.QueryCacheWebAutoConfiguration
+com.foggyframework.dataset.model.cache.config.QueryCacheAutoConfiguration
+com.foggyframework.dataset.model.cache.config.QueryCacheBackendProviderAutoConfiguration
+com.foggyframework.dataset.model.cache.config.QueryCacheEvictionAutoConfiguration
+com.foggyframework.dataset.model.cache.config.QueryCacheWebAutoConfiguration

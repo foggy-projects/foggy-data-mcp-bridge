@@ -2,24 +2,27 @@ package com.foggyframework.dataset.mcp.spi.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
-import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogGeneration;
-import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.identity.SourceRevision;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService.NamespaceCatalogView;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
-import com.foggyframework.dataset.db.model.spi.QueryModel;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
+import com.foggyframework.dataset.model.lifecycle.identity.CatalogGeneration;
+import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingGeneration;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.model.lifecycle.identity.SourceRevision;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.model.semantic.service.SemanticModelCatalogService.NamespaceCatalogView;
+import com.foggyframework.dataset.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.model.spi.QueryModel;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.service.ModelCatalogService;
+import com.foggyframework.dataset.mcp.service.ToolConfigLoader;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.io.ResourceLoader;
 
 import java.util.List;
 import java.util.Map;
@@ -37,12 +40,36 @@ import static org.mockito.Mockito.when;
 class CatalogAuthoritySpringWiringTest {
 
     @Test
+    void springConstructorsDoNotInjectModelLoaderIntoAddonDiscoveryPaths() throws Exception {
+        var toolConfigConstructor = ToolConfigLoader.class.getConstructor(
+                McpProperties.class, ResourceLoader.class, ObjectMapper.class);
+        var resolverConstructor = SemanticServiceResolverImpl.class.getConstructor(
+                SemanticServiceV3.class,
+                SemanticQueryServiceV3.class,
+                SystemBundlesContext.class,
+                SemanticModelCatalogService.class);
+        var catalogConstructor = ModelCatalogService.class.getConstructor(
+                SemanticServiceResolver.class,
+                ObjectMapper.class,
+                McpProperties.class,
+                SemanticModelCatalogService.class);
+
+        assertThat(toolConfigConstructor.isAnnotationPresent(Autowired.class)).isTrue();
+        assertThat(resolverConstructor.isAnnotationPresent(Autowired.class)).isTrue();
+        assertThat(catalogConstructor.isAnnotationPresent(Autowired.class)).isTrue();
+        assertThat(toolConfigConstructor.getParameterTypes()).doesNotContain(QueryModelLoader.class);
+        assertThat(resolverConstructor.getParameterTypes()).doesNotContain(QueryModelLoader.class);
+        assertThat(catalogConstructor.getParameterTypes()).doesNotContain(QueryModelLoader.class);
+        assertThat(ToolConfigLoader.class.getDeclaredFields())
+                .noneMatch(field -> field.getType() == QueryModelLoader.class);
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void springSelectsTrackedConstructorsAndInjectsOneAuthorityBean() {
         SemanticServiceV3 semanticService = mock(SemanticServiceV3.class);
         SemanticQueryServiceV3 queryService = mock(SemanticQueryServiceV3.class);
         SystemBundlesContext bundles = mock(SystemBundlesContext.class);
-        QueryModelLoader loader = mock(QueryModelLoader.class);
         SemanticModelCatalogService authority = mock(SemanticModelCatalogService.class);
         ObjectMapper objectMapper = new ObjectMapper();
         McpProperties properties = new McpProperties();
@@ -63,7 +90,6 @@ class CatalogAuthoritySpringWiringTest {
             context.registerBean(SemanticServiceV3.class, () -> semanticService);
             context.registerBean(SemanticQueryServiceV3.class, () -> queryService);
             context.registerBean(SystemBundlesContext.class, () -> bundles);
-            context.registerBean(QueryModelLoader.class, () -> loader);
             context.registerBean(SemanticModelCatalogService.class, () -> authority);
             context.registerBean(ObjectMapper.class, () -> objectMapper);
             context.registerBean(McpProperties.class, () -> properties);
@@ -94,7 +120,7 @@ class CatalogAuthoritySpringWiringTest {
                     .isSameAs(authority);
             verify(authority).getAllModelNames("tenant-a");
             verify(authority, times(2)).namespaceCatalogView("tenant-a");
-            verifyNoInteractions(loader, bundles);
+            verifyNoInteractions(bundles);
         }
     }
 

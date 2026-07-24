@@ -10,7 +10,6 @@ after the replay.
 from __future__ import annotations
 
 import argparse
-import errno
 import hashlib
 import json
 import os
@@ -22,7 +21,7 @@ import sys
 import tempfile
 import unicodedata
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 
 HEX40 = re.compile(r"[0-9a-f]{40}")
@@ -60,6 +59,11 @@ EVIDENCE_TARGETS = {
     "addon": Path("target/v934-step3-preagg-addon/runs"),
 }
 EVIDENCE_LABELS = tuple(EVIDENCE_TARGETS) + ("unit-database",)
+CANONICAL_MATERIALIZATION_POLICY = "v934-semantic-replay-canonical-materialization-v1"
+STEP4_CHILD_NAMES = ("unit", "integration", "step3-required")
+STEP4_CANONICAL_FILE_MODES = {
+    f"child-ready/{child}.json": 0o600 for child in STEP4_CHILD_NAMES
+}
 TOP_LEVEL = {"META-INF", "release", "evidence", "package", "tested-classes"}
 PACKAGE_FILES = {
     "app.jar",
@@ -305,6 +309,8 @@ class Entry:
     sha256: str | None
     device: int
     inode: int
+    uid: int
+    links: int
 
     def digest_row(self) -> dict[str, Any]:
         row: dict[str, Any] = {
@@ -375,10 +381,17 @@ def scan_tree(root: Path, label: str) -> TreeSnapshot:
                     None,
                     observed.st_dev,
                     observed.st_ino,
+                    observed.st_uid,
+                    observed.st_nlink,
                 )
                 visit(path, relative)
             elif stat.S_ISREG(observed.st_mode):
                 identity = (observed.st_dev, observed.st_ino)
+                require(
+                    observed.st_nlink == 1,
+                    "E_HARDLINK",
+                    f"input file link count is unsafe in {label}: {relative}",
+                )
                 require(
                     identity not in inodes,
                     "E_HARDLINK",
@@ -403,6 +416,8 @@ def scan_tree(root: Path, label: str) -> TreeSnapshot:
                     sha256_bytes(raw),
                     observed.st_dev,
                     observed.st_ino,
+                    observed.st_uid,
+                    observed.st_nlink,
                 )
             else:
                 reject("E_SPECIAL", f"special entry in {label}: {relative}")
@@ -437,6 +452,8 @@ def subtree_snapshot(snapshot: TreeSnapshot, prefix: str) -> TreeSnapshot:
                 entry.sha256,
                 entry.device,
                 entry.inode,
+                entry.uid,
+                entry.links,
             )
     return snapshot_from_entries(values)
 
@@ -958,24 +975,13 @@ def validate_existing_ancestor_chain(repo: Path, destination: Path) -> None:
             missing_seen = True
 
 
-def verify_entry_unchanged(source: Path, entry: Entry, label: str) -> None:
-    observed = os.lstat(source)
-    require(
-        stat.S_ISREG(observed.st_mode)
-        and not stat.S_ISLNK(observed.st_mode)
-        and (
-            observed.st_dev,
-            observed.st_ino,
-            observed.st_size,
-            observed.st_mtime_ns,
-        )
-        == (entry.device, entry.inode, entry.size, entry.mtime_ns),
-        "E_SOURCE_RACE",
-        f"source entry changed before materialization: {label}",
-    )
-
-
-def copy_new_file(source: Path, destination: Path, entry: Entry, label: str) -> None:
+def copy_new_file(
+    source: Path,
+    destination: Path,
+    entry: Entry,
+    target_mode: int,
+    label: str,
+) -> None:
     source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
     target_flags = (
         os.O_WRONLY
@@ -991,6 +997,7 @@ def copy_new_file(source: Path, destination: Path, entry: Entry, label: str) -> 
         before = os.fstat(source_fd)
         require(
             stat.S_ISREG(before.st_mode)
+            and before.st_nlink == 1
             and (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
             == (entry.device, entry.inode, entry.size, entry.mtime_ns),
             "E_SOURCE_RACE",
@@ -1018,6 +1025,7 @@ def copy_new_file(source: Path, destination: Path, entry: Entry, label: str) -> 
             "E_SOURCE_RACE",
             f"source changed while copied: {label}",
         )
+        os.fchmod(target_fd, target_mode)
         os.fsync(target_fd)
     except FileExistsError:
         reject("E_TARGET_EXISTS", f"materialization target appeared: {destination}")
@@ -1028,40 +1036,109 @@ def copy_new_file(source: Path, destination: Path, entry: Entry, label: str) -> 
             os.close(target_fd)
         if source_fd >= 0:
             os.close(source_fd)
-    os.chmod(destination, entry.mode & 0o7777, follow_symlinks=False)
     os.utime(destination, ns=(entry.mtime_ns, entry.mtime_ns), follow_symlinks=False)
-
-
-def link_or_copy(source: Path, destination: Path, entry: Entry, label: str) -> str:
-    verify_entry_unchanged(source, entry, label)
-    fallback_errors = {
-        errno.EXDEV,
-        errno.EPERM,
-        errno.EACCES,
-        errno.EMLINK,
-        getattr(errno, "EOPNOTSUPP", errno.EPERM),
-        getattr(errno, "ENOTSUP", errno.EPERM),
-    }
-    try:
-        os.link(source, destination, follow_symlinks=False)
-        method = "hardlink"
-    except OSError as exc:
-        if exc.errno not in fallback_errors:
-            if exc.errno == errno.EEXIST:
-                reject("E_TARGET_EXISTS", f"materialization target appeared: {destination}")
-            reject("E_LINK", f"cannot hard-link {label}: {exc}")
-        copy_new_file(source, destination, entry, label)
-        method = "copy"
     raw = secure_bytes(destination, f"materialized {label}")
     observed = os.lstat(destination)
     require(
-        observed.st_size == entry.size
+        stat.S_ISREG(observed.st_mode)
+        and observed.st_uid == os.getuid()
+        and stat.S_IMODE(observed.st_mode) == target_mode
+        and observed.st_nlink == 1
+        and (observed.st_dev, observed.st_ino) != (entry.device, entry.inode)
+        and observed.st_size == entry.size
         and observed.st_mtime_ns == entry.mtime_ns
         and sha256_bytes(raw) == entry.sha256,
         "E_COPY",
         f"materialized entry differs: {label}",
     )
-    return method
+
+
+def canonical_permission_overrides(
+    label: str,
+    tree: TreeSnapshot,
+) -> dict[str, int]:
+    if label != "evidence/step4":
+        return {}
+    require(
+        tuple(sorted(STEP4_CANONICAL_FILE_MODES))
+        == tuple(sorted(f"child-ready/{child}.json" for child in STEP4_CHILD_NAMES)),
+        "E_PERMISSION_POLICY",
+        "Step 4 canonical permission policy paths differ from the frozen child set",
+    )
+    for path, target_mode in STEP4_CANONICAL_FILE_MODES.items():
+        entry = tree.entries.get(path)
+        require(
+            entry is not None
+            and entry.kind == "file"
+            and stat.S_IMODE(entry.mode) == 0o644
+            and target_mode == 0o600,
+            "E_PERMISSION_POLICY",
+            f"Step 4 canonical permission source/target contract differs: {path}",
+        )
+    return dict(STEP4_CANONICAL_FILE_MODES)
+
+
+def materialization_policy_receipt(
+    permission_items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    expected_items = [
+        {
+            "path": f"evidence/step4/{path}",
+            "source_mode": "0644",
+            "target_mode": f"{target_mode:04o}",
+        }
+        for path, target_mode in sorted(
+            STEP4_CANONICAL_FILE_MODES.items(),
+            key=lambda row: row[0].encode("utf-8"),
+        )
+    ]
+    require(
+        permission_items == expected_items,
+        "E_PERMISSION_POLICY",
+        "recorded canonical permission items differ from the frozen policy",
+    )
+    return {
+        "copy_method": "exclusive-independent-copy-only",
+        "name": CANONICAL_MATERIALIZATION_POLICY,
+        "permission_restorations": permission_items,
+        "source_tree": "byte-and-metadata-unchanged",
+        "version": 1,
+    }
+
+
+def snapshot_with_modes(
+    tree: TreeSnapshot,
+    mode_overrides: dict[str, int],
+) -> TreeSnapshot:
+    require(
+        set(mode_overrides) <= set(tree.entries),
+        "E_PERMISSION_POLICY",
+        "canonical permission policy names a missing entry",
+    )
+    entries: dict[str, Entry] = {}
+    for path, entry in tree.entries.items():
+        target_mode = mode_overrides.get(path)
+        if target_mode is None:
+            entries[path] = entry
+            continue
+        require(
+            entry.kind == "file" and 0 <= target_mode <= 0o7777,
+            "E_PERMISSION_POLICY",
+            f"canonical permission policy target is invalid: {path}",
+        )
+        entries[path] = Entry(
+            entry.path,
+            entry.kind,
+            (entry.mode & ~0o7777) | target_mode,
+            entry.size,
+            entry.mtime_ns,
+            entry.sha256,
+            entry.device,
+            entry.inode,
+            entry.uid,
+            entry.links,
+        )
+    return snapshot_from_entries(entries)
 
 
 def materialize_tree(
@@ -1069,7 +1146,16 @@ def materialize_tree(
     destination: Path,
     tree: TreeSnapshot,
     label: str,
+    mode_overrides: dict[str, int] | None = None,
 ) -> dict[str, Any]:
+    overrides = {} if mode_overrides is None else dict(mode_overrides)
+    frozen_overrides = canonical_permission_overrides(label, tree)
+    require(
+        overrides == frozen_overrides,
+        "E_PERMISSION_POLICY",
+        f"canonical permission overrides differ from the frozen policy: {label}",
+    )
+    expected = snapshot_with_modes(tree, overrides)
     require(not lexists(destination), "E_TARGET_EXISTS", f"target exists: {destination}")
     source_root = real_directory(source, f"source {label}")
     source_root_stat = os.lstat(source_root)
@@ -1087,8 +1173,6 @@ def materialize_tree(
             target.mkdir(mode=entry.mode & 0o7777)
         except FileExistsError:
             reject("E_TARGET_EXISTS", f"directory target appeared: {target}")
-    hardlinks = 0
-    copies = 0
     files = sorted(
         (entry for entry in tree.entries.values() if entry.kind == "file"),
         key=lambda entry: entry.path.encode("utf-8"),
@@ -1096,9 +1180,13 @@ def materialize_tree(
     for entry in files:
         source_file = source_root / PurePosixPath(entry.path)
         target_file = destination / PurePosixPath(entry.path)
-        method = link_or_copy(source_file, target_file, entry, f"{label}/{entry.path}")
-        hardlinks += method == "hardlink"
-        copies += method == "copy"
+        copy_new_file(
+            source_file,
+            target_file,
+            entry,
+            overrides.get(entry.path, entry.mode & 0o7777),
+            f"{label}/{entry.path}",
+        )
     for entry in sorted(directories, key=lambda item: item.path.count("/"), reverse=True):
         target = destination / PurePosixPath(entry.path)
         os.chmod(target, entry.mode & 0o7777, follow_symlinks=False)
@@ -1111,20 +1199,22 @@ def materialize_tree(
     )
     observed = scan_tree(destination, f"materialized {label}")
     require(
-        observed.sha256 == tree.sha256
-        and observed.files == tree.files
-        and observed.directories == tree.directories
-        and observed.bytes == tree.bytes,
+        observed.sha256 == expected.sha256
+        and observed.files == expected.files
+        and observed.directories == expected.directories
+        and observed.bytes == expected.bytes,
         "E_MATERIALIZED_TREE",
         f"materialized tree differs: {label}",
     )
     return {
         "bytes": tree.bytes,
-        "copies": copies,
+        "copies": tree.files,
         "directories": tree.directories + 1,
         "files": tree.files,
-        "hardlinks": hardlinks,
-        "sha256": tree.sha256,
+        "hardlinks": 0,
+        "permission_restorations": len(overrides),
+        "sha256": expected.sha256,
+        "source_sha256": tree.sha256,
         "status": "passed",
     }
 
@@ -1470,15 +1560,35 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     evidence_receipts: dict[str, Any] = {}
+    permission_items: list[dict[str, Any]] = []
     for label in EVIDENCE_LABELS:
         parent = destinations[label].parent
         relative_parent = parent.relative_to(repo)
         ensure_directory_chain(repo, relative_parent)
         source = extracted / "evidence" / label
         tree = subtree_snapshot(full_snapshot, f"evidence/{label}")
+        permission_overrides = canonical_permission_overrides(
+            f"evidence/{label}", tree
+        )
+        for path, target_mode in sorted(
+            permission_overrides.items(), key=lambda row: row[0].encode("utf-8")
+        ):
+            permission_items.append(
+                {
+                    "path": f"evidence/{label}/{path}",
+                    "source_mode": f"{stat.S_IMODE(tree.entries[path].mode):04o}",
+                    "target_mode": f"{target_mode:04o}",
+                }
+            )
         evidence_receipts[label] = {
             "destination": destinations[label].relative_to(repo).as_posix(),
-            **materialize_tree(source, destinations[label], tree, f"evidence/{label}"),
+            **materialize_tree(
+                source,
+                destinations[label],
+                tree,
+                f"evidence/{label}",
+                permission_overrides,
+            ),
         }
 
     class_totals = {
@@ -1487,6 +1597,7 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
         "directories": 0,
         "files": 0,
         "hardlinks": 0,
+        "permission_restorations": 0,
     }
     class_module_receipts: dict[str, Any] = {}
     for module in modules:
@@ -1599,6 +1710,36 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
         "E_SOURCE_DRIFT",
         "extracted release root changed during replay",
     )
+    require(
+        final_snapshot.entries == full_snapshot.entries,
+        "E_SOURCE_DRIFT",
+        "extracted release root identity or metadata changed during replay",
+    )
+
+    evidence_totals = {
+        key: sum(int(row[key]) for row in evidence_receipts.values())
+        for key in (
+            "bytes",
+            "copies",
+            "directories",
+            "files",
+            "hardlinks",
+            "permission_restorations",
+        )
+    }
+    materialized_totals = {
+        key: evidence_totals[key] + class_totals[key]
+        for key in evidence_totals
+    }
+    require(
+        materialized_totals["copies"] == materialized_totals["files"]
+        and materialized_totals["hardlinks"] == 0
+        and materialized_totals["permission_restorations"]
+        == len(permission_items)
+        == len(STEP4_CANONICAL_FILE_MODES),
+        "E_MATERIALIZED_TREE",
+        "canonical materialization totals differ from the frozen policy",
+    )
 
     package_hashes = {
         name: {
@@ -1643,6 +1784,7 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
         },
         "materialized": {
             "evidence": evidence_receipts,
+            "policy": materialization_policy_receipt(permission_items),
             "tested_classes": {
                 **class_totals,
                 "module_count": len(modules),
@@ -1650,6 +1792,7 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
                 "sha256": class_binding["sha256"],
                 "status": "passed",
             },
+            "totals": materialized_totals,
         },
         "subprocesses": {
             "artifact_root": artifact_root_receipt,
@@ -1679,6 +1822,354 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def write_materialization_fixture(root: Path) -> TreeSnapshot:
+    root.mkdir(mode=0o755)
+    (root / "child-ready").mkdir(mode=0o755)
+    (root / "child-lifecycle").mkdir(mode=0o755)
+    files = {
+        "run-context.json": b'{"kind":"fixture"}\n',
+        "source-before.tsv": b"100644\tfixture\t" + b"0" * 64 + b"\t1\n",
+        "source-after.tsv": b"100644\tfixture\t" + b"0" * 64 + b"\t1\n",
+        **{
+            f"child-ready/{child}.json": canonical_json(
+                {"child": child, "kind": "fixture"}
+            )
+            for child in STEP4_CHILD_NAMES
+        },
+        **{
+            f"child-lifecycle/{child}-complete.env": (
+                f"child={child}\nstatus=passed\n".encode("ascii")
+            )
+            for child in STEP4_CHILD_NAMES
+        },
+    }
+    fixed_mtime_ns = 1_700_000_000_123_456_789
+    for relative, payload in files.items():
+        path = root / PurePosixPath(relative)
+        path.write_bytes(payload)
+        path.chmod(0o644)
+        os.utime(path, ns=(fixed_mtime_ns, fixed_mtime_ns))
+    for directory in (root / "child-ready", root / "child-lifecycle", root):
+        directory.chmod(0o755)
+        os.utime(directory, ns=(fixed_mtime_ns, fixed_mtime_ns))
+    return scan_tree(root, "materialization self-test fixture")
+
+
+def assert_independent_materialization(
+    source: Path,
+    destination: Path,
+    source_snapshot: TreeSnapshot,
+    mode_overrides: dict[str, int],
+    label: str,
+) -> None:
+    expected = snapshot_with_modes(source_snapshot, mode_overrides)
+    observed = scan_tree(destination, f"self-test target {label}")
+    require(
+        observed.sha256 == expected.sha256
+        and observed.files == expected.files
+        and observed.directories == expected.directories
+        and observed.bytes == expected.bytes,
+        "E_SELF_TEST",
+        f"self-test materialized snapshot differs: {label}",
+    )
+    for path, entry in source_snapshot.entries.items():
+        if entry.kind != "file":
+            continue
+        source_stat = os.lstat(source / PurePosixPath(path))
+        target_stat = os.lstat(destination / PurePosixPath(path))
+        require(
+            source_stat.st_nlink == target_stat.st_nlink == 1
+            and (source_stat.st_dev, source_stat.st_ino)
+            != (target_stat.st_dev, target_stat.st_ino)
+            and stat.S_IMODE(target_stat.st_mode)
+            == mode_overrides.get(path, stat.S_IMODE(entry.mode)),
+            "E_SELF_TEST",
+            f"self-test independent-copy identity/mode differs: {label}/{path}",
+        )
+    require(
+        scan_tree(source, f"self-test source after {label}").entries
+        == source_snapshot.entries,
+        "E_SELF_TEST",
+        f"self-test source tree changed: {label}",
+    )
+
+
+def expect_replay_failure(
+    name: str,
+    expected_code: str,
+    action: Callable[[], Any],
+    results: list[dict[str, str]],
+) -> None:
+    try:
+        action()
+    except ReplayError as exc:
+        require(
+            exc.code == expected_code,
+            "E_SELF_TEST",
+            f"negative {name} returned {exc.code}, expected {expected_code}",
+        )
+        results.append({"case": name, "error": exc.code, "status": "passed"})
+        return
+    reject("E_SELF_TEST", f"negative {name} unexpectedly passed")
+
+
+def self_test(cross_filesystem_root: Path | None) -> dict[str, Any]:
+    negatives: list[dict[str, str]] = []
+    with tempfile.TemporaryDirectory(prefix="v934-portable-replay-self-test-") as name:
+        base = Path(name)
+        source = base / "step4-source"
+        source_snapshot = write_materialization_fixture(source)
+        overrides = canonical_permission_overrides("evidence/step4", source_snapshot)
+        permission_items = [
+            {
+                "path": f"evidence/step4/{path}",
+                "source_mode": f"{stat.S_IMODE(source_snapshot.entries[path].mode):04o}",
+                "target_mode": f"{mode:04o}",
+            }
+            for path, mode in sorted(
+                overrides.items(), key=lambda row: row[0].encode("utf-8")
+            )
+        ]
+        policy = materialization_policy_receipt(permission_items)
+
+        same_destination = base / "same-filesystem-target"
+        same_receipt = materialize_tree(
+            source,
+            same_destination,
+            source_snapshot,
+            "evidence/step4",
+            overrides,
+        )
+        assert_independent_materialization(
+            source,
+            same_destination,
+            source_snapshot,
+            overrides,
+            "same-filesystem",
+        )
+
+        class_source = base / "tested-classes-source"
+        (class_source / "example").mkdir(parents=True, mode=0o755)
+        for relative, payload in (
+            ("A.class", b"class-a\n"),
+            ("example/B.class", b"class-b\n"),
+        ):
+            path = class_source / PurePosixPath(relative)
+            path.write_bytes(payload)
+            path.chmod(0o644)
+        class_snapshot = scan_tree(class_source, "tested-classes self-test fixture")
+        class_destination = base / "tested-classes-target"
+        class_receipt = materialize_tree(
+            class_source,
+            class_destination,
+            class_snapshot,
+            "tested-classes/fixture",
+        )
+        assert_independent_materialization(
+            class_source,
+            class_destination,
+            class_snapshot,
+            {},
+            "tested-classes",
+        )
+
+        missing_source = base / "missing-policy-source"
+        write_materialization_fixture(missing_source)
+        (missing_source / "child-ready/unit.json").unlink()
+        missing_snapshot = scan_tree(missing_source, "missing policy fixture")
+        expect_replay_failure(
+            "missing-permission-source-path",
+            "E_PERMISSION_POLICY",
+            lambda: canonical_permission_overrides(
+                "evidence/step4", missing_snapshot
+            ),
+            negatives,
+        )
+
+        wrong_mode_source = base / "wrong-mode-source"
+        write_materialization_fixture(wrong_mode_source)
+        (wrong_mode_source / "child-ready/integration.json").chmod(0o600)
+        wrong_mode_snapshot = scan_tree(wrong_mode_source, "wrong source mode fixture")
+        expect_replay_failure(
+            "wrong-permission-source-mode",
+            "E_PERMISSION_POLICY",
+            lambda: canonical_permission_overrides(
+                "evidence/step4", wrong_mode_snapshot
+            ),
+            negatives,
+        )
+
+        wrong_overrides = dict(overrides)
+        wrong_overrides["child-ready/unit.json"] = 0o644
+        expect_replay_failure(
+            "wrong-restored-mode",
+            "E_PERMISSION_POLICY",
+            lambda: materialize_tree(
+                source,
+                base / "wrong-restored-mode-target",
+                source_snapshot,
+                "evidence/step4",
+                wrong_overrides,
+            ),
+            negatives,
+        )
+
+        missing_overrides = dict(overrides)
+        del missing_overrides["child-ready/unit.json"]
+        expect_replay_failure(
+            "missing-permission-rule",
+            "E_PERMISSION_POLICY",
+            lambda: materialize_tree(
+                source,
+                base / "missing-rule-target",
+                source_snapshot,
+                "evidence/step4",
+                missing_overrides,
+            ),
+            negatives,
+        )
+
+        extra_overrides = dict(overrides)
+        extra_overrides["run-context.json"] = 0o600
+        expect_replay_failure(
+            "extra-permission-rule",
+            "E_PERMISSION_POLICY",
+            lambda: materialize_tree(
+                source,
+                base / "extra-rule-target",
+                source_snapshot,
+                "evidence/step4",
+                extra_overrides,
+            ),
+            negatives,
+        )
+
+        drifted_items = [dict(row) for row in permission_items]
+        drifted_items[0]["target_mode"] = "0644"
+        expect_replay_failure(
+            "permission-receipt-drift",
+            "E_PERMISSION_POLICY",
+            lambda: materialization_policy_receipt(drifted_items),
+            negatives,
+        )
+
+        mutated_source = base / "mutated-source"
+        mutated_snapshot = write_materialization_fixture(mutated_source)
+        mutated_overrides = canonical_permission_overrides(
+            "evidence/step4", mutated_snapshot
+        )
+        (mutated_source / "run-context.json").write_bytes(b"changed-after-snapshot\n")
+        expect_replay_failure(
+            "source-mutation-after-snapshot",
+            "E_SOURCE_RACE",
+            lambda: materialize_tree(
+                mutated_source,
+                base / "mutated-source-target",
+                mutated_snapshot,
+                "evidence/step4",
+                mutated_overrides,
+            ),
+            negatives,
+        )
+
+        hardlink_source = base / "hardlink-source"
+        write_materialization_fixture(hardlink_source)
+        os.link(
+            hardlink_source / "run-context.json",
+            hardlink_source / "run-context-alias.json",
+        )
+        expect_replay_failure(
+            "hardlinked-input",
+            "E_HARDLINK",
+            lambda: scan_tree(hardlink_source, "hardlinked input fixture"),
+            negatives,
+        )
+
+        existing_destination = base / "existing-target"
+        existing_destination.mkdir()
+        expect_replay_failure(
+            "preexisting-target",
+            "E_TARGET_EXISTS",
+            lambda: materialize_tree(
+                source,
+                existing_destination,
+                source_snapshot,
+                "evidence/step4",
+                overrides,
+            ),
+            negatives,
+        )
+
+        cross_receipt: dict[str, Any] | None = None
+        if cross_filesystem_root is None:
+            candidate = Path("/dev/shm")
+            try:
+                candidate_stat = os.lstat(candidate)
+            except OSError:
+                candidate_stat = None
+            if (
+                candidate_stat is not None
+                and stat.S_ISDIR(candidate_stat.st_mode)
+                and not stat.S_ISLNK(candidate_stat.st_mode)
+                and candidate.resolve(strict=True) == candidate
+                and candidate_stat.st_dev != os.lstat(source).st_dev
+                and os.access(candidate, os.W_OK | os.X_OK)
+            ):
+                cross_filesystem_root = candidate
+        if cross_filesystem_root is not None:
+            cross_parent = real_directory(
+                cross_filesystem_root, "cross-filesystem self-test root"
+            )
+            require(
+                os.lstat(source).st_dev != os.lstat(cross_parent).st_dev,
+                "E_SELF_TEST",
+                "cross-filesystem self-test root is on the source filesystem",
+            )
+            with tempfile.TemporaryDirectory(
+                prefix="v934-portable-replay-cross-", dir=cross_parent
+            ) as cross_name:
+                cross_destination = Path(cross_name) / "target"
+                cross_receipt = materialize_tree(
+                    source,
+                    cross_destination,
+                    source_snapshot,
+                    "evidence/step4",
+                    overrides,
+                )
+                assert_independent_materialization(
+                    source,
+                    cross_destination,
+                    source_snapshot,
+                    overrides,
+                    "cross-filesystem",
+                )
+                require(
+                    cross_receipt == same_receipt,
+                    "E_SELF_TEST",
+                    "same-/cross-filesystem semantic receipts differ",
+                )
+
+        require(
+            same_receipt["copies"] == same_receipt["files"]
+            and same_receipt["hardlinks"] == 0
+            and same_receipt["permission_restorations"] == len(overrides)
+            and class_receipt["copies"] == class_receipt["files"]
+            and class_receipt["hardlinks"] == 0
+            and class_receipt["permission_restorations"] == 0,
+            "E_SELF_TEST",
+            "self-test copy/restoration receipt counts differ",
+        )
+        return {
+            "command": "self-test",
+            "cross_filesystem_checks": 1 if cross_receipt is not None else 0,
+            "negative_cases": len(negatives),
+            "negatives": negatives,
+            "policy": policy,
+            "same_filesystem_checks": 2,
+            "status": "passed",
+        }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -1688,13 +2179,23 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--repo-root", type=Path, required=True)
     verify_parser.add_argument("--root", type=Path, required=True)
     verify_parser.add_argument("--output", type=Path, required=True)
+    self_test_parser = commands.add_parser(
+        "self-test",
+        help="run deterministic copy, permission and fail-closed regression checks",
+    )
+    self_test_parser.add_argument("--cross-filesystem-root", type=Path)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = verify(args)
+        if args.command == "verify":
+            result = verify(args)
+        elif args.command == "self-test":
+            result = self_test(args.cross_filesystem_root)
+        else:
+            reject("E_ARGUMENT", f"unsupported command: {args.command}")
     except ReplayError as exc:
         print(
             json.dumps(

@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.mcp.service;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.base.BaseMcpTest;
 import com.foggyframework.dataset.mcp.base.MockToolFactory;
 import com.foggyframework.dataset.mcp.enums.UserRole;

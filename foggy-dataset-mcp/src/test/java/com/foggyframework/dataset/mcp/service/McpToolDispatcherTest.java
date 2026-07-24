@@ -2,7 +2,7 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.foggyframework.dataset.mcp.base.BaseMcpTest;
 import com.foggyframework.dataset.mcp.base.MockToolFactory;
-import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.model.config.DatasetProperties;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ProgressEvent;

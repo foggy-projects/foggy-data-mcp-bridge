@@ -1,11 +1,12 @@
 # DEBT：Unit MySQL 5.7 fixture 分类迁移
 
-- 状态：`open / accepted-for-9.3.4-only`
+- 状态：`closed / migrated-to-governed-mysql57-it-lane`
 - owner：`foggy-dataset`
-- gate owner：`9.3.5 version acceptance`
+- gate owner：`repository-owner-speed-forward`
 - 最迟关闭点：`9.3.5` 版本验收前
 - 发现来源：`step4-coverage-20260716-diagnostic-r7`；2026-07-19 follow-up consumer audit
 - 机器契约：`scripts/v934/step4/unit-mysql57-fixture-contract.json`
+- 当前分类契约：`scripts/v935/gate0/mysql57-classification.json`
 
 ## 债务说明
 
@@ -49,3 +50,17 @@ fresh Step 4 diagnostic/formal run、质量闸门和覆盖审计。
 2. 去除其外部数据库依赖，使 `none/hermetic/step=2` 分类重新可证。
 
 关闭证据必须包含更新后的 inventory、fresh fail-closed run、精确 report/testcase 映射、负例和正式验收记录。
+
+## 9.3.5 关闭结果（2026-07-24）
+
+已选择并完成路径 1。7 个 suite / 12 个 node 保留原类名和 FQCN，从 Surefire 默认 Unit lane 迁入
+`foggy-dataset` 的 Failsafe `mysql57-it` lane：
+
+- 默认 Spring 测试 datasource 改为进程内 H2，Unit lane 不再依赖 ambient MySQL；
+- `mysql57-it` profile 的 URL、username、password 均为必填环境变量，无 fallback；
+- 缺少配置的 fresh negative 按预期失败；
+- 唯一 run-owned MySQL 5.7 正向执行精确产生 7 reports / 12 nodes / F0E0S0；
+- `DatasetJdbcUtilsTest` 的 connection/`SELECT 1` 异常继续直接传播。
+
+关闭记录见 `docs/9.3.5/gate-0-classification-decision-record.md`。9.3.4 的临时 Step 4 例外和机器契约
+只保留历史含义，不再作为 9.3.5+ 的当前分类或正确性路径。

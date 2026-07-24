@@ -3,7 +3,7 @@ package com.foggyframework.dataset.mcp.tools;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.BeforeEach;

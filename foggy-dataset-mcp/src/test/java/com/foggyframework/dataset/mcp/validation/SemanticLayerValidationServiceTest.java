@@ -3,9 +3,10 @@ package com.foggyframework.dataset.mcp.validation;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
-import org.junit.jupiter.api.BeforeEach;
+import com.foggyframework.dataset.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.model.validation.DetachedModelValidationFactory;
+import com.foggyframework.dataset.model.validation.DetachedModelValidationSession;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,33 +14,35 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.Resource;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
-/**
- * SemanticLayerValidationService 单元测试
- */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("SemanticLayerValidationService 单元测试")
+@DisplayName("SemanticLayerValidationService unit tests")
 class SemanticLayerValidationServiceTest {
 
     @Mock
-    private SystemBundlesContext systemBundlesContext;
+    private DetachedModelValidationFactory validationFactory;
 
     @Mock
-    private TableModelLoaderManager tableModelLoaderManager;
+    private DetachedModelValidationSession validationSession;
 
     @Mock
-    private QueryModelLoader queryModelLoader;
-
-    @Mock
-    private Bundle mockBundle;
+    private Bundle bundle;
 
     @InjectMocks
     private SemanticLayerValidationService validationService;
@@ -47,14 +50,8 @@ class SemanticLayerValidationServiceTest {
     @TempDir
     Path tempDir;
 
-    @BeforeEach
-    void setUp() {
-        // 跳过测试，因为当前版本暂不支持动态Bundle注册
-        // 这些测试在新版本中将自动启用
-    }
-
     @Test
-    @DisplayName("参数验证 - 路径为空应返回错误")
+    @DisplayName("empty path is rejected before opening a validation session")
     void validate_nullPath_shouldReturnError() {
         ValidationRequest request = ValidationRequest.builder()
                 .path(null)
@@ -66,53 +63,101 @@ class SemanticLayerValidationServiceTest {
         assertFalse(result.isSuccess());
         assertEquals(1, result.getErrors().size());
         assertTrue(result.getErrors().get(0).getMessage().contains("路径参数不能为空"));
+        verifyNoInteractions(validationFactory);
     }
 
     @Test
-    @DisplayName("验证正常流程 - Bundle注册成功")
+    @DisplayName("detached TM validation succeeds without live loader access")
     void validate_normalFlow_shouldSucceed() throws Exception {
-        // 创建临时目录结构
-        Path modelsDir = tempDir.resolve("models");
-        Path modelDir = modelsDir.resolve("model");
-        Path queryDir = modelsDir.resolve("query");
-        Files.createDirectories(modelDir);
-        Files.createDirectories(queryDir);
+        BundleResource tmResource = resource("TestModel.tm");
+        when(validationFactory.open(
+                "external-validation-test", "test", tempDir.toString()))
+                .thenReturn(validationSession);
+        when(validationSession.sourceBundle()).thenReturn(bundle);
+        when(bundle.findBundleResources("**/*.tm"))
+                .thenReturn(new BundleResource[]{tmResource});
+        when(bundle.findBundleResources("**/*.qm"))
+                .thenReturn(new BundleResource[0]);
 
-        // 创建测试TM文件
-        Files.writeString(modelDir.resolve("TestModel.tm"),
-            "export const model = { name: 'TestModel', tableName: 'test_table' };");
-
-        ValidationRequest request = ValidationRequest.builder()
-                .path(modelsDir.toString())
+        ValidationResult result = validationService.validate(ValidationRequest.builder()
+                .path(tempDir.toString())
                 .namespace("test")
-                .build();
+                .build());
 
-        ValidationResult result = validationService.validate(request);
-
-        // 验证Bundle注册成功（即使后续验证可能失败，至少不会是参数错误）
-        assertNotNull(result);
-        // 注意：实际验证结果取决于Mock配置，这里只验证流程正常
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getTotalFiles());
+        assertEquals(1, result.getValidFiles());
+        assertEquals(0, result.getInvalidFiles());
+        verify(validationSession).validateTableModel(tmResource, "test");
+        verify(validationSession).close();
     }
 
     @Test
-    @DisplayName("参数验证 - 路径必须是目录")
+    @DisplayName("detached QM failures are returned with optional stack trace")
+    void validate_invalidQm_shouldReturnValidationError() throws Exception {
+        BundleResource qmResource = resource("Broken.qm");
+        when(validationFactory.open(
+                "external-validation-test", "test", tempDir.toString()))
+                .thenReturn(validationSession);
+        when(validationSession.sourceBundle()).thenReturn(bundle);
+        when(bundle.findBundleResources("**/*.tm"))
+                .thenReturn(new BundleResource[0]);
+        when(bundle.findBundleResources("**/*.qm"))
+                .thenReturn(new BundleResource[]{qmResource});
+        doThrow(new IllegalStateException("invalid query model"))
+                .when(validationSession).validateQueryModel(qmResource);
+
+        ValidationResult result = validationService.validate(ValidationRequest.builder()
+                .path(tempDir.toString())
+                .namespace("test")
+                .includeStackTrace(true)
+                .build());
+
+        assertFalse(result.isSuccess());
+        assertEquals(1, result.getTotalFiles());
+        assertEquals(0, result.getValidFiles());
+        assertEquals(1, result.getInvalidFiles());
+        assertEquals("Broken.qm", result.getErrors().get(0).getFile());
+        assertEquals("IllegalStateException", result.getErrors().get(0).getCode());
+        assertTrue(result.getErrors().get(0).getStackTrace()
+                .contains("invalid query model"));
+        verify(validationSession).close();
+    }
+
+    @Test
+    @DisplayName("path must identify a directory")
     void validate_pathIsFile_shouldReturnError() throws Exception {
-        // 创建临时文件
         File tempFile = tempDir.resolve("test.txt").toFile();
         Files.writeString(tempFile.toPath(), "test");
 
-        ValidationRequest request = ValidationRequest.builder()
+        ValidationResult result = validationService.validate(ValidationRequest.builder()
                 .path(tempFile.getAbsolutePath())
                 .namespace("test")
-                .build();
-
-        ValidationResult result = validationService.validate(request);
+                .build());
 
         assertFalse(result.isSuccess());
         assertEquals(1, result.getErrors().size());
         assertTrue(result.getErrors().get(0).getMessage().contains("路径必须是目录"));
+        verifyNoInteractions(validationFactory);
     }
 
-    // 注意：以下测试在新版本支持动态Bundle注册后将自动启用
-    // 当前版本仅测试参数验证和基本错误处理
+    @Test
+    @DisplayName("production service depends only on the detached validation port")
+    void productionDependency_shouldNotExposeLiveLoaders() {
+        assertNotNull(validationService);
+        for (Field field : SemanticLayerValidationService.class.getDeclaredFields()) {
+            assertFalse(field.getType().equals(SystemBundlesContext.class));
+            assertFalse(field.getType().equals(QueryModelLoader.class));
+            assertFalse(field.getType().equals(TableModelLoaderManager.class));
+        }
+    }
+
+    private BundleResource resource(String filename) throws Exception {
+        BundleResource bundleResource = mock(BundleResource.class);
+        Resource resource = mock(Resource.class);
+        when(bundleResource.getResource()).thenReturn(resource);
+        when(resource.getFile()).thenThrow(new java.io.FileNotFoundException(filename));
+        when(resource.getFilename()).thenReturn(filename);
+        return bundleResource;
+    }
 }

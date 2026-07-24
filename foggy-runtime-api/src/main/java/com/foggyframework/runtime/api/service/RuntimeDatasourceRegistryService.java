@@ -1,14 +1,14 @@
 package com.foggyframework.runtime.api.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
-import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
-import com.foggyframework.dataset.db.model.lifecycle.port.BindingCurrentness;
-import com.foggyframework.dataset.db.model.lifecycle.port.RevokeMode;
-import com.foggyframework.dataset.db.model.lifecycle.port.StaleDatasourceBindingException;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
-import com.foggyframework.dataset.db.model.lifecycle.refresh.DatasourceCatalogConvergence;
+import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingGeneration;
+import com.foggyframework.dataset.model.lifecycle.identity.DatasourceBindingIdentity;
+import com.foggyframework.dataset.model.lifecycle.port.BindingCurrentness;
+import com.foggyframework.dataset.model.lifecycle.port.RevokeMode;
+import com.foggyframework.dataset.model.lifecycle.port.StaleDatasourceBindingException;
+import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCoordinator;
+import com.foggyframework.dataset.model.lifecycle.refresh.DatasourceCatalogConvergence;
 import com.foggyframework.runtime.api.config.FoggyRuntimeApiProperties;
 import com.foggyframework.runtime.api.dto.DatasourceInfo;
 import com.foggyframework.runtime.api.dto.DatasourcePoolInfo;

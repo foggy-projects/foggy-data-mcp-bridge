@@ -281,7 +281,7 @@ assert_no_repository_maven
 SOURCE_LIST="$RUN_ROOT/source-audit/source-files.list0"
 SOURCE_MANIFEST="$RUN_ROOT/source-audit/source-files.sha256"
 SOURCE_ROOTS=(
-  foggy-dataset-model/src
+  foggy-dataset-model-engine/src
   foggy-runtime-api/src
   foggy-fsscript/src
   foggy-dataset-mcp/src
@@ -414,11 +414,11 @@ assert_xml_report_metrics() {
       ;;
     entry-positive)
       printf '%s\0' \
-        "$root/probe-pair/surefire-reports/TEST-com.foggyframework.dataset.db.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeTest.xml" \
-        "$root/probe-pair/failsafe-reports/TEST-com.foggyframework.dataset.db.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeIT.xml" \
-        "$root/sqlite-preflight/failsafe-reports/TEST-com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT.xml" \
-        "$root/mysql57-preflight/failsafe-reports/TEST-com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT.xml" \
-        "$root/postgres15-preflight/failsafe-reports/TEST-com.foggyframework.dataset.db.model.lifecycle.gate.RequiredDatabasePreflightIT.xml" \
+        "$root/probe-pair/surefire-reports/TEST-com.foggyframework.dataset.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeTest.xml" \
+        "$root/probe-pair/failsafe-reports/TEST-com.foggyframework.dataset.model.lifecycle.gate.DeterministicConcurrencyHarnessProbeIT.xml" \
+        "$root/sqlite-preflight/failsafe-reports/TEST-com.foggyframework.dataset.model.lifecycle.gate.RequiredDatabasePreflightIT.xml" \
+        "$root/mysql57-preflight/failsafe-reports/TEST-com.foggyframework.dataset.model.lifecycle.gate.RequiredDatabasePreflightIT.xml" \
+        "$root/postgres15-preflight/failsafe-reports/TEST-com.foggyframework.dataset.model.lifecycle.gate.RequiredDatabasePreflightIT.xml" \
         > "$list_file"
       ;;
     *)

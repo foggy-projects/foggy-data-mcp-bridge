@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.graphql.converter;
 
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import graphql.language.*;
 import lombok.extern.slf4j.Slf4j;
 
