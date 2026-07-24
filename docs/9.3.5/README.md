@@ -37,12 +37,17 @@ Gate 0 已通过受影响测试关闭，当前按切片继续公共 API 和内�
 - controller/runtime/addon bypass 盘点已关闭：MCP model discovery/catalog 只消费
   `SemanticModelCatalogReadPort`，legacy loader 行为收口在 model 模块适配器；外部模块已无直接
   `loadJdbcQueryModel/getJdbcQueryModel` 调用，残留 `QueryModelLoader` 引用仅为 deprecated 构造签名。
+- runtime/native Compose 已统一改用 DTO-only `ComposeExecutionPort`；engine mode、context、authority
+  resolver、sandbox/schema/compiler 异常映射均封装在 model 默认适配器，runtime compose controller、
+  runner 与 fsscript CTE bridge 不再暴露 `engine.compose` 或 `SemanticQueryServiceV3` 类型；默认端口
+  通过 `@ConditionalOnMissingBean` 提供，保留宿主替换能力。
 - DTO DSL round-trip、公共 API shape、namespace 继承/显式 default、两个 addon context/入口测试
   及既有 `QueryExecutionPhase` 回归均通过；internal-port compatibility/semantic/pivot 定向回归
   33/33 通过，MCP catalog/tool configuration 定向回归 55/55 通过；detached validation 受影响
   reactor 编译通过，模型自动配置 9/9、MCP 校验 5/5、Runtime 校验/刷新兼容 6/6 通过；catalog
-  read-port 切片受影响测试 54/54 通过。
-- 当前执行切片：pivot/compose/semantic 反向依赖拆解。
+  read-port 切片受影响测试 54/54 通过；Compose port 切片 reactor 编译通过，model 端口/适配器/
+  自动配置 16/16、runtime runner/HTTP/CTE bridge/依赖边界 17/17 通过。
+- 当前执行切片：pivot/semantic 剩余反向依赖拆解。
 
 ## 已确认目标
 

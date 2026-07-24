@@ -1,19 +1,12 @@
 package com.foggyframework.dataset.db.model.semantic.service;
 
-import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeCompileException;
-import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
-import com.foggyframework.dataset.db.model.engine.compose.context.Principal;
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
-import com.foggyframework.dataset.db.model.engine.compose.sandbox.ComposeSandboxViolationException;
-import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolutionException;
-import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
-import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeCaller;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionException;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionRequest;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionResult;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -27,19 +20,10 @@ import java.util.Map;
 @Service
 public class NativeComposeQueryService {
 
-    private final SemanticQueryServiceV3 semanticQueryServiceV3;
-    private final AuthorityResolver authorityResolver;
-    private final String defaultDialect;
+    private final ComposeExecutionPort composeExecutionPort;
 
-    public NativeComposeQueryService(
-            SemanticQueryServiceV3 semanticQueryServiceV3,
-            ObjectProvider<AuthorityResolver> authorityResolvers,
-            @Value("${foggy.compose.dialect:mysql}") String defaultDialect) {
-        this.semanticQueryServiceV3 = semanticQueryServiceV3;
-        this.authorityResolver = authorityResolvers.orderedStream()
-                .findFirst()
-                .orElse(NativeComposeQueryService::allowAll);
-        this.defaultDialect = defaultDialect != null ? defaultDialect : "mysql";
+    public NativeComposeQueryService(ComposeExecutionPort composeExecutionPort) {
+        this.composeExecutionPort = composeExecutionPort;
     }
 
     public Map<String, Object> execute(Map<String, Object> request, String namespace,
@@ -50,11 +34,15 @@ public class NativeComposeQueryService {
                     "parameter 'script' is required and must be non-blank", null);
         }
         try {
-            ComposeQueryContext context = buildContext(request, namespace, authorization, headers);
             boolean previewMode = boolValue(request.get("previewMode"));
-            ComposeScriptService.ComposeScriptResult result = previewMode
-                    ? ComposeScriptService.preview(script, context, semanticQueryServiceV3, defaultDialect)
-                    : ComposeScriptService.execute(script, context, semanticQueryServiceV3, defaultDialect);
+            ComposeExecutionResult result = composeExecutionPort.execute(new ComposeExecutionRequest(
+                    previewMode ? ComposeOperation.PREVIEW : ComposeOperation.EXECUTE,
+                    script,
+                    namespace,
+                    firstNonBlank(header(headers, "X-Trace-Id"), stringValue(request.get("traceId"))),
+                    params(request),
+                    caller(request, authorization, headers),
+                    stringValue(request.get("dialect"))));
             Object value = withEmptyResultSemantic(result.value());
 
             Map<String, Object> data = new LinkedHashMap<>();
@@ -66,15 +54,18 @@ public class NativeComposeQueryService {
             response.put("status", "success");
             response.put("data", data);
             return response;
-        } catch (AuthorityResolutionException e) {
-            log.warn("native compose permission-resolve error: {}", e.getMessage());
-            return errorPayload(e.code(), "permission-resolve", e.getMessage(), e.modelInvolved());
-        } catch (ComposeSchemaException e) {
-            return errorPayload(e.code(), "schema-derive", e.getMessage(), e.offendingField());
-        } catch (ComposeCompileException e) {
-            return errorPayload(e.code(), "compile", e.getMessage(), null);
-        } catch (ComposeSandboxViolationException e) {
-            log.warn("native compose sandbox violation: {}", e.getMessage());
+        } catch (ComposeExecutionException e) {
+            if (e.kind() == ComposeExecutionException.Kind.AUTHORITY) {
+                log.warn("native compose permission-resolve error: {}", e.getMessage());
+                return errorPayload(e.code(), "permission-resolve", e.getMessage(), e.model());
+            }
+            if (e.kind() == ComposeExecutionException.Kind.SANDBOX) {
+                log.warn("native compose sandbox violation: {}", e.getMessage());
+                return errorPayload(e.code(), "compile", e.getMessage(), null);
+            }
+            if (e.kind() == ComposeExecutionException.Kind.SCHEMA) {
+                return errorPayload(e.code(), "schema-derive", e.getMessage(), e.field());
+            }
             return errorPayload(e.code(), "compile", e.getMessage(), null);
         } catch (RuntimeException e) {
             String msg = e.getMessage() == null ? "" : e.getMessage();
@@ -93,40 +84,27 @@ public class NativeComposeQueryService {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private ComposeQueryContext buildContext(Map<String, Object> request, String namespace,
-                                             String authorization, Map<String, String> headers) {
-        Principal principal = Principal.builder()
-                .userId(firstNonBlank(header(headers, "X-User-Id"), stringValue(request.get("userId")), "native-rest"))
-                .tenantId(firstNonBlank(header(headers, "X-Tenant-Id"), stringValue(request.get("tenantId"))))
-                .roles(parseRoles(firstNonBlank(header(headers, "X-Roles"), stringValue(request.get("roles")))))
-                .deptId(firstNonBlank(header(headers, "X-Dept-Id"), stringValue(request.get("deptId"))))
-                .authorizationHint(authorization)
-                .policySnapshotId(firstNonBlank(header(headers, "X-Policy-Snapshot-Id"),
-                        stringValue(request.get("policySnapshotId"))))
-                .build();
-
-        Map<String, Object> params = request.get("params") instanceof Map<?, ?> map
-                ? (Map<String, Object>) map
-                : null;
-        return ComposeQueryContext.builder()
-                .principal(principal)
-                .namespace(namespace)
-                .traceId(firstNonBlank(header(headers, "X-Trace-Id"), stringValue(request.get("traceId"))))
-                .params(params)
-                .authorityResolver(authorityResolver)
-                .build();
+    private static ComposeCaller caller(
+            Map<String, Object> request,
+            String authorization,
+            Map<String, String> headers
+    ) {
+        return new ComposeCaller(
+                firstNonBlank(header(headers, "X-User-Id"), stringValue(request.get("userId")), "native-rest"),
+                firstNonBlank(header(headers, "X-Tenant-Id"), stringValue(request.get("tenantId"))),
+                parseRoles(firstNonBlank(header(headers, "X-Roles"), stringValue(request.get("roles")))),
+                firstNonBlank(header(headers, "X-Dept-Id"), stringValue(request.get("deptId"))),
+                authorization,
+                firstNonBlank(header(headers, "X-Policy-Snapshot-Id"),
+                        stringValue(request.get("policySnapshotId"))));
     }
 
-    private static AuthorityResolution allowAll(com.foggyframework.dataset.db.model.engine.compose.security.AuthorityRequest request) {
-        Map<String, ModelBinding> bindings = new LinkedHashMap<>();
-        for (String model : request.modelNames()) {
-            bindings.put(model, ModelBinding.builder()
-                    .deniedColumns(List.of())
-                    .systemSlice(List.of())
-                    .build());
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> params(Map<String, Object> request) {
+        if (request.get("params") instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
         }
-        return AuthorityResolution.builder().bindings(bindings).build();
+        return Map.of();
     }
 
     @SuppressWarnings("unchecked")

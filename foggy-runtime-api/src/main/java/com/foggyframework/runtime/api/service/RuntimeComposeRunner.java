@@ -1,10 +1,9 @@
 package com.foggyframework.runtime.api.service;
 
-import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeCompileException;
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
-import com.foggyframework.dataset.db.model.engine.compose.sandbox.ComposeSandboxViolationException;
-import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
-import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionException;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionResult;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
 import com.foggyframework.runtime.api.dto.ComposeResponse;
 import com.foggyframework.runtime.api.dto.RuntimeDiagnostics;
 import com.foggyframework.runtime.api.service.RuntimeComposeContextFactory.RuntimeComposeContext;
@@ -17,19 +16,19 @@ import java.util.List;
 @ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeComposeRunner {
 
-    private final SemanticQueryServiceV3 semanticQueryServiceV3;
+    private final ComposeExecutionPort composeExecutionPort;
     private final RuntimeComposeContextFactory contextFactory;
 
     public RuntimeComposeRunner(
-            SemanticQueryServiceV3 semanticQueryServiceV3,
+            ComposeExecutionPort composeExecutionPort,
             RuntimeComposeContextFactory contextFactory
     ) {
-        this.semanticQueryServiceV3 = semanticQueryServiceV3;
+        this.composeExecutionPort = composeExecutionPort;
         this.contextFactory = contextFactory;
     }
 
     public RuntimeComposeRunResult run(
-            ComposeScriptService.Mode mode,
+            ComposeOperation operation,
             String phase,
             RuntimeComposeInvocation invocation
     ) {
@@ -49,21 +48,25 @@ public class RuntimeComposeRunner {
                     invocation.headerNamespace(),
                     invocation.authorization(),
                     invocation.headers());
-            ComposeScriptService.ComposeScriptResult result = ComposeScriptService.run(
-                    context.toScriptRequest(mode, invocation.script(), semanticQueryServiceV3));
+            ComposeExecutionResult result = composeExecutionPort.execute(
+                    context.toExecutionRequest(operation, invocation.script()));
             return new RuntimeComposeRunResult(toResponse(result, context), context.diagnostics());
-        } catch (ComposeSandboxViolationException e) {
-            throw failure("COMPOSE_SANDBOX_VIOLATION", phase, e.getMessage(),
-                    null, "Remove forbidden script host access and retry.", false,
-                    diagnostics(context), e);
-        } catch (ComposeSchemaException e) {
+        } catch (ComposeExecutionException e) {
+            if (e.kind() == ComposeExecutionException.Kind.SANDBOX) {
+                throw failure("COMPOSE_SANDBOX_VIOLATION", phase, e.getMessage(),
+                        null, "Remove forbidden script host access and retry.", false,
+                        diagnostics(context), e);
+            }
+            if (e.kind() == ComposeExecutionException.Kind.AUTHORITY) {
+                throw failure(mapRuntimeErrorCode(phase), phase, e.getMessage(),
+                        null, "Inspect permission diagnostics and retry.", false,
+                        diagnostics(context), e);
+            }
+            String action = e.kind() == ComposeExecutionException.Kind.SCHEMA
+                    ? "Inspect compose fields/schema and retry."
+                    : "Fix compose script or model metadata and retry.";
             throw failure(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    e.offendingField(), "Inspect compose fields/schema and retry.", true,
-                    diagnostics(context), e);
-        } catch (ComposeCompileException e) {
-            throw failure(mapScriptErrorCode(phase), phase, e.getMessage(),
-                    null, "Fix compose script or model metadata and retry.", true,
-                    diagnostics(context), e);
+                    e.field(), action, true, diagnostics(context), e);
         } catch (RuntimeComposeException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -74,13 +77,13 @@ public class RuntimeComposeRunner {
     }
 
     private ComposeResponse toResponse(
-            ComposeScriptService.ComposeScriptResult result,
+            ComposeExecutionResult result,
             RuntimeComposeContext context
     ) {
         return new ComposeResponse(
                 result.valid(),
                 "compose",
-                result.mode().name().toLowerCase(),
+                result.operation().name().toLowerCase(),
                 result.value(),
                 result.sql(),
                 result.params() != null ? result.params() : List.of(),

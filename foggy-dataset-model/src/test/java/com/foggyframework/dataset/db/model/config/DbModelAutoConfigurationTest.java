@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.config;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultFilterManager;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
@@ -54,6 +55,13 @@ class DbModelAutoConfigurationTest {
         DetachedModelValidationFactory factory =
                 applicationContext.getBean(DetachedModelValidationFactory.class);
         assertNotNull(factory, "DetachedModelValidationFactory should be registered");
+    }
+
+    @Test
+    @DisplayName("ComposeExecutionPort Bean 已注册")
+    void testComposeExecutionPortRegistered() {
+        ComposeExecutionPort port = applicationContext.getBean(ComposeExecutionPort.class);
+        assertNotNull(port, "ComposeExecutionPort should be registered");
     }
 
     @Test

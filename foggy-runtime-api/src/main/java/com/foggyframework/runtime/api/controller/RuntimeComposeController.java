@@ -1,6 +1,6 @@
 package com.foggyframework.runtime.api.controller;
 
-import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeScriptService;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeOperation;
 import com.foggyframework.runtime.api.RuntimeApiRoutes;
 import com.foggyframework.runtime.api.dto.ComposeRequest;
 import com.foggyframework.runtime.api.dto.ComposeResponse;
@@ -42,7 +42,7 @@ public class RuntimeComposeController {
             @RequestHeader(value = "X-NS", required = false) String namespace,
             @RequestHeader Map<String, String> headers
     ) {
-        return run(ComposeScriptService.Mode.VALIDATE, "compose.validate",
+        return run(ComposeOperation.VALIDATE, "compose.validate",
                 request, authorization, namespace, headers);
     }
 
@@ -53,7 +53,7 @@ public class RuntimeComposeController {
             @RequestHeader(value = "X-NS", required = false) String namespace,
             @RequestHeader Map<String, String> headers
     ) {
-        return run(ComposeScriptService.Mode.PREVIEW, "compose.preview",
+        return run(ComposeOperation.PREVIEW, "compose.preview",
                 request, authorization, namespace, headers);
     }
 
@@ -64,12 +64,12 @@ public class RuntimeComposeController {
             @RequestHeader(value = "X-NS", required = false) String namespace,
             @RequestHeader Map<String, String> headers
     ) {
-        return run(ComposeScriptService.Mode.EXECUTE, "compose.execute",
+        return run(ComposeOperation.EXECUTE, "compose.execute",
                 request, authorization, namespace, headers);
     }
 
     private RuntimeEnvelope<ComposeResponse> run(
-            ComposeScriptService.Mode mode,
+            ComposeOperation operation,
             String phase,
             ComposeRequest request,
             String authorization,
@@ -77,7 +77,7 @@ public class RuntimeComposeController {
             Map<String, String> headers
     ) {
         try {
-            RuntimeComposeRunResult result = composeRunner.run(mode, phase,
+            RuntimeComposeRunResult result = composeRunner.run(operation, phase,
                     RuntimeComposeInvocation.fromComposeRequest(request, namespace, authorization, headers));
             return responses.ok(result.response(), result.diagnostics());
         } catch (RuntimeComposeException e) {

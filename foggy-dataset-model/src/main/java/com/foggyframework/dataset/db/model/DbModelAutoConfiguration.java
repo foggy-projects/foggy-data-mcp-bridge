@@ -12,6 +12,9 @@ import com.foggyframework.dataset.db.model.engine.pivot.RuntimeBundlePivotOuterC
 import com.foggyframework.dataset.db.model.engine.formula.*;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderImpl;
+import com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolver;
+import com.foggyframework.dataset.db.model.semantic.port.ComposeExecutionPort;
+import com.foggyframework.dataset.db.model.semantic.service.DefaultComposeExecutionPort;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.impl.loader.JdbcTableModelLoaderImpl;
 import com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl;
@@ -37,6 +40,7 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.lifecycle.CommittedSourceRevisionRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -244,6 +248,16 @@ public class DbModelAutoConfiguration {
     public PivotOuterCacheInvalidationBroadcaster pivotOuterCacheInvalidationBroadcaster(
             ObjectProvider<SemanticQueryServiceV3> semanticQueryServiceProvider) {
         return new LocalPivotOuterCacheInvalidationBroadcaster(semanticQueryServiceProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ComposeExecutionPort.class)
+    public ComposeExecutionPort composeExecutionPort(
+            SemanticQueryServiceV3 semanticQueryServiceV3,
+            ObjectProvider<AuthorityResolver> authorityResolvers,
+            @Value("${foggy.compose.dialect:mysql}") String defaultDialect) {
+        return new DefaultComposeExecutionPort(
+                semanticQueryServiceV3, authorityResolvers, defaultDialect);
     }
 
     @Bean
