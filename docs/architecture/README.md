@@ -2,7 +2,7 @@
 doc_role: architecture-index
 status: canonical
 baseline: main-after-9.5.0
-last_reviewed: 2026-07-24
+last_reviewed: 2026-07-25
 ---
 
 # Foggy Data MCP Bridge 架构
@@ -19,6 +19,8 @@ last_reviewed: 2026-07-24
 - [模块边界](module-boundaries.md)：Maven 模块职责、依赖方向和禁止事项。
 - [运行时与模型生命周期](runtime-and-model-lifecycle.md)：namespace、数据源、Bundle、模型发布和查询流程。
 - [Model SPI v2 与扩展](extension-spi.md)：稳定查询 API、provider capability、catalog 和 TCK 契约。
+- [Runtime 内生权限与预聚合](runtime-permissions-and-preaggregation.md)：Runtime API 直连与可信宿主的
+  权限边界、TM/QM 内生权限目标，以及行权限对预聚合候选的约束。
 
 专题设计仍可保留在 `docs/design/` 或对应版本目录，但必须明确它是专题说明还是历史决策，
 不能替代这里的整体架构。
@@ -71,6 +73,24 @@ flowchart LR
 - 模型刷新采用 candidate build/validate/admit 后原子发布，不能让查询看到半完成状态。
 - 语义字段白名单 `fieldAccess` 在查询规划前 fail closed；物理列黑名单
   `deniedColumns` 在 SQL 构建后、执行前 fail closed。
+- `fieldAccess`、`deniedColumns`、`systemSlice` 是可信宿主到引擎的治理上下文，不是
+  Runtime API 普通用户可提交的查询 DSL。
+- Runtime API 直连只透明传递可选 opaque token，并建立非空匿名或 opaque-subject identity；
+  TM/QM 未声明权限时模型公开，声明权限时由模型作者按 action/resource 返回模型、字段和
+  structured row permission decision。
+- `get/post` 属于已发布 TM/QM 的作者能力，不向 Runtime 查询 DSL、Compose 或 CTE 调用方开放。
+- CLI 保留管理 `--auth-code`，另增可选数据面 Authorization；配套中英文 analysis Skill 与
+  semantic-query Skill 必须同步说明权限、TM/QM 配置和预聚合安全回源。
+- 使用完整 evaluator 的原始 FSScript execute 属于作者/管理面；当前将其留在管理 auth-code
+  之外是待修正缺口，补齐标准 HTTP Bean 时必须同步收紧。
+- 当前该链路仍有待补齐的 token/identity 传递、动作化模型决策、结构化行权限、成员查询隔离和
+  引擎授权签名能力。
+- 预聚合候选只有在能够完整表达有效行权限谓词时才可命中；否则跳过该候选并执行受治理的
+  源表查询。
+- 预聚合构建不得继承单个用户权限后作为全局表共享；现有表按 `GLOBAL` 语义处理，
+  `SECURITY_SCOPED` 未完整实现时必须拒绝配置。
+- 新权限语法采用 opt-in：存量 TM/QM 无需迁移，未声明权限时保持开放；行权限无法由旧预聚合
+  等价表达时只允许改变路由并安全回源，不能改变授权结果。
 
 ## 文档维护规则
 

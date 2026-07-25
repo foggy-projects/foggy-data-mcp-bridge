@@ -2,7 +2,7 @@
 doc_role: architecture
 status: canonical
 baseline: main-after-9.5.0
-last_reviewed: 2026-07-24
+last_reviewed: 2026-07-25
 ---
 
 # 系统总览
@@ -18,8 +18,21 @@ Foggy Data MCP Bridge 把数据源、TM/QM 语义模型和查询引擎组合为�
 - 通过小型 SPI 接入 backend、缓存和其他可选能力；
 - 以可执行 Spring Boot launcher 或嵌入式模块方式交付。
 
-它不是客户业务授权系统。Runtime API 的 auth code 是管理接口保护层，调用方仍需在上游
-完成租户、用户和业务权限决策，并把允许的字段或禁止的物理列传入查询上下文。
+它不替代客户的身份认证系统，但支持两种不同的权限接入方式：
+
+- Runtime API 直连时，调用方只提交业务查询和可选的 opaque token；Runtime 建立非空匿名或
+  opaque-subject identity，由 TM/QM 作者使用平台提供的 `get/post` 或其他作者代码按
+  action/resource 决定模型、字段和行权限；
+- 可信宿主接入时，宿主可以完成外部业务授权，并通过内部引擎契约传入
+  `fieldAccess`、`deniedColumns`、`systemSlice` 等治理上下文。
+
+TM/QM 未声明权限时，该模型是作者明确发布的开放模型，无 token 也允许访问。声明权限解析器后，
+空 token 仍会进入解析器，是否允许匿名由作者决定；解析失败或返回非法决策时对该模型 fail closed。
+
+Runtime API 的 auth code 是管理接口保护层，不等同于某次数据查询的业务身份，也不能隐式绕过
+QM 权限。当前 Runtime Query 入口只传递 namespace，opaque token 和模型权限决策链路尚未完整
+接通。详细边界见
+[Runtime 内生权限与预聚合](runtime-permissions-and-preaggregation.md)。
 
 ## 2. 逻辑分层
 
@@ -78,7 +91,7 @@ provider 才能发布 capability。
 - query validate/execute；
 - tables inspect、受控 SQL query；
 - compose validate/preview/execute；
-- FSScript execute。
+- 作者/管理面的 FSScript execute。
 
 Runtime API 使用自身的稳定 envelope 与错误码，不应机械套用其他 controller 的 `RX` 返回约定。
 
@@ -98,15 +111,17 @@ sequenceDiagram
     participant E as Semantic Engine
     participant D as Datasource
 
-    C->>A: request + namespace + security context
-    A->>A: authenticate / normalize / validate
+    C->>A: request + namespace + optional token
+    A->>A: establish trust mode + immutable RequestIdentity
     A->>Q: immutable request DTO
     Q->>P: resolve provider identity + QUERY
     P-->>Q: typed QueryBackendProvider
     Q->>E: semantic query
-    E->>E: fieldAccess + model rules + planning
+    E->>E: per-leaf action decision + field/row permissions
+    E->>E: compute authorizationSignature
+    E->>E: pre-aggregation match + planning
     E->>E: build SQL / execution plan
-    E->>E: deniedColumns check
+    E->>E: trusted-host deniedColumns check
     E->>D: execute
     D-->>E: rows
     E-->>Q: shaped result
@@ -114,16 +129,35 @@ sequenceDiagram
     A-->>C: protocol response
 ```
 
-任一 identity、capability、namespace、模型或权限前置条件无法确定时，应拒绝请求而不是猜测或
-回退到权限更宽的路径。
+任一 identity、capability、namespace、模型或已声明的权限前置条件无法确定时，应拒绝请求而
+不是猜测或回退到权限更宽的路径。未声明权限的开放 QM 不以存在 token 或外部身份为前置条件。
 
 ## 6. 信任与安全边界
 
 - 不在仓库、配置示例、测试收据或日志中提交真实 key、密码和 token。
 - Runtime auth code 保护管理接口，但不替代客户 IAM。
 - namespace 必须由可信接入层确定并贯穿请求；不能由不可信模型内容提升或跨越。
-- `fieldAccess` 控制可引用的语义字段，覆盖列、计算字段、过滤、分组和排序依赖。
-- `deniedColumns` 在物理计划形成后检查实际表列，作为第二道边界。
+- Runtime API 请求体和用户 DSL 不能携带 `fieldAccess`、`deniedColumns`、`systemSlice`
+  或其他用于构造自身权限边界的治理参数。
+- 能够直接接受上述治理参数的 engine-native、兼容或测试接口属于内部接口，不能作为公开
+  Runtime API 部署。
+- 可信宿主模式下，`fieldAccess` 控制可引用的语义字段，`deniedColumns` 在物理计划形成后
+  检查实际表列，`systemSlice` 注入宿主已经裁决的系统行条件。
+- Runtime API 直连模式下，Header token 是可选 opaque 输入；无 Header 时建立匿名 identity。
+  无权限声明的 QM 是开放模型，有权限声明的模型由作者通过平台 `get/post` 或其他受信模型代码
+  按 action/resource 求值；管理 principal 不构成数据面绕过。
+- 公共 CLI 分别承载管理 `X-Foggy-Runtime-Code` 与可选数据面 `Authorization`，不得用一个参数
+  或 Header 同时表达模型发布权限和业务查询身份；旧命令不传数据身份时保持匿名兼容。
+- `get/post` 是已发布 TM/QM 的作者能力，不是 Runtime 查询调用方可以通过 DSL、Compose 或 CTE
+  动态执行的网络能力。
+- 使用完整 evaluator 的 `/api/v1/fsscript/execute` 与模型发布同属作者/管理面，必须要求管理
+  凭据；普通数据面如需脚本表达式，只能使用排除 `get/post` 和 Bean import 的受限 evaluator。
+- 受保护模型的权限函数失败、超时或返回非法决策时不得回退到公开模型语义；但不能因为全局
+  缺少 token 就拒绝一个未声明权限的开放模型。
+- 模型 list/describe/validate query/execute query/member query 必须执行对应动作权限判断，
+  不能通过直接指定模型名绕过 catalog 可见性；成员查询和缓存还必须应用字段、行权限与授权签名。
+- 行权限必须在每个叶子 scan 和预聚合匹配前形成。预聚合无法保留权限字段或等价重建权限谓词时，
+  只能跳过该候选并回源；不能使用某个用户权限快照构建后作为全局预聚合共享。
 - provider discovery、capability 解析、Bundle 冲突检查和模型 admission 均 fail closed。
 - diagnostics 只暴露运行所需的只读状态，不泄露连接凭据或敏感模型内容。
 

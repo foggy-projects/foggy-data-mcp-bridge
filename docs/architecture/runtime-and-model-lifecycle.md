@@ -2,7 +2,7 @@
 doc_role: architecture
 status: canonical
 baseline: main-after-9.5.0
-last_reviewed: 2026-07-24
+last_reviewed: 2026-07-25
 ---
 
 # 运行时与模型生命周期
@@ -106,18 +106,30 @@ catalog identity、namespace、source revision、binding generation 和发布 ge
 
 主流程：
 
-1. 接入层鉴权并建立 namespace/security context。
+1. 接入层确定信任模式并建立 namespace/security context：Runtime API 直连透明携带可选
+   opaque token 并建立非空 `RequestIdentity`，可信宿主可以通过内部契约传入治理上下文。
 2. 将协议请求规范化为稳定 QueryFacade DTO 或 engine 内部高级请求。
 3. catalog 按 provider identity 和 QUERY capability 解析 typed provider。
 4. engine 加载对应 namespace 的已发布模型。
-5. 在规划前执行 `fieldAccess`、QM 可见列和其他语义约束。
-6. 生成 SQL 或 compose/memory-grid 执行计划。
-7. 在 SQL 构建后、执行前执行 `deniedColumns` 物理列检查。
-8. 执行数据源查询，完成 pivot/整形/分页等结果处理。
-9. 返回稳定结果或显式错误。
+5. 若 QM 声明模型权限解析器，由模型作者使用平台 `get/post` 或其他受信模型函数解释 token，
+   按 action/resource 返回显式 `allow`、attributes 和 typed row predicates；未声明时按开放
+   模型处理。
+6. 在每个叶子 QM 的 scan 前执行模型动作权限、TM/QM 字段权限和有效行权限编译。
+7. 引擎根据最终模型、字段、行决策和 generation 计算 `authorizationSignature`；元数据、成员和
+   数据缓存都使用该签名隔离。
+8. 使用“业务查询 + 行权限谓词”构建预聚合 requirement；无法保留权限粒度的预聚合候选
+   被跳过。
+9. 生成源表 SQL、预聚合 SQL 或 compose/memory-grid 执行计划。
+10. 可信宿主模式下，在 SQL 构建后、执行前执行 `deniedColumns` 物理列检查。
+11. 执行数据源查询，完成 pivot/整形/分页等结果处理。
+12. 返回稳定结果或显式错误。
 
 Compose、pivot、semantic planner 和 memory-grid routing 是 engine 能力，不是 Model SPI v2
 公共扩展点。外部消费者若只需查询，应使用 QueryFacade，而不是依赖这些内部类型。
+
+原始 `/api/v1/fsscript/execute` 不属于上述数据查询流。它使用完整 evaluator 时具备模型作者级
+脚本能力，必须放在作者/管理面并由管理凭据保护；普通查询身份不能借该入口执行 `get/post` 或
+导入宿主 Bean。
 
 ## 7. 缓存与失效
 
@@ -127,6 +139,10 @@ Compose、pivot、semantic planner 和 memory-grid routing 是 engine 能力，�
 模型发布、Bundle 变更、数据源 binding generation 改变等事件需要在相应边界触发失效。
 失效请求必须携带足够 identity；无法确定失效范围时应保守拒绝或扩大到安全范围，不能保留
 已知可能跨代命中的缓存。
+
+权限相关查询、元数据和维度成员缓存还必须绑定引擎计算的 `authorizationSignature`，有效期不
+超过权限决策 expiry。预聚合物理表默认按 `GLOBAL` 处理，不能使用某个用户权限快照构建后全局
+共享；`SECURITY_SCOPED` 未完整实现 scope identity、刷新和匹配时必须 fail fast。
 
 ## 8. 错误契约
 
@@ -139,6 +155,7 @@ Compose、pivot、semantic planner 和 memory-grid routing 是 engine 能力，�
 - Bundle canonical name 冲突；
 - 模型 candidate 解析、验证或 admission 失败；
 - 权限表达式无法解析，或引用了未授权语义字段/物理列；
+- 受保护模型的权限解析器拒绝、失败或返回非法决策，或权限谓词执行失败；
 - 原子刷新无法完成。
 
 禁止通过选择“第一个 provider”、回退空 namespace、忽略未知权限表达式或继续使用半更新状态来
