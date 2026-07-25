@@ -88,7 +88,7 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
             // $expr 表达式条件
             if ("$expr".equals(key)) {
                 SliceRequestDef def = new SliceRequestDef();
-                def.setExpr(node.get("$expr").asText());
+                def.setExpr(expressionValue(node.get("$expr")));
                 return def;
             }
 
@@ -126,7 +126,7 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
         }
         // 处理 $expr
         if (node.has("$expr")) {
-            def.setExpr(node.get("$expr").asText());
+            def.setExpr(expressionValue(node.get("$expr")));
         }
 
         // 处理 $or 和 $and
@@ -198,7 +198,7 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
             }
             // $expr 表达式条件
             if ("$expr".equals(key)) {
-                return CondRequestDef.expr(node.get("$expr").asText());
+                return CondRequestDef.expr(expressionValue(node.get("$expr")));
             }
 
             if (!RESERVED_KEYS.contains(key)) {
@@ -227,7 +227,7 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
         }
         // 处理 $expr
         if (node.has("$expr")) {
-            def.setExpr(node.get("$expr").asText());
+            def.setExpr(expressionValue(node.get("$expr")));
         }
 
         if (node.has("$or")) {
@@ -238,6 +238,18 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
         }
 
         return def;
+    }
+
+    /**
+     * 仅保留非空表达式。JSON null 不能通过 {@link JsonNode#asText()} 变成字符串 "null"，
+     * 否则普通 field/op/value 条件会被误判为 $expr 条件。
+     */
+    private String expressionValue(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        String expression = node.asText();
+        return expression == null || expression.isBlank() ? null : expression;
     }
 
     /**

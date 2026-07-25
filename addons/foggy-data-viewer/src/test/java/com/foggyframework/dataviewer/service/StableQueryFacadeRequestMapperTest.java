@@ -2,10 +2,15 @@ package com.foggyframework.dataviewer.service;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.model.api.QueryFacadeRequest;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,5 +41,26 @@ class StableQueryFacadeRequestMapperTest {
         assertNull(result.getNamespace());
         assertThrows(UnsupportedOperationException.class,
                 () -> result.getQuery().put("queryModel", "mutated"));
+    }
+
+    @Test
+    void omitsNullConditionPropertiesFromStableQueryPayload() {
+        DbQueryRequestDef query = new DbQueryRequestDef();
+        query.setQueryModel("FactOrders");
+        query.setColumns(List.of("level"));
+        query.setSlice(List.of(new SliceRequestDef("level", "<", 4)));
+
+        PagingRequest<DbQueryRequestDef> request = PagingRequest.buildPagingRequest(query);
+        QueryFacadeRequest result = StableQueryFacadeRequestMapper.from(request, null);
+
+        List<?> slices = (List<?>) result.getQuery().get("slice");
+        Map<?, ?> condition = (Map<?, ?>) slices.get(0);
+        assertEquals("level", condition.get("field"));
+        assertEquals("<", condition.get("op"));
+        assertEquals(4, condition.get("value"));
+        assertFalse(condition.containsKey("$expr"));
+        assertFalse(condition.containsKey("$or"));
+        assertFalse(condition.containsKey("$and"));
+        assertFalse(condition.containsKey("maxDepth"));
     }
 }

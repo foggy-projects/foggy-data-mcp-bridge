@@ -2,6 +2,7 @@ package com.foggyframework.dataset.model.service.internal;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.client.domain.PagingRequest;
@@ -18,7 +19,8 @@ public final class QueryFacadeDtoMapper {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.NONE)
-            .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+            .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY)
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
     private static final TypeReference<Map<String, Object>> QUERY_MAP = new TypeReference<>() { };
 
     private QueryFacadeDtoMapper() {

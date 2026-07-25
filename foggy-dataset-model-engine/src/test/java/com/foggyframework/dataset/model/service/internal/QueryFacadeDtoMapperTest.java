@@ -58,6 +58,30 @@ class QueryFacadeDtoMapperTest {
     }
 
     @Test
+    void scalarSliceRoundTripDoesNotBecomeNullExpression() {
+        DbQueryRequestDef query = new DbQueryRequestDef();
+        query.setQueryModel("orders");
+        query.setColumns(List.of("level"));
+        query.setSlice(List.of(new SliceRequestDef("level", "<", 4)));
+
+        PagingRequest<DbQueryRequestDef> legacy = PagingRequest.buildPagingRequest(query);
+        QueryFacadeRequest dto = QueryFacadeDtoMapper.toRequest(legacy);
+
+        List<?> slices = (List<?>) dto.getQuery().get("slice");
+        Map<?, ?> condition = (Map<?, ?>) slices.get(0);
+        assertFalse(condition.containsKey("$expr"));
+
+        PagingRequest<DbQueryRequestDef> roundTrip = QueryFacadeDtoMapper.toLegacyRequest(dto);
+        SliceRequestDef slice = roundTrip.getParam().getSlice().get(0);
+        assertEquals("level", slice.getField());
+        assertEquals("<", slice.getOp());
+        assertEquals(4, slice.getValue());
+        assertNull(slice.getExpr());
+        assertNull(slice.getMaxDepth());
+        assertFalse(slice._isExpressionCondition());
+    }
+
+    @Test
     void omittedNamespaceRemainsInheritedWhileExplicitNullSelectsDefault() {
         PagingRequest<DbQueryRequestDef> legacy = PagingRequest.buildPagingRequest(query("orders"));
 

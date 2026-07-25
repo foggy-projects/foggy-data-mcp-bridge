@@ -239,6 +239,35 @@ class ShorthandDeserializerTest {
         }
 
         @Test
+        @DisplayName("完整格式中的 null $expr 不应覆盖普通条件")
+        void testNullExpressionDoesNotOverrideScalarCondition() throws Exception {
+            String json = """
+                {
+                    "slice": [
+                        {
+                            "field": "level",
+                            "op": "<",
+                            "value": 4,
+                            "maxDepth": null,
+                            "$or": null,
+                            "$and": null,
+                            "$expr": null
+                        }
+                    ]
+                }
+                """;
+
+            DbQueryRequestDef request = objectMapper.readValue(json, DbQueryRequestDef.class);
+            SliceRequestDef slice = request.getSlice().get(0);
+
+            assertEquals("level", slice.getField());
+            assertEquals("<", slice.getOp());
+            assertEquals(4, slice.getValue());
+            assertNull(slice.getExpr());
+            assertFalse(slice._isExpressionCondition());
+        }
+
+        @Test
         @DisplayName("$or 逻辑组")
         void testOrGroup() throws Exception {
             String json = """

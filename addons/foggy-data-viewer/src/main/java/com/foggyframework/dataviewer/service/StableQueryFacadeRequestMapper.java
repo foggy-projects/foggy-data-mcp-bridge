@@ -1,6 +1,7 @@
 package com.foggyframework.dataviewer.service;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +16,8 @@ public final class StableQueryFacadeRequestMapper {
 
     private static final ObjectMapper QUERY_MAPPER = new ObjectMapper()
             .setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.NONE)
-            .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+            .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY)
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
     private static final TypeReference<Map<String, Object>> QUERY_MAP = new TypeReference<>() { };
 
     private StableQueryFacadeRequestMapper() {
