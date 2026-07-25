@@ -83,12 +83,14 @@
         <argLine>-Dfile.encoding=UTF-8</argLine>
         <!-- Unit and integration runners must be independently skippable. -->
         <skipUnitTests>false</skipUnitTests>
-        <skipITs>false</skipITs>
-        <!-- Default fail-closed; authority runners may relax upstream selector misses,
-             while the report verifier still enforces the exact target report set. -->
+        <!-- Plain Maven builds run unit tests only. Environment-backed
+             integration suites opt in with -DskipITs=false. -->
+        <skipITs>true</skipITs>
+        <!-- Unit-test modules must always have tests. Integration tests are optional
+             per module, but an explicitly requested missing IT must still fail. -->
         <surefire.failIfNoTests>true</surefire.failIfNoTests>
         <surefire.failIfNoSpecifiedTests>true</surefire.failIfNoSpecifiedTests>
-        <failsafe.failIfNoTests>true</failsafe.failIfNoTests>
+        <failsafe.failIfNoTests>false</failsafe.failIfNoTests>
         <failsafe.failIfNoSpecifiedTests>true</failsafe.failIfNoSpecifiedTests>
         <maven-surefire-plugin.version>3.5.3</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>3.5.3</maven-failsafe-plugin.version>
