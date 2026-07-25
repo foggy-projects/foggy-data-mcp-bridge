@@ -12,6 +12,8 @@ import com.foggyframework.runtime.api.dto.RuntimeEnvelope;
 import com.foggyframework.runtime.api.service.RuntimeApiResponseFactory;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService;
 import com.foggyframework.runtime.api.service.RuntimeBundleRegistryService.RuntimeBundleRecord;
+import com.foggyframework.runtime.api.service.RuntimeBundleAdmissionException;
+import com.foggyframework.runtime.api.service.RuntimeBundleAdmissionService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,15 +39,18 @@ public class RuntimeBundlesController {
     private final RuntimeApiResponseFactory responses;
     private final SystemBundlesContext systemBundlesContext;
     private final RuntimeBundleRegistryService registryService;
+    private final RuntimeBundleAdmissionService admissionService;
 
     public RuntimeBundlesController(
             RuntimeApiResponseFactory responses,
             SystemBundlesContext systemBundlesContext,
-            RuntimeBundleRegistryService registryService
+            RuntimeBundleRegistryService registryService,
+            RuntimeBundleAdmissionService admissionService
     ) {
         this.responses = responses;
         this.systemBundlesContext = systemBundlesContext;
         this.registryService = registryService;
+        this.admissionService = admissionService;
     }
 
     @GetMapping(RuntimeApiRoutes.V1.BUNDLES)
@@ -100,15 +105,28 @@ public class RuntimeBundlesController {
                     "Only runtime-managed bundles can be removed through Runtime API.", false);
         }
 
+        try {
+            registryService.remove(normalizedName);
+        } catch (RuntimeException failure) {
+            return fail("BUNDLE_REGISTRY_PERSIST_FAILED", "bundles.remove",
+                    "Bundle registry update failed: " + normalizedName,
+                    "Restore registry storage availability and retry.", false);
+        }
         boolean removed = true;
         if (systemBundlesContext.containBundle(normalizedName)) {
             removed = systemBundlesContext.removeBundle(normalizedName);
         }
         if (!removed) {
+            if (!restoreRegistryRecord(record)) {
+                return fail("BUNDLE_ROLLBACK_FAILED", "bundles.remove",
+                        "Bundle removal and registry rollback both failed: "
+                                + normalizedName,
+                        "Stop mutations, restore registry storage, and restart the service.",
+                        false);
+            }
             return fail("BUNDLE_REMOVE_FAILED", "bundles.remove", "Bundle removal failed: " + normalizedName,
                     "Check whether the bundle is an external runtime-managed bundle.", false);
         }
-        registryService.remove(normalizedName);
         BundleInfo info = infoFromRecord(record, "removed", null);
         return responses.ok(new BundleMutationResponse(info, List.of()));
     }
@@ -143,55 +161,106 @@ public class RuntimeBundlesController {
             return fail("BUNDLE_ALREADY_EXISTS", "bundles.add", "Runtime-managed bundle already exists: " + name,
                     "Use replace=true or bundles update.", true);
         }
-        boolean removedExisting = false;
-        if (existsInRuntime) {
-            if (!systemBundlesContext.removeBundle(name)) {
-                return fail("BUNDLE_REMOVE_FAILED", update ? "bundles.update" : "bundles.add",
-                        "Existing runtime-managed bundle could not be removed: " + name,
-                        "Inspect bundle state and retry.", false);
-            }
-            removedExisting = true;
-        }
-
         String namespace = stringOr(
                 request != null ? request.namespace() : null,
                 stringOr(headerNamespace, existingRecord != null ? existingRecord.namespace() : "")
         );
+        if (existingRecord != null
+                && !existingRecord.namespace().equals(namespace)) {
+            return fail("BUNDLE_NAMESPACE_CHANGE_UNSUPPORTED",
+                    update ? "bundles.update" : "bundles.add",
+                    "Replacing a bundle cannot change its namespace: " + name,
+                    "Remove the bundle and register it in the new namespace explicitly.", false);
+        }
         boolean watch = booleanOr(request != null ? request.watch() : null, existingRecord != null && existingRecord.watch());
         boolean enabled = booleanOr(request != null ? request.enabled() : null, true);
-        boolean registered = !enabled || systemBundlesContext.addExternalBundle(name, namespace, path, watch);
-        if (!registered) {
-            restoreRemovedExistingBundle(removedExisting, existingRecord);
-            return fail("BUNDLE_ADD_FAILED", update ? "bundles.update" : "bundles.add",
-                    "Bundle registration failed: " + name,
-                    "Check path readability and bundle name, then retry.", false);
+        try {
+            if (enabled && booleanOr(request != null ? request.validate() : null, true)) {
+                admissionService.validate(
+                        name,
+                        namespace,
+                        path,
+                        existsInRuntime ? name : null);
+            }
+        } catch (RuntimeBundleAdmissionException failure) {
+            return fail(failure.code(), update ? "bundles.update" : "bundles.add",
+                    failure.getMessage(),
+                    "Fix the candidate bundle and retry.", false);
         }
 
-        RuntimeBundleRecord record = registryService.newRecord(name, namespace, path, watch, enabled);
-        record = registryService.save(record);
-        List<String> warnings = new ArrayList<>();
-        if (booleanOr(request != null ? request.validate() : null, false)) {
-            warnings.add("validate flag accepted but Stage 1 bundle API does not run model validation yet; run models validate explicitly.");
+        RuntimeBundleRecord candidateRecord =
+                registryService.newRecord(name, namespace, path, watch, enabled);
+        RuntimeBundleRecord record;
+        try {
+            record = registryService.save(candidateRecord);
+        } catch (RuntimeException failure) {
+            return fail("BUNDLE_REGISTRY_PERSIST_FAILED",
+                    update ? "bundles.update" : "bundles.add",
+                    "Bundle registry update failed: " + name,
+                    "Restore registry storage availability and retry.", false);
         }
+
+        boolean registered;
+        if (!enabled) {
+            registered = !existsInRuntime
+                    || systemBundlesContext.removeBundle(name);
+        } else {
+            registered = existsInRuntime
+                    ? systemBundlesContext.replaceExternalBundle(
+                    name, namespace, path, watch)
+                    : systemBundlesContext.addExternalBundle(
+                    name, namespace, path, watch);
+        }
+        if (!registered) {
+            if (!rollbackRegistryRecord(name, existingRecord)) {
+                return fail("BUNDLE_ROLLBACK_FAILED",
+                        update ? "bundles.update" : "bundles.add",
+                        "Bundle source mutation and registry rollback both failed: "
+                                + name,
+                        "Stop mutations, restore registry storage, and restart the service.",
+                        false);
+            }
+            String failureCode = !enabled
+                    ? "BUNDLE_DISABLE_FAILED"
+                    : existsInRuntime
+                    ? "BUNDLE_REPLACE_FAILED"
+                    : "BUNDLE_ADD_FAILED";
+            return fail(failureCode,
+                    update ? "bundles.update" : "bundles.add",
+                    "Bundle registration failed without publication: " + name,
+                    "Check validation diagnostics and retry.", false);
+        }
+
+        List<String> warnings = new ArrayList<>();
         if (booleanOr(request != null ? request.refresh() : null, false)) {
-            warnings.add("refresh flag accepted but Stage 1 bundle API does not run model refresh yet; run models refresh explicitly.");
+            warnings.add("Bundle lifecycle already published an atomic namespace refresh; refresh=true is redundant.");
         }
         BundleInfo info = infoFromRecord(record, enabled ? "active" : "disabled", null);
         return responses.ok(new BundleMutationResponse(info, warnings));
     }
 
-    private void restoreRemovedExistingBundle(boolean removedExisting, RuntimeBundleRecord existingRecord) {
-        if (!removedExisting || existingRecord == null) {
-            return;
-        }
+    private boolean rollbackRegistryRecord(
+            String name,
+            RuntimeBundleRecord previous
+    ) {
         try {
-            systemBundlesContext.addExternalBundle(
-                    existingRecord.name(),
-                    existingRecord.namespace(),
-                    existingRecord.path(),
-                    existingRecord.watch()
-            );
-        } catch (Exception ignored) {
+            if (previous == null) {
+                registryService.remove(name);
+            } else {
+                registryService.save(previous);
+            }
+            return true;
+        } catch (RuntimeException rollbackFailure) {
+            return false;
+        }
+    }
+
+    private boolean restoreRegistryRecord(RuntimeBundleRecord record) {
+        try {
+            registryService.save(record);
+            return true;
+        } catch (RuntimeException rollbackFailure) {
+            return false;
         }
     }
 

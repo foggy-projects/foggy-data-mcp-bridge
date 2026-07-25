@@ -248,6 +248,12 @@ class SemanticModelCatalogServiceTest {
                 (List<Map<String, Object>>) catalog.get("items");
         assertThat(items).extracting(item -> item.get("shortAlias"))
                 .containsExactly("A", "B");
+        assertThat(items).extracting(item -> item.get("bundleName"))
+                .containsOnly("stable-bundle");
+        assertThat(items).extracting(item -> item.get("resourceIdentity"))
+                .containsExactly(
+                        "/models/AlphaModel.qm",
+                        "/models/BetaModel.qm");
         verify(fixture.loader(), never()).getJdbcQueryModel(anyString(), anyString());
         verifyNoInteractions(fixture.coordinator());
     }
@@ -428,7 +434,11 @@ class SemanticModelCatalogServiceTest {
                         Set.of(),
                         Map.of(binding.bindingKey(), binding),
                         true,
-                        List.of()));
+                        List.of(),
+                        new ModelProvenance.ModelSource(
+                                "stable-bundle",
+                                namespace,
+                                "/models/" + modelName + ".qm")));
     }
 
     private static DatasourceBindingIdentity binding(

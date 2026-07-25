@@ -136,6 +136,97 @@ class BundleSourceCommitOrderingTest {
                 .isTrue();
     }
 
+    @Test
+    void failedAddRefreshMustLeaveNoPartiallyRegisteredBundle()
+            throws Exception {
+        String bundleName = "failed-add-bundle";
+        Path bundleRoot = Files.createDirectory(tempDir.resolve(bundleName));
+        ApplicationContext applicationContext = mock(ApplicationContext.class);
+        SystemBundlesContextImpl bundlesContext =
+                freshContext(applicationContext);
+
+        doAnswer(invocation -> {
+            throw new IllegalStateException("catalog refresh rejected candidate");
+        }).when(applicationContext).publishEvent(any(BundleAddedEvent.class));
+
+        assertThat(bundlesContext.addExternalBundle(
+                bundleName, NAMESPACE, bundleRoot.toString(), false)).isFalse();
+        assertThat(bundlesContext.containBundle(bundleName)).isFalse();
+        assertThat(bundlesContext.getBundleDefinitionByName(bundleName))
+                .isNull();
+        assertThat(bundlesContext.listExternalBundles()).isEmpty();
+    }
+
+    @Test
+    void failedReplaceRefreshMustRestoreOldBundleWithoutDuplicateRegistration()
+            throws Exception {
+        String bundleName = "failed-replace-bundle";
+        Path oldRoot = Files.createDirectory(tempDir.resolve("old-root"));
+        Path newRoot = Files.createDirectory(tempDir.resolve("new-root"));
+        ApplicationContext applicationContext = mock(ApplicationContext.class);
+        SystemBundlesContextImpl bundlesContext =
+                freshContext(applicationContext);
+        AtomicBoolean failRefresh = new AtomicBoolean();
+
+        doAnswer(invocation -> {
+            if (failRefresh.get()
+                    && invocation.getArgument(0) instanceof BundleAddedEvent) {
+                throw new IllegalStateException(
+                        "catalog refresh rejected replacement");
+            }
+            return null;
+        }).when(applicationContext).publishEvent(any(BundleAddedEvent.class));
+
+        assertThat(bundlesContext.addExternalBundle(
+                bundleName, NAMESPACE, oldRoot.toString(), false)).isTrue();
+        failRefresh.set(true);
+
+        assertThat(bundlesContext.replaceExternalBundle(
+                bundleName, NAMESPACE, newRoot.toString(), false)).isFalse();
+        assertThat(bundlesContext.getBundleList())
+                .filteredOn(bundle -> bundleName.equals(bundle.getName()))
+                .singleElement()
+                .extracting(bundle -> bundle.getRootPath())
+                .isEqualTo(oldRoot.toString());
+        assertThat(bundlesContext.listExternalBundles())
+                .filteredOn(definition -> bundleName.equals(
+                        definition.getName()))
+                .hasSize(1);
+    }
+
+    @Test
+    void failedRemoveRefreshMustRestoreOldBundle()
+            throws Exception {
+        String bundleName = "failed-remove-bundle";
+        Path bundleRoot = Files.createDirectory(tempDir.resolve(bundleName));
+        ApplicationContext applicationContext = mock(ApplicationContext.class);
+        SystemBundlesContextImpl bundlesContext =
+                freshContext(applicationContext);
+        AtomicBoolean failRefresh = new AtomicBoolean();
+
+        doAnswer(invocation -> {
+            if (failRefresh.get()
+                    && invocation.getArgument(0) instanceof BundleRemovedEvent) {
+                throw new IllegalStateException(
+                        "catalog refresh rejected removal");
+            }
+            return null;
+        }).when(applicationContext).publishEvent(any(BundleRemovedEvent.class));
+
+        assertThat(bundlesContext.addExternalBundle(
+                bundleName, NAMESPACE, bundleRoot.toString(), false)).isTrue();
+        failRefresh.set(true);
+
+        assertThat(bundlesContext.removeBundle(bundleName)).isFalse();
+        assertThat(bundlesContext.containBundle(bundleName)).isTrue();
+        assertThat(bundlesContext.getBundleDefinitionByName(bundleName))
+                .isNotNull();
+        assertThat(bundlesContext.listExternalBundles())
+                .filteredOn(definition -> bundleName.equals(
+                        definition.getName()))
+                .hasSize(1);
+    }
+
     private static void assertCommittedRevision(Object event) {
         Method accessor;
         try {

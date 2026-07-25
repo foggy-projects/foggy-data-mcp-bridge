@@ -82,6 +82,21 @@ public interface SystemBundlesContext {
     boolean addExternalBundle(String name, String namespace, String path, boolean watch);
 
     /**
+     * 原子替换一个已存在的外部 Bundle。
+     *
+     * <p>Bundle 名称和 namespace 保持不变，只替换来源路径和 watch 配置。
+     * 失败时旧 Bundle 继续可用。</p>
+     */
+    default boolean replaceExternalBundle(
+            String name,
+            String namespace,
+            String path,
+            boolean watch
+    ) {
+        return false;
+    }
+
+    /**
      * 移除指定的Bundle
      *
      * @param bundleName Bundle名称

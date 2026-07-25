@@ -463,24 +463,15 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         }
 
         String canonicalNamespace = namespace == null ? "" : namespace.trim();
-        final ExternalFileBundle bundle;
-        final String committedRevision;
+        final ExternalBundleDefinition definition = new ExternalBundleDefinition(
+                name,
+                canonicalNamespace,
+                path,
+                watch
+        );
+        final ExternalFileBundle bundle = externalBundle(definition);
+        bundleLock.writeLock().lock();
         try {
-            // 创建ExternalBundleDefinition
-            ExternalBundleDefinition definition = new ExternalBundleDefinition(
-                    name,
-                    canonicalNamespace,
-                    path,
-                    watch
-            );
-
-            // 创建ExternalFileBundle
-            bundle = new ExternalFileBundle(this);
-            bundle.setName(definition.getName());
-            bundle.setBundleDefinition(definition);
-            bundle.setBasePath(definition.getPath());
-            bundle.setRootPath(definition.getPath());
-
             CommittedSourceRevisionRegistry.MutationCommit<Boolean> commit =
                     sourceRevisionRegistry.commitKnown(Set.of(canonicalNamespace), () -> {
                         boolean watcherRegistered = false;
@@ -509,25 +500,126 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
                             throw registrationFailure;
                         }
                     });
-            committedRevision = commit.revisionFor(canonicalNamespace);
-
+            BundleAddedEvent event = new BundleAddedEvent(
+                    this,
+                    name,
+                    canonicalNamespace,
+                    bundle,
+                    commit.revisionFor(canonicalNamespace),
+                    true);
+            appCtx.publishEvent(event);
+            log.debug("发布BundleAddedEvent: bundleName={}, namespace={}", name, namespace);
             log.info("动态添加外部Bundle成功: {} -> {} (namespace: {})", name, path, namespace);
+            return true;
+        } catch (Exception failure) {
+            rollbackAddedBundle(bundle, definition, canonicalNamespace);
+            log.error("动态添加外部Bundle失败且已回滚: {}", name, failure);
+            return false;
+        } finally {
+            bundleLock.writeLock().unlock();
+        }
+    }
 
-        } catch (Exception e) {
-            log.error("动态添加外部Bundle失败: {}", name, e);
+    @Override
+    public synchronized boolean replaceExternalBundle(
+            String name,
+            String namespace,
+            String path,
+            boolean watch
+    ) {
+        if (StringUtils.isEmpty(name)
+                || !ExternalBundleResourceSupport.isReadableBundleRoot(path)) {
+            return false;
+        }
+        Bundle current = getBundleByName(name, false);
+        if (!(current instanceof ExternalFileBundle)) {
+            log.warn("Bundle [{}] 不存在或不是外部Bundle，无法替换", name);
+            return false;
+        }
+        String currentNamespace = canonicalNamespace(
+                current.getDefinition() == null
+                        ? null
+                        : current.getDefinition().getNamespace());
+        String requestedNamespace = canonicalNamespace(namespace);
+        if (!currentNamespace.equals(requestedNamespace)) {
+            log.warn("Bundle [{}] 替换不允许改变namespace: {} -> {}",
+                    name, currentNamespace, requestedNamespace);
             return false;
         }
 
-        // The source registry/cache is committed before synchronous listeners run.
-        BundleAddedEvent event = new BundleAddedEvent(
-                this, name, canonicalNamespace, bundle, committedRevision, true);
+        ExternalBundleDefinition oldDefinition =
+                (ExternalBundleDefinition) current.getDefinition();
+        ExternalBundleDefinition newDefinition = new ExternalBundleDefinition(
+                name, requestedNamespace, path, watch);
+        ExternalFileBundle replacement = externalBundle(newDefinition);
+
+        bundleLock.writeLock().lock();
+        boolean sourceCommitted = false;
         try {
-            appCtx.publishEvent(event);
-        } catch (RuntimeException listenerFailure) {
-            log.error("Bundle [{}] 已提交，但BundleAddedEvent监听失败", name, listenerFailure);
+            CommittedSourceRevisionRegistry.MutationCommit<Boolean> commit =
+                    sourceRevisionRegistry.commitKnown(Set.of(requestedNamespace), () -> {
+                        clearBundleRuntimeState(current, currentNamespace);
+                        bundleList.remove(current);
+                        removeBundleDefinition(name);
+                        boolean watcherRegistered = false;
+                        try {
+                            bundleList.add(replacement);
+                            addBundleDefinition(newDefinition);
+                            if (newDefinition.isWatch()) {
+                                watcherRegistered = registerExternalBundleWatcher(newDefinition);
+                                if (!watcherRegistered) {
+                                    throw new IllegalStateException(
+                                            "watch=true external bundle has no source directory authority");
+                                }
+                            }
+                            return true;
+                        } catch (RuntimeException registrationFailure) {
+                            if (watcherRegistered) {
+                                unregisterExternalBundleWatcher(newDefinition);
+                            }
+                            bundleList.remove(replacement);
+                            removeBundleDefinition(name);
+                            throw registrationFailure;
+                        }
+                    });
+            sourceCommitted = true;
+
+            appCtx.publishEvent(new BundleAddedEvent(
+                    this,
+                    name,
+                    requestedNamespace,
+                    replacement,
+                    commit.revisionFor(requestedNamespace),
+                    true));
+            log.info("原子替换外部Bundle成功: {} -> {}", name, path);
+            return true;
+        } catch (Exception failure) {
+            try {
+                Runnable rollback = () -> {
+                    unregisterExternalBundleWatcher(newDefinition);
+                    bundleList.remove(replacement);
+                    removeBundleDefinition(name);
+                    restoreExternalBundle(current, oldDefinition);
+                };
+                if (sourceCommitted) {
+                    sourceRevisionRegistry.commitKnown(
+                            Set.of(requestedNamespace), () -> {
+                                rollback.run();
+                                return true;
+                            });
+                } else {
+                    rollback.run();
+                }
+            } catch (Exception rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+                log.error("原子替换外部Bundle失败，且旧版本恢复失败: {}",
+                        name, rollbackFailure);
+            }
+            log.error("原子替换外部Bundle失败且已恢复旧版本: {}", name, failure);
+            return false;
+        } finally {
+            bundleLock.writeLock().unlock();
         }
-        log.debug("发布BundleAddedEvent: bundleName={}, namespace={}", name, namespace);
-        return true;
     }
 
     @Override
@@ -570,40 +662,52 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
         String canonicalNamespace = namespace == null ? "" : namespace.trim();
         Bundle committedTarget = targetBundle;
-        CommittedSourceRevisionRegistry.MutationCommit<Boolean> commit =
-                sourceRevisionRegistry.commitKnown(Set.of(canonicalNamespace), () -> {
-                    // Cache, reverse imports, watchers and registry are one committed
-                    // source mutation from the catalog publisher's point of view.
-                    committedTarget.clearCache();
-                    clearLoadedFsscripts(committedTarget);
-                    clearFileWatchers(committedTarget, canonicalNamespace);
-                    bundleLock.writeLock().lock();
-                    try {
+        ExternalBundleDefinition definition =
+                (ExternalBundleDefinition) committedTarget.getDefinition();
+        bundleLock.writeLock().lock();
+        boolean sourceCommitted = false;
+        try {
+            CommittedSourceRevisionRegistry.MutationCommit<Boolean> commit =
+                    sourceRevisionRegistry.commitKnown(Set.of(canonicalNamespace), () -> {
+                        clearBundleRuntimeState(committedTarget, canonicalNamespace);
                         bundleList.remove(committedTarget);
                         removeBundleDefinition(bundleName);
-                    } finally {
-                        bundleLock.writeLock().unlock();
-                    }
-                    return true;
-                });
+                        return true;
+                    });
+            sourceCommitted = true;
 
-        // Publish only after every source index/cache reflects the removal.
-        BundleRemovedEvent event = new BundleRemovedEvent(
-                this,
-                bundleName,
-                canonicalNamespace,
-                committedTarget,
-                commit.revisionFor(canonicalNamespace),
-                true);
-        try {
-            appCtx.publishEvent(event);
-        } catch (RuntimeException listenerFailure) {
-            log.error("Bundle [{}] 已移除提交，但BundleRemovedEvent监听失败",
-                    bundleName, listenerFailure);
+            appCtx.publishEvent(new BundleRemovedEvent(
+                    this,
+                    bundleName,
+                    canonicalNamespace,
+                    committedTarget,
+                    commit.revisionFor(canonicalNamespace),
+                    true));
+            log.debug("发布BundleRemovedEvent: bundleName={}, namespace={}", bundleName, namespace);
+            log.info("移除外部Bundle成功: {}", bundleName);
+            return true;
+        } catch (Exception failure) {
+            try {
+                if (sourceCommitted) {
+                    sourceRevisionRegistry.commitKnown(
+                            Set.of(canonicalNamespace), () -> {
+                                restoreExternalBundle(
+                                        committedTarget, definition);
+                                return true;
+                            });
+                } else {
+                    restoreExternalBundle(committedTarget, definition);
+                }
+            } catch (Exception rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+                log.error("移除外部Bundle失败，且旧版本恢复失败: {}",
+                        bundleName, rollbackFailure);
+            }
+            log.error("移除外部Bundle失败且已恢复旧版本: {}", bundleName, failure);
+            return false;
+        } finally {
+            bundleLock.writeLock().unlock();
         }
-        log.debug("发布BundleRemovedEvent: bundleName={}, namespace={}", bundleName, namespace);
-        log.info("移除外部Bundle成功: {}", bundleName);
-        return true;
     }
 
     @Override
@@ -649,6 +753,59 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         } catch (NoSuchBeanDefinitionException e) {
             log.debug("未找到RootFsscriptLoader，跳过Bundle[{}]的FSScript缓存清理", bundle.getName());
         }
+    }
+
+    private ExternalFileBundle externalBundle(ExternalBundleDefinition definition) {
+        ExternalFileBundle bundle = new ExternalFileBundle(this);
+        bundle.setName(definition.getName());
+        bundle.setBundleDefinition(definition);
+        bundle.setBasePath(definition.getPath());
+        bundle.setRootPath(definition.getPath());
+        return bundle;
+    }
+
+    private void rollbackAddedBundle(
+            Bundle bundle,
+            ExternalBundleDefinition definition,
+            String namespace
+    ) {
+        if (!bundleList.contains(bundle)) {
+            return;
+        }
+        sourceRevisionRegistry.commitKnown(Set.of(namespace), () -> {
+            clearBundleRuntimeState(bundle, namespace);
+            bundleList.remove(bundle);
+            removeBundleDefinition(definition.getName());
+            return true;
+        });
+    }
+
+    private void restoreExternalBundle(
+            Bundle bundle,
+            ExternalBundleDefinition definition
+    ) {
+        if (!bundleList.contains(bundle)) {
+            bundleList.add(bundle);
+        }
+        addBundleDefinition(definition);
+        if (definition.isWatch()
+                && !registerExternalBundleWatcher(definition)) {
+            throw new IllegalStateException(
+                    "failed to restore external bundle watcher: "
+                            + definition.getName());
+        }
+    }
+
+    private void clearBundleRuntimeState(Bundle bundle, String namespace) {
+        bundle.clearCache();
+        clearLoadedFsscripts(bundle);
+        clearFileWatchers(bundle, namespace);
+    }
+
+    private static String canonicalNamespace(String namespace) {
+        return namespace == null || namespace.trim().isEmpty()
+                ? ""
+                : namespace.trim();
     }
 
     private boolean registerExternalBundleWatcher(ExternalBundleDefinition definition) {

@@ -70,8 +70,17 @@ public class RuntimeBundleRegistryService {
     public synchronized RuntimeBundleRecord save(RuntimeBundleRecord record) {
         loadIfNeeded();
         RuntimeBundleRecord normalized = record.withUpdatedAt(Instant.now().toString());
-        records.put(normalized.name(), normalized);
-        persist();
+        RuntimeBundleRecord previous = records.put(normalized.name(), normalized);
+        try {
+            persist();
+        } catch (RuntimeException failure) {
+            if (previous == null) {
+                records.remove(normalized.name());
+            } else {
+                records.put(previous.name(), previous);
+            }
+            throw failure;
+        }
         return normalized;
     }
 
@@ -79,7 +88,12 @@ public class RuntimeBundleRegistryService {
         loadIfNeeded();
         RuntimeBundleRecord removed = records.remove(name);
         if (removed != null) {
-            persist();
+            try {
+                persist();
+            } catch (RuntimeException failure) {
+                records.put(removed.name(), removed);
+                throw failure;
+            }
             return true;
         }
         return false;

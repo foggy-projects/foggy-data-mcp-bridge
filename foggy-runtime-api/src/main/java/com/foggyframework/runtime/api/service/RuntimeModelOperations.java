@@ -3,6 +3,7 @@ package com.foggyframework.runtime.api.service;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.bundle.external.ExternalBundleResourceSupport;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionBlockedException;
@@ -40,7 +41,6 @@ import com.foggyframework.runtime.api.dto.RuntimeLifecycleFailureContext;
 import com.foggyframework.runtime.api.dto.RuntimeLifecycleFailureDiagnostic;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -59,7 +59,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 @Service
-@ConditionalOnProperty(prefix = "foggy.runtime-api", name = "enabled", havingValue = "true")
 public class RuntimeModelOperations {
 
     private final SemanticModelCatalogService catalogService;
@@ -169,10 +168,12 @@ public class RuntimeModelOperations {
             }
         }
 
+        String effectiveNamespace = resolveNamespace(
+                namespace, request != null ? request.namespace() : null);
         SemanticMetadataResponse metadata = semanticServiceV3.getMetadata(
                 metadataRequest,
                 format,
-                SemanticRequestContext.ofNamespace(resolveNamespace(namespace, request != null ? request.namespace() : null))
+                SemanticRequestContext.ofNamespace(effectiveNamespace)
         );
 
         if (metadata == null || isModelMissing(normalizedModel, metadata)) {
@@ -180,11 +181,33 @@ public class RuntimeModelOperations {
                     normalizedModel, "Refresh or register the QM model, then retry.", false);
         }
 
+        Map<String, Object> data = metadata.getData() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(metadata.getData());
+        modelSource(effectiveNamespace, normalizedModel)
+                .ifPresent(source -> data.put("modelSource", Map.of(
+                        "bundleName", source.bundleName(),
+                        "namespace", source.namespace(),
+                        "resourceIdentity", source.resourceIdentity()
+                )));
         return new ModelDescribeResponse(
                 metadata.getFormat(),
                 metadata.getContent(),
-                metadata.getData()
+                data
         );
+    }
+
+    private java.util.Optional<ModelProvenance.ModelSource> modelSource(
+            String namespace,
+            String modelName
+    ) {
+        if (catalogSnapshotStore == null) {
+            return java.util.Optional.empty();
+        }
+        return catalogSnapshotStore.readCurrent(namespace)
+                .flatMap(snapshot -> snapshot.queryModelProvenance(
+                        snapshot.canonicalQueryModelName(modelName)))
+                .map(ModelProvenance::source);
     }
 
     public ModelValidateResponse validateModels(
@@ -197,11 +220,10 @@ public class RuntimeModelOperations {
                     null, "Provide a directory path containing TM/QM files.", false);
         }
 
-        File pathFile = new File(path);
-        if (!pathFile.exists() || !pathFile.isDirectory()) {
+        if (!ExternalBundleResourceSupport.isReadableBundleRoot(path)) {
             throw failure("INVALID_REQUEST", "models.validate",
-                    "Path must be an existing directory.",
-                    null, "Provide a directory path containing TM/QM files.", false);
+                    "Path must be a readable directory or Spring Resource location.",
+                    null, "Provide a readable TM/QM bundle root.", false);
         }
 
         String effectiveNamespace = resolveNamespace(

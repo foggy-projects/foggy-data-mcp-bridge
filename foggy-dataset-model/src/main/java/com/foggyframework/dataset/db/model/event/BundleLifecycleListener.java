@@ -86,12 +86,13 @@ public class BundleLifecycleListener {
                     result.afterIdentity().generation().value(),
                     outerCacheRemoved);
         } catch (RuntimeException failure) {
-            // Source mutation is already committed. Coordinator failure policy
-            // preserves an admissible old catalog or keeps admission blocked.
             log.error("Bundle catalog refresh failed after source commit: "
                             + "bundleName={}, namespace={}, reason={}",
                     bundleName, displayNamespace,
                     failure.getClass().getSimpleName());
+            // Bundle source mutation owns rollback. Do not convert a failed
+            // candidate refresh into a successful add/replace/remove.
+            throw failure;
         }
     }
 }

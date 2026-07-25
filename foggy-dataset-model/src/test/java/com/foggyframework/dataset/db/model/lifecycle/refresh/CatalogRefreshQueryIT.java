@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionSta
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogModelKey;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.ModelProvenance;
 import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingGeneration;
 import com.foggyframework.dataset.db.model.lifecycle.identity.DatasourceBindingIdentity;
@@ -80,12 +81,19 @@ class CatalogRefreshQueryIT {
 
     private static final String NAMESPACE = "v933-refresh-query-it";
     private static final String BUNDLE_NAME = "v933-refresh-query-it-bundle";
+    private static final String SIBLING_BUNDLE_NAME =
+            "v933-refresh-query-it-sibling-bundle";
     private static final String BINDING_NAME = "v933-refresh-query-it-sqlite";
     private static final String SELECTOR_BEAN = "v933AtomicRefreshSelector";
     private static final String TABLE_MODEL = "V933AtomicRefreshTableModel";
     private static final String QUERY_MODEL = "V933AtomicRefreshQueryModel";
+    private static final String SIBLING_TABLE_MODEL =
+            "V933SiblingTableModel";
+    private static final String SIBLING_QUERY_MODEL =
+            "V933SiblingQueryModel";
     private static final String OLD_TABLE = "v933_refresh_old";
     private static final String NEW_TABLE = "v933_refresh_new";
+    private static final String SIBLING_TABLE = "v933_refresh_sibling";
     private static final DatasourceBindingIdentity BINDING_IDENTITY =
             new DatasourceBindingIdentity(
                     "test:v933-refresh-query-it",
@@ -124,6 +132,7 @@ class CatalogRefreshQueryIT {
         readerPinGateStep.releaseAndDisarm();
         modelSelector.releaseAndReset();
         NamespaceContext.clear();
+        removeBundleIfPresent(SIBLING_BUNDLE_NAME);
         removeTestBundleIfPresent();
         catalogSnapshotStore.clearNamespace(NAMESPACE);
         recreateSqliteTables();
@@ -144,10 +153,12 @@ class CatalogRefreshQueryIT {
         readerPinGateStep.releaseAndDisarm();
         modelSelector.releaseAndReset();
         NamespaceContext.clear();
+        removeBundleIfPresent(SIBLING_BUNDLE_NAME);
         removeTestBundleIfPresent();
         catalogSnapshotStore.clearNamespace(NAMESPACE);
         jdbcTemplate.execute("DROP TABLE IF EXISTS " + OLD_TABLE);
         jdbcTemplate.execute("DROP TABLE IF EXISTS " + NEW_TABLE);
+        jdbcTemplate.execute("DROP TABLE IF EXISTS " + SIBLING_TABLE);
     }
 
     @Test
@@ -169,8 +180,10 @@ class CatalogRefreshQueryIT {
         ExecutorService executor = Executors.newFixedThreadPool(5);
         List<Future<?>> submitted = new ArrayList<>();
         try {
-            Future<Observation> oldReaderOne = executor.submit(this::executeQuery);
-            Future<Observation> oldReaderTwo = executor.submit(this::executeQuery);
+            Future<Observation> oldReaderOne =
+                    executor.submit(() -> executeQuery());
+            Future<Observation> oldReaderTwo =
+                    executor.submit(() -> executeQuery());
             submitted.add(oldReaderOne);
             submitted.add(oldReaderTwo);
             readerGate.awaitAllEntered();
@@ -202,8 +215,10 @@ class CatalogRefreshQueryIT {
             assertEquals(CatalogAdmissionState.ACTIVE,
                     refreshResult.catalogState());
 
-            Future<Observation> newReaderOne = executor.submit(this::executeQuery);
-            Future<Observation> newReaderTwo = executor.submit(this::executeQuery);
+            Future<Observation> newReaderOne =
+                    executor.submit(() -> executeQuery());
+            Future<Observation> newReaderTwo =
+                    executor.submit(() -> executeQuery());
             submitted.add(newReaderOne);
             submitted.add(newReaderTwo);
 
@@ -268,6 +283,57 @@ class CatalogRefreshQueryIT {
                 catalogSnapshotStore.admissionState(NAMESPACE));
     }
 
+    @Test
+    @Timeout(value = 45, unit = TimeUnit.SECONDS)
+    void sameNamespaceBundlesMustRemainIndependentAcrossReplaceAndRemove()
+            throws Exception {
+        Path siblingRoot = temporaryDirectory.resolve(SIBLING_BUNDLE_NAME);
+        writeStaticBundle(
+                siblingRoot,
+                SIBLING_TABLE_MODEL,
+                SIBLING_QUERY_MODEL,
+                SIBLING_TABLE);
+        assertTrue(bundlesContext.addExternalBundle(
+                SIBLING_BUNDLE_NAME,
+                NAMESPACE,
+                siblingRoot.toString(),
+                false));
+
+        assertEquals(nativeRows(OLD_TABLE), executeQuery(QUERY_MODEL).rows());
+        assertEquals(nativeRows(SIBLING_TABLE),
+                executeQuery(SIBLING_QUERY_MODEL).rows());
+        assertBundleOwner(QUERY_MODEL, BUNDLE_NAME);
+        assertBundleOwner(SIBLING_QUERY_MODEL, SIBLING_BUNDLE_NAME);
+
+        Path replacementRoot = temporaryDirectory.resolve(
+                BUNDLE_NAME + "-replacement");
+        writeStaticBundle(
+                replacementRoot,
+                TABLE_MODEL,
+                QUERY_MODEL,
+                NEW_TABLE);
+        assertTrue(bundlesContext.replaceExternalBundle(
+                BUNDLE_NAME,
+                NAMESPACE,
+                replacementRoot.toString(),
+                false));
+
+        assertEquals(nativeRows(NEW_TABLE), executeQuery(QUERY_MODEL).rows());
+        assertEquals(nativeRows(SIBLING_TABLE),
+                executeQuery(SIBLING_QUERY_MODEL).rows());
+        assertBundleOwner(QUERY_MODEL, BUNDLE_NAME);
+        assertBundleOwner(SIBLING_QUERY_MODEL, SIBLING_BUNDLE_NAME);
+
+        assertTrue(bundlesContext.removeBundle(BUNDLE_NAME));
+        CatalogSnapshot afterRemove = catalogSnapshotStore.readCurrent(NAMESPACE)
+                .orElseThrow();
+        assertFalse(afterRemove.queryModels().containsKey(QUERY_MODEL));
+        assertTrue(afterRemove.queryModels().containsKey(SIBLING_QUERY_MODEL));
+        assertEquals(nativeRows(SIBLING_TABLE),
+                executeQuery(SIBLING_QUERY_MODEL).rows());
+        assertBundleOwner(SIBLING_QUERY_MODEL, SIBLING_BUNDLE_NAME);
+    }
+
     private CatalogRefreshRequest modelRefreshRequest() {
         return CatalogRefreshRequest.models(
                 NAMESPACE,
@@ -276,8 +342,12 @@ class CatalogRefreshQueryIT {
     }
 
     private Observation executeQuery() {
+        return executeQuery(QUERY_MODEL);
+    }
+
+    private Observation executeQuery(String queryModel) {
         DbQueryRequestDef request = new DbQueryRequestDef();
-        request.setQueryModel(QUERY_MODEL);
+        request.setQueryModel(queryModel);
         request.setColumns(List.of("recordId", "payload"));
         ModelResultContext context = new ModelResultContext(
                 PagingRequest.buildPagingRequest(request, 100), null);
@@ -296,6 +366,17 @@ class CatalogRefreshQueryIT {
                 context.getDatasourceBindingIdentities(),
                 context.isBindingIdentityComplete(),
                 resultRows(result));
+    }
+
+    private void assertBundleOwner(String queryModel, String bundleName) {
+        ModelProvenance provenance = catalogSnapshotStore
+                .readCurrent(NAMESPACE)
+                .orElseThrow()
+                .queryModelProvenance(queryModel)
+                .orElseThrow();
+        assertNotNull(provenance.source());
+        assertEquals(bundleName, provenance.source().bundleName());
+        assertEquals(NAMESPACE, provenance.source().namespace());
     }
 
     private void assertObservation(
@@ -357,9 +438,12 @@ class CatalogRefreshQueryIT {
     private void recreateSqliteTables() {
         jdbcTemplate.execute("DROP TABLE IF EXISTS " + OLD_TABLE);
         jdbcTemplate.execute("DROP TABLE IF EXISTS " + NEW_TABLE);
+        jdbcTemplate.execute("DROP TABLE IF EXISTS " + SIBLING_TABLE);
         jdbcTemplate.execute("CREATE TABLE " + OLD_TABLE
                 + " (record_id INTEGER PRIMARY KEY, payload TEXT NOT NULL)");
         jdbcTemplate.execute("CREATE TABLE " + NEW_TABLE
+                + " (record_id INTEGER PRIMARY KEY, payload TEXT NOT NULL)");
+        jdbcTemplate.execute("CREATE TABLE " + SIBLING_TABLE
                 + " (record_id INTEGER PRIMARY KEY, payload TEXT NOT NULL)");
         jdbcTemplate.batchUpdate(
                 "INSERT INTO " + OLD_TABLE + " (record_id, payload) VALUES (?, ?)",
@@ -372,6 +456,12 @@ class CatalogRefreshQueryIT {
                         new Object[]{201L, "new-alpha"},
                         new Object[]{202L, "new-beta"},
                         new Object[]{203L, "new-gamma"}));
+        jdbcTemplate.batchUpdate(
+                "INSERT INTO " + SIBLING_TABLE
+                        + " (record_id, payload) VALUES (?, ?)",
+                List.<Object[]>of(
+                        new Object[]{301L, "sibling-alpha"},
+                        new Object[]{302L, "sibling-beta"}));
     }
 
     private void assertSqliteBinding() throws Exception {
@@ -443,10 +533,69 @@ class CatalogRefreshQueryIT {
                 "failed to register the isolated lifecycle test bundle");
     }
 
+    private void writeStaticBundle(
+            Path bundleRoot,
+            String tableModel,
+            String queryModel,
+            String tableName
+    ) throws IOException {
+        Path modelDirectory = bundleRoot.resolve("model");
+        Path queryDirectory = bundleRoot.resolve("query");
+        Files.createDirectories(modelDirectory);
+        Files.createDirectories(queryDirectory);
+        Files.writeString(modelDirectory.resolve(tableModel + ".tm"), """
+                export const model = {
+                    name: '%s',
+                    caption: 'Multi-bundle SQLite fixture',
+                    tableName: '%s',
+                    dataSourceName: '%s',
+                    idColumn: 'record_id',
+                    properties: [
+                        {
+                            column: 'record_id',
+                            name: 'recordId',
+                            caption: 'Record ID',
+                            type: 'LONG'
+                        },
+                        {
+                            column: 'payload',
+                            name: 'payload',
+                            caption: 'Payload',
+                            type: 'STRING'
+                        }
+                    ]
+                };
+                """.formatted(tableModel, tableName, BINDING_NAME));
+        Files.writeString(queryDirectory.resolve(queryModel + ".qm"), """
+                const fixture = loadTableModel('%s');
+
+                export const queryModel = {
+                    name: '%s',
+                    caption: 'Multi-bundle query fixture',
+                    description: 'Real SQLite model used by CatalogRefreshQueryIT',
+                    model: fixture,
+                    columnGroups: [
+                        {
+                            caption: 'Fixture fields',
+                            items: [
+                                { ref: fixture.recordId },
+                                { ref: fixture.payload }
+                            ]
+                        }
+                    ],
+                    accesses: []
+                };
+                """.formatted(tableModel, queryModel));
+    }
+
     private void removeTestBundleIfPresent() {
-        if (bundlesContext.containBundle(BUNDLE_NAME)) {
-            assertTrue(bundlesContext.removeBundle(BUNDLE_NAME),
-                    "failed to remove lifecycle test bundle");
+        removeBundleIfPresent(BUNDLE_NAME);
+    }
+
+    private void removeBundleIfPresent(String bundleName) {
+        if (bundlesContext.containBundle(bundleName)) {
+            assertTrue(bundlesContext.removeBundle(bundleName),
+                    "failed to remove lifecycle test bundle " + bundleName);
         }
     }
 

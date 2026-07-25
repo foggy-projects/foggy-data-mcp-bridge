@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -60,11 +62,14 @@ class BundleLifecycleRefreshTest {
                 mock(PivotOuterCacheInvalidationBroadcaster.class);
         BundleLifecycleListener listener = listener(
                 coordinator, new CatalogSnapshotStore(), pivot);
-        when(coordinator.refresh(any())).thenThrow(
-                new IllegalStateException("controlled refresh failure"));
+        IllegalStateException failure = new IllegalStateException(
+                "controlled refresh failure");
+        when(coordinator.refresh(any())).thenThrow(failure);
 
-        listener.onBundleRemoved(new BundleRemovedEvent(
-                this, "bundle", NAMESPACE, null, "source:3", true));
+        assertSame(failure, assertThrows(
+                IllegalStateException.class,
+                () -> listener.onBundleRemoved(new BundleRemovedEvent(
+                        this, "bundle", NAMESPACE, null, "source:3", true))));
 
         verify(pivot, never()).evict(any(), any());
     }

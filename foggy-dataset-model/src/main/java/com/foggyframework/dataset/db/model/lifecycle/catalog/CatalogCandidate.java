@@ -325,7 +325,8 @@ public final class CatalogCandidate {
                         old.modelDependencies(),
                         old.datasourceBindings(),
                         old.bindingIdentityComplete(),
-                        old.diagnostics())));
+                        old.diagnostics(),
+                        old.source())));
         provenance.clear();
         provenance.putAll(rebased);
     }

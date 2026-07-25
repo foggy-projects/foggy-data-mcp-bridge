@@ -12,6 +12,7 @@ import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogAdmissionBlo
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshot;
 import com.foggyframework.dataset.db.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.db.model.lifecycle.catalog.ModelProvenance;
 import com.foggyframework.dataset.db.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshCoordinator;
 import com.foggyframework.dataset.db.model.lifecycle.refresh.CatalogRefreshRequest;
@@ -230,6 +231,10 @@ public class SemanticModelCatalogService {
                 if (itemNamespace != null) {
                     item.put("namespace", itemNamespace);
                 }
+                modelSource(catalogView, modelName).ifPresent(source -> {
+                    item.put("bundleName", source.bundleName());
+                    item.put("resourceIdentity", source.resourceIdentity());
+                });
                 List<String> physicalTables = physicalTables(qm);
                 if (!physicalTables.isEmpty()) {
                     item.put("physicalTables", physicalTables);
@@ -255,6 +260,21 @@ public class SemanticModelCatalogService {
         catalog.put("recommendedNext", "dataset.describe_model_internal");
         catalog.put("items", items);
         return catalog;
+    }
+
+    private java.util.Optional<ModelProvenance.ModelSource> modelSource(
+            NamespaceCatalogView catalogView,
+            String modelName
+    ) {
+        if (catalogSnapshotStore == null || catalogView.identity() == null) {
+            return java.util.Optional.empty();
+        }
+        return catalogSnapshotStore.current(
+                        catalogView.identity().namespace())
+                .filter(snapshot -> catalogView.identity().equals(
+                        snapshot.identity()))
+                .flatMap(snapshot -> snapshot.queryModelProvenance(modelName))
+                .map(ModelProvenance::source);
     }
 
     private boolean isCurrentCatalogIdentity(
