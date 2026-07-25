@@ -141,6 +141,63 @@ class DataViewerApiSmokeTest {
     }
 
     @Test
+    @DisplayName("query/direct applies ordinary equality slice")
+    void directQueryAppliesEqualitySlice() throws Exception {
+        JsonNode query = postDirectQuery("""
+                {
+                  "start": 0,
+                  "limit": 10,
+                  "columns": ["orderId"],
+                  "slice": [
+                    {
+                      "field": "orderId",
+                      "op": "=",
+                      "value": "ORD20240101000002"
+                    }
+                  ]
+                }
+                """, null);
+
+        JsonNode items = successfulItems(query);
+        assertFalse(items.isEmpty(), query.toString());
+        for (JsonNode item : items) {
+            assertEquals("ORD20240101000002", item.path("orderId").asText(), item.toString());
+        }
+    }
+
+    @Test
+    @DisplayName("query/direct applies ordinary numeric comparison slice")
+    void directQueryAppliesNumericComparisonSlice() throws Exception {
+        JsonNode query = postDirectQuery("""
+                {
+                  "start": 0,
+                  "limit": 20,
+                  "columns": ["orderId", "product$unitPriceYuan"],
+                  "slice": [
+                    {
+                      "field": "product$unitPriceYuan",
+                      "op": "<",
+                      "value": 10
+                    }
+                  ],
+                  "orderBy": [
+                    {
+                      "field": "product$unitPriceYuan",
+                      "dir": "ASC"
+                    }
+                  ]
+                }
+                """, null);
+
+        JsonNode items = successfulItems(query);
+        assertFalse(items.isEmpty(), query.toString());
+        for (JsonNode item : items) {
+            BigDecimal unitPrice = decimal(item.path("product$unitPriceYuan"));
+            assertTrue(unitPrice.compareTo(BigDecimal.TEN) < 0, item.toString());
+        }
+    }
+
+    @Test
     @DisplayName("query/direct passes extData to aggregate relation runtime filter")
     void directQueryPassesExtDataToAggregateRelationRuntimeFilter() throws Exception {
         JsonNode query = postDirectRuntimeFilterQuery("""
@@ -251,12 +308,6 @@ class DataViewerApiSmokeTest {
     }
 
     private JsonNode postDirectQuery(String namespace) throws Exception {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        if (namespace != null) {
-            headers.set("X-NS", namespace);
-        }
-
         String body = """
                 {
                   "start": 0,
@@ -267,6 +318,15 @@ class DataViewerApiSmokeTest {
                   ]
                 }
                 """;
+        return postDirectQuery(body, namespace);
+    }
+
+    private JsonNode postDirectQuery(String body, String namespace) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (namespace != null) {
+            headers.set("X-NS", namespace);
+        }
 
         ResponseEntity<String> response = restTemplate.postForEntity(
                 baseUrl() + "/data-viewer/api/query/direct/" + QUERY_MODEL,
@@ -278,6 +338,14 @@ class DataViewerApiSmokeTest {
         assertEquals(200, json.path("code").asInt(), json.toString());
         assertTrue(json.path("data").path("success").asBoolean(), json.toString());
         return json;
+    }
+
+    private JsonNode successfulItems(JsonNode queryResponse) {
+        assertEquals(200, queryResponse.path("code").asInt(), queryResponse.toString());
+        assertTrue(queryResponse.path("data").path("success").asBoolean(), queryResponse.toString());
+        JsonNode items = queryResponse.path("data").path("items");
+        assertTrue(items.isArray(), queryResponse.toString());
+        return items;
     }
 
     private JsonNode postDirectRuntimeFilterQuery(String body) throws Exception {
