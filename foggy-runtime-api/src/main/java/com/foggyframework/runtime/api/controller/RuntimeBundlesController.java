@@ -105,15 +105,27 @@ public class RuntimeBundlesController {
                     "Only runtime-managed bundles can be removed through Runtime API.", false);
         }
 
-        boolean removed = true;
-        if (systemBundlesContext.containBundle(normalizedName)) {
-            removed = systemBundlesContext.removeBundle(normalizedName);
-        }
+        SourceState sourceBefore = captureSourceState(normalizedName);
+        boolean removed = !sourceBefore.present()
+                || systemBundlesContext.removeBundle(normalizedName);
         if (!removed) {
             return fail("BUNDLE_REMOVE_FAILED", "bundles.remove", "Bundle removal failed: " + normalizedName,
                     "Check whether the bundle is an external runtime-managed bundle.", false);
         }
-        registryService.remove(normalizedName);
+        try {
+            registryService.remove(normalizedName);
+        } catch (RuntimeException persistenceFailure) {
+            if (!restoreSourceState(normalizedName, sourceBefore)) {
+                return fail("BUNDLE_ROLLBACK_FAILED", "bundles.remove",
+                        "Bundle registry persistence failed and source rollback also failed: "
+                                + normalizedName,
+                        "Inspect runtime source and registry state before retrying.", false);
+            }
+            return fail("BUNDLE_REGISTRY_PERSIST_FAILED", "bundles.remove",
+                    "Bundle registry persistence failed; source removal was rolled back: "
+                            + normalizedName,
+                    "Fix registry path permissions or storage availability, then retry.", true);
+        }
         BundleInfo info = infoFromRecord(record, "removed", null);
         return responses.ok(new BundleMutationResponse(info, List.of()));
     }
@@ -153,6 +165,14 @@ public class RuntimeBundlesController {
                 request != null ? request.namespace() : null,
                 stringOr(headerNamespace, existingRecord != null ? existingRecord.namespace() : "")
         );
+        if (existingRecord != null
+                && !canonicalNamespace(existingRecord.namespace())
+                .equals(canonicalNamespace(namespace))) {
+            return fail("BUNDLE_NAMESPACE_CHANGE_UNSUPPORTED",
+                    update ? "bundles.update" : "bundles.add",
+                    "Runtime bundle replacement cannot change namespace: " + name,
+                    "Remove and re-add the bundle under the new namespace.", false);
+        }
         boolean watch = booleanOr(request != null ? request.watch() : null, existingRecord != null && existingRecord.watch());
         boolean enabled = booleanOr(request != null ? request.enabled() : null, true);
         if (enabled) {
@@ -180,26 +200,43 @@ public class RuntimeBundlesController {
             }
         }
 
-        boolean removedExisting = false;
-        if (existsInRuntime) {
-            if (!systemBundlesContext.removeBundle(name)) {
-                return fail("BUNDLE_REMOVE_FAILED", update ? "bundles.update" : "bundles.add",
-                        "Existing runtime-managed bundle could not be removed: " + name,
-                        "Inspect bundle state and retry.", false);
-            }
-            removedExisting = true;
+        SourceState sourceBefore = captureSourceState(name);
+        boolean sourceCommitted;
+        if (enabled) {
+            sourceCommitted = sourceBefore.present()
+                    ? systemBundlesContext.replaceExternalBundle(
+                    name, namespace, path, watch)
+                    : systemBundlesContext.addExternalBundle(
+                    name, namespace, path, watch);
+        } else {
+            sourceCommitted = !sourceBefore.present()
+                    || systemBundlesContext.removeBundle(name);
         }
-
-        boolean registered = !enabled || systemBundlesContext.addExternalBundle(name, namespace, path, watch);
-        if (!registered) {
-            restoreRemovedExistingBundle(removedExisting, existingRecord);
-            return fail("BUNDLE_ADD_FAILED", update ? "bundles.update" : "bundles.add",
-                    "Bundle registration failed: " + name,
-                    "Check path readability and bundle name, then retry.", false);
+        if (!sourceCommitted) {
+            return fail(enabled ? "BUNDLE_ADD_FAILED" : "BUNDLE_REMOVE_FAILED",
+                    update ? "bundles.update" : "bundles.add",
+                    "Bundle source mutation failed: " + name,
+                    "Check path readability, namespace, watcher setup, and bundle state, then retry.",
+                    false);
         }
 
         RuntimeBundleRecord record = registryService.newRecord(name, namespace, path, watch, enabled);
-        record = registryService.save(record);
+        try {
+            record = registryService.save(record);
+        } catch (RuntimeException persistenceFailure) {
+            if (!restoreSourceState(name, sourceBefore)) {
+                return fail("BUNDLE_ROLLBACK_FAILED",
+                        update ? "bundles.update" : "bundles.add",
+                        "Bundle registry persistence failed and source rollback also failed: "
+                                + name,
+                        "Inspect runtime source and registry state before retrying.", false);
+            }
+            return fail("BUNDLE_REGISTRY_PERSIST_FAILED",
+                    update ? "bundles.update" : "bundles.add",
+                    "Bundle registry persistence failed; source mutation was rolled back: "
+                            + name,
+                    "Fix registry path permissions or storage availability, then retry.", true);
+        }
         List<String> warnings = new ArrayList<>();
         if (booleanOr(request != null ? request.validate() : null, false)) {
             warnings.add("validate flag accepted but Stage 1 bundle API does not run model validation yet; run models validate explicitly.");
@@ -230,18 +267,45 @@ public class RuntimeBundlesController {
                 + String.join("; ", descriptions);
     }
 
-    private void restoreRemovedExistingBundle(boolean removedExisting, RuntimeBundleRecord existingRecord) {
-        if (!removedExisting || existingRecord == null) {
-            return;
+    private SourceState captureSourceState(String name) {
+        if (!systemBundlesContext.containBundle(name)) {
+            return SourceState.absent();
         }
+        BundleDefinition definition =
+                systemBundlesContext.getBundleDefinitionByName(name);
+        if (!(definition instanceof ExternalBundleDefinition external)) {
+            return new SourceState(true, "", null, false);
+        }
+        return new SourceState(
+                true,
+                canonicalNamespace(external.getNamespace()),
+                external.getPath(),
+                external.isWatch());
+    }
+
+    private boolean restoreSourceState(String name, SourceState sourceBefore) {
         try {
-            systemBundlesContext.addExternalBundle(
-                    existingRecord.name(),
-                    existingRecord.namespace(),
-                    existingRecord.path(),
-                    existingRecord.watch()
-            );
-        } catch (Exception ignored) {
+            boolean presentNow = systemBundlesContext.containBundle(name);
+            if (!sourceBefore.present()) {
+                return !presentNow || systemBundlesContext.removeBundle(name);
+            }
+            if (!StringUtils.hasText(sourceBefore.path())) {
+                return false;
+            }
+            if (presentNow) {
+                return systemBundlesContext.replaceExternalBundle(
+                        name,
+                        sourceBefore.namespace(),
+                        sourceBefore.path(),
+                        sourceBefore.watch());
+            }
+            return systemBundlesContext.addExternalBundle(
+                    name,
+                    sourceBefore.namespace(),
+                    sourceBefore.path(),
+                    sourceBefore.watch());
+        } catch (RuntimeException rollbackFailure) {
+            return false;
         }
     }
 
@@ -312,5 +376,20 @@ public class RuntimeBundlesController {
 
     private static boolean booleanOr(Boolean value, boolean fallback) {
         return value != null ? value : fallback;
+    }
+
+    private static String canonicalNamespace(String namespace) {
+        return StringUtils.hasText(namespace) ? namespace.trim() : "";
+    }
+
+    private record SourceState(
+            boolean present,
+            String namespace,
+            String path,
+            boolean watch
+    ) {
+        private static SourceState absent() {
+            return new SourceState(false, "", null, false);
+        }
     }
 }

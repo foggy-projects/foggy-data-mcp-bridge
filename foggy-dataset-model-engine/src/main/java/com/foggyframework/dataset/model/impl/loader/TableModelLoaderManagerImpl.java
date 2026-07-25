@@ -334,7 +334,26 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
                         bindings,
                         prepared.binding().identity() != null
                                 && prepared.binding().cacheable(),
-                        List.of()));
+                        List.of(),
+                        modelSource(
+                                prepared.bundle(),
+                                prepared.namespace(),
+                                prepared.fsscript())));
+    }
+
+    private ModelProvenance.ModelSource modelSource(
+            Bundle bundle,
+            String namespace,
+            Fsscript fsscript
+    ) {
+        if (bundle == null || StringUtils.isEmpty(bundle.getName())
+                || fsscript == null || StringUtils.isEmpty(fsscript.getPath())) {
+            return null;
+        }
+        return new ModelProvenance.ModelSource(
+                bundle.getName(),
+                normalizeNamespace(namespace),
+                fsscript.getPath());
     }
 
     private void ensureBindingStillCurrent(ResolvedDatasourceBinding binding) {

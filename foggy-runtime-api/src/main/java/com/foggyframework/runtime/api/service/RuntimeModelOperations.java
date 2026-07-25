@@ -192,10 +192,12 @@ public class RuntimeModelOperations {
             }
         }
 
+        String effectiveNamespace = resolveNamespace(
+                namespace, request != null ? request.namespace() : null);
         SemanticMetadataResponse metadata = semanticServiceV3.getMetadata(
                 metadataRequest,
                 format,
-                SemanticRequestContext.ofNamespace(resolveNamespace(namespace, request != null ? request.namespace() : null))
+                SemanticRequestContext.ofNamespace(effectiveNamespace)
         );
 
         if (metadata == null || isModelMissing(normalizedModel, metadata)) {
@@ -203,11 +205,37 @@ public class RuntimeModelOperations {
                     normalizedModel, "Refresh or register the QM model, then retry.", false);
         }
 
+        Map<String, Object> data = metadata.getData() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(metadata.getData());
+        var source = modelSource(effectiveNamespace, normalizedModel);
+        Map<String, Object> modelSource = new LinkedHashMap<>();
+        modelSource.put("known", source.isPresent());
+        source.ifPresent(value -> {
+            modelSource.put("bundleName", value.bundleName());
+            modelSource.put("namespace", value.namespace());
+            modelSource.put("resourceIdentity", value.resourceIdentity());
+        });
+        data.put("modelSource", modelSource);
+
         return new ModelDescribeResponse(
                 metadata.getFormat(),
                 metadata.getContent(),
-                metadata.getData()
+                data
         );
+    }
+
+    private java.util.Optional<ModelProvenance.ModelSource> modelSource(
+            String namespace,
+            String modelName
+    ) {
+        if (catalogSnapshotStore == null) {
+            return java.util.Optional.empty();
+        }
+        return catalogSnapshotStore.readCurrent(namespace)
+                .flatMap(snapshot -> snapshot.queryModelProvenance(
+                        snapshot.canonicalQueryModelName(modelName)))
+                .map(ModelProvenance::source);
     }
 
     public ModelValidateResponse validateModels(

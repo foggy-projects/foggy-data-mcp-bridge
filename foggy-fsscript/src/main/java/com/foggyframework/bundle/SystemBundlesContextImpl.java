@@ -531,6 +531,86 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
     }
 
     @Override
+    public synchronized boolean replaceExternalBundle(
+            String name,
+            String namespace,
+            String path,
+            boolean watch
+    ) {
+        if (StringUtils.isEmpty(name)
+                || !ExternalBundleResourceSupport.isReadableBundleRoot(path)) {
+            return false;
+        }
+
+        Bundle current = getBundleByName(name, false);
+        if (!(current instanceof ExternalFileBundle)
+                || !(current.getDefinition() instanceof ExternalBundleDefinition oldDefinition)) {
+            log.warn("Bundle [{}] 不存在或不是外部Bundle，无法替换", name);
+            return false;
+        }
+
+        String currentNamespace = canonicalNamespace(oldDefinition.getNamespace());
+        String requestedNamespace = canonicalNamespace(namespace);
+        if (!currentNamespace.equals(requestedNamespace)) {
+            log.warn("Bundle [{}] 替换不允许改变namespace: {} -> {}",
+                    name, currentNamespace, requestedNamespace);
+            return false;
+        }
+
+        ExternalBundleDefinition newDefinition = new ExternalBundleDefinition(
+                name, requestedNamespace, path, watch);
+        ExternalFileBundle replacement = externalBundle(newDefinition);
+        final String committedRevision;
+
+        bundleLock.writeLock().lock();
+        try {
+            CommittedSourceRevisionRegistry.MutationCommit<Boolean> commit =
+                    sourceRevisionRegistry.commitKnown(Set.of(requestedNamespace), () -> {
+                        clearBundleRuntimeState(current, currentNamespace);
+                        bundleList.remove(current);
+                        removeBundleDefinition(name);
+                        try {
+                            bundleList.add(replacement);
+                            addBundleDefinition(newDefinition);
+                            if (newDefinition.isWatch()
+                                    && !registerExternalBundleWatcher(newDefinition)) {
+                                throw new IllegalStateException(
+                                        "watch=true external bundle has no source directory authority");
+                            }
+                            return true;
+                        } catch (RuntimeException replacementFailure) {
+                            unregisterExternalBundleWatcher(newDefinition);
+                            bundleList.remove(replacement);
+                            removeBundleDefinition(name);
+                            restoreExternalBundle(current, oldDefinition);
+                            throw replacementFailure;
+                        }
+                    });
+            committedRevision = commit.revisionFor(requestedNamespace);
+        } catch (Exception failure) {
+            log.error("原子替换外部Bundle失败，旧版本已保留: {}", name, failure);
+            return false;
+        } finally {
+            bundleLock.writeLock().unlock();
+        }
+
+        try {
+            appCtx.publishEvent(new BundleAddedEvent(
+                    this,
+                    name,
+                    requestedNamespace,
+                    replacement,
+                    committedRevision,
+                    true));
+        } catch (RuntimeException listenerFailure) {
+            log.error("Bundle [{}] 替换已提交，但BundleAddedEvent监听失败",
+                    name, listenerFailure);
+        }
+        log.info("原子替换外部Bundle成功: {} -> {}", name, path);
+        return true;
+    }
+
+    @Override
     public synchronized boolean removeBundle(String bundleName) {
         if (StringUtils.isEmpty(bundleName)) {
             return false;
@@ -631,6 +711,43 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         } finally {
             bundleLock.writeLock().unlock();
         }
+    }
+
+    private ExternalFileBundle externalBundle(ExternalBundleDefinition definition) {
+        ExternalFileBundle bundle = new ExternalFileBundle(this);
+        bundle.setName(definition.getName());
+        bundle.setBundleDefinition(definition);
+        bundle.setBasePath(definition.getPath());
+        bundle.setRootPath(definition.getPath());
+        return bundle;
+    }
+
+    private void restoreExternalBundle(
+            Bundle bundle,
+            ExternalBundleDefinition definition
+    ) {
+        if (!bundleList.contains(bundle)) {
+            bundleList.add(bundle);
+        }
+        addBundleDefinition(definition);
+        if (definition.isWatch()
+                && !registerExternalBundleWatcher(definition)) {
+            throw new IllegalStateException(
+                    "failed to restore external bundle watcher: "
+                            + definition.getName());
+        }
+    }
+
+    private void clearBundleRuntimeState(Bundle bundle, String namespace) {
+        bundle.clearCache();
+        clearLoadedFsscripts(bundle);
+        clearFileWatchers(bundle, namespace);
+    }
+
+    private static String canonicalNamespace(String namespace) {
+        return namespace == null || namespace.trim().isEmpty()
+                ? ""
+                : namespace.trim();
     }
 
     private void clearLoadedFsscripts(Bundle bundle) {

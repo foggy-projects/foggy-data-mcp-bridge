@@ -13,6 +13,7 @@ import com.foggyframework.dataset.model.lifecycle.catalog.CatalogAdmissionBlocke
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogResolution;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshot;
 import com.foggyframework.dataset.model.lifecycle.catalog.CatalogSnapshotStore;
+import com.foggyframework.dataset.model.lifecycle.catalog.ModelProvenance;
 import com.foggyframework.dataset.model.lifecycle.identity.CatalogIdentity;
 import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshCoordinator;
 import com.foggyframework.dataset.model.lifecycle.refresh.CatalogRefreshRequest;
@@ -32,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -231,6 +233,14 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
                 if (itemNamespace != null) {
                     item.put("namespace", itemNamespace);
                 }
+                Optional<ModelProvenance.ModelSource> source =
+                        modelSource(catalogView, modelName);
+                item.put("sourceKnown", source.isPresent());
+                source.ifPresent(modelSource -> {
+                    item.put("bundleName", modelSource.bundleName());
+                    item.put("sourceNamespace", modelSource.namespace());
+                    item.put("resourceIdentity", modelSource.resourceIdentity());
+                });
                 List<String> physicalTables = physicalTables(qm);
                 if (!physicalTables.isEmpty()) {
                     item.put("physicalTables", physicalTables);
@@ -256,6 +266,21 @@ public class SemanticModelCatalogService implements SemanticModelCatalogReadPort
         catalog.put("recommendedNext", "dataset.describe_model_internal");
         catalog.put("items", items);
         return catalog;
+    }
+
+    private Optional<ModelProvenance.ModelSource> modelSource(
+            NamespaceCatalogView catalogView,
+            String modelName
+    ) {
+        if (catalogSnapshotStore == null || catalogView.identity() == null) {
+            return Optional.empty();
+        }
+        return catalogSnapshotStore.readCurrent(
+                        catalogView.identity().namespace())
+                .filter(snapshot -> catalogView.identity().equals(
+                        snapshot.identity()))
+                .flatMap(snapshot -> snapshot.queryModelProvenance(modelName))
+                .map(ModelProvenance::source);
     }
 
     private boolean isCurrentCatalogIdentity(

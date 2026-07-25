@@ -866,7 +866,7 @@ class RuntimeCapabilitiesControllerEnabledTest {
     }
 
     @Test
-    void shouldRestoreExistingRuntimeManagedBundleWhenUpdateRegistrationFails() throws Exception {
+    void shouldKeepExistingRuntimeManagedBundleWhenAtomicReplacementFails() throws Exception {
         Path oldModelsDir = Files.createTempDirectory("runtime-api-bundle-rollback-old");
         Path newModelsDir = Files.createTempDirectory("runtime-api-bundle-rollback-new");
         when(systemBundlesContext.addExternalBundle("runtime-rollback", "dev", oldModelsDir.toString(), true))
@@ -886,8 +886,8 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(addResponse.getBody().path("success").asBoolean()).isTrue();
 
         when(systemBundlesContext.containBundle("runtime-rollback")).thenReturn(true);
-        when(systemBundlesContext.removeBundle("runtime-rollback")).thenReturn(true);
-        when(systemBundlesContext.addExternalBundle("runtime-rollback", "dev", newModelsDir.toString(), true))
+        when(systemBundlesContext.replaceExternalBundle(
+                "runtime-rollback", "dev", newModelsDir.toString(), true))
                 .thenReturn(false);
 
         ResponseEntity<JsonNode> updateResponse = restTemplate.exchange(
@@ -906,9 +906,12 @@ class RuntimeCapabilitiesControllerEnabledTest {
         assertThat(updateBody).isNotNull();
         assertThat(updateBody.path("success").asBoolean()).isFalse();
         assertThat(updateBody.path("error").path("code").asText()).isEqualTo("BUNDLE_ADD_FAILED");
-        verify(systemBundlesContext).removeBundle("runtime-rollback");
-        verify(systemBundlesContext).addExternalBundle("runtime-rollback", "dev", newModelsDir.toString(), true);
-        verify(systemBundlesContext, times(2))
+        verify(systemBundlesContext).replaceExternalBundle(
+                "runtime-rollback", "dev", newModelsDir.toString(), true);
+        verify(systemBundlesContext, never()).removeBundle("runtime-rollback");
+        verify(systemBundlesContext, never())
+                .addExternalBundle("runtime-rollback", "dev", newModelsDir.toString(), true);
+        verify(systemBundlesContext)
                 .addExternalBundle("runtime-rollback", "dev", oldModelsDir.toString(), true);
 
         ResponseEntity<JsonNode> listResponse = restTemplate.getForEntity(
