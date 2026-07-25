@@ -359,7 +359,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                             prepared.canonicalName(),
                             built,
                             true,
-                            Set.of(prepared.sourceModelName()));
+                            Set.of(prepared.sourceModelName()),
+                            sourceOf(candidate, prepared.sourceModelName()));
                 } else {
                     built = loadJdbcQueryModel(
                             prepared.evaluator(),
@@ -377,7 +378,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                             prepared.canonicalName(),
                             built,
                             false,
-                            Set.of());
+                            Set.of(),
+                            sourceOf(prepared.fsscript(), prepared.namespace()));
                 }
                 verifyPreparedProvenance(candidate, prepared);
                 Map<String, DatasourceBindingIdentity> effectiveBindings =
@@ -441,7 +443,13 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                             "synthetic query model must extend QueryModelSupport");
                 }
                 built = support;
-                stageQueryModel(candidate, modelName, built, true, Set.of(sourceName));
+                stageQueryModel(
+                        candidate,
+                        modelName,
+                        built,
+                        true,
+                        Set.of(sourceName),
+                        sourceOf(candidate, sourceName));
                 return built;
             }
 
@@ -470,7 +478,13 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                         + "' does not match exported canonical name '"
                         + built.getName() + "'");
             }
-            stageQueryModel(candidate, modelName, built, false, Set.of());
+            stageQueryModel(
+                    candidate,
+                    modelName,
+                    built,
+                    false,
+                    Set.of(),
+                    sourceOf(fsscript, canonicalNamespace));
             return built;
         } catch (Throwable failure) {
             candidate.fail("query model refresh build failed: " + modelName);
@@ -730,6 +744,23 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             boolean synthetic,
             Set<String> additionalDependencies
     ) {
+        stageQueryModel(
+                candidate,
+                canonicalName,
+                model,
+                synthetic,
+                additionalDependencies,
+                null);
+    }
+
+    private void stageQueryModel(
+            CatalogCandidate candidate,
+            String canonicalName,
+            QueryModelSupport model,
+            boolean synthetic,
+            Set<String> additionalDependencies,
+            ModelProvenance.ModelSource source
+    ) {
         model.setShortAlias(candidate.aliasFor(canonicalName));
         LinkedHashSet<CatalogModelKey> dependencies = new LinkedHashSet<>();
         for (String queryDependency : additionalDependencies) {
@@ -806,13 +837,51 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 dependencies,
                 bindings,
                 complete,
-                List.of()
+                List.of(),
+                source
         );
         if (synthetic) {
             candidate.putSyntheticQueryModel(canonicalName, model, provenance);
         } else {
             candidate.putQueryModel(canonicalName, model, provenance);
         }
+    }
+
+    private ModelProvenance.ModelSource sourceOf(
+            CatalogCandidate candidate,
+            String sourceModelName
+    ) {
+        ModelProvenance provenance = candidate.modelProvenance(
+                CatalogModelKey.query(sourceModelName));
+        if (provenance == null) {
+            provenance = candidate.modelProvenance(
+                    CatalogModelKey.syntheticQuery(sourceModelName));
+        }
+        return provenance == null ? null : provenance.source();
+    }
+
+    private ModelProvenance.ModelSource sourceOf(
+            Fsscript fsscript,
+            String namespace
+    ) {
+        if (fsscript == null
+                || fsscript.getFsscriptClosureDefinition() == null
+                || fsscript.getFsscriptClosureDefinition()
+                .getFsscriptClosureDefinitionSpace() == null) {
+            return null;
+        }
+        Bundle bundle = fsscript.getFsscriptClosureDefinition()
+                .getFsscriptClosureDefinitionSpace()
+                .getBundle();
+        if (bundle == null
+                || StringUtils.isEmpty(bundle.getName())
+                || StringUtils.isEmpty(fsscript.getPath())) {
+            return null;
+        }
+        return new ModelProvenance.ModelSource(
+                bundle.getName(),
+                normalizeNamespace(namespace),
+                fsscript.getPath());
     }
 
     private CatalogResolution<QueryModel> resolution(

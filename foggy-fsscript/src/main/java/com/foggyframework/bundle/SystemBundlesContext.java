@@ -82,6 +82,13 @@ public interface SystemBundlesContext {
     boolean addExternalBundle(String name, String namespace, String path, boolean watch);
 
     /**
+     * 原子替换现有外部Bundle。替换期间读者只会看到旧版本或新版本。
+     *
+     * @return 是否替换成功
+     */
+    boolean replaceExternalBundle(String name, String namespace, String path, boolean watch);
+
+    /**
      * 移除指定的Bundle
      *
      * @param bundleName Bundle名称

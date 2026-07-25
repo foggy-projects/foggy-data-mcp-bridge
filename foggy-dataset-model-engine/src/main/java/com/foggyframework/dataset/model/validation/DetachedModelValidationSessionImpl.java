@@ -503,6 +503,16 @@ final class DetachedModelValidationSessionImpl
         }
 
         @Override
+        public boolean replaceExternalBundle(
+                String name,
+                String namespace,
+                String path,
+                boolean watch
+        ) {
+            throw readOnly();
+        }
+
+        @Override
         public boolean removeBundle(String bundleName) {
             throw readOnly();
         }

@@ -16,8 +16,22 @@ public record ModelProvenance(
         Set<CatalogModelKey> modelDependencies,
         Map<String, DatasourceBindingIdentity> datasourceBindings,
         boolean bindingIdentityComplete,
-        List<String> diagnostics
+        List<String> diagnostics,
+        ModelSource source
 ) {
+    public ModelProvenance(
+            String canonicalName,
+            ModelKind kind,
+            SourceRevision sourceRevision,
+            Set<CatalogModelKey> modelDependencies,
+            Map<String, DatasourceBindingIdentity> datasourceBindings,
+            boolean bindingIdentityComplete,
+            List<String> diagnostics
+    ) {
+        this(canonicalName, kind, sourceRevision, modelDependencies,
+                datasourceBindings, bindingIdentityComplete, diagnostics, null);
+    }
+
     public ModelProvenance {
         if (canonicalName == null || canonicalName.isBlank()) {
             throw new IllegalArgumentException("canonicalName must not be blank");
@@ -43,5 +57,27 @@ public record ModelProvenance(
         TABLE,
         QUERY,
         SYNTHETIC_QUERY
+    }
+
+    /** Bundle/resource ownership evidence for diagnostics and governance. */
+    public record ModelSource(
+            String bundleName,
+            String namespace,
+            String resourceIdentity
+    ) {
+        public ModelSource {
+            if (bundleName == null || bundleName.isBlank()) {
+                throw new IllegalArgumentException("bundleName must not be blank");
+            }
+            bundleName = bundleName.trim();
+            namespace = namespace == null || namespace.isBlank()
+                    ? ""
+                    : namespace.trim();
+            if (resourceIdentity == null || resourceIdentity.isBlank()) {
+                throw new IllegalArgumentException(
+                        "resourceIdentity must not be blank");
+            }
+            resourceIdentity = resourceIdentity.trim();
+        }
     }
 }
